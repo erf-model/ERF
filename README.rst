@@ -1,17 +1,10 @@
-PeleC 
------
-*A compressible AMR combustion code*
+ERF 
+----
+*An atmospheric modeling code*
 
-`PeleC` is an adaptive-mesh compressible hydrodynamics code for reacting
-flows.
+`ERF` is built on `PeleC` (https://pelec.readthedocs.io/en/latest/), a compressible hydrodynamics code for reacting flows built on the AMReX solution framework (https://amrex-codes.github.io/amrex/). 
 
-
-A Note on the Current Status of PeleC Development
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Please be aware that kernels previously written in Fortran in PeleC have been recently ported to C++ to allow for execution on GPUs. These new kernels are located in directories marked ``*Cpp``. The Fortran kernels are currently preserved in this repo using the original directory organization, as all functionality has not yet been ported to C++ and GPUs. However, development in Fortran will not continue and any future development should be done entirely in C++ and with the ability to execute the code within AMReX's GPU framework. The Fortran kernels will be phased out at a future date. This is done in order to run portably using CPUS, CUDA, HIP, and DPC++ programming model backends in the future.
-
-Getting Started
+Getting Started - ***UPDATE THIS***
 ~~~~~~~~~~~~~~~
 
 * To compile and run the `Pele` suite of codes, one needs a C++ compiler that supports the C++14 standard.  A hierarchical strategy for parallelism is supported, based MPI + OpenMP, or MPI + CUDA.  The codes work with all major MPI and OpenMP implementations.  The codes should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 4.9.4 and above.
@@ -58,13 +51,13 @@ Alternatively, one can set environment variables to use AMReX and PelePhysics re
       2. With Amrvis, "amrvis3d plt00030", for example.
 
 
-Dependencies
+Dependencies - ***UPDATE THIS***
 ~~~~~~~~~~~~
 
 `PeleC` was created as a renamed, stripped down version of `Maui`, and is built on the `AMReX` library.  In the process, the Microphysics folder was extracted, and reorganized into a separate repository, `PelePhysics`.  
 
 
-Development model
+Development model - ***UPDATE THIS***
 ~~~~~~~~~~~~~~~~~
 
 To add a new feature to PeleC, the procedure is:
@@ -94,7 +87,7 @@ To add a new feature to PeleC, the procedure is:
    Github CI uses the CMake build system and CTest to test the core source files of PeleC. If you are adding source files, you will need to add them to the list of source files in the ``CMake`` directory for the tests to pass. Make sure to add them to the GNU make makefiles as well.
 
 
-Test Status
+Test Status - ***UPDATE THIS***
 ~~~~~~~~~~~
 
 Nightly test results for PeleC against multiple compilers and machines can be seen on its CDash page `here <https://my.cdash.org/index.php?project=PeleC>`_. Static analysis results for PeleC can be seen in the notes of the newest GCC compiler on CDash. PeleC is also tested using the Clang address sanitizer to detect memory leaks.
@@ -102,7 +95,7 @@ Nightly test results for PeleC against multiple compilers and machines can be se
 Test results for the GNU Make implementation of PeleC can be seen `here <https://amrex-combustion.github.io/PeleCRegressionTestResults>`_.
 
 
-Documentation
+Documentation - ***UPDATE THIS***
 ~~~~~~~~~~~~~
 
 The full documentation for Pele exists in the Docs directory; at present this is maintained inline using Doxygen
@@ -118,7 +111,7 @@ To build the documentation, run Doxygen in the Docs directory then build the sph
     make html
 
 
-Acknowledgment
+Acknowledgment - ***UPDATE THIS***
 ~~~~~~~~~~~~~~
 
 This research was supported by the Exascale Computing Project (ECP), Project
