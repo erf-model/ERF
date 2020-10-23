@@ -13,7 +13,6 @@
 #include <omp.h>
 #endif
 
-#if AMREX_SPACEDIM == 3
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
@@ -506,5 +505,4 @@ pc_dynamic_smagorinsky_sfs_term(
   flx(i, j, k, UEDEN) = flx(i, j, k, UEDEN) * a(i, j, k);
 }
 
-#endif // AMREX_SPACEDIM == 3
 #endif

@@ -56,7 +56,6 @@ struct PCHypFillExtDir
         dest(iv, n) = s_ext[n];
       }
     }
-#if AMREX_SPACEDIM > 1
     // ylo and yhi
     idir = 1;
     if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
@@ -80,7 +79,6 @@ struct PCHypFillExtDir
         dest(iv, n) = s_ext[n];
       }
     }
-#if AMREX_SPACEDIM == 3
     // zlo and zhi
     idir = 2;
     if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
@@ -102,8 +100,6 @@ struct PCHypFillExtDir
         dest(iv, n) = s_ext[n];
       }
     }
-#endif
-#endif
   }
 };
 

@@ -7,7 +7,6 @@ CEXE_sources += BCfill.cpp
 CEXE_sources += Hydro.cpp
 CEXE_sources += Godunov.cpp
 CEXE_sources += PPM.cpp
-CEXE_sources += GradUtil.cpp
 CEXE_sources += IO.cpp 
 CEXE_sources += Sources.cpp
 CEXE_sources += Setup.cpp

@@ -52,14 +52,10 @@ pc_initdata(
   int npert = 0;
   int n_amb = 0;
 
-#if AMREX_SPACEDIM > 2
   for (int kk = 0; kk < ProbParm::nsub; kk++) {
     const amrex::Real z = zmin + (kk + 0.5) * dz_sub - ctr_z;
-#endif
-#if AMREX_SPACEDIM > 1
     for (int jj = 0; jj < ProbParm::nsub; jj++) {
       const amrex::Real y = ymin + (jj + 0.5) * dy_sub - ctr_y;
-#endif
       for (int ii = 0; ii < ProbParm::nsub; ii++) {
         const amrex::Real x = xmin + (ii + 0.5) * dx_sub - ctr_x;
 
@@ -71,12 +67,8 @@ pc_initdata(
           n_amb += 1;
         }
       }
-#if AMREX_SPACEDIM > 1
     }
-#endif
-#if AMREX_SPACEDIM > 2
   }
-#endif
 
   amrex::Real p_zone =
     (static_cast<amrex::Real>(npert) * p_exp +

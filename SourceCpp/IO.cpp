@@ -486,14 +486,10 @@ PeleC::writeJobInfo(const std::string& dir)
 
   jobInfoFile << "   -x: " << lo_bc_out[0] << "\n";
   jobInfoFile << "   +x: " << hi_bc_out[0] << "\n";
-  if (AMREX_SPACEDIM >= 2) {
-    jobInfoFile << "   -y: " << lo_bc_out[1] << "\n";
-    jobInfoFile << "   +y: " << hi_bc_out[1] << "\n";
-  }
-  if (AMREX_SPACEDIM == 3) {
-    jobInfoFile << "   -z: " << lo_bc_out[2] << "\n";
-    jobInfoFile << "   +z: " << hi_bc_out[2] << "\n";
-  }
+  jobInfoFile << "   -y: " << lo_bc_out[1] << "\n";
+  jobInfoFile << "   +y: " << hi_bc_out[1] << "\n";
+  jobInfoFile << "   -z: " << lo_bc_out[2] << "\n";
+  jobInfoFile << "   +z: " << hi_bc_out[2] << "\n";
 
   jobInfoFile << "\n\n";
 

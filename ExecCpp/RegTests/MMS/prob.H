@@ -40,12 +40,8 @@ pc_initdata(
   amrex::Real x = 0.0, y = 0.0, z = 0.0;
 
   x = prob_lo[0] + (i + 0.5) * dx[0];
-#if AMREX_SPACEDIM > 1
   y = prob_lo[1] + (j + 0.5) * dx[1];
-#endif
-#if AMREX_SPACEDIM > 2
   z = prob_lo[2] + (k + 0.5) * dx[2];
-#endif
 
   // Get state from MASA
   const amrex::Real rho = masa_eval_3d_exact_rho(x, y, z);
@@ -88,12 +84,8 @@ bcnormal(
   amrex::Real x0 = 0.0, x1 = 0.0, x2 = 0.0;
 
   x0 = x[0];
-#if AMREX_SPACEDIM > 1
   x1 = x[1];
-#endif
-#if AMREX_SPACEDIM > 2
   x2 = x[2];
-#endif
   const amrex::Real rho = masa_eval_3d_exact_rho(x0, x1, x2);
   const amrex::Real u[AMREX_SPACEDIM] = {AMREX_D_DECL(
     masa_eval_3d_exact_u(x0, x1, x2), masa_eval_3d_exact_v(x0, x1, x2),

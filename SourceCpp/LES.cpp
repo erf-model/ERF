@@ -184,7 +184,6 @@ PeleC::getSmagorinskyLESTerm(
   amrex::Real flux_factor)
 {
   // Only use this functionality for 3D
-#if AMREX_SPACEDIM == 3
   int ngrow = 1;
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
   amrex::Real dx1 = dx[0];
@@ -335,9 +334,6 @@ PeleC::getSmagorinskyLESTerm(
       }
     } // End of MFIter scope
   }   // End of OMP scope
-#else
-  amrex::Abort("LES only implemented in 3D for now");
-#endif // End of AMREX_SPACEDIM == 3
 }
 
 /**
@@ -350,7 +346,6 @@ PeleC::getDynamicSmagorinskyLESTerm(
   amrex::MultiFab& LESTerm,
   amrex::Real flux_factor)
 {
-#if AMREX_SPACEDIM == 3
   // clang-format off
   /*
     Note on the grow cells:
@@ -666,7 +661,4 @@ PeleC::getDynamicSmagorinskyLESTerm(
       }
     } // End of MFIter scope
   }   // End of OMP scope
-#else
-  amrex::Abort("LES only implemented in 3D for now");
-#endif // End of AMREX_SPACEDIM == 3
 }

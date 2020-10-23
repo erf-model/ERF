@@ -238,10 +238,6 @@ PeleC::read_params()
     amrex::Error("Invalid CFL factor; must be between zero and one.");
   }
 
-  if ((do_les or use_explicit_filter) and (AMREX_SPACEDIM != 3)) {
-    amrex::Abort("Using LES/filtering currently requires 3d.");
-  }
-
   if (do_les) {
     pp.query("les_model", les_model);
     pp.query("les_test_filter_type", les_test_filter_type);
@@ -270,15 +266,6 @@ PeleC::read_params()
     ppm_trace_sources = 0;
     pp.add("ppm_trace_sources", ppm_trace_sources);
   }
-  /*
-    if (ppm_temp_fix > 0 && AMREX_SPACEDIM == 1) {
-      amrex::Error("ppm_temp_fix > 0 not implemented in 1-d");
-    }
-
-    if (hybrid_riemann == 1 && AMREX_SPACEDIM == 1) {
-      amrex::Error("hybrid_riemann only implemented in 2- and 3-d");
-    }
-  */
   if (
     hybrid_riemann == 1 && (amrex::DefaultGeometry().IsSPHERICAL() ||
                             amrex::DefaultGeometry().IsRZ())) {
@@ -578,7 +565,6 @@ PeleC::initData()
 
   S_new.setVal(0.0);
 
-#if AMREX_SPACEDIM > 1
   // make sure dx = dy = dz -- that's all we guarantee to support
   const amrex::Real small = 1.e-13;
   if (
@@ -586,7 +572,6 @@ PeleC::initData()
     small * dx[0]) {
     amrex::Abort("dx != dy != dz not supported");
   }
-#endif
 
   if (verbose) {
     amrex::Print() << "Initializing the data at level " << level << std::endl;

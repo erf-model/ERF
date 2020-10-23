@@ -63,14 +63,12 @@ pc_diffusion_flux(
     const amrex::Real dvdx = td(i, j, k, 1);
     const amrex::Real dudy = dxinv * (q(i, j, k, QU) - q(im, jm, km, QU));
     const amrex::Real dvdy = dxinv * (q(i, j, k, QV) - q(im, jm, km, QV));
-#if AMREX_SPACEDIM == 3
     const amrex::Real dwdy = dxinv * (q(i, j, k, QW) - q(im, jm, km, QW));
     // const amrex::Real dwdx = td(i, j, k, 2);
     // const amrex::Real dudz = td(i, j, k, 3);
     const amrex::Real dvdz = td(i, j, k, 4);
     const amrex::Real dwdz = td(i, j, k, 5);
     tauz = coef[dComp_mu] * (dwdy + dvdz);
-#endif
     const amrex::Real divu = AMREX_D_TERM(dudx, +dvdy, +dwdz);
 
     taux = coef[dComp_mu] * (dudy + dvdx);
