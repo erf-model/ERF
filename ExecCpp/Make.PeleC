@@ -39,11 +39,7 @@ all: $(executable)
 	@echo SUCCESS
 
 # EOS
-ifeq ($(Eos_dir),$(filter $(Eos_dir),Fuego))
-  EOS_HOME = $(PELE_PHYSICS_HOME)/Eos/Fuego
-else
-  EOS_HOME = $(PELE_PHYSICS_HOME)/Eos/GammaLaw
-endif
+EOS_HOME           = $(TOP)/SourceCpp/GammaLaw
 EXTERN_CORE       += $(EOS_HOME)
 INCLUDE_LOCATIONS += $(EOS_HOME)
 VPATH_LOCATIONS   += $(EOS_HOME)
@@ -76,8 +72,7 @@ VPATH_LOCATIONS   += $(TRANSPORT_HOME)
 Bpack             += $(TRANSPORT_HOME)/Make.package
 Blocs             += $(TRANSPORT_HOME)
 
-Bdirs := SourceCpp SourceCpp/Params/param_includes
-
+Bdirs := SourceCpp SourceCpp/GammaLaw SourceCpp/Params/param_includes
 Pdirs := Base Amr Boundary AmrCore
 
 ifeq ($(USE_PARTICLES), TRUE)
