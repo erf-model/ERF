@@ -34,17 +34,6 @@ PeleC::construct_hydro_source(
       amrex::MultiFab::Saxpy(
         sources_for_hydro, 0.5, *old_sources[src_list[n]], 0, 0, NVAR, ng);
     }
-#ifdef PELEC_USE_REACTIONS
-    // Add I_R terms to advective forcing
-    if (do_react == 1) {
-      amrex::MultiFab::Add(
-        sources_for_hydro, get_new_data(Reactions_Type), 0, FirstSpec,
-        NUM_SPECIES, ng);
-      amrex::MultiFab::Add(
-        sources_for_hydro, get_new_data(Reactions_Type), NUM_SPECIES, Eden, 1,
-        ng);
-    }
-#endif
     sources_for_hydro.FillBoundary(geom.periodicity());
     hydro_source.setVal(0);
 

@@ -24,7 +24,6 @@ FSANITIZER = FALSE
 THREAD_SANITIZER = FALSE
 
 # PeleC
-USE_REACT = FALSE
 Eos_dir := GammaLaw
 Reactions_dir := Null
 Transport_dir := Constant

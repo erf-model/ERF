@@ -31,14 +31,6 @@ function(build_pelec_exe pelec_exe_name)
                  ${PELEC_MECHANISM_DIR}/mechanism.h)
   target_include_directories(${pelec_exe_name} SYSTEM PRIVATE ${PELEC_MECHANISM_DIR})
   
-  if(PELEC_ENABLE_REACTIONS)
-    target_compile_definitions(${pelec_exe_name} PRIVATE PELEC_USE_REACTIONS)
-    target_sources(${pelec_exe_name} PRIVATE
-                   ${SRC_DIR}/React.H
-                   ${SRC_DIR}/React.cpp)
-    target_include_directories(${pelec_exe_name} SYSTEM PRIVATE ${PELE_PHYSICS_SRC_DIR}/Support/Fuego/Evaluation)
-  endif()
-  
   if(PELEC_ENABLE_MASA)
     target_sources(${pelec_exe_name} PRIVATE
                    ${SRC_DIR}/MMS.cpp)

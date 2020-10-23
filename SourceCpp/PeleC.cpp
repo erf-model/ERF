@@ -27,9 +27,6 @@ using namespace MASA;
 #include "Utilities.H"
 #include "Tagging.H"
 #include "IndexDefines.H"
-#ifdef USE_SUNDIALS_PP
-#include <reactor.h>
-#endif
 
 bool PeleC::signalStopJob = false;
 bool PeleC::dump_old = false;
@@ -75,7 +72,6 @@ int PeleC::les_filter_fgr = 1;
 int PeleC::les_test_filter_type = box_3pt_optimized_approx;
 int PeleC::les_test_filter_fgr = 2;
 
-bool PeleC::do_react_load_balance = false;
 bool PeleC::do_mol_load_balance = false;
 
 amrex::Vector<std::string> PeleC::spec_names;
@@ -95,12 +91,6 @@ PeleC::variableCleanUp()
   transport_close();
 
   EOS::close();
-
-#ifdef PELEC_USE_REACTIONS
-  if (do_react == 1) {
-    close_reactor();
-  }
-#endif
 
   clear_prob();
 }
@@ -297,7 +287,6 @@ PeleC::read_params()
   // This turns on the lb stuff inside Amr, but we use our own flag to signal
   // whether to gather data
   ppa.query("loadbalance_with_workestimates", do_mol_load_balance);
-  ppa.query("loadbalance_with_workestimates", do_react_load_balance);
 }
 
 PeleC::PeleC()
@@ -391,10 +380,6 @@ PeleC::PeleC(
         level_geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, 1);
     }
   }
-
-#ifdef PELEC_USE_REACTIONS
-  get_new_data(Reactions_Type).setVal(0.0);
-#endif
 
   // Don't need this in pure C++?
   // initialize the Godunov state array used in hydro -- we wait
@@ -577,11 +562,7 @@ PeleC::initData()
     amrex::Print() << "Initializing the data at level " << level << std::endl;
   }
 
-#ifdef PELEC_USE_REACTIONS
-  get_new_data(Reactions_Type).setVal(0.0);
-#endif
-
-  if (do_mol_load_balance || do_react_load_balance) {
+  if (do_mol_load_balance) {
     get_new_data(Work_Estimate_Type).setVal(1.0);
   }
 
@@ -640,18 +621,7 @@ PeleC::init(AmrLevel& old)
   amrex::MultiFab& S_new = get_new_data(State_Type);
   FillPatch(old, S_new, 0, cur_time, State_Type, 0, NVAR);
 
-#ifdef PELEC_USE_REACTIONS
-  amrex::MultiFab& React_new = get_new_data(Reactions_Type);
-
-  if (do_react) {
-    FillPatch(
-      old, React_new, 0, cur_time, Reactions_Type, 0, React_new.nComp());
-  } else {
-    React_new.setVal(0);
-  }
-#endif
-
-  if (do_mol_load_balance || do_react_load_balance) {
+  if (do_mol_load_balance) {
     amrex::MultiFab& work_estimate_new = get_new_data(Work_Estimate_Type);
     FillPatch(
       old, work_estimate_new, 0, cur_time, Work_Estimate_Type, 0,
@@ -679,7 +649,7 @@ PeleC::init()
   amrex::MultiFab& S_new = get_new_data(State_Type);
   FillCoarsePatch(S_new, 0, cur_time, State_Type, 0, NVAR);
 
-  if (do_mol_load_balance || do_react_load_balance) {
+  if (do_mol_load_balance) {
     amrex::MultiFab& work_estimate_new = get_new_data(Work_Estimate_Type);
     int ncomp = work_estimate_new.nComp();
     FillCoarsePatch(
@@ -1095,14 +1065,6 @@ PeleC::post_init(amrex::Real stop_time)
   amrex::Real dtlev = parent->dtLevel(level);
   amrex::Real cumtime = parent->cumTime();
 
-  // Fill Reactions_Type data based on initial dt
-#ifdef PELEC_USE_REACTIONS
-  if (do_react == 1) {
-    bool react_init = true;
-    react_state(cumtime, dtlev, react_init);
-  }
-#endif
-
   if (level > 0)
     return;
 
@@ -1226,10 +1188,6 @@ PeleC::avgDown()
     return;
 
   avgDown(State_Type);
-
-#ifdef PELEC_USE_REACTIONS
-  avgDown(Reactions_Type);
-#endif
 }
 
 void
@@ -1639,32 +1597,6 @@ PeleC::clear_prob()
 {
   pc_prob_close();
 }
-
-#ifdef PELEC_USE_REACTIONS
-void
-PeleC::init_reactor()
-{
-#ifdef USE_SUNDIALS_PP
-  int reactor_type = 1;
-  int ode_ncells = 1;
-#ifndef USE_CUDA_SUNDIALS_PP
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-  {
-    reactor_init(&reactor_type, &ode_ncells);
-  }
-#else
-  reactor_info(&reactor_type, &ode_ncells);
-#endif
-#endif
-}
-
-void
-PeleC::close_reactor()
-{
-}
-#endif
 
 void
 PeleC::init_transport()

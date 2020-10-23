@@ -122,11 +122,8 @@ struct PCReactFillExtDir
 
 namespace {
 static PCHypFillExtDir pc_hyp_fill_ext_dir;
-static PCReactFillExtDir pc_react_fill_ext_dir;
 static amrex::GpuBndryFuncFab<PCHypFillExtDir>
   hyp_bndry_func(pc_hyp_fill_ext_dir);
-static amrex::GpuBndryFuncFab<PCReactFillExtDir>
-  react_bndry_func(pc_react_fill_ext_dir);
 } // namespace
 
 void
@@ -142,23 +139,6 @@ pc_bcfill_hyp(
   const int scomp)
 {
   hyp_bndry_func(bx, data, dcomp, numcomp, geom, time, bcr, bcomp, scomp);
-}
-
-void
-pc_reactfill_hyp(
-  amrex::Box const& bx,
-  amrex::FArrayBox& data,
-  const int dcomp,
-  const int numcomp,
-  amrex::Geometry const& geom,
-  const amrex::Real time,
-  const amrex::Vector<amrex::BCRec>& bcr,
-  const int bcomp,
-  const int scomp)
-{
-#ifdef PELEC_USE_REACTIONS
-  react_bndry_func(bx, data, dcomp, numcomp, geom, time, bcr, bcomp, scomp);
-#endif
 }
 
 void

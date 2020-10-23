@@ -11,9 +11,6 @@
 #include <AMReX_buildInfo.H>
 #include <AMReX_ParmParse.H>
 
-#ifdef PELEC_USE_REACTIONS
-#include "chemistry_file.H"
-#endif
 #include "mechanism.h"
 
 #include "PeleC.H"
@@ -603,17 +600,6 @@ PeleC::writeBuildInfo(std::ostream& os)
   os << "\n";
   os << " PeleC Compile time variables: \n";
 
-#ifdef PELEC_USE_REACTIONS
-  int mm, kk, ii, nfit;
-  CKINDX(&mm, &kk, &ii, &nfit);
-  os << std::setw(40) << std::left << "Number elements from chem cpp : " << mm
-     << std::endl;
-  os << std::setw(40) << std::left << "Number species from chem cpp : " << kk
-     << std::endl;
-  os << std::setw(40) << std::left << "Number reactions from chem cpp : " << ii
-     << std::endl;
-#endif
-
   os << "\n";
   os << " PeleC Defines: \n";
 #ifdef _OPENMP
@@ -640,13 +626,6 @@ PeleC::writeBuildInfo(std::ostream& os)
      << "UNDEFINED" << std::endl;
 #endif
 
-#ifdef PELEC_USE_REACTIONS
-  os << std::setw(35) << std::left << "PELEC_USE_REACTIONS " << std::setw(6)
-     << "ON" << std::endl;
-#else
-  os << std::setw(35) << std::left << "PELEC_USE_REACTIONS " << std::setw(6)
-     << "OFF" << std::endl;
-#endif
 #ifdef NUM_ADV
   os << std::setw(35) << std::left << "NUM_ADV=" << NUM_ADV << std::endl;
 #else

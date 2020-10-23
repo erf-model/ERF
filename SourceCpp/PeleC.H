@@ -27,12 +27,7 @@ using std::ostream;
 #define UserBC 6
 
 enum StateType {
-  State_Type = 0
-#ifdef PELEC_USE_REACTIONS
-  ,
-  Reactions_Type
-#endif
-  ,
+  State_Type = 0,
   Work_Estimate_Type
 };
 
@@ -485,14 +480,6 @@ public:
 
   static int numGrow();
 
-#ifdef PELEC_USE_REACTIONS
-  void react_state(
-    amrex::Real time,
-    amrex::Real dt,
-    bool init = false,
-    amrex::MultiFab* A_aux = nullptr);
-#endif
-
   void reset_internal_energy(amrex::MultiFab& State, int ng);
 
   void computeTemp(amrex::MultiFab& State, int ng);
@@ -583,11 +570,6 @@ protected:
   ///
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> old_sources;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> new_sources;
-
-#ifdef PELEC_USE_REACTIONS
-  static void init_reactor();
-  static void close_reactor();
-#endif
 
   static void init_transport();
 
@@ -711,22 +693,10 @@ protected:
 
   static int nGrowTr;
 
-  static bool do_react_load_balance;
   static bool do_mol_load_balance;
 };
 
 void pc_bcfill_hyp(
-  amrex::Box const& bx,
-  amrex::FArrayBox& data,
-  const int dcomp,
-  const int numcomp,
-  amrex::Geometry const& geom,
-  const amrex::Real time,
-  const amrex::Vector<amrex::BCRec>& bcr,
-  const int bcomp,
-  const int scomp);
-
-void pc_reactfill_hyp(
   amrex::Box const& bx,
   amrex::FArrayBox& data,
   const int dcomp,

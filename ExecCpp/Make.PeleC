@@ -34,10 +34,6 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 # PeleC uses a coarse grained OMP approach
 DEFINES += -DCRSEGRNDOMP
 
-ifeq ($(USE_REACT), TRUE)
-  DEFINES += -DPELEC_USE_REACTIONS
-endif
-
 all: $(executable) 
 	$(SILENT) $(RM) AMReX_buildInfo.cpp
 	@echo SUCCESS
@@ -55,10 +51,6 @@ Bpack             += $(EOS_HOME)/Make.package
 Blocs             += $(EOS_HOME)
 
 # Reactions
-REACTIONS_HOME     = $(PELE_PHYSICS_HOME)/Reactions
-EXTERN_CORE       += $(REACTIONS_HOME)
-INCLUDE_LOCATIONS += $(REACTIONS_HOME)
-VPATH_LOCATIONS   += $(REACTIONS_HOME)
 ifdef Chemistry_Model
   USE_FUEGO = TRUE
   DEFINES += -DPELEC_EOS_FUEGO
@@ -70,12 +62,6 @@ endif
 VPATH_LOCATIONS += $(CHEM_HOME)
 Bpack += $(CHEM_HOME)/Make.package
 Blocs += $(CHEM_HOME)
-
-#sundials stuff
-ifeq ($(USE_SUNDIALS_PP), TRUE)
-  Blocs += $(REACTIONS_HOME)/Fuego
-  Bpack += $(REACTIONS_HOME)/Fuego/Make.package
-endif
 
 # Transport
 ifeq ($(Transport_dir), Simple)

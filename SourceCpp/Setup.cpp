@@ -29,10 +29,6 @@ static int norm_vel_bc[] = {INT_DIR,     EXT_DIR,     FOEXTRAP, REFLECT_ODD,
 static int tang_vel_bc[] = {INT_DIR,      EXT_DIR,     FOEXTRAP, REFLECT_EVEN,
                             REFLECT_EVEN, REFLECT_ODD, EXT_DIR};
 
-static int react_src_bc[] = {INT_DIR,      REFLECT_EVEN, REFLECT_EVEN,
-                             REFLECT_EVEN, REFLECT_EVEN, REFLECT_EVEN,
-                             REFLECT_EVEN};
-
 static void
 set_scalar_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
 {
@@ -64,17 +60,6 @@ set_y_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
     bc.setLo(0, tang_vel_bc[lo_bc[0]]); bc.setHi(0, tang_vel_bc[hi_bc[0]]);
     , bc.setLo(1, norm_vel_bc[lo_bc[1]]); bc.setHi(1, norm_vel_bc[hi_bc[1]]);
     , bc.setLo(2, tang_vel_bc[lo_bc[2]]); bc.setHi(2, tang_vel_bc[hi_bc[2]]););
-}
-
-static void
-set_react_src_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
-{
-  const int* lo_bc = phys_bc.lo();
-  const int* hi_bc = phys_bc.hi();
-  for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-    bc.setLo(dir, react_src_bc[lo_bc[dir]]);
-    bc.setHi(dir, react_src_bc[hi_bc[dir]]);
-  }
 }
 
 static void
@@ -131,13 +116,6 @@ PeleC::variableSetUp()
   EOS::init();
 
   init_transport();
-
-#ifdef PELEC_USE_REACTIONS
-  // Initialize the reactor
-  if (do_react == 1) {
-    init_reactor();
-  }
-#endif
 
   indxmap::init();
 
@@ -249,20 +227,8 @@ PeleC::variableSetUp()
     State_Type, amrex::IndexType::TheCellType(), amrex::StateDescriptor::Point,
     ngrow_state, NVAR, interp, state_data_extrap, store_in_checkpoint);
 
-  // Components 0:Numspec-1         are      rho.omega_i
-  // Component    NUM_SPECIES            is      rho.edot = (rho.eout-rho.ein)
-#ifdef PELEC_USE_REACTIONS
-  store_in_checkpoint = true;
-  desc_lst.addDescriptor(
-    Reactions_Type, amrex::IndexType::TheCellType(),
-    amrex::StateDescriptor::Point, 0, NUM_SPECIES + 1, interp,
-    state_data_extrap, store_in_checkpoint);
-#endif
-
   amrex::Vector<amrex::BCRec> bcs(NVAR);
   amrex::Vector<std::string> name(NVAR);
-  amrex::Vector<amrex::BCRec> react_bcs(NUM_SPECIES + 1);
-  amrex::Vector<std::string> react_name(NUM_SPECIES + 1);
 
   amrex::BCRec bc;
   cnt = 0;
@@ -371,23 +337,7 @@ PeleC::variableSetUp()
 
   desc_lst.setComponent(State_Type, Density, name, bcs, bndryfunc1);
 
-#ifdef PELEC_USE_REACTIONS
-  for (int i = 0; i < NUM_SPECIES; ++i) {
-    set_react_src_bc(bc, phys_bc);
-    react_bcs[i] = bc;
-    react_name[i] = "rho_omega_" + spec_names[i];
-  }
-  set_react_src_bc(bc, phys_bc);
-  react_bcs[NUM_SPECIES] = bc;
-  react_name[NUM_SPECIES] = "rhoe_dot";
-
-  amrex::StateDescriptor::BndryFunc bndryfunc2(pc_reactfill_hyp);
-  bndryfunc2.setRunOnGPU(true);
-
-  desc_lst.setComponent(Reactions_Type, 0, react_name, react_bcs, bndryfunc2);
-#endif
-
-  if (do_react_load_balance || do_mol_load_balance) {
+  if (do_mol_load_balance) {
     desc_lst.addDescriptor(
       Work_Estimate_Type, amrex::IndexType::TheCellType(),
       amrex::StateDescriptor::Point, 0, 1, &amrex::pc_interp);
