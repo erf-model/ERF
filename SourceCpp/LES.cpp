@@ -202,12 +202,6 @@ PeleC::getSmagorinskyLESTerm(
   prefetchToDevice(S);
   prefetchToDevice(LESTerm);
 
-#ifdef PELEC_USE_EB
-  auto const& fact =
-    dynamic_cast<amrex::EBFArrayBoxFactory const&>(S.Factory());
-  auto const& flags = fact.getMultiEBCellFlagFab();
-#endif
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -217,17 +211,6 @@ PeleC::getSmagorinskyLESTerm(
       const amrex::Box gbox = amrex::grow(vbox, ngrow);
       const amrex::Box cbox = amrex::grow(vbox, ngrow - 1);
       const amrex::Box& dbox = geom.Domain();
-
-#ifdef PELEC_USE_EB
-      const auto& flag_fab = flags[mfi];
-      amrex::FabType typ = flag_fab.getType(cbox);
-      if (typ != amrex::FabType::regular) {
-        amrex::Error("LES on a non-regular EB Fab is not available.");
-      }
-      if (typ == amrex::FabType::covered) {
-        continue;
-      }
-#endif
 
       auto const& s = S.array(mfi);
       int nqaux = NQAUX > 0 ? NQAUX : 1;
@@ -420,12 +403,6 @@ PeleC::getDynamicSmagorinskyLESTerm(
   prefetchToDevice(LESTerm);
   prefetchToDevice(LES_Coeffs);
 
-#ifdef PELEC_USE_EB
-  auto const& fact =
-    dynamic_cast<amrex::EBFArrayBoxFactory const&>(S.Factory());
-  auto const& flags = fact.getMultiEBCellFlagFab();
-#endif
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -439,17 +416,6 @@ PeleC::getDynamicSmagorinskyLESTerm(
       const amrex::Box g4box = amrex::grow(vbox, 1);
       const amrex::Box cbox = amrex::grow(vbox, 0);
       const amrex::Box& dbox = geom.Domain();
-
-#ifdef PELEC_USE_EB
-      const auto& flag_fab = flags[mfi];
-      amrex::FabType typ = flag_fab.getType(cbox);
-      if (typ != amrex::FabType::regular) {
-        amrex::Error("LES on a non-regular EB Fab is not available.");
-      }
-      if (typ == amrex::FabType::covered) {
-        continue;
-      }
-#endif
 
       auto const& s = S.array(mfi);
       int nqaux = NQAUX > 0 ? NQAUX : 1;

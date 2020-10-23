@@ -53,12 +53,6 @@ PeleC::fill_forcing_source(
   const amrex::Real* dx = geom.CellSize();
   const amrex::Real* prob_lo = geom.ProbLo();
 
-#ifdef PELEC_USE_EB
-  auto const& fact =
-    dynamic_cast<amrex::EBFArrayBoxFactory const&>(state_old.Factory());
-  auto const& flags = fact.getMultiEBCellFlagFab();
-#endif
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -67,14 +61,6 @@ PeleC::fill_forcing_source(
     const amrex::Box& bx = mfi.growntilebox(ng);
     amrex::RealBox gridloc =
       amrex::RealBox(grids[mfi.index()], geom.CellSize(), geom.ProbLo());
-
-#ifdef PELEC_USE_EB
-    const auto& flag_fab = flags[mfi];
-    amrex::FabType typ = flag_fab.getType(bx);
-    if (typ == amrex::FabType::covered) {
-      continue;
-    }
-#endif
 
     auto const& sarr = state_new.array(mfi);
     auto const& src = forcing_src.array(mfi);

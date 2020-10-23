@@ -1,10 +1,6 @@
 #ifndef _MOL_H_
 #define _MOL_H_
 
-#ifdef PELEC_USE_EB
-#include <AMReX_EBCellFlag.H>
-#endif
-
 #include "Diffterm.H"
 #include "IndexDefines.H"
 #include "PeleC.H"
@@ -23,20 +19,10 @@ mol_slope(
   const amrex::Array4<const amrex::Real>& q,
   const amrex::Array4<const amrex::Real>& qaux,
   const amrex::Array4<amrex::Real>& dq
-#ifdef PELEC_USE_EB
-  ,
-  const amrex::Array4<amrex::EBCellFlag const>& flags
-#endif
 )
 {
   bool flagArrayL = true;
   bool flagArrayR = true;
-#ifdef PELEC_USE_EB
-  flagArrayL = flags(i, j, k).isConnected(-bdim[0], -bdim[1], -bdim[2]) and
-               !flags(i, j, k).isCovered();
-  flagArrayR = flags(i, j, k).isConnected(+bdim[0], +bdim[1], +bdim[2]) and
-               !flags(i, j, k).isCovered();
-#endif
 
   amrex::Real dlft[QVAR] = {0.0};
   amrex::Real drgt[QVAR] = {0.0};
@@ -108,16 +94,6 @@ void pc_compute_hyp_mol_flux(
     a,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> del,
   const int plm_iorder
-#ifdef PELEC_USE_EB
-  ,
-  const amrex::Real eb_small_vfrac,
-  const amrex::Array4<const amrex::Real>& vfrac,
-  const amrex::Array4<amrex::EBCellFlag const>& flags,
-  const EBBndryGeom* ebg,
-  const int Nebg,
-  amrex::Real* ebflux,
-  const int nebflux
-#endif
 );
 
 #endif

@@ -10,9 +10,6 @@
 #include <AMReX_Utility.H>
 #include <AMReX_buildInfo.H>
 #include <AMReX_ParmParse.H>
-#ifdef PELEC_USE_EB
-#include <AMReX_EBMultiFabUtil.H>
-#endif
 
 #ifdef PELEC_USE_REACTIONS
 #include "chemistry_file.H"
@@ -88,10 +85,6 @@ PeleC::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     }
   }
   buildMetrics();
-
-#ifdef PELEC_USE_EB
-  init_eb(geom, grids, dmap);
-#endif
 
   amrex::MultiFab& S_new = get_new_data(State_Type);
 
@@ -197,30 +190,6 @@ PeleC::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
         geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, 1);
     }
   }
-
-#ifdef PELEC_USE_EB
-  if (input_version > 0 && level == 0 && eb_in_domain) {
-    if (amrex::ParallelDescriptor::IOProcessor()) {
-      std::ifstream BodyFile;
-      std::string FullPathBodyFile = parent->theRestartFile();
-      FullPathBodyFile += "/" + body_state_filename;
-      BodyFile.open(FullPathBodyFile.c_str(), std::ios::in);
-      amrex::FArrayBox bstate_fab;
-      bstate_fab.readFrom(BodyFile);
-      BodyFile.close();
-      if (bstate_fab.nComp() != NVAR)
-        amrex::Abort("Body state incompatible with checkpointed version");
-      amrex::IntVect iv(bstate_fab.box().smallEnd());
-      for (int n = 0; n < NVAR; ++n) {
-        body_state[n] = bstate_fab(iv, n);
-      }
-    }
-    amrex::ParallelDescriptor::Bcast(
-      &(body_state[0]), body_state.size(),
-      amrex::ParallelDescriptor::IOProcessorNumber());
-    body_state_set = true;
-  }
-#endif
 }
 
 void
@@ -319,25 +288,6 @@ PeleC::checkPoint(
         delete [] dir_for_pass;
     }*/
   }
-
-#ifdef PELEC_USE_EB
-  if (current_version > 0) {
-    if (amrex::ParallelDescriptor::IOProcessor() && eb_in_domain) {
-      amrex::IntVect iv(AMREX_D_DECL(0, 0, 0));
-      amrex::FArrayBox bstate_fab(amrex::Box(iv, iv), NVAR);
-      for (int n = 0; n < NVAR; ++n) {
-        bstate_fab(iv, n) = body_state[n];
-      }
-
-      std::ofstream BodyFile;
-      std::string FullPathBodyFile = dir;
-      FullPathBodyFile += "/" + body_state_filename;
-      BodyFile.open(FullPathBodyFile.c_str(), std::ios::out);
-      bstate_fab.writeOn(BodyFile);
-      BodyFile.close();
-    }
-  }
-#endif
 }
 
 void
@@ -347,15 +297,6 @@ PeleC::setPlotVariables()
 
   amrex::ParmParse pp("pelec");
 
-#ifdef PELEC_USE_EB
-  bool plot_vfrac = eb_in_domain;
-  pp.query("plot_vfrac ", plot_vfrac);
-  if (plot_vfrac) {
-    parent->addDerivePlotVar("vfrac");
-  } else if (parent->isDerivePlotVar("vfrac")) {
-    parent->deleteDerivePlotVar("vfrac");
-  }
-#endif
   bool plot_cost = true;
   pp.query("plot_cost", plot_cost);
   if (plot_cost) {
@@ -717,27 +658,11 @@ PeleC::writeBuildInfo(std::ostream& os)
      << "is undefined (0)" << std::endl;
 #endif
 
-#ifdef PELEC_USE_EB
-  os << std::setw(35) << std::left << "PELEC_USE_EB " << std::setw(6) << "ON"
-     << std::endl;
-#else
-  os << std::setw(35) << std::left << "PELEC_USE_EB " << std::setw(6) << "OFF"
-     << std::endl;
-#endif
-
 #ifdef PELEC_USE_MASA
   os << std::setw(35) << std::left << "PELEC_USE_MASA " << std::setw(6) << "ON"
      << std::endl;
 #else
   os << std::setw(35) << std::left << "PELEC_USE_MASA " << std::setw(6) << "OFF"
-     << std::endl;
-#endif
-
-#ifdef PELEC_USE_EB
-  os << std::setw(35) << std::left << "PELEC_USE_EB " << std::setw(6) << "ON"
-     << std::endl;
-#else
-  os << std::setw(35) << std::left << "PELEC_USE_EB " << std::setw(6) << "OFF"
      << std::endl;
 #endif
 
@@ -925,12 +850,6 @@ PeleC::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
       PathNameInHeader += BaseName;
       os << PathNameInHeader << '\n';
     }
-
-#ifdef PELEC_USE_EB
-    if (eb_in_domain && level == parent->finestLevel()) {
-      os << vfraceps << '\n';
-    }
-#endif
   }
   //
   // We combine all of the multifabs -- state, derived, etc -- into one
@@ -969,11 +888,6 @@ PeleC::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
       cnt += ncomp;
     }
   }
-
-#ifdef PELEC_USE_EB
-  // Prefer app-specific one
-  // amrex::EB_set_covered(plotMF);
-#endif
 
   //
   // Use the Full pathname when naming the MultiFab.

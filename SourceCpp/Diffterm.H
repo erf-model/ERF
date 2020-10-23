@@ -2,9 +2,6 @@
 #define _DIFFTERM_H_
 
 #include <AMReX_FArrayBox.H>
-#ifdef PELEC_USE_EB
-#include <AMReX_EBCellFlag.H>
-#endif
 
 #include "IndexDefines.H"
 #include "EBStencilTypes.H"
@@ -186,13 +183,6 @@ void pc_compute_diffusion_flux(
     a,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> del,
   const int do_harmonic
-#ifdef PELEC_USE_EB
-  ,
-  const amrex::FabType typ,
-  const int Ncut,
-  const EBBndryGeom* ebg,
-  const amrex::Array4<amrex::EBCellFlag const>& flags
-#endif
 );
 
 #endif

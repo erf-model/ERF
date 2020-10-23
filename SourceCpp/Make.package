@@ -51,13 +51,6 @@ CEXE_headers += Forcing.H
 CEXE_headers += LES.H
 
 #Source file logic
-ifeq ($(USE_EB), TRUE)
-  CEXE_sources += EB.cpp
-  CEXE_sources += InitEB.cpp
-  CEXE_headers += EB.H
-  CEXE_headers += SparseData.H
-  CEXE_headers += EBStencilTypes.H
-endif
 
 ifeq ($(USE_PARTICLES), TRUE)
   CEXE_sources += Particle.cpp

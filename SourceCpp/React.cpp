@@ -69,12 +69,6 @@ PeleC::react_state(
   reactions.setVal(0.0);
   prefetchToDevice(reactions);
 
-#ifdef PELEC_USE_EB
-  auto const& fact =
-    dynamic_cast<amrex::EBFArrayBoxFactory const&>(S_new.Factory());
-  auto const& flags = fact.getMultiEBCellFlagFab();
-#endif
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -97,18 +91,6 @@ PeleC::react_state(
         react_init ? 0 : 1; // TODO: Update here? Or just get reaction source?
 
       amrex::Real wt = amrex::ParallelDescriptor::second(); //timing for each fab
-#ifdef PELEC_USE_EB
-      const auto& flag_fab = flags[mfi];
-      amrex::FabType typ = flag_fab.getType(bx);
-      if (typ == amrex::FabType::covered) {
-        if (do_react_load_balance) {
-	    wt=0.0;
-            get_new_data(Work_Estimate_Type)[mfi].plus<amrex::RunOn::Device>(wt,vbox);
-          }
-        continue;
-      } else if (
-        typ == amrex::FabType::singlevalued || typ == amrex::FabType::regular)
-#endif
       {
         if (chem_integrator == 1) {
           const int nsubsteps_min = adaptrk_nsubsteps_min;

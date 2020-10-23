@@ -38,13 +38,6 @@ ifeq ($(USE_REACT), TRUE)
   DEFINES += -DPELEC_USE_REACTIONS
 endif
 
-ifeq ($(USE_EB), TRUE)
-  DEFINES += -DPELEC_USE_EB
-  ifneq ($(DIM), 3)
-    $(error EB requires 3D)
-  endif
-endif
-
 all: $(executable) 
 	$(SILENT) $(RM) AMReX_buildInfo.cpp
 	@echo SUCCESS
@@ -100,9 +93,6 @@ Blocs             += $(TRANSPORT_HOME)
 Bdirs := SourceCpp SourceCpp/Params/param_includes
 
 Pdirs := Base Amr Boundary AmrCore
-ifeq ($(USE_EB), TRUE)
-  Pdirs += EB
-endif
 
 ifeq ($(USE_PARTICLES), TRUE)
   DEFINES+=-DAMREX_PARTICLES

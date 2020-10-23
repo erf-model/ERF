@@ -765,7 +765,7 @@ WARN_LOGFILE           = doxy.log
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = ../Source  ../../amrex/Src/EB/AMReX_EBFArrayBox.cpp ../../amrex/Src/EB/AMReX_EBFArrayBox.H ../../amrex/Src/Base/AMReX_FabFactory.H ../../amrex/Src/Base/AMReX_BoxArray.H ../../amrex/Src/Amr/AMReX_StateData.H  ../../amrex/Src/Boundary/AMReX_InterpBndryData.H  ../../amrex/Src/Base/AMReX_Array.H  ../../amrex/Src/Base/AMReX_FArrayBox.H  ../../amrex/Src/AMReX_BaseFab.H ../../amrex/Src/AMRex_MultiFab.H ../../amrex/Src/AMReX_IntVect.H  ../../amrex/Src/Base/AMReX_RealBox.H ../../amrex/Src//GeometryShop/AMReX_GeometryShop.H
+INPUT                  = ../Source ../../amrex/Src/Base/AMReX_FabFactory.H ../../amrex/Src/Base/AMReX_BoxArray.H ../../amrex/Src/Amr/AMReX_StateData.H  ../../amrex/Src/Boundary/AMReX_InterpBndryData.H  ../../amrex/Src/Base/AMReX_Array.H  ../../amrex/Src/Base/AMReX_FArrayBox.H  ../../amrex/Src/AMReX_BaseFab.H ../../amrex/Src/AMRex_MultiFab.H ../../amrex/Src/AMReX_IntVect.H  ../../amrex/Src/Base/AMReX_RealBox.H ../../amrex/Src//GeometryShop/AMReX_GeometryShop.H
 
 
 # This tag can be used to specify the character encoding of the source files
@@ -1997,7 +1997,7 @@ INCLUDE_FILE_PATTERNS  =
 # recursively expanded use the := operator instead of the = operator.
 # This tag requires that the tag ENABLE_PREPROCESSING is set to YES.
 
-PREDEFINED             = DIFFUSION BL_SPACEDIM=3 PELE_USE_EB PELEC_USE_EB PELEC PELEC_USE_MOL
+PREDEFINED             = DIFFUSION BL_SPACEDIM=3 PELEC PELEC_USE_MOL
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

@@ -45,17 +45,6 @@ function(build_pelec_exe pelec_exe_name)
     target_compile_definitions(${pelec_exe_name} PRIVATE PELEC_USE_MASA)
   endif()
   
-  if(PELEC_ENABLE_EB)
-    target_compile_definitions(${pelec_exe_name} PRIVATE PELEC_USE_EB)
-    target_sources(${pelec_exe_name}
-                   PRIVATE
-                   ${SRC_DIR}/EB.H
-                   ${SRC_DIR}/EB.cpp
-                   ${SRC_DIR}/InitEB.cpp
-                   ${SRC_DIR}/SparseData.H
-                   ${SRC_DIR}/EBStencilTypes.H)
-  endif()
-  
   target_sources(${pelec_exe_name}
      PRIVATE
        ${SRC_DIR}/Advance.cpp

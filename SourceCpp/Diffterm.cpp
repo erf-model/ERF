@@ -20,13 +20,6 @@ pc_compute_diffusion_flux(
     a,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> del,
   const int do_harmonic
-#ifdef PELEC_USE_EB
-  ,
-  const amrex::FabType typ,
-  const int Ncut,
-  const EBBndryGeom* ebg,
-  const amrex::Array4<amrex::EBCellFlag const>& flags
-#endif
 )
 {
   {
@@ -52,20 +45,6 @@ pc_compute_diffusion_flux(
         ebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
           pc_compute_tangential_vel_derivs(i, j, k, q, dir, d1, d2, tander);
         });
-
-#ifdef PELEC_USE_EB
-      // Reset tangential derivatives to avoid using covered (invalid) data
-      if (typ == amrex::FabType::singlevalued) {
-        if (Ncut > 0) {
-          BL_PROFILE("PeleC::pc_compute_tangential_vel_derivs_eb()");
-          pc_compute_tangential_vel_derivs_eb(
-            ebox, dir, d1, d2, ebg, Ncut, q, flags, tander);
-        }
-      } else if (typ == amrex::FabType::multivalued) {
-        amrex::Abort(
-          "multi-valued eb tangential derivatives to be implemented");
-      }
-#endif
 
       amrex::ParallelFor(
         ebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {

@@ -8,19 +8,10 @@
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_AmrLevel.H>
 
-#ifdef AMREX_USE_EB
-#include <AMReX_EB2.H>
-#endif
-
 #include "IO.H"
 #include "PeleC.H"
 
 std::string inputs_name = "";
-
-#ifdef PELEC_USE_EB
-void initialize_EB2(
-  const amrex::Geometry& geom, const int required_level, const int max_level);
-#endif
 
 int
 main(int argc, char* argv[])
@@ -106,23 +97,6 @@ main(int argc, char* argv[])
 
   // Initialize random seed after we're running in parallel.
   amrex::Amr* amrptr = new amrex::Amr;
-
-#if defined(AMREX_USE_EB) && !defined(PELEC_USE_EB)
-  amrex::Print() << "Initializing EB2 as all_regular because AMReX has EB "
-                    "enabled, but PeleC does not"
-                 << std::endl;
-  std::string geom_type("all_regular");
-  amrex::EB2::Build(
-    amrptr->Geom(amrptr->maxLevel()), amrptr->maxLevel(), amrptr->maxLevel());
-#elif defined(AMREX_USE_EB) && defined(PELEC_USE_EB)
-  amrex::AmrLevel::SetEBSupportLevel(
-    amrex::EBSupport::full); // need both area and volume fractions
-  amrex::AmrLevel::SetEBMaxGrowCells(
-    5, 5,
-    5); // 5 focdr ebcellflags, 4 for vfrac, 2 is not used for EBSupport::volume
-  initialize_EB2(
-    amrptr->Geom(amrptr->maxLevel()), amrptr->maxLevel(), amrptr->maxLevel());
-#endif
 
   amrptr->init(strt_time, stop_time);
 

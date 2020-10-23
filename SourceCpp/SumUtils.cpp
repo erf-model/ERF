@@ -5,10 +5,6 @@
 amrex::Real
 PeleC::sumDerive(const std::string& name, amrex::Real time, bool local)
 {
-#ifdef PELEC_USE_EB
-  amrex::Abort("sumDerive undefined for EB");
-#endif
-
   amrex::Real sum = 0.0;
   auto mf = derive(name, time, 0);
 
@@ -52,10 +48,6 @@ PeleC::volWgtSum(
     amrex::MultiFab::Multiply(*mf, mask, 0, 0, 1, 0);
   }
 
-#ifdef PELEC_USE_EB
-  amrex::MultiFab::Multiply(*mf, vfrac, 0, 0, 1, 0);
-#endif
-
   sum = amrex::MultiFab::Dot(*mf, 0, volume, 0, 1, 0, local);
 
   if (!local)
@@ -84,9 +76,6 @@ PeleC::volWgtSquaredSum(const std::string& name, amrex::Real time, bool local)
 
   amrex::MultiFab vol(grids, dmap, 1, 0);
   amrex::MultiFab::Copy(vol, volume, 0, 0, 1, 0);
-#ifdef PELEC_USE_EB
-  amrex::MultiFab::Multiply(vol, vfrac, 0, 0, 1, 0);
-#endif
   sum = amrex::MultiFab::Dot(*mf, 0, vol, 0, 1, 0, local);
 
   if (!local)
@@ -121,9 +110,6 @@ PeleC ::volWgtSquaredSumDiff(int comp, amrex::Real time, bool local)
 
   amrex::MultiFab vol(grids, dmap, 1, 0);
   amrex::MultiFab::Copy(vol, volume, 0, 0, 1, 0);
-#ifdef PELEC_USE_EB
-  amrex::MultiFab::Multiply(vol, vfrac, 0, 0, 1, 0);
-#endif
   sum = amrex::MultiFab::Dot(diff, 0, vol, 0, 1, 0, local);
 
   if (!local)
@@ -147,10 +133,6 @@ PeleC::volWgtSumMF(
     const amrex::MultiFab& mask = getLevel(level + 1).build_fine_mask();
     amrex::MultiFab::Multiply(vol, mask, 0, 0, 1, 0);
   }
-
-#ifdef PELEC_USE_EB
-  amrex::MultiFab::Multiply(vol, vfrac, 0, 0, 1, 0);
-#endif
 
   sum = amrex::MultiFab::Dot(vol, 0, volume, 0, 1, 0, local);
 

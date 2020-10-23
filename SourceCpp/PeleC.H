@@ -7,16 +7,7 @@
 #include <AMReX_AmrLevel.H>
 #include <AMReX_iMultiFab.H>
 
-#ifdef PELEC_USE_EB
-#include <AMReX_EBFArrayBox.H>
-#include "EBStencilTypes.H"
-#include "SparseData.H"
-#include <AMReX_EBFluxRegister.H>
-#include <AMReX_EBCellFlag.H>
-#include <AMReX_MultiCutFab.H>
-#else
 #include <AMReX_YAFluxRegister.H>
-#endif
 
 #ifdef AMREX_LAZY
 #include <AMReX_Lazy.H>
@@ -260,25 +251,6 @@ public:
   // for the Amr class to do timed load balances.
   virtual int WorkEstType() override { return Work_Estimate_Type; }
 
-#ifdef PELEC_USE_EB
-  static bool DoMOLLoadBalance() { return do_mol_load_balance; }
-
-
-  const amrex::MultiFab& volFrac() const { return vfrac; }
-
-  void init_eb(
-    const amrex::Geometry& level_geom,
-    const amrex::BoxArray& ba,
-    const amrex::DistributionMapping& dm);
-
-  void initialize_eb2_structs();
-
-  void define_body_state();
-
-  void set_body_state(amrex::MultiFab& S);
-
-  void zero_in_body(amrex::MultiFab& S) const;
-#endif
   //
   // Proceed with next timestep?
   //
@@ -570,22 +542,6 @@ public:
   amrex::MultiFab fine_mask;
   amrex::MultiFab& build_fine_mask();
 
-#ifdef PELEC_USE_EB
-  static bool eb_in_domain;
-
-  amrex::EBFluxRegister flux_reg;
-
-  amrex::EBFluxRegister& getFluxReg();
-  amrex::EBFluxRegister& getFluxReg(int lev);
-
-  amrex::EBFluxRegister pres_reg;
-
-  amrex::EBFluxRegister& getPresReg();
-  amrex::EBFluxRegister& getPresReg(int lev);
-
-  // static EB helper functions called from outside class
-  static bool ebInitialized();
-#else
   amrex::YAFluxRegister flux_reg;
 
   amrex::YAFluxRegister& getFluxReg();
@@ -595,15 +551,12 @@ public:
 
   amrex::YAFluxRegister& getPresReg();
   amrex::YAFluxRegister& getPresReg(int lev);
-#endif
+
   void avgDown();
   void avgDown(int state_indx);
 
 protected:
   amrex::iMultiFab level_mask;
-#ifdef PELEC_USE_EB
-  std::array<const amrex::MultiCutFab*, AMREX_SPACEDIM> areafrac;
-#endif
   //
   // Build a mask that ghost cells overlapping with interior cells in the same
   // multifab are set to 0, whereas others are set to 1.
@@ -758,24 +711,6 @@ protected:
 
   static int nGrowTr;
 
-#ifdef PELEC_USE_EB
-
-  amrex::FabArray<amrex::BaseFab<int>> ebmask;
-  static amrex::GpuArray<amrex::Real, NVAR> body_state;
-  static bool body_state_set;
-  static bool eb_initialized;
-
-  amrex::MultiFab vfrac;
-
-  amrex::Vector<amrex::Gpu::DeviceVector<EBBndryGeom>> sv_eb_bndry_geom;
-  amrex::Vector<amrex::Gpu::DeviceVector<EBBndrySten>> sv_eb_bndry_grad_stencil;
-  amrex::
-    GpuArray<amrex::Vector<amrex::Gpu::DeviceVector<FaceSten>>, AMREX_SPACEDIM>
-      flux_interp_stencil;
-
-  amrex::Vector<SparseData<amrex::Real, EBBndrySten>> sv_eb_flux;
-  amrex::Vector<SparseData<amrex::Real, EBBndrySten>> sv_eb_bcval;
-#endif
   static bool do_react_load_balance;
   static bool do_mol_load_balance;
 };
@@ -876,37 +811,6 @@ pc_check_initial_species(
   }
 }
 
-#ifdef PELEC_USE_EB
-AMREX_FORCE_INLINE
-amrex::EBFluxRegister&
-PeleC::getFluxReg()
-{
-  return flux_reg;
-}
-
-AMREX_FORCE_INLINE
-amrex::EBFluxRegister&
-PeleC::getFluxReg(int lev)
-{
-  return getLevel(lev).getFluxReg();
-}
-
-AMREX_FORCE_INLINE
-amrex::EBFluxRegister&
-PeleC::getPresReg()
-{
-  return pres_reg;
-}
-
-AMREX_FORCE_INLINE
-amrex::EBFluxRegister&
-PeleC::getPresReg(int lev)
-{
-  return getLevel(lev).getPresReg();
-}
-
-#else
-
 AMREX_FORCE_INLINE
 amrex::YAFluxRegister&
 PeleC::getFluxReg()
@@ -934,6 +838,5 @@ PeleC::getPresReg(int lev)
 {
   return getLevel(lev).getPresReg();
 }
-#endif
 
 #endif

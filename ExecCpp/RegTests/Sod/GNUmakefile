@@ -12,7 +12,7 @@ MEM_PROFILE = FALSE
 USE_GPROF = FALSE
 
 # Performance
-USE_MPI = FALSE
+USE_MPI = TRUE
 USE_OMP = FALSE
 USE_CUDA = FALSE
 USE_HIP = FALSE
@@ -25,7 +25,6 @@ THREAD_SANITIZER = FALSE
 
 # PeleC
 USE_REACT = FALSE
-USE_EB = FALSE
 Eos_dir := GammaLaw
 Reactions_dir := Null
 Transport_dir := Constant
