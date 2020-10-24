@@ -5,8 +5,6 @@ CEXE_sources += Derive.cpp
 CEXE_sources += Bld.cpp
 CEXE_sources += BCfill.cpp
 CEXE_sources += Hydro.cpp
-CEXE_sources += Godunov.cpp
-CEXE_sources += PPM.cpp
 CEXE_sources += IO.cpp 
 CEXE_sources += Sources.cpp
 CEXE_sources += Setup.cpp
@@ -19,12 +17,13 @@ CEXE_sources += Tagging.cpp
 CEXE_sources += Diffterm.cpp
 CEXE_sources += Diffusion.cpp
 CEXE_sources += Utilities.cpp
-CEXE_sources += Transport.cpp
 CEXE_sources += MOL.cpp
 CEXE_sources += Filter.cpp
 CEXE_sources += External.cpp
 CEXE_sources += Forcing.cpp
 CEXE_sources += LES.cpp
+CEXE_sources += Transport.cpp
+CEXE_sources += TransportParams.cpp
 
 #C++ headers
 CEXE_headers += PeleC.H
@@ -38,22 +37,16 @@ CEXE_headers += IndexDefines.H
 CEXE_headers += Diffterm.H
 CEXE_headers += Diffusion.H
 CEXE_headers += GradUtil.H
-CEXE_headers += Godunov.H
-CEXE_headers += PLM.H
-CEXE_headers += PPM.H
 CEXE_headers += Utilities.H
-CEXE_headers += Transport.H
 CEXE_headers += MOL.H
 CEXE_headers += Filter.H
 CEXE_headers += Riemann.H
 CEXE_headers += Forcing.H
 CEXE_headers += LES.H
+CEXE_headers += Transport.H
+CEXE_headers += TransportParams.H
 
 #Source file logic
-
-ifeq ($(USE_PARTICLES), TRUE)
-  CEXE_sources += Particle.cpp
-endif
 
 ifeq ($(USE_MASA), TRUE)
   CEXE_sources += MMS.cpp

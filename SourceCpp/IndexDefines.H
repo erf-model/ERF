@@ -3,7 +3,6 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_Arena.H>
-#include "mechanism.h"
 
 #define URHO 0
 #define UMX 1
@@ -29,7 +28,6 @@
 #define QCSML 2
 #define QDPDR 3
 #define QDPDE 4
-#define QRSPEC 5
 
 #define GDRHO 0
 #define GDU 1
@@ -39,7 +37,7 @@
 #define GDGAME 5
 
 #define dComp_rhoD 0
-#define dComp_mu dComp_rhoD + NUM_SPECIES
+#define dComp_mu dComp_rhoD + 1
 #define dComp_xi dComp_mu + 1
 #define dComp_lambda dComp_xi + 1
 
@@ -55,23 +53,15 @@
 #define NTHERM 7
 #define QTHERM 8
 
-#ifndef PELEC_USE_AUX
 #define NUM_ADV 0
-#define NUM_AUX 0
-#endif
 
-#define UFS UFA + NUM_ADV
-#define UFX UFS + NUM_SPECIES
-#define NVAR NTHERM + NUM_ADV + NUM_SPECIES + NUM_AUX
+#define NVAR NTHERM + NUM_ADV 
+#define QVAR QTHERM + NUM_ADV
 
-#define QFS QFA + NUM_ADV
-#define QFX QFS + NUM_SPECIES
-#define QVAR QTHERM + NUM_ADV + NUM_SPECIES + NUM_AUX
 #define NQ QVAR
-#define NQAUX 6
 #define NGDNV 6
 
-#define NPASSIVE NUM_SPECIES + NUM_ADV + NUM_AUX + 3 - AMREX_SPACEDIM
+#define NPASSIVE NUM_ADV 
 
 // This value was hardcoded to 4 in get_method_params in the old Fortran code
 #define NUM_GROW 4

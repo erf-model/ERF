@@ -13,11 +13,6 @@
 #include <AMReX_Lazy.H>
 #endif
 
-#ifdef AMREX_PARTICLES
-#include <AMReX_Particles.H>
-#include <SprayParticles.H>
-#endif
-
 #include "Filter.H"
 #include "IndexDefines.H"
 
@@ -36,9 +31,6 @@ enum StateType {
 enum sources {
   ext_src = 0,
   forcing_src,
-#ifdef AMREX_PARTICLES
-  spray_src,
-#endif
   diff_src,
   les_src,
 #ifdef PELEC_USE_MASA
@@ -127,94 +119,6 @@ public:
   //
   virtual void initData() override;
 
-#ifdef AMREX_PARTICLES
-  //
-  // Read particle-related inputs
-  //
-  static void readParticleParams();
-  //
-  // Define particle related variables
-  //
-  static void defineParticles();
-  //
-  // Initialize particle locations and velocities (and strengths if relevant)
-  //
-  void initParticles();
-  //
-  // Timestamp particles
-  //
-  void particleTimestamp(int ngrow);
-  //
-  // Default verbosity of Particle class
-  //
-  static int particle_verbose;
-
-  //
-  // How to initialize at restart
-  //
-  void particlePostRestart(
-    const std::string& restart_file, bool is_checkpoint = true);
-
-  //
-  // Redistribute
-  //
-  virtual void particleRedistribute(
-    int lbase = 0, int nGrow = 0, int local = 0, bool init_part = false);
-  //
-  // Setup virtual particles if necessary
-  //
-  void setupVirtualParticles();
-  //
-  // Remove virtual particles if necessary
-  //
-  void removeVirtualParticles();
-  //
-  // Setup ghost particles (for finer levels) if necessary
-  //
-  void setupGhostParticles(int ngrow);
-  //
-  // Remove ghost particles (for this level) if necessary
-  //
-  void removeGhostParticles();
-  //
-  // Time step control based on particles
-  //
-  void particleEstTimeStep(amrex::Real& est_dt);
-
-  //
-  // Derived quantities associated with particles
-  //
-  std::unique_ptr<amrex::MultiFab>
-  particleDerive(const std::string& name, amrex::Real time, int ngrow);
-
-  //
-  // Default cfl of particles in Particle class
-  //
-  static amrex::Real particle_cfl;
-  //
-  // Should we write particles into plotfiles?
-  //
-  static int write_particle_plotfiles;
-  //
-  // Should we write particle ascii files?
-  //
-  static int write_spray_ascii_files;
-
-  void setSprayGridInfo(
-    const int amr_iteration,
-    const int amr_ncycle,
-    int& ghost_width,
-    int& where_width,
-    int& spray_n_grow,
-    int& tmp_src_width);
-
-  static int particle_mass_tran;
-  static int particle_heat_tran;
-  static int particle_mom_tran;
-  static amrex::Vector<std::string> sprayFuelNames;
-  static amrex::Real sprayRefT;
-#endif
-
   //
   // Get problem metrics.
   //
@@ -258,39 +162,6 @@ public:
 
   amrex::Real do_mol_advance(
     amrex::Real time, amrex::Real dt, int amr_iteration, int amr_ncycle);
-
-  amrex::Real do_sdc_advance(
-    amrex::Real time, amrex::Real dt, int amr_iteration, int amr_ncycle);
-
-  void initialize_sdc_advance(
-    amrex::Real time, amrex::Real dt, int amr_iteration, int amr_ncycle);
-
-  void finalize_sdc_advance(
-    amrex::Real time, amrex::Real dt, int amr_iteration, int amr_ncycle);
-
-  amrex::Real do_sdc_iteration(
-    amrex::Real time,
-    amrex::Real dt,
-    int amr_iteration,
-    int amr_ncycle,
-    int sub_iteration,
-    int sub_ncycle);
-
-  void initialize_sdc_iteration(
-    amrex::Real time,
-    amrex::Real dt,
-    int amr_iteration,
-    int amr_ncycle,
-    int sdc_iteration,
-    int sdc_ncycle);
-
-  void finalize_sdc_iteration(
-    amrex::Real time,
-    amrex::Real dt,
-    int amr_iteration,
-    int amr_ncycle,
-    int sdc_iteration,
-    int sdc_ncycle);
 
   void construct_Snew(
     amrex::MultiFab& S_new, const amrex::MultiFab& S_old, amrex::Real dt);
@@ -514,7 +385,6 @@ public:
   static int Density, Xmom, Ymom, Zmom, Eden, Eint, Temp;
 
   static int FirstAdv, NumAdv;
-  static int FirstSpec;
   static int FirstAux;
 
   /// Index locations into particle state
@@ -590,8 +460,6 @@ protected:
 
   void reflux();
 
-  void normalize_species(amrex::MultiFab& S_new);
-
   amrex::Real
   enforce_min_density(amrex::MultiFab& S_old, amrex::MultiFab& S_new);
 
@@ -649,7 +517,6 @@ protected:
 
   static int diffuse_temp;
   static int diffuse_enth;
-  static int diffuse_spec;
   static int diffuse_vel;
   static amrex::Real diffuse_cutoff_density;
   static bool do_diffuse;
@@ -675,16 +542,7 @@ protected:
   // There can be only one Diffusion object, it covers all levels:
   static class Diffusion* diffusion;
 
-#ifdef AMREX_PARTICLES
-  static int do_spray_particles;
-  static SprayParticleContainer* theSprayPC();
-  static SprayParticleContainer* theVirtPC();
-  static SprayParticleContainer* theGhostPC();
-#endif
-
   static int num_state_type;
-
-  static amrex::Vector<std::string> spec_names;
 
   static amrex::Vector<int> src_list;
 
@@ -762,23 +620,6 @@ void
 PeleC::stopJob()
 {
   signalStopJob = true;
-}
-
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-void
-pc_check_initial_species(
-  const int i, const int j, const int k, amrex::Array4<amrex::Real> const& Sfab)
-{
-  amrex::Real spec_sum = 0.0;
-  for (int n = 0; n < NUM_SPECIES; n++) {
-    spec_sum = spec_sum + Sfab(i, j, k, UFS + n);
-  }
-  if (fabs(Sfab(i, j, k, URHO) - spec_sum) > 1.e-8 * Sfab(i, j, k, URHO)) {
-    // print *,'Sum of (rho X)_i vs rho at (i,j,k):
-    // ',i,j,k,spec_sum,state(i,j,k,URHO)
-    amrex::Abort("Error:: Failed check of initial species summing to 1");
-  }
 }
 
 AMREX_FORCE_INLINE

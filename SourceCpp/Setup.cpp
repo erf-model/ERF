@@ -9,12 +9,10 @@
 using namespace MASA;
 #endif
 
-#include "mechanism.h"
 #include "PeleC.H"
 #include "Derive.H"
 #include "IndexDefines.H"
 #include "prob.H"
-#include "chemistry_file.H"
 
 //
 // Components are:
@@ -87,7 +85,6 @@ PeleC::variableSetUp()
   if (amrex::ParallelDescriptor::IOProcessor()) {
     const char* pelec_hash = amrex::buildInfoGetGitHash(1);
     const char* amrex_hash = amrex::buildInfoGetGitHash(2);
-    const char* pelephysics_hash = amrex::buildInfoGetGitHash(3);
     const char* buildgithash = amrex::buildInfoGetBuildGitHash();
     const char* buildgitname = amrex::buildInfoGetBuildGitName();
 
@@ -97,9 +94,6 @@ PeleC::variableSetUp()
     }
     if (strlen(amrex_hash) > 0) {
       amrex::Print() << "AMReX git hash: " << amrex_hash << "\n";
-    }
-    if (strlen(pelephysics_hash) > 0) {
-      amrex::Print() << "PelePhysics git hash: " << pelephysics_hash << "\n";
     }
     if (strlen(buildgithash) > 0) {
       amrex::Print() << buildgitname << " git hash: " << buildgithash << "\n";
@@ -112,8 +106,6 @@ PeleC::variableSetUp()
 
   // Get options, set phys_bc
   read_params();
-
-  EOS::init();
 
   init_transport();
 
@@ -151,27 +143,7 @@ PeleC::variableSetUp()
 
   int dm = AMREX_SPACEDIM;
 
-  if (NUM_SPECIES > 0) {
-    FirstSpec = cnt;
-    cnt += NUM_SPECIES;
-  }
-
-  if (NUM_AUX > 0) {
-    FirstAux = cnt;
-    cnt += NUM_AUX;
-  }
-
   // NVAR = cnt;
-
-#ifdef AMREX_PARTICLES
-  // Set index locations for particle state vector
-  pstateVel = 0;
-  pstateT = pstateVel + AMREX_SPACEDIM;
-  pstateDia = pstateT + 1;
-  pstateRho = pstateDia + 1;
-  pstateY = pstateRho + 1;
-  pstateNum = pstateY + SPRAY_FUEL_NUM;
-#endif
 
   // const amrex::Real run_strt = amrex::ParallelDescriptor::second() ;
 
@@ -267,69 +239,6 @@ PeleC::variableSetUp()
     set_scalar_bc(bc, phys_bc);
     bcs[cnt] = bc;
     name[cnt] = std::string(buf);
-  }
-
-  // Get the species names from the network model.
-  {
-    int len = 20;
-    amrex::Vector<int> int_spec_names(len * NUM_SPECIES);
-    CKSYMS(int_spec_names.dataPtr(), &len);
-    for (int i = 0; i < NUM_SPECIES; i++) {
-      int j = 0;
-      for (j = 0; j < len; j++) {
-        if (int_spec_names[i * len + j] == ' ')
-          break;
-      }
-      const int strlen = j;
-      char char_spec_names[strlen + 1];
-      for (j = 0; j < strlen; j++)
-        char_spec_names[j] = int_spec_names[i * len + j];
-      char_spec_names[j] = '\0';
-      spec_names.push_back(std::string(char_spec_names));
-    }
-  }
-
-  if (amrex::ParallelDescriptor::IOProcessor()) {
-    amrex::Print() << NUM_SPECIES << " Species: " << std::endl;
-    for (int i = 0; i < NUM_SPECIES; i++)
-      amrex::Print() << spec_names[i] << ' ' << ' ';
-    amrex::Print() << std::endl;
-  }
-
-  for (int i = 0; i < NUM_SPECIES; ++i) {
-    cnt++;
-    set_scalar_bc(bc, phys_bc);
-    bcs[cnt] = bc;
-    name[cnt] = "rho_" + spec_names[i];
-  }
-  // Get the auxiliary names from the network model.
-  amrex::Vector<std::string> aux_names;
-  for (int i = 0; i < NUM_AUX; i++) {
-    int len = 20;
-    amrex::Vector<int> int_aux_names(len);
-    /* Disabling for CUDA at the moment. Look at the species names to see how to
-      do this in C++. AUX stuff is usually 0 anyway.
-      // This call return the actual length of each string in "len"
-      get_aux_names(int_aux_names.dataPtr(),&i,&len);
-    */
-    char char_aux_names[len + 1];
-    for (int j = 0; j < len; j++)
-      char_aux_names[j] = int_aux_names[j];
-    char_aux_names[len] = '\0';
-    aux_names.push_back(std::string(char_aux_names));
-  }
-  if (amrex::ParallelDescriptor::IOProcessor()) {
-    amrex::Print() << NUM_AUX << " Auxiliary Variables: " << std::endl;
-    for (int i = 0; i < NUM_AUX; i++)
-      amrex::Print() << aux_names[i] << ' ' << ' ';
-    amrex::Print() << std::endl;
-  }
-
-  for (int i = 0; i < NUM_AUX; ++i) {
-    cnt++;
-    set_scalar_bc(bc, phys_bc);
-    bcs[cnt] = bc;
-    name[cnt] = "rho_" + aux_names[i];
   }
 
   amrex::StateDescriptor::BndryFunc bndryfunc1(pc_bcfill_hyp);
@@ -434,33 +343,6 @@ PeleC::variableSetUp()
   derive_lst.addComponent("logden", desc_lst, State_Type, Density, NVAR);
 
   //
-  // Y from rhoY
-  //
-  amrex::Vector<std::string> var_names_massfrac(NUM_SPECIES);
-  for (int i = 0; i < NUM_SPECIES; i++) {
-    var_names_massfrac[i] = "Y(" + spec_names[i] + ")";
-  }
-
-  derive_lst.add(
-    "massfrac", amrex::IndexType::TheCellType(), NUM_SPECIES,
-    var_names_massfrac, pc_derspec, the_same_box);
-  derive_lst.addComponent("massfrac", desc_lst, State_Type, Density, NVAR);
-
-  //
-  // Species mole fractions
-  //
-
-  amrex::Vector<std::string> var_names_molefrac(NUM_SPECIES);
-  for (int i = 0; i < NUM_SPECIES; i++) {
-    var_names_molefrac[i] = "X(" + spec_names[i] + ")";
-  }
-
-  derive_lst.add(
-    "molefrac", amrex::IndexType::TheCellType(), NUM_SPECIES,
-    var_names_molefrac, pc_dermolefrac, the_same_box);
-  derive_lst.addComponent("molefrac", desc_lst, State_Type, Density, NVAR);
-
-  //
   // Velocities
   //
   derive_lst.add(
@@ -487,27 +369,6 @@ PeleC::variableSetUp()
   derive_lst.add(
     "magmom", amrex::IndexType::TheCellType(), 1, pc_dermagmom, the_same_box);
   derive_lst.addComponent("magmom", desc_lst, State_Type, Density, NVAR);
-
-#ifdef AMREX_PARTICLES
-  // We want a derived type that corresponds to the number of particles
-  // in each cell.  We only intend to use it in plotfiles for debugging
-  // purposes. We'll actually set the values in writePlotFile().
-  derive_lst.add(
-    "particle_count", amrex::IndexType::TheCellType(), 1, pc_dernull,
-    the_same_box);
-  derive_lst.addComponent("particle_count", desc_lst, State_Type, Density, 1);
-
-  derive_lst.add(
-    "total_particle_count", amrex::IndexType::TheCellType(), 1, pc_dernull,
-    the_same_box);
-  derive_lst.addComponent(
-    "total_particle_count", desc_lst, State_Type, Density, 1);
-
-  derive_lst.add(
-    "particle_density", amrex::IndexType::TheCellType(), 1, pc_dernull,
-    the_same_box);
-  derive_lst.addComponent("particle_density", desc_lst, State_Type, Density, 1);
-#endif
 
   //
   // LES coefficients
@@ -561,9 +422,6 @@ PeleC::variableSetUp()
 
   // Set list of active sources
   set_active_sources();
-#ifdef AMREX_PARTICLES
-  defineParticles();
-#endif
 }
 
 void
@@ -582,12 +440,6 @@ PeleC::set_active_sources()
   if (add_forcing_src == 1) {
     src_list.push_back(forcing_src);
   }
-
-#ifdef AMREX_PARTICLES
-  if (do_spray_particles) {
-    src_list.push_back(spray_src);
-  }
-#endif
 
   // optional LES source
   if (do_les) {

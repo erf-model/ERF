@@ -1,4 +1,5 @@
 #include "Diffusion.H"
+#include "Transport.H"
 
 void
 PeleC::getMOLSrcTerm(
@@ -11,7 +12,7 @@ PeleC::getMOLSrcTerm(
   BL_PROFILE("PeleC::getMOLSrcTerm()");
   BL_PROFILE_VAR_NS("diffusion_stuff", diff);
   if (
-    diffuse_temp == 0 && diffuse_enth == 0 && diffuse_spec == 0 &&
+    diffuse_temp == 0 && diffuse_enth == 0 && 
     diffuse_vel == 0 && do_hydro == 0) {
     MOLSrcTerm.setVal(0, 0, NVAR, MOLSrcTerm.nGrow());
     return;
@@ -103,15 +104,11 @@ PeleC::getMOLSrcTerm(
       const int* hi = vbox.hiVect();
 
       BL_PROFILE_VAR_START(diff);
-      int nqaux = NQAUX > 0 ? NQAUX : 1;
-      amrex::FArrayBox q(gbox, QVAR), qaux(gbox, nqaux),
-        coeff_cc(gbox, nCompTr);
+      amrex::FArrayBox q(gbox, QVAR), coeff_cc(gbox, nCompTr);
       amrex::Elixir qeli = q.elixir();
-      amrex::Elixir qauxeli = qaux.elixir();
       amrex::Elixir coefeli = coeff_cc.elixir();
       auto const& s = S.array(mfi);
       auto const& qar = q.array();
-      auto const& qauxar = qaux.array();
 
       // Get primitives, Q, including (Y, T, p, rho) from conserved state
       // required for D term
@@ -119,7 +116,7 @@ PeleC::getMOLSrcTerm(
         BL_PROFILE("PeleC::ctoprim()");
         amrex::ParallelFor(
           gbox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(i, j, k, s, qar, qauxar);
+            pc_ctoprim(i, j, k, s, qar);
           });
       }
 // TODO deal with NSCBC
@@ -147,7 +144,6 @@ PeleC::getMOLSrcTerm(
         impose_NSCBC(lo, hi, domain_lo, domain_hi,
                      AMREX_TO_FORTRAN(Sfab),
                      AMREX_TO_FORTRAN(q.fab()),
-                     AMREX_TO_FORTRAN(qaux.fab()),
                      AMREX_D_DECL(AMREX_TO_FORTRAN(bcMask[0]),
                             AMREX_TO_FORTRAN(bcMask[1]),
                             AMREX_TO_FORTRAN(bcMask[2])),
@@ -159,19 +155,16 @@ PeleC::getMOLSrcTerm(
       // Compute transport coefficients, coincident with Q
       auto const& coe_cc = coeff_cc.array();
       {
-        auto const& qar_yin = q.array(QFS);
         auto const& qar_Tin = q.array(QTEMP);
         auto const& qar_rhoin = q.array(QRHO);
-        auto const& coe_rhoD = coeff_cc.array(dComp_rhoD);
         auto const& coe_mu = coeff_cc.array(dComp_mu);
         auto const& coe_xi = coeff_cc.array(dComp_xi);
         auto const& coe_lambda = coeff_cc.array(dComp_lambda);
+
         BL_PROFILE("PeleC::get_transport_coeffs()");
         // Get Transport coefs on GPU.
         amrex::launch(gbox, [=] AMREX_GPU_DEVICE(amrex::Box const& tbx) {
-          get_transport_coeffs(
-            tbx, qar_yin, qar_Tin, qar_rhoin, coe_rhoD, coe_mu, coe_xi,
-            coe_lambda);
+          get_transport_coeffs(tbx, qar_Tin, qar_rhoin, coe_mu, coe_xi, coe_lambda);
         });
       }
 
@@ -226,12 +219,6 @@ PeleC::getMOLSrcTerm(
           setC(eboxes[dir], Eden, Eint, flx[dir], 0.0);
         }
       }
-      if (diffuse_spec == 0) {
-        setC(cbox, FirstSpec, FirstSpec + NUM_SPECIES, Dterm, 0.0);
-        for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-          setC(eboxes[dir], FirstSpec, FirstSpec + NUM_SPECIES, flx[dir], 0.0);
-        }
-      }
 
       if (diffuse_vel == 0) {
         setC(cbox, Xmom, Xmom + 3, Dterm, 0.0);
@@ -277,9 +264,7 @@ PeleC::getMOLSrcTerm(
           // Get hyp flux at EB wall
           BL_PROFILE("PeleC::pc_hyp_mol_flux()");
           auto const& vol = volume.array(mfi);
-          pc_compute_hyp_mol_flux(
-            cbox, qar, qauxar, flx, a, dx, plm_iorder
-          );
+          pc_compute_hyp_mol_flux(cbox, qar, flx, a, dx, plm_iorder);
         }
 
         // Filter hydro source term and fluxes here
@@ -381,9 +366,6 @@ PeleC::getMOLSrcTerm(
             pc_diffextrap(
               i, j, k, Dterm, mg, UMX, UMZ + 1, AMREX_D_DECL(lx, ly, lz),
               AMREX_D_DECL(hx, hy, hz), dlo, dhi);
-            pc_diffextrap(
-              i, j, k, Dterm, mg, UFS, UFS + NUM_SPECIES,
-              AMREX_D_DECL(lx, ly, lz), AMREX_D_DECL(hx, hy, hz), dlo, dhi);
             pc_diffextrap(
               i, j, k, Dterm, mg, UEDEN, UEDEN + 1, AMREX_D_DECL(lx, ly, lz),
               AMREX_D_DECL(hx, hy, hz), dlo, dhi);

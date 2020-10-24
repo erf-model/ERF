@@ -1,5 +1,3 @@
-#include "mechanism.h"
-
 #include "EOS.H"
 #include "Derive.H"
 #include "IndexDefines.H"
@@ -202,27 +200,6 @@ pc_derlogden(
 }
 
 void
-pc_derspec(
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
-{
-  auto const dat = datfab.array();
-  auto spec = derfab.array();
-
-  amrex::ParallelFor(
-    bx, NUM_SPECIES, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-      spec(i, j, k, n) = dat(i, j, k, UFS + n) / dat(i, j, k, URHO);
-    });
-}
-
-void
 pc_dermagvort(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
@@ -390,34 +367,6 @@ pc_dernull(
 }
 
 void
-pc_dermolefrac(
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
-{
-  // Derive the mole fractions of the species
-  auto const dat = datfab.array();
-  auto spec = derfab.array();
-
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    amrex::Real mass[NUM_SPECIES], mole[NUM_SPECIES];
-    const amrex::Real rhoInv = 1.0 / dat(i, j, k, URHO);
-
-    for (int n = 0; n < NUM_SPECIES; n++)
-      mass[n] = dat(i, j, k, UFS + n) * rhoInv;
-    EOS::Y2X(mass, mole);
-    for (int n = 0; n < NUM_SPECIES; n++)
-      spec(i, j, k, UFS + n) = mole[n];
-  });
-}
-
-void
 pc_dersoundspeed(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
@@ -436,10 +385,8 @@ pc_dersoundspeed(
     const amrex::Real rho = dat(i, j, k, URHO);
     const amrex::Real rhoInv = 1.0 / rho;
     const amrex::Real T = dat(i, j, k, UTEMP);
-    amrex::Real massfrac[NUM_SPECIES], c;
-    for (int n = 0; n < NUM_SPECIES; ++n)
-      massfrac[n] = dat(i, j, k, UFS + n) * rhoInv;
-    EOS::RTY2Cs(rho, T, massfrac, c);
+    amrex::Real c;
+    EOS::RT2Cs(rho, T, c);
     cfab(i, j, k) = c;
   });
 }
@@ -485,10 +432,8 @@ pc_dermachnumber(
     const amrex::Real rho = dat(i, j, k, URHO);
     const amrex::Real rhoInv = 1.0 / rho;
     const amrex::Real T = dat(i, j, k, UTEMP);
-    amrex::Real massfrac[NUM_SPECIES], c;
-    for (int n = 0; n < NUM_SPECIES; ++n)
-      massfrac[n] = dat(i, j, k, UFS + n) * rhoInv;
-    EOS::RTY2Cs(rho, T, massfrac, c);
+    amrex::Real c;
+    EOS::RT2Cs(rho, T, c);
     const amrex::Real datxsq = dat(i, j, k, UMX) * dat(i, j, k, UMX);
     const amrex::Real datysq = dat(i, j, k, UMY) * dat(i, j, k, UMY);
     const amrex::Real datzsq = dat(i, j, k, UMZ) * dat(i, j, k, UMZ);
@@ -516,10 +461,8 @@ pc_derpres(
     const amrex::Real rhoInv = 1.0 / rho;
     amrex::Real T = dat(i, j, k, UTEMP);
     amrex::Real e = dat(i, j, k, UEINT) * rhoInv;
-    amrex::Real p, massfrac[NUM_SPECIES];
-    for (int n = 0; n < NUM_SPECIES; ++n)
-      massfrac[n] = dat(i, j, k, UFS + n) * rhoInv;
-    EOS::RTY2P(rho, T, massfrac, p);
+    amrex::Real p;
+    EOS::RT2P(rho, T, p);
     pfab(i, j, k) = p;
   });
 }
@@ -541,27 +484,6 @@ pc_dertemp(
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     tfab(i, j, k) = dat(i, j, k, UTEMP);
-  });
-}
-
-void
-pc_derspectrac(
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/,
-  const int idx)
-{
-  auto const dat = datfab.array();
-  auto spectrac = derfab.array();
-
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    spectrac(i, j, k) = dat(i, j, k, UFS + idx) / dat(i, j, k, URHO);
   });
 }
 
@@ -761,13 +683,9 @@ pc_derpmmserror(
     const amrex::Real rhoinv = 1.0 / rho;
     amrex::Real eint = dat(i, j, k, UEINT) * rhoinv;
     amrex::Real T = dat(i, j, k, UTEMP);
-    amrex::Real massfrac[NUM_SPECIES] = {0.0};
-    for (int n = 0; n < NUM_SPECIES; n++) {
-      massfrac[n] = dat(i, j, k, UFS + n) * rhoinv;
-    }
 
     amrex::Real pdat;
-    EOS::RYET2P(rho, massfrac, eint, T, pdat);
+    EOS::RYET2P(rho, eint, T, pdat);
     const amrex::Real p = masa_eval_3d_exact_p(x, y, z);
     pmmserror(i, j, k) = pdat - p;
   });

@@ -9,10 +9,6 @@
 #include <AMReX_TagBox.H>
 #include <AMReX_ParmParse.H>
 
-#ifdef AMREX_PARTICLES
-#include <AMReX_Particles.H>
-#endif
-
 #ifdef PELEC_USE_MASA
 #include <masa.h>
 using namespace MASA;
@@ -41,7 +37,6 @@ int PeleC::Temp = -1;
 int PeleC::Xmom = -1;
 int PeleC::Ymom = -1;
 int PeleC::Zmom = -1;
-int PeleC::FirstSpec = -1;
 int PeleC::FirstAux = -1;
 int PeleC::NumAdv = 0;
 int PeleC::FirstAdv = -1;
@@ -57,7 +52,6 @@ int PeleC::pstateNum = 0;
 int PeleC::nGrowTr = 4;
 int PeleC::diffuse_temp = 0;
 int PeleC::diffuse_enth = 0;
-int PeleC::diffuse_spec = 0;
 int PeleC::diffuse_vel = 0;
 amrex::Real PeleC::diffuse_cutoff_density = -1.e200;
 bool PeleC::do_diffuse = false;
@@ -74,8 +68,6 @@ int PeleC::les_test_filter_fgr = 2;
 
 bool PeleC::do_mol_load_balance = false;
 
-amrex::Vector<std::string> PeleC::spec_names;
-
 amrex::Vector<int> PeleC::src_list;
 
 // this will be reset upon restart
@@ -89,8 +81,6 @@ PeleC::variableCleanUp()
   desc_lst.clear();
 
   transport_close();
-
-  EOS::close();
 
   clear_prob();
 }
@@ -217,11 +207,10 @@ PeleC::read_params()
 
   pp.query("diffuse_temp", diffuse_temp);
   pp.query("diffuse_enth", diffuse_enth);
-  pp.query("diffuse_spec", diffuse_spec);
   pp.query("diffuse_vel", diffuse_vel);
   pp.query("diffuse_cutoff_density", diffuse_cutoff_density);
 
-  do_diffuse = diffuse_temp || diffuse_enth || diffuse_spec || diffuse_vel;
+  do_diffuse = diffuse_temp || diffuse_enth || diffuse_vel;
 
   // sanity checks
   if (cfl <= 0.0 || cfl > 1.0) {
@@ -239,41 +228,9 @@ PeleC::read_params()
     pp.query("les_filter_fgr", les_filter_fgr);
   }
 
-  // Check on PPM type
-  if ((do_hydro == 1) && (do_mol == 0)) {
-    if (ppm_type != 0 && ppm_type != 1) {
-      amrex::Error("PeleC::ppm_type must be 0 (PLM) or 1 (PPM)");
-    }
-  }
-
-  // for the moment, ppm_type = 0 does not support ppm_trace_sources --
-  // we need to add the momentum sources to the states (and not
-  // add it in trans_3d
-  if (ppm_type == 0 && ppm_trace_sources == 1) {
-    amrex::Print()
-      << "WARNING: ppm_trace_sources = 1 not implemented for ppm_type = 0"
-      << std::endl;
-    ppm_trace_sources = 0;
-    pp.add("ppm_trace_sources", ppm_trace_sources);
-  }
-  if (
-    hybrid_riemann == 1 && (amrex::DefaultGeometry().IsSPHERICAL() ||
-                            amrex::DefaultGeometry().IsRZ())) {
-    amrex::Error(
-      "hybrid_riemann should only be used for Cartesian coordinates");
-  }
-
-  if (use_colglaz >= 0) {
-    amrex::Error("use_colglaz is deprecated. Use riemann_solver instead");
-  }
-
   if (max_dt < fixed_dt) {
     amrex::Error("Cannot have max_dt < fixed_dt");
   }
-
-#ifdef AMREX_PARTICLES
-  readParticleParams();
-#endif
 
   // Read tagging parameters
   read_tagging_params();
@@ -321,12 +278,6 @@ PeleC::PeleC(
   for (int n = 0; n < src_list.size(); ++n) {
     int oldGrow = NUM_GROW;
     int newGrow = S_new.nGrow();
-#ifdef AMREX_PARTICLES
-    if (src_list[n] == spray_src) {
-      oldGrow = 1;
-      newGrow = amrex::max(1, newGrow);
-    }
-#endif
     old_sources[src_list[n]] =
       std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
         grids, dmap, NVAR, oldGrow, amrex::MFInfo(), Factory()));
@@ -340,11 +291,6 @@ PeleC::PeleC(
   } else if (do_diffuse) {
     Sborder.define(grids, dmap, NVAR, nGrowTr, amrex::MFInfo(), Factory());
   }
-#ifdef AMREX_PARTICLES
-  else if (do_spray_particles) {
-    Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
-  }
-#endif
 
   if (!do_mol) {
     if (do_hydro) {
@@ -577,24 +523,12 @@ PeleC::initData()
 
     amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
       pc_initdata(i, j, k, sfab, geomdata);
-      // Verify that the sum of (rho Y)_i = rho at every cell
-      pc_check_initial_species(i, j, k, sfab);
     });
   }
 
   enforce_consistent_e(S_new);
 
   // computeTemp(S_new,0);
-
-#ifdef AMREX_PARTICLES
-  if (level == 0) {
-    initParticles();
-  } else {
-    // TODO: Determine how many ghost cells to use here
-    int nGrow = 0;
-    particleRedistribute(level - 1, nGrow, 0, false);
-  }
-#endif
 
   if (verbose) {
     amrex::Print() << "Done initializing level " << level << " data "
@@ -780,17 +714,6 @@ PeleC::estTimeStep(amrex::Real dt_old)
     }
   }
 
-#ifdef AMREX_PARTICLES
-  amrex::Real estdt_particle = max_dt;
-  if (do_spray_particles) {
-    particleEstTimeStep(estdt_particle);
-    if (estdt_particle < estdt) {
-      limiter = "particles";
-      estdt = estdt_particle;
-    }
-  }
-#endif
-
   if (verbose) {
     amrex::Print() << "PeleC::estTimeStep (" << limiter << "-limited) at level "
                    << level << ":  estdt = " << estdt << '\n';
@@ -920,32 +843,6 @@ PeleC::post_timestep(int iteration)
   const int finest_level = parent->finestLevel();
   const int ncycle = parent->nCycle(level);
 
-#ifdef AMREX_PARTICLES
-  if (do_spray_particles) {
-    //
-    // Remove virtual particles at this level if we have any.
-    //
-    if (theVirtPC() != 0)
-      removeVirtualParticles();
-
-    //
-    // Remove Ghost particles on the final iteration
-    //
-    if (iteration == ncycle)
-      removeGhostParticles();
-
-    //
-    // Sync up if we're level 0 or if we have particles that may have moved
-    // off the next finest level and need to be added to our own level.
-    //
-    if ((iteration < ncycle and level < finest_level) || level == 0) {
-      // TODO: Determine how many ghost cells to use here
-      int nGrow = iteration;
-      theSprayPC()->Redistribute(level, theSprayPC()->finestLevel(), nGrow);
-    }
-  }
-#endif
-
   if (do_reflux && level < finest_level) {
     reflux();
 
@@ -1004,12 +901,6 @@ PeleC::post_restart()
 
   amrex::Real cur_time = state[State_Type].curTime();
 
-#ifdef AMREX_PARTICLES
-  if (do_spray_particles) {
-    particlePostRestart(parent->theRestartFile());
-  }
-#endif
-
   // Don't need this in pure C++?
   // initialize the Godunov state array used in hydro -- we wait
   // until here so that ngroups is defined (if needed) in
@@ -1047,14 +938,6 @@ PeleC::post_regrid(int lbase, int new_finest)
 {
   BL_PROFILE("PeleC::post_regrid()");
   fine_mask.clear();
-
-#ifdef AMREX_PARTICLES
-  if (do_spray_particles && theSprayPC() != 0 && level == lbase) {
-    // TODO: Determine how many ghost cells to use here
-    int nGrow = 0;
-    particleRedistribute(lbase);
-  }
-#endif
 }
 
 void
@@ -1188,12 +1071,6 @@ PeleC::avgDown()
     return;
 
   avgDown(State_Type);
-}
-
-void
-PeleC::normalize_species(amrex::MultiFab& S)
-{
-  amrex::Abort("We don't normalize species!");
 }
 
 void
@@ -1490,45 +1367,6 @@ PeleC::errorEst(
           });
       }
 
-      // Tagging flame tracer
-      if (!flame_trac_name.empty()) {
-        int idx = -1;
-        for (int i = 0; i < spec_names.size(); ++i) {
-          if (flame_trac_name == spec_names[i]) {
-            idx = i;
-          }
-        }
-
-        if (idx >= 0) {
-          // const std::string name = "Y("+flame_trac_name+")";
-          // if (amrex::ParallelDescriptor::IOProcessor())
-          //  amrex::Print() << " Flame tracer will be " << name << '\n';
-
-          S_derData.setVal<amrex::RunOn::Device>(0.0);
-          pc_derspectrac(
-            datbox, S_derData, ncp, Sfab.nComp(), S_data[mfi], geom, time, bc,
-            level, idx);
-
-          if (level < TaggingParm::max_ftracerr_lev) {
-            amrex::ParallelFor(
-              tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                tag_error(
-                  i, j, k, tag_arr, S_derarr, TaggingParm::ftracerr, tagval);
-              });
-          }
-          if (level < TaggingParm::max_ftracgrad_lev) {
-            amrex::ParallelFor(
-              tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                tag_graderror(
-                  i, j, k, tag_arr, S_derarr, TaggingParm::ftracgrad, tagval);
-              });
-          }
-
-        } else {
-          amrex::Abort("Unknown species identified as flame_trac_name");
-        }
-      }
-
       // Problem specific tagging
       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx =
         geom.CellSizeArray();
@@ -1576,11 +1414,7 @@ PeleC::derive(const std::string& name, amrex::Real time, int ngrow)
     return derive_dat;
   }
 
-#ifdef AMREX_PARTICLES
-  return particleDerive(name, time, ngrow);
-#else
   return AmrLevel::derive(name, time, ngrow);
-#endif
 }
 
 void
@@ -1620,13 +1454,6 @@ PeleC::init_les()
 
   amrex::Print() << "WARNING: LES with Fuego assumes Cp is a weak function of T"
                  << std::endl;
-  if (NUM_SPECIES > 2) {
-    amrex::Abort("LES is not supported for multi-component systems");
-  } else if (NUM_SPECIES == 2) {
-    amrex::Print()
-      << "WARNING: LES is not supported for multi-component systems"
-      << std::endl;
-  }
 }
 
 void
@@ -1853,8 +1680,6 @@ PeleC::clean_state(amrex::MultiFab& S)
   amrex::MultiFab::Copy(temp_state, S, 0, 0, S.nComp(), S.nGrow());
 
   amrex::Real frac_change_t = enforce_min_density(temp_state, S);
-
-  // normalize_species(S);
 
   return frac_change_t;
 }

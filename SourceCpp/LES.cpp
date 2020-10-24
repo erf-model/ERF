@@ -153,9 +153,6 @@ PeleC::getLESTerm(
   //             i, j, k, Lterm, mg, UMX, UMZ + 1, AMREX_D_DECL(lx, ly, lz),
   //             AMREX_D_DECL(hx, hy, hz), dlo, dhi);
   //           pc_diffextrap(
-  //             i, j, k, Lterm, mg, UFS, UFS + NUM_SPECIES,
-  //             AMREX_D_DECL(lx, ly, lz), AMREX_D_DECL(hx, hy, hz), dlo, dhi);
-  //           pc_diffextrap(
   //             i, j, k, Lterm, mg, UEDEN, UEDEN + 1, AMREX_D_DECL(lx, ly, lz),
   //             AMREX_D_DECL(hx, hy, hz), dlo, dhi);
   //         });
@@ -212,12 +209,9 @@ PeleC::getSmagorinskyLESTerm(
       const amrex::Box& dbox = geom.Domain();
 
       auto const& s = S.array(mfi);
-      int nqaux = NQAUX > 0 ? NQAUX : 1;
-      amrex::FArrayBox q(gbox, QVAR), qaux(gbox, nqaux);
+      amrex::FArrayBox q(gbox, QVAR);
       amrex::Elixir qeli = q.elixir();
-      amrex::Elixir qauxeli = qaux.elixir();
       auto const& q_ar = q.array();
-      auto const& qauxar = qaux.array();
 
       // Get primitives, Q, including (Y, T, p, rho) from conserved state
       // required for L term
@@ -225,7 +219,7 @@ PeleC::getSmagorinskyLESTerm(
         BL_PROFILE("PeleC::ctoprim()");
         amrex::ParallelFor(
           gbox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(i, j, k, s, q_ar, qauxar);
+            pc_ctoprim(i, j, k, s, q_ar);
           });
       }
 
@@ -353,9 +347,9 @@ PeleC::getDynamicSmagorinskyLESTerm(
     N + 0**                           (ebox) |----->         flux_ec, coeff_ec, alphaij_ec, alpha_ec, flux_T_ec
     N + 1                            (g4box) |------>        filtered_coeff_cc [= LES_Coeffs]
     N + 1 + nGrowC                   (g3box) |-------->      coeff_cc, filtered_(K, RUT, alphaij, alpha, flux_T)
-    N + 1 + nGrowC + nGrowD          (g2box) |---------->    filtered_(S, Q, Qaux)
+    N + 1 + nGrowC + nGrowD          (g2box) |---------->    filtered_(S, Q)
     N + 1 + nGrowC + nGrowT          (g1box) |----------->   K, RUT, alphaij, alpha, flux_T
-    N + 1 + nGrowC + nGrowT + nGrowD (g0box) |-------------> S, Q, Qaux
+    N + 1 + nGrowC + nGrowT + nGrowD (g0box) |-------------> S, Q
        |----------------------------|
        This is the number of grow cells on each side
 
@@ -413,12 +407,9 @@ PeleC::getDynamicSmagorinskyLESTerm(
       const amrex::Box& dbox = geom.Domain();
 
       auto const& s = S.array(mfi);
-      int nqaux = NQAUX > 0 ? NQAUX : 1;
-      amrex::FArrayBox q(g0box, QVAR), qaux(g0box, nqaux);
+      amrex::FArrayBox q(g0box, QVAR);
       amrex::Elixir qeli = q.elixir();
-      amrex::Elixir qauxeli = qaux.elixir();
       auto const& q_ar = q.array();
-      auto const& qauxar = qaux.array();
 
       // 1. Get primitives, Q, including (Y, T, p, rho) from conserved state
       // required for L term
@@ -426,7 +417,7 @@ PeleC::getDynamicSmagorinskyLESTerm(
         BL_PROFILE("PeleC::ctoprim()");
         amrex::ParallelFor(
           g0box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(i, j, k, s, q_ar, qauxar);
+            pc_ctoprim(i, j, k, s, q_ar);
           });
       }
 
@@ -465,11 +456,10 @@ PeleC::getDynamicSmagorinskyLESTerm(
 
       // 3. Filter the state variables and the derived quantities at the
       // test filter level - still at cell centers
-      amrex::FArrayBox filtered_S, filtered_Q, filtered_Qaux, filtered_K,
+      amrex::FArrayBox filtered_S, filtered_Q, filtered_K,
         filtered_RUT, filtered_alphaij, filtered_alpha, filtered_flux_T;
       filtered_S.resize(g2box, NVAR);
       filtered_Q.resize(g2box, QVAR);
-      filtered_Qaux.resize(g2box, NQAUX > 0 ? NQAUX : 1);
       filtered_K.resize(g3box, upper_triangle_n);
       filtered_RUT.resize(g3box, AMREX_SPACEDIM);
       filtered_alphaij.resize(g3box, AMREX_SPACEDIM * AMREX_SPACEDIM);
@@ -477,7 +467,6 @@ PeleC::getDynamicSmagorinskyLESTerm(
       filtered_flux_T.resize(g3box, AMREX_SPACEDIM);
       amrex::Elixir filtered_S_eli = filtered_S.elixir();
       amrex::Elixir filtered_Q_eli = filtered_Q.elixir();
-      amrex::Elixir filtered_Qaux_eli = filtered_Qaux.elixir();
       amrex::Elixir filtered_K_eli = filtered_K.elixir();
       amrex::Elixir filtered_RUT_eli = filtered_RUT.elixir();
       amrex::Elixir filtered_alphaij_eli = filtered_alphaij.elixir();
@@ -486,7 +475,6 @@ PeleC::getDynamicSmagorinskyLESTerm(
 
       auto const& filtered_S_ar = filtered_S.array();
       auto const& filtered_Q_ar = filtered_Q.array();
-      auto const& filtered_Qaux_ar = filtered_Qaux.array();
 
       const amrex::FArrayBox& Sfab = S[mfi];
       test_filter.apply_filter(g2box, Sfab, filtered_S);
@@ -494,7 +482,7 @@ PeleC::getDynamicSmagorinskyLESTerm(
         BL_PROFILE("PeleC::ctoprim()");
         amrex::ParallelFor(
           g2box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(i, j, k, filtered_S_ar, filtered_Q_ar, filtered_Qaux_ar);
+            pc_ctoprim(i, j, k, filtered_S_ar, filtered_Q_ar);
           });
       }
       test_filter.apply_filter(g3box, K, filtered_K);

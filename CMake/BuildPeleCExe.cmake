@@ -1,8 +1,5 @@
 function(build_pelec_exe pelec_exe_name)
 
-  set(PELE_PHYSICS_SRC_DIR ${CMAKE_SOURCE_DIR}/Submodules/PelePhysics)
-  set(PELE_PHYSICS_BIN_DIR ${CMAKE_BINARY_DIR}/Submodules/PelePhysics/${pelec_exe_name})
-
   set(SRC_DIR ${CMAKE_SOURCE_DIR}/SourceCpp)
   set(BIN_DIR ${CMAKE_BINARY_DIR}/SourceCpp/${pelec_exe_name})
 
@@ -10,7 +7,7 @@ function(build_pelec_exe pelec_exe_name)
 
   add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/${pelec_exe_name})
 
-  set(PELEC_TRANSPORT_DIR "${PELE_PHYSICS_SRC_DIR}/Transport/${PELEC_TRANSPORT_MODEL}")
+  set(PELEC_TRANSPORT_DIR "${TOP}/SourceCpp/ConstantTransport")
   target_sources(${pelec_exe_name} PRIVATE
                  ${PELEC_TRANSPORT_DIR}/Transport.H
                  ${PELEC_TRANSPORT_DIR}/Transport.cpp
@@ -24,13 +21,6 @@ function(build_pelec_exe pelec_exe_name)
                  ${PELEC_EOS_DIR}/EOS.H)
   target_include_directories(${pelec_exe_name} SYSTEM PRIVATE ${PELEC_EOS_DIR})
 
-  set(PELEC_MECHANISM_DIR "${PELE_PHYSICS_SRC_DIR}/Support/Fuego/Mechanism/Models/${PELEC_CHEMISTRY_MODEL}")
-  target_sources(${pelec_exe_name} PRIVATE
-                 ${PELEC_MECHANISM_DIR}/chemistry_file.H
-                 ${PELEC_MECHANISM_DIR}/mechanism.cpp
-                 ${PELEC_MECHANISM_DIR}/mechanism.h)
-  target_include_directories(${pelec_exe_name} SYSTEM PRIVATE ${PELEC_MECHANISM_DIR})
-  
   if(PELEC_ENABLE_MASA)
     target_sources(${pelec_exe_name} PRIVATE
                    ${SRC_DIR}/MMS.cpp)

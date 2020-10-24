@@ -54,8 +54,7 @@ pc_initdata(
                       cos(2.0 * ProbParm::omega_y * y / ProbParm::L)) *
                      (cos(2.0 * ProbParm::omega_z * z / ProbParm::L) + 2.0);
   amrex::Real rho, eint;
-  amrex::Real massfrac[NUM_SPECIES] = {1.0};
-  EOS::PYT2RE(p, massfrac, ProbParm::T0, rho, eint);
+  EOS::PT2RE(p, ProbParm::T0, rho, eint);
 
   // Set the state
   state(i, j, k, URHO) = rho;
@@ -66,8 +65,6 @@ pc_initdata(
   state(i, j, k, UEDEN) =
     rho * (eint + 0.5 * (u[0] * u[0] + u[1] * u[1] + u[2] * u[2]));
   state(i, j, k, UTEMP) = ProbParm::T0;
-  for (int n = 0; n < NUM_SPECIES; n++)
-    state(i, j, k, UFS + n) = rho * massfrac[n];
 }
 
 AMREX_GPU_DEVICE

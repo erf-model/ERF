@@ -11,8 +11,6 @@
 #include <AMReX_buildInfo.H>
 #include <AMReX_ParmParse.H>
 
-#include "mechanism.h"
-
 #include "PeleC.H"
 #include "IO.H"
 #include "IndexDefines.H"
@@ -88,12 +86,6 @@ PeleC::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
   for (int n = 0; n < src_list.size(); ++n) {
     int oldGrow = NUM_GROW;
     int newGrow = S_new.nGrow();
-#ifdef AMREX_PARTICLES
-    if (src_list[n] == spray_src) {
-      oldGrow = 1;
-      newGrow = 1;
-    }
-#endif
     old_sources[src_list[n]] =
       std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
         grids, dmap, NVAR, oldGrow, amrex::MFInfo(), Factory()));
@@ -210,26 +202,6 @@ PeleC::checkPoint(
 {
   amrex::AmrLevel::checkPoint(dir, os, how, dump_old);
 
-#ifdef AMREX_PARTICLES
-  bool is_checkpoint = true;
-
-  amrex::Vector<std::string> real_comp_names(pstateNum);
-  AMREX_D_TERM(real_comp_names[pstateVel] = "xvel";
-               , real_comp_names[pstateVel + 1] = "yvel";
-               , real_comp_names[pstateVel + 2] = "zvel";);
-  real_comp_names[pstateT] = "temperature";
-  real_comp_names[pstateDia] = "diam";
-  real_comp_names[pstateRho] = "density";
-  for (int sp = 0; sp != SPRAY_FUEL_NUM; ++sp) {
-    real_comp_names[pstateY + sp] = "spray_mf_" + PeleC::sprayFuelNames[sp];
-  }
-  amrex::Vector<std::string> int_comp_names;
-  if (PeleC::theSprayPC()) {
-    PeleC::theSprayPC()->Checkpoint(
-      dir, "particles", is_checkpoint, real_comp_names, int_comp_names);
-  }
-#endif
-
   if (level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
     {
       std::ofstream PeleCHeaderFile;
@@ -298,60 +270,6 @@ PeleC::setPlotVariables()
   pp.query("plot_cost", plot_cost);
   if (plot_cost) {
     parent->addDerivePlotVar("WorkEstimate");
-  }
-
-  bool plot_rhoy = true;
-  pp.query("plot_rhoy", plot_rhoy);
-  if (plot_rhoy) {
-    for (int i = 0; i < NUM_SPECIES; i++) {
-      parent->addStatePlotVar(desc_lst[State_Type].name(FirstSpec + i));
-    }
-  } else {
-    for (int i = 0; i < NUM_SPECIES; i++) {
-      parent->deleteStatePlotVar(desc_lst[State_Type].name(FirstSpec + i));
-    }
-  }
-
-  bool plot_massfrac = false;
-  pp.query("plot_massfrac", plot_massfrac);
-  //    if (plot_massfrac)
-  //    {
-  //	if (plot_massfrac)
-  //	{
-  //	    //
-  //	    // Get the species names from the network model.
-  //	    //
-  //	    for (int i = 0; i < NUM_SPECIES; i++)
-  //	    {
-  //		int len = 20;
-  //		Vector<int> int_spec_names(len);
-  //		// This call return the actual length of each string in "len"
-  //		get_spec_names(int_spec_names.dataPtr(),&i,&len);
-  //		char* spec_name = new char[len+1];
-  //		for (int j = 0; j < len; j++)
-  //		    spec_name[j] = int_spec_names[j];
-  //		spec_name[len] = '\0';
-  //		string spec_string = "Y(";
-  //		spec_string += spec_name;
-  //		spec_string += ')';
-  //		parent->addDerivePlotVar(spec_string);
-  //		delete [] spec_name;
-  //	    }
-  //	}
-  //    }
-
-  if (plot_massfrac) {
-    parent->addDerivePlotVar("massfrac");
-  } else {
-    parent->deleteDerivePlotVar("massfrac");
-  }
-
-  bool plot_moleFrac = false;
-  pp.query("plot_molefrac", plot_moleFrac);
-  if (plot_moleFrac) {
-    parent->addDerivePlotVar("molefrac");
-  } else {
-    parent->deleteDerivePlotVar("molefrac");
   }
 }
 
@@ -434,15 +352,11 @@ PeleC::writeJobInfo(const std::string& dir)
 
   const char* githash1 = amrex::buildInfoGetGitHash(1);
   const char* githash2 = amrex::buildInfoGetGitHash(2);
-  const char* githash3 = amrex::buildInfoGetGitHash(3);
   if (strlen(githash1) > 0) {
     jobInfoFile << "PeleC       git hash: " << githash1 << "\n";
   }
   if (strlen(githash2) > 0) {
     jobInfoFile << "AMReX       git hash: " << githash2 << "\n";
-  }
-  if (strlen(githash3) > 0) {
-    jobInfoFile << "PelePhysics git hash: " << githash3 << "\n";
   }
 
   const char* buildgithash = amrex::buildInfoGetBuildGitHash();
@@ -501,22 +415,6 @@ PeleC::writeJobInfo(const std::string& dir)
               << std::setw(7) << "Z"
               << "\n";
   jobInfoFile << OtherLine;
-  /* Why is this here? It creates spec_name and deletes it?
-      int len = mlen;
-      amrex::Vector<int> int_spec_names(len * NUM_SPECIES);
-      CKSYMS(int_spec_names.dataPtr(),&len);
-      for (int i = 0; i < NUM_SPECIES; i++) {
-          int j = 0;
-          char* spec_name = new char[len];
-          for (j = 0; j < len; j++) {
-            spec_name[j] = int_spec_names[i*len + j];
-            if (spec_name[j] == ' ')
-              break;
-          }
-          spec_name[len] = '\0';
-          delete [] spec_name;
-      }
-  */
   jobInfoFile << "\n\n";
 
   // runtime parameters
@@ -580,15 +478,11 @@ PeleC::writeBuildInfo(std::ostream& os)
   os << "\n";
   const char* githash1 = amrex::buildInfoGetGitHash(1);
   const char* githash2 = amrex::buildInfoGetGitHash(2);
-  const char* githash3 = amrex::buildInfoGetGitHash(3);
   if (strlen(githash1) > 0) {
     os << "PeleC       git hash: " << githash1 << "\n";
   }
   if (strlen(githash2) > 0) {
     os << "AMReX       git hash: " << githash2 << "\n";
-  }
-  if (strlen(githash3) > 0) {
-    os << "PelePhysics git hash: " << githash3 << "\n";
   }
 
   const char* buildgithash = amrex::buildInfoGetBuildGitHash();
@@ -639,14 +533,6 @@ PeleC::writeBuildInfo(std::ostream& os)
 #else
   os << std::setw(35) << std::left << "PELEC_USE_MASA " << std::setw(6) << "OFF"
      << std::endl;
-#endif
-
-#ifdef AMREX_PARTICLES
-  os << std::setw(35) << std::left << "AMREX_PARTICLES " << std::setw(6) << "ON"
-     << std::endl;
-#else
-  os << std::setw(35) << std::left << "AMREX_PARTICLES " << std::setw(6)
-     << "OFF" << std::endl;
 #endif
 
 #ifdef DO_PROBLEM_POST_TIMESTEP
@@ -701,17 +587,6 @@ PeleC::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
                                                    end = dlist.end();
        it != end; ++it) {
     if (parent->isDerivePlotVar(it->name())) {
-#ifdef AMREX_PARTICLES
-      if (
-        it->name() == "particle_count" ||
-        it->name() == "total_particle_count" ||
-        it->name() == "particle_density") {
-        if (PeleC::theSprayPC()) {
-          derive_names.push_back(it->name());
-          num_derive++;
-        }
-      } else
-#endif
       {
         derive_names.push_back(it->name());
         num_derive += it->numDerive();
@@ -870,40 +745,6 @@ PeleC::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
   std::string TheFullPath = FullPath;
   TheFullPath += BaseName;
   amrex::VisMF::Write(plotMF, TheFullPath, how, true);
-#ifdef AMREX_PARTICLES
-  bool is_checkpoint = false;
-
-  if (PeleC::theSprayPC()) {
-    amrex::Vector<std::string> real_comp_names(pstateNum);
-    AMREX_D_TERM(real_comp_names[pstateVel] = "xvel";
-                 , real_comp_names[pstateVel + 1] = "yvel";
-                 , real_comp_names[pstateVel + 2] = "zvel";);
-    real_comp_names[pstateT] = "temperature";
-    real_comp_names[pstateDia] = "diam";
-    real_comp_names[pstateRho] = "density";
-    for (int sp = 0; sp != SPRAY_FUEL_NUM; ++sp) {
-      real_comp_names[pstateY + sp] = "spray_mf_" + PeleC::sprayFuelNames[sp];
-    }
-    amrex::Vector<std::string> int_comp_names;
-    if (PeleC::theSprayPC()) {
-      PeleC::theSprayPC()->Checkpoint(
-        dir, "particles", is_checkpoint, real_comp_names, int_comp_names);
-      if (level == 0) {
-        if (do_spray_particles == 1 && write_spray_ascii_files == 1) {
-          // TODO: Would be nice to be able to use file_name_digits
-          // instead of doing this
-          int strlen = dir.length();
-          // Remove the ".temp" from the directory
-          std::string dirout = dir.substr(0, strlen - 5);
-          size_t num_start_loc = dirout.find_last_not_of("0123456789") + 1;
-          std::string fname =
-            "spray" + dirout.substr(num_start_loc, strlen) + ".p3d";
-          theSprayPC()->WriteAsciiFile(fname);
-        }
-      }
-    }
-  }
-#endif
 }
 
 void

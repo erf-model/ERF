@@ -90,15 +90,9 @@ pc_initdata(
 
   state(i, j, k, UEINT) = eint;
 
-  for (int n = 0; n < NUM_SPECIES; n++)
-    state(i, j, k, UFS + n) = 0;
-
-  state(i, j, k, UFS) = state(i, j, k, URHO);
-
   amrex::Real T;
   amrex::Real e = eint / state(i, j, k, URHO);
-  amrex::Real massfrac[NUM_SPECIES] = {1.0};
-  EOS::EY2T(e, massfrac, T);
+  EOS::E2T(e, T);
   state(i, j, k, UTEMP) = T;
 }
 

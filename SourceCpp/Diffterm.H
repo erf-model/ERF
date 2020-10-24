@@ -16,7 +16,7 @@
 
 /*The original Diffterm function passes too many arguments, which contribute to
   kernel launch overhead. In order to combat this, we split some of the
-  computation up into separate Device functions which will then be launched by a
+  omputation up into separate Device functions which will then be launched by a
   CPU function called pc_diffterm. pc_diffusion_flux calculates the
   diffusion flux per diction. */
 
@@ -103,50 +103,12 @@ pc_diffusion_flux(
   const amrex::Real dlnp = dxinv * (q(i, j, k, QPRES) - q(im, jm, km, QPRES)) /
                            (0.5 * (q(i, j, k, QPRES) + q(im, jm, km, QPRES)));
 
-  // Get massfrac, molefrac, enthalpy
-  amrex::Real mass1[NUM_SPECIES], mass2[NUM_SPECIES];
-  amrex::Real mole1[NUM_SPECIES], mole2[NUM_SPECIES];
-  amrex::Real hi1[NUM_SPECIES], hi2[NUM_SPECIES];
-  for (int ns = 0; ns < NUM_SPECIES; ++ns) {
-    mass1[ns] = q(i, j, k, ns + QFS);
-  }
-  EOS::Y2X(mass1, mole1);
-  amrex::Real T = q(i, j, k, QTEMP);
-  EOS::T2Hi(T, hi1);
-  for (int ns = 0; ns < NUM_SPECIES; ++ns) {
-    mass2[ns] = q(im, jm, km, ns + QFS);
-  }
-  T = q(im, jm, km, QTEMP);
-  EOS::Y2X(mass2, mole2);
-  EOS::T2Hi(T, hi2);
-
-  // Get species/enthalpy diffusion, compute correction vel
-  amrex::Real Vc = 0.0;
-  for (int ns = 0; ns < NUM_SPECIES; ++ns) {
-    const amrex::Real Xface = 0.5 * (mole1[ns] + mole2[ns]);
-    const amrex::Real Yface = 0.5 * (mass1[ns] + mass2[ns]);
-    const amrex::Real hface = 0.5 * (hi1[ns] + hi2[ns]);
-    const amrex::Real dXdx = dxinv * (mole1[ns] - mole2[ns]);
-    const amrex::Real Vd =
-      -coef[dComp_rhoD + ns] * (dXdx + (Xface - Yface) * dlnp);
-    flx(i, j, k, UFS + ns) = Vd;
-    Vc += Vd;
-    flx(i, j, k, UEDEN) += Vd * hface;
-  }
-  // Add correction velocity to fluxes
-  for (int ns = 0; ns < NUM_SPECIES; ++ns) {
-    const amrex::Real Yface = 0.5 * (mass1[ns] + mass2[ns]);
-    const amrex::Real hface = 0.5 * (hi1[ns] + hi2[ns]);
-    flx(i, j, k, UFS + ns) -= Yface * Vc;
-    flx(i, j, k, UEDEN) -= Yface * hface * Vc;
-  }
+  // Get enthalpy diffusion, compute correction vel
   // Scale by area
   AMREX_D_TERM(flx(i, j, k, UMX) *= a(i, j, k);
                , flx(i, j, k, UMY) *= a(i, j, k);
                , flx(i, j, k, UMZ) *= a(i, j, k););
   flx(i, j, k, UEDEN) *= a(i, j, k);
-  for (int ns = 0; ns < NUM_SPECIES; ++ns)
-    flx(i, j, k, UFS + ns) *= a(i, j, k);
 }
 
 /* This function computes the flux divergence.  */

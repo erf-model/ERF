@@ -49,11 +49,10 @@ pc_initdata(
     masa_eval_3d_exact_u(x, y, z), masa_eval_3d_exact_v(x, y, z),
     masa_eval_3d_exact_w(x, y, z))};
   const amrex::Real p = masa_eval_3d_exact_p(x, y, z);
-  amrex::Real massfrac[NUM_SPECIES] = {1.0};
 
   amrex::Real eint, T;
-  EOS::RYP2E(rho, massfrac, p, eint);
-  EOS::EY2T(eint, massfrac, T);
+  EOS::RP2E(rho, p, eint);
+  EOS::E2T(eint, T);
 
   // Set the state
   state(i, j, k, URHO) = rho;
@@ -65,8 +64,6 @@ pc_initdata(
     rho *
     (eint + 0.5 * (AMREX_D_TERM(u[0] * u[0], +u[1] * u[1], +u[2] * u[2])));
   state(i, j, k, UTEMP) = T;
-  for (int n = 0; n < NUM_SPECIES; n++)
-    state(i, j, k, UFS + n) = rho * massfrac[n];
 }
 
 AMREX_GPU_DEVICE
@@ -91,11 +88,10 @@ bcnormal(
     masa_eval_3d_exact_u(x0, x1, x2), masa_eval_3d_exact_v(x0, x1, x2),
     masa_eval_3d_exact_w(x0, x1, x2))};
   const amrex::Real p = masa_eval_3d_exact_p(x0, x1, x2);
-  amrex::Real massfrac[NUM_SPECIES] = {1.0};
 
   amrex::Real eint, T;
-  EOS::RYP2E(rho, massfrac, p, eint);
-  EOS::EY2T(eint, massfrac, T);
+  EOS::RP2E(rho, p, eint);
+  EOS::E2T(eint, T);
 
   // Set the external state
   s_ext[URHO] = rho;
@@ -106,8 +102,6 @@ bcnormal(
     rho *
     (eint + 0.5 * (AMREX_D_TERM(u[0] * u[0], +u[1] * u[1], +u[2] * u[2])));
   s_ext[UTEMP] = T;
-  for (int n = 0; n < NUM_SPECIES; n++)
-    s_ext[UFS + n] = rho * massfrac[n];
 }
 
 void pc_prob_close();

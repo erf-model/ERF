@@ -3,6 +3,7 @@
 /**
  *  Set up the source terms to go into the hydro.
  */
+#if 0
 void
 PeleC::construct_hydro_source(
   const amrex::MultiFab& S,
@@ -115,20 +116,18 @@ PeleC::construct_hydro_source(
         auto const& hyd_src = hydro_source.array(mfi);
 
         // Resize Temporary Fabs
-        amrex::FArrayBox q(qbx, QVAR), qaux(qbx, NQAUX), src_q(qbx, QVAR);
+        amrex::FArrayBox q(qbx, QVAR),  src_q(qbx, QVAR);
         // Use Elixir Construct to steal the Fabs metadata
         amrex::Elixir qeli = q.elixir();
-        amrex::Elixir qauxeli = qaux.elixir();
         amrex::Elixir src_qeli = src_q.elixir();
         // Get Arrays to pass to the gpu.
         auto const& qarr = q.array();
-        auto const& qauxar = qaux.array();
         auto const& srcqarr = src_q.array();
 
         BL_PROFILE_VAR("PeleC::ctoprim()", ctop);
         amrex::ParallelFor(
           qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(i, j, k, s, qarr, qauxar);
+            pc_ctoprim(i, j, k, s, qarr);
           });
         BL_PROFILE_VAR_STOP(ctop);
 
@@ -143,42 +142,11 @@ PeleC::construct_hydro_source(
 
         // Allocate fabs for bcMask. Note that we grow in the opposite direction
         // because the Riemann solver wants a face value in a ghost-cell
-#if 0 
-      for (int dir = 0; dir < AMREX_SPACEDIM ; dir++)  {
-        const Box& bxtmp = amrex::surroundingNodes(fbx,dir);
-        Box TestBox(bxtmp);
-        for(int d=0; d<AMREX_SPACEDIM; ++d) {
-          if (dir!=d) TestBox.grow(d,1);
-        }
-        bcMask[dir].resize(TestBox,1);
-        bcMask[dir].setVal(0);
-      }
-      
-      // Becase bcMask is read in the Riemann solver in any case,
-      // here we put physbc values in the appropriate faces for the non-nscbc case
-      set_bc_mask(lo, hi, domain_lo, domain_hi,
-                  AMREX_D_DECL(AMREX_TO_FORTRAN(bcMask[0]),
-	                       AMREX_TO_FORTRAN(bcMask[1]),
-                         AMREX_TO_FORTRAN(bcMask[2])));
-
-      if (nscbc_adv == 1)
-      {
-        impose_NSCBC(lo, hi, domain_lo, domain_hi,
-                     AMREX_TO_FORTRAN(*statein),
-                     AMREX_TO_FORTRAN(q.fab()),
-                     AMREX_TO_FORTRAN(qaux.fab()),
-                     AMREX_D_DECL(AMREX_TO_FORTRAN(bcMask[0]),
-                            AMREX_TO_FORTRAN(bcMask[1]),
-                            AMREX_TO_FORTRAN(bcMask[2])),
-                     &flag_nscbc_isAnyPerio, flag_nscbc_perio, 
-                     &time, dx, &dt);
-      }
-#endif
         BL_PROFILE_VAR("PeleC::srctoprim()", srctop);
         const auto& src_in = sources_for_hydro.array(mfi);
         amrex::ParallelFor(
           qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_srctoprim(i, j, k, qarr, qauxar, src_in, srcqarr);
+            pc_srctoprim(i, j, k, qarr, src_in, srcqarr);
           });
         BL_PROFILE_VAR_STOP(srctop);
 
@@ -201,9 +169,10 @@ PeleC::construct_hydro_source(
           const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>
           a{AMREX_D_DECL(
             area[0].array(mfi), area[1].array(mfi), area[2].array(mfi))};
+
         pc_umdrv(
           is_finest_level, time, bx, domain_lo, domain_hi, phys_bc.lo(),
-          phys_bc.hi(), s, hyd_src, qarr, qauxar, srcqarr, dx, dt, ppm_type,
+          phys_bc.hi(), s, hyd_src, qarr, srcqarr, dx, dt, ppm_type,
           use_flattening, flx_arr, a, volume.array(mfi), cflLoc);
         BL_PROFILE_VAR_STOP(purm);
 
@@ -318,7 +287,9 @@ PeleC::construct_hydro_source(
     }
   }
 }
+#endif
 
+#if 0
 void
 pc_umdrv(
   const int is_finest_level,
@@ -331,7 +302,6 @@ pc_umdrv(
   amrex::Array4<const amrex::Real> const& uin,
   amrex::Array4<amrex::Real> const& uout,
   amrex::Array4<const amrex::Real> const& q,
-  amrex::Array4<const amrex::Real> const& qaux,
   amrex::Array4<const amrex::Real> const&
     src_q, // amrex::IArrayBox const& bcMask,
   const amrex::Real* dx,
@@ -366,7 +336,7 @@ pc_umdrv(
 
   BL_PROFILE_VAR("PeleC::umeth()", umeth);
   pc_umeth_3D(
-    bx, bclo, bchi, domlo, domhi, q, qaux, src_q, // bcMask,
+    bx, bclo, bchi, domlo, domhi, q, src_q, // bcMask,
     flx[0], flx[1], flx[2], qec_arr[0], qec_arr[1], qec_arr[2], a[0], a[1],
     a[2], pdivuarr, vol, dx, dt, ppm_type, use_flattening);
   BL_PROFILE_VAR_STOP(umeth);
@@ -385,7 +355,9 @@ pc_umdrv(
   amrex::Real difmag = 0.1;
   pc_consup(bx, uin, uout, flx, a, vol, divarr, pdivuarr, dx, difmag);
 }
+#endif
 
+#if 0
 void
 pc_consup(
   amrex::Box const& bx,
@@ -406,8 +378,6 @@ pc_consup(
     const amrex::Real dx = del[dir];
     amrex::ParallelFor(fbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
       pc_artif_visc(i, j, k, flx[dir], div, u, dx, difmag, dir);
-      // Normalize Species Flux
-      pc_norm_spec_flx(i, j, k, flx[dir]);
       // Make flux extensive
       pc_ext_flx(i, j, k, flx[dir], a[dir]);
     });
@@ -418,3 +388,4 @@ pc_consup(
     pc_update(i, j, k, update, flx, vol, pdivu);
   });
 }
+#endif

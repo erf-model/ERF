@@ -51,9 +51,6 @@ difmag                       Real          0.1
 # the small density cutoff.  Densities below this value will be reset
 small_dens                   Real          1.e-200
 
-# the small mass fraction cutoff.  Densities below this value will be reset
-small_massfrac               Real          1.e-200
-
 # the small temperature cutoff.  Temperatures below this value will
 # be reset
 small_temp                   Real          1.e-200
@@ -308,9 +305,6 @@ change_max                   Real          1.1
 # number then it will disable retries using this criterion.
 retry_neg_dens_factor        Real          1.e-1
 
-# Number of iterations for the SDC advance.
-sdc_iters                    int           1
-
 # Number of iterations for the MOL advance.
 mol_iters                    int           1
 
@@ -342,10 +336,3 @@ hard_cfl_limit               int           1
 # a string describing the simulation that will be copied into the
 # plotfile's {\tt job\_info} file
 job_name                     string        ""
-
-#-----------------------------------------------------------------------------
-# category: misc combusiton
-#-----------------------------------------------------------------------------
-
-flame_trac_name              string        ""
-fuel_name                    string        ""

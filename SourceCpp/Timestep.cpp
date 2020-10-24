@@ -27,11 +27,8 @@ pc_estdt_hydro(
       const amrex::Real rho = u(i, j, k, URHO);
       const amrex::Real rhoInv = 1.0 / rho;
       amrex::Real T = u(i, j, k, UTEMP);
-      amrex::Real massfrac[NUM_SPECIES];
       amrex::Real c;
-      for (int n = 0; n < NUM_SPECIES; ++n)
-        massfrac[n] = u(i, j, k, UFS + n) * rhoInv;
-      EOS::RTY2Cs(rho, T, massfrac, c);
+      EOS::RT2Cs(rho, T, c);
       AMREX_D_TERM(const amrex::Real ux = u(i, j, k, UMX) * rhoInv;
                    const amrex::Real dt1 = dx / (c + amrex::Math::abs(ux));
                    dt = amrex::min(dt, dt1);
@@ -62,13 +59,9 @@ pc_estdt_veldif(
   amrex::Loop(bx, [=, &dt](int i, int j, int k) {
       const amrex::Real rho = u(i, j, k, URHO);
       const amrex::Real rhoInv = 1.0 / rho;
-      amrex::Real massfrac[NUM_SPECIES];
-      for (int n = 0; n < NUM_SPECIES; ++n) {
-        massfrac[n] = u(i, j, k, n + UFS) * rhoInv;
-      }
       amrex::Real T = u(i, j, k, UTEMP);
       amrex::Real D = 0.0;
-      pc_trans4dt(which_trans, T, rho, massfrac, D);
+      pc_trans4dt(which_trans, T, rho, D);
       D *= rhoInv;
       if (D == 0.0)
         D = SMALL;
@@ -100,14 +93,11 @@ pc_estdt_tempdif(
   amrex::Loop(bx, [=, &dt](int i, int j, int k) {
       const amrex::Real rho = u(i, j, k, URHO);
       const amrex::Real rhoInv = 1.0 / rho;
-      amrex::Real massfrac[NUM_SPECIES];
-      for (int n = 0; n < NUM_SPECIES; ++n)
-        massfrac[n] = u(i, j, k, n + UFS) * rhoInv;
       amrex::Real T = u(i, j, k, UTEMP);
       amrex::Real D = 0.0;
-      pc_trans4dt(which_trans, T, rho, massfrac, D);
+      pc_trans4dt(which_trans, T, rho, D);
       amrex::Real cv;
-      EOS::TY2Cv(T, massfrac, cv);
+      EOS::T2Cv(T, cv);
       D *= rhoInv / cv;
       if (D == 0.0)
         D = SMALL;
@@ -139,14 +129,11 @@ pc_estdt_enthdif(
   amrex::Loop(bx, [=, &dt](int i, int j, int k) {
       const amrex::Real rho = u(i, j, k, URHO);
       const amrex::Real rhoInv = 1.0 / rho;
-      amrex::Real massfrac[NUM_SPECIES];
-      for (int n = 0; n < NUM_SPECIES; ++n)
-        massfrac[n] = u(i, j, k, n + UFS) * rhoInv;
       amrex::Real T = u(i, j, k, UTEMP);
       amrex::Real cp;
-      EOS::TY2Cp(T, massfrac, cp);
+      EOS::T2Cp(T, cp);
       amrex::Real D;
-      pc_trans4dt(which_trans, T, rho, massfrac, D);
+      pc_trans4dt(which_trans, T, rho, D);
       D *= rhoInv / cp;
       AMREX_D_TERM(
         const amrex::Real dt1 = 0.5 * dx * dx / (AMREX_SPACEDIM * D);

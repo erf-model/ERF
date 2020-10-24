@@ -40,9 +40,6 @@ pc_initdata(
   state(i, j, k, URHO) = ProbParm::rho0;
   state(i, j, k, UEINT) = ProbParm::rho0 * ProbParm::eint0;
   state(i, j, k, UTEMP) = ProbParm::T0;
-  amrex::Real massfrac[NUM_SPECIES] = {1.0};
-  for (int n = 0; n < NUM_SPECIES; n++)
-    state(i, j, k, UFS + n) = ProbParm::rho0 * massfrac[n];
 
   // Fill in the velocities and energy.
   amrex::Real u[3] = {0.0};

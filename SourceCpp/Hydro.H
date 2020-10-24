@@ -5,7 +5,6 @@
 #include "IndexDefines.H"
 #include "EOS.H"
 #include "Utilities.H"
-#include "Godunov.H"
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -83,23 +82,6 @@ pc_divu(
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-pc_norm_spec_flx(
-  const int i, const int j, const int k, amrex::Array4<amrex::Real> const& flx)
-{
-  const int num = NUM_SPECIES + UFS;
-  amrex::Real summ, fac;
-  summ = 0.0;
-  for (int n = UFS; n < num; ++n)
-    summ += flx(i, j, k, n);
-
-  fac = (summ != 0.0) ? flx(i, j, k, URHO) / summ : 1.0;
-  for (int n = UFS; n < num; ++n)
-    flx(i, j, k, n) *= fac;
-}
-
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-void
 pc_ext_flx(
   const int i,
   const int j,
@@ -135,31 +117,6 @@ pc_update(
 
   update(i, j, k, UEINT) -= pdivu(i, j, k);
 }
-
-// Host functions
-void pc_umdrv(
-  const int is_finest_level,
-  const amrex::Real time,
-  amrex::Box const& bx,
-  const int* dlo,
-  const int* dhi,
-  const int* bclo,
-  const int* bchi,
-  amrex::Array4<const amrex::Real> const& uin,
-  amrex::Array4<amrex::Real> const& uout,
-  amrex::Array4<const amrex::Real> const& q,
-  amrex::Array4<const amrex::Real> const& qaux,
-  amrex::Array4<const amrex::Real> const&
-    src_q, // amrex::IArrayBox const& bcMask,
-  const amrex::Real* dx,
-  const amrex::Real dt,
-  const int ppm_type,
-  const int use_flattening,
-  const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx,
-  const amrex::GpuArray<const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>
-    a,
-  amrex::Array4<amrex::Real> const& vol,
-  amrex::Real cflLoc);
 
 void pc_consup(
   amrex::Box const& bx,

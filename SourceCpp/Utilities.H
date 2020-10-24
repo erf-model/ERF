@@ -29,8 +29,7 @@ pc_ctoprim(
   const int j,
   const int k,
   amrex::Array4<const amrex::Real> const& u,
-  amrex::Array4<amrex::Real> const& q,
-  amrex::Array4<amrex::Real> const& qa)
+  amrex::Array4<amrex::Real> const& q)
 {
   const amrex::Real rho = u(i, j, k, URHO);
   const amrex::Real rhoinv = 1.0 / rho;
@@ -50,19 +49,13 @@ pc_ctoprim(
 
   const amrex::Real e = (u(i, j, k, UEDEN) - kineng) * rhoinv;
   amrex::Real T = u(i, j, k, UTEMP);
-  amrex::Real massfrac[NUM_SPECIES];
-  //    amrex::Real aux[NUM_AUX];
-  for (int sp = 0; sp < NUM_SPECIES; ++sp)
-    massfrac[sp] = q(i, j, k, sp + QFS);
-  //    for(int ax = 0; ax < NUM_AUX; ++ax) aux[ax] = q(i,j,k,ax+QFX);
   amrex::Real dpdr_e, dpde, gam1, cs, wbar, p;
 
   // Are all these EOS calls needed? Seems fairly convoluted.
-  EOS::Y2WBAR(massfrac, wbar);
-  EOS::EY2T(e, massfrac, T);
-  EOS::RTY2P(rho, T, massfrac, p);
-  EOS::RTY2Cs(rho, T, massfrac, cs);
-  EOS::TY2G(T, massfrac, gam1);
+  EOS::E2T(e, T);
+  EOS::RT2P(rho, T, p);
+  EOS::RT2Cs(rho, T, cs);
+  EOS::T2G(T, gam1);
   EOS::RPE2dpdr_e(rho, p, e, dpdr_e);
   EOS::RG2dpde(rho, gam1, dpde);
 
@@ -70,14 +63,6 @@ pc_ctoprim(
   q(i, j, k, QREINT) = e * rho;
   q(i, j, k, QPRES) = p;
   q(i, j, k, QGAME) = p / (e * rho) + 1.0;
-
-  // Auxilary Fab
-  qa(i, j, k, QDPDR) = dpdr_e;
-  qa(i, j, k, QDPDE) = dpde;
-  qa(i, j, k, QGAMC) = gam1;
-  qa(i, j, k, QC) = cs;
-  qa(i, j, k, QCSML) = amrex::max(SMALL, SMALL * cs);
-  qa(i, j, k, QRSPEC) = EOS::RU / wbar;
 }
 
 AMREX_GPU_DEVICE

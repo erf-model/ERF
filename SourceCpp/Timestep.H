@@ -21,22 +21,19 @@ pc_trans4dt(
   const int which_trans,
   amrex::Real T,
   amrex::Real rho,
-  amrex::Real massfrac[],
   amrex::Real& D)
 {
-  bool get_xi = false, get_mu = false, get_lam = false, get_Ddiag = false;
+  bool get_xi = false, get_mu = false, get_lam = false;
   amrex::Real dum1 = 0., dum2 = 0.;
 
   if (which_trans == 0) {
     get_mu = true;
     transport(
-      get_xi, get_mu, get_lam, get_Ddiag, T, rho, massfrac, nullptr, D, dum1,
-      dum2);
+      get_xi, get_mu, get_lam, T, rho, D, dum1, dum2);
   } else if (which_trans == 1) {
     get_lam = true;
     transport(
-      get_xi, get_mu, get_lam, get_Ddiag, T, rho, massfrac, nullptr, dum1, dum2,
-      D);
+      get_xi, get_mu, get_lam, T, rho, dum1, dum2, D);
   }
 }
 

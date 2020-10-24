@@ -225,13 +225,8 @@ pc_smagorinsky_sfs_term(
   // flux at face
   amrex::Real T =
     0.5 * (q(i, j, k, QTEMP) + q(i - bdim[0], j - bdim[1], k - bdim[2], QTEMP));
-  amrex::Real massfrac[NUM_SPECIES];
-  for (int n = 0; n < NUM_SPECIES; n++) {
-    massfrac[n] = 0.5 * (q(i, j, k, QFS + n) +
-                         q(i - bdim[0], j - bdim[1], k - bdim[2], QFS + n));
-  }
   amrex::Real cp;
-  EOS::TY2Cp(T, massfrac, cp);
+  EOS::T2Cp(T, cp);
   flx(i, j, k, UEDEN) = flx(i, j, k, UEDEN) - cp * Cs2 / PrT * flux_T;
 
   // Scale fluxes by area
@@ -488,13 +483,8 @@ pc_dynamic_smagorinsky_sfs_term(
   // flux at face
   amrex::Real T =
     0.5 * (q(i, j, k, QTEMP) + q(i - bdim[0], j - bdim[1], k - bdim[2], QTEMP));
-  amrex::Real massfrac[NUM_SPECIES];
-  for (int n = 0; n < NUM_SPECIES; n++) {
-    massfrac[n] = 0.5 * (q(i, j, k, QFS + n) +
-                         q(i - bdim[0], j - bdim[1], k - bdim[2], QFS + n));
-  }
   amrex::Real cp;
-  EOS::TY2Cp(T, massfrac, cp);
+  EOS::T2Cp(T, cp);
   flx(i, j, k, UEDEN) =
     flx(i, j, k, UEDEN) - cp * coeff(i, j, k, comp_Cs2ovPrT) * flux_T(i, j, k);
 

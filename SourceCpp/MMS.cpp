@@ -98,10 +98,6 @@ PeleC::fill_mms_source(
             src(i, j, k, UMY) = masa_eval_3d_source_rho_v(x, y, z);
             src(i, j, k, UMZ) = masa_eval_3d_source_rho_w(x, y, z);
             src(i, j, k, UEDEN) = masa_eval_3d_source_rho_e(x, y, z);
-            for (int n = 0; n < NUM_SPECIES; n++) {
-              src(i, j, k, UFS + n) = src(i, j, k, URHO) * s(i, j, k, UFS + n) /
-                                      masa_eval_3d_exact_rho(x, y, z);
-            }
           });
       }
     }

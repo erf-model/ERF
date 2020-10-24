@@ -52,22 +52,20 @@ amrex_probinit(
   }
 
   amrex::Real e_l, e_r, cs, cp;
-  amrex::Real massfrac[NUM_SPECIES] = {0.0};
-  massfrac[0] = 1.0;
 
   if (ProbParm::use_Tinit) {
-    EOS::RTY2P(ProbParm::rho_l, ProbParm::T_l, massfrac, ProbParm::p_l);
-    EOS::RYP2E(ProbParm::rho_l, massfrac, ProbParm::p_l, e_l);
+    EOS::RT2P(ProbParm::rho_l, ProbParm::T_l, ProbParm::p_l);
+    EOS::RP2E(ProbParm::rho_l, ProbParm::p_l, e_l);
     ProbParm::rhoe_l = ProbParm::rho_l * e_l;
-    EOS::RTY2P(ProbParm::rho_r, ProbParm::T_r, massfrac, ProbParm::p_r);
-    EOS::RYP2E(ProbParm::rho_r, massfrac, ProbParm::p_r, e_r);
+    EOS::RT2P(ProbParm::rho_r, ProbParm::T_r, ProbParm::p_r);
+    EOS::RP2E(ProbParm::rho_r, ProbParm::p_r, e_r);
     ProbParm::rhoe_r = ProbParm::rho_r * e_r;
   } else {
-    EOS::RYP2E(ProbParm::rho_l, massfrac, ProbParm::p_l, e_l);
-    EOS::EY2T(e_l, massfrac, ProbParm::T_l);
+    EOS::RP2E(ProbParm::rho_l, ProbParm::p_l, e_l);
+    EOS::E2T(e_l, ProbParm::T_l);
     ProbParm::rhoe_l = ProbParm::rho_l * e_l;
-    EOS::RYP2E(ProbParm::rho_r, massfrac, ProbParm::p_r, e_r);
-    EOS::EY2T(e_r, massfrac, ProbParm::T_r);
+    EOS::RP2E(ProbParm::rho_r, ProbParm::p_r, e_r);
+    EOS::E2T(e_r, ProbParm::T_r);
     ProbParm::rhoe_r = ProbParm::rho_r * e_r;
   }
 }

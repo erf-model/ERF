@@ -148,16 +148,6 @@ void pc_dernull(
   amrex::Real time,
   const int* bcrec,
   const int level);
-void pc_dermolefrac(
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int dcomp,
-  int ncomp,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& geomdata,
-  amrex::Real time,
-  const int* bcrec,
-  const int level);
 void pc_dersoundspeed(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,

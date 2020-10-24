@@ -50,10 +50,9 @@ amrex_probinit(
 
   // Initial density, velocity, and material properties
   amrex::Real eint, cs, cp;
-  amrex::Real massfrac[NUM_SPECIES] = {1.0};
-  EOS::PYT2RE(ProbParm::p0, massfrac, ProbParm::T0, ProbParm::rho0, eint);
-  EOS::RTY2Cs(ProbParm::rho0, ProbParm::T0, massfrac, cs);
-  EOS::TY2Cp(ProbParm::T0, massfrac, cp);
+  EOS::PT2RE(ProbParm::p0, ProbParm::T0, ProbParm::rho0, eint);
+  EOS::RT2Cs(ProbParm::rho0, ProbParm::T0, cs);
+  EOS::T2Cp(ProbParm::T0, cp);
 
   ProbParm::v0 = ProbParm::mach * cs;
   transport_params::const_bulk_viscosity = 0.0;
