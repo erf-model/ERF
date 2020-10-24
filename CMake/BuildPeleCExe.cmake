@@ -9,7 +9,6 @@ function(build_pelec_exe pelec_exe_name)
 
   set(PELEC_EOS_DIR "${CMAKE_SOURCE_DIR}/SourceCpp/GammaLaw")
   target_sources(${pelec_exe_name} PRIVATE
-                 ${PELEC_EOS_DIR}/EOS.cpp
                  ${PELEC_EOS_DIR}/EOS.H)
   target_include_directories(${pelec_exe_name} SYSTEM PRIVATE ${PELEC_EOS_DIR})
 
@@ -37,14 +36,8 @@ function(build_pelec_exe pelec_exe_name)
        ${SRC_DIR}/Forcing.H
        ${SRC_DIR}/Forcing.cpp
        ${SRC_DIR}/GradUtil.H
-       ${SRC_DIR}/GradUtil.cpp
        ${SRC_DIR}/Hydro.H
        ${SRC_DIR}/Hydro.cpp
-       ${SRC_DIR}/Godunov.H
-       ${SRC_DIR}/Godunov.cpp
-       ${SRC_DIR}/PLM.H
-       ${SRC_DIR}/PPM.H
-       ${SRC_DIR}/PPM.cpp
        ${SRC_DIR}/IndexDefines.H
        ${SRC_DIR}/IndexDefines.cpp
        ${SRC_DIR}/IO.H
@@ -55,7 +48,6 @@ function(build_pelec_exe pelec_exe_name)
        ${SRC_DIR}/LES.cpp
        ${SRC_DIR}/MOL.H
        ${SRC_DIR}/MOL.cpp
-       ${SRC_DIR}/Particle.cpp
        ${SRC_DIR}/PeleC.H
        ${SRC_DIR}/PeleC.cpp
        ${SRC_DIR}/Problem.H
