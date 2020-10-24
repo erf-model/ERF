@@ -11,8 +11,6 @@
 using namespace MASA;
 #endif
 
-#include "mechanism.h"
-
 #include "PeleC.H"
 #include "IndexDefines.H"
 #include "EOS.H"
