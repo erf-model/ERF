@@ -1,9 +1,9 @@
-.. PeleC documentation master file, created by
+.. ERF documentation master file, created by
    sphinx-quickstart on Tue Nov 15 14:07:58 2016.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to PeleC's documentation!
+Welcome to ERF's documentation!
 =================================
 
 Contents:
@@ -19,7 +19,6 @@ Contents:
    ./geometry/EB.rst
    LES.rst
    VandV.rst
-   PelePhysics.rst
    ./miscellaneous/miscellaneous.rst
    boxlib_bits.rst
 

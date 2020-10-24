@@ -23,7 +23,7 @@ DEBUG = FALSE
 FSANITIZER = FALSE
 THREAD_SANITIZER = FALSE
 
-# PeleC
+# ERF
 Eos_dir := GammaLaw
 Reactions_dir := Null
 Transport_dir := Constant
@@ -41,4 +41,4 @@ endif
 Bpack := ./Make.package
 Blocs := .
 PELEC_HOME := ../../..
-include $(PELEC_HOME)/ExecCpp/Make.PeleC
+include $(PELEC_HOME)/ExecCpp/Make.ERF

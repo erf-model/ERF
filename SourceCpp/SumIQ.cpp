@@ -1,11 +1,11 @@
 #include <iomanip>
 
-#include "PeleC.H"
+#include "ERF.H"
 
 void
-PeleC::sum_integrated_quantities()
+ERF::sum_integrated_quantities()
 {
-  BL_PROFILE("PeleC::sum_integrated_quantities()");
+  BL_PROFILE("ERF::sum_integrated_quantities()");
 
   if (verbose <= 0)
     return;
@@ -25,7 +25,7 @@ PeleC::sum_integrated_quantities()
   int datprecision = 6;
 
   for (int lev = 0; lev <= finest_level; lev++) {
-    PeleC& pc_lev = getLevel(lev);
+    ERF& pc_lev = getLevel(lev);
 
     mass += pc_lev.volWgtSum("density", time, local_flag);
     mom[0] += pc_lev.volWgtSum("xmom", time, local_flag);

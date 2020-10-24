@@ -4,12 +4,12 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_buildInfo.H>
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
 #include <masa.h>
 using namespace MASA;
 #endif
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "Derive.H"
 #include "IndexDefines.H"
 #include "prob.H"
@@ -72,9 +72,9 @@ set_z_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
 }
 
 void
-PeleC::variableSetUp()
+ERF::variableSetUp()
 {
-  // PeleC::variableSetUp is called in the constructor of Amr.cpp, so
+  // ERF::variableSetUp is called in the constructor of Amr.cpp, so
   // it should get called every time we start or restart a job
 
   // initialize the start time for our CPU-time tracker
@@ -83,14 +83,14 @@ PeleC::variableSetUp()
   // Output the git commit hashes used to build the executable.
 
   if (amrex::ParallelDescriptor::IOProcessor()) {
-    const char* pelec_hash = amrex::buildInfoGetGitHash(1);
+    const char* erf_hash = amrex::buildInfoGetGitHash(1);
     const char* amrex_hash = amrex::buildInfoGetGitHash(2);
     const char* buildgithash = amrex::buildInfoGetBuildGitHash();
     const char* buildgitname = amrex::buildInfoGetBuildGitName();
 
-    if (strlen(pelec_hash) > 0) {
+    if (strlen(erf_hash) > 0) {
       amrex::Print() << "\n"
-                     << "PeleC git hash: " << pelec_hash << "\n";
+                     << "ERF git hash: " << erf_hash << "\n";
     }
     if (strlen(amrex_hash) > 0) {
       amrex::Print() << "AMReX git hash: " << amrex_hash << "\n";
@@ -111,7 +111,7 @@ PeleC::variableSetUp()
 
   indxmap::init();
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   if (do_mms) {
     init_mms();
   }
@@ -169,7 +169,7 @@ PeleC::variableSetUp()
   int coord_type = amrex::DefaultGeometry().Coord();
 
   amrex::Vector<amrex::Real> center(AMREX_SPACEDIM, 0.0);
-  amrex::ParmParse ppc("pelec");
+  amrex::ParmParse ppc("erf");
   ppc.queryarr("center", center, 0, AMREX_SPACEDIM);
 
   amrex::Interpolater* interp;
@@ -388,7 +388,7 @@ PeleC::variableSetUp()
   }
 
   // MMS derives
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   if (do_mms) {
     derive_lst.add(
       "rhommserror", amrex::IndexType::TheCellType(), 1, pc_derrhommserror,
@@ -425,7 +425,7 @@ PeleC::variableSetUp()
 }
 
 void
-PeleC::set_active_sources()
+ERF::set_active_sources()
 {
   if (do_diffuse && !do_mol) {
     src_list.push_back(diff_src);
@@ -446,7 +446,7 @@ PeleC::set_active_sources()
     src_list.push_back(les_src);
   }
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   // optional MMS source
   if (do_mms) {
     src_list.push_back(mms_src);

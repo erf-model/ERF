@@ -5,7 +5,7 @@
 #include <AMReX_Derive.H>
 #include <AMReX_FArrayBox.H>
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "IndexDefines.H"
 
 struct EmptyProbDeriveStruct

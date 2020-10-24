@@ -9,13 +9,13 @@
 #endif
 
 inline bool
-PeleC::ebInitialized()
+ERF::ebInitialized()
 {
   return eb_initialized;
 }
 
 void
-PeleC::init_eb(
+ERF::init_eb(
   const amrex::Geometry& level_geom,
   const amrex::BoxArray& ba,
   const amrex::DistributionMapping& dm)
@@ -32,7 +32,7 @@ PeleC::init_eb(
 }
 
 /**
- * Set up PeleC EB Datastructures from AMReX EB2 constructs
+ * Set up ERF EB Datastructures from AMReX EB2 constructs
  *
  * At the end of this routine, the following structures are populated:
  *   - FabArray ebmask
@@ -41,9 +41,9 @@ PeleC::init_eb(
  */
 
 void
-PeleC::initialize_eb2_structs()
+ERF::initialize_eb2_structs()
 {
-  BL_PROFILE("PeleC::initialize_eb2_structs()");
+  BL_PROFILE("ERF::initialize_eb2_structs()");
   amrex::Print() << "Initializing EB2 structs" << std::endl;
 
   // NOTE: THIS NEEDS TO BE REPLACED WITH A FLAGFAB
@@ -330,9 +330,9 @@ PeleC::initialize_eb2_structs()
 }
 
 void
-PeleC::define_body_state()
+ERF::define_body_state()
 {
-  BL_PROFILE("PeleC::define_body_state()");
+  BL_PROFILE("ERF::define_body_state()");
 
   if (!eb_in_domain)
     return;
@@ -380,9 +380,9 @@ PeleC::define_body_state()
 }
 
 void
-PeleC::set_body_state(amrex::MultiFab& S)
+ERF::set_body_state(amrex::MultiFab& S)
 {
-  BL_PROFILE("PeleC::set_body_state()");
+  BL_PROFILE("ERF::set_body_state()");
 
   if (!eb_in_domain)
     return;
@@ -410,9 +410,9 @@ PeleC::set_body_state(amrex::MultiFab& S)
 }
 
 void
-PeleC::zero_in_body(amrex::MultiFab& S) const
+ERF::zero_in_body(amrex::MultiFab& S) const
 {
-  BL_PROFILE("PeleC::zero_in_body()");
+  BL_PROFILE("ERF::zero_in_body()");
 
   if (!eb_in_domain)
     return;
@@ -451,7 +451,7 @@ void
 initialize_EB2(
   const amrex::Geometry& geom, const int required_level, const int max_level)
 {
-  BL_PROFILE("PeleC::initialize_EB2()");
+  BL_PROFILE("ERF::initialize_EB2()");
 
   amrex::Print() << "Initializing EB2" << std::endl;
   amrex::ParmParse ppeb2("eb2");

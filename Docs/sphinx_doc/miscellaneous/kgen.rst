@@ -7,7 +7,7 @@ Using KGen
 
 The way KGen works is by the developer first adding directives to the original source code files for whatever section or routine the they would like to extract. Next the developer can choose a set of invocations for the code section in which it will record input and output data to disk. Then by running KGen, it will modify the original code to capture the input and output variables (or "state") for the code section, then build and run the full application and write the state data to disk. Next it will extract the kernel into a standalone program that is hardcoded to read its input from the state files. It uses this state data to both run and validate the resulting standalone kernel output against the original application output. It also measures the elasped time for each call to the kernel since typically the goal is to reduce runtime of the kernel.
 
-To describe this process further, we give the following example where we will use KGen to extract the 3D diffterm Fortran kernel in PeleC. KGen generally requires Linux due to a dependency on the strace tool which doesn't exist on other operating systems such as macOS. We will assume you have all the necessary repos for PeleC cloned in ${HOME}/combustion, for example PeleC cloned as ${HOME}/combustion/PeleC, etc.
+To describe this process further, we give the following example where we will use KGen to extract the 3D diffterm Fortran kernel in ERF. KGen generally requires Linux due to a dependency on the strace tool which doesn't exist on other operating systems such as macOS. We will assume you have all the necessary repos for ERF cloned in ${HOME}/combustion, for example ERF cloned as ${HOME}/combustion/ERF, etc.
 
 We then perform the following steps:
 
@@ -18,15 +18,15 @@ We then perform the following steps:
 
     KGEN_HOME := ${HOME}/diffterm/KGen
     KGEN := ${KGEN_HOME}/bin/kgen
-    SRC_DIR := ${HOME}/combustion/PeleC/Source
-    EXEC_DIR := ${HOME}/combustion/PeleC/Exec/PMF
+    SRC_DIR := ${HOME}/combustion/ERF/Source
+    EXEC_DIR := ${HOME}/combustion/ERF/Exec/PMF
     SRC := ${SRC_DIR}/Src_3d/diffterm_3d.f90
     
     test:
     	${KGEN} \
     		--cmd-clean "cd ${EXEC_DIR}; make realclean" \
     		--cmd-build "cd ${EXEC_DIR}; make -j8" \
-    		--cmd-run "cd ${EXEC_DIR}; ./PeleC3d.gnu.ex inputs-3d-regt" \
+    		--cmd-run "cd ${EXEC_DIR}; ./ERF3d.gnu.ex inputs-3d-regt" \
     		--invocation 0:0:1,0:0:2,0:0:3,0:0:4,0:0:5,0:0:6,0:0:7,0:0:119,0:0:120,0:0:121,0:0:346,0:0:347,0:0:348,0:0:349,0:0:350,0:0:697,0:0:698,0:0:699,0:0:700,0:0:701 \
     		${SRC}
     
@@ -34,7 +34,7 @@ We then perform the following steps:
     	${MAKE} clean -C src
     	rm -rf kernel state kgen.log strace.log include.ini _kgen_compflag_cmdwrapper.sh model model.ini elapsedtime coverage papi
 
-3. Next we edit the `${HOME}/combustion/PeleC/Source/Src_3d/diffterm_3d.f90` file and add KGen directives around the kernel of interest which should look as such:
+3. Next we edit the `${HOME}/combustion/ERF/Source/Src_3d/diffterm_3d.f90` file and add KGen directives around the kernel of interest which should look as such:
 
 ::
 

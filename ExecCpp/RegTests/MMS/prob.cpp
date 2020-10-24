@@ -179,7 +179,7 @@ amrex_probinit(
 
 #ifdef DO_PROBLEM_POST_TIMESTEP
 void
-PeleC::problem_post_timestep()
+ERF::problem_post_timestep()
 {
   if ((verbose <= 0) || (!do_mms))
     return;
@@ -201,7 +201,7 @@ PeleC::problem_post_timestep()
   int datwidth = 14;
   int datprecision = 6;
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   if (level == 0) {
     if (amrex::ParallelDescriptor::IOProcessor()) {
       amrex::Print() << "... MMS problem post timestep" << std::endl;
@@ -209,7 +209,7 @@ PeleC::problem_post_timestep()
 
     // Calculate the errors and residuals
     for (int lev = 0; lev <= finest_level; lev++) {
-      PeleC& pc_lev = getLevel(lev);
+      ERF& pc_lev = getLevel(lev);
 
       rho_mms_err += pc_lev.volWgtSquaredSum("rhommserror", time, local_flag);
       AMREX_D_TERM(
@@ -326,7 +326,7 @@ PeleC::problem_post_timestep()
 
 #ifdef DO_PROBLEM_POST_INIT
 void
-PeleC::problem_post_init()
+ERF::problem_post_init()
 {
 
   if ((verbose <= 0) || (!do_mms))

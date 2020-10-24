@@ -3,7 +3,7 @@
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
 #include <masa.h>
 using namespace MASA;
 #endif
@@ -220,7 +220,7 @@ void pc_derradialvel(
   const int* bcrec,
   const int level);
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
 void pc_derrhommserror(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,

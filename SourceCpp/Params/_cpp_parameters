@@ -4,7 +4,7 @@
 # in the inputs file, b is the variable name in the C++ class.
 
 
-@namespace: pelec PeleC static
+@namespace: erf ERF static
 
 levmsk_interior              int         0
 levmsk_covered               int         1

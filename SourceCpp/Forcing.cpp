@@ -1,4 +1,4 @@
-#include "PeleC.H"
+#include "ERF.H"
 #include "Forcing.H"
 
 namespace forcing_params {
@@ -9,7 +9,7 @@ AMREX_GPU_DEVICE_MANAGED amrex::Real forcing = 0.0;
 } // namespace forcing_params
 
 void
-PeleC::construct_old_forcing_source(amrex::Real time, amrex::Real dt)
+ERF::construct_old_forcing_source(amrex::Real time, amrex::Real dt)
 {
   amrex::MultiFab& S_old = get_old_data(State_Type);
 
@@ -26,7 +26,7 @@ PeleC::construct_old_forcing_source(amrex::Real time, amrex::Real dt)
 }
 
 void
-PeleC::construct_new_forcing_source(amrex::Real time, amrex::Real dt)
+ERF::construct_new_forcing_source(amrex::Real time, amrex::Real dt)
 {
   amrex::MultiFab& S_old = get_old_data(State_Type);
   amrex::MultiFab& S_new = get_new_data(State_Type);
@@ -42,7 +42,7 @@ PeleC::construct_new_forcing_source(amrex::Real time, amrex::Real dt)
 }
 
 void
-PeleC::fill_forcing_source(
+ERF::fill_forcing_source(
   amrex::Real time,
   amrex::Real dt,
   const amrex::MultiFab& state_old,

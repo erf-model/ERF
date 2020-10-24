@@ -6,12 +6,12 @@ Geometry initialization
 Creating an EB geometry also requires knowledge of the finest level that will be used so that geometries that 'telescope', 
 i.e., coarser volume fractions are consistent with applying the coarsening operator to the finer volumes, can be created. 
 To that end there is a global geometry creation step, facilitated by the `initialize_EB2` function, as well as a step that 
-happens when a new AMRLevel is created. The latter happens by a call to  `PeleC::initialize_eb2_structs`  through `PeleC::init_eb` 
-called from the PeleC constructor. Following construction of the geometry, the geometric information is 
+happens when a new AMRLevel is created. The latter happens by a call to  `ERF::initialize_eb2_structs`  through `ERF::init_eb` 
+called from the ERF constructor. Following construction of the geometry, the geometric information is 
 copied into the structures described in the previous section and the various interpolation stencils are populated. 
 
 Cartesian grid, embedded boundary (EB) methods are methods where the geometric description is formed by cutting a Cartesian 
-mesh with surface of the geometry.  AMReX's methods to handle EB geometry information, and PeleC's treatment of the
+mesh with surface of the geometry.  AMReX's methods to handle EB geometry information, and ERF's treatment of the
 EB aware update could use many possible sources for geometric description. The necessary information is, on a per-cell basis:
 
 * Apertures for faces intersected by cut cells,
@@ -95,7 +95,7 @@ Some of the relevant transformation handles in AMReX are:
 * *Lathe*       - creates a 3D implicit function from a 2D function by revolving about the z axis (see AMReX_EB2_IF_Lathe.cpp)
 * *Extrusion*   - creates a 3D implicit function from a 2D function by translating along the z axis (see AMReX_EB2_IF_Extrusion.cpp)
 
-The user can copy the file "PeleC_init_eb.cpp" from the Source and add it to his/her test case after which a new geometry can be added in initialize_EB2 
+The user can copy the file "ERF_init_eb.cpp" from the Source and add it to his/her test case after which a new geometry can be added in initialize_EB2 
 function. An example of adding a piston-bowl geometry (see :ref:`EB_pistonbowl`) 
 that uses splines, cylinder, lathe and union transform, is shown below.
 

@@ -9,12 +9,12 @@
 #include <AMReX_TagBox.H>
 #include <AMReX_ParmParse.H>
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
 #include <masa.h>
 using namespace MASA;
 #endif
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "Derive.H"
 #include "prob.H"
 #include "Transport.H"
@@ -24,59 +24,59 @@ using namespace MASA;
 #include "Tagging.H"
 #include "IndexDefines.H"
 
-bool PeleC::signalStopJob = false;
-bool PeleC::dump_old = false;
-int PeleC::verbose = 0;
-int PeleC::radius_grow = 1;
-amrex::BCRec PeleC::phys_bc;
-amrex::Real PeleC::frac_change = 1.e200;
-int PeleC::Density = -1;
-int PeleC::Eden = -1;
-int PeleC::Eint = -1;
-int PeleC::Temp = -1;
-int PeleC::Xmom = -1;
-int PeleC::Ymom = -1;
-int PeleC::Zmom = -1;
-int PeleC::FirstAux = -1;
-int PeleC::NumAdv = 0;
-int PeleC::FirstAdv = -1;
-int PeleC::pstateVel = -1;
-int PeleC::pstateT = -1;
-int PeleC::pstateDia = -1;
-int PeleC::pstateRho = -1;
-int PeleC::pstateY = -1;
-int PeleC::pstateNum = 0;
+bool ERF::signalStopJob = false;
+bool ERF::dump_old = false;
+int ERF::verbose = 0;
+int ERF::radius_grow = 1;
+amrex::BCRec ERF::phys_bc;
+amrex::Real ERF::frac_change = 1.e200;
+int ERF::Density = -1;
+int ERF::Eden = -1;
+int ERF::Eint = -1;
+int ERF::Temp = -1;
+int ERF::Xmom = -1;
+int ERF::Ymom = -1;
+int ERF::Zmom = -1;
+int ERF::FirstAux = -1;
+int ERF::NumAdv = 0;
+int ERF::FirstAdv = -1;
+int ERF::pstateVel = -1;
+int ERF::pstateT = -1;
+int ERF::pstateDia = -1;
+int ERF::pstateRho = -1;
+int ERF::pstateY = -1;
+int ERF::pstateNum = 0;
 
-#include "pelec_defaults.H"
+#include "erf_defaults.H"
 
-int PeleC::nGrowTr = 4;
-int PeleC::diffuse_temp = 0;
-int PeleC::diffuse_enth = 0;
-int PeleC::diffuse_vel = 0;
-amrex::Real PeleC::diffuse_cutoff_density = -1.e200;
-bool PeleC::do_diffuse = false;
+int ERF::nGrowTr = 4;
+int ERF::diffuse_temp = 0;
+int ERF::diffuse_enth = 0;
+int ERF::diffuse_vel = 0;
+amrex::Real ERF::diffuse_cutoff_density = -1.e200;
+bool ERF::do_diffuse = false;
 
-#ifdef PELEC_USE_MASA
-bool PeleC::mms_initialized = false;
+#ifdef ERF_USE_MASA
+bool ERF::mms_initialized = false;
 #endif
 
-int PeleC::les_model = 0;
-int PeleC::les_filter_type = no_filter;
-int PeleC::les_filter_fgr = 1;
-int PeleC::les_test_filter_type = box_3pt_optimized_approx;
-int PeleC::les_test_filter_fgr = 2;
+int ERF::les_model = 0;
+int ERF::les_filter_type = no_filter;
+int ERF::les_filter_fgr = 1;
+int ERF::les_test_filter_type = box_3pt_optimized_approx;
+int ERF::les_test_filter_fgr = 2;
 
-bool PeleC::do_mol_load_balance = false;
+bool ERF::do_mol_load_balance = false;
 
-amrex::Vector<int> PeleC::src_list;
+amrex::Vector<int> ERF::src_list;
 
 // this will be reset upon restart
-amrex::Real PeleC::previousCPUTimeUsed = 0.0;
-amrex::Real PeleC::startCPUTime = 0.0;
-int PeleC::num_state_type = 0;
+amrex::Real ERF::previousCPUTimeUsed = 0.0;
+amrex::Real ERF::startCPUTime = 0.0;
+int ERF::num_state_type = 0;
 
 void
-PeleC::variableCleanUp()
+ERF::variableCleanUp()
 {
   desc_lst.clear();
 
@@ -86,7 +86,7 @@ PeleC::variableCleanUp()
 }
 
 void
-PeleC::read_params()
+ERF::read_params()
 {
   static bool read_params_done = false;
 
@@ -95,9 +95,9 @@ PeleC::read_params()
 
   read_params_done = true;
 
-  amrex::ParmParse pp("pelec");
+  amrex::ParmParse pp("erf");
 
-#include <pelec_queries.H>
+#include <erf_queries.H>
 
   pp.query("v", verbose);
   pp.query("sum_interval", sum_interval);
@@ -166,13 +166,13 @@ PeleC::read_params()
     if (amrex::DefaultGeometry().isPeriodic(dir)) {
       if (
         lo_bc[dir] != Interior && amrex::ParallelDescriptor::IOProcessor()) {
-        std::cerr << "PeleC::read_params:periodic in direction " << dir
+        std::cerr << "ERF::read_params:periodic in direction " << dir
                   << " but low BC is not Interior\n";
         amrex::Error();
       }
       if (
         hi_bc[dir] != Interior && amrex::ParallelDescriptor::IOProcessor()) {
-        std::cerr << "PeleC::read_params:periodic in direction " << dir
+        std::cerr << "ERF::read_params:periodic in direction " << dir
                   << " but high BC is not Interior\n";
         amrex::Error();
       }
@@ -181,12 +181,12 @@ PeleC::read_params()
       // Do idiot check. If not periodic, should not be interior.
       //
       if (lo_bc[dir] == Interior && amrex::ParallelDescriptor::IOProcessor()) {
-        std::cerr << "PeleC::read_params:interior bc in direction " << dir
+        std::cerr << "ERF::read_params:interior bc in direction " << dir
                   << " but not periodic\n";
         amrex::Error();
       }
       if (hi_bc[dir] == Interior && amrex::ParallelDescriptor::IOProcessor()) {
-        std::cerr << "PeleC::read_params:interior bc in direction " << dir
+        std::cerr << "ERF::read_params:interior bc in direction " << dir
                   << " but not periodic\n";
         amrex::Error();
       }
@@ -194,11 +194,11 @@ PeleC::read_params()
   }
 
   if (amrex::DefaultGeometry().IsRZ() && (lo_bc[0] != Symmetry)) {
-    amrex::Error("PeleC::read_params: must set r=0 boundary condition to "
+    amrex::Error("ERF::read_params: must set r=0 boundary condition to "
                  "Symmetry for r-z");
   }
 
-  // TODO: Any reason to support spherical in PeleC?
+  // TODO: Any reason to support spherical in ERF?
   if (amrex::DefaultGeometry().IsRZ()) {
     amrex::Abort("We don't support cylindrical coordinate systems in 3D");
   } else if (amrex::DefaultGeometry().IsSPHERICAL()) {
@@ -246,17 +246,17 @@ PeleC::read_params()
   ppa.query("loadbalance_with_workestimates", do_mol_load_balance);
 }
 
-PeleC::PeleC()
+ERF::ERF()
   : old_sources(num_src),
     new_sources(num_src)
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
     ,
     mms_src_evaluated(false)
 #endif
 {
 }
 
-PeleC::PeleC(
+ERF::ERF(
   amrex::Amr& papa,
   int lev,
   const amrex::Geometry& level_geom,
@@ -266,7 +266,7 @@ PeleC::PeleC(
   : AmrLevel(papa, lev, level_geom, bl, dm, time),
     old_sources(num_src),
     new_sources(num_src)
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
     ,
     mms_src_evaluated(false)
 #endif
@@ -309,7 +309,7 @@ PeleC::PeleC(
     Sborder.define(grids, dmap, NVAR, nGrowTr, amrex::MFInfo(), Factory());
   }
 
-  // Is this relevant for PeleC?
+  // Is this relevant for ERF?
   for (int i = 0; i < n_lost; i++) {
     material_lost_through_boundary_cumulative[i] = 0.0;
     material_lost_through_boundary_temp[i] = 0.;
@@ -348,10 +348,10 @@ PeleC::PeleC(
   }
 }
 
-PeleC::~PeleC() {}
+ERF::~ERF() {}
 
 void
-PeleC::buildMetrics()
+ERF::buildMetrics()
 {
   const int ngrd = grids.size();
 
@@ -409,13 +409,13 @@ PeleC::buildMetrics()
 }
 
 void
-PeleC::setTimeLevel(amrex::Real time, amrex::Real dt_old, amrex::Real dt_new)
+ERF::setTimeLevel(amrex::Real time, amrex::Real dt_old, amrex::Real dt_new)
 {
   AmrLevel::setTimeLevel(time, dt_old, dt_new);
 }
 
 void
-PeleC::setGridInfo()
+ERF::setGridInfo()
 {
   /** Send refinement data to Fortran. We do it here
     because now the grids have been initialized and
@@ -485,9 +485,9 @@ pc_prob_close()
 */
 
 void
-PeleC::initData()
+ERF::initData()
 {
-  BL_PROFILE("PeleC::initData()");
+  BL_PROFILE("ERF::initData()");
 
   // int ns = NVAR;
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
@@ -537,11 +537,11 @@ PeleC::initData()
 }
 
 void
-PeleC::init(AmrLevel& old)
+ERF::init(AmrLevel& old)
 {
-  BL_PROFILE("PeleC::init(old)");
+  BL_PROFILE("ERF::init(old)");
 
-  PeleC* oldlev = (PeleC*)&old;
+  ERF* oldlev = (ERF*)&old;
 
   //
   // Create new grid data by fillpatching from old.
@@ -564,13 +564,13 @@ PeleC::init(AmrLevel& old)
 }
 
 void
-PeleC::init()
+ERF::init()
 {
   /**
      This version inits the data on a new level that did not
      exist before regridding.
   */
-  BL_PROFILE("PeleC::init()");
+  BL_PROFILE("ERF::init()");
 
   amrex::Real dt = parent->dtLevel(level);
   amrex::Real cur_time = getLevel(level - 1).state[State_Type].curTime();
@@ -592,9 +592,9 @@ PeleC::init()
 }
 
 amrex::Real
-PeleC::initialTimeStep()
+ERF::initialTimeStep()
 {
-  BL_PROFILE("PeleC::initialTimeStep()");
+  BL_PROFILE("ERF::initialTimeStep()");
 
   amrex::Real dummy_dt = 0.0;
   amrex::Real init_dt = 0.0;
@@ -609,9 +609,9 @@ PeleC::initialTimeStep()
 }
 
 amrex::Real
-PeleC::estTimeStep(amrex::Real dt_old)
+ERF::estTimeStep(amrex::Real dt_old)
 {
-  BL_PROFILE("PeleC::estTimeStep()");
+  BL_PROFILE("ERF::estTimeStep()");
 
   if (fixed_dt > 0.0)
     return fixed_dt;
@@ -624,7 +624,7 @@ PeleC::estTimeStep(amrex::Real dt_old)
 
   const amrex::Real* dx = geom.CellSize();
 
-  std::string limiter = "pelec.max_dt";
+  std::string limiter = "erf.max_dt";
 
   // Start the hydro with the max_dt value, but divide by CFL
   // to account for the fact that we multiply by it at the end.
@@ -715,7 +715,7 @@ PeleC::estTimeStep(amrex::Real dt_old)
   }
 
   if (verbose) {
-    amrex::Print() << "PeleC::estTimeStep (" << limiter << "-limited) at level "
+    amrex::Print() << "ERF::estTimeStep (" << limiter << "-limited) at level "
                    << level << ":  estdt = " << estdt << '\n';
   }
 
@@ -723,7 +723,7 @@ PeleC::estTimeStep(amrex::Real dt_old)
 }
 
 void
-PeleC::computeNewDt(
+ERF::computeNewDt(
   int finest_level,
   int sub_cycle,
   amrex::Vector<int>& n_cycle,
@@ -733,7 +733,7 @@ PeleC::computeNewDt(
   amrex::Real stop_time,
   int post_regrid_flag)
 {
-  BL_PROFILE("PeleC::computeNewDt()");
+  BL_PROFILE("ERF::computeNewDt()");
 
   //
   // We are at the start of a coarse grid timecycle.
@@ -745,7 +745,7 @@ PeleC::computeNewDt(
   amrex::Real dt_0 = 1.0e+100;
   int n_factor = 1;
   for (int i = 0; i <= finest_level; i++) {
-    PeleC& adv_level = getLevel(i);
+    ERF& adv_level = getLevel(i);
     dt_min[i] = adv_level.estTimeStep(dt_level[i]);
   }
 
@@ -760,7 +760,7 @@ PeleC::computeNewDt(
       for (int i = 0; i <= finest_level; i++) {
         if (verbose && amrex::ParallelDescriptor::IOProcessor()) {
           if (dt_min[i] > change_max * dt_level[i]) {
-            amrex::Print() << "PeleC::compute_new_dt : limiting dt at level "
+            amrex::Print() << "ERF::compute_new_dt : limiting dt at level "
                            << i << '\n';
             amrex::Print() << " ... new dt computed: " << dt_min[i] << '\n';
             amrex::Print() << " ... but limiting to: "
@@ -796,7 +796,7 @@ PeleC::computeNewDt(
 }
 
 void
-PeleC::computeInitialDt(
+ERF::computeInitialDt(
   int finest_level,
   int sub_cycle,
   amrex::Vector<int>& n_cycle,
@@ -804,7 +804,7 @@ PeleC::computeInitialDt(
   amrex::Vector<amrex::Real>& dt_level,
   amrex::Real stop_time)
 {
-  BL_PROFILE("PeleC::computeInitialDt()");
+  BL_PROFILE("ERF::computeInitialDt()");
 
   // Grids have been constructed, compute dt for all levels.
   if (level > 0)
@@ -836,9 +836,9 @@ PeleC::computeInitialDt(
 }
 
 void
-PeleC::post_timestep(int iteration)
+ERF::post_timestep(int iteration)
 {
-  BL_PROFILE("PeleC::post_timestep()");
+  BL_PROFILE("ERF::post_timestep()");
 
   const int finest_level = parent->finestLevel();
   const int ncycle = parent->nCycle(level);
@@ -895,9 +895,9 @@ PeleC::post_timestep(int iteration)
 }
 
 void
-PeleC::post_restart()
+ERF::post_restart()
 {
-  BL_PROFILE("PeleC::post_restart()");
+  BL_PROFILE("ERF::post_restart()");
 
   amrex::Real cur_time = state[State_Type].curTime();
 
@@ -927,23 +927,23 @@ PeleC::post_restart()
 }
 
 void
-PeleC::postCoarseTimeStep(amrex::Real cumtime)
+ERF::postCoarseTimeStep(amrex::Real cumtime)
 {
-  BL_PROFILE("PeleC::postCoarseTimeStep()");
+  BL_PROFILE("ERF::postCoarseTimeStep()");
   AmrLevel::postCoarseTimeStep(cumtime);
 }
 
 void
-PeleC::post_regrid(int lbase, int new_finest)
+ERF::post_regrid(int lbase, int new_finest)
 {
-  BL_PROFILE("PeleC::post_regrid()");
+  BL_PROFILE("ERF::post_regrid()");
   fine_mask.clear();
 }
 
 void
-PeleC::post_init(amrex::Real stop_time)
+ERF::post_init(amrex::Real stop_time)
 {
-  BL_PROFILE("PeleC::post_init()");
+  BL_PROFILE("ERF::post_init()");
 
   amrex::Real dtlev = parent->dtLevel(level);
   amrex::Real cumtime = parent->cumTime();
@@ -998,7 +998,7 @@ PeleC::post_init(amrex::Real stop_time)
 }
 
 int
-PeleC::okToContinue()
+ERF::okToContinue()
 {
   if (level > 0) {
     return 1;
@@ -1023,15 +1023,15 @@ PeleC::okToContinue()
 }
 
 void
-PeleC::reflux()
+ERF::reflux()
 {
-  BL_PROFILE("PeleC::reflux()");
+  BL_PROFILE("ERF::reflux()");
 
   AMREX_ASSERT(level < parent->finestLevel());
 
   const amrex::Real strt = amrex::ParallelDescriptor::second();
 
-  PeleC& fine_level = getLevel(level + 1);
+  ERF& fine_level = getLevel(level + 1);
   amrex::MultiFab& S_crse = get_new_data(State_Type);
 
   fine_level.flux_reg.Reflux(S_crse);
@@ -1041,7 +1041,7 @@ PeleC::reflux()
       volume.boxArray(), volume.DistributionMap(), 1, volume.nGrow(),
       amrex::MFInfo(), amrex::FArrayBoxFactory());
     dr.setVal(geom.CellSize(0));
-    amrex::Abort("PeleC reflux not yet ready for r-z");
+    amrex::Abort("ERF reflux not yet ready for r-z");
     // fine_level.pres_reg.Reflux(S_crse,dr,1.0,0,Xmom,1,geom);
   }
 
@@ -1054,7 +1054,7 @@ PeleC::reflux()
 #endif
       amrex::ParallelDescriptor::ReduceRealMax(end, IOProc);
 
-      amrex::Print() << "PeleC::reflux() at level " << level
+      amrex::Print() << "ERF::reflux() at level " << level
                      << " : time = " << end << std::endl;
 #ifdef AMREX_LAZY
     });
@@ -1063,9 +1063,9 @@ PeleC::reflux()
 }
 
 void
-PeleC::avgDown()
+ERF::avgDown()
 {
-  BL_PROFILE("PeleC::avgDown()");
+  BL_PROFILE("ERF::avgDown()");
 
   if (level == parent->finestLevel())
     return;
@@ -1074,7 +1074,7 @@ PeleC::avgDown()
 }
 
 void
-PeleC::enforce_consistent_e(amrex::MultiFab& S)
+ERF::enforce_consistent_e(amrex::MultiFab& S)
 {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -1096,7 +1096,7 @@ PeleC::enforce_consistent_e(amrex::MultiFab& S)
 }
 
 amrex::Real
-PeleC::enforce_min_density(amrex::MultiFab& S_old, amrex::MultiFab& S_new)
+ERF::enforce_min_density(amrex::MultiFab& S_old, amrex::MultiFab& S_new)
 {
 
   /** This routine sets the density in S_new to be larger than the density
@@ -1173,9 +1173,9 @@ PeleC::enforce_min_density(amrex::MultiFab& S_old, amrex::MultiFab& S_new)
 }
 
 void
-PeleC::avgDown(int state_indx)
+ERF::avgDown(int state_indx)
 {
-  BL_PROFILE("PeleC::avgDown(state_indx)");
+  BL_PROFILE("ERF::avgDown(state_indx)");
 
   if (level == parent->finestLevel())
     return;
@@ -1191,7 +1191,7 @@ PeleC::avgDown(int state_indx)
 }
 
 void
-PeleC::allocOldData()
+ERF::allocOldData()
 {
   for (int k = 0; k < num_state_type; k++) {
     state[k].allocOldData();
@@ -1199,13 +1199,13 @@ PeleC::allocOldData()
 }
 
 void
-PeleC::removeOldData()
+ERF::removeOldData()
 {
   AmrLevel::removeOldData();
 }
 
 void
-PeleC::errorEst(
+ERF::errorEst(
   amrex::TagBoxArray& tags,
   int /*clearval*/,
   int /*tagval*/,
@@ -1213,7 +1213,7 @@ PeleC::errorEst(
   int n_error_buf,
   int ngrow)
 {
-  BL_PROFILE("PeleC::errorEst()");
+  BL_PROFILE("ERF::errorEst()");
 
   amrex::MultiFab S_data(
     get_new_data(State_Type).boxArray(),
@@ -1388,7 +1388,7 @@ PeleC::errorEst(
 }
 
 std::unique_ptr<amrex::MultiFab>
-PeleC::derive(const std::string& name, amrex::Real time, int ngrow)
+ERF::derive(const std::string& name, amrex::Real time, int ngrow)
 {
 
   if ((do_les) && (name == "C_s2")) {
@@ -1418,7 +1418,7 @@ PeleC::derive(const std::string& name, amrex::Real time, int ngrow)
 }
 
 void
-PeleC::derive(
+ERF::derive(
   const std::string& name, amrex::Real time, amrex::MultiFab& mf, int dcomp)
 {
   {
@@ -1427,19 +1427,19 @@ PeleC::derive(
 }
 
 void
-PeleC::clear_prob()
+ERF::clear_prob()
 {
   pc_prob_close();
 }
 
 void
-PeleC::init_transport()
+ERF::init_transport()
 {
   transport_init();
 }
 
 void
-PeleC::init_les()
+ERF::init_les()
 {
   // Fill with default coefficient values
   LES_Coeffs.define(grids, dmap, nCompC, 1);
@@ -1457,7 +1457,7 @@ PeleC::init_les()
 }
 
 void
-PeleC::init_filters()
+ERF::init_filters()
 {
   if (level > 0) {
     amrex::IntVect ref_ratio = parent->refRatio(level - 1);
@@ -1495,19 +1495,19 @@ PeleC::init_filters()
     geom.GetFaceArea(area[dir], dir);
   }
 }
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
 void
-PeleC::init_mms()
+ERF::init_mms()
 {
   if (!mms_initialized) {
     if (verbose && amrex::ParallelDescriptor::IOProcessor()) {
       amrex::Print() << "Initializing MMS" << std::endl;
     }
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
     masa_init("mms", masa_solution_name.c_str());
-    masa_set_param("Cs", PeleC::Cs);
-    masa_set_param("CI", PeleC::CI);
-    masa_set_param("PrT", PeleC::PrT);
+    masa_set_param("Cs", ERF::Cs);
+    masa_set_param("CI", ERF::CI);
+    masa_set_param("PrT", ERF::PrT);
 #endif
     mms_initialized = true;
   }
@@ -1515,7 +1515,7 @@ PeleC::init_mms()
 #endif
 
 void
-PeleC::reset_internal_energy(amrex::MultiFab& S_new, int ng)
+ERF::reset_internal_energy(amrex::MultiFab& S_new, int ng)
 {
 #ifndef AMREX_USE_GPU
   amrex::Real sum = 0.;
@@ -1567,7 +1567,7 @@ PeleC::reset_internal_energy(amrex::MultiFab& S_new, int ng)
 }
 
 void
-PeleC::computeTemp(amrex::MultiFab& S, int ng)
+ERF::computeTemp(amrex::MultiFab& S, int ng)
 {
   reset_internal_energy(S, ng);
 
@@ -1585,7 +1585,7 @@ PeleC::computeTemp(amrex::MultiFab& S, int ng)
 }
 
 amrex::Real
-PeleC::getCPUTime()
+ERF::getCPUTime()
 {
   int numCores = amrex::ParallelDescriptor::NProcs();
 #ifdef _OPENMP
@@ -1600,7 +1600,7 @@ PeleC::getCPUTime()
 }
 
 amrex::MultiFab&
-PeleC::build_fine_mask()
+ERF::build_fine_mask()
 {
   // Mask for zeroing covered cells
   AMREX_ASSERT(level > 0);
@@ -1639,7 +1639,7 @@ PeleC::build_fine_mask()
 }
 
 const amrex::iMultiFab*
-PeleC::build_interior_boundary_mask(int ng)
+ERF::build_interior_boundary_mask(int ng)
 {
   for (int i = 0; i < ib_mask.size(); ++i) {
     if (ib_mask[i]->nGrow() == ng) {
@@ -1669,7 +1669,7 @@ PeleC::build_interior_boundary_mask(int ng)
 }
 
 amrex::Real
-PeleC::clean_state(amrex::MultiFab& S)
+ERF::clean_state(amrex::MultiFab& S)
 {
   // Enforce a minimum density.
 
@@ -1685,7 +1685,7 @@ PeleC::clean_state(amrex::MultiFab& S)
 }
 
 amrex::Real
-PeleC::clean_state(amrex::MultiFab& S, amrex::MultiFab& S_old)
+ERF::clean_state(amrex::MultiFab& S, amrex::MultiFab& S_old)
 {
   // Enforce a minimum density.
 

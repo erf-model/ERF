@@ -1,9 +1,9 @@
 #include <iomanip>
 
-#include "PeleC.H"
+#include "ERF.H"
 
 amrex::Real
-PeleC::sumDerive(const std::string& name, amrex::Real time, bool local)
+ERF::sumDerive(const std::string& name, amrex::Real time, bool local)
 {
   amrex::Real sum = 0.0;
   auto mf = derive(name, time, 0);
@@ -32,10 +32,10 @@ PeleC::sumDerive(const std::string& name, amrex::Real time, bool local)
 }
 
 amrex::Real
-PeleC::volWgtSum(
+ERF::volWgtSum(
   const std::string& name, amrex::Real time, bool local, bool finemask)
 {
-  BL_PROFILE("PeleC::volWgtSum()");
+  BL_PROFILE("ERF::volWgtSum()");
 
   amrex::Real sum = 0.0;
   const amrex::Real* dx = geom.CellSize();
@@ -57,9 +57,9 @@ PeleC::volWgtSum(
 }
 
 amrex::Real
-PeleC::volWgtSquaredSum(const std::string& name, amrex::Real time, bool local)
+ERF::volWgtSquaredSum(const std::string& name, amrex::Real time, bool local)
 {
-  BL_PROFILE("PeleC::volWgtSquaredSum()");
+  BL_PROFILE("ERF::volWgtSquaredSum()");
 
   amrex::Real sum = 0.0;
   const amrex::Real* dx = geom.CellSize();
@@ -85,7 +85,7 @@ PeleC::volWgtSquaredSum(const std::string& name, amrex::Real time, bool local)
 }
 
 amrex::Real
-PeleC ::volWgtSquaredSumDiff(int comp, amrex::Real time, bool local)
+ERF ::volWgtSquaredSumDiff(int comp, amrex::Real time, bool local)
 {
 
   // Calculate volume weighted sum of the square of the difference
@@ -119,10 +119,10 @@ PeleC ::volWgtSquaredSumDiff(int comp, amrex::Real time, bool local)
 }
 
 amrex::Real
-PeleC::volWgtSumMF(
+ERF::volWgtSumMF(
   const amrex::MultiFab& mf, int comp, bool local, bool finemask)
 {
-  BL_PROFILE("PeleC::volWgtSumMF()");
+  BL_PROFILE("ERF::volWgtSumMF()");
 
   amrex::Real sum = 0.0;
   const amrex::Real* dx = geom.CellSize();
@@ -143,7 +143,7 @@ PeleC::volWgtSumMF(
 }
 
 amrex::Real
-PeleC::maxDerive(const std::string& name, amrex::Real time, bool local)
+ERF::maxDerive(const std::string& name, amrex::Real time, bool local)
 {
   auto mf = derive(name, time, 0);
 

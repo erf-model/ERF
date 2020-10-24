@@ -10,7 +10,7 @@
 LES and Hybrid LES/DNS Support
 ------------------------------
 
-.. note:: PeleC has support for LES subgrid models for *non-reacting* flows; documentation is a work in progress.
+.. note:: ERF has support for LES subgrid models for *non-reacting* flows; documentation is a work in progress.
 
 
 Models for large eddy simulations
@@ -19,7 +19,7 @@ Models for large eddy simulations
 .. warning:: The LES source terms do not currently support EB cut cells.
 
 
-PeleC currently supports two LES models, the constant and dynamic
+ERF currently supports two LES models, the constant and dynamic
 Smagorinsky models. An extensive discussion of the compressible
 version of these models can be found in Martín, M. Pino, U. Piomelli,
 and G. V. Candler. "Subgrid-Scale Models for Compressible Large-Eddy
@@ -32,27 +32,27 @@ Using
 #####
 
 To use the LES models, the user must first activate the LES source
-terms by doing: ``pelec.do_les = 1``. The default LES model is
+terms by doing: ``erf.do_les = 1``. The default LES model is
 constant Smagorinsky. The user can pick the LES model by setting
-``pelec.les_model = NUM``:
+``erf.les_model = NUM``:
 
 * ``les_model = 0``: constant Smagorinsky model
 * ``les_model = 1``: dynamic Smagorinsky model
 
 For the constant Smagorinsky model, the user may define the model
-coefficients: ``pelec.Cs``, ``pelec.CI``, and ``pelec.PrT``. These
+coefficients: ``erf.Cs``, ``erf.CI``, and ``erf.PrT``. These
 must be set by the user in the input file as they default to ``Cs =
 0``, ``CI = 0``, and ``PrT = 1.0``. To use a typical constant
 Smagorinsky model, the user would add the following in the input file:
 
 ::
 
-   pelec.do_les = 1
-   pelec.les_model = 0
+   erf.do_les = 1
+   erf.les_model = 0
    # TURBULENCE PARAMETERS
-   pelec.Cs = 0.16
-   pelec.CI = 0.09
-   pelec.PrT = 0.7
+   erf.Cs = 0.16
+   erf.CI = 0.09
+   erf.PrT = 0.7
 
 
 For the dynamic Smagorinsky model, the user can define a test filter
@@ -64,16 +64,16 @@ ratio of 2. An example for activating the dynamic Smagorinsky model is:
 
 ::
 
-   pelec.do_les = 1
-   pelec.les_model = 1
-   pelec.les_test_filter_type = 3
-   pelec.les_test_filter_fgr = 2
+   erf.do_les = 1
+   erf.les_model = 1
+   erf.les_test_filter_type = 3
+   erf.les_test_filter_fgr = 2
 
 
 Developing
 ##########
 
-The LES models are implemented as source terms in `PeleC_les.cpp` and
+The LES models are implemented as source terms in `ERF_les.cpp` and
 the kernels are implemented in ``Src_DIMd/lesterm_DIMd.f90``.
 
 
@@ -96,10 +96,10 @@ Using
 
 To explicitly filter the hydrodynamic source terms, the following
 should option should be turned on in the input file:
-``pelec.use_explicit_filter = 1``. The user specifies the filter-grid
-ratio using ``pelec.les_filter_fgr = NUM``, where ``NUM`` is the
-filter-grid ratio desired, e.g. ``pelec.les_filter_fgr = 2``. The user
-also specifies a filter type through ``pelec.les_filter_type = NUM``:
+``erf.use_explicit_filter = 1``. The user specifies the filter-grid
+ratio using ``erf.les_filter_fgr = NUM``, where ``NUM`` is the
+filter-grid ratio desired, e.g. ``erf.les_filter_fgr = 2``. The user
+also specifies a filter type through ``erf.les_filter_type = NUM``:
 
 * ``les_filter_type = 0``: no filtering
 * ``les_filter_type = 1``: standard box filter
@@ -121,9 +121,9 @@ ration of 2 would be:
 
 ::
 
-   pelec.use_explicit_filter=1
-   pelec.les_filter_type=2
-   pelec.les_filter_fgr=2
+   erf.use_explicit_filter=1
+   erf.les_filter_type=2
+   erf.les_filter_fgr=2
 
 
 Developing
@@ -137,7 +137,7 @@ initialization.
 The application of a filter can be done on a Fab or MultiFab. The
 implementation is done in ``filter_DIMd.f90``. The loop nesting
 ordering was chosen to be performant on existing HPC architectures and
-discussed in PeleC milestone reports. An example call to the filtering operation is
+discussed in ERF milestone reports. An example call to the filtering operation is
 
 ::
 

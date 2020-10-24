@@ -12,10 +12,10 @@
 Numerical Treatment and Algorithms
 ==================================
 
-PeleC Time-stepping
+ERF Time-stepping
 ------------------
 
-PeleC supports two options for time-stepping: a second-order explicit method-of-lines approach (MOL), and an iterative scheme base on a spectral deferred correction approach (SDC). Both time-steppers share a considerable amount of code.
+ERF supports two options for time-stepping: a second-order explicit method-of-lines approach (MOL), and an iterative scheme base on a spectral deferred correction approach (SDC). Both time-steppers share a considerable amount of code.
 
 
 Standard Time Advance
@@ -61,7 +61,7 @@ Piecewise Parabolic Method (PPM)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The unsplit piecewise parabolic method is used for regular
-geometries. Currently in PeleC, there are 2 variants that can be
+geometries. Currently in ERF, there are 2 variants that can be
 chosen through the ``ppm_type`` flag:
 
 * ``ppm_type = 0`` (default) uses a piecewise linear interpolation to reconstruct values at face. This is denoted PLM in the source code.
@@ -73,7 +73,7 @@ chosen through the ``ppm_type`` flag:
    in the (deprecated) Fortran source code. Efforts are ongoing to
    port all the PPM variants into the C++ source code.
 
-Currently in PeleC Fortran source, there are 4 variants that can be
+Currently in ERF Fortran source, there are 4 variants that can be
 chosen through the ``ppm_type`` flag:
 
 * ``ppm_type = 0`` uses a piecewise linear interpolation to reconstruct values at face.
@@ -82,8 +82,8 @@ chosen through the ``ppm_type`` flag:
 * ``ppm_type = 3`` is a new hybrid PPM/WENO method developped by Motheau and Wakefield [CAMCOS 2020], that replace the interpolation and slope limiting procedures by a WENO reconstruction.
 
 In the remainder of this section, the extrema preserving PPM method, i.e ``ppm_type = 2``, is presented. Note that the implementation
-in PeleC is a recollection of different extension of the PPM method published in Miller and Colella [JCP 2002] and Colella and Sekora [JCP 2008].
-The actual implementation in PeleC is described in the paper `Motheau and Wakefield, Investigation of finite-volume methods to capture shocks and turbulence spectra in compressible flows  [CAMCOS 2020]`, 
+in ERF is a recollection of different extension of the PPM method published in Miller and Colella [JCP 2002] and Colella and Sekora [JCP 2008].
+The actual implementation in ERF is described in the paper `Motheau and Wakefield, Investigation of finite-volume methods to capture shocks and turbulence spectra in compressible flows  [CAMCOS 2020]`, 
 and the following description is taken from that paper. Note that the algorithm is presented here in 1D
 for simplicity, but can be trivially extended to 2D and 3D. 
 
@@ -212,7 +212,7 @@ In order to enforce that :math:`q_{i+\frac{1}{2}}` lies between the adjacent cel
 The next step is to set the values of :math:`q_{R,i-\frac{1}{2}}` and :math:`q_{L,i+\frac{1}{2}}`, which are the right and left state at the edges bounding a computational cell.
 Here, a quartic limiter is employed in order to enforce that the interpolated parabolic profile is monotone.
 The procedure proposed by Miller [2002] is adopted, which slightly differs from the original one proposed in Colella [1984]. In Miller [2002], this specific procedure is followed
-by the imposition of another limiter based on a flattening parameter to prevent artificial extrema in the reconstructed values. Here in PeleC, the order of imposition
+by the imposition of another limiter based on a flattening parameter to prevent artificial extrema in the reconstructed values. Here in ERF, the order of imposition
 of the different limiting procedures is reversed.
 
 First, the edge state values are defined as:
@@ -482,7 +482,7 @@ than PPM simulations.
 Diffusion
 ---------
 
-One of two diffusion models is selected during the compilation of PeleC, based on the choice of the equation-of-state: a simple model for ideal gases, and a more involved model when real gases are employed.  In both cases, the associated derivatives are discretized in space with a straightforward centered finite-volume approach.  Transport coefficients (discussed below) are computed at cell centers from the evolving state data, and are arithmetically averaged to cell faces where they are needed to evaluate the transport fluxes.  The time discretization for the transport terms is fully explicit and second-order.  Although formally this approach leads to a maximum :math:`\Delta t` restriction for time evolution that scales as :math:`\Delta x^2`, it is well known that for resolved flows the CFL constraint will provide the most restrictive time step limitation (ignoring chemical times). Note that when subgrid models are employed for advection, or stiff reactions are incorporated with an explicit treatment of chemistry, the maximum achievable :math:`\Delta t` may be considerably smaller than the CFL limit, and other integration approaches might perform significantly better.
+One of two diffusion models is selected during the compilation of ERF, based on the choice of the equation-of-state: a simple model for ideal gases, and a more involved model when real gases are employed.  In both cases, the associated derivatives are discretized in space with a straightforward centered finite-volume approach.  Transport coefficients (discussed below) are computed at cell centers from the evolving state data, and are arithmetically averaged to cell faces where they are needed to evaluate the transport fluxes.  The time discretization for the transport terms is fully explicit and second-order.  Although formally this approach leads to a maximum :math:`\Delta t` restriction for time evolution that scales as :math:`\Delta x^2`, it is well known that for resolved flows the CFL constraint will provide the most restrictive time step limitation (ignoring chemical times). Note that when subgrid models are employed for advection, or stiff reactions are incorporated with an explicit treatment of chemistry, the maximum achievable :math:`\Delta t` may be considerably smaller than the CFL limit, and other integration approaches might perform significantly better.
 
 Ideal Gas Diffusion
 ~~~~~~~~~~~~~~~~~~~
@@ -504,10 +504,10 @@ where :math:`e_m` is the species :math:`m` internal energy, as specified in the 
    
     &&\boldsymbol{\mathcal{Q}} =  \sum_m h_m \boldsymbol{\mathcal{F}}_{m}  - \lambda \nabla T
 
-The mixture-averaged transport coefficients discussed above (:math:`\mu`, :math:`\lambda` and :math:`D_{m,mix}`) can be evaluated from transport properties of the pure species. We follow the treatment used in the EGLib library, based on the theory/approximations developed by Ern and Givangigli (however, `PeleC` uses a recoded version of these routines that are thread safe and vectorize well on suitable processors).
+The mixture-averaged transport coefficients discussed above (:math:`\mu`, :math:`\lambda` and :math:`D_{m,mix}`) can be evaluated from transport properties of the pure species. We follow the treatment used in the EGLib library, based on the theory/approximations developed by Ern and Givangigli (however, `ERF` uses a recoded version of these routines that are thread safe and vectorize well on suitable processors).
 
 
-The following choices are currently implemented in `PeleC`
+The following choices are currently implemented in `ERF`
 
 * The viscosity, :math:`\mu`, is estimated based <something>
 
@@ -530,7 +530,7 @@ This leads to a mixture-averaged approximation that is similar to that of Hirsch
 
     \rho Y_m \boldsymbol{V_m} = - \rho D_{m,mix} \nabla X_m 
 
-Note that with these definitions, there is no guarantee that :math:`\sum \boldsymbol{\mathcal{F}}_{m} = 0`, as required for mass conservation. An arbitrary *correction flux,* consistent with the mixture-averaged diffusion approximation, is added in PeleC to enforce conservation.
+Note that with these definitions, there is no guarantee that :math:`\sum \boldsymbol{\mathcal{F}}_{m} = 0`, as required for mass conservation. An arbitrary *correction flux,* consistent with the mixture-averaged diffusion approximation, is added in ERF to enforce conservation.
 
 The pure species and mixture transport properties are evaluated with (thread-safe, vectorized) EGLib functions, which require as input polynomial fits of the logarithm of each quantity versus the logarithm of the temperature.
 
@@ -541,13 +541,7 @@ The pure species and mixture transport properties are evaluated with (thread-saf
 :math:`q_m` represents :math:`\eta_m`, :math:`\lambda_m` or :math:`D_{m,j}`. These fits are generated as part of a preprocessing step managed by the tool `FUEGO` based on the formula (and input data) discussed above. The role of `FUEGO` to preprocess the model parameters for transport as well as chemical kinetics and thermodynamics, is discussed in some detail in <Section FuegoDescr>.
 
 
-Reaction
---------
-
-A chemical reaction network is evaluated to determine the reaction source term.  The reaction network is selected at build time by setting the `CHEMISTRY_MODEL` flag in the makefile, where the value refers to one of the models available in `PelePhysics`. New models can be generated using `Fuego`, currently not part of `PelePhysics` but slated for inclusion in the near future.
-
-
 Equation of State
 -----------------
 
-Several equation of state models are available based on ideal gas, gamma law gas or non-ideal equation of state.  These are implemented through the `PelePhysics` module. 
+ERF assumes an ideal gas equation of state.

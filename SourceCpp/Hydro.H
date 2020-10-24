@@ -1,7 +1,7 @@
 #ifndef _HYDRO_H_
 #define _HYDRO_H_
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "IndexDefines.H"
 #include "EOS.H"
 #include "Utilities.H"

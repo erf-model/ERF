@@ -7,7 +7,7 @@ plt*
 chk*
 tmp_build_dir
 .ccls-cache
-PeleC*.ex
+ERF*.ex
 extern_parameters.H
 extern_parameters.cpp
 extern_parameters_F.H

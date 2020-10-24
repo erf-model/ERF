@@ -24,7 +24,7 @@ pc_compute_diffusion_flux(
 {
   {
     // Compute Extensive diffusion fluxes for X, Y, Z
-    BL_PROFILE("PeleC::diffusion_flux()");
+    BL_PROFILE("ERF::diffusion_flux()");
     for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
       const amrex::Real delta = del[dir];
       amrex::Real d1 = 0.0, d2 = 0.0;

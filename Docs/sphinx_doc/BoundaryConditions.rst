@@ -10,9 +10,9 @@
 Boundary Conditions
 -------------------
 
-PeleC manages boundary conditions in a form consistent with many AMReX codes. Ghost cell data are updated over an AMR level during a ``FillPatch`` operation and fluxes are then computed over the entire box without specifically recognizing boundary cells. The Fortran routine ``pc_hypfill`` in ``bc_fill_nd.F90`` is called to set state data at physical boundaries for this purpose.  A generic boundary filler function, ``filcc_nd``, is supplied to fill standard boundary condition types that do not require user input, including:
+ERF manages boundary conditions in a form consistent with many AMReX codes. Ghost cell data are updated over an AMR level during a ``FillPatch`` operation and fluxes are then computed over the entire box without specifically recognizing boundary cells. The Fortran routine ``pc_hypfill`` in ``bc_fill_nd.F90`` is called to set state data at physical boundaries for this purpose.  A generic boundary filler function, ``filcc_nd``, is supplied to fill standard boundary condition types that do not require user input, including:
 
-* *Interior* - Copy-in-intersect in index space (same as periodic boundary conditions). Periodic boundaries are set in the PeleC inputs file
+* *Interior* - Copy-in-intersect in index space (same as periodic boundary conditions). Periodic boundaries are set in the ERF inputs file
 * *Symmetry* - All conserved quantities and the tangential momentum component are reflected from interior cells without 
   sign change (REFLECT_EVEN) while the normal component is reflected with a sign change (REFLECT_ODD)
 * *NoSlipWall* - REFLECT_EVEN is applied to all conserved quantities except for both tangential and normal momentum components which are updated 
@@ -28,8 +28,8 @@ A well-known approach to this problem is the Navier-Stokes Characteristic Bounda
 <https://www.sciencedirect.com/science/article/pii/0021999192900462>`_.  In the method, the hyperbolic structure is
 decomposed to identify incoming and outgoing waves, given a statement of the "external" state outside the domain, and
 then to construct a model that gives "desired" behavior at the interface.  One issue with direct application of
-the NSCBC treatment in PeleC is that it is formulated to impose boundary fluxes directly. In PeleC however, the 
-Godunov approach that is implemented makes use of boundary data specified via grow cell values, and reconstructs fluxes at faces when required. Thus, the NSCBC strategy has been reformulated to provide the grow cell data required in PeleC. The strategy,
+the NSCBC treatment in ERF is that it is formulated to impose boundary fluxes directly. In ERF however, the 
+Godunov approach that is implemented makes use of boundary data specified via grow cell values, and reconstructs fluxes at faces when required. Thus, the NSCBC strategy has been reformulated to provide the grow cell data required in ERF. The strategy,
 the Ghost-Cells Navier-Stokes Boundary Conditions (GC-NSCBC) method, is described in `Motheau et al. (2017) AIAA Journal
 <https://ccse.lbl.gov/people/motheau/Manuscripts_website/2017_AIAA_CFD_Motheau.pdf>`_.
 
@@ -38,7 +38,7 @@ For the characteristics-based boundary condition implementation, the solution is
 does not work as expected, and why the NSCBC theory helps to get a more "desirable" solution).
 
 In order to understand the impact of the GC-NSCBC treatment, we give an example that imposes "hard" values in the ghost-cells to represent external conditions, and uses first-order extrapolation at the outflow boundary.
-A precomputed 1D flame profile is interpolated onto a uniform PeleC grid. Because the solution has to adapt to the new grid and to the PeleC numerical discretization, it creates an unphysical acoustic bump that moves through the domain as an acoustic disturbance.  With "hard" boundary conditions, this disturbance is reflected from the outflow boundary back into the domain, and interacts with the flame upstream.  A steady solution to this system would require the propagation of this wave back and forth until numerical diffusion eventually reduces its magnitude below some threshold. With the GC-NSCBC boundary treatment, the acoustic wave simply leaves the computational domain.  Often times, the latter is the desired behavior of the code.
+A precomputed 1D flame profile is interpolated onto a uniform ERF grid. Because the solution has to adapt to the new grid and to the ERF numerical discretization, it creates an unphysical acoustic bump that moves through the domain as an acoustic disturbance.  With "hard" boundary conditions, this disturbance is reflected from the outflow boundary back into the domain, and interacts with the flame upstream.  A steady solution to this system would require the propagation of this wave back and forth until numerical diffusion eventually reduces its magnitude below some threshold. With the GC-NSCBC boundary treatment, the acoustic wave simply leaves the computational domain.  Often times, the latter is the desired behavior of the code.
 
 .. only:: html
 
@@ -58,7 +58,7 @@ A precomputed 1D flame profile is interpolated onto a uniform PeleC grid. Becaus
 
 With the GC-NSCBC, the spurious acoustic wave simply leaves the domain with no unphysical reflection.
 
-In PeleC, the subroutine ``bcnormal`` is used to provide the target state for the GC-NSCBC treatment as well as the numerical parameters used by the GC-NSCBC method to efficiently "damp" the reflected waves. Note the signature and the content of the ``bcnormal`` routine:
+In ERF, the subroutine ``bcnormal`` is used to provide the target state for the GC-NSCBC treatment as well as the numerical parameters used by the GC-NSCBC method to efficiently "damp" the reflected waves. Note the signature and the content of the ``bcnormal`` routine:
 
 ::
 

@@ -1,4 +1,4 @@
-name: PeleC-CI
+name: ERF-CI
 
 on:
   push:
@@ -70,10 +70,10 @@ jobs:
           -DCMAKE_CXX_COMPILER:STRING=${{env.CXX_COMPILER}} \
           -DCMAKE_C_COMPILER:STRING=${{env.C_COMPILER}} \
           -DCMAKE_Fortran_COMPILER:STRING=${{env.FORTRAN_COMPILER}} \
-          -DPELEC_ENABLE_MPI:BOOL=ON \
-          -DPELEC_ENABLE_TESTS:BOOL=ON \
-          -DPELEC_ENABLE_FCOMPARE_FOR_TESTS:BOOL=OFF \
-          -DPELEC_ENABLE_MASA:BOOL=ON \
+          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE_FOR_TESTS:BOOL=OFF \
+          -DERF_ENABLE_MASA:BOOL=ON \
           -DMASA_DIR:STRING=${{runner.workspace}}/deps/install/MASA \
           ${GITHUB_WORKSPACE}
     - name: make

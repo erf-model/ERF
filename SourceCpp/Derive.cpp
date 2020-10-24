@@ -523,7 +523,7 @@ pc_derradialvel(
   });
 }
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
 void
 pc_derrhommserror(
   const amrex::Box& bx,

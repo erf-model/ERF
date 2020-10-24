@@ -1,6 +1,6 @@
 #include <AMReX_ParmParse.H>
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "Tagging.H"
 
 namespace TaggingParm {
@@ -37,7 +37,7 @@ AMREX_GPU_DEVICE_MANAGED int max_vfracerr_lev = 10;
 } // namespace TaggingParm
 
 void
-PeleC::read_tagging_params()
+ERF::read_tagging_params()
 {
   amrex::ParmParse pp("tagging");
 

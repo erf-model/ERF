@@ -1,6 +1,6 @@
 #ifndef _RIEMANN_H_
 #define _RIEMANN_H_
-#include "PeleC.H"
+#include "ERF.H"
 #include "EOS.H"
 
 AMREX_GPU_DEVICE

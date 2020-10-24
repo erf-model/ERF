@@ -4,7 +4,7 @@ C1. Method of manufactured solutions for EB
 Case description
 ################
 
-This is a similar test case problem as performed for PeleC
+This is a similar test case problem as performed for ERF
 verification using MASA to construct a manufactured solution. The MMS
 is performed around a sphere at a Re number and Mach number of 1.
 

@@ -1,8 +1,8 @@
-#include "PeleC.H"
+#include "ERF.H"
 #include "IndexDefines.H"
 
 void
-PeleC::construct_old_ext_source(amrex::Real time, amrex::Real dt)
+ERF::construct_old_ext_source(amrex::Real time, amrex::Real dt)
 {
   amrex::MultiFab& S_old = get_old_data(State_Type);
 
@@ -19,7 +19,7 @@ PeleC::construct_old_ext_source(amrex::Real time, amrex::Real dt)
 }
 
 void
-PeleC::construct_new_ext_source(amrex::Real time, amrex::Real dt)
+ERF::construct_new_ext_source(amrex::Real time, amrex::Real dt)
 {
   amrex::MultiFab& S_old = get_old_data(State_Type);
   amrex::MultiFab& S_new = get_new_data(State_Type);
@@ -35,7 +35,7 @@ PeleC::construct_new_ext_source(amrex::Real time, amrex::Real dt)
 }
 
 void
-PeleC::fill_ext_source(
+ERF::fill_ext_source(
   amrex::Real time,
   amrex::Real dt,
   const amrex::MultiFab& state_old,

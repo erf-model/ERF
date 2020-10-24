@@ -3,7 +3,7 @@
 
 #include "Diffterm.H"
 #include "IndexDefines.H"
-#include "PeleC.H"
+#include "ERF.H"
 #include "EOS.H"
 #include "Riemann.H"
 

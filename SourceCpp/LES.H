@@ -1,7 +1,7 @@
 #ifndef _LES_H_
 #define _LES_H_
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "Utilities.H"
 #include "Diffusion.H"
 #include "Diffterm.H"

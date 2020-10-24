@@ -2,14 +2,14 @@
 #include "Transport.H"
 
 void
-PeleC::getMOLSrcTerm(
+ERF::getMOLSrcTerm(
   const amrex::MultiFab& S,
   amrex::MultiFab& MOLSrcTerm,
   amrex::Real time,
   amrex::Real dt,
   amrex::Real flux_factor)
 {
-  BL_PROFILE("PeleC::getMOLSrcTerm()");
+  BL_PROFILE("ERF::getMOLSrcTerm()");
   BL_PROFILE_VAR_NS("diffusion_stuff", diff);
   if (
     diffuse_temp == 0 && diffuse_enth == 0 && 
@@ -113,7 +113,7 @@ PeleC::getMOLSrcTerm(
       // Get primitives, Q, including (Y, T, p, rho) from conserved state
       // required for D term
       {
-        BL_PROFILE("PeleC::ctoprim()");
+        BL_PROFILE("ERF::ctoprim()");
         amrex::ParallelFor(
           gbox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             pc_ctoprim(i, j, k, s, qar);
@@ -161,7 +161,7 @@ PeleC::getMOLSrcTerm(
         auto const& coe_xi = coeff_cc.array(dComp_xi);
         auto const& coe_lambda = coeff_cc.array(dComp_lambda);
 
-        BL_PROFILE("PeleC::get_transport_coeffs()");
+        BL_PROFILE("ERF::get_transport_coeffs()");
         // Get Transport coefs on GPU.
         amrex::launch(gbox, [=] AMREX_GPU_DEVICE(amrex::Box const& tbx) {
           get_transport_coeffs(tbx, qar_Tin, qar_rhoin, coe_mu, coe_xi, coe_lambda);
@@ -196,7 +196,7 @@ PeleC::getMOLSrcTerm(
 
       // Compute flux divergence (1/Vol).Div(F.A)
       {
-        BL_PROFILE("PeleC::pc_flux_div()");
+        BL_PROFILE("ERF::pc_flux_div()");
         auto const& vol = volume.array(mfi);
         amrex::ParallelFor(
           cbox, NVAR,
@@ -262,7 +262,7 @@ PeleC::getMOLSrcTerm(
 
         { // Get face-centered hyperbolic fluxes and their divergences.
           // Get hyp flux at EB wall
-          BL_PROFILE("PeleC::pc_hyp_mol_flux()");
+          BL_PROFILE("ERF::pc_hyp_mol_flux()");
           auto const& vol = volume.array(mfi);
           pc_compute_hyp_mol_flux(cbox, qar, flx, a, dx, plm_iorder);
         }
@@ -310,7 +310,7 @@ PeleC::getMOLSrcTerm(
 
         // Compute flux divergence (1/Vol).Div(F.A)
         {
-          BL_PROFILE("PeleC::pc_flux_div()");
+          BL_PROFILE("ERF::pc_flux_div()");
           auto const& vol = volume.array(mfi);
           amrex::ParallelFor(
             cbox, NVAR,
@@ -352,7 +352,7 @@ PeleC::getMOLSrcTerm(
 
       // Extrapolate to GhostCells
       if (MOLSrcTerm.nGrow() > 0) {
-        BL_PROFILE("PeleC::diffextrap()");
+        BL_PROFILE("ERF::diffextrap()");
         const int mg = MOLSrcTerm.nGrow();
         const amrex::Box bx = mfi.tilebox();
         auto low = bx.loVect();

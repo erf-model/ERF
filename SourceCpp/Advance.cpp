@@ -1,10 +1,10 @@
 #include <cmath>
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "IndexDefines.H"
 
 amrex::Real
-PeleC::advance(
+ERF::advance(
   amrex::Real time, amrex::Real dt, int amr_iteration, int amr_ncycle)
 {
   /** the main driver for a single level implementing the time advance.
@@ -18,7 +18,7 @@ PeleC::advance(
          @param amr_ncycle  the number of subcycles at this level
   */
 
-  BL_PROFILE("PeleC::advance()");
+  BL_PROFILE("ERF::advance()");
 
   int finest_level = parent->finestLevel();
 
@@ -38,7 +38,7 @@ PeleC::advance(
   // dt_new = do_mol_advance(time, dt, amr_iteration, amr_ncycle);
   // 
   {
-  BL_PROFILE("PeleC::do_mol_advance()");
+  BL_PROFILE("ERF::do_mol_advance()");
 
   // Check that we are not asking to advance stuff we don't know to
   // if (src_list.size() > 0) amrex::Abort("Have not integrated other sources
@@ -126,7 +126,7 @@ PeleC::advance(
 }
 
 void
-PeleC::construct_Snew(
+ERF::construct_Snew(
   amrex::MultiFab& S_new, const amrex::MultiFab& S_old, amrex::Real dt)
 {
   int ng = 0;

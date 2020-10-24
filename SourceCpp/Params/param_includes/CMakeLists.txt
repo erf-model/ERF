@@ -1,8 +1,8 @@
-target_sources(${pelec_exe_name}
+target_sources(${erf_exe_name}
    PRIVATE
-     pelec_defaults.H
-     pelec_params.H
-     pelec_queries.H 
+     erf_defaults.H
+     erf_params.H
+     erf_queries.H 
    )
 
-target_include_directories(${pelec_exe_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

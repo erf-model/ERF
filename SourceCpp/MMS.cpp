@@ -4,14 +4,14 @@
 
 #include <masa.h>
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "IndexDefines.H"
 
 using std::string;
 using namespace MASA;
 
 void
-PeleC::construct_old_mms_source(amrex::Real time)
+ERF::construct_old_mms_source(amrex::Real time)
 {
   auto& S_old = get_old_data(State_Type);
 
@@ -25,7 +25,7 @@ PeleC::construct_old_mms_source(amrex::Real time)
 }
 
 void
-PeleC::construct_new_mms_source(amrex::Real time)
+ERF::construct_new_mms_source(amrex::Real time)
 {
   auto& S_old = get_old_data(State_Type);
 
@@ -37,10 +37,10 @@ PeleC::construct_new_mms_source(amrex::Real time)
 }
 
 void
-PeleC::fill_mms_source(
+ERF::fill_mms_source(
   amrex::Real time, const amrex::MultiFab& S, amrex::MultiFab& mms_src, int ng)
 {
-  BL_PROFILE("PeleC::fill_mms_source()");
+  BL_PROFILE("ERF::fill_mms_source()");
 
   if (do_mms == 0) {
     return;
@@ -60,7 +60,7 @@ PeleC::fill_mms_source(
                      << std::endl;
     }
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
 
     // Store the source for later reuse
     mms_source.define(grids, dmap, NVAR, ng);
@@ -106,7 +106,7 @@ PeleC::fill_mms_source(
     mms_src_evaluated = true;
 
 #else
-    amrex::Error("MASA is not turned on. Turn on with PELEC_USE_MASA=TRUE.");
+    amrex::Error("MASA is not turned on. Turn on with ERF_USE_MASA=TRUE.");
 #endif
   }
 }

@@ -12,13 +12,13 @@
 
 .. highlight:: rst
 
-Verification of PeleC
+Verification of ERF
 ---------------------
 
-Verification of PeleC uses `MASA
+Verification of ERF uses `MASA
 <https://github.com/manufactured-solutions/MASA>`_ and
 auto-differention tools to implement the Method of Manufactured
-Solutions into PeleC.
+Solutions into ERF.
 
 The :math:`L_2` error norm for a quantity :math:`s` is defined as
 
@@ -74,7 +74,7 @@ installing MASA is as easy as:
    $ spack install masa
 
 
-Linking MASA to PeleC and running
+Linking MASA to ERF and running
 #################################
 
 For the MMS problem setup, one must specify the install location for
@@ -85,7 +85,7 @@ line either as:
 
    $ export MASA_HOME=$MASA_ROOT_DIR
 
-or, when compiling PeleC,
+or, when compiling ERF,
 
 .. code-block:: bash
 
@@ -95,20 +95,20 @@ where ``MASA_ROOT_DIR`` is the MASA install location. If using Spack
 and after loading the MASA module, the ``MASA_ROOT_DIR`` will be
 automatically populated.
 
-After building the PeleC MMS executable, one can perform an MMS
+After building the ERF MMS executable, one can perform an MMS
 convergence study to demonstrate formal accuracy of the numerical
 implementation. Results of several MMS tests are detailed below.
 
 Running the full MMS suite
 ##########################
 
-The full MMS suite can be executed through the `PeleCRegressionTesting
+The full MMS suite can be executed through the `ERFRegressionTesting
 <https://github.com/AMReX-Combustion/PeleRegressionTesting>`_ test
 suite:
 
 .. code-block:: bash
 
-   $ ./verify-pelec.sh
+   $ ./verify-erf.sh
 
 
 
@@ -177,21 +177,21 @@ state solver would fail to test the temporal discretization scheme.
 
 - Density :math:`L_2` error norm:
 
-.. image:: ./verification/pelec/rho_error.png
+.. image:: ./verification/erf/rho_error.png
    :width: 300pt
 
 - Velocity (u, v, w) :math:`L_2` error norm:
 
-.. image:: ./verification/pelec/u_error.png
+.. image:: ./verification/erf/u_error.png
    :width: 300pt
-.. image:: ./verification/pelec/v_error.png
+.. image:: ./verification/erf/v_error.png
    :width: 300pt
-.. image:: ./verification/pelec/w_error.png
+.. image:: ./verification/erf/w_error.png
    :width: 300pt
 
 - Pressure :math:`L_2` error norm:
 
-.. image:: ./verification/pelec/p_error.png
+.. image:: ./verification/erf/p_error.png
    :width: 300pt
 
 Testing the adaptive mesh refinement algorithm

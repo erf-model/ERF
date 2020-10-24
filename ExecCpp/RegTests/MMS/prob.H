@@ -6,12 +6,12 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
 #include <masa.h>
 using namespace MASA;
 #endif
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "IndexDefines.H"
 #include "EOS.H"
 #include "Tagging.H"

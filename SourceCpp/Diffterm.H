@@ -11,7 +11,7 @@
 #include "Diffusion.H"
 
 /*This header file contains functions and declarations for diffterm in 3D for
-  PeleC GPU. As per the convention of AMReX, inlined device functions are
+  ERF GPU. As per the convention of AMReX, inlined device functions are
   defined here. Where as non-inline host functions are declared here. */
 
 /*The original Diffterm function passes too many arguments, which contribute to

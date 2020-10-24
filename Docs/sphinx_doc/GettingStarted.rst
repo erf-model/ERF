@@ -9,7 +9,7 @@ Getting Started
 Navigation
 ----------
 
-The PeleC directory structure is as shown below:
+The ERF directory structure is as shown below:
 
 * **Source** - C++ source code
 
@@ -20,7 +20,7 @@ The PeleC directory structure is as shown below:
   * VODE
   * plot1d
 
-* **Docs**   - PeleC documentation 
+* **Docs**   - ERF documentation 
 
   * sphinx_doc
 
@@ -50,15 +50,15 @@ The PeleC directory structure is as shown below:
     * Spray
 
 
-Setting up a problem to run with PeleC involves writing an input file and problem specific code in the run directory. 
-PeleC is built using the AMReX build system which supports out-of-source builds but as configured in Pele requires a specific directory structure. 
+Setting up a problem to run with ERF involves writing an input file and problem specific code in the run directory. 
+ERF is built using the AMReX build system which supports out-of-source builds but as configured in Pele requires a specific directory structure. 
 Within each case directory in Exec, are the source files that specify the setup of that particular case. 
-The user has to build each case by compiling source files using a GNUMakefile which also compiles and links together AMReX and PeleC sources.
-The source files contained in the case directory are treated preferentially and can override PeleC/AMReX source files.  
+The user has to build each case by compiling source files using a GNUMakefile which also compiles and links together AMReX and ERF sources.
+The source files contained in the case directory are treated preferentially and can override ERF/AMReX source files.  
 A few key files that need to be supplied for (most) cases are:
 
 **inputs** -- a text file containing parameters that are ready by the ParmParse capability in AMReX. These include things like number of time steps, grid size, output file frequency, which physics to include, etc. 
-A list of available data in the Pele group can be found in PeleC/Source/param_includes/pelec_params.H
+A list of available data in the Pele group can be found in ERF/Source/param_includes/erf_params.H
 
 **prob.cpp** -- Routines called at:
 
@@ -70,7 +70,7 @@ A list of available data in the Pele group can be found in PeleC/Source/param_in
 
 **prob_parm.H** -- Something about prob_parm.H
 
-**GNUMakefile** -- In addition to setting options to build profiling, debugging, MPI, OpenMP, Compiler toolchain options, the chemical mechanism, transport model, equation of state model, and use of EB are set here for compile time selection. The GNUMakefile includes the ``Make.PeleC`` file from the `ExecCpp` directory that contains build configuration common across the examples.
+**GNUMakefile** -- In addition to setting options to build profiling, debugging, MPI, OpenMP, Compiler toolchain options, the chemical mechanism, transport model, equation of state model, and use of EB are set here for compile time selection. The GNUMakefile includes the ``Make.ERF`` file from the `ExecCpp` directory that contains build configuration common across the examples.
 
 
 .. include:: building.rst

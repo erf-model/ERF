@@ -1,5 +1,5 @@
-#ifndef _PELEC_H_
-#define _PELEC_H_
+#ifndef _ERF_H_
+#define _ERF_H_
 
 #include <iostream>
 
@@ -33,7 +33,7 @@ enum sources {
   forcing_src,
   diff_src,
   les_src,
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   mms_src,
 #endif
   num_src
@@ -55,17 +55,17 @@ grow_box_by_one(const amrex::Box& b)
 // media
 //
 
-class PeleC : public amrex::AmrLevel
+class ERF : public amrex::AmrLevel
 {
 public:
   //
   // Default constructor.  Builds invalid object.
   //
-  PeleC();
+  ERF();
   //
   // The basic constructor.
   //
-  PeleC(
+  ERF(
     amrex::Amr& papa,
     int lev,
     const amrex::Geometry& level_geom,
@@ -75,7 +75,7 @@ public:
   //
   // The destructor.
   //
-  virtual ~PeleC();
+  virtual ~ERF();
   //
   // Restart from a checkpoint file.
   //
@@ -134,7 +134,7 @@ public:
   virtual void setTimeLevel(
     amrex::Real time, amrex::Real dt_old, amrex::Real dt_new) override;
   //
-  // Initialize data on this level from another PeleC (during regrid).
+  // Initialize data on this level from another ERF (during regrid).
   //
   virtual void init(amrex::AmrLevel& old) override;
   //
@@ -219,7 +219,7 @@ public:
     amrex::MultiFab& forcing_src,
     int ng);
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   void construct_old_mms_source(amrex::Real time);
 
   void construct_new_mms_source(amrex::Real time);
@@ -446,7 +446,7 @@ protected:
   void init_les();
   void init_filters();
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   static void init_mms();
 #endif
 
@@ -456,7 +456,7 @@ protected:
 
   static void read_tagging_params();
 
-  PeleC& getLevel(int lev);
+  ERF& getLevel(int lev);
 
   void reflux();
 
@@ -491,7 +491,7 @@ protected:
   //
   // Static data members.
   //
-#include "pelec_params.H"
+#include "erf_params.H"
 
   static bool signalStopJob;
   static bool dump_old;
@@ -531,7 +531,7 @@ protected:
   amrex::MultiFab LES_Coeffs;
   amrex::MultiFab filtered_les_source;
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   static bool mms_initialized;
   bool mms_src_evaluated;
   amrex::MultiFab mms_source;
@@ -582,70 +582,70 @@ void pc_nullfill(
 
 AMREX_FORCE_INLINE
 int
-PeleC::numGrow()
+ERF::numGrow()
 {
   return NUM_GROW;
 }
 
 AMREX_FORCE_INLINE
 amrex::MultiFab*
-PeleC::Area()
+ERF::Area()
 {
   return area;
 }
 
 AMREX_FORCE_INLINE
 amrex::MultiFab&
-PeleC::Area(int dir)
+ERF::Area(int dir)
 {
   return area[dir];
 }
 
 AMREX_FORCE_INLINE
 amrex::MultiFab&
-PeleC::Volume()
+ERF::Volume()
 {
   return volume;
 }
 
 AMREX_FORCE_INLINE
-PeleC&
-PeleC::getLevel(int lev)
+ERF&
+ERF::getLevel(int lev)
 {
-  return *(PeleC*)&parent->getLevel(lev);
+  return *(ERF*)&parent->getLevel(lev);
 }
 
 AMREX_FORCE_INLINE
 void
-PeleC::stopJob()
+ERF::stopJob()
 {
   signalStopJob = true;
 }
 
 AMREX_FORCE_INLINE
 amrex::YAFluxRegister&
-PeleC::getFluxReg()
+ERF::getFluxReg()
 {
   return flux_reg;
 }
 
 AMREX_FORCE_INLINE
 amrex::YAFluxRegister&
-PeleC::getFluxReg(int lev)
+ERF::getFluxReg(int lev)
 {
   return getLevel(lev).getFluxReg();
 }
 
 AMREX_FORCE_INLINE
 amrex::YAFluxRegister&
-PeleC::getPresReg()
+ERF::getPresReg()
 {
   return pres_reg;
 }
 
 AMREX_FORCE_INLINE
 amrex::YAFluxRegister&
-PeleC::getPresReg(int lev)
+ERF::getPresReg(int lev)
 {
   return getLevel(lev).getPresReg();
 }

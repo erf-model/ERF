@@ -3,24 +3,24 @@
 Testing and Verification
 ------------------------
 
-Testing and verfication of PeleC can be performed using CTest, which is included in the CMake build system. If one builds PeleC with CMake, the testing suite, and the verification suite, can be enabled during the CMake configure step. A nightly test is reflected on the dashboard `here <https://my.cdash.org/index.php?project=PeleC>`_ .
+Testing and verfication of ERF can be performed using CTest, which is included in the CMake build system. If one builds ERF with CMake, the testing suite, and the verification suite, can be enabled during the CMake configure step. A nightly test is reflected on the dashboard `here <https://my.cdash.org/index.php?project=ERF>`_ .
 
-An example ``cmake`` configure command performed in the ``Build`` directory in PeleC is shown below with options relevant to the testing suite:
+An example ``cmake`` configure command performed in the ``Build`` directory in ERF is shown below with options relevant to the testing suite:
 
 ::
 
   cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
         -DCMAKE_BUILD_TYPE:STRING=Release \
-        -DPELEC_ENABLE_MPI:BOOL=ON \
+        -DERF_ENABLE_MPI:BOOL=ON \
         -DCMAKE_CXX_COMPILER:STRING=mpicxx \
         -DCMAKE_C_COMPILER:STRING=mpicc \
         -DCMAKE_Fortran_COMPILER:STRING=mpifort \
         -DENABLE_FCOMPARE:BOOL=ON \
         -DENABLE_TESTS:BOOL=ON \
         -DENABLE_FCOMPARE_FOR_TESTS:BOOL=OFF \
-        -DPELEC_ENABLE_MASA:BOOL=ON \
+        -DERF_ENABLE_MASA:BOOL=ON \
         -DMASA_DIR:STRING=/path/to/masa/dir \
-        -DPELEC_USE_CPP:BOOL=ON \
+        -DERF_USE_CPP:BOOL=ON \
         ..
 
 While performing a ``cmake -LAH ..`` command will give descriptions of every option for the CMake project. Descriptions of particular options regarding the testing suite are listed below:
@@ -31,15 +31,15 @@ While performing a ``cmake -LAH ..`` command will give descriptions of every opt
 
 **ENABLE_FCOMPARE_FOR_TESTS** -- enables an additional step in the regression tests where the ``fcompare`` program from AMReX will also test for differences in the plots generated from the tests against "gold" files which contain previously verified results to machine precision
 
-**ENABLE_MASA** -- enables the verification suite which checks that PeleC is second order accurate using several additional tests, but note that the verification tests can take a significant amount of time to run and certain Python modules are expected to exist on the user's system to generate PNG plot files
+**ENABLE_MASA** -- enables the verification suite which checks that ERF is second order accurate using several additional tests, but note that the verification tests can take a significant amount of time to run and certain Python modules are expected to exist on the user's system to generate PNG plot files
 
-**PELEC_ENABLE_MASA** and **MASA_DIR** -- are required when the verification suite is enabled to perform the method of manufactured solutions
+**ERF_ENABLE_MASA** and **MASA_DIR** -- are required when the verification suite is enabled to perform the method of manufactured solutions
 
 
 Building the Tests
 ~~~~~~~~~~~~~~~~~~
 
-Once the user has performed the CMake configure step, the ``make`` command will build every executable required for each test. In this step, it is highly beneficial for the user to use the ``-j`` option for ``make`` to build source files in parallel. It is also beneficial if the user has access to the Ninja build system with Fortran support which is described in the section on building PeleC.
+Once the user has performed the CMake configure step, the ``make`` command will build every executable required for each test. In this step, it is highly beneficial for the user to use the ``-j`` option for ``make`` to build source files in parallel. It is also beneficial if the user has access to the Ninja build system with Fortran support which is described in the section on building ERF.
 
 Running the Tests
 ~~~~~~~~~~~~~~~~~
@@ -51,4 +51,4 @@ To run the test suite, run ``ctest`` in the ``Build`` directory. CTest will run 
 Adding Tests
 ~~~~~~~~~~~~
 
-Developers are encouraged to add tests to PeleC and in this section we describe how the tests are organized in the CTest framework. The locations of the tests are in ``PeleC/Tests``. To add a test, first create a test directory with a name in ``PeleC/ExecCpp/<test_exe>/tests/<test_name>``. Place the input file for the test as ``PeleC/Tests/<test_exe>/tests/<test_name>/<test_name>.i`` along with any other files necessary for the test. Any file in the test directory will be copied during CMake configure to the test's working directory. Next, edit the ``PeleC/Tests/CMakeLists.txt`` file, add the test to the list. Note there are different categories of tests and if your test falls outside of these categories, a new function to add the test will need to be created. After these steps, your test will be automatically added to the test suite database when doing the CMake configure with the testing suite enabled.
+Developers are encouraged to add tests to ERF and in this section we describe how the tests are organized in the CTest framework. The locations of the tests are in ``ERF/Tests``. To add a test, first create a test directory with a name in ``ERF/ExecCpp/<test_exe>/tests/<test_name>``. Place the input file for the test as ``ERF/Tests/<test_exe>/tests/<test_name>/<test_name>.i`` along with any other files necessary for the test. Any file in the test directory will be copied during CMake configure to the test's working directory. Next, edit the ``ERF/Tests/CMakeLists.txt`` file, add the test to the list. Note there are different categories of tests and if your test falls outside of these categories, a new function to add the test will need to be created. After these steps, your test will be automatically added to the test suite database when doing the CMake configure with the testing suite enabled.

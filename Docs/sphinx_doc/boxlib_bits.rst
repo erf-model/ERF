@@ -1,10 +1,10 @@
 Development Reference
 =====================
 
-Function Listing for PeleC
+Function Listing for ERF
 --------------------------
 
-When built, the full doxygen documentation for PeleC can be found 
+When built, the full doxygen documentation for ERF can be found 
 `here <../../../doxygen_output/html/index.html>`_.
 
 
@@ -12,7 +12,7 @@ When built, the full doxygen documentation for PeleC can be found
 AMReX functions useful for Pele development
 -------------------------------------------
 
-Pele is built on AMReX (available at `https://github.com/AMReX-Codes/amrex <https://github.com/AMReX-Codes/amrex>`_), an adaptive mesh refinement software framework, which provides the underlying software infrastructure for block structured AMR operations. Below is a quick reference list with links to many of the AMReX tools used to build up PeleC. The full AMReX documentation can be found `here <https://amrex-codes.github.io/AMReXUsersGuide.pdf>`_. 
+Pele is built on AMReX (available at `https://github.com/AMReX-Codes/amrex <https://github.com/AMReX-Codes/amrex>`_), an adaptive mesh refinement software framework, which provides the underlying software infrastructure for block structured AMR operations. Below is a quick reference list with links to many of the AMReX tools used to build up ERF. The full AMReX documentation can be found `here <https://amrex-codes.github.io/AMReXUsersGuide.pdf>`_. 
 
 
 Solution environment
@@ -58,7 +58,7 @@ Data structures
    * amrex::MultiFab::Saxpy
    * amrex::RealBox
 
-PeleC Implementation 
+ERF Implementation 
 ~~~~~~~~~~~~~~~~~~~~
 
 * `amrex::AmrLevel <https://amrex-codes.github.io/amrex/docs_html/AmrLevel.html#amrlevel-class>`_
@@ -77,13 +77,13 @@ Multilevel tools
  
 
 
-Contributing to PeleC
+Contributing to ERF
 ---------------------
 
 Development Model
 ~~~~~~~~~~~~~~~~~
 
-To add a new feature to PeleC, the procedure is:
+To add a new feature to ERF, the procedure is:
 
 1. Create a branch for the new feature (locally) ::
 
@@ -97,7 +97,7 @@ To add a new feature to PeleC, the procedure is:
     git checkout AmazingNewFeature
     git merge development        [fix any identified conflicts between "development" and "AmazingNewFeature"]
 
-3. Push feature branch to PeleC repository ::
+3. Push feature branch to ERF repository ::
 
     git push -u origin AmazingNewFeature [Note: -u option required only for the first push of new branch]
 
@@ -105,7 +105,7 @@ To add a new feature to PeleC, the procedure is:
 
 3b. Check :ref:`locally that the regression suite passes<LocalTesting>`.
 
-4.  Submit a merge request through git@github.com:AMReX-Combustion/PeleC.git - be sure you are requesting to merge your branch to the development branch.
+4.  Submit a merge request through git@github.com:AMReX-Combustion/ERF.git - be sure you are requesting to merge your branch to the development branch.
 
 
 
@@ -115,30 +115,28 @@ Building Regression Test Suite Locally
 
 .. LocalTesting:
 
-It is possibly---and desirable---to create the regression testing framework locally and ensure that all tests pass successfully. This is also a good way to ensure all is properly installed on a new machine to be used for PeleC calculations. The initial setup is somewhat tedious but is worth the effort. What needs to be done is: (1) make a scratch area on the local machine where you manually run the regression tests.  As part of the process, a set of "gold" solutions will be generated using code from the current versions of PeleC, PelePhysics and amrex.  Regression tests afterwards will compare to those solutions and indicate binary compatibility. (2) Clone the required repositories into this area and set required environment variables that point to where everything is. (3) Run the tests to generate the "gold" benchmark data.
+It is possibly---and desirable---to create the regression testing framework locally and ensure that all tests pass successfully. This is also a good way to ensure all is properly installed on a new machine to be used for ERF calculations. The initial setup is somewhat tedious but is worth the effort. What needs to be done is: (1) make a scratch area on the local machine where you manually run the regression tests.  As part of the process, a set of "gold" solutions will be generated using code from the current versions of ERF and amrex.  Regression tests afterwards will compare to those solutions and indicate binary compatibility. (2) Clone the required repositories into this area and set required environment variables that point to where everything is. (3) Run the tests to generate the "gold" benchmark data.
 
 
 1. Make scratch area ::
 
      mkdir ~/REG_TEST_AREA; cd ~/REG_TEST_AREA
    
-2. Clone repositories (amrex, PeleC, PelePhysics, regression_testing (AMReX's driver scripts) and PeleRegressionTesting (Pele-specific stuff)) ::
+2. Clone repositories (amrex, ERF, regression_testing (AMReX's driver scripts) and PeleRegressionTesting (Pele-specific stuff)) ::
 
      git clone git@github.com:AMReX-Combustion/PeleRegressionTesting.git
      cd PeleRegressionTesting; git checkout development
-     mkdir -p TestData/PeleC  # this is where the test results will be written
+     mkdir -p TestData/ERF  # this is where the test results will be written
      mkdir Repositories   # this is where the src code to be tested is put
      cd Repositories
-     export PELEC_HOME=`pwd`/PeleC; git clone git@github.com:AMReX-Combustion/PeleC.git $PELEC_HOME
-     cd $PELEC_HOME; git checkout development; cd ..
-     export PELE_PHYSICS_HOME=`pwd`/PelePhysics; git clone git@github.com:AMReX-Combustion/PelePhysics.git $PELE_PHYSICS_HOME
-     cd $PELE_PHYSICS_HOME; git checkout development; cd ..
+     export ERF_HOME=`pwd`/ERF; git clone git@github.com:AMReX-Combustion/ERF.git $ERF_HOME
+     cd $ERF_HOME; git checkout development; cd ..
      export AMREX_HOME=`pwd`/amrex; git clone git@github.com:AMReX-Codes/amrex.git $AMREX_HOME
      cd $AMREX_HOME; git checkout development; cd ..
      export AMREX_REGTEST_HOME=`pwd`/regression_testing; git clone git@github.com:AMReX-Codes/regression_testing.git $AMREX_REGTEST_HOME
      cd ..
 
-3. Run the script to execute the tests to generate benchmarks. After it finishes building and running (12 as of March 2019) tests, it will archive the pltfiles that result from each into a folder in the TestData/PeleC folder in the PeleRegressionTesting folder.  Once the benchmarks exist, any changes to the repositories in the PeleRegressionTesting/Repositories can be tested to diff clean against these benchmarks by running the script (again from within the PeleRegressionTesting folder) ::
+3. Run the script to execute the tests to generate benchmarks. After it finishes building and running (12 as of March 2019) tests, it will archive the pltfiles that result from each into a folder in the TestData/ERF folder in the PeleRegressionTesting folder.  Once the benchmarks exist, any changes to the repositories in the PeleRegressionTesting/Repositories can be tested to diff clean against these benchmarks by running the script (again from within the PeleRegressionTesting folder) ::
 
      ./Scripts/genbenchPC.sh
 

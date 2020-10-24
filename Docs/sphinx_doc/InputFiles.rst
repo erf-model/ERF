@@ -14,12 +14,12 @@ Also, any entry that can be specified in the inputs file can also be specified o
 
 ::
 
-	mpirun -np 64 ./Pele2d.gnu.DEBUG.MPI.ex inputs amr.restart=sod_x_chk0030 pelec.riemann_solver=3
+	mpirun -np 64 ./Pele2d.gnu.DEBUG.MPI.ex inputs amr.restart=sod_x_chk0030 erf.riemann_solver=3
 
-The available options are divided into groups: those that control primarily AMReX are prefaced with `amr.` while those that are specific to Pele are prefaced with `pelec.`.
+The available options are divided into groups: those that control primarily AMReX are prefaced with `amr.` while those that are specific to Pele are prefaced with `erf.`.
 
-A typical input file looks something like the example below; a full list of Pele-specific input parameters are in `PeleC/Source/_cpp_parameters`. 
-These parameters, once read, are available in the `PeleC` object for use from c++ and are also copied to the module `prob_params_module` for use in FORTRAN. 
+A typical input file looks something like the example below; a full list of Pele-specific input parameters are in `ERF/Source/_cpp_parameters`. 
+These parameters, once read, are available in the `ERF` object for use from c++ and are also copied to the module `prob_params_module` for use in FORTRAN. 
 
 ::
 
@@ -52,45 +52,45 @@ These parameters, once read, are available in the `PeleC` object for use from c+
     # ---------------------------------------------------------------
 
     # ---------------------------------------------------------------
-    PeleC specific inputs
+    ERF specific inputs
     # ---------------------------------------------------------------
 
     # 0: Collela, Glaz and Ferguson (default)
     # 1: Collela and Glaz  
     # 2: HLLC
-    pelec.riemann_solver    = 0     
+    erf.riemann_solver    = 0     
 
     # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
     # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
     # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 
     #boundary condition at the lower face of each coordinate direction
-    pelec.lo_bc       =  "Interior"  "UserBC"  "SlipWall"        
+    erf.lo_bc       =  "Interior"  "UserBC"  "SlipWall"        
     
     #boundary condition at the upper face of each coordinate direction
-    pelec.hi_bc       =  "Interior"  "UserBC"  "SlipWall"          
+    erf.hi_bc       =  "Interior"  "UserBC"  "SlipWall"          
     
     #------------------------
     # TIME STEP CONTROL
     #------------------------
 
-    pelec.cfl            = 0.5     # cfl number for hyperbolic system
-    pelec.init_shrink    = 0.3     # first timestep is scaled by this factor
-    pelec.change_max     = 1.1     # maximum factor by which timestep can increase
-    pelec.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
+    erf.cfl            = 0.5     # cfl number for hyperbolic system
+    erf.init_shrink    = 0.3     # first timestep is scaled by this factor
+    erf.change_max     = 1.1     # maximum factor by which timestep can increase
+    erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 
     #------------------------
     # WHICH PHYSICS
     #------------------------
     
-    pelec.do_hydro = 1               # enable hyperbolic term
-    pelec.do_mol_AD = 1              # use method of lines (MOL)
-    pelec.do_react = 0               # enable chemical reactions
-    pelec.ppm_type = 2               # piecewise parabolic reconstruction type
-    pelec.allow_negative_energy = 0  # flag to allow negative internal energy
-    pelec.diffuse_temp = 0           # enable thermal diffusion
-    pelec.diffuse_vel  = 0           # enable viscous diffusion
-    pelec.diffuse_spec = 0           # enable species diffusion
+    erf.do_hydro = 1               # enable hyperbolic term
+    erf.do_mol_AD = 1              # use method of lines (MOL)
+    erf.do_react = 0               # enable chemical reactions
+    erf.ppm_type = 2               # piecewise parabolic reconstruction type
+    erf.allow_negative_energy = 0  # flag to allow negative internal energy
+    erf.diffuse_temp = 0           # enable thermal diffusion
+    erf.diffuse_vel  = 0           # enable viscous diffusion
+    erf.diffuse_spec = 0           # enable species diffusion
     
     #------------------------
     # DIAGNOSTICS & VERBOSITY
@@ -99,9 +99,9 @@ These parameters, once read, are available in the `PeleC` object for use from c+
     # coarse time steps between computing integral of 
     # conserved variables in the  domain
     # these values should stabilize at steady state
-    pelec.sum_interval = 1       
+    erf.sum_interval = 1       
 
-    pelec.v            = 1        # verbosity in PeleC cpp files
+    erf.v            = 1        # verbosity in ERF cpp files
     amr.v              = 1        # verbosity in Amr.cpp
     #amr.grid_log       = grdlog  # name of grid logging file
     # ---------------------------------------------------------------
@@ -122,7 +122,7 @@ These parameters, once read, are available in the `PeleC` object for use from c+
     
     #specify species name as flame tracer for 
     #refinement purposes
-    pelec.flame_trac_name = HO2
+    erf.flame_trac_name = HO2
     
     #------------------------
     # CHECKPOINT FILES
@@ -151,8 +151,8 @@ These parameters, once read, are available in the `PeleC` object for use from c+
     Embedded boundary (EB) inputs
     # ---------------------------------------------------------------
 
-    pelec.eb_isothermal = 1     # isothermal wall at EB
-    pelec.eb_boundary_T = 300.  # EB wall temperature    
+    erf.eb_isothermal = 1     # isothermal wall at EB
+    erf.eb_boundary_T = 300.  # EB wall temperature    
     eb_verbosity = 1            # verbosity of EB data
 
     

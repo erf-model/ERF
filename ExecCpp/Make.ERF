@@ -1,10 +1,10 @@
-PELEC_HOME        ?= ../
-PELE_PHYSICS_HOME ?= $(PELEC_HOME)/Submodules/PelePhysics
-AMREX_HOME        ?= $(PELEC_HOME)/Submodules/AMReX
+ERF_HOME        ?= ../
+PELE_PHYSICS_HOME ?= $(ERF_HOME)/Submodules/PelePhysics
+AMREX_HOME        ?= $(ERF_HOME)/Submodules/AMReX
 
-TOP := $(PELEC_HOME)
+TOP := $(ERF_HOME)
 
-EBASE = PeleC
+EBASE = ERF
 
 # EXTERN_CORE is simply a list of the directories we use in Eos, Reactions, Util
 # this list will be searched for runtime parameters
@@ -31,7 +31,7 @@ endif
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 
-# PeleC uses a coarse grained OMP approach
+# ERF uses a coarse grained OMP approach
 DEFINES += -DCRSEGRNDOMP
 
 all: $(executable) 

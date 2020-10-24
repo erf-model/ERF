@@ -12,24 +12,24 @@
  .. _EB:
 
 
-Geometry treatment in PeleC
+Geometry treatment in ERF
 ===========================
 
 The treatment of geometric features that do not align along cartesian coordinate directions effectively reduces to 
 determining the correct flux terms at cut-cell interfaces and subsequent update of divergence term in each cell.
 This involves the initialization and query of the necessary AMReX-provided data structures containing the 
-geometry information, and computation of PeleC-specific advection and diffusion operators. The various steps in the 
+geometry information, and computation of ERF-specific advection and diffusion operators. The various steps in the 
 process are:
 
 1. Creation of a functional specification of the irregular geometry to embed in the uniform grid. This is done via exact 
    function representations of the geometry or implicit functions.
 2. Construction of map of the (continuous) implicit representation of geometry onto the discrete mesh on all AMR levels.  
    This will be a large, complex, distributed data structure.
-3. Communication of the subsets of this large data set to the local cores tasked with building the PeleC operators.
-4. Actual construction of the diffusion and advection components of the PeleC time advance.
+3. Communication of the subsets of this large data set to the local cores tasked with building the ERF operators.
+4. Actual construction of the diffusion and advection components of the ERF time advance.
 
 AMReX data structures and functions provide for the first 3 steps.  
-Step 4 is implemented using a "method-of-lines" update within PeleC (see section :ref:`MOL<MOL>`). 
+Step 4 is implemented using a "method-of-lines" update within ERF (see section :ref:`MOL<MOL>`). 
 
 Embedded Boundary Representation
 --------------------------------
@@ -43,8 +43,8 @@ Embedded Boundary Representation
    Embedded boundary representation of geometry
 
 
-Geometry is treated in PeleC using an embedded boundary (EB) formulation, based on datastructures and algorithmic components provided by AMReX.   In the EB formalism, geometry is represented by volume fractions (:math:`v_l`) 
-and apertures (:math:`A_l^k`) for each cell :math:`l` that have faces :math:`1,...,k,6`. See :ref:`EB_F` for an illustration where the grey area represents the region excluded from the solution domain and the arrows represent fluxes. The fluid volume in a given cell is given by  (:math:`V_l = v_l\,\,dx\,dy\,dz`=v_l\,dx^3`); it should be noted that the grid spacing along each direction is the same in PeleC.
+Geometry is treated in ERF using an embedded boundary (EB) formulation, based on datastructures and algorithmic components provided by AMReX.   In the EB formalism, geometry is represented by volume fractions (:math:`v_l`) 
+and apertures (:math:`A_l^k`) for each cell :math:`l` that have faces :math:`1,...,k,6`. See :ref:`EB_F` for an illustration where the grey area represents the region excluded from the solution domain and the arrows represent fluxes. The fluid volume in a given cell is given by  (:math:`V_l = v_l\,\,dx\,dy\,dz`=v_l\,dx^3`); it should be noted that the grid spacing along each direction is the same in ERF.
 
 .. _EB_F:
 
@@ -63,7 +63,7 @@ and apertures (:math:`A_l^k`) for each cell :math:`l` that have faces :math:`1,.
    Embedded boundary representation of geometry
 
 
-The geometry components in AMReX are used in PeleC to implement a time-explicit integrator based on the method-of-lines.  For the advection and diffusion components of the PeleC time integrator, the time rate of change of the conserved fields, S, in cell :math:`l` can be written as 
+The geometry components in AMReX are used in ERF to implement a time-explicit integrator based on the method-of-lines.  For the advection and diffusion components of the ERF time integrator, the time rate of change of the conserved fields, S, in cell :math:`l` can be written as 
 
 .. math::
   \frac{dS_l}{dt} = \nabla \cdot F
@@ -85,7 +85,7 @@ where :math:`k_l` is the number of regular and cut faces surrounding cell :math:
 .. math::
   (DNC)_l = \frac{1}{\sum_{n_l}N_n V_l} \sum_{n_l}N_n V_n (DC)_n,
 
-where :math:`n_l` is the number of cells in the `neighborhood` of cut cell :math:`l`. :math:`N_n` takes the value of 0 or 1 depending if cell :math:`n` is connected to cell :math:`l`. While this update is numerically stable, it does not discretely conserve the field quantities.  In PeleC, we use a hybrid update strategy, a weighted average of the two that is numerically stable and "maximally conservative" locally, without violating CFL constraints based on the regular cells:
+where :math:`n_l` is the number of cells in the `neighborhood` of cut cell :math:`l`. :math:`N_n` takes the value of 0 or 1 depending if cell :math:`n` is connected to cell :math:`l`. While this update is numerically stable, it does not discretely conserve the field quantities.  In ERF, we use a hybrid update strategy, a weighted average of the two that is numerically stable and "maximally conservative" locally, without violating CFL constraints based on the regular cells:
 
 .. math::
   (HD)_l = v_l(DC)_l + (1-v_l)(DNC)_l.
@@ -95,7 +95,7 @@ In order to maintain global conservation, the mass difference (we call the produ
 .. math::
   \Delta_l^n = \frac{v_l(1-v_l)\left[(DC)_l - (DNC)_l\right]N_l^n W_l^n v_n^l}{\sum_{n_l}N_l^nW_l^nv_l^n}
 
-In PeleC, this neighborhood is obtained by the AMReX function `get_neighbors`, which identifies all cells within a single step in each coordinate direction that is connected to cell :math:`l`. Two adjacent cells may be not connected if there is an embedded boundary section between them.
+In ERF, this neighborhood is obtained by the AMReX function `get_neighbors`, which identifies all cells within a single step in each coordinate direction that is connected to cell :math:`l`. Two adjacent cells may be not connected if there is an embedded boundary section between them.
 
 The redistribution is applied as:
 
@@ -104,7 +104,7 @@ The redistribution is applied as:
 
 and the hybrid divergence is integrated using RK2. 
 
-The weights for redistribution :math:`W_l^n` can be set to any field in PeleC. We have found that setting the weights to the cell volumes is effective, while pure density weighting sometimes leads to stability issues when several very small cells share a neighborhood such as in a geometry corner.
+The weights for redistribution :math:`W_l^n` can be set to any field in ERF. We have found that setting the weights to the cell volumes is effective, while pure density weighting sometimes leads to stability issues when several very small cells share a neighborhood such as in a geometry corner.
 
 This procedure is implemented in the `pc_fix_div_and_redistribute` routine that performs four steps:
 
@@ -175,7 +175,7 @@ presented in `Pember et al. <https://www.sciencedirect.com/science/article/pii/S
 Date Structures and utility functions
 -------------------------------------
 
-Several structures exist to store geometry dependent information. These are populated on creation of a new AMRLevel and stored in the PeleC object so that they are available for computation. These facilitate accessing the EB data from the fortran layer and have equivalent C++ struct and fortran types definitions so that they can be passed between the languages. The C++ struct definitions are in the file EBStencilTypes.H and the fortran type definitions are in the file EBStencilTypes_mod.F90 within the pelec_eb_stencil_types_module module. The datatypes are:
+Several structures exist to store geometry dependent information. These are populated on creation of a new AMRLevel and stored in the ERF object so that they are available for computation. These facilitate accessing the EB data from the fortran layer and have equivalent C++ struct and fortran types definitions so that they can be passed between the languages. The C++ struct definitions are in the file EBStencilTypes.H and the fortran type definitions are in the file EBStencilTypes_mod.F90 within the erf_eb_stencil_types_module module. The datatypes are:
 
 +----------------+----------------+--------------------------------------------------------------------------------------+
 | C++ struct     | fortran type   | Contents                                                                             |
@@ -187,7 +187,7 @@ Several structures exist to store geometry dependent information. These are popu
 | FaceSten       | face_sten      |:math:`3^2` matrix of weights to apply face-based stencil                             |
 +----------------+----------------+--------------------------------------------------------------------------------------+
 
-Routines to fill and apply these as necessary can be found in the dimension specific files in e.g. Source/Src_3d/PeleC_init_eb_3d.f90 within the `nbrsTest_nd_module` module. An array of structures is created on level creation by copying data from the AMReX dense datastrcutures on a per-FAB basis as indicated in Figure :ref:`eb_structs` .
+Routines to fill and apply these as necessary can be found in the dimension specific files in e.g. Source/Src_3d/ERF_init_eb_3d.f90 within the `nbrsTest_nd_module` module. An array of structures is created on level creation by copying data from the AMReX dense datastrcutures on a per-FAB basis as indicated in Figure :ref:`eb_structs` .
 
 
 .. _eb_structs:
@@ -200,7 +200,7 @@ Routines to fill and apply these as necessary can be found in the dimension spec
    Storage for sparse EB structures 
 
            
-On creation of a new AMRLevel, data is cached from the *dense* AMReX structures in the *sparse* PeleC structures. For example, in *PeleC_init_eb.cpp* within the function initialize_eb2_structs():
+On creation of a new AMRLevel, data is cached from the *dense* AMReX structures in the *sparse* ERF structures. For example, in *ERF_init_eb.cpp* within the function initialize_eb2_structs():
 
 .. highlight:: c++
 
@@ -253,7 +253,7 @@ When processing geometry cells, the cached datastructures can be applied efficie
               const Box valid_interped_flux_box =
               Box(amrex::grow(vbox, 2)).surroundingNodes(idir);
               {
-                BL_PROFILE("PeleC::pc_apply_face_stencil call");
+                BL_PROFILE("ERF::pc_apply_face_stencil call");
                 pc_apply_face_stencil(BL_TO_FORTRAN_BOX(valid_interped_flux_box),
                                       BL_TO_FORTRAN_BOX(stencil_volume_box),
                                       flux_interp_stencil[idir][local_i].data(),

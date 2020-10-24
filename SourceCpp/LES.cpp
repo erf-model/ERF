@@ -50,7 +50,7 @@
 #include "LES.H"
 
 void
-PeleC::construct_old_les_source(
+ERF::construct_old_les_source(
   amrex::Real time, amrex::Real dt, int sub_iteration, int sub_ncycle)
 {
   // Add grow cells necessary for explicit filtering of source terms
@@ -72,7 +72,7 @@ PeleC::construct_old_les_source(
 }
 
 void
-PeleC::construct_new_les_source(
+ERF::construct_new_les_source(
   amrex::Real time, amrex::Real dt, int sub_iteration, int sub_ncycle)
 {
   // Add grow cells necessary for explicit filtering of source terms
@@ -97,13 +97,13 @@ PeleC::construct_new_les_source(
  *    = -Div(LESFlux).
  **/
 void
-PeleC::getLESTerm(
+ERF::getLESTerm(
   amrex::Real time,
   amrex::Real dt,
   amrex::MultiFab& LESTerm,
   amrex::Real flux_factor)
 {
-  BL_PROFILE("PeleC::getLESTerm()");
+  BL_PROFILE("ERF::getLESTerm()");
 
   if (do_les == 0) {
     LESTerm.setVal(0, 0, NVAR, LESTerm.nGrow());
@@ -137,7 +137,7 @@ PeleC::getLESTerm(
   // #endif
   //     // for (MFIter mfi(LESTerm, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
   //     for (MFIter mfi(LESTerm, false); mfi.isValid(); ++mfi) {
-  //       BL_PROFILE("PeleC::diffextrap()");
+  //       BL_PROFILE("ERF::diffextrap()");
   //       auto const& Lterm = LESTerm.array(mfi);
   //       const int mg = LESTerm.nGrow();
   //       const Box& bx = mfi.tilebox();
@@ -174,7 +174,7 @@ PeleC::getLESTerm(
  * Calculate the LES term using the Smagorinsky SFS model
  **/
 void
-PeleC::getSmagorinskyLESTerm(
+ERF::getSmagorinskyLESTerm(
   amrex::Real time,
   amrex::Real dt,
   amrex::MultiFab& LESTerm,
@@ -216,7 +216,7 @@ PeleC::getSmagorinskyLESTerm(
       // Get primitives, Q, including (Y, T, p, rho) from conserved state
       // required for L term
       {
-        BL_PROFILE("PeleC::ctoprim()");
+        BL_PROFILE("ERF::ctoprim()");
         amrex::ParallelFor(
           gbox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             pc_ctoprim(i, j, k, s, q_ar);
@@ -231,7 +231,7 @@ PeleC::getSmagorinskyLESTerm(
         amrex::surroundingNodes(cbox, 2))};
       amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM> tanders;
       {
-        BL_PROFILE("PeleC::pc_compute_tangential_vel_derivs()");
+        BL_PROFILE("ERF::pc_compute_tangential_vel_derivs()");
         amrex::Real d1, d2;
         for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
           tander_ec[dir].resize(eboxes[dir], GradUtils::nCompTan);
@@ -271,11 +271,11 @@ PeleC::getSmagorinskyLESTerm(
         setV(eboxes[dir], NVAR, flx[dir], 0);
       }
       {
-        BL_PROFILE("PeleC::pc_smagorinsky_sfs_term()");
+        BL_PROFILE("ERF::pc_smagorinsky_sfs_term()");
         for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-          amrex::Real Cs = PeleC::Cs;
-          amrex::Real CI = PeleC::CI;
-          amrex::Real PrT = PeleC::PrT;
+          amrex::Real Cs = ERF::Cs;
+          amrex::Real CI = ERF::CI;
+          amrex::Real PrT = ERF::PrT;
           amrex::ParallelFor(
             eboxes[dir], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
               pc_smagorinsky_sfs_term(
@@ -289,7 +289,7 @@ PeleC::getSmagorinskyLESTerm(
       auto const& Lterm = LESTerm.array(mfi);
       setV(vbox, NVAR, Lterm, 0.0);
       {
-        BL_PROFILE("PeleC::pc_flux_div()");
+        BL_PROFILE("ERF::pc_flux_div()");
         auto const& vol = volume.array(mfi);
         amrex::ParallelFor(
           vbox, NVAR,
@@ -334,7 +334,7 @@ PeleC::getSmagorinskyLESTerm(
  * Calculate the LES term using the dynamic Smagorinsky SFS model
  **/
 void
-PeleC::getDynamicSmagorinskyLESTerm(
+ERF::getDynamicSmagorinskyLESTerm(
   amrex::Real time,
   amrex::Real dt,
   amrex::MultiFab& LESTerm,
@@ -414,7 +414,7 @@ PeleC::getDynamicSmagorinskyLESTerm(
       // 1. Get primitives, Q, including (Y, T, p, rho) from conserved state
       // required for L term
       {
-        BL_PROFILE("PeleC::ctoprim()");
+        BL_PROFILE("ERF::ctoprim()");
         amrex::ParallelFor(
           g0box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             pc_ctoprim(i, j, k, s, q_ar);
@@ -444,8 +444,8 @@ PeleC::getDynamicSmagorinskyLESTerm(
       auto const& alpha_ar = alpha.array();
       auto const& flux_T_ar = flux_T.array();
       {
-        const int les_filter_fgr = PeleC::les_filter_fgr;
-        BL_PROFILE("PeleC::pc_smagorinsky_sfs_term()");
+        const int les_filter_fgr = ERF::les_filter_fgr;
+        BL_PROFILE("ERF::pc_smagorinsky_sfs_term()");
         amrex::ParallelFor(
           g1box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             pc_dynamic_smagorinsky_quantities(
@@ -479,7 +479,7 @@ PeleC::getDynamicSmagorinskyLESTerm(
       const amrex::FArrayBox& Sfab = S[mfi];
       test_filter.apply_filter(g2box, Sfab, filtered_S);
       {
-        BL_PROFILE("PeleC::ctoprim()");
+        BL_PROFILE("ERF::ctoprim()");
         amrex::ParallelFor(
           g2box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             pc_ctoprim(i, j, k, filtered_S_ar, filtered_Q_ar);
@@ -504,8 +504,8 @@ PeleC::getDynamicSmagorinskyLESTerm(
       auto const& filtered_alpha_ar = filtered_alpha.array();
       auto const& filtered_flux_T_ar = filtered_flux_T.array();
       {
-        const int les_test_filter_fgr = PeleC::les_test_filter_fgr;
-        BL_PROFILE("PeleC::pc_dynamic_smagorinsky_coeffs()");
+        const int les_test_filter_fgr = ERF::les_test_filter_fgr;
+        BL_PROFILE("ERF::pc_dynamic_smagorinsky_coeffs()");
         amrex::ParallelFor(
           g3box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             pc_dynamic_smagorinsky_coeffs(
@@ -595,7 +595,7 @@ PeleC::getDynamicSmagorinskyLESTerm(
         setV(eboxes[dir], NVAR, flx[dir], 0);
       }
       {
-        BL_PROFILE("PeleC::pc_dynamic_smagorinsky_sfs_term()");
+        BL_PROFILE("ERF::pc_dynamic_smagorinsky_sfs_term()");
         for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
           amrex::ParallelFor(
             eboxes[dir], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -610,7 +610,7 @@ PeleC::getDynamicSmagorinskyLESTerm(
       auto const& Lterm = LESTerm.array(mfi);
       setV(vbox, NVAR, Lterm, 0.0);
       {
-        BL_PROFILE("PeleC::pc_flux_div()");
+        BL_PROFILE("ERF::pc_flux_div()");
         auto const& vol = volume.array(mfi);
         amrex::ParallelFor(
           vbox, NVAR,

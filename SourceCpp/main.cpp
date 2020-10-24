@@ -9,7 +9,7 @@
 #include <AMReX_AmrLevel.H>
 
 #include "IO.H"
-#include "PeleC.H"
+#include "ERF.H"
 
 std::string inputs_name = "";
 
@@ -27,7 +27,7 @@ main(int argc, char* argv[])
   if (argc >= 2) {
     for (auto i = 1; i < argc; i++) {
       if (std::string(argv[i]) == "--describe") {
-        PeleC::writeBuildInfo(std::cout);
+        ERF::writeBuildInfo(std::cout);
         return 0;
       }
     }

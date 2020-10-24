@@ -1,8 +1,8 @@
-#include "PeleC.H"
+#include "ERF.H"
 #include "IndexDefines.H"
 
 void
-PeleC::construct_old_source(
+ERF::construct_old_source(
   int src,
   amrex::Real time,
   amrex::Real dt,
@@ -27,7 +27,7 @@ PeleC::construct_old_source(
     construct_old_forcing_source(time, dt);
     break;
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   case mms_src:
     construct_old_mms_source(time);
     break;
@@ -36,7 +36,7 @@ PeleC::construct_old_source(
 }
 
 void
-PeleC::construct_new_source(
+ERF::construct_new_source(
   int src,
   amrex::Real time,
   amrex::Real dt,
@@ -61,7 +61,7 @@ PeleC::construct_new_source(
     construct_new_forcing_source(time, dt);
     break;
 
-#ifdef PELEC_USE_MASA
+#ifdef ERF_USE_MASA
   case mms_src:
     construct_new_mms_source(time);
     break;
@@ -71,7 +71,7 @@ PeleC::construct_new_source(
 
 // Obtain the sum of all source terms.
 void
-PeleC::sum_of_sources(amrex::MultiFab& source)
+ERF::sum_of_sources(amrex::MultiFab& source)
 {
   int ng = source.nGrow();
 

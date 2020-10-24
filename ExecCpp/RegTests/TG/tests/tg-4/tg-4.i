@@ -16,29 +16,29 @@ amr.n_cell           =  64    64    64
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-pelec.lo_bc       =  "Interior"  "Interior"  "Interior"
-pelec.hi_bc       =  "Interior"  "Interior"  "Interior"
+erf.lo_bc       =  "Interior"  "Interior"  "Interior"
+erf.hi_bc       =  "Interior"  "Interior"  "Interior"
 
 # WHICH PHYSICS
-pelec.do_mol=1
-pelec.do_hydro = 1
-pelec.diffuse_vel = 1
-pelec.diffuse_temp = 1
-pelec.do_react = 0
-pelec.do_grav = 0
-pelec.use_explicit_filter=1
-pelec.les_filter_type=2
-pelec.les_filter_fgr=2
+erf.do_mol=1
+erf.do_hydro = 1
+erf.diffuse_vel = 1
+erf.diffuse_temp = 1
+erf.do_react = 0
+erf.do_grav = 0
+erf.use_explicit_filter=1
+erf.les_filter_type=2
+erf.les_filter_fgr=2
 
 # TIME STEP CONTROL
-pelec.cfl            = 0.9     # cfl number for hyperbolic system
-pelec.init_shrink    = 0.3     # scale back initial timestep
-pelec.change_max     = 1.1     # max time step growth
-pelec.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
+erf.cfl            = 0.9     # cfl number for hyperbolic system
+erf.init_shrink    = 0.3     # scale back initial timestep
+erf.change_max     = 1.1     # max time step growth
+erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 
 # DIAGNOSTICS & VERBOSITY
-pelec.sum_interval   = 1       # timesteps between computing mass
-pelec.v              = 1       # verbosity in Castro.cpp
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in Castro.cpp
 amr.v                = 1       # verbosity in Amr.cpp
 amr.data_log         = datlog
 #amr.grid_log        = grdlog  # name of grid logging file

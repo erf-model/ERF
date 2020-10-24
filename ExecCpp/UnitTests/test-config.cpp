@@ -13,13 +13,13 @@ namespace amrex {
 const char* buildInfoGetGitHash(int i);
 }
 
-namespace pelec_tests {
+namespace erf_tests {
 
 TEST(Configuration, Build)
 {
   const char* pc_git = amrex::buildInfoGetGitHash(1);
   const char* amrex_git = amrex::buildInfoGetGitHash(2);
-  amrex::Print() << "PeleC SHA = " << pc_git << std::endl
+  amrex::Print() << "ERF SHA = " << pc_git << std::endl
                  << "AMReX SHA = " << amrex_git << std::endl;
 }
 
@@ -34,7 +34,7 @@ TEST(Configuration, MPI)
   MPI_Get_library_version(mpi_lib_ver, &len);
   amrex::Print() << mpi_lib_ver << std::endl;
 #else
-  amrex::Print() << "PeleC not built with MPI support." << std::endl;
+  amrex::Print() << "ERF not built with MPI support." << std::endl;
   GTEST_SKIP();
 #endif
 }
@@ -76,9 +76,9 @@ TEST(Configuration, CUDA)
             << " ShMem/Blk: " << (dev.sharedMemPerBlock / (1 << 10)) << "KB"
             << std::endl;
 #else
-  amrex::Print() << "PeleC not built with CUDA support" << std::endl;
+  amrex::Print() << "ERF not built with CUDA support" << std::endl;
   GTEST_SKIP();
 #endif
 }
 
-} // namespace pelec_tests
+} // namespace erf_tests

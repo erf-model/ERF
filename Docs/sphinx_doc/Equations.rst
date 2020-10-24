@@ -16,7 +16,7 @@ Equations
 Conservative system
 -------------------
 
-PeleC advances the following set of fully compressible equations for the conserved state vector: :math:`\mathbf{U} = (\rho, \rho \mathbf{u}, \rho E, \rho Y_k, \rho A_k, \rho B_k):`
+ERF advances the following set of fully compressible equations for the conserved state vector: :math:`\mathbf{U} = (\rho, \rho \mathbf{u}, \rho E, \rho Y_k, \rho A_k, \rho B_k):`
 
 .. math::
  
@@ -51,7 +51,7 @@ evolution equation, but by default are treated as advected quantities.
 In the code we carry around :math:`T` and :math:`\rho e` in the
 state vector even though they are redundant with the state since they may be derived from the other conserved
 quantities.  The ordering of the elements within :math:`\mathbf{U}` is defined
-by integer variables in the routine ``set_method_params`` in ``Src_nd/PeleC_nd.F90``.
+by integer variables in the routine ``set_method_params`` in ``Src_nd/ERF_nd.F90``.
 
 Some notes:
 
@@ -73,7 +73,7 @@ Some notes:
 Primitive Forms
 ---------------
 
-PeleC uses the primitive form of the fluid equations, defined in terms of
+ERF uses the primitive form of the fluid equations, defined in terms of
 the state :math:`\mathbf{Q} = (\rho, \mathbf{u}, p, \rho e, Y_k, A_k, B_k)`, to construct the
 interface states that are input to the Riemann problem. All of the primitive variables are derived from the conservative state
 vector. This task is performed in the routine ``ctoprim`` located in ``Src_nd/advection_util_nd.F90``.
@@ -113,7 +113,7 @@ The advected quantities appear as:
 
 
 When accessing the primitive variable state vector, the integer variable
-keys for the different quantities are listed in the routine ``set_method_params`` in ``Src_nd/PeleC_nd.F90``.
+keys for the different quantities are listed in the routine ``set_method_params`` in ``Src_nd/ERF_nd.F90``.
 
 
 Source Terms

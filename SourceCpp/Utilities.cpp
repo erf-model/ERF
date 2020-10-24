@@ -105,7 +105,7 @@ pc_rst_int_e(
         if (verbose) {
           amrex::Print() << std::endl;
           amrex::Print()
-            << ">>> Warning: PeleC_util.F90::reset_internal_energy "
+            << ">>> Warning: ERF_util.F90::reset_internal_energy "
             << " " << i << ", " << j << ", " << k << std::endl;
           amrex::Print() << ">>> ... resetting neg. e from EOS using SMALL_TEMP"
                          << std::endl;

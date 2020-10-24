@@ -1,5 +1,5 @@
 #C++ files
-CEXE_sources += PeleC.cpp
+CEXE_sources += ERF.cpp
 CEXE_sources += Advance.cpp
 CEXE_sources += Derive.cpp
 CEXE_sources += Bld.cpp
@@ -26,7 +26,7 @@ CEXE_sources += Transport.cpp
 CEXE_sources += TransportParams.cpp
 
 #C++ headers
-CEXE_headers += PeleC.H
+CEXE_headers += ERF.H
 CEXE_headers += IO.H
 CEXE_headers += Problem.H
 CEXE_headers += ProblemDerive.H

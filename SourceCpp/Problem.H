@@ -1,7 +1,7 @@
 //#ifndef _PROBLEM_H_
 //#define _PROBLEM_H_
 
-/* problem-specific PeleC:: declarations go here */
+/* problem-specific ERF:: declarations go here */
 
 #ifdef DO_PROBLEM_POST_TIMESTEP
 void problem_post_timestep();

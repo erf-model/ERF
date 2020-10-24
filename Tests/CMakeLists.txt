@@ -1,11 +1,11 @@
 #=============================================================================
-# PeleC Testing
+# ERF Testing
 #=============================================================================
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake ${CMAKE_BINARY_DIR}/CTestCustom.cmake)
 
 # Set location of gold files according to system/compiler/compiler_version
-set(FCOMPARE_GOLD_FILES_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/PeleCGoldFiles/${CMAKE_SYSTEM_NAME}/${CMAKE_CXX_COMPILER_ID}/${CMAKE_CXX_COMPILER_VERSION})
+set(FCOMPARE_GOLD_FILES_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ERFGoldFiles/${CMAKE_SYSTEM_NAME}/${CMAKE_CXX_COMPILER_ID}/${CMAKE_CXX_COMPILER_VERSION})
 
 if(TEST_WITH_FCOMPARE)
   message(STATUS "Test golds directory for fcompare: ${FCOMPARE_GOLD_FILES_DIRECTORY}")
@@ -45,7 +45,7 @@ function(add_test_r TEST_NAME TEST_EXE_DIR)
     if(TEST_WITH_FCOMPARE)
       set(FCOMPARE_COMMAND "&& ${FCOMPARE} ${PLOT_GOLD} ${PLOT_TEST}")
     endif()
-    if(PELEC_ENABLE_MPI)
+    if(ERF_ENABLE_MPI)
       set(NP 4)
       set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
     else()
@@ -77,7 +77,7 @@ function(add_test_v1 TEST_NAME TEST_EXE_DIR)
     # Copy files to test working directory
     file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
     # Get test options
-    if(PELEC_ENABLE_MPI)
+    if(ERF_ENABLE_MPI)
       set(NP 4)
       set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
     else()
@@ -113,16 +113,16 @@ function(add_test_v2 TEST_NAME TEST_EXE_DIR LIST_OF_GRID_SIZES)
       # Copy files to test working directory
       file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/${GRID_SIZE}/")
       # Set number of cells at runtime according to dimension
-      if(${PELEC_DIM} EQUAL 3)
+      if(${ERF_DIM} EQUAL 3)
         set(NCELLS "${GRID_SIZE} ${GRID_SIZE} ${GRID_SIZE}")
-      elseif(${PELEC_DIM} EQUAL 2)
+      elseif(${ERF_DIM} EQUAL 2)
         set(NCELLS "${GRID_SIZE} ${GRID_SIZE}")
-      elseif(${PELEC_DIM} EQUAL 1)
+      elseif(${ERF_DIM} EQUAL 1)
         set(NCELLS "${GRID_SIZE}")
       endif()
       # Set the command to delete files from previous test runs in each resolution
       set(DELETE_PREVIOUS_FILES_COMMAND "rm mmslog datlog || true")
-      if(PELEC_ENABLE_MPI)
+      if(ERF_ENABLE_MPI)
         set(NP 4)
         set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
       else()
@@ -146,9 +146,9 @@ function(add_test_v2 TEST_NAME TEST_EXE_DIR LIST_OF_GRID_SIZES)
     endforeach()
     # Set list of images to be uploaded for verification
     set(IMAGES_TO_UPLOAD ${CURRENT_TEST_BINARY_DIR}/p_error.png ${CURRENT_TEST_BINARY_DIR}/rho_error.png ${CURRENT_TEST_BINARY_DIR}/u_error.png)
-    if(${PELEC_DIM} EQUAL 3)
+    if(${ERF_DIM} EQUAL 3)
       list(APPEND IMAGES_TO_UPLOAD ${CURRENT_TEST_BINARY_DIR}/v_error.png ${CURRENT_TEST_BINARY_DIR}/w_error.png)
-    elseif(${PELEC_DIM} EQUAL 2)
+    elseif(${ERF_DIM} EQUAL 2)
       list(APPEND IMAGES_TO_UPLOAD ${CURRENT_TEST_BINARY_DIR}/v_error.png)
     endif()
     # Add test and actual test commands to CTest database (need to convert this to arrays for resolutions)
@@ -164,7 +164,7 @@ function(add_test_u TEST_NAME)
     # Make working directory for test
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
     set(NP 1)
-    if(PELEC_ENABLE_MPI)
+    if(ERF_ENABLE_MPI)
       set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
     else()
       unset(MPI_COMMANDS)
@@ -180,7 +180,7 @@ endfunction(add_test_u)
 #=============================================================================
 
 # Run in CI
-if(PELEC_DIM GREATER 1)
+if(ERF_DIM GREATER 1)
   add_test_r(tg-1 TG)
   add_test_r(tg-2 TG)
   add_test_r(hit-1 HIT)
@@ -188,26 +188,26 @@ if(PELEC_DIM GREATER 1)
   add_test_r(hit-3 HIT)
   add_test_r(sod-1 Sod)
 endif()
-if(PELEC_ENABLE_MASA)
+if(ERF_ENABLE_MASA)
   add_test_r(mms-3 MMS)
-  if(PELEC_DIM GREATER 1)
+  if(ERF_DIM GREATER 1)
     add_test_r(mms-1 MMS)
     add_test_r(mms-2 MMS)
     add_test_r(mms-4 MMS)
-    if(PELEC_DIM GREATER 2)
+    if(ERF_DIM GREATER 2)
       add_test_r(mms-5 MMS)
     endif()
-    if(PELEC_ENABLE_AMREX_EB)
+    if(ERF_ENABLE_AMREX_EB)
       add_test_r(ebmms-1 EB_MMS)
     endif()
   endif()
 endif()
 
 # Not run in CI
-if(PELEC_DIM GREATER 1)
+if(ERF_DIM GREATER 1)
   add_test_re(pmf-1 PMF)
   add_test_re(multispecsod-1 MultiSpecSod)
-  if(PELEC_DIM GREATER 2)
+  if(ERF_DIM GREATER 2)
     add_test_re(tg-3 TG)
     add_test_re(tg-4 TG)
   endif()
@@ -216,9 +216,9 @@ endif()
 #=============================================================================
 # Verification tests
 #=============================================================================
-if(PELEC_ENABLE_MASA AND (PELEC_DIM GREATER 2))
+if(ERF_ENABLE_MASA AND (ERF_DIM GREATER 2))
   add_test_v1(symmetry MMS)
-  if(PELEC_ENABLE_AMREX_EB)
+  if(ERF_ENABLE_AMREX_EB)
     add_test_v1(eb-symmetry EB_MMS)
   endif()
 

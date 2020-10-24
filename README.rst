@@ -2,50 +2,44 @@ ERF
 ----
 *An atmospheric modeling code*
 
-`ERF` is built on `PeleC` (https://pelec.readthedocs.io/en/latest/), a compressible hydrodynamics code for reacting flows built on the AMReX solution framework (https://amrex-codes.github.io/amrex/). 
+`ERF` is built on `ERF` (https://erf.readthedocs.io/en/latest/), a compressible hydrodynamics code for reacting flows built on the AMReX solution framework (https://amrex-codes.github.io/amrex/). 
 
 Getting Started - ***UPDATE THIS***
 ~~~~~~~~~~~~~~~
 
-* To compile and run the `Pele` suite of codes, one needs a C++ compiler that supports the C++14 standard.  A hierarchical strategy for parallelism is supported, based MPI + OpenMP, or MPI + CUDA.  The codes work with all major MPI and OpenMP implementations.  The codes should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 4.9.4 and above.
+* To compile and run the `ERF` suite of codes, one needs a C++ compiler that supports the C++14 standard.  A hierarchical strategy for parallelism is supported, based MPI + OpenMP, or MPI + CUDA.  The codes work with all major MPI and OpenMP implementations.  The codes should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 4.9.4 and above.
 
-To build `PeleC` and run a sample 3D flame problem:
+To build `ERF` and run a sample 3D flame problem:
 
-1. One can have PeleC use the default submodules for AMReX and PelePhysics in its own repo by simply performing: ::
+1. One can have ERF use the default submodule for AMReX in its own repo by simply performing: ::
 
-    git clone --recursive git@github.com:AMReX-Combustion/PeleC.git
-    cd PeleC/ExecCpp/RegTests/PMF
+    git clone --recursive git@github.com:ERF-model.git
+    cd ERF/ExecCpp/RegTests/Sod
     make
-    ./Pele3d.xxx,yyy.ex inputs_ex
+    ./ERF3d.xxx,yyy.ex inputs_ex
 
-Alternatively, one can set environment variables to use AMReX and PelePhysics repos from external locations: ::
+Alternatively, one can set environment variables to use AMReX repo from external locations: ::
 
 1. Set the environment variable, AMREX_HOME, and clone a copy of `AMReX` there: ::
 
     export AMREX_HOME=<location for AMReX>    
     git clone git@github.com:AMReX-Codes/amrex.git ${AMREX_HOME}
 
-2. Set the environment variable, PELE_PHYSICS_HOME, and clone a copy of `PelePhysics` there. You should be placed in the `development` branch: ::
+2. Set the environment variable, ERF_HOME, and clone a copy of `ERF` there. You should be placed in the `development` branch: ::
 
-    export PELE_PHYSICS_HOME=<location for PelePhysics>
-    git clone git@github.com:AMReX-Combustion/PelePhysics.git ${PELE_PHYSICS_HOME}
+    export ERF_HOME=<location for ERF code>
+    git clone git@github.com:ERF-model.git ${ERF_HOME}
 
-3. Set the environment variable, PELEC_HOME, and clone a copy of `PeleC` there. You should be placed in the `development` branch: ::
+3. Move to an example build folder, build an executable, run a test case: ::
 
-    export PELEC_HOME=<location for PeleC>
-    git clone git@github.com:AMReX-Combustion/PeleC.git ${PELEC_HOME}
-
-4. Move to an example build folder, build an executable, run a test case: ::
-
-    cd ${PELEC_HOME}/ExecCpp/RegTests/PMF
+    cd ${ERF_HOME}/ExecCpp/RegTests/Sod
     make
-    ./Pele3d.xxx,yyy.ex inputs_ex
+    ./ERF3d.xxx,yyy.ex inputs_ex
 
 * Notes
 
    A. In the exec line above, xxx.yyy is a tag identifying your compiler and various build options, and will vary across pltaform.  (Note that GNU compilers must be at least 4.8.4, and MPI should be at least version 3).
-   B. The example is 3D premixed flame, flowing vertically upward through the domain with no gravity. The lateral boundaries are periodic.  A detailed hydrogen model is used.  The solution is initialized with a wrinkled (perturbed) 2D steady flame solution computed using the PREMIX code.  Two levels of solution-adaptive refinement are automatically triggered by the presence of the flame intermediate, HO2.
-   C. In addition to informative output to the terminal, periodic plotfiles are written in the run folder.  These may be viewed with CCSE's Amrvis (<https://ccse.lbl.gov/Downloads/downloadAmrvis.html>) or Vis-It (<http://vis.lbl.gov/NERSC/Software/visit/>):
+   B. In addition to informative output to the terminal, periodic plotfiles are written in the run folder.  These may be viewed with CCSE's Amrvis (<https://ccse.lbl.gov/Downloads/downloadAmrvis.html>) or Vis-It (<http://vis.lbl.gov/NERSC/Software/visit/>):
 
       1. In Vis-It, direct the File->Open dialogue to select the file named "Header" that is inside each plotfile folder..
       2. With Amrvis, "amrvis3d plt00030", for example.
@@ -54,13 +48,13 @@ Alternatively, one can set environment variables to use AMReX and PelePhysics re
 Dependencies - ***UPDATE THIS***
 ~~~~~~~~~~~~
 
-`PeleC` was created as a renamed, stripped down version of `Maui`, and is built on the `AMReX` library.  In the process, the Microphysics folder was extracted, and reorganized into a separate repository, `PelePhysics`.  
+`ERF` was created as a renamed, stripped down version of `ERF`, and is built on the `AMReX` library.  
 
 
 Development model - ***UPDATE THIS***
 ~~~~~~~~~~~~~~~~~
 
-To add a new feature to PeleC, the procedure is:
+To add a new feature to ERF, the procedure is:
 
 1. Create a branch for the new feature (locally): ::
 
@@ -74,31 +68,31 @@ To add a new feature to PeleC, the procedure is:
     git checkout AmazingNewFeature
     git merge development        [fix any identified conflicts between "development" and "AmazingNewFeature"]
 
-3. Push feature branch to PeleC repository: ::
+3. Push feature branch to ERF repository: ::
 
     git push -u origin AmazingNewFeature [Note: -u option required only for the first push of new branch]
 
-4. Submit a merge request through git@github.com:AMReX-Combustion/PeleC.git, and make sure you are requesting a merge against the development branch
+4. Submit a merge request through git@github.com:ERF-model.git, and make sure you are requesting a merge against the development branch
 
 5. Check the CI status on Github and make sure the tests passed for merge request
 
 .. note::
 
-   Github CI uses the CMake build system and CTest to test the core source files of PeleC. If you are adding source files, you will need to add them to the list of source files in the ``CMake`` directory for the tests to pass. Make sure to add them to the GNU make makefiles as well.
+   Github CI uses the CMake build system and CTest to test the core source files of ERF. If you are adding source files, you will need to add them to the list of source files in the ``CMake`` directory for the tests to pass. Make sure to add them to the GNU make makefiles as well.
 
 
 Test Status - ***UPDATE THIS***
 ~~~~~~~~~~~
 
-Nightly test results for PeleC against multiple compilers and machines can be seen on its CDash page `here <https://my.cdash.org/index.php?project=PeleC>`_. Static analysis results for PeleC can be seen in the notes of the newest GCC compiler on CDash. PeleC is also tested using the Clang address sanitizer to detect memory leaks.
+Nightly test results for ERF against multiple compilers and machines can be seen on its CDash page `here <https://my.cdash.org/index.php?project=ERF>`_. Static analysis results for ERF can be seen in the notes of the newest GCC compiler on CDash. ERF is also tested using the Clang address sanitizer to detect memory leaks.
 
-Test results for the GNU Make implementation of PeleC can be seen `here <https://amrex-combustion.github.io/PeleCRegressionTestResults>`_.
+Test results for the GNU Make implementation of ERF can be seen `here <https://amrex-combustion.github.io/ERFRegressionTestResults>`_.
 
 
 Documentation - ***UPDATE THIS***
 ~~~~~~~~~~~~~
 
-The full documentation for Pele exists in the Docs directory; at present this is maintained inline using Doxygen
+The full documentation for ERF exists in the Docs directory; at present this is maintained inline using Doxygen
 and Sphinx  `Sphinx <http://www.sphinx-doc.org>`_. With 
 Sphinx, documentation is written in *Restructured Text*. reST is a markup language
 similar to Markdown, but with somewhat greater capabilities (and idiosyncrasies). There

@@ -10,10 +10,10 @@ else()
   message(FATAL_ERROR "You need to set the HOST_NAME variable. CMake will exit." )
 endif()
 
-if(NOT "${PELEC_DIR}" STREQUAL "")
-  message("PELEC_DIR is ${PELEC_DIR}")
+if(NOT "${ERF_DIR}" STREQUAL "")
+  message("ERF_DIR is ${ERF_DIR}")
 else()
-  message(FATAL_ERROR "You need to set the PELEC_DIR variable. CMake will exit." )
+  message(FATAL_ERROR "You need to set the ERF_DIR variable. CMake will exit." )
 endif()
 
 # -----------------------------------------------------------
@@ -23,8 +23,8 @@ endif()
 # Set important configuration variables
 set(CTEST_SITE "${HOST_NAME}")
 set(CTEST_BUILD_NAME "${CMAKE_SYSTEM_NAME}${EXTRA_BUILD_NAME}")
-set(CTEST_SOURCE_DIRECTORY "${PELEC_DIR}")
-set(CTEST_BINARY_DIRECTORY "${PELEC_DIR}/build")
+set(CTEST_SOURCE_DIRECTORY "${ERF_DIR}")
+set(CTEST_BINARY_DIRECTORY "${ERF_DIR}/build")
 set(CTEST_START_WITH_EMPTY_BINARY_DIRECTORY TRUE)
 find_program(CTEST_GIT_COMMAND NAMES git)
 find_program(MAKE NAMES make)
@@ -41,7 +41,7 @@ set(CTEST_UPDATE_COMMAND "${CTEST_GIT_COMMAND}")
 set(CTEST_GIT_INIT_SUBMODULES TRUE)
 
 # Configure Command
-set(CTEST_CONFIGURE_COMMAND "cmake ${CMAKE_CONFIGURE_ARGS} -DPELEC_ENABLE_TESTS:BOOL=ON ${CTEST_SOURCE_DIRECTORY}")
+set(CTEST_CONFIGURE_COMMAND "cmake ${CMAKE_CONFIGURE_ARGS} -DERF_ENABLE_TESTS:BOOL=ON ${CTEST_SOURCE_DIRECTORY}")
 
 # Build Command
 set(CTEST_BUILD_COMMAND "${MAKE} ${CTEST_BUILD_FLAGS}")

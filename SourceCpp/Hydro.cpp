@@ -5,7 +5,7 @@
  */
 #if 0
 void
-PeleC::construct_hydro_source(
+ERF::construct_hydro_source(
   const amrex::MultiFab& S,
   amrex::Real time,
   amrex::Real dt,
@@ -69,7 +69,7 @@ PeleC::construct_hydro_source(
     amrex::Real yang_lost = 0.;
     amrex::Real zang_lost = 0.;
 
-    BL_PROFILE_VAR("PeleC::advance_hydro_pc_umdrv()", PC_UMDRV);
+    BL_PROFILE_VAR("ERF::advance_hydro_pc_umdrv()", PC_UMDRV);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())               \
@@ -124,7 +124,7 @@ PeleC::construct_hydro_source(
         auto const& qarr = q.array();
         auto const& srcqarr = src_q.array();
 
-        BL_PROFILE_VAR("PeleC::ctoprim()", ctop);
+        BL_PROFILE_VAR("ERF::ctoprim()", ctop);
         amrex::ParallelFor(
           qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             pc_ctoprim(i, j, k, s, qarr);
@@ -142,7 +142,7 @@ PeleC::construct_hydro_source(
 
         // Allocate fabs for bcMask. Note that we grow in the opposite direction
         // because the Riemann solver wants a face value in a ghost-cell
-        BL_PROFILE_VAR("PeleC::srctoprim()", srctop);
+        BL_PROFILE_VAR("ERF::srctoprim()", srctop);
         const auto& src_in = sources_for_hydro.array(mfi);
         amrex::ParallelFor(
           qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -161,7 +161,7 @@ PeleC::construct_hydro_source(
 #else
         auto device = amrex::RunOn::Cpu;
 #endif
-        BL_PROFILE_VAR("PeleC::umdrv()", purm);
+        BL_PROFILE_VAR("ERF::umdrv()", purm);
         const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>
           flx_arr{
             AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())};
@@ -334,7 +334,7 @@ pc_umdrv(
   auto const& divarr = divu.array();
   auto const& pdivuarr = pdivu.array();
 
-  BL_PROFILE_VAR("PeleC::umeth()", umeth);
+  BL_PROFILE_VAR("ERF::umeth()", umeth);
   pc_umeth_3D(
     bx, bclo, bchi, domlo, domhi, q, src_q, // bcMask,
     flx[0], flx[1], flx[2], qec_arr[0], qec_arr[1], qec_arr[2], a[0], a[1],

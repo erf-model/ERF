@@ -2,7 +2,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_PhysBCFunct.H>
 
-#include "PeleC.H"
+#include "ERF.H"
 #include "prob.H"
 
 struct PCHypFillExtDir

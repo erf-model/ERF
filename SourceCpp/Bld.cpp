@@ -1,8 +1,8 @@
 #include <AMReX_LevelBld.H>
 
-#include "PeleC.H"
+#include "ERF.H"
 
-class PeleCBld : public amrex::LevelBld
+class ERFBld : public amrex::LevelBld
 {
   virtual void variableSetUp();
   virtual void variableCleanUp();
@@ -16,34 +16,34 @@ class PeleCBld : public amrex::LevelBld
     amrex::Real time);
 };
 
-PeleCBld PeleC_bld;
+ERFBld ERF_bld;
 
 amrex::LevelBld*
 getLevelBld()
 {
-  return &PeleC_bld;
+  return &ERF_bld;
 }
 
 void
-PeleCBld::variableSetUp()
+ERFBld::variableSetUp()
 {
-  PeleC::variableSetUp();
+  ERF::variableSetUp();
 }
 
 void
-PeleCBld::variableCleanUp()
+ERFBld::variableCleanUp()
 {
-  PeleC::variableCleanUp();
+  ERF::variableCleanUp();
 }
 
 amrex::AmrLevel*
-PeleCBld::operator()()
+ERFBld::operator()()
 {
-  return new PeleC;
+  return new ERF;
 }
 
 amrex::AmrLevel*
-PeleCBld::operator()(
+ERFBld::operator()(
   amrex::Amr& papa,
   int lev,
   const amrex::Geometry& level_geom,
@@ -51,5 +51,5 @@ PeleCBld::operator()(
   const amrex::DistributionMapping& dm,
   amrex::Real time)
 {
-  return new PeleC(papa, lev, level_geom, ba, dm, time);
+  return new ERF(papa, lev, level_geom, ba, dm, time);
 }

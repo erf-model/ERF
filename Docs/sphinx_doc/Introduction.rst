@@ -11,7 +11,7 @@ Pele solves the reacting compressible Navier-Stokes on a structured grid with, o
 The Pele Project
 ----------------
 
-The origin of PeleC is in the context of *The Pele Project*, with the goal of providing a platform for combustion research in the ExaScale computing era. Specifically, to enable research grade simulation (DNS, or near DNS hybrid LES/DNS) of turbulence-chemistry interaction under conditions motivated by internal combustion engine research as well as establish a path for development of scalable design codes suitable for exascale hardware.
+The origin of ERF is in the context of *The Pele Project*, with the goal of providing a platform for combustion research in the ExaScale computing era. Specifically, to enable research grade simulation (DNS, or near DNS hybrid LES/DNS) of turbulence-chemistry interaction under conditions motivated by internal combustion engine research as well as establish a path for development of scalable design codes suitable for exascale hardware.
 
 .. csv-table:: Design approach for Pele
    :header: "Characteristic / Need", "Approach"
@@ -30,15 +30,13 @@ The origin of PeleC is in the context of *The Pele Project*, with the goal of pr
 Dependencies
 ------------
 
-Pele is built on AMReX (available at `https://github.com/AMReX-Codes/amrex <https://github.com/AMReX-Codes/amrex>`_), an adaptive mesh refinement software framework, which provides the underlying software infrastructure for block structured AMR operations. The full AMReX documentation can be found `here <https://amrex-codes.github.io/AMReXUsersGuide.pdf>`_. 
-
-Modules for describing the equation of state, diffusion transport model, and reaction kinetics are localized to the ``PelePhysics`` repository. For the purpose of this Users' Guide  ``PelePhysics`` is considered part of ``PeleC`` but it needs to be obtained through a separate checkout as described in the :ref:`readme <README>`.
+ERF is built on AMReX (available at `https://github.com/AMReX-Codes/amrex <https://github.com/AMReX-Codes/amrex>`_), an adaptive mesh refinement software framework, which provides the underlying software infrastructure for block structured AMR operations. The full AMReX documentation can be found `here <https://amrex-codes.github.io/AMReXUsersGuide.pdf>`_. 
 
 
 Development
 -----------
 
-A separate developers guide does not yet exist; along with the algorithmic description in this Users' Guide, doxygen documentation exists in place and an input file exists in `PeleC/Docs` that can be build using:
+A separate developers guide does not yet exist; along with the algorithmic description in this Users' Guide, doxygen documentation exists in place and an input file exists in `ERF/Docs` that can be build using:
 
 ::
 

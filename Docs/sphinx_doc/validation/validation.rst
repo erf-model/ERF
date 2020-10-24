@@ -11,11 +11,11 @@
 
 .. highlight:: rst
 
-Validation of PeleC
+Validation of ERF
 -------------------
 
 
-The PeleC validation plan is aimed at exercising and validating the PeleC reacting flow capabilities. The following cases, described further on, are used for validation.
+The ERF validation plan is aimed at exercising and validating the ERF reacting flow capabilities. The following cases, described further on, are used for validation.
 
 * Decay of homogeneous isotropic turbulence
 * Non reacting Taylor-Green vortex breakdown
@@ -234,7 +234,7 @@ This test case simulated the well-known counter flow diffusion flame
 where fuel and oxidizer are injected head-on from opposite sides
 forming a stagnation region. The fuel-oxidizer diffusion in the
 stagnation region determines the flame location. The results from a
-PeleC simulation are shown in the figure below. The fuel (CH4) is injected
+ERF simulation are shown in the figure below. The fuel (CH4) is injected
 from the left and air from the right.  The temperature distribution
 indicates the flame location towards the oxidizer side. In a counter
 flow diffusion flame the key quantity to vary is the strain rate which
@@ -243,7 +243,7 @@ validation exercise, a series of strain rates will be
 simulated. Species and temperature profiles will be compared against
 the benchmark experimental data and well-established chemical kinetics
 solvers such as Cantera. The main motivation behind simulating a
-number of strain rates is to check the capability of PeleC to
+number of strain rates is to check the capability of ERF to
 accurately reproduce the critical strain rate, known as the extinction
 limit.
 
@@ -274,10 +274,10 @@ boundary conditions, unburnt mixture and temperature. The metric of
 comparison for the sake of validation would be species and temperature
 profiles. Well known solution profiles from experiments and highly
 resolved mesh converged 1-D Cantera simulations will be used to
-establish the accuracy of PeleC. In addition to profiles, a comparison
+establish the accuracy of ERF. In addition to profiles, a comparison
 of extinction strain rate will be also be made against the values
 obtained from 1-D Cantera simulation. Finally, we will also validate
-that PeleC simulations predict the correct premixed flame speed in the
+that ERF simulations predict the correct premixed flame speed in the
 low strain rate limit.
 
 .. note::
@@ -298,7 +298,7 @@ time evolution of flame area and stretch for varying ratios of vortex
 strength and laminar flame speed as the key metric for
 validation. Experimental data (`Thiesset et. al, Proc. Combust. Inst. Volume 36,
 Issue 2, 2017, Pages 1843-1851`) and data from a number of previously
-established simulation data will be used to validate PeleC.
+established simulation data will be used to validate ERF.
 
 .. note::
 
@@ -315,7 +315,7 @@ Workshop on Measurement and Computation of Turbulent Flames
 (TNF). Extensive measurements of product species and temperature were
 taken at several locations in the flame, providing a wealth of data
 against which simulations can be validated. For validation of LES
-models for nonpremixed combustion in PeleC, conditional means and
+models for nonpremixed combustion in ERF, conditional means and
 variances of temperature and species at several axial locations will
 be compared.
 
@@ -330,7 +330,7 @@ This test case is based on a set of DNS of spherical premixed Jet-A
 fuel/air kernels in decaying isotropic turbulence performed at Sandia
 National Laboratories (`A. Krisman, T. Lu, and J. H. Chen, National
 Combustion Meeting, 2017, Paper #2E04`). This test case will be used for
-validation of LES premixed combustion models in PeleC. This case
+validation of LES premixed combustion models in ERF. This case
 allows for a priori model evaluation of local predictions of filtered
 reaction rates as well as a posteriori comparisons of global
 quantities of interest (kernel radius over time, successful or failed

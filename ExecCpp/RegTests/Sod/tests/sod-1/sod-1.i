@@ -12,23 +12,23 @@ amr.n_cell           = 32     8     8
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-pelec.lo_bc       =     "UserBC"   "SlipWall"     "SlipWall"
-pelec.hi_bc       =     "UserBC"   "SlipWall"     "SlipWall"
+erf.lo_bc       =     "UserBC"   "SlipWall"     "SlipWall"
+erf.hi_bc       =     "UserBC"   "SlipWall"     "SlipWall"
 
 # WHICH PHYSICS
-pelec.do_hydro = 1
-pelec.do_react = 0
-pelec.ppm_type = 1
+erf.do_hydro = 1
+erf.do_react = 0
+erf.ppm_type = 1
 
 # TIME STEP CONTROL
-pelec.cfl            = 0.9     # cfl number for hyperbolic system
-pelec.init_shrink    = 0.1     # scale back initial timestep
-pelec.change_max     = 1.05    # scale back initial timestep
-pelec.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
+erf.cfl            = 0.9     # cfl number for hyperbolic system
+erf.init_shrink    = 0.1     # scale back initial timestep
+erf.change_max     = 1.05    # scale back initial timestep
+erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 
 # DIAGNOSTICS & VERBOSITY
-pelec.sum_interval   = 1       # timesteps between computing mass
-pelec.v              = 1       # verbosity in PeleC cpp files
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF cpp files
 amr.v                 = 1       # verbosity in Amr.cpp
 #amr.grid_log        = grdlog  # name of grid logging file
 

@@ -5,9 +5,9 @@
 #include "AMReX.H"
 #include "AMReX_ParmParse.H"
 
-namespace pelec_tests {
+namespace erf_tests {
 
-/** Global setup/teardown test enviroment configuration for PeleC unit tests
+/** Global setup/teardown test enviroment configuration for ERF unit tests
  *
  *  This class is registered with GoogleTest infrastructure to perform global
  *  setup/teardown tasks. The base implementation calls the amrex::Initialize
@@ -57,6 +57,6 @@ protected:
   char**& m_argv;
 };
 
-} // namespace pelec_tests
+} // namespace erf_tests
 
 #endif /* AMREXTESTENV_H */
