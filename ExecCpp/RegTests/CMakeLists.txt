@@ -1,4 +1,3 @@
-add_subdirectory(HIT)
 add_subdirectory(Sedov)
 add_subdirectory(Sod)
 add_subdirectory(TG)
