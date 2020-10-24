@@ -7,14 +7,6 @@ function(build_pelec_exe pelec_exe_name)
 
   add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/${pelec_exe_name})
 
-  set(PELEC_TRANSPORT_DIR "${TOP}/SourceCpp/ConstantTransport")
-  target_sources(${pelec_exe_name} PRIVATE
-                 ${PELEC_TRANSPORT_DIR}/Transport.H
-                 ${PELEC_TRANSPORT_DIR}/Transport.cpp
-                 ${PELEC_TRANSPORT_DIR}/TransportParams.cpp
-                 ${PELEC_TRANSPORT_DIR}/TransportParams.H)
-  target_include_directories(${pelec_exe_name} SYSTEM PRIVATE ${PELEC_TRANSPORT_DIR})
-
   set(PELEC_EOS_DIR "${CMAKE_SOURCE_DIR}/SourceCpp/GammaLaw")
   target_sources(${pelec_exe_name} PRIVATE
                  ${PELEC_EOS_DIR}/EOS.cpp
@@ -58,6 +50,8 @@ function(build_pelec_exe pelec_exe_name)
        ${SRC_DIR}/IO.H
        ${SRC_DIR}/IO.cpp
        ${SRC_DIR}/LES.H
+       ${SRC_DIR}/Transport.H
+       ${SRC_DIR}/TransportParams.H
        ${SRC_DIR}/LES.cpp
        ${SRC_DIR}/MOL.H
        ${SRC_DIR}/MOL.cpp
@@ -77,6 +71,8 @@ function(build_pelec_exe pelec_exe_name)
        ${SRC_DIR}/Timestep.cpp
        ${SRC_DIR}/Utilities.H
        ${SRC_DIR}/Utilities.cpp
+       ${SRC_DIR}/Transport.cpp
+       ${SRC_DIR}/TransportParams.cpp
   )
 
   if(NOT "${pelec_exe_name}" STREQUAL "pelec_unit_tests")
