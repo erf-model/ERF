@@ -28,27 +28,12 @@ The ERF directory structure is as shown below:
   
   * :ref:`Regression Tests<VandV>`
 
-    * EB_MMS   - Method of manufactured solutions
-    * HIT      - Box of homogeneous isotropic turbulence 
     * MMS      - Method of manufactured solutions
-    * PMF      - 2D Premixed H2-air flame calculation 
     * Sedov    - Sedov blast wave test
     * Sod      - Sod shock tube test
     * TG       - Taylor-Green vortex test
-    * zeroD    - Single cell test for reaction model
 
   * UnitTests
-
-    * NSCBC_test_cases - This directory contains many 1D, 2D and 3D cases to test the implementation of the Ghost-Cells Navier-Stokes Boundary Conditions (GC-NSCBC) on various different configurations.
-    * HIT_forced - This test case is similar to the homogeneous isotropic turbulence present in the RegTests directory, at the exception that we are not starting from a turbulent initial solution, but from a flow at rest where we superimpose forcing sources to generate turbulence.
-  
-  * :ref:`Tutorials<Tutorials>`
-
-    * EB_Sphere - Reacting flow around a sphere
-    * EB_OblqShock - Supersonic flow over a wedge resulting in a steady attached oblique shock
-    * EB_BluffBody -  Non-reacting flow around a diamond-shaped body
-    * Spray
-
 
 Setting up a problem to run with ERF involves writing an input file and problem specific code in the run directory. 
 ERF is built using the AMReX build system which supports out-of-source builds but as configured in Pele requires a specific directory structure. 
@@ -70,7 +55,7 @@ A list of available data in the Pele group can be found in ERF/Source/param_incl
 
 **prob_parm.H** -- Something about prob_parm.H
 
-**GNUMakefile** -- In addition to setting options to build profiling, debugging, MPI, OpenMP, Compiler toolchain options, the chemical mechanism, transport model, equation of state model, and use of EB are set here for compile time selection. The GNUMakefile includes the ``Make.ERF`` file from the `ExecCpp` directory that contains build configuration common across the examples.
+**GNUMakefile** -- Options to build profiling, debugging, MPI, OpenMP, and Compiler toolchain options are set here for compile time selection. The GNUMakefile includes the ``Make.ERF`` file from the `ExecCpp` directory that contains build configuration common across the examples.
 
 
 .. include:: building.rst

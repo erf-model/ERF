@@ -485,8 +485,6 @@ protected:
   //
   amrex::MultiFab volume;
   amrex::MultiFab area[AMREX_SPACEDIM];
-  amrex::MultiFab dLogArea[1];
-  amrex::Vector<amrex::Vector<amrex::Real>> radius;
   int m_ngrow;
   //
   // Static data members.
@@ -495,7 +493,6 @@ protected:
 
   static bool signalStopJob;
   static bool dump_old;
-  static int radius_grow;
   static int verbose;
   static amrex::BCRec phys_bc;
 

@@ -1,0 +1,11 @@
+#C++ files
+CEXE_sources += MOL.cpp
+CEXE_sources += Filter.cpp
+CEXE_sources += LES.cpp
+
+#C++ headers
+CEXE_headers += MOL.H
+CEXE_headers += Filter.H
+CEXE_headers += LES.H
+CEXE_headers += Riemann.H
+

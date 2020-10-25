@@ -27,7 +27,6 @@ using namespace MASA;
 bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
-int ERF::radius_grow = 1;
 amrex::BCRec ERF::phys_bc;
 amrex::Real ERF::frac_change = 1.e200;
 int ERF::Density = -1;
@@ -319,12 +318,6 @@ ERF::ERF(
     flux_reg.define(
       bl, papa.boxArray(level - 1), dm, papa.DistributionMap(level - 1),
       level_geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, NVAR);
-
-    if (!amrex::DefaultGeometry().IsCartesian()) {
-      pres_reg.define(
-        bl, papa.boxArray(level - 1), dm, papa.DistributionMap(level - 1),
-        level_geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, 1);
-    }
   }
 
   // Don't need this in pure C++?
@@ -355,35 +348,7 @@ ERF::buildMetrics()
 {
   const int ngrd = grids.size();
 
-  radius.resize(ngrd);
-
   const amrex::Real* dx = geom.CellSize();
-
-  for (int i = 0; i < ngrd; i++) {
-    const amrex::Box& b = grids[i];
-    int ilo = b.smallEnd(0) - radius_grow;
-    int ihi = b.bigEnd(0) + radius_grow;
-    int len = ihi - ilo + 1;
-
-    radius[i].resize(len);
-
-    amrex::Real* rad = radius[i].dataPtr();
-
-    if (amrex::DefaultGeometry().IsCartesian()) {
-      for (int j = 0; j < len; j++) {
-        rad[j] = 1.0;
-      }
-    } else {
-      amrex::RealBox gridloc =
-        amrex::RealBox(grids[i], geom.CellSize(), geom.ProbLo());
-
-      const amrex::Real xlo = gridloc.lo(0) + (0.5 - radius_grow) * dx[0];
-
-      for (int j = 0; j < len; j++) {
-        rad[j] = xlo + j * dx[0];
-      }
-    }
-  }
 
   volume.clear();
   volume.define(
@@ -901,15 +866,6 @@ ERF::post_restart()
 
   amrex::Real cur_time = state[State_Type].curTime();
 
-  // Don't need this in pure C++?
-  // initialize the Godunov state array used in hydro -- we wait
-  // until here so that ngroups is defined (if needed) in
-  // rad_params_module
-  // if (do_hydro)
-  //{
-  //  init_godunov_indices();
-  //}
-
   // initialize LES variables
   if (do_les) {
     init_les();
@@ -1035,15 +991,6 @@ ERF::reflux()
   amrex::MultiFab& S_crse = get_new_data(State_Type);
 
   fine_level.flux_reg.Reflux(S_crse);
-
-  if (!amrex::DefaultGeometry().IsCartesian()) {
-    amrex::MultiFab dr(
-      volume.boxArray(), volume.DistributionMap(), 1, volume.nGrow(),
-      amrex::MFInfo(), amrex::FArrayBoxFactory());
-    dr.setVal(geom.CellSize(0));
-    amrex::Abort("ERF reflux not yet ready for r-z");
-    // fine_level.pres_reg.Reflux(S_crse,dr,1.0,0,Xmom,1,geom);
-  }
 
   if (verbose) {
     const int IOProc = amrex::ParallelDescriptor::IOProcessorNumber();

@@ -1,5 +1,4 @@
 ERF_HOME        ?= ../
-PELE_PHYSICS_HOME ?= $(ERF_HOME)/Submodules/PelePhysics
 AMREX_HOME        ?= $(ERF_HOME)/Submodules/AMReX
 
 TOP := $(ERF_HOME)
@@ -26,7 +25,7 @@ ifeq ($(USE_SUNDIALS_PP), TRUE)
   ifeq ($(USE_CUDA), TRUE)
     USE_CUDA_SUNDIALS_PP = TRUE
   endif
-  include $(PELE_PHYSICS_HOME)/ThirdParty/Make.ThirdParty
+  include $(TOP)/Submodules/ThirdParty/Make.ThirdParty
 endif
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
@@ -45,6 +44,12 @@ INCLUDE_LOCATIONS += $(EOS_HOME)
 VPATH_LOCATIONS   += $(EOS_HOME)
 Bpack             += $(EOS_HOME)/Make.package
 Blocs             += $(EOS_HOME)
+
+EXTERN_CORE       += $(TOP)/SourceCpp/Legacy
+INCLUDE_LOCATIONS += $(TOP)/SourceCpp/Legacy
+VPATH_LOCATIONS   += $(TOP)/SourceCpp/Legacy
+Bpack             += $(TOP)/SourceCpp/Legacy/Make.package
+Blocs             += $(TOP)/SourceCpp/Legacy
 
 Bdirs := SourceCpp SourceCpp/GammaLaw SourceCpp/Params/param_includes
 Pdirs := Base Amr Boundary AmrCore
@@ -66,17 +71,13 @@ CEXE_sources += AMReX_buildInfo.cpp
 CEXE_headers += $(AMREX_HOME)/Tools/C_scripts/AMReX_buildInfo.H
 INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
 
-ifdef Chemistry_Model
-  MNAMES += CHEMISTRY=$(Chemistry_Model)
-endif
-
 AMReX_buildInfo.cpp:
 	$(AMREX_HOME)/Tools/C_scripts/makebuildinfo_C.py \
           --amrex_home "$(AMREX_HOME)" \
           --COMP "$(COMP)" --COMP_VERSION "$(COMP_VERSION)" \
           --FCOMP "$(FCOMP)" --FCOMP_VERSION "$(FCOMP_VERSION)" \
           --MODULES "$(MNAMES)" \
-          --GIT "$(TOP) $(AMREX_HOME) $(PELE_PHYSICS_HOME)"
+          --GIT "$(TOP) $(AMREX_HOME)"
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 

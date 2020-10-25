@@ -16,9 +16,6 @@ LES and Hybrid LES/DNS Support
 Models for large eddy simulations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. warning:: The LES source terms do not currently support EB cut cells.
-
-
 ERF currently supports two LES models, the constant and dynamic
 Smagorinsky models. An extensive discussion of the compressible
 version of these models can be found in Martín, M. Pino, U. Piomelli,

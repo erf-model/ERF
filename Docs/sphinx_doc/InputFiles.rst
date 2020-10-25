@@ -147,22 +147,3 @@ These parameters, once read, are available in the `ERF` object for use from c++ 
     amr.probin_file = probin 
     # ---------------------------------------------------------------
     
-    # ---------------------------------------------------------------
-    Embedded boundary (EB) inputs
-    # ---------------------------------------------------------------
-
-    erf.eb_isothermal = 1     # isothermal wall at EB
-    erf.eb_boundary_T = 300.  # EB wall temperature    
-    eb_verbosity = 1            # verbosity of EB data
-
-    
-    #------------------------
-    # EB geometry
-    #------------------------
-
-    eb2.geom_type = sphere  
-    eb2.sphere_radius = 0.1     
-    eb2.sphere_center = 0.0 0.15 0.075
-    eb2.sphere_has_fluid_inside = 0
-    
-    # ---------------------------------------------------------------

@@ -40,22 +40,6 @@ does not work as expected, and why the NSCBC theory helps to get a more "desirab
 In order to understand the impact of the GC-NSCBC treatment, we give an example that imposes "hard" values in the ghost-cells to represent external conditions, and uses first-order extrapolation at the outflow boundary.
 A precomputed 1D flame profile is interpolated onto a uniform ERF grid. Because the solution has to adapt to the new grid and to the ERF numerical discretization, it creates an unphysical acoustic bump that moves through the domain as an acoustic disturbance.  With "hard" boundary conditions, this disturbance is reflected from the outflow boundary back into the domain, and interacts with the flame upstream.  A steady solution to this system would require the propagation of this wave back and forth until numerical diffusion eventually reduces its magnitude below some threshold. With the GC-NSCBC boundary treatment, the acoustic wave simply leaves the computational domain.  Often times, the latter is the desired behavior of the code.
 
-.. only:: html
-
-    .. figure:: ./1D_PMF_NO_NSCBC.gif
-       :align: center
-       :figwidth: 40%
-
-  
-   No GC-NSCBC treatment, hard values set at the left boundary for the inflow, and first order extrapolation in the right boundary to mimic an outflow. The unphysical reflections of the acoustic wave at boundary can be clearly seen.
-
-.. only:: html
-
-    .. figure:: ./1D_PMF_WITH_NSCBC.gif
-       :align: center
-       :figwidth: 40%
-
-
 With the GC-NSCBC, the spurious acoustic wave simply leaves the domain with no unphysical reflection.
 
 In ERF, the subroutine ``bcnormal`` is used to provide the target state for the GC-NSCBC treatment as well as the numerical parameters used by the GC-NSCBC method to efficiently "damp" the reflected waves. Note the signature and the content of the ``bcnormal`` routine:

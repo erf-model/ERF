@@ -172,12 +172,6 @@ ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     flux_reg.define(
       grids, papa.boxArray(level - 1), dmap, papa.DistributionMap(level - 1),
       geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, NVAR);
-
-    if (!amrex::DefaultGeometry().IsCartesian()) {
-      pres_reg.define(
-        grids, papa.boxArray(level - 1), dmap, papa.DistributionMap(level - 1),
-        geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, 1);
-    }
   }
 }
 

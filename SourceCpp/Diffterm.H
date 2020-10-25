@@ -4,7 +4,6 @@
 #include <AMReX_FArrayBox.H>
 
 #include "IndexDefines.H"
-#include "EBStencilTypes.H"
 #include "EOS.H"
 #include "Utilities.H"
 #include "GradUtil.H"

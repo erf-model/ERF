@@ -332,7 +332,6 @@ An alternative formulation well suited to Embedded Boundary geometry treatment a
     :p V: Cell volumes
     :p D: Divergence (hyperbolic fluxes added to input divergence on output)
     :p flag: Cell type flag
-    :p ebflux: Flux across EB face
     :p h: Grid spacing
 
 Within this routine, for each direction, characteristic extrapolation is used to compute left and right states at the cell faces:
@@ -369,27 +368,9 @@ The right states are computed as:
 
   Y_k^r = \frac{\rho^r Y_k^r}{\rho^r}
 
-The computations in the y- and z- direction are analogous; the flux on an EB face to apply a no-slip boundary condition at a wall is somewhat different. In that case, the left and right states are taken as the state at the cell center, except for the velocity is reflected across the EB face. That is:
-
-.. math:: 
-  u^l_\perp = - u \cdot \vec{n}
-
-  u^l_{\parallel, 1} = u^l_{\parallel_2} = 0.0
-
-  p^l = p
-
-  Y_k^l = Y_k
-
-  \rho^l = \rho
-
-and, as noted the right state is identical except for:
-
-.. math::
-  u^r_\perp = - u^l_\perp
-
 Once the left and right states are computed, a Riemann solver (in this case one preserving the physical constraints on the intermediate state) is used to compute fluxes that are assembled into a conservative and non-conservative update for the regular and cut cells.
 
-The characteristic extrapolation requires (slope limited) fluxes; these are found in the file slope_mol_3d_EB.f90. The call signature for the slope computation is:
+The characteristic extrapolation requires (slope limited) fluxes. The call signature for the slope computation is:
 
 
 .. f:function:: slope_module/slopex

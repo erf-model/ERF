@@ -16,7 +16,6 @@ Contents:
    Algorithms.rst
    GettingStarted.rst
    BoundaryConditions.rst
-   ./geometry/EB.rst
    LES.rst
    VandV.rst
    ./miscellaneous/miscellaneous.rst

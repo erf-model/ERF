@@ -24,11 +24,6 @@ ERF::advance(
 
   if (level < finest_level && do_reflux) {
     getFluxReg(level + 1).reset();
-
-    if (!amrex::DefaultGeometry().IsCartesian()) {
-      amrex::Abort("Flux registers not r-z compatible yet");
-      getPresReg(level + 1).reset();
-    }
   }
 
   amrex::Real dt_new = dt;
@@ -38,7 +33,7 @@ ERF::advance(
   // dt_new = do_mol_advance(time, dt, amr_iteration, amr_ncycle);
   // 
   {
-  BL_PROFILE("ERF::do_mol_advance()");
+  BL_PROFILE("ERF::do_rk3_advance()");
 
   // Check that we are not asking to advance stuff we don't know to
   // if (src_list.size() > 0) amrex::Abort("Have not integrated other sources
@@ -84,9 +79,6 @@ ERF::advance(
       amrex::MultiFab::Saxpy(S, 1.0, *old_sources[src_list[n]], 0, 0, NVAR, 0);
     }
   }
-
-  if (mol_iters > 1)
-    amrex::MultiFab::Copy(S_old, S, 0, 0, NVAR, 0);
 
   // U^* = U^n + dt*S^n
   amrex::MultiFab::LinComb(U_new, 1.0, Sborder, 0, dt, S, 0, 0, NVAR, 0);
