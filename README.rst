@@ -2,14 +2,14 @@ ERF
 ----
 *An atmospheric modeling code*
 
-`ERF` is built on `ERF` (https://erf.readthedocs.io/en/latest/), a compressible hydrodynamics code for reacting flows built on the AMReX solution framework (https://amrex-codes.github.io/amrex/). 
+`ERF` is built on `PeleC` (https://pelec.readthedocs.io/en/latest/), a compressible hydrodynamics code for reacting flows built on the AMReX solution framework (https://amrex-codes.github.io/amrex/). 
 
-Getting Started - ***UPDATE THIS***
+Getting Started 
 ~~~~~~~~~~~~~~~
 
 * To compile and run the `ERF` suite of codes, one needs a C++ compiler that supports the C++14 standard.  A hierarchical strategy for parallelism is supported, based MPI + OpenMP, or MPI + CUDA.  The codes work with all major MPI and OpenMP implementations.  The codes should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 4.9.4 and above.
 
-To build `ERF` and run a sample 3D flame problem:
+To build `ERF` and run a sample problem:
 
 1. One can have ERF use the default submodule for AMReX in its own repo by simply performing: ::
 
@@ -45,13 +45,15 @@ Alternatively, one can set environment variables to use AMReX repo from external
       2. With Amrvis, "amrvis3d plt00030", for example.
 
 
-Dependencies - ***UPDATE THIS***
-~~~~~~~~~~~~
+Origin of ERF 
+~~~~~~~~~~~~~
 
-`ERF` was created as a renamed, stripped down version of `ERF`, and is built on the `AMReX` library.  
+`ERF` was created as a renamed, stripped down version of `PeleC`, 
+incorporates a modified RK3 compressible hydro integrator adapted from 
+the FHDeX code base (<https://github.com/AMReX-FHD/FHDeX>), 
+and is built on the `AMReX` library.  
 
-
-Development model - ***UPDATE THIS***
+Development model
 ~~~~~~~~~~~~~~~~~
 
 To add a new feature to ERF, the procedure is:
