@@ -48,10 +48,11 @@ Alternatively, one can set environment variables to use AMReX repo from external
 Origin of ERF 
 ~~~~~~~~~~~~~
 
-`ERF` was created as a renamed, stripped down version of `PeleC`, 
+`ERF` was created as a renamed, stripped down version of `PeleC`
+(<https://github.com/AMReX-combustion/PeleC>),
 incorporates a modified RK3 compressible hydro integrator adapted from 
 the FHDeX code base (<https://github.com/AMReX-FHD/FHDeX>), 
-and is built on the `AMReX` library.  
+and is built on the `AMReX` library (<https://github.com/AMReX-codes/AMReX>).
 
 Development model
 ~~~~~~~~~~~~~~~~~
