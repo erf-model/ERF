@@ -58,7 +58,7 @@ markertype = ["s", "d", "o", "p", "h"]
 # Function definitions
 #
 # ========================================================================
-def load_pelec_error(fdir, theory_order):
+def load_erf_error(fdir, theory_order):
     """Load the error for each resolution"""
     lst = []
     resolutions = sorted(
@@ -213,7 +213,7 @@ class MMSTestCase(unittest.TestCase):
 
         # Load the data
         fdir = os.path.abspath(".")
-        edf = load_pelec_error(fdir, self.theory_order)
+        edf = load_erf_error(fdir, self.theory_order)
         ooa = calculate_ooa(edf)
 
         # Plot the errors

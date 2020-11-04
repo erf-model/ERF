@@ -1,9 +1,5 @@
 set(erf_exe_name erf_Sedov)
 
-#Compile-time options for executable
-set(PELEC_CHEMISTRY_MODEL Null)
-set(PELEC_TRANSPORT_MODEL Constant)
-
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
    PRIVATE

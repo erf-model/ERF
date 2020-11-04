@@ -31,5 +31,5 @@ Transport_dir := Constant
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-PELEC_HOME := ../../..
-include $(PELEC_HOME)/Exec/Make.ERF
+ERF_HOME := ../../..
+include $(ERF_HOME)/Exec/Make.ERF

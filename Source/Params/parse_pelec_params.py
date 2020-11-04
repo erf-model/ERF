@@ -39,7 +39,7 @@
 #   -- name_params.H  (for erf, included in ERF.H):
 #      declares the static variables of the ERF class
 #
-#   -- name_defaults.H  (for erf, included in peleC.cpp):
+#   -- name_defaults.H  (for erf, included in ERF.cpp):
 #      sets the defaults of the runtime parameters
 #
 #   -- name_queries.H  (for erf, included in ERF.cpp):

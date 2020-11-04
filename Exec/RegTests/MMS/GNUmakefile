@@ -34,11 +34,11 @@ ifeq ($(USE_MASA), TRUE)
   INCLUDE_LOCATIONS += ${MASA_HOME}/include ${MASA_HOME}/lib
   LIBRARY_LOCATIONS += ${MASA_HOME}/lib
   LIBRARIES += -Wl,-rpath,${MASA_HOME}/lib -lmasa -lfmasa
-  DEFINES += -DPELEC_USE_MASA -DDO_PROBLEM_POST_TIMESTEP -DDO_PROBLEM_POST_INIT
+  DEFINES += -DERF_USE_MASA -DDO_PROBLEM_POST_TIMESTEP -DDO_PROBLEM_POST_INIT
 endif
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-PELEC_HOME := ../../..
-include $(PELEC_HOME)/Exec/Make.ERF
+ERF_HOME := ../../..
+include $(ERF_HOME)/Exec/Make.ERF
