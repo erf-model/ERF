@@ -9,10 +9,12 @@ When built, the full doxygen documentation for ERF can be found
 
 
 
-AMReX functions useful for Pele development
+AMReX functions useful for ERF development
 -------------------------------------------
 
-Pele is built on AMReX (available at `https://github.com/AMReX-Codes/amrex <https://github.com/AMReX-Codes/amrex>`_), an adaptive mesh refinement software framework, which provides the underlying software infrastructure for block structured AMR operations. Below is a quick reference list with links to many of the AMReX tools used to build up ERF. The full AMReX documentation can be found `here <https://amrex-codes.github.io/AMReXUsersGuide.pdf>`_. 
+ERF is built on AMReX (available at `https://github.com/AMReX-Codes/amrex <https://github.com/AMReX-Codes/amrex>`_), 
+an adaptive mesh refinement software framework, which provides the underlying software infrastructure for block structured AMR 
+operations. Below is a quick reference list with links to many of the AMReX tools used to build up ERF. The full AMReX documentation can be found `here <https://amrex-codes.github.io/AMReXUsersGuide.pdf>`_. 
 
 
 Solution environment
@@ -108,8 +110,6 @@ To add a new feature to ERF, the procedure is:
 4.  Submit a merge request through git@github.com:AMReX-Combustion/ERF.git - be sure you are requesting to merge your branch to the development branch.
 
 
-
-
 Building Regression Test Suite Locally
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -122,10 +122,10 @@ It is possibly---and desirable---to create the regression testing framework loca
 
      mkdir ~/REG_TEST_AREA; cd ~/REG_TEST_AREA
    
-2. Clone repositories (amrex, ERF, regression_testing (AMReX's driver scripts) and PeleRegressionTesting (Pele-specific stuff)) ::
+2. Clone repositories (amrex, ERF, regression_testing (AMReX's driver scripts) and ERFRegressionTesting (ERF-specific stuff)) ::
 
-     git clone git@github.com:AMReX-Combustion/PeleRegressionTesting.git
-     cd PeleRegressionTesting; git checkout development
+     git clone git@github.com:erf-model/ERFRegressionTesting.git
+     cd ERFRegressionTesting; git checkout development
      mkdir -p TestData/ERF  # this is where the test results will be written
      mkdir Repositories   # this is where the src code to be tested is put
      cd Repositories
@@ -136,7 +136,7 @@ It is possibly---and desirable---to create the regression testing framework loca
      export AMREX_REGTEST_HOME=`pwd`/regression_testing; git clone git@github.com:AMReX-Codes/regression_testing.git $AMREX_REGTEST_HOME
      cd ..
 
-3. Run the script to execute the tests to generate benchmarks. After it finishes building and running (12 as of March 2019) tests, it will archive the pltfiles that result from each into a folder in the TestData/ERF folder in the PeleRegressionTesting folder.  Once the benchmarks exist, any changes to the repositories in the PeleRegressionTesting/Repositories can be tested to diff clean against these benchmarks by running the script (again from within the PeleRegressionTesting folder) ::
+3. Run the script to execute the tests to generate benchmarks. After it finishes building and running (12 as of March 2019) tests, it will archive the pltfiles that result from each into a folder in the TestData/ERF folder in the ERFRegressionTesting folder.  Once the benchmarks exist, any changes to the repositories in the ERFRegressionTesting/Repositories can be tested to diff clean against these benchmarks by running the script (again from within the ERFRegressionTesting folder) ::
 
      ./Scripts/genbenchPC.sh
 
