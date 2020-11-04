@@ -238,74 +238,17 @@ ERF::getMOLSrcTerm(
          face-centered hyperbloic fluxes.
       */
       if (do_hydro && do_mol) {
-        // amrex::FArrayBox flatn(cbox, 1);
-        // amrex::Elixir flatn_eli;
-        // flatn_eli = flatn.elixir();
-        // flatn.setVal(1.0); // Set flattening to 1.0
 
-        // save off the diffusion source term and fluxes (don't want to filter
-        // these)
+        // save off the diffusion source term and fluxes 
         amrex::FArrayBox diffusion_flux[AMREX_SPACEDIM];
         amrex::Elixir diffusion_flux_eli[AMREX_SPACEDIM];
-        amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>
-          diffusion_flux_arr;
-        if (use_explicit_filter) {
-          for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-            diffusion_flux[dir].resize(flux_ec[dir].box(), NVAR);
-            diffusion_flux_eli[dir] = diffusion_flux[dir].elixir();
-            diffusion_flux_arr[dir] = diffusion_flux[dir].array();
-            copy_array4(
-              flux_ec[dir].box(), flux_ec[dir].nComp(), flx[dir],
-              diffusion_flux_arr[dir]);
-          }
-        }
+        amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM> diffusion_flux_arr;
 
         { // Get face-centered hyperbolic fluxes and their divergences.
           // Get hyp flux at EB wall
           BL_PROFILE("ERF::pc_hyp_mol_flux()");
           auto const& vol = volume.array(mfi);
           pc_compute_hyp_mol_flux(cbox, qar, flx, a, dx, plm_iorder);
-        }
-
-        // Filter hydro source term and fluxes here
-        if (use_explicit_filter) {
-          // Get the hydro term
-          amrex::FArrayBox hydro_flux[AMREX_SPACEDIM];
-          amrex::Elixir hydro_flux_eli[AMREX_SPACEDIM];
-          amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>
-            hydro_flux_arr;
-          for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-            hydro_flux[dir].resize(flux_ec[dir].box(), NVAR);
-            hydro_flux_eli[dir] = hydro_flux[dir].elixir();
-            hydro_flux_arr[dir] = hydro_flux[dir].array();
-            lincomb_array4(
-              flux_ec[dir].box(), Density, NVAR, flx[dir],
-              diffusion_flux_arr[dir], 1.0, -1.0, hydro_flux_arr[dir]);
-          }
-
-          // Filter
-          const amrex::Box fbox = amrex::grow(cbox, -nGrowF);
-          for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-            const amrex::Box& bxtmp = amrex::surroundingNodes(fbox, dir);
-            amrex::FArrayBox filtered_hydro_flux;
-            filtered_hydro_flux.resize(bxtmp, NVAR);
-            amrex::Elixir filtered_hydro_flux_eli =
-              filtered_hydro_flux.elixir();
-            les_filter.apply_filter(
-              bxtmp, hydro_flux[dir], filtered_hydro_flux, Density, NVAR);
-
-            setV(bxtmp, hydro_flux[dir].nComp(), hydro_flux_arr[dir], 0.0);
-            copy_array4(
-              bxtmp, hydro_flux[dir].nComp(), filtered_hydro_flux.array(),
-              hydro_flux_arr[dir]);
-          }
-
-          // Combine with diffusion
-          for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-            lincomb_array4(
-              diffusion_flux[dir].box(), Density, NVAR, diffusion_flux_arr[dir],
-              hydro_flux_arr[dir], 1.0, 1.0, flx[dir]);
-          }
         }
 
         // Compute flux divergence (1/Vol).Div(F.A)

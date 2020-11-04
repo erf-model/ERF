@@ -38,20 +38,20 @@ all: $(executable)
 	@echo SUCCESS
 
 # EOS
-EOS_HOME           = $(TOP)/SourceCpp/GammaLaw
+EOS_HOME           = $(TOP)/Source/GammaLaw
 EXTERN_CORE       += $(EOS_HOME)
 INCLUDE_LOCATIONS += $(EOS_HOME)
 VPATH_LOCATIONS   += $(EOS_HOME)
 Bpack             += $(EOS_HOME)/Make.package
 Blocs             += $(EOS_HOME)
 
-EXTERN_CORE       += $(TOP)/SourceCpp/Legacy
-INCLUDE_LOCATIONS += $(TOP)/SourceCpp/Legacy
-VPATH_LOCATIONS   += $(TOP)/SourceCpp/Legacy
-Bpack             += $(TOP)/SourceCpp/Legacy/Make.package
-Blocs             += $(TOP)/SourceCpp/Legacy
+EXTERN_CORE       += $(TOP)/Source/Legacy
+INCLUDE_LOCATIONS += $(TOP)/Source/Legacy
+VPATH_LOCATIONS   += $(TOP)/Source/Legacy
+Bpack             += $(TOP)/Source/Legacy/Make.package
+Blocs             += $(TOP)/Source/Legacy
 
-Bdirs := SourceCpp SourceCpp/GammaLaw SourceCpp/Params/param_includes
+Bdirs := Source Source/GammaLaw Source/Params/param_includes Source/RK3
 Pdirs := Base Amr Boundary AmrCore
 
 Bpack += $(foreach dir, $(Pdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)

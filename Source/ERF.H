@@ -13,7 +13,6 @@
 #include <AMReX_Lazy.H>
 #endif
 
-#include "Filter.H"
 #include "IndexDefines.H"
 
 using std::istream;
@@ -23,6 +22,12 @@ using std::ostream;
 
 enum StateType {
   State_Type = 0,
+  Vel_x,
+  Vel_y,
+  Vel_z,
+  State_x,
+  State_y,
+  State_z,
   Work_Estimate_Type
 };
 
@@ -517,16 +522,6 @@ protected:
   static int diffuse_vel;
   static amrex::Real diffuse_cutoff_density;
   static bool do_diffuse;
-
-  static int les_model;
-  static int les_filter_type;
-  static int les_filter_fgr;
-  Filter les_filter;
-  int nGrowF;
-  static int les_test_filter_type;
-  static int les_test_filter_fgr;
-  amrex::MultiFab LES_Coeffs;
-  amrex::MultiFab filtered_les_source;
 
 #ifdef ERF_USE_MASA
   static bool mms_initialized;

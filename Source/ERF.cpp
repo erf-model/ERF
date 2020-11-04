@@ -1385,63 +1385,6 @@ ERF::init_transport()
   transport_init();
 }
 
-void
-ERF::init_les()
-{
-  // Fill with default coefficient values
-  LES_Coeffs.define(grids, dmap, nCompC, 1);
-  LES_Coeffs.setVal(0.0);
-  LES_Coeffs.setVal(Cs * Cs, comp_Cs2, 1, LES_Coeffs.nGrow());
-  LES_Coeffs.setVal(CI, comp_CI, 1, LES_Coeffs.nGrow());
-  if (les_model == 1) {
-    LES_Coeffs.setVal(Cs * Cs * PrT, comp_Cs2ovPrT, 1, LES_Coeffs.nGrow());
-  } else {
-    LES_Coeffs.setVal(PrT, comp_PrT, 1, LES_Coeffs.nGrow());
-  }
-
-  amrex::Print() << "WARNING: LES with Fuego assumes Cp is a weak function of T"
-                 << std::endl;
-}
-
-void
-ERF::init_filters()
-{
-  if (level > 0) {
-    amrex::IntVect ref_ratio = parent->refRatio(level - 1);
-    les_filter =
-      Filter(les_filter_type, les_filter_fgr * std::pow(ref_ratio[0], level));
-  } else {
-    les_filter = Filter(les_filter_type, les_filter_fgr);
-  }
-
-  nGrowF = les_filter.get_filter_ngrow();
-
-  // Add grow cells necessary for explicit filtering of source terms
-  if (do_hydro) {
-    Sborder.define(
-      grids, dmap, NVAR, Sborder.nGrow() + nGrowF, amrex::MFInfo(), Factory());
-    hydro_source.define(
-      grids, dmap, NVAR, hydro_source.nGrow() + nGrowF, amrex::MFInfo(),
-      Factory());
-    sources_for_hydro.define(
-      grids, dmap, NVAR, sources_for_hydro.nGrow() + nGrowF, amrex::MFInfo(),
-      Factory());
-  }
-
-  volume.clear();
-  volume.define(
-    grids, dmap, 1, NUM_GROW + nGrowF, amrex::MFInfo(),
-    amrex::FArrayBoxFactory());
-  geom.GetVolume(volume);
-
-  for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-    area[dir].clear();
-    area[dir].define(
-      getEdgeBoxArray(dir), dmap, 1, NUM_GROW + nGrowF, amrex::MFInfo(),
-      amrex::FArrayBoxFactory());
-    geom.GetFaceArea(area[dir], dir);
-  }
-}
 #ifdef ERF_USE_MASA
 void
 ERF::init_mms()

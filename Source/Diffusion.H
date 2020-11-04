@@ -12,7 +12,6 @@
 #include "GradUtil.H"
 #include "Diffterm.H"
 #include "Transport.H"
-#include "MOL.H"
 
 /*This header file contains functions and declarations for the diffusion portion
   of ERF GPU. As per the convention of AMReX, inlined functions are defined

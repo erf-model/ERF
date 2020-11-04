@@ -1,13 +1,13 @@
 function(build_erf_exe erf_exe_name)
 
-  set(SRC_DIR ${CMAKE_SOURCE_DIR}/SourceCpp)
-  set(BIN_DIR ${CMAKE_BINARY_DIR}/SourceCpp/${erf_exe_name})
+  set(SRC_DIR ${CMAKE_SOURCE_DIR}/Source)
+  set(BIN_DIR ${CMAKE_BINARY_DIR}/Source/${erf_exe_name})
 
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
 
   add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/${erf_exe_name})
 
-  set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/SourceCpp/GammaLaw")
+  set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/Source/GammaLaw")
   target_sources(${erf_exe_name} PRIVATE
                  ${ERF_EOS_DIR}/EOS.H)
   target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${ERF_EOS_DIR})
@@ -31,28 +31,19 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/Diffusion.H
        ${SRC_DIR}/Diffusion.cpp
        ${SRC_DIR}/External.cpp
-       ${SRC_DIR}/Filter.H
-       ${SRC_DIR}/Filter.cpp
        ${SRC_DIR}/Forcing.H
        ${SRC_DIR}/Forcing.cpp
        ${SRC_DIR}/GradUtil.H
-       ${SRC_DIR}/Hydro.H
-       ${SRC_DIR}/Hydro.cpp
        ${SRC_DIR}/IndexDefines.H
        ${SRC_DIR}/IndexDefines.cpp
        ${SRC_DIR}/IO.H
        ${SRC_DIR}/IO.cpp
-       ${SRC_DIR}/LES.H
        ${SRC_DIR}/Transport.H
        ${SRC_DIR}/TransportParams.H
-       ${SRC_DIR}/LES.cpp
-       ${SRC_DIR}/MOL.H
-       ${SRC_DIR}/MOL.cpp
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/Problem.H
        ${SRC_DIR}/ProblemDerive.H
-       ${SRC_DIR}/Riemann.H
        ${SRC_DIR}/Setup.cpp
        ${SRC_DIR}/Sources.cpp
        ${SRC_DIR}/SumIQ.cpp
@@ -65,6 +56,11 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/Utilities.cpp
        ${SRC_DIR}/Transport.cpp
        ${SRC_DIR}/TransportParams.cpp
+       ${SRC_DIR}/RK3/conservedPrimitiveConversionsStag.cpp  
+       ${SRC_DIR}/RK3/ConvertStag.cpp  
+       ${SRC_DIR}/RK3/fluxStag.cpp  
+       ${SRC_DIR}/RK3/RK3.H
+       ${SRC_DIR}/RK3/timeStepStag.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")

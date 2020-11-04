@@ -259,6 +259,42 @@ ERF::variableSetUp()
 
   num_state_type = desc_lst.size();
 
+  // 
+  // Create face-based StateData for velocities on each face,
+  //     and for all conserved quantities as well
+  //     (unnecessary right now but convenient)
+  // 
+  store_in_checkpoint = true;
+  amrex::IndexType xface(amrex::IntVect(1,0,0));
+  desc_lst.addDescriptor(Vel_x, xface,
+                         amrex::StateDescriptor::Point, 1, 1,
+                         interp, state_data_extrap,
+                         store_in_checkpoint);
+  desc_lst.addDescriptor(State_x, xface,
+                         amrex::StateDescriptor::Point, 1, NVAR,
+                         interp, state_data_extrap,
+                         store_in_checkpoint);
+
+  amrex::IndexType yface(amrex::IntVect(0,1,0));
+  desc_lst.addDescriptor(Vel_y, yface,
+                         amrex::StateDescriptor::Point, 0, 1,
+                         interp, state_data_extrap,
+                         store_in_checkpoint);
+  desc_lst.addDescriptor(State_y, yface,
+                         amrex::StateDescriptor::Point, 0, NVAR,
+                         interp, state_data_extrap,
+                         store_in_checkpoint);
+
+  amrex::IndexType zface(amrex::IntVect(0,0,1));
+  desc_lst.addDescriptor(Vel_z, zface,
+                         amrex::StateDescriptor::Point, 0, 1,
+                         interp, state_data_extrap,
+                         store_in_checkpoint);
+  desc_lst.addDescriptor(State_z, zface,
+                         amrex::StateDescriptor::Point, 0, NVAR,
+                         interp, state_data_extrap,
+                         store_in_checkpoint);
+
   //
   // DEFINE DERIVED QUANTITIES
   //
