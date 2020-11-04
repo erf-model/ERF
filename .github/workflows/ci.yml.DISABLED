@@ -83,5 +83,5 @@ jobs:
       working-directory: ${{runner.workspace}}/build-ci
       run: ctest -j ${{env.NUM_PROCS}} -LE no-ci --output-on-failure
     - name: gnumake
-      working-directory: ./ExecCpp/RegTests/PMF
+      working-directory: ./Exec/RegTests/PMF
       run: make -j ${{env.NUM_PROCS}} COMP=${{matrix.comp}} USE_MPI=TRUE

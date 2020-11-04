@@ -78,7 +78,7 @@ message(STATUS "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 include(${CMAKE_SOURCE_DIR}/CMake/SetRpath.cmake)
 
 #Build erf executables and link to amrex library
-add_subdirectory(ExecCpp)
+add_subdirectory(Exec)
 
 if(ERF_ENABLE_TESTS)
   enable_testing()

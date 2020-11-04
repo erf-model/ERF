@@ -14,7 +14,7 @@ To build `ERF` and run a sample problem:
 1. One can have ERF use the default submodule for AMReX in its own repo by simply performing: ::
 
     git clone --recursive git@github.com:ERF-model.git
-    cd ERF/ExecCpp/RegTests/Sod
+    cd ERF/Exec/RegTests/Sod
     make
     ./ERF3d.xxx,yyy.ex inputs_ex
 
@@ -32,7 +32,7 @@ Alternatively, one can set environment variables to use AMReX repo from external
 
 3. Move to an example build folder, build an executable, run a test case: ::
 
-    cd ${ERF_HOME}/ExecCpp/RegTests/Sod
+    cd ${ERF_HOME}/Exec/RegTests/Sod
     make
     ./ERF3d.xxx,yyy.ex inputs_ex
 

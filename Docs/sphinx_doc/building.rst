@@ -23,7 +23,7 @@ Using the GNU Make build system involves first setting environment variables for
    export AMREX_HOME=${ERF_HOME}/Submodules/AMReX
 
 
-Then one edits the ``GNUMakefile`` in any of the examples in the ``ExecCpp`` directory and uses the ``make`` command to build the executable.
+Then one edits the ``GNUMakefile`` in any of the examples in the ``Exec`` directory and uses the ``make`` command to build the executable.
 
 CMake
 ~~~~~

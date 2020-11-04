@@ -41,4 +41,4 @@ endif
 Bpack := ./Make.package
 Blocs := .
 PELEC_HOME := ../../..
-include $(PELEC_HOME)/ExecCpp/Make.ERF
+include $(PELEC_HOME)/Exec/Make.ERF
