@@ -259,8 +259,6 @@ ERF::variableSetUp()
       amrex::StateDescriptor::BndryFunc(pc_nullfill));
   }
 
-  num_state_type = desc_lst.size();
-
   // 
   // Create face-based StateData for velocities on each face,
   //     and for all conserved quantities as well
@@ -296,6 +294,8 @@ ERF::variableSetUp()
                          amrex::StateDescriptor::Point, 1, NVAR,
                          interp, state_data_extrap,
                          store_in_checkpoint);
+
+  num_state_type = desc_lst.size();
 
   //
   // DEFINE DERIVED QUANTITIES
