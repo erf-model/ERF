@@ -363,9 +363,9 @@ void AverageCCToEdge(const MultiFab& cc_in, std::array<MultiFab, NUM_EDGE>& edge
         const Array4<Real> & edge_xz = edge_in[1].array(mfi);
         const Array4<Real> & edge_yz = edge_in[2].array(mfi);
 
-        const Box& bx_xy = mfi.tilebox(nodal_flag_xy,ng_vect);
-        const Box& bx_xz = mfi.tilebox(nodal_flag_xz,ng_vect);
-        const Box& bx_yz = mfi.tilebox(nodal_flag_yz,ng_vect);
+        const Box& bx_xy = mfi.tilebox(IntVect(1,1,0),ng_vect);
+        const Box& bx_xz = mfi.tilebox(IntVect(1,0,1),ng_vect);
+        const Box& bx_yz = mfi.tilebox(IntVect(0,1,1),ng_vect);
 
 
         amrex::ParallelFor(bx_xy, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept

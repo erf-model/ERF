@@ -9,7 +9,6 @@ pp.query("levmsk_notcovered", levmsk_notcovered);
 pp.query("levmsk_physbnd", levmsk_physbnd);
 pp.query("state_interp_order", state_interp_order);
 pp.query("lin_limit_state_interp", lin_limit_state_interp);
-pp.query("state_nghost", state_nghost);
 pp.query("do_reflux", do_reflux);
 pp.query("do_avg_down", do_avg_down);
 pp.query("load_balance_verbosity", load_balance_verbosity);

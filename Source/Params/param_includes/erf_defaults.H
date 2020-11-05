@@ -9,7 +9,6 @@ int ERF::levmsk_notcovered = 2;
 int ERF::levmsk_physbnd = 3;
 int ERF::state_interp_order = 1;
 int ERF::lin_limit_state_interp = 0;
-int ERF::state_nghost = 0;
 int ERF::do_reflux = 1;
 int ERF::do_avg_down = 1;
 int ERF::load_balance_verbosity = 0;

@@ -31,9 +31,9 @@ void calculateFluxStag(const MultiFab& cons_in,
         dx_gpu[n] = dx[n];
     }
     
-    AMREX_D_TERM(faceflux_in[0].setVal(0.0);,
-                 faceflux_in[1].setVal(0.0);,
-                 faceflux_in[2].setVal(0.0););
+    faceflux_in[0].setVal(0.0);
+    faceflux_in[1].setVal(0.0);
+    faceflux_in[2].setVal(0.0);
 
     edgeflux_x_in[0].setVal(0.0);
     edgeflux_x_in[1].setVal(0.0);
@@ -44,29 +44,29 @@ void calculateFluxStag(const MultiFab& cons_in,
     edgeflux_z_in[0].setVal(0.0);
     edgeflux_z_in[1].setVal(0.0);
 
-    AMREX_D_TERM(cenflux_in[0].setVal(0.0);,
-                 cenflux_in[1].setVal(0.0);,
-                 cenflux_in[2].setVal(0.0););
+    cenflux_in[0].setVal(0.0);
+    cenflux_in[1].setVal(0.0);
+    cenflux_in[2].setVal(0.0);
 
     int ngc = 1; 
 
     std::array< MultiFab, AMREX_SPACEDIM > tau_diag; // diagonal stress (defined at cell centers)
-    AMREX_D_TERM(tau_diag[0].define(cons_in.boxArray(),cons_in.DistributionMap(),1,ngc);,
-                 tau_diag[1].define(cons_in.boxArray(),cons_in.DistributionMap(),1,ngc);,
-                 tau_diag[2].define(cons_in.boxArray(),cons_in.DistributionMap(),1,ngc););
+    tau_diag[0].define(cons_in.boxArray(),cons_in.DistributionMap(),1,ngc);
+    tau_diag[1].define(cons_in.boxArray(),cons_in.DistributionMap(),1,ngc);
+    tau_diag[2].define(cons_in.boxArray(),cons_in.DistributionMap(),1,ngc);
 
     std::array< MultiFab, AMREX_SPACEDIM > tau_diagoff; // off diagonal stress at edges
-    tau_diagoff[0].define(convert(cons_in.boxArray(),nodal_flag_xy),cons_in.DistributionMap(),1,ngc);
-    tau_diagoff[1].define(convert(cons_in.boxArray(),nodal_flag_yz),cons_in.DistributionMap(),1,ngc);
-    tau_diagoff[2].define(convert(cons_in.boxArray(),nodal_flag_xz),cons_in.DistributionMap(),1,ngc);
+    tau_diagoff[0].define(convert(cons_in.boxArray(),IntVect(1,1,0)),cons_in.DistributionMap(),1,ngc);
+    tau_diagoff[1].define(convert(cons_in.boxArray(),IntVect(0,1,1)),cons_in.DistributionMap(),1,ngc);
+    tau_diagoff[2].define(convert(cons_in.boxArray(),IntVect(1,0,1)),cons_in.DistributionMap(),1,ngc);
 
-    AMREX_D_TERM(tau_diag[0].setVal(0.0);,
-                 tau_diag[1].setVal(0.0);,
-                 tau_diag[2].setVal(0.0););
+    tau_diag[0].setVal(0.0);
+    tau_diag[1].setVal(0.0);
+    tau_diag[2].setVal(0.0);
 
-    AMREX_D_TERM(tau_diagoff[0].setVal(0.0);,
-                 tau_diagoff[1].setVal(0.0);,
-                 tau_diagoff[2].setVal(0.0););
+    tau_diagoff[0].setVal(0.0);
+    tau_diagoff[1].setVal(0.0);
+    tau_diagoff[2].setVal(0.0);
 
     ////////////////////
     // diffusive fluxes
@@ -75,9 +75,13 @@ void calculateFluxStag(const MultiFab& cons_in,
     // Loop over boxes
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
 
-        AMREX_D_TERM(const Array4<Real>& xflux = faceflux_in[0].array(mfi); ,
-                     const Array4<Real>& yflux = faceflux_in[1].array(mfi); ,
-                     const Array4<Real>& zflux = faceflux_in[2].array(mfi));
+        const Box & bx_xy = mfi.tilebox(IntVect(1,1,0));
+        const Box & bx_xz = mfi.tilebox(IntVect(1,0,1));
+        const Box & bx_yz = mfi.tilebox(IntVect(0,1,1));
+
+        const Array4<Real>& xflux = faceflux_in[0].array(mfi);
+        const Array4<Real>& yflux = faceflux_in[1].array(mfi);
+        const Array4<Real>& zflux = faceflux_in[2].array(mfi);
 
         const Array4<Real>& edgex_v = edgeflux_x_in[0].array(mfi);
         const Array4<Real>& edgex_w = edgeflux_x_in[1].array(mfi);
@@ -94,17 +98,17 @@ void calculateFluxStag(const MultiFab& cons_in,
         const Array4<Real> tauyy = tau_diag[1].array(mfi);
         const Array4<Real> tauzz = tau_diag[2].array(mfi);
 
-        AMREX_D_TERM(const Array4<Real> tauxy = tau_diagoff[0].array(mfi);,
-                     const Array4<Real> tauyz = tau_diagoff[1].array(mfi);,
-                     const Array4<Real> tauxz = tau_diagoff[2].array(mfi););
+        const Array4<Real> tauxy = tau_diagoff[0].array(mfi);
+        const Array4<Real> tauyz = tau_diagoff[1].array(mfi);
+        const Array4<Real> tauxz = tau_diagoff[2].array(mfi);
 
-        AMREX_D_TERM(Array4<Real const> const& momx = cu_x.array(mfi);,
-                     Array4<Real const> const& momy = cu_y.array(mfi);,
-                     Array4<Real const> const& momz = cu_z.array(mfi););
+        Array4<Real const> const& momx = cu_x.array(mfi);
+        Array4<Real const> const& momy = cu_y.array(mfi);
+        Array4<Real const> const& momz = cu_z.array(mfi);
 
-        AMREX_D_TERM(Array4<Real const> const& velx = u_x.array(mfi);,
-                     Array4<Real const> const& vely = v_y.array(mfi);,
-                     Array4<Real const> const& velz = w_z.array(mfi););
+        Array4<Real const> const& velx = u_x.array(mfi);
+        Array4<Real const> const& vely = v_y.array(mfi);
+        Array4<Real const> const& velz = w_z.array(mfi);
 
         const Array4<const Real> prim = prim_in.array(mfi);
         const Array4<const Real> cons = cons_in.array(mfi);
@@ -119,12 +123,6 @@ void calculateFluxStag(const MultiFab& cons_in,
 
         IntVect nd(AMREX_D_DECL(1,1,1));
         const Box& tbn = mfi.tilebox(nd);
-
-        const Box & bx_xy = mfi.tilebox(nodal_flag_xy);
-        #if (AMREX_SPACEDIM == 3)
-        const Box & bx_xz = mfi.tilebox(nodal_flag_xz);
-        const Box & bx_yz = mfi.tilebox(nodal_flag_yz);
-        #endif
 
         const Box& bx = mfi.tilebox();
 
@@ -243,11 +241,15 @@ void calculateFluxStag(const MultiFab& cons_in,
     Real wgt1 = 0.5 + wgt2;
 
     // Loop over boxes
-    for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) 
+    {
+        const Box & bx_xy = mfi.tilebox(IntVect(1,1,0));
+        const Box & bx_xz = mfi.tilebox(IntVect(1,0,1));
+        const Box & bx_yz = mfi.tilebox(IntVect(0,1,1));
 
-        AMREX_D_TERM(const Array4<Real>& xflux = faceflux_in[0].array(mfi); ,
-                     const Array4<Real>& yflux = faceflux_in[1].array(mfi); ,
-                     const Array4<Real>& zflux = faceflux_in[2].array(mfi));
+        const Array4<Real>& xflux = faceflux_in[0].array(mfi);
+        const Array4<Real>& yflux = faceflux_in[1].array(mfi);
+        const Array4<Real>& zflux = faceflux_in[2].array(mfi);
 
         const Array4<Real>& edgex_v = edgeflux_x_in[0].array(mfi);
         const Array4<Real>& edgex_w = edgeflux_x_in[1].array(mfi);
@@ -260,13 +262,13 @@ void calculateFluxStag(const MultiFab& cons_in,
         const Array4<Real>& ceny_v = cenflux_in[1].array(mfi);
         const Array4<Real>& cenz_w = cenflux_in[2].array(mfi);
 
-        AMREX_D_TERM(Array4<Real const> const& momx = cu_x.array(mfi);,
-                     Array4<Real const> const& momy = cu_y.array(mfi);,
-                     Array4<Real const> const& momz = cu_z.array(mfi););
+        Array4<Real const> const& momx = cu_x.array(mfi);
+        Array4<Real const> const& momy = cu_y.array(mfi);
+        Array4<Real const> const& momz = cu_z.array(mfi);
 
-        AMREX_D_TERM(Array4<Real const> const& velx = u_x.array(mfi);,
-                     Array4<Real const> const& vely = v_y.array(mfi);,
-                     Array4<Real const> const& velz = w_z.array(mfi););
+        Array4<Real const> const& velx = u_x.array(mfi);
+        Array4<Real const> const& vely = v_y.array(mfi);
+        Array4<Real const> const& velz = w_z.array(mfi);
 
         const Array4<const Real> prim = prim_in.array(mfi);
         const Array4<const Real> cons = cons_in.array(mfi);
@@ -274,12 +276,6 @@ void calculateFluxStag(const MultiFab& cons_in,
         const Box& tbx = mfi.nodaltilebox(0);
         const Box& tby = mfi.nodaltilebox(1);
         const Box& tbz = mfi.nodaltilebox(2);
-
-        const Box & bx_xy = mfi.tilebox(nodal_flag_xy);
-        #if (AMREX_SPACEDIM == 3)
-        const Box & bx_xz = mfi.tilebox(nodal_flag_xz);
-        const Box & bx_yz = mfi.tilebox(nodal_flag_yz);
-        #endif
 
         const Box& bx = mfi.tilebox();
 

@@ -4,6 +4,7 @@
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_VisMF.H>
 
+#include <ERF.H>
 #include <RK3.H>
 
 using namespace amrex;
@@ -35,13 +36,15 @@ void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
     cup.setVal(rho0,0,1,ngc);
     cup2.setVal(rho0,0,1,ngc);
 
-    MultiFab cupmom_x(convert(cu.boxArray(),nodal_flag_dir[0]), cu.DistributionMap(), 1, 1);
-    MultiFab cupmom_y(convert(cu.boxArray(),nodal_flag_dir[1]), cu.DistributionMap(), 1, 1);
-    MultiFab cupmom_z(convert(cu.boxArray(),nodal_flag_dir[2]), cu.DistributionMap(), 1, 1);
+    amrex::Print() << "cu.boxArray() "  << cu.boxArray()  << std::endl;
 
-    MultiFab cup2mom_x(convert(cu.boxArray(),nodal_flag_dir[0]), cu.DistributionMap(), 1, 1);
-    MultiFab cup2mom_y(convert(cu.boxArray(),nodal_flag_dir[1]), cu.DistributionMap(), 1, 1);
-    MultiFab cup2mom_z(convert(cu.boxArray(),nodal_flag_dir[2]), cu.DistributionMap(), 1, 1);
+    MultiFab cupmom_x(convert(cu.boxArray(),IntVect(1,0,0)), cu.DistributionMap(), 1, 1);
+    MultiFab cupmom_y(convert(cu.boxArray(),IntVect(0,1,0)), cu.DistributionMap(), 1, 1);
+    MultiFab cupmom_z(convert(cu.boxArray(),IntVect(0,0,1)), cu.DistributionMap(), 1, 1);
+
+    MultiFab cup2mom_x(convert(cu.boxArray(),IntVect(1,0,0)), cu.DistributionMap(), 1, 1);
+    MultiFab cup2mom_y(convert(cu.boxArray(),IntVect(0,1,0)), cu.DistributionMap(), 1, 1);
+    MultiFab cup2mom_z(convert(cu.boxArray(),IntVect(0,0,1)), cu.DistributionMap(), 1, 1);
 
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
     
@@ -114,7 +117,7 @@ void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            mompx(i,j,k) = momx(i,j,k) 
+            mompx(i,j,k) = momx(i,j,k)
                     -dt*(cenx_u(i,j,k) - cenx_u(i-1,j,k))/dx[0]
                     -dt*(edgey_u(i,j+1,k) - edgey_u(i,j,k))/dx[1]
                     -dt*(edgez_u(i,j,k+1) - edgez_u(i,j,k))/dx[2]

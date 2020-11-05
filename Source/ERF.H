@@ -43,19 +43,6 @@ enum sources {
   num_src
 };
 
-static amrex::IntVect nodal_flag;
-
-static amrex::IntVect nodal_flag_x;
-static amrex::IntVect nodal_flag_y;
-static amrex::IntVect nodal_flag_z;
-
-static amrex::IntVect nodal_flag_xy;
-static amrex::IntVect nodal_flag_xz;
-static amrex::IntVect nodal_flag_yz;
-
-static amrex::Vector<amrex::IntVect> nodal_flag_dir;
-static amrex::Vector<amrex::IntVect> nodal_flag_edge;
-
 static amrex::Box
 the_same_box(const amrex::Box& b)
 {
@@ -464,8 +451,6 @@ protected:
   static void clear_prob();
 
   static void read_params();
-
-  static void init_nodal_flags();
 
   static void read_tagging_params();
 

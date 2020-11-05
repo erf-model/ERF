@@ -9,7 +9,6 @@ static int levmsk_notcovered;
 static int levmsk_physbnd;
 static int state_interp_order;
 static int lin_limit_state_interp;
-static int state_nghost;
 static int do_reflux;
 static int do_avg_down;
 static int load_balance_verbosity;

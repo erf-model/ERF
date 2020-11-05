@@ -107,8 +107,6 @@ ERF::variableSetUp()
   // Get options, set phys_bc
   read_params();
 
-  init_nodal_flags();
-
   init_transport();
 
   indxmap::init();
@@ -193,8 +191,7 @@ ERF::variableSetUp()
   bool state_data_extrap = false;
   bool store_in_checkpoint;
 
-  int ngrow_state = state_nghost;
-  AMREX_ASSERT(ngrow_state >= 0);
+  int ngrow_state = 2;
 
   store_in_checkpoint = true;
   desc_lst.addDescriptor(
@@ -485,51 +482,4 @@ ERF::set_active_sources()
     src_list.push_back(mms_src);
   }
 #endif
-}
-
-void
-ERF::init_nodal_flags()
-{
-    nodal_flag_dir.resize(AMREX_SPACEDIM);
-    nodal_flag_edge.resize(AMREX_SPACEDIM);
-
-    for (int d=0; d<AMREX_SPACEDIM; d++)
-    {
-        nodal_flag[d] = 1;
-
-        // Designates data on faces
-        nodal_flag_x[d] = int(d==0);
-        nodal_flag_y[d] = int(d==1);
-        nodal_flag_z[d] = int(d==2);
-
-        // Enable indexing flags above in loops
-        nodal_flag_dir[0][d] = nodal_flag_x[d];
-        nodal_flag_dir[1][d] = nodal_flag_y[d];
-        nodal_flag_dir[2][d] = nodal_flag_z[d];
-    }
-
-    for (int i=0; i<AMREX_SPACEDIM; ++i) {
-
-        //_______________________________________________________________________
-        // Designates data on faces
-        nodal_flag_x[i] = int(i==0);
-        nodal_flag_y[i] = int(i==1);
-        nodal_flag_z[i] = int(i==2);
-
-        // Enable indexing flags above in loops
-        AMREX_D_TERM(nodal_flag_dir[0][i] = nodal_flag_x[i];,
-                     nodal_flag_dir[1][i] = nodal_flag_y[i];,
-                     nodal_flag_dir[2][i] = nodal_flag_z[i];);
-
-        //_______________________________________________________________________
-        // Designates data on edges
-        nodal_flag_xy[i] = int(i==0 || i==1);
-        nodal_flag_xz[i] = int(i==0 || i==2);
-        nodal_flag_yz[i] = int(i==1 || i==2);
-
-        // Enable indexing flags above in loops
-        AMREX_D_TERM(nodal_flag_edge[0][i] = nodal_flag_xy[i];,
-                     nodal_flag_edge[1][i] = nodal_flag_xz[i];,
-                     nodal_flag_edge[2][i] = nodal_flag_yz[i];);
-    }
 }

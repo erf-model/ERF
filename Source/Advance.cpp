@@ -62,7 +62,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   int nvars = S_old.nComp();
 
   // Temporary MultiFab to hold the primitive variables
-  MultiFab prim(ba,dm,nvars,1); 
+  MultiFab prim(ba,dm,nvars,2); 
 
   // Place-holder for source array -- for now just set to 0
   MultiFab source(ba,dm,nvars,1); 
@@ -82,22 +82,22 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
 
   //fluxes (except momentum) at faces
   std::array< MultiFab, AMREX_SPACEDIM > faceflux;
-  faceflux[0].define(convert(ba,nodal_flag_x), dmap, nvars, 0);
-  faceflux[1].define(convert(ba,nodal_flag_y), dmap, nvars, 0);
-  faceflux[2].define(convert(ba,nodal_flag_z), dmap, nvars, 0);
+  faceflux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
+  faceflux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
+  faceflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
 
   std::array< MultiFab, 2 > edgeflux_x; // v, w
   std::array< MultiFab, 2 > edgeflux_y; // u, w
   std::array< MultiFab, 2 > edgeflux_z; // u, v
 
-  edgeflux_x[0].define(convert(ba,nodal_flag_xy), dmap, 1, 0);
-  edgeflux_x[1].define(convert(ba,nodal_flag_xz), dmap, 1, 0);
+  edgeflux_x[0].define(convert(ba,IntVect(1,1,0)), dmap, 1, 0); // v
+  edgeflux_x[1].define(convert(ba,IntVect(1,0,1)), dmap, 1, 0); // w
 
-  edgeflux_y[0].define(convert(ba,nodal_flag_xy), dmap, 1, 0);
-  edgeflux_y[1].define(convert(ba,nodal_flag_yz), dmap, 1, 0);
+  edgeflux_y[0].define(convert(ba,IntVect(1,1,0)), dmap, 1, 0); // u
+  edgeflux_y[1].define(convert(ba,IntVect(0,1,1)), dmap, 1, 0); // w
 
-  edgeflux_z[0].define(convert(ba,nodal_flag_xz), dmap, 1, 0);
-  edgeflux_z[1].define(convert(ba,nodal_flag_yz), dmap, 1, 0);
+  edgeflux_z[0].define(convert(ba,IntVect(1,0,1)), dmap, 1, 0); // u
+  edgeflux_z[1].define(convert(ba,IntVect(0,1,1)), dmap, 1, 0); // v
 
   std::array< MultiFab, AMREX_SPACEDIM > cenflux;
   cenflux[0].define(ba,dmap,1,1); // 0-2: rhoU, rhoV, rhoW
