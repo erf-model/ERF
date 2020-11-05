@@ -22,12 +22,12 @@ using std::ostream;
 
 enum StateType {
   State_Type = 0,
-  Vel_x,
-  Vel_y,
-  Vel_z,
-  State_x,
-  State_y,
-  State_z,
+  X_Vel_Type,
+  Y_Vel_Type,
+  Z_Vel_Type,
+  X_State_Type,
+  Y_State_Type,
+  Z_State_Type,
   Work_Estimate_Type
 };
 
@@ -37,12 +37,24 @@ enum sources {
   ext_src = 0,
   forcing_src,
   diff_src,
-  les_src,
 #ifdef ERF_USE_MASA
   mms_src,
 #endif
   num_src
 };
+
+static amrex::IntVect nodal_flag;
+
+static amrex::IntVect nodal_flag_x;
+static amrex::IntVect nodal_flag_y;
+static amrex::IntVect nodal_flag_z;
+
+static amrex::IntVect nodal_flag_xy;
+static amrex::IntVect nodal_flag_xz;
+static amrex::IntVect nodal_flag_yz;
+
+static amrex::Vector<amrex::IntVect> nodal_flag_dir;
+static amrex::Vector<amrex::IntVect> nodal_flag_edge;
 
 static amrex::Box
 the_same_box(const amrex::Box& b)
@@ -254,12 +266,6 @@ public:
     amrex::MultiFab& LESTerm,
     amrex::Real flux_factor);
 
-  void construct_old_les_source(
-    amrex::Real time, amrex::Real dt, int sub_iteration, int sub_ncycle);
-
-  void construct_new_les_source(
-    amrex::Real time, amrex::Real dt, int sub_iteration, int sub_ncycle);
-
   static void set_active_sources();
 
   //
@@ -458,6 +464,8 @@ protected:
   static void clear_prob();
 
   static void read_params();
+
+  static void init_nodal_flags();
 
   static void read_tagging_params();
 

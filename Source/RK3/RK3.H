@@ -4,16 +4,19 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
+#include <ERF.H>
 
 using namespace amrex;
 
-void conservedToPrimitiveStag(MultiFab& prim_in, std::array<MultiFab, AMREX_SPACEDIM>& velStag_in,
-                              MultiFab& cons_in, const std::array<MultiFab, AMREX_SPACEDIM>& momStag_in);
+void conservedToPrimitiveStag(MultiFab& prim_in, 
+                              MultiFab& u_x, MultiFab& v_y, MultiFab& w_z,
+                              MultiFab& cons_in,
+                              MultiFab& cu_x, MultiFab& cu_y, MultiFab& cu_z);
 
-void RK3stepStag(MultiFab& cu, 
-                 std::array< MultiFab, AMREX_SPACEDIM >& cumom,
+void RK3_advance(MultiFab& cu, MultiFab& cu_new, 
+                 MultiFab& cu_x, MultiFab& cu_y, MultiFab& cu_z, 
                  MultiFab& prim, 
-                 std::array< MultiFab, AMREX_SPACEDIM >& facevel,
+                 MultiFab&  u_x, MultiFab&  v_y, MultiFab&  w_z, 
                  MultiFab& source,
                  MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
@@ -23,8 +26,10 @@ void RK3stepStag(MultiFab& cu,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt);
 
-void calculateFluxStag(const MultiFab& cons_in, const std::array< MultiFab, AMREX_SPACEDIM >& momStag_in, 
-                       const MultiFab& prim_in, const std::array< MultiFab, AMREX_SPACEDIM >& velStag_in,
+void calculateFluxStag(const MultiFab& cons_in, 
+                       const MultiFab& cons_x, const MultiFab& cons_y, const MultiFab& cons_z, 
+                       const MultiFab& prim_in, 
+                       const MultiFab& u_x, const MultiFab& v_y, const MultiFab& w_z, 
                        const MultiFab& eta_in, const MultiFab& zeta_in, const MultiFab& kappa_in,
                        std::array<MultiFab, AMREX_SPACEDIM>& faceflux_in,
                        std::array< MultiFab, 2 >& edgeflux_x_in,
@@ -33,7 +38,6 @@ void calculateFluxStag(const MultiFab& cons_in, const std::array< MultiFab, AMRE
                        std::array< MultiFab, AMREX_SPACEDIM>& cenflux_in,
                        const amrex::Geometry geom,
                        const amrex::Real* dx, const amrex::Real dt);
-
 
 void conservedToPrimitive(MultiFab& prim_in, const MultiFab& cons_in);
 

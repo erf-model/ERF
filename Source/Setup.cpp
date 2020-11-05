@@ -107,6 +107,8 @@ ERF::variableSetUp()
   // Get options, set phys_bc
   read_params();
 
+  init_nodal_flags();
+
   init_transport();
 
   indxmap::init();
@@ -266,32 +268,32 @@ ERF::variableSetUp()
   // 
   store_in_checkpoint = true;
   amrex::IndexType xface(amrex::IntVect(1,0,0));
-  desc_lst.addDescriptor(Vel_x, xface,
+  desc_lst.addDescriptor(X_Vel_Type, xface,
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
-  desc_lst.addDescriptor(State_x, xface,
+  desc_lst.addDescriptor(X_State_Type, xface,
                          amrex::StateDescriptor::Point, 1, NVAR,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
   amrex::IndexType yface(amrex::IntVect(0,1,0));
-  desc_lst.addDescriptor(Vel_y, yface,
-                         amrex::StateDescriptor::Point, 0, 1,
+  desc_lst.addDescriptor(Y_Vel_Type, yface,
+                         amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
-  desc_lst.addDescriptor(State_y, yface,
-                         amrex::StateDescriptor::Point, 0, NVAR,
+  desc_lst.addDescriptor(Y_State_Type, yface,
+                         amrex::StateDescriptor::Point, 1, NVAR,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
   amrex::IndexType zface(amrex::IntVect(0,0,1));
-  desc_lst.addDescriptor(Vel_z, zface,
-                         amrex::StateDescriptor::Point, 0, 1,
+  desc_lst.addDescriptor(Z_Vel_Type, zface,
+                         amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
-  desc_lst.addDescriptor(State_z, zface,
-                         amrex::StateDescriptor::Point, 0, NVAR,
+  desc_lst.addDescriptor(Z_State_Type, zface,
+                         amrex::StateDescriptor::Point, 1, NVAR,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
@@ -477,15 +479,57 @@ ERF::set_active_sources()
     src_list.push_back(forcing_src);
   }
 
-  // optional LES source
-  if (do_les) {
-    src_list.push_back(les_src);
-  }
-
 #ifdef ERF_USE_MASA
   // optional MMS source
   if (do_mms) {
     src_list.push_back(mms_src);
   }
 #endif
+}
+
+void
+ERF::init_nodal_flags()
+{
+    nodal_flag_dir.resize(AMREX_SPACEDIM);
+    nodal_flag_edge.resize(AMREX_SPACEDIM);
+
+    for (int d=0; d<AMREX_SPACEDIM; d++)
+    {
+        nodal_flag[d] = 1;
+
+        // Designates data on faces
+        nodal_flag_x[d] = int(d==0);
+        nodal_flag_y[d] = int(d==1);
+        nodal_flag_z[d] = int(d==2);
+
+        // Enable indexing flags above in loops
+        nodal_flag_dir[0][d] = nodal_flag_x[d];
+        nodal_flag_dir[1][d] = nodal_flag_y[d];
+        nodal_flag_dir[2][d] = nodal_flag_z[d];
+    }
+
+    for (int i=0; i<AMREX_SPACEDIM; ++i) {
+
+        //_______________________________________________________________________
+        // Designates data on faces
+        nodal_flag_x[i] = int(i==0);
+        nodal_flag_y[i] = int(i==1);
+        nodal_flag_z[i] = int(i==2);
+
+        // Enable indexing flags above in loops
+        AMREX_D_TERM(nodal_flag_dir[0][i] = nodal_flag_x[i];,
+                     nodal_flag_dir[1][i] = nodal_flag_y[i];,
+                     nodal_flag_dir[2][i] = nodal_flag_z[i];);
+
+        //_______________________________________________________________________
+        // Designates data on edges
+        nodal_flag_xy[i] = int(i==0 || i==1);
+        nodal_flag_xz[i] = int(i==0 || i==2);
+        nodal_flag_yz[i] = int(i==1 || i==2);
+
+        // Enable indexing flags above in loops
+        AMREX_D_TERM(nodal_flag_edge[0][i] = nodal_flag_xy[i];,
+                     nodal_flag_edge[1][i] = nodal_flag_xz[i];,
+                     nodal_flag_edge[2][i] = nodal_flag_yz[i];);
+    }
 }

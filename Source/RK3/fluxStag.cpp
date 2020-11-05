@@ -7,8 +7,10 @@
 
 using namespace amrex;
 
-void calculateFluxStag(const MultiFab& cons_in, const std::array< MultiFab, AMREX_SPACEDIM >& cumom_in, 
-                       const MultiFab& prim_in, const std::array< MultiFab, AMREX_SPACEDIM >& vel_in,
+void calculateFluxStag(const MultiFab& cons_in, 
+                       const MultiFab& cu_x, const MultiFab& cu_y, const MultiFab& cu_z, 
+                       const MultiFab& prim_in, 
+                       const MultiFab& u_x, const MultiFab& v_y, const MultiFab& w_z, 
                        const MultiFab& eta_in, const MultiFab& zeta_in, const MultiFab& kappa_in,
                        std::array<MultiFab, AMREX_SPACEDIM>& faceflux_in,
                        std::array< MultiFab, 2 >& edgeflux_x_in,
@@ -24,48 +26,6 @@ void calculateFluxStag(const MultiFab& cons_in, const std::array< MultiFab, AMRE
     int nprimvars_gpu = prim_in.nComp();
     int visc_type_gpu = 3;  // Include bulk viscosity
 
-    amrex::IntVect nodal_flag;
-    amrex::IntVect nodal_flag_x;
-    amrex::IntVect nodal_flag_y;
-    amrex::IntVect nodal_flag_z;
-    amrex::IntVect nodal_flag_xy;
-    amrex::IntVect nodal_flag_yz;
-    amrex::IntVect nodal_flag_xz;
-    amrex::Vector<amrex::IntVect> nodal_flag_dir;
-    amrex::Vector<amrex::IntVect> nodal_flag_edge;
-
-    nodal_flag_dir.resize(AMREX_SPACEDIM);
-    nodal_flag_edge.resize(AMREX_SPACEDIM);
-
-    for (int i=0; i<AMREX_SPACEDIM; ++i) {
-
-        //_______________________________________________________________________
-        // Designates data on nodes
-        nodal_flag[i] = 1;
-
-        //_______________________________________________________________________
-        // Designates data on faces
-        nodal_flag_x[i] = int(i==0);
-        nodal_flag_y[i] = int(i==1);
-        nodal_flag_z[i] = int(i==2);
-
-        // Enable indexing flags above in loops
-        AMREX_D_TERM(nodal_flag_dir[0][i] = nodal_flag_x[i];,
-                     nodal_flag_dir[1][i] = nodal_flag_y[i];,
-                     nodal_flag_dir[2][i] = nodal_flag_z[i];);
-
-        //_______________________________________________________________________
-        // Designates data on edges
-        nodal_flag_xy[i] = int(i==0 || i==1);
-        nodal_flag_xz[i] = int(i==0 || i==2);
-        nodal_flag_yz[i] = int(i==1 || i==2);
-
-        // Enable indexing flags above in loops
-        AMREX_D_TERM(nodal_flag_edge[0][i] = nodal_flag_xy[i];,
-                     nodal_flag_edge[1][i] = nodal_flag_xz[i];,
-                     nodal_flag_edge[2][i] = nodal_flag_yz[i];);
-    }
-    
     GpuArray<Real,AMREX_SPACEDIM> dx_gpu;
     for (int n=0; n<AMREX_SPACEDIM; ++n) {
         dx_gpu[n] = dx[n];
@@ -138,13 +98,13 @@ void calculateFluxStag(const MultiFab& cons_in, const std::array< MultiFab, AMRE
                      const Array4<Real> tauyz = tau_diagoff[1].array(mfi);,
                      const Array4<Real> tauxz = tau_diagoff[2].array(mfi););
 
-        AMREX_D_TERM(Array4<Real const> const& momx = cumom_in[0].array(mfi);,
-                     Array4<Real const> const& momy = cumom_in[1].array(mfi);,
-                     Array4<Real const> const& momz = cumom_in[2].array(mfi););
+        AMREX_D_TERM(Array4<Real const> const& momx = cu_x.array(mfi);,
+                     Array4<Real const> const& momy = cu_y.array(mfi);,
+                     Array4<Real const> const& momz = cu_z.array(mfi););
 
-        AMREX_D_TERM(Array4<Real const> const& velx = vel_in[0].array(mfi);,
-                     Array4<Real const> const& vely = vel_in[1].array(mfi);,
-                     Array4<Real const> const& velz = vel_in[2].array(mfi););
+        AMREX_D_TERM(Array4<Real const> const& velx = u_x.array(mfi);,
+                     Array4<Real const> const& vely = v_y.array(mfi);,
+                     Array4<Real const> const& velz = w_z.array(mfi););
 
         const Array4<const Real> prim = prim_in.array(mfi);
         const Array4<const Real> cons = cons_in.array(mfi);
@@ -300,13 +260,13 @@ void calculateFluxStag(const MultiFab& cons_in, const std::array< MultiFab, AMRE
         const Array4<Real>& ceny_v = cenflux_in[1].array(mfi);
         const Array4<Real>& cenz_w = cenflux_in[2].array(mfi);
 
-        AMREX_D_TERM(Array4<Real const> const& momx = cumom_in[0].array(mfi);,
-                     Array4<Real const> const& momy = cumom_in[1].array(mfi);,
-                     Array4<Real const> const& momz = cumom_in[2].array(mfi););
+        AMREX_D_TERM(Array4<Real const> const& momx = cu_x.array(mfi);,
+                     Array4<Real const> const& momy = cu_y.array(mfi);,
+                     Array4<Real const> const& momz = cu_z.array(mfi););
 
-        AMREX_D_TERM(Array4<Real const> const& velx = vel_in[0].array(mfi);,
-                     Array4<Real const> const& vely = vel_in[1].array(mfi);,
-                     Array4<Real const> const& velz = vel_in[2].array(mfi););
+        AMREX_D_TERM(Array4<Real const> const& velx = u_x.array(mfi);,
+                     Array4<Real const> const& vely = v_y.array(mfi);,
+                     Array4<Real const> const& velz = w_z.array(mfi););
 
         const Array4<const Real> prim = prim_in.array(mfi);
         const Array4<const Real> cons = cons_in.array(mfi);

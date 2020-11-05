@@ -19,10 +19,6 @@ ERF::construct_old_source(
     construct_old_ext_source(time, dt);
     break;
 
-  case les_src:
-    construct_old_les_source(time, dt, sub_iteration, sub_ncycle);
-    break;
-
   case forcing_src:
     construct_old_forcing_source(time, dt);
     break;
@@ -51,10 +47,6 @@ ERF::construct_new_source(
 
   case ext_src:
     construct_new_ext_source(time, dt);
-    break;
-
-  case les_src:
-    construct_new_les_source(time, dt, sub_iteration, sub_ncycle);
     break;
 
   case forcing_src:

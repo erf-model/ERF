@@ -8,9 +8,10 @@
 
 using namespace amrex;
 
-void RK3stepStag(MultiFab& cu, 
-                 std::array< MultiFab, AMREX_SPACEDIM >& cumom,
-                 MultiFab& prim, std::array< MultiFab, AMREX_SPACEDIM >& vel,
+void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
+                 MultiFab& cu_x, MultiFab& cu_y, MultiFab& cu_z, 
+                 MultiFab& prim, 
+                 MultiFab&  u_x, MultiFab&  v_y, MultiFab& w_z, 
                  MultiFab& source,
                  MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
@@ -34,51 +35,24 @@ void RK3stepStag(MultiFab& cu,
     cup.setVal(rho0,0,1,ngc);
     cup2.setVal(rho0,0,1,ngc);
 
-    Vector<amrex::IntVect> nodal_flag_dir;
-    nodal_flag_dir.resize(AMREX_SPACEDIM);
+    MultiFab cupmom_x(convert(cu.boxArray(),nodal_flag_dir[0]), cu.DistributionMap(), 1, 1);
+    MultiFab cupmom_y(convert(cu.boxArray(),nodal_flag_dir[1]), cu.DistributionMap(), 1, 1);
+    MultiFab cupmom_z(convert(cu.boxArray(),nodal_flag_dir[2]), cu.DistributionMap(), 1, 1);
 
-    IntVect nodal_flag_x;
-    IntVect nodal_flag_y;
-    IntVect nodal_flag_z;
-
-    std::array< MultiFab, AMREX_SPACEDIM > cupmom;
-    std::array< MultiFab, AMREX_SPACEDIM > cup2mom;
-    for (int d=0; d<AMREX_SPACEDIM; d++) 
-    {
-        // Designates data on faces
-        nodal_flag_x[d] = int(d==0);
-        nodal_flag_y[d] = int(d==1);
-        nodal_flag_z[d] = int(d==2);
-
-        // Enable indexing flags above in loops
-        nodal_flag_dir[0][d] = nodal_flag_x[d];
-        nodal_flag_dir[1][d] = nodal_flag_y[d];
-        nodal_flag_dir[2][d] = nodal_flag_z[d];
-    }
-
-    for (int d=0; d<AMREX_SPACEDIM; d++) 
-    {
-        cupmom[d].define(convert(cu.boxArray(),nodal_flag_dir[d]), cu.DistributionMap(), 1, 1);
-        cupmom[d].setVal(0.);
-        cup2mom[d].define(convert(cu.boxArray(),nodal_flag_dir[d]), cu.DistributionMap(), 1, 1);
-        cup2mom[d].setVal(0.);
-    }
+    MultiFab cup2mom_x(convert(cu.boxArray(),nodal_flag_dir[0]), cu.DistributionMap(), 1, 1);
+    MultiFab cup2mom_y(convert(cu.boxArray(),nodal_flag_dir[1]), cu.DistributionMap(), 1, 1);
+    MultiFab cup2mom_z(convert(cu.boxArray(),nodal_flag_dir[2]), cu.DistributionMap(), 1, 1);
 
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
     
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -9.8};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
-    /////////////////////////////////////////////////////
-
-    // Set transport coefs 
-    eta.setVal(0.);
-    zeta.setVal(0.);
-    kappa.setVal(0.);
-
-    calculateFluxStag(cu, cumom, prim, vel, eta, zeta, kappa,
-        faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
-        geom, dxp, dt);
+    calculateFluxStag(cu, cu_x, cu_y, cu_z, 
+                      prim, u_x, v_y, w_z, 
+                      eta, zeta, kappa,
+                      faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
+                      geom, dxp, dt);
 
     for (int d=0; d<AMREX_SPACEDIM; d++) {
         cenflux[d].FillBoundary(geom.periodicity());
@@ -102,22 +76,24 @@ void RK3stepStag(MultiFab& cu,
         const Array4<Real> & cup_fab = cup.array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
-        AMREX_D_TERM(const Array4<Real>& momx = cumom[0].array(mfi);,
-                     const Array4<Real>& momy = cumom[1].array(mfi);,
-                     const Array4<Real>& momz = cumom[2].array(mfi););
+        const Array4<Real>& momx = cu_x.array(mfi);
+        const Array4<Real>& momy = cu_y.array(mfi);
+        const Array4<Real>& momz = cu_z.array(mfi);
 
-        AMREX_D_TERM(const Array4<Real>& mompx = cupmom[0].array(mfi);,
-                     const Array4<Real>& mompy = cupmom[1].array(mfi);,
-                     const Array4<Real>& mompz = cupmom[2].array(mfi););
+        const Array4<Real>& mompx = cupmom_x.array(mfi);
+        const Array4<Real>& mompy = cupmom_y.array(mfi);
+        const Array4<Real>& mompz = cupmom_z.array(mfi);
 
-        AMREX_D_TERM(Array4<Real const> const& xflux_fab = faceflux[0].array(mfi);,
-                     Array4<Real const> const& yflux_fab = faceflux[1].array(mfi);,
-                     Array4<Real const> const& zflux_fab = faceflux[2].array(mfi););
+        Array4<Real const> const& xflux_fab = faceflux[0].array(mfi);
+        Array4<Real const> const& yflux_fab = faceflux[1].array(mfi);
+        Array4<Real const> const& zflux_fab = faceflux[2].array(mfi);
 
         Array4<Real const> const& edgex_v = edgeflux_x[0].array(mfi);
         Array4<Real const> const& edgex_w = edgeflux_x[1].array(mfi);
+
         Array4<Real const> const& edgey_u = edgeflux_y[0].array(mfi);
         Array4<Real const> const& edgey_w = edgeflux_y[1].array(mfi);
+
         Array4<Real const> const& edgez_u = edgeflux_z[0].array(mfi);
         Array4<Real const> const& edgez_v = edgeflux_z[1].array(mfi);
 
@@ -167,28 +143,27 @@ void RK3stepStag(MultiFab& cu,
         });
     }
 
-    for (int d=0; d<AMREX_SPACEDIM; d++) {
-        cupmom[d].FillBoundary(geom.periodicity());
-    }
+    cupmom_x.FillBoundary(geom.periodicity());
+    cupmom_y.FillBoundary(geom.periodicity());
+    cupmom_z.FillBoundary(geom.periodicity());
+
     cup.FillBoundary(geom.periodicity());
-    conservedToPrimitiveStag(prim, vel, cup, cupmom);
-    for (int d=0; d<AMREX_SPACEDIM; d++) {
-        vel[d].FillBoundary(geom.periodicity());
-    }
+
+    conservedToPrimitiveStag(prim, u_x, v_y, w_z, cup, cupmom_x, cupmom_y, cupmom_z);
+
+    u_x.FillBoundary(geom.periodicity());
+    v_y.FillBoundary(geom.periodicity());
+    w_z.FillBoundary(geom.periodicity());
     prim.FillBoundary(geom.periodicity());
     // setBC(prim, cup);
 
-    // Set transport coeffs
-    eta.setVal(0.);
-    zeta.setVal(0.);
-    kappa.setVal(0.);
-
     ///////////////////////////////////////////////////////////
 
-    calculateFluxStag(cup, cupmom, prim, vel, eta, zeta, kappa,
-        faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
-        geom, dxp, dt);
-
+    calculateFluxStag(cup, cupmom_x, cupmom_y, cupmom_z, 
+                      prim, u_x, v_y, w_z, 
+                      eta, zeta, kappa,
+                      faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
+                      geom, dxp, dt);
 
     for (int d=0; d<AMREX_SPACEDIM; d++) {
         cenflux[d].FillBoundary(geom.periodicity());
@@ -201,7 +176,8 @@ void RK3stepStag(MultiFab& cu,
         edgeflux_z[d].FillBoundary(geom.periodicity());
     }
 
-    for ( MFIter mfi(cu,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(cu,TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+    {
         
         const Box& bx = mfi.tilebox();
         const Box& tbx = mfi.nodaltilebox(0);
@@ -213,17 +189,17 @@ void RK3stepStag(MultiFab& cu,
         const Array4<Real> & cup2_fab = cup2.array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
-        AMREX_D_TERM(const Array4<Real>& momx = cumom[0].array(mfi);,
-                     const Array4<Real>& momy = cumom[1].array(mfi);,
-                     const Array4<Real>& momz = cumom[2].array(mfi););
+        AMREX_D_TERM(const Array4<Real>& momx = cu_x.array(mfi);,
+                     const Array4<Real>& momy = cu_y.array(mfi);,
+                     const Array4<Real>& momz = cu_z.array(mfi););
 
-        AMREX_D_TERM(const Array4<Real>& mompx = cupmom[0].array(mfi);,
-                     const Array4<Real>& mompy = cupmom[1].array(mfi);,
-                     const Array4<Real>& mompz = cupmom[2].array(mfi););
+        AMREX_D_TERM(const Array4<Real>& mompx = cupmom_x.array(mfi);,
+                     const Array4<Real>& mompy = cupmom_y.array(mfi);,
+                     const Array4<Real>& mompz = cupmom_z.array(mfi););
 
-        AMREX_D_TERM(const Array4<Real>& momp2x = cup2mom[0].array(mfi);,
-                     const Array4<Real>& momp2y = cup2mom[1].array(mfi);,
-                     const Array4<Real>& momp2z = cup2mom[2].array(mfi););
+        AMREX_D_TERM(const Array4<Real>& momp2x = cup2mom_x.array(mfi);,
+                     const Array4<Real>& momp2y = cup2mom_y.array(mfi);,
+                     const Array4<Real>& momp2z = cup2mom_z.array(mfi););
 
         AMREX_D_TERM(Array4<Real const> const& xflux_fab = faceflux[0].array(mfi);,
                      Array4<Real const> const& yflux_fab = faceflux[1].array(mfi);,
@@ -282,27 +258,28 @@ void RK3stepStag(MultiFab& cu,
         });
     }
         
-    for (int d=0; d<AMREX_SPACEDIM; d++) {
-        cup2mom[d].FillBoundary(geom.periodicity());
-    }
-    cup2.FillBoundary(geom.periodicity());
-    conservedToPrimitiveStag(prim, vel, cup2, cup2mom);
-    for (int d=0; d<AMREX_SPACEDIM; d++) {
-        vel[d].FillBoundary(geom.periodicity());
-    }
-    prim.FillBoundary(geom.periodicity());
-    // setBC(prim, cup2);
+    cup2mom_x.FillBoundary(geom.periodicity());
+    cup2mom_y.FillBoundary(geom.periodicity());
+    cup2mom_z.FillBoundary(geom.periodicity());
 
-    // Set transport coeffs
-    eta.setVal(0.);
-    zeta.setVal(0.);
-    kappa.setVal(0.);
+    cup2.FillBoundary(geom.periodicity());
+
+    conservedToPrimitiveStag(prim, u_x, v_y, w_z, cup2, cu_x, cu_y, cu_z);
+
+    u_x.FillBoundary(geom.periodicity());
+    v_y.FillBoundary(geom.periodicity());
+    w_z.FillBoundary(geom.periodicity());
+    prim.FillBoundary(geom.periodicity());
+
+    // setBC(prim, cup2);
 
     ///////////////////////////////////////////////////////////
 
-    calculateFluxStag(cup2, cup2mom, prim, vel, eta, zeta, kappa,
-        faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
-        geom, dxp, dt);
+    calculateFluxStag(cup2, cup2mom_x, cup2mom_y, cup2mom_z, 
+                      prim, u_x, v_y, w_z, 
+                      eta, zeta, kappa,
+                      faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
+                      geom, dxp, dt);
 
 
     for (int d=0; d<AMREX_SPACEDIM; d++) {
@@ -327,13 +304,15 @@ void RK3stepStag(MultiFab& cu,
         const Array4<Real> & cup2_fab = cup2.array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
-        AMREX_D_TERM(const Array4<Real>& momx = cumom[0].array(mfi);,
-                     const Array4<Real>& momy = cumom[1].array(mfi);,
-                     const Array4<Real>& momz = cumom[2].array(mfi););
+        const Array4<Real> & cu_new_fab = cu_new.array(mfi);
 
-        AMREX_D_TERM(const Array4<Real>& momp2x = cup2mom[0].array(mfi);,
-                     const Array4<Real>& momp2y = cup2mom[1].array(mfi);,
-                     const Array4<Real>& momp2z = cup2mom[2].array(mfi););
+        AMREX_D_TERM(const Array4<Real>& momx = cu_x.array(mfi);,
+                     const Array4<Real>& momy = cu_y.array(mfi);,
+                     const Array4<Real>& momz = cu_z.array(mfi););
+
+        AMREX_D_TERM(const Array4<Real>& momp2x = cup2mom_x.array(mfi);,
+                     const Array4<Real>& momp2y = cup2mom_y.array(mfi);,
+                     const Array4<Real>& momp2z = cup2mom_z.array(mfi););
 
         AMREX_D_TERM(Array4<Real const> const& xflux_fab = faceflux[0].array(mfi);,
                      Array4<Real const> const& yflux_fab = faceflux[1].array(mfi);,
@@ -352,11 +331,10 @@ void RK3stepStag(MultiFab& cu,
 
         amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            cu_fab(i,j,k,n) = (2./3.) *( 0.5* cu_fab(i,j,k,n) + cup2_fab(i,j,k,n) - dt *
-                                    (   AMREX_D_TERM(  (xflux_fab(i+1,j,k,n) - xflux_fab(i,j,k,n)) / dx[0],
-                                                     + (yflux_fab(i,j+1,k,n) - yflux_fab(i,j,k,n)) / dx[1],
-                                                     + (zflux_fab(i,j,k+1,n) - zflux_fab(i,j,k,n)) / dx[2]) 
-                                                                                                            )
+            cu_new_fab(i,j,k,n) = (2./3.) * ( 0.5* cu_fab(i,j,k,n) + cup2_fab(i,j,k,n) - dt * (
+                                    (xflux_fab(i+1,j,k,n) - xflux_fab(i,j,k,n)) / dx[0] 
+                                   +(yflux_fab(i,j+1,k,n) - yflux_fab(i,j,k,n)) / dx[1] 
+                                   +(zflux_fab(i,j,k+1,n) - zflux_fab(i,j,k,n)) / dx[2] )
                                     + dt*source_fab(i,j,k,n) );
             
         }); // [1:3 indices are not valuable -- momentum flux]
@@ -387,20 +365,22 @@ void RK3stepStag(MultiFab& cu,
         
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            cu_fab(i,j,k,4) += 0.5 * (2./3.) * dt * (  grav_gpu[0]*(momp2x(i+1,j,k)+momp2x(i,j,k))
-                                                    + grav_gpu[1]*(momp2y(i,j+1,k)+momp2y(i,j,k))
-                                                    + grav_gpu[2]*(momp2z(i,j,k+1)+momp2z(i,j,k)) );
+            cu_new_fab(i,j,k,4) += 0.5 * (2./3.) * dt * ( grav_gpu[0]*(momp2x(i+1,j,k)+momp2x(i,j,k))
+                                                        + grav_gpu[1]*(momp2y(i,j+1,k)+momp2y(i,j,k))
+                                                        + grav_gpu[2]*(momp2z(i,j,k+1)+momp2z(i,j,k)) );
         });
     }
 
-    for (int d=0; d<AMREX_SPACEDIM; d++) {
-        cumom[d].FillBoundary(geom.periodicity());
-    }
+    cu_x.FillBoundary(geom.periodicity());
+    cu_y.FillBoundary(geom.periodicity());
+    cu_z.FillBoundary(geom.periodicity());
+
     cu.FillBoundary(geom.periodicity());
-    conservedToPrimitiveStag(prim, vel, cu, cumom);
-    for (int d=0; d<AMREX_SPACEDIM; d++) {
-        vel[d].FillBoundary(geom.periodicity());
-    }
+    conservedToPrimitiveStag(prim, u_x, v_y, w_z, cu, cu_x, cu_y, cu_z);
+    u_x.FillBoundary(geom.periodicity());
+    v_y.FillBoundary(geom.periodicity());
+    w_z.FillBoundary(geom.periodicity());
     prim.FillBoundary(geom.periodicity());
+
     // setBC(prim, cu);
 }

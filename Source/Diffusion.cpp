@@ -237,6 +237,7 @@ ERF::getMOLSrcTerm(
          diffusion fluxes.  Increment this with the divergence of the
          face-centered hyperbloic fluxes.
       */
+#if 0
       if (do_hydro && do_mol) {
 
         // save off the diffusion source term and fluxes 
@@ -263,6 +264,7 @@ ERF::getMOLSrcTerm(
             });
         }
       }
+#endif
 
 #ifdef AMREX_USE_GPU
       auto device = amrex::RunOn::Gpu;

@@ -59,12 +59,6 @@ bool ERF::do_diffuse = false;
 bool ERF::mms_initialized = false;
 #endif
 
-int ERF::les_model = 0;
-int ERF::les_filter_type = no_filter;
-int ERF::les_filter_fgr = 1;
-int ERF::les_test_filter_type = box_3pt_optimized_approx;
-int ERF::les_test_filter_fgr = 2;
-
 bool ERF::do_mol_load_balance = false;
 
 amrex::Vector<int> ERF::src_list;
@@ -216,17 +210,6 @@ ERF::read_params()
     amrex::Error("Invalid CFL factor; must be between zero and one.");
   }
 
-  if (do_les) {
-    pp.query("les_model", les_model);
-    pp.query("les_test_filter_type", les_test_filter_type);
-    pp.query("les_test_filter_fgr", les_test_filter_fgr);
-  }
-
-  if (use_explicit_filter) {
-    pp.query("les_filter_type", les_filter_type);
-    pp.query("les_filter_fgr", les_filter_fgr);
-  }
-
   if (max_dt < fixed_dt) {
     amrex::Error("Cannot have max_dt < fixed_dt");
   }
@@ -328,17 +311,6 @@ ERF::ERF(
   //{
   //  init_godunov_indices();
   //}
-
-  // initialize LES variables
-  if (do_les) {
-    init_les();
-  }
-
-  // initialize filters and variables
-  nGrowF = 0;
-  if (use_explicit_filter) {
-    init_filters();
-  }
 }
 
 ERF::~ERF() {}
@@ -456,10 +428,23 @@ ERF::initData()
 
   // int ns = NVAR;
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
-  amrex::MultiFab& S_new = get_new_data(State_Type);
   amrex::Real cur_time = state[State_Type].curTime();
 
+  amrex::MultiFab& S_new = get_new_data(State_Type);
+  amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
+  amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
+  amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
+  amrex::MultiFab& Sx_new = get_new_data(X_State_Type);
+  amrex::MultiFab& Sy_new = get_new_data(Y_State_Type);
+  amrex::MultiFab& Sz_new = get_new_data(Z_State_Type);
+
   S_new.setVal(0.0);
+  U_new.setVal(0.0);
+  V_new.setVal(0.0);
+  W_new.setVal(0.0);
+  Sx_new.setVal(0.0);
+  Sy_new.setVal(0.0);
+  Sz_new.setVal(0.0);
 
   // make sure dx = dy = dz -- that's all we guarantee to support
   const amrex::Real small = 1.e-13;
@@ -477,17 +462,27 @@ ERF::initData()
     get_new_data(Work_Estimate_Type).setVal(1.0);
   }
 
+  amrex::Print() << "INIT DATA " << Sy_new.nComp() << std::endl; 
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid();
-       ++mfi) {
+  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+  {
     const amrex::Box& box = mfi.tilebox();
-    auto sfab = S_new.array(mfi);
+    auto sfab  = S_new.array(mfi);
+    auto ufab  = U_new.array(mfi);
+    auto vfab  = V_new.array(mfi);
+    auto wfab  = W_new.array(mfi);
+    auto sxfab = Sx_new.array(mfi);
+    auto syfab = Sy_new.array(mfi);
+    auto szfab = Sz_new.array(mfi);
     const auto geomdata = geom.data();
 
     amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_initdata(i, j, k, sfab, geomdata);
+      pc_initdata(i, j, k, sfab, 
+                  ufab, vfab, wfab, sxfab, syfab, szfab, 
+                  geomdata);
     });
   }
 
@@ -865,17 +860,6 @@ ERF::post_restart()
   BL_PROFILE("ERF::post_restart()");
 
   amrex::Real cur_time = state[State_Type].curTime();
-
-  // initialize LES variables
-  if (do_les) {
-    init_les();
-  }
-
-  // initialize filters and variables
-  nGrowF = 0;
-  if (use_explicit_filter) {
-    init_filters();
-  }
 
 #ifdef DO_PROBLEM_POST_RESTART
   problem_post_restart();
@@ -1337,30 +1321,6 @@ ERF::errorEst(
 std::unique_ptr<amrex::MultiFab>
 ERF::derive(const std::string& name, amrex::Real time, int ngrow)
 {
-
-  if ((do_les) && (name == "C_s2")) {
-    std::unique_ptr<amrex::MultiFab> derive_dat(
-      new amrex::MultiFab(grids, dmap, 1, 0));
-    amrex::MultiFab::Copy(*derive_dat, LES_Coeffs, comp_Cs2, 0, 1, 0);
-    return derive_dat;
-  } else if ((do_les) && (name == "C_I")) {
-    std::unique_ptr<amrex::MultiFab> derive_dat(
-      new amrex::MultiFab(grids, dmap, 1, 0));
-    amrex::MultiFab::Copy(*derive_dat, LES_Coeffs, comp_CI, 0, 1, 0);
-    return derive_dat;
-  } else if ((do_les) && (les_model != 1) && (name == "Pr_T")) {
-    std::unique_ptr<amrex::MultiFab> derive_dat(
-      new amrex::MultiFab(grids, dmap, 1, 0));
-    amrex::MultiFab::Copy(*derive_dat, LES_Coeffs, comp_PrT, 0, 1, 0);
-    return derive_dat;
-  } else if ((do_les) && (les_model == 1) && (name == "Pr_T")) {
-    std::unique_ptr<amrex::MultiFab> derive_dat(
-      new amrex::MultiFab(grids, dmap, 1, 0));
-    amrex::MultiFab::Copy(*derive_dat, LES_Coeffs, comp_Cs2ovPrT, 0, 1, 0);
-    amrex::MultiFab::Divide(*derive_dat, LES_Coeffs, comp_Cs2, 0, 1, 0);
-    return derive_dat;
-  }
-
   return AmrLevel::derive(name, time, ngrow);
 }
 

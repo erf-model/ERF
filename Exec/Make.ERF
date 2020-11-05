@@ -45,12 +45,6 @@ VPATH_LOCATIONS   += $(EOS_HOME)
 Bpack             += $(EOS_HOME)/Make.package
 Blocs             += $(EOS_HOME)
 
-EXTERN_CORE       += $(TOP)/Source/Legacy
-INCLUDE_LOCATIONS += $(TOP)/Source/Legacy
-VPATH_LOCATIONS   += $(TOP)/Source/Legacy
-Bpack             += $(TOP)/Source/Legacy/Make.package
-Blocs             += $(TOP)/Source/Legacy
-
 Bdirs := Source Source/GammaLaw Source/Params/param_includes Source/RK3
 Pdirs := Base Amr Boundary AmrCore
 
