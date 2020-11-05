@@ -81,7 +81,7 @@ Applications
 
 Figure 1 below shows the importance of including atmospheric and environmental factors in a wind energy production use case, here showing a portion of the Horns Rev wind plant in the North Sea, annotated with various atmospheric phenomena of relevance.
 
-.. figure:: figures/Horns_Rev_annotated.png
+.. figure:: static/Horns_Rev_annotated.jpg
    :alt: Horns Rev wind plant annotated
 
    Figure 1. Image of the Horns Rev wind plant in the North Sea (photo by Christian Steiness), showing cloud formation induced by turbine operation, annotated to highlight relevant atmospheric physical processes. 
@@ -102,7 +102,7 @@ Figure 1 below shows the importance of including atmospheric and environmental f
 Requirements
 ------------
 
-.. figure:: figures/multiscale_atmospheric_sim.png
+.. figure:: static/multiscale_atmospheric_sim.jpg
    :alt: depiction of multiscale atmospheric simulation
 
    Figure 2. Depiction of how multiscale atmospheric simulation using ERF (left) coupled with microscale wind plant simulations using ExaWind (right) would work. Herein WRF was used for both simulations; ERF and ExaWind will provide significantly enhanced fidelity and throughput. 
