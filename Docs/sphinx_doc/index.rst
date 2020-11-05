@@ -12,6 +12,7 @@ Contents:
    :maxdepth: 2
 
    Introduction.rst
+   Applications_Requirements.rst
    Equations.rst
    Algorithms.rst
    GettingStarted.rst
