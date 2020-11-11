@@ -53,7 +53,7 @@
 #define NTHERM 7
 #define QTHERM 8
 
-#define NUM_ADV 0
+#define NUM_ADV 1
 
 #define NVAR NTHERM + NUM_ADV 
 #define QVAR QTHERM + NUM_ADV
