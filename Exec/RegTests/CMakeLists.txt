@@ -1,6 +1,0 @@
-add_subdirectory(Sedov)
-add_subdirectory(Sod)
-add_subdirectory(TG)
-if(ERF_ENABLE_MASA)
-  add_subdirectory(MMS)
-endif()
