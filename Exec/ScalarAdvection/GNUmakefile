@@ -1,4 +1,5 @@
-AMREX_HOME = $(HOME)/Codes/ERF/Submodules/AMReX
+AMREX_HOME ?= $(HOME)/Codes/ERF/Submodules/AMReX
+
 # AMReX
 DIM = 3
 COMP = gnu
@@ -32,5 +33,5 @@ Transport_dir := Constant
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../../..
+ERF_HOME := ../..
 include $(ERF_HOME)/Exec/Make.ERF
