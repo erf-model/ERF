@@ -51,9 +51,27 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   MultiFab& Sy_old = get_old_data(Y_State_Type);
   MultiFab& Sz_old = get_old_data(Z_State_Type);
 
+  MultiFab& Sx_new = get_new_data(X_State_Type);
+  MultiFab& Sy_new = get_new_data(Y_State_Type);
+  MultiFab& Sz_new = get_new_data(Z_State_Type);
+
   MultiFab& U_old = get_old_data(X_Vel_Type);
   MultiFab& V_old = get_old_data(Y_Vel_Type);
   MultiFab& W_old = get_old_data(Z_Vel_Type);
+
+  MultiFab& U_new = get_new_data(X_Vel_Type);
+  MultiFab& V_new = get_new_data(Y_Vel_Type);
+  MultiFab& W_new = get_new_data(Z_Vel_Type);
+
+  // Fill level 0 ghost cells (including at periodic boundaries)
+  S_old.FillBoundary(geom.periodicity());
+  Sx_old.FillBoundary(geom.periodicity());
+  Sy_old.FillBoundary(geom.periodicity());
+  Sz_old.FillBoundary(geom.periodicity());
+
+  U_old.FillBoundary(geom.periodicity());
+  V_old.FillBoundary(geom.periodicity());
+  W_old.FillBoundary(geom.periodicity());
 
   const Real* dx = geom.CellSize();
   const BoxArray&            ba = S_old.boxArray();
@@ -104,117 +122,17 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   cenflux[1].define(ba,dmap,1,1);
   cenflux[2].define(ba,dmap,1,1);
 
-  RK3_advance(S_old, S_new, Sx_old, Sy_old, Sz_old, prim, 
-              U_old, W_old, W_old, source, 
+  RK3_advance(S_old, S_new, 
+              Sx_old, Sy_old, Sz_old,
+              Sx_new, Sy_new, Sz_new, 
+              prim, 
+              U_old, V_old, W_old, 
+              U_new, V_new, W_new, 
+              source, 
               eta, zeta, kappa, 
               faceflux, 
               edgeflux_x, edgeflux_y, edgeflux_z, 
               cenflux, geom, dx, dt);
 
-/*
-  void RK3_advance(MultiFab& cu,
-                   std::array< MultiFab, AMREX_SPACEDIM >& cumom,
-                   MultiFab& prim, 
-                   std::array< MultiFab, AMREX_SPACEDIM >& vel,
-                   MultiFab& source,
-                   MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
-                   std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
-                   std::array< MultiFab, 2 >& edgeflux_x,
-                   std::array< MultiFab, 2 >& edgeflux_y,
-                   std::array< MultiFab, 2 >& edgeflux_z,
-                   std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
-                   const Geometry geom, const Real* dxp, const Real dt)
-*/
-
-  // 
-  // The code in brackets below is the old do_mol_advance
-  // dt_new = do_mol_advance(time, dt, amr_iteration, amr_ncycle);
-  // 
-  {
-  if (do_mol_load_balance) {
-    get_new_data(Work_Estimate_Type).setVal(0.0);
-  }
-
-  MultiFab& U_old = get_old_data(State_Type);
-  MultiFab& U_new = get_new_data(State_Type);
-  MultiFab S(grids, dmap, NVAR, 0, MFInfo(), Factory());
-
-  MultiFab S_old, S_new;
-  if (mol_iters > 1) {
-    S_old.define(grids, dmap, NVAR, 0, MFInfo(), Factory());
-    S_new.define(grids, dmap, NVAR, 0, MFInfo(), Factory());
-  }
-
-  // Compute S^{n} = MOLRhs(U^{n})
-  if (verbose) {
-    amrex::Print() << "... Computing MOL source term at t^{n} " << std::endl;
-  }
-  FillPatch(*this, Sborder, nGrowTr, time, State_Type, 0, NVAR);
-  Real flux_factor = 0;
-  getMOLSrcTerm(Sborder, S, time, dt, flux_factor);
-
-  // Build other (neither spray nor diffusion) sources at t_old
-  for (int n = 0; n < src_list.size(); ++n) {
-    if (
-      src_list[n] != diff_src
-    ) {
-      construct_old_source(
-        src_list[n], time, dt, amr_iteration, amr_ncycle, 0, 0);
-      MultiFab::Saxpy(S, 1.0, *old_sources[src_list[n]], 0, 0, NVAR, 0);
-    }
-  }
-
-  // U^* = U^n + dt*S^n
-  MultiFab::LinComb(U_new, 1.0, Sborder, 0, dt, S, 0, 0, NVAR, 0);
-
-  computeTemp(U_new, 0);
-
-  // Compute S^{n+1} = MOLRhs(U^{n+1,*})
-  if (verbose) {
-    amrex::Print() << "... Computing MOL source term at t^{n+1} " << std::endl;
-  }
-  FillPatch(*this, Sborder, nGrowTr, time + dt, State_Type, 0, NVAR);
-  flux_factor = mol_iters > 1 ? 0 : 1;
-  getMOLSrcTerm(Sborder, S, time, dt, flux_factor);
-
-  // Build other (neither spray nor diffusion) sources at t_new
-  for (int n = 0; n < src_list.size(); ++n) {
-    if (
-      src_list[n] != diff_src
-    ) {
-      construct_new_source(
-        src_list[n], time + dt, dt, amr_iteration, amr_ncycle, 0, 0);
-      amrex::MultiFab::Saxpy(S, 1.0, *new_sources[src_list[n]], 0, 0, NVAR, 0);
-    }
-  }
-
-  // U^{n+1.**} = 0.5*(U^n + U^{n+1,*}) + 0.5*dt*S^{n+1} = U^n + 0.5*dt*S^n +
-  // 0.5*dt*S^{n+1} + 0.5*dt*I_R
-  amrex::MultiFab::LinComb(U_new, 0.5, Sborder, 0, 0.5, U_old, 0, 0, NVAR, 0);
-  amrex::MultiFab::Saxpy(
-    U_new, 0.5 * dt, S, 0, 0, NVAR,
-    0); //  NOTE: If I_R=0, we are done and U_new is the final new-time state
-
-  computeTemp(U_new, 0);
-  }
-
   return dt;
-}
-
-void
-ERF::construct_Snew(
-  amrex::MultiFab& S_new, const amrex::MultiFab& S_old, amrex::Real dt)
-{
-  int ng = 0;
-
-  amrex::MultiFab::Copy(S_new, S_old, 0, 0, NVAR, ng);
-  for (int n = 0; n < src_list.size(); ++n) {
-    amrex::MultiFab::Saxpy(
-      S_new, 0.5 * dt, *new_sources[src_list[n]], 0, 0, NVAR, ng);
-    amrex::MultiFab::Saxpy(
-      S_new, 0.5 * dt, *old_sources[src_list[n]], 0, 0, NVAR, ng);
-  }
-  if (do_hydro) {
-    amrex::MultiFab::Saxpy(S_new, dt, hydro_source, 0, 0, NVAR, ng);
-  }
 }

@@ -164,12 +164,6 @@ public:
   virtual amrex::Real
   advance(amrex::Real time, amrex::Real dt, int iteration, int ncycle) override;
 
-  amrex::Real do_mol_advance(
-    amrex::Real time, amrex::Real dt, int amr_iteration, int amr_ncycle);
-
-  void construct_Snew(
-    amrex::MultiFab& S_new, const amrex::MultiFab& S_old, amrex::Real dt);
-
   void construct_hydro_source(
     const amrex::MultiFab& S,
     amrex::Real time,

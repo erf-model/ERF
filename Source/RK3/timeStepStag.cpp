@@ -11,8 +11,10 @@ using namespace amrex;
 
 void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
                  MultiFab& cu_x, MultiFab& cu_y, MultiFab& cu_z, 
+                 MultiFab& cunew_x, MultiFab& cunew_y, MultiFab& cunew_z, 
                  MultiFab& prim, 
                  MultiFab&  u_x, MultiFab&  v_y, MultiFab& w_z, 
+                 MultiFab&  unew_x, MultiFab&  vnew_y, MultiFab& wnew_z, 
                  MultiFab& source,
                  MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
@@ -26,6 +28,14 @@ void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
 
     int nvars = cu.nComp(); 
     int ngc = 1;
+
+    prim.setVal(0.);
+    conservedToPrimitiveStag(prim, u_x, v_y, w_z, cu, cu_x, cu_y, cu_z);
+
+    u_x.FillBoundary(geom.periodicity());
+    v_y.FillBoundary(geom.periodicity());
+    w_z.FillBoundary(geom.periodicity());
+    prim.FillBoundary(geom.periodicity());
 
     MultiFab cup (cu.boxArray(),cu.DistributionMap(),nvars,ngc);
     MultiFab cup2(cu.boxArray(),cu.DistributionMap(),nvars,ngc);
@@ -48,7 +58,7 @@ void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
 
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
     
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -9.8};
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, 0.0};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     calculateFluxStag(cu, cu_x, cu_y, cu_z, 
@@ -134,7 +144,7 @@ void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
             mompz(i,j,k) = momz(i,j,k)
                     -dt*(edgex_w(i+1,j,k) - edgex_w(i,j,k))/dx[0]
                     -dt*(edgey_w(i,j+1,k) - edgey_w(i,j,k))/dx[1]
-                    -dt*(cenz_w(i,j,k) - cenz_w(i,j,k-1))/dx[2]
+                    -dt*(cenz_w(i,j,k) - cenz_w(i,j,k-1))/dx[2] 
                     +0.5*dt*grav_gpu[2]*(cu_fab(i,j,k-1,0)+cu_fab(i,j,k,0));
         });
         
@@ -313,6 +323,10 @@ void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
                      const Array4<Real>& momy = cu_y.array(mfi);,
                      const Array4<Real>& momz = cu_z.array(mfi););
 
+        AMREX_D_TERM(const Array4<Real>& newmomx = cunew_x.array(mfi);,
+                     const Array4<Real>& newmomy = cunew_y.array(mfi);,
+                     const Array4<Real>& newmomz = cunew_z.array(mfi););
+
         AMREX_D_TERM(const Array4<Real>& momp2x = cup2mom_x.array(mfi);,
                      const Array4<Real>& momp2y = cup2mom_y.array(mfi);,
                      const Array4<Real>& momp2z = cup2mom_z.array(mfi););
@@ -345,21 +359,21 @@ void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            momx(i,j,k) = (2./3.)*(0.5*momx(i,j,k) + momp2x(i,j,k))
+            newmomx(i,j,k) = (2./3.)*(0.5*momx(i,j,k) + momp2x(i,j,k))
                   -(2./3.)*dt*(cenx_u(i,j,k) - cenx_u(i-1,j,k))/dx[0]
                   -(2./3.)*dt*(edgey_u(i,j+1,k) - edgey_u(i,j,k))/dx[1]
                   -(2./3.)*dt*(edgez_u(i,j,k+1) - edgez_u(i,j,k))/dx[2]
                   +0.5*(2./3.)*dt*grav_gpu[0]*(cup2_fab(i-1,j,k,0)+cup2_fab(i,j,k,0));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            momy(i,j,k) = (2./3.)*(0.5*momy(i,j,k) + momp2y(i,j,k))
+            newmomy(i,j,k) = (2./3.)*(0.5*momy(i,j,k) + momp2y(i,j,k))
                   -(2./3.)*dt*(edgex_v(i+1,j,k) - edgex_v(i,j,k))/dx[0]
                   -(2./3.)*dt*(ceny_v(i,j,k) - ceny_v(i,j-1,k))/dx[1]
                   -(2./3.)*dt*(edgez_v(i,j,k+1) - edgez_v(i,j,k))/dx[2]
                   +0.5*(2/3.)*dt*grav_gpu[1]*(cup2_fab(i,j-1,k,0)+cup2_fab(i,j,k,0));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            momz(i,j,k) = (2./3.)*(0.5*momz(i,j,k) + momp2z(i,j,k))
+            newmomz(i,j,k) = (2./3.)*(0.5*momz(i,j,k) + momp2z(i,j,k))
                   -(2./3.)*dt*(edgex_w(i+1,j,k) - edgex_w(i,j,k))/dx[0]
                   -(2./3.)*dt*(edgey_w(i,j+1,k) - edgey_w(i,j,k))/dx[1]
                   -(2./3.)*dt*(cenz_w(i,j,k) - cenz_w(i,j,k-1))/dx[2]
@@ -374,15 +388,18 @@ void RK3_advance(MultiFab& cu,  MultiFab& cu_new,
         });
     }
 
-    cu_x.FillBoundary(geom.periodicity());
-    cu_y.FillBoundary(geom.periodicity());
-    cu_z.FillBoundary(geom.periodicity());
+    cunew_x.FillBoundary(geom.periodicity());
+    cunew_y.FillBoundary(geom.periodicity());
+    cunew_z.FillBoundary(geom.periodicity());
 
-    cu.FillBoundary(geom.periodicity());
-    conservedToPrimitiveStag(prim, u_x, v_y, w_z, cu, cu_x, cu_y, cu_z);
-    u_x.FillBoundary(geom.periodicity());
-    v_y.FillBoundary(geom.periodicity());
-    w_z.FillBoundary(geom.periodicity());
+    cu_new.FillBoundary(geom.periodicity());
+
+    conservedToPrimitiveStag(prim, unew_x, vnew_y, wnew_z, cu_new, cunew_x, cunew_y, cunew_z); 
+
+    unew_x.FillBoundary(geom.periodicity());
+    vnew_y.FillBoundary(geom.periodicity());
+    wnew_z.FillBoundary(geom.periodicity()); 
+
     prim.FillBoundary(geom.periodicity());
 
     // setBC(prim, cu);

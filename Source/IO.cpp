@@ -521,38 +521,6 @@ ERF::writeBuildInfo(std::ostream& os)
      << "is undefined (0)" << std::endl;
 #endif
 
-#ifdef ERF_USE_MASA
-  os << std::setw(35) << std::left << "ERF_USE_MASA " << std::setw(6) << "ON"
-     << std::endl;
-#else
-  os << std::setw(35) << std::left << "ERF_USE_MASA " << std::setw(6) << "OFF"
-     << std::endl;
-#endif
-
-#ifdef DO_PROBLEM_POST_TIMESTEP
-  os << std::setw(35) << std::left << "DO_PROBLEM_POST_TIMESTEP "
-     << std::setw(6) << "ON" << std::endl;
-#else
-  os << std::setw(35) << std::left << "DO_PROBLEM_POST_TIMESTEP "
-     << std::setw(6) << "OFF" << std::endl;
-#endif
-
-#ifdef DO_PROBLEM_POST_RESTART
-  os << std::setw(35) << std::left << "DO_PROBLEM_POST_RESTART " << std::setw(6)
-     << "ON" << std::endl;
-#else
-  os << std::setw(35) << std::left << "DO_PROBLEM_POST_RESTART " << std::setw(6)
-     << "OFF" << std::endl;
-#endif
-
-#ifdef DO_PROBLEM_POST_INIT
-  os << std::setw(35) << std::left << "DO_PROBLEM_POST_INIT " << std::setw(6)
-     << "ON" << std::endl;
-#else
-  os << std::setw(35) << std::left << "DO_PROBLEM_POST_INIT " << std::setw(6)
-     << "OFF" << std::endl;
-#endif
-
   os << "\n\n";
 }
 
@@ -700,6 +668,7 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
   // multifab -- plotMF.
   // NOTE: we are assuming that each state variable has one component,
   // but a derived variable is allowed to have multiple components.
+
   int cnt = 0;
   int ncomp = 1;
   const int nGrow = 0;

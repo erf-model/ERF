@@ -106,6 +106,7 @@ ERF::read_params()
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     if (!lo_bc_char[dir].compare("Interior")) {
       lo_bc[dir] = 0;
+      std::cout << "DIR IS INTERIOR " << dir << std::endl;
     } else if (!lo_bc_char[dir].compare("Hard")) {
       lo_bc[dir] = 1;
     } else if (!lo_bc_char[dir].compare("FOExtrap")) {
@@ -291,26 +292,11 @@ ERF::ERF(
     Sborder.define(grids, dmap, NVAR, nGrowTr, amrex::MFInfo(), Factory());
   }
 
-  // Is this relevant for ERF?
-  for (int i = 0; i < n_lost; i++) {
-    material_lost_through_boundary_cumulative[i] = 0.0;
-    material_lost_through_boundary_temp[i] = 0.;
-  }
-
   if (do_reflux && level > 0) {
     flux_reg.define(
       bl, papa.boxArray(level - 1), dm, papa.DistributionMap(level - 1),
       level_geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, NVAR);
   }
-
-  // Don't need this in pure C++?
-  // initialize the Godunov state array used in hydro -- we wait
-  // until here so that ngroups is defined (if needed) in
-  // rad_params_module
-  // if (do_hydro)
-  //{
-  //  init_godunov_indices();
-  //}
 }
 
 ERF::~ERF() {}
@@ -433,12 +419,18 @@ ERF::initData()
   amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
   amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
+  amrex::MultiFab& X_new = get_new_data(X_State_Type);
+  amrex::MultiFab& Y_new = get_new_data(Y_State_Type);
+  amrex::MultiFab& Z_new = get_new_data(Z_State_Type);
 
   // Initialize to zero (though we sholdn't actually need to do this)
   S_new.setVal(0.0);
   U_new.setVal(0.0);
   V_new.setVal(0.0);
   W_new.setVal(0.0);
+  X_new.setVal(0.0);
+  Y_new.setVal(0.0);
+  Z_new.setVal(0.0);
 
   if (verbose) {
     amrex::Print() << "Initializing the data at level " << level << std::endl;
@@ -454,6 +446,9 @@ ERF::initData()
     auto ufab  = U_new.array(mfi);
     auto vfab  = V_new.array(mfi);
     auto wfab  = W_new.array(mfi);
+    auto xfab  = X_new.array(mfi);
+    auto yfab  = Y_new.array(mfi);
+    auto zfab  = Z_new.array(mfi);
     const auto geomdata = geom.data();
 
     // Construct a box that is on x-faces
@@ -461,7 +456,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the x-face-centered box
     amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_init_xvel(i, j, k, ufab, geomdata);
+      pc_init_xvel(i, j, k, ufab, xfab, geomdata);
     });
 
     // Construct a box that is on y-faces
@@ -469,7 +464,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the y-face-centered box
     amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_init_yvel(i, j, k, vfab, geomdata);
+      pc_init_yvel(i, j, k, vfab, yfab, geomdata);
     });
 
     // Construct a box that is on z-faces
@@ -477,7 +472,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the z-face-centered box
     amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_init_zvel(i, j, k, wfab, geomdata);
+      pc_init_zvel(i, j, k, wfab, zfab, geomdata);
     });
   }
 

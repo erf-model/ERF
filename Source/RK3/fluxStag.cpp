@@ -2,7 +2,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
- 
+
 #include <RK3.H>
 
 using namespace amrex;
@@ -72,6 +72,7 @@ void calculateFluxStag(const MultiFab& cons_in,
     // diffusive fluxes
     ////////////////////
     
+    /*
     // Loop over boxes
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
 
@@ -232,13 +233,11 @@ void calculateFluxStag(const MultiFab& cons_in,
             cenz_w(i,j,k) -= tauzz(i,j,k);
         });
     }
+    */
 
     ////////////////////
     // hyperbolic fluxes
     ////////////////////
-
-    Real wgt2 = 1./12.;
-    Real wgt1 = 0.5 + wgt2;
 
     // Loop over boxes
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) 
@@ -284,10 +283,10 @@ void calculateFluxStag(const MultiFab& cons_in,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             
                 GpuArray<Real,5> conserved;
-                GpuArray<Real,6> primitive;
+                GpuArray<Real,8> primitive;
                     
                 for (int l=0; l<nprimvars_gpu; ++l) {
-                    primitive[l] = wgt1*(prim(i,j,k,l)+prim(i-1,j,k,l)) - wgt2*(prim(i-2,j,k,l)+prim(i+1,j,k,l));
+                    primitive[l] = 0.5*(prim(i,j,k,l)+prim(i-1,j,k,l));
                 }
 
                 Real temp = primitive[4];
@@ -307,15 +306,19 @@ void calculateFluxStag(const MultiFab& cons_in,
                 xflux(i,j,k,3) += conserved[0]*primitive[1]*primitive[3];
 
                 xflux(i,j,k,4) += primitive[1]*conserved[4] + primitive[5]*primitive[1];
+
+                // Advected scalar = rho u s
+                xflux(i,j,k,7) += conserved[0]*primitive[1]*primitive[6];
+                
             },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             
                 GpuArray<Real,5> conserved;
-                GpuArray<Real,6> primitive;
+                GpuArray<Real,8> primitive;
                     
                 for (int l=0; l<nprimvars_gpu; ++l) {
-                    primitive[l] = wgt1*(prim(i,j,k,l)+prim(i,j-1,k,l)) - wgt2*(prim(i,j-2,k,l)+prim(i,j+1,k,l));
+                    primitive[l] = 0.5*(prim(i,j,k,l)+prim(i,j-1,k,l));
                 }
 
                 Real temp = primitive[4];
@@ -335,15 +338,18 @@ void calculateFluxStag(const MultiFab& cons_in,
                 yflux(i,j,k,3) += conserved[0]*primitive[3]*primitive[2];
 
                 yflux(i,j,k,4) += primitive[2]*conserved[4] + primitive[5]*primitive[2];
+
+                // Advected scalar = rho u s
+                yflux(i,j,k,7) += conserved[0]*primitive[2]*primitive[6];
         },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             
                 GpuArray<Real,5> conserved;
-                GpuArray<Real,6> primitive;
+                GpuArray<Real,8> primitive;
                     
                 for (int l=0; l<nprimvars_gpu; ++l) {
-                    primitive[l] = wgt1*(prim(i,j,k,l)+prim(i,j,k-1,l)) - wgt2*(prim(i,j,k-2,l)+prim(i,j,k+1,l));
+                    primitive[l] = 0.5*(prim(i,j,k,l)+prim(i,j,k-1,l));
                 }
 
                 Real temp = primitive[4];
@@ -363,6 +369,9 @@ void calculateFluxStag(const MultiFab& cons_in,
                 zflux(i,j,k,3) += conserved[0]*primitive[3]*primitive[3]+primitive[5];
 
                 zflux(i,j,k,4) += primitive[3]*conserved[4] + primitive[5]*primitive[3];
+
+                // Advected scalar = rho u s
+                zflux(i,j,k,7) += conserved[0]*primitive[3]*primitive[6];
         });
             
     } 

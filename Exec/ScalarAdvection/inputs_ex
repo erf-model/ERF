@@ -1,30 +1,33 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 10000
-stop_time =  0.2
+max_step = 10
+#stop_time =  1000.
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.is_periodic = 0 0 0
+geometry.is_periodic = 1 1 1
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
 geometry.prob_lo     =  0     0     0
-geometry.prob_hi     =  1     0.125 0.125
-amr.n_cell           = 32     4     4
+geometry.prob_hi     =  1     1     1    
+amr.n_cell           = 32     32     32
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-erf.lo_bc       = "Hard"   "SlipWall"   "SlipWall"
-erf.hi_bc       = "Hard"   "SlipWall"   "SlipWall"
+erf.lo_bc       = "Interior"   "Interior"   "Interior"
+erf.hi_bc       = "Interior"   "Interior"   "Interior"
 
 # WHICH PHYSICS
 erf.do_hydro = 1
 erf.diffuse_vel = 0
 erf.diffuse_temp = 0
 erf.diffuse_spec = 0
-erf.do_react = 0
 
 # TIME STEP CONTROL
 erf.cfl            = 0.9     # cfl number for hyperbolic system
-erf.init_shrink    = 0.1     # scale back initial timestep
+erf.init_shrink    = 1.0     # scale back initial timestep
 erf.change_max     = 1.05    # scale back initial timestep
 erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 
@@ -51,16 +54,11 @@ amr.check_int       = 100        # number of timesteps between checkpoints
 amr.plot_files_output = 1
 amr.plot_file       = plt        # root name of plotfile
 amr.plot_int        = 100        # number of timesteps between plotfiles
-amr.plot_vars  =  density Temp
-amr.derive_plot_vars = x_velocity y_velocity z_velocity magvel magvort pressure
+amr.plot_vars  =  density adv_0
+amr.derive_plot_vars = x_velocity y_velocity z_velocity
+#amr.derive_plot_vars = x_velocity y_velocity z_velocity magvel magvort pressure
 
 # PROBLEM PARAMETERS
-prob.p_l = 1.0
-prob.u_l = 0.0
-prob.rho_l = 1.0
-prob.A_l = 1.0
-prob.p_r = 0.1
-prob.u_r = 0.0
-prob.rho_r = 0.125
-prob.idir = 1
-frac = 0.5
+prob.rho_0 = 1.0
+prob.rhoe_0 = 1.0
+prob.A_0 = 1.0

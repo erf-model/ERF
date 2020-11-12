@@ -81,12 +81,16 @@ pc_init_xvel(
   int j,
   int k,
   amrex::Array4<amrex::Real> const& x_vel,
+  amrex::Array4<amrex::Real> const& x_mom,
   amrex::GeometryData const& geomdata)
 {
   // Note that this is called on a box of x-faces
 
   // Set the x-velocity
-  x_vel(i, j, k) = 1.0;
+  x_vel(i, j, k) = 100.0;
+
+  // Set the x-momentum
+  x_mom(i, j, k) = 100.0;
 }
 
 AMREX_GPU_DEVICE
@@ -97,12 +101,16 @@ pc_init_yvel(
   int j,
   int k,
   amrex::Array4<amrex::Real> const& y_vel,
+  amrex::Array4<amrex::Real> const& y_mom,
   amrex::GeometryData const& geomdata)
 {
   // Note that this is called on a box of x-faces
 
   // Set the y-velocity
   y_vel(i, j, k) = 0.0;
+
+  // Set the x-momentum
+  y_mom(i, j, k) = 0.0;
 }
 
 AMREX_GPU_DEVICE
@@ -113,12 +121,16 @@ pc_init_zvel(
   int j,
   int k,
   amrex::Array4<amrex::Real> const& z_vel,
+  amrex::Array4<amrex::Real> const& z_mom,
   amrex::GeometryData const& geomdata)
 {
   // Note that this is called on a box of z-faces
 
   // Set the z-velocity
   z_vel(i, j, k) = 0.0;
+
+  // Set the x-momentum
+  z_mom(i, j, k) = 0.0;
 }
 
 AMREX_GPU_DEVICE

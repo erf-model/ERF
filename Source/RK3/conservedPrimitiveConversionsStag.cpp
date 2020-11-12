@@ -43,7 +43,6 @@ void conservedToPrimitiveStag(MultiFab& prim_in,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             velz(i,j,k) = 2*momz(i,j,k)/(cons(i,j,k,0) + cons(i,j,k-1,0));
         });
-
         
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -73,6 +72,9 @@ void conservedToPrimitiveStag(MultiFab& prim_in,
             // pressure = rho * R * T
             Real Runiv = 8.314; // (J / K / mol)
             prim(i,j,k,5) = cons(i,j,k,0)*Runiv*prim(i,j,k,4);
+
+            // Advected scalar S = (rho S) / rho 
+            prim(i,j,k,6) = cons(i,j,k,7) / cons(i,j,k,0);
         });
         
     } // end MFIter
