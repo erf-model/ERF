@@ -426,7 +426,6 @@ ERF::initData()
 {
   BL_PROFILE("ERF::initData()");
 
-  // int ns = NVAR;
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
   amrex::Real cur_time = state[State_Type].curTime();
 
@@ -434,55 +433,70 @@ ERF::initData()
   amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
   amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
-  amrex::MultiFab& Sx_new = get_new_data(X_State_Type);
-  amrex::MultiFab& Sy_new = get_new_data(Y_State_Type);
-  amrex::MultiFab& Sz_new = get_new_data(Z_State_Type);
 
+  // Initialize to zero (though we sholdn't actually need to do this)
   S_new.setVal(0.0);
   U_new.setVal(0.0);
   V_new.setVal(0.0);
   W_new.setVal(0.0);
-  Sx_new.setVal(0.0);
-  Sy_new.setVal(0.0);
-  Sz_new.setVal(0.0);
-
-  // make sure dx = dy = dz -- that's all we guarantee to support
-  const amrex::Real small = 1.e-13;
-  if (
-    amrex::max(AMREX_D_DECL(0.0, fabs(dx[0] - dx[1]), fabs(dx[0] - dx[2]))) >
-    small * dx[0]) {
-    amrex::Abort("dx != dy != dz not supported");
-  }
 
   if (verbose) {
     amrex::Print() << "Initializing the data at level " << level << std::endl;
   }
-
-  if (do_mol_load_balance) {
-    get_new_data(Work_Estimate_Type).setVal(1.0);
-  }
-
-  amrex::Print() << "INIT DATA " << Sy_new.nComp() << std::endl; 
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
   for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
   {
-    const amrex::Box& box = mfi.tilebox();
+    const amrex::Box& bx = mfi.tilebox();
     auto sfab  = S_new.array(mfi);
     auto ufab  = U_new.array(mfi);
     auto vfab  = V_new.array(mfi);
     auto wfab  = W_new.array(mfi);
-    auto sxfab = Sx_new.array(mfi);
-    auto syfab = Sy_new.array(mfi);
-    auto szfab = Sz_new.array(mfi);
     const auto geomdata = geom.data();
 
-    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_initdata(i, j, k, sfab, 
-                  ufab, vfab, wfab, sxfab, syfab, szfab, 
-                  geomdata);
+    // Construct a box that is on x-faces
+    const amrex::Box& xbx = surroundingNodes(bx,0);
+
+    // Call for all (i,j,k) in the x-face-centered box
+    amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      pc_init_xvel(i, j, k, ufab, geomdata);
+    });
+
+    // Construct a box that is on y-faces
+    const amrex::Box& ybx = surroundingNodes(bx,1);
+
+    // Call for all (i,j,k) in the y-face-centered box
+    amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      pc_init_yvel(i, j, k, vfab, geomdata);
+    });
+
+    // Construct a box that is on z-faces
+    const amrex::Box& zbx = surroundingNodes(bx,2);
+
+    // Call for all (i,j,k) in the z-face-centered box
+    amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      pc_init_zvel(i, j, k, wfab, geomdata);
+    });
+  }
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+  {
+    const amrex::Box& bx = mfi.tilebox();
+    auto sfab  = S_new.array(mfi);
+    auto ufab  = U_new.array(mfi);
+    auto vfab  = V_new.array(mfi);
+    auto wfab  = W_new.array(mfi);
+    const auto geomdata = geom.data();
+
+    // Call for all (i,j,k) in the cell-centered box
+    // Note that this uses the face-based velocities so needs to come after them
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      pc_initdata(i, j, k, sfab, ufab, vfab, wfab, geomdata);
     });
   }
 
