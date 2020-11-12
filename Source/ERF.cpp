@@ -419,18 +419,18 @@ ERF::initData()
   amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
   amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
-  amrex::MultiFab& X_new = get_new_data(X_State_Type);
-  amrex::MultiFab& Y_new = get_new_data(Y_State_Type);
-  amrex::MultiFab& Z_new = get_new_data(Z_State_Type);
+  amrex::MultiFab& Xmom_new = get_new_data(X_Mom_Type);
+  amrex::MultiFab& Ymom_new = get_new_data(Y_Mom_Type);
+  amrex::MultiFab& Zmom_new = get_new_data(Z_Mom_Type);
 
   // Initialize to zero (though we sholdn't actually need to do this)
   S_new.setVal(0.0);
   U_new.setVal(0.0);
   V_new.setVal(0.0);
   W_new.setVal(0.0);
-  X_new.setVal(0.0);
-  Y_new.setVal(0.0);
-  Z_new.setVal(0.0);
+  Xmom_new.setVal(0.0);
+  Ymom_new.setVal(0.0);
+  Zmom_new.setVal(0.0);
 
   if (verbose) {
     amrex::Print() << "Initializing the data at level " << level << std::endl;
@@ -446,9 +446,9 @@ ERF::initData()
     auto ufab  = U_new.array(mfi);
     auto vfab  = V_new.array(mfi);
     auto wfab  = W_new.array(mfi);
-    auto xfab  = X_new.array(mfi);
-    auto yfab  = Y_new.array(mfi);
-    auto zfab  = Z_new.array(mfi);
+    auto xmomfab  = Xmom_new.array(mfi);
+    auto ymomfab  = Ymom_new.array(mfi);
+    auto zmomfab  = Zmom_new.array(mfi);
     const auto geomdata = geom.data();
 
     // Construct a box that is on x-faces
@@ -456,7 +456,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the x-face-centered box
     amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_init_xvel(i, j, k, ufab, xfab, geomdata);
+      pc_init_xvel(i, j, k, ufab, xmomfab, geomdata);
     });
 
     // Construct a box that is on y-faces
@@ -464,7 +464,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the y-face-centered box
     amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_init_yvel(i, j, k, vfab, yfab, geomdata);
+      pc_init_yvel(i, j, k, vfab, ymomfab, geomdata);
     });
 
     // Construct a box that is on z-faces
@@ -472,7 +472,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the z-face-centered box
     amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_init_zvel(i, j, k, wfab, zfab, geomdata);
+      pc_init_zvel(i, j, k, wfab, zmomfab, geomdata);
     });
   }
 

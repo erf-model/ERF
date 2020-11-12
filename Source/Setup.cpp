@@ -267,8 +267,8 @@ ERF::variableSetUp()
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
-  desc_lst.addDescriptor(X_State_Type, xface,
-                         amrex::StateDescriptor::Point, 1, NVAR,
+  desc_lst.addDescriptor(X_Mom_Type, xface,
+                         amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
@@ -277,8 +277,8 @@ ERF::variableSetUp()
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
-  desc_lst.addDescriptor(Y_State_Type, yface,
-                         amrex::StateDescriptor::Point, 1, NVAR,
+  desc_lst.addDescriptor(Y_Mom_Type, yface,
+                         amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
@@ -287,8 +287,8 @@ ERF::variableSetUp()
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
-  desc_lst.addDescriptor(Z_State_Type, zface,
-                         amrex::StateDescriptor::Point, 1, NVAR,
+  desc_lst.addDescriptor(Z_Mom_Type, zface,
+                         amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 

@@ -8,17 +8,19 @@
 
 using namespace amrex;
 
-void conservedToPrimitiveStag(MultiFab& prim_in, 
-                              MultiFab& u_x, MultiFab& v_y, MultiFab& w_z,
-                              MultiFab& cons_in,
-                              MultiFab& cu_x, MultiFab& cu_y, MultiFab& cu_z);
+void ConservedToPrimitive(MultiFab& prim_out, 
+                          MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
+                          MultiFab& cons_in,
+                          MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in);
+                          
+void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
+                        MultiFab& cons_in,
+                        MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in);
 
-void RK3_advance(MultiFab& cu, MultiFab& cu_new, 
-                 MultiFab& cu_x, MultiFab& cu_y, MultiFab& cu_z, 
-                 MultiFab& cunew_x, MultiFab& cunew_y, MultiFab& cunew_z, 
-                 MultiFab& prim, 
-                 MultiFab&  u_x, MultiFab&  v_y, MultiFab&  w_z, 
-                 MultiFab&  unew_x, MultiFab&  vnew_y, MultiFab&  wnew_z, 
+void RK3_advance(MultiFab& cons_old, MultiFab& cons_new, 
+                 MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old, 
+                 MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new, 
+                 MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    , 
                  MultiFab& source,
                  MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,

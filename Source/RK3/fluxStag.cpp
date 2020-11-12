@@ -8,15 +8,15 @@
 using namespace amrex;
 
 void calculateFluxStag(const MultiFab& cons_in, 
-                       const MultiFab& cu_x, const MultiFab& cu_y, const MultiFab& cu_z, 
+                       const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in, 
                        const MultiFab& prim_in, 
-                       const MultiFab& u_x, const MultiFab& v_y, const MultiFab& w_z, 
+                       const MultiFab& xvel_in, const MultiFab& yvel_in, const MultiFab& zvel_in, 
                        const MultiFab& eta_in, const MultiFab& zeta_in, const MultiFab& kappa_in,
-                       std::array<MultiFab, AMREX_SPACEDIM>& faceflux_in,
-                       std::array< MultiFab, 2 >& edgeflux_x_in,
-                       std::array< MultiFab, 2 >& edgeflux_y_in,
-                       std::array< MultiFab, 2 >& edgeflux_z_in,
-                       std::array< MultiFab, AMREX_SPACEDIM>& cenflux_in,
+                       std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
+                       std::array< MultiFab, 2 >& edgeflux_x,
+                       std::array< MultiFab, 2 >& edgeflux_y,
+                       std::array< MultiFab, 2 >& edgeflux_z,
+                       std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                        const amrex::Geometry geom,
                        const amrex::Real* dx, const amrex::Real dt)
 {
@@ -31,22 +31,22 @@ void calculateFluxStag(const MultiFab& cons_in,
         dx_gpu[n] = dx[n];
     }
     
-    faceflux_in[0].setVal(0.0);
-    faceflux_in[1].setVal(0.0);
-    faceflux_in[2].setVal(0.0);
+    faceflux[0].setVal(0.0);
+    faceflux[1].setVal(0.0);
+    faceflux[2].setVal(0.0);
 
-    edgeflux_x_in[0].setVal(0.0);
-    edgeflux_x_in[1].setVal(0.0);
+    edgeflux_x[0].setVal(0.0);
+    edgeflux_x[1].setVal(0.0);
 
-    edgeflux_y_in[0].setVal(0.0);
-    edgeflux_y_in[1].setVal(0.0);
+    edgeflux_y[0].setVal(0.0);
+    edgeflux_y[1].setVal(0.0);
 
-    edgeflux_z_in[0].setVal(0.0);
-    edgeflux_z_in[1].setVal(0.0);
+    edgeflux_z[0].setVal(0.0);
+    edgeflux_z[1].setVal(0.0);
 
-    cenflux_in[0].setVal(0.0);
-    cenflux_in[1].setVal(0.0);
-    cenflux_in[2].setVal(0.0);
+    cenflux[0].setVal(0.0);
+    cenflux[1].setVal(0.0);
+    cenflux[2].setVal(0.0);
 
     int ngc = 1; 
 
@@ -80,20 +80,20 @@ void calculateFluxStag(const MultiFab& cons_in,
         const Box & bx_xz = mfi.tilebox(IntVect(1,0,1));
         const Box & bx_yz = mfi.tilebox(IntVect(0,1,1));
 
-        const Array4<Real>& xflux = faceflux_in[0].array(mfi);
-        const Array4<Real>& yflux = faceflux_in[1].array(mfi);
-        const Array4<Real>& zflux = faceflux_in[2].array(mfi);
+        const Array4<Real>& xflux = faceflux[0].array(mfi);
+        const Array4<Real>& yflux = faceflux[1].array(mfi);
+        const Array4<Real>& zflux = faceflux[2].array(mfi);
 
-        const Array4<Real>& edgex_v = edgeflux_x_in[0].array(mfi);
-        const Array4<Real>& edgex_w = edgeflux_x_in[1].array(mfi);
-        const Array4<Real>& edgey_u = edgeflux_y_in[0].array(mfi);
+        const Array4<Real>& edgex_v = edgeflux_x[0].array(mfi);
+        const Array4<Real>& edgex_w = edgeflux_x[1].array(mfi);
+        const Array4<Real>& edgey_u = edgeflux_y[0].array(mfi);
         const Array4<Real>& edgey_w = edgeflux_y_in[1].array(mfi);
         const Array4<Real>& edgez_u = edgeflux_z_in[0].array(mfi);
         const Array4<Real>& edgez_v = edgeflux_z_in[1].array(mfi);
 
-        const Array4<Real>& cenx_u = cenflux_in[0].array(mfi);
-        const Array4<Real>& ceny_v = cenflux_in[1].array(mfi);
-        const Array4<Real>& cenz_w = cenflux_in[2].array(mfi);
+        const Array4<Real>& cenx_u = cenflux[0].array(mfi);
+        const Array4<Real>& ceny_v = cenflux[1].array(mfi);
+        const Array4<Real>& cenz_w = cenflux[2].array(mfi);
 
         const Array4<Real> tauxx = tau_diag[0].array(mfi);
         const Array4<Real> tauyy = tau_diag[1].array(mfi);
@@ -246,28 +246,28 @@ void calculateFluxStag(const MultiFab& cons_in,
         const Box & bx_xz = mfi.tilebox(IntVect(1,0,1));
         const Box & bx_yz = mfi.tilebox(IntVect(0,1,1));
 
-        const Array4<Real>& xflux = faceflux_in[0].array(mfi);
-        const Array4<Real>& yflux = faceflux_in[1].array(mfi);
-        const Array4<Real>& zflux = faceflux_in[2].array(mfi);
+        const Array4<Real>& xflux = faceflux[0].array(mfi);
+        const Array4<Real>& yflux = faceflux[1].array(mfi);
+        const Array4<Real>& zflux = faceflux[2].array(mfi);
 
-        const Array4<Real>& edgex_v = edgeflux_x_in[0].array(mfi);
-        const Array4<Real>& edgex_w = edgeflux_x_in[1].array(mfi);
-        const Array4<Real>& edgey_u = edgeflux_y_in[0].array(mfi);
-        const Array4<Real>& edgey_w = edgeflux_y_in[1].array(mfi);
-        const Array4<Real>& edgez_u = edgeflux_z_in[0].array(mfi);
-        const Array4<Real>& edgez_v = edgeflux_z_in[1].array(mfi);
+        const Array4<Real>& edgex_v = edgeflux_x[0].array(mfi);
+        const Array4<Real>& edgex_w = edgeflux_x[1].array(mfi);
+        const Array4<Real>& edgey_u = edgeflux_y[0].array(mfi);
+        const Array4<Real>& edgey_w = edgeflux_y[1].array(mfi);
+        const Array4<Real>& edgez_u = edgeflux_z[0].array(mfi);
+        const Array4<Real>& edgez_v = edgeflux_z[1].array(mfi);
 
-        const Array4<Real>& cenx_u = cenflux_in[0].array(mfi);
-        const Array4<Real>& ceny_v = cenflux_in[1].array(mfi);
-        const Array4<Real>& cenz_w = cenflux_in[2].array(mfi);
+        const Array4<Real>& cenx_u = cenflux[0].array(mfi);
+        const Array4<Real>& ceny_v = cenflux[1].array(mfi);
+        const Array4<Real>& cenz_w = cenflux[2].array(mfi);
 
-        Array4<Real const> const& momx = cu_x.array(mfi);
-        Array4<Real const> const& momy = cu_y.array(mfi);
-        Array4<Real const> const& momz = cu_z.array(mfi);
+        Array4<Real const> const& momx = xmom_in.array(mfi);
+        Array4<Real const> const& momy = ymom_in.array(mfi);
+        Array4<Real const> const& momz = zmom_in.array(mfi);
 
-        Array4<Real const> const& velx = u_x.array(mfi);
-        Array4<Real const> const& vely = v_y.array(mfi);
-        Array4<Real const> const& velz = w_z.array(mfi);
+        Array4<Real const> const& velx = xvel_in.array(mfi);
+        Array4<Real const> const& vely = yvel_in.array(mfi);
+        Array4<Real const> const& velz = zvel_in.array(mfi);
 
         const Array4<const Real> prim = prim_in.array(mfi);
         const Array4<const Real> cons = cons_in.array(mfi);
@@ -373,6 +373,16 @@ void calculateFluxStag(const MultiFab& cons_in,
                 // Advected scalar = rho u s
                 zflux(i,j,k,7) += conserved[0]*primitive[3]*primitive[6];
         });
-            
     } 
+
+    for (int d=0; d<AMREX_SPACEDIM; d++) {
+        cenflux[d].FillBoundary(geom.periodicity());
+        faceflux[d].FillBoundary(geom.periodicity());
+    }
+
+    for (int d=0; d<2; d++) {
+        edgeflux_x[d].FillBoundary(geom.periodicity());
+        edgeflux_y[d].FillBoundary(geom.periodicity());
+        edgeflux_z[d].FillBoundary(geom.periodicity());
+    }
 }

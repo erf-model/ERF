@@ -1,5 +1,6 @@
 CEXE_sources += fluxStag.cpp
 CEXE_sources += timeStepStag.cpp
-CEXE_sources += conservedPrimitiveConversionsStag.cpp
+CEXE_sources += ConservedToPrimitive.cpp
+CEXE_sources += MomentumToVelocity.cpp
 
 CEXE_headers += RK3.H

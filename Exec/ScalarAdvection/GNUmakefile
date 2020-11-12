@@ -22,8 +22,6 @@ USE_DPCPP = FALSE
 
 # Debugging
 DEBUG = FALSE
-FSANITIZER = FALSE
-THREAD_SANITIZER = FALSE
 
 # ERF
 Eos_dir := GammaLaw
