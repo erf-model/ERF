@@ -17,7 +17,7 @@ Contents:
    Algorithms.rst
    GettingStarted.rst
    BoundaryConditions.rst
-   boxlib_bits.rst
+   Visualization.rst
 
 README
 ======
