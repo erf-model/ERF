@@ -18,7 +18,6 @@ The ERF directory structure is as shown below:
   * BLAS
   * LAPACK
   * VODE
-  * plot1d
 
 * **Docs**   - ERF documentation 
 
@@ -26,17 +25,12 @@ The ERF directory structure is as shown below:
 
 * **Exec** - regression tests and various capability demonstrations
   
-  * :ref:`Regression Tests<VandV>`
+  * :ref:`ScalarAdvection -- scalar advection with constant velocity and pressure
 
-    * MMS      - Method of manufactured solutions
-    * Sedov    - Sedov blast wave test
-    * Sod      - Sod shock tube test
-    * TG       - Taylor-Green vortex test
-
-  * UnitTests
-
-Setting up a problem to run with ERF involves writing an input file and problem specific code in the run directory. 
-ERF is built using the AMReX build system which supports out-of-source builds but as configured in ERF requires a specific directory structure. 
+Setting up a problem to run with ERF involves writing an input file and problem specific code in the 
+directory where you would like to run the problem.
+ERF is built using the AMReX build system which supports out-of-source builds but as configured in 
+ERF requires a specific directory structure. 
 Within each case directory in Exec, are the source files that specify the setup of that particular case. 
 The user has to build each case by compiling source files using a GNUMakefile which also compiles and links together AMReX and ERF sources.
 The source files contained in the case directory are treated preferentially and can override ERF/AMReX source files.  

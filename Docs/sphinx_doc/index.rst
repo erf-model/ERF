@@ -17,11 +17,7 @@ Contents:
    Algorithms.rst
    GettingStarted.rst
    BoundaryConditions.rst
-   LES.rst
-   VandV.rst
-   ./miscellaneous/miscellaneous.rst
    boxlib_bits.rst
-
 
 README
 ======
