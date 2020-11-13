@@ -38,10 +38,10 @@ Here :math:`\rho, T`, and :math:`p` are the density, temperature and pressure, r
 and :math:`E = e + \mathbf{u} \cdot \mathbf{u} / 2` is the total energy with :math:`e` representing the
 internal energy; these variables are all defined at cell centers.
 :math:`A` is an advected quantity, i.e., a tracer, also defined at cell centers
-\mathbf{u} is the velocity, which is defined on faces.
-:math:`\mathbf{g}` is the gravitational vector. 
+:math:`\mathbf{u}` and :math:`(\rho \mathbf{u})` are the velocity and momentum, respectively, 
+and are defined on faces.  :math:`\mathbf{g}` is the gravitational vector.
 
-In the code we carry :math:`T` and :math:`(\rho e)` in the state vector even though they are 
+In the code we carry :math:`T` and :math:`(\rho e)` in the cell-centered state vector even though they are 
 redundant with the state since they may be derived from the other conserved quantities.  
 
 Primitive Forms
@@ -51,7 +51,7 @@ ERF uses the primitive form of the fluid equations to construct the fluxes used 
 the conserved variables. All of the primitive variables are derived from the conservative state
 vector. 
 
-The primitive variable equations for density, velocity, and pressure are:
+The primitive variable equations are:
 
 .. math::
   
