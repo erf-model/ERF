@@ -50,10 +50,10 @@ Your image should look similar to the left side of :numref:`Fig:VisIt`.
 
    \begin{center}
 
-.. |c| image:: ./Visualization/VisIt_2D.png
+.. |c| image:: ./figures/VisIt_2D.png
        :width: 100%
 
-.. |d| image:: ./Visualization/VisIt_3D.png
+.. |d| image:: ./figures/VisIt_3D.png
        :width: 100%
 
 .. _Fig:VisIt:
@@ -159,7 +159,7 @@ To open a plotfile (for example, you could run the
 
 .. _fig:ParaView:
 
-.. figure:: ./Visualization/ParaView.png
+.. figure:: ./figures/ParaView.png
    :width: 3.1in
 
    : Plotfile image generated with ParaView
@@ -184,7 +184,7 @@ run the ``ShortRangeParticles`` example):
 
 .. _fig:ParaView_filegroup:
 
-.. figure:: ./Visualization/ParaView_filegroup.png
+.. figure:: ./figures/ParaView_filegroup.png
    :width: 3.1in
 
    : File dialog in ParaView showing a group of plotfile directories selected
@@ -215,7 +215,7 @@ run the ``ShortRangeParticles`` example):
 
 .. _fig:ParaView_particles:
 
-.. figure:: ./Visualization/ParaView_particles.png
+.. figure:: ./figures/ParaView_particles.png
    :width: 3.1in
 
    : Particle image generated with ParaView
@@ -323,7 +323,7 @@ volume renderings with ; an example is show below:
 
 .. _fig:yt_Nyx_slice_plot:
 
-.. figure:: ./Visualization/yt_Nyx_density_slice.png
+.. figure:: ./figures/yt_Nyx_density_slice.png
 
    : Slice plot of :math:`128^3` Nyx simulation using yt.
 
@@ -370,7 +370,7 @@ The output of this is :numref:`fig:yt_Nyx_vol_rend`.
 
 .. _fig:yt_Nyx_vol_rend:
 
-.. figure:: ./Visualization/yt_Nyx_density_vol_rend.png
+.. figure:: ./figures/yt_Nyx_density_vol_rend.png
 
    Volume rendering of :math:`128^3` Nyx simulation using yt. This corresponds
    to the same plot file used to generate the slice plot in
