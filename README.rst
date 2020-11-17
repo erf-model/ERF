@@ -1,7 +1,8 @@
 Energy Research and Forecasting (ERF): An atmospheric modeling code
 ----
 
-`ERF` is built upon `PeleC <https://pelec.readthedocs.io/en/latest/>`_, a compressible hydrodynamics code for reacting flows, which in turn is built upon the `AMReX <https://amrex-codes.github.io/amrex/>`_ solution framework.
+`ERF` is built upon the `AMReX <https://amrex-codes.github.io/amrex/>`_ software framework
+for massively parallel block-structured applications.
 
 Getting Started 
 ~~~~~~~~~~~~~~~
