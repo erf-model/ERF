@@ -1,58 +1,67 @@
-ERF 
+Energy Research and Forecasting (ERF): An atmospheric modeling code
 ----
-*An atmospheric modeling code*
 
-`ERF` is built on `PeleC` (https://pelec.readthedocs.io/en/latest/), a compressible hydrodynamics code for reacting flows built on the AMReX solution framework (https://amrex-codes.github.io/amrex/). 
+`ERF` is built upon `PeleC <https://pelec.readthedocs.io/en/latest/>`_, a compressible hydrodynamics code for reacting flows, which in turn is built upon the `AMReX <https://amrex-codes.github.io/amrex/>`_ solution framework.
 
 Getting Started 
 ~~~~~~~~~~~~~~~
 
-* To compile and run the `ERF` suite of codes, one needs a C++ compiler that supports the C++14 standard.  A hierarchical strategy for parallelism is supported, based MPI + OpenMP, or MPI + CUDA.  The codes work with all major MPI and OpenMP implementations.  The codes should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 4.9.4 and above.
+* To compile and run the `ERF` suite of codes, one needs a C++ compiler that supports the C++14 standard.  A hierarchical strategy for parallelism is supported, based on MPI + OpenMP or MPI + CUDA.  The codes work with all major MPI and OpenMP implementations.  The codes should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 4.9.3 and above. 
 
-To build `ERF` and run a sample problem:
+To clone the source code of `ERF`:
 
-1. One can have ERF use the default submodule for AMReX in its own repo by simply performing: ::
-
-    git clone --recursive git@github.com:ERF-model.git
-    cd ERF/Exec/RegTests/Sod
-    make
-    ./ERF3d.xxx,yyy.ex inputs_ex
-
-Alternatively, one can set environment variables to use AMReX repo from external locations: ::
-
-1. Set the environment variable, AMREX_HOME, and clone a copy of `AMReX` there: ::
-
-    export AMREX_HOME=<location for AMReX>    
-    git clone git@github.com:AMReX-Codes/amrex.git ${AMREX_HOME}
-
-2. Set the environment variable, ERF_HOME, and clone a copy of `ERF` there. You should be placed in the `development` branch: ::
+1. One can have ERF use the default submodule for ``AMReX`` in its own repo by simply performing: ::
 
     export ERF_HOME=<location for ERF code>
-    git clone git@github.com:ERF-model.git ${ERF_HOME}
+    git clone --recursive git@github.com:ERF-model/ERF.git ${ERF_HOME}
+    
+    export AMREX_HOME=${ERF_HOME}/Submodules/AMReX # w.r.t. ERF_HOME
 
-3. Move to an example build folder, build an executable, run a test case: ::
+Note that the path ``AMREX_HOME`` is dependent on ``ERF_HOME``.
 
-    cd ${ERF_HOME}/Exec/RegTests/Sod
+Alternatively, one can set environment variable ``AMREX_HOME`` to use ``AMReX`` repo from external locations independent of ``ERF_HOME``: ::
+
+1. Set the environment variable ``AMREX_HOME`` and clone a copy of ``AMReX`` there: ::
+
+    export AMREX_HOME=<location for AMReX>  # Can be anywhere  
+    git clone git@github.com:AMReX-Codes/amrex.git ${AMREX_HOME}
+
+2. Set the environment variable ``ERF_HOME`` and clone a copy of ``ERF`` there. You should be placed in the ``development`` branch: ::
+
+    export ERF_HOME=<location for ERF code>
+    git clone git@github.com:ERF-model/ERF.git ${ERF_HOME}
+    
+Note that cloning using the format ``git@github.com:ERF-model/ERF.git`` requires that your public rsa keys are set in your github profile. See `here <https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/adding-a-new-ssh-key-to-your-github-account>`_ how to do this.
+
+If one doesn't have the rsa keys setup in github profile, one can clone using ``https://github.com/erf-model/ERF.git`` format.
+
+To build the code and run a sample problem:
+
+1. Move to an example build folder, build an executable, and run a test case: ::
+
+    cd ${ERF_HOME}/Exec/ScalarAdvection
     make
-    ./ERF3d.xxx,yyy.ex inputs_ex
+    ./ERF3d.xxx.yyy.ex inputs_ex
+    
+   In order to make on multiple processors use ``make -j N`` instead of ``make``, where ``N`` is the number of processors to use for building and is typically 8 or 16. The executable name is of the format ``ERF3d.xxx.yyy.ex``.
 
-* Notes
+* Notes:
 
-   A. In the exec line above, xxx.yyy is a tag identifying your compiler and various build options, and will vary across pltaform.  (Note that GNU compilers must be at least 4.8.4, and MPI should be at least version 3).
-   B. In addition to informative output to the terminal, periodic plotfiles are written in the run folder.  These may be viewed with CCSE's Amrvis (<https://ccse.lbl.gov/Downloads/downloadAmrvis.html>) or Vis-It (<http://vis.lbl.gov/NERSC/Software/visit/>):
+   A. In the exec line above, ``xxx.yyy`` is a tag identifying your compiler and various build options, for example, ``gnu.MPI`` and will vary across pltaform.  (Note that GNU compilers must be at least 4.8.4, and MPI should be at least version 3).
+   B. In addition to informative output to the terminal, periodic plot files are written in the run folder.  These may be viewed with CCSE's `Amrvis <https://ccse.lbl.gov/Downloads/downloadAmrvis.html>`_ or `Vis-It <http://vis.lbl.gov/NERSC/Software/visit/>`_ (!! FIX the URLs !!):
 
-      1. In Vis-It, direct the File->Open dialogue to select the file named "Header" that is inside each plotfile folder..
-      2. With Amrvis, "amrvis3d plt00030", for example.
+      1. In Vis-It, direct the File->Open dialogue to select the file named "Header" that is inside each plotfile folder.
+      2. With Amrvis, ``amrvis3d plt00030``, for example.
 
 
 Origin of ERF 
 ~~~~~~~~~~~~~
 
-`ERF` was created as a renamed, stripped down version of `PeleC`
-(<https://github.com/AMReX-combustion/PeleC>),
+`ERF` was created as a renamed, stripped down version of `PeleC
+<https://github.com/AMReX-combustion/PeleC>`_,
 incorporates a modified RK3 compressible hydro integrator adapted from 
-the FHDeX code base (<https://github.com/AMReX-FHD/FHDeX>), 
-and is built on the `AMReX` library (<https://github.com/AMReX-codes/AMReX>).
+the `FHDeX <https://github.com/AMReX-FHD/FHDeX>`_ code base, 
+and is built on the `AMReX <https://github.com/AMReX-codes/AMReX>`_ library.
 
 Development model
 ~~~~~~~~~~~~~~~~~
@@ -75,13 +84,13 @@ To add a new feature to ERF, the procedure is:
 
     git push -u origin AmazingNewFeature [Note: -u option required only for the first push of new branch]
 
-4. Submit a merge request through git@github.com:ERF-model.git, and make sure you are requesting a merge against the development branch
+4. Raise a pull request on github ERF `respository <https://github.com/erf-model/ERF>`_, and make sure you are requesting a merge of ``AmazingNewFeature`` branch into the ``development`` branch
 
-5. Check the CI status on Github and make sure the tests passed for merge request
+5. Check the CI status on Github and make sure the tests passed for pull request
 
 .. note::
 
-   Github CI uses the CMake build system and CTest to test the core source files of ERF. If you are adding source files, you will need to add them to the list of source files in the ``CMake`` directory for the tests to pass. Make sure to add them to the GNU make makefiles as well.
+   Github CI uses the ``CMake`` build system and ``CTest`` to test the core source files of ERF. If you are adding source files, you will need to add them to the list of source files in the ``CMake`` directory for the tests to pass. Make sure to add them to the GNU make makefiles as well.
 
 
 Test Status - ***UPDATE THIS***
@@ -102,10 +111,10 @@ similar to Markdown, but with somewhat greater capabilities (and idiosyncrasies)
 are several `primers <http://thomas-cokelaer.info/tutorials/sphinx/rest_syntax.html>`_
 available to get started. One gotcha is that indentation matters.
 To build the documentation, run Doxygen in the Docs directory then build the sphinx ::
-
-    doxygen Doxyfile
+    cd ${ERF_HOME}/Docs
+    doxygen Doxyfile # a variant of Doxyfile.in in the repository
     cd sphinx_doc
-    make html
+    make html # make sure sphinx is available
 
 
 Acknowledgment - ***UPDATE THIS***
