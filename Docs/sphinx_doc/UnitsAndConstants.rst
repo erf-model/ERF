@@ -44,3 +44,5 @@ Constants
    | :math:`\mathbf{g}`    | :math:`9.8 m/s^2`     | gravitational            |
    |                       |                       | acceleration             |
    +-----------------------+-----------------------+--------------------------+
+
+These constants are defined in the file  :cpp:`Source/Constants.H`

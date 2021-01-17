@@ -1374,62 +1374,8 @@ ERF::init_mms()
 #endif
 
 void
-ERF::reset_internal_energy(amrex::MultiFab& S_new, int ng)
-{
-#ifndef AMREX_USE_GPU
-  amrex::Real sum = 0.;
-  amrex::Real sum0 = 0.;
-  if (parent->finestLevel() == 0 && print_energy_diagnostics) {
-    // Pass in the multifab and the component
-    sum0 = volWgtSumMF(S_new, Eden, true);
-  }
-#endif
-  // Ensure (rho e) isn't too small or negative
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-  const auto captured_allow_small_energy = allow_small_energy;
-  const auto captured_allow_negative_energy = allow_negative_energy;
-  const auto captured_dual_energy_update_E_from_e = dual_energy_update_E_from_e;
-  const auto captured_verbose = verbose;
-  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid();
-       ++mfi) {
-    const amrex::Box& bx = mfi.growntilebox(ng);
-    const auto& sarr = S_new.array(mfi);
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_rst_int_e(
-        i, j, k, sarr, captured_allow_small_energy,
-        captured_allow_negative_energy, captured_dual_energy_update_E_from_e,
-        captured_verbose);
-    });
-  }
-
-#ifndef AMREX_USE_GPU
-  if (parent->finestLevel() == 0 && print_energy_diagnostics) {
-    // Pass in the multifab and the component
-    sum = volWgtSumMF(S_new, Eden, true);
-#ifdef AMREX_LAZY
-    Lazy::QueueReduction([=]() mutable {
-#endif
-      amrex::ParallelDescriptor::ReduceRealSum(sum0);
-      amrex::ParallelDescriptor::ReduceRealSum(sum);
-      if (
-        amrex::ParallelDescriptor::IOProcessor() &&
-        amrex::Math::abs(sum - sum0) > 0)
-        amrex::Print() << "(rho E) added from reset terms                 : "
-                       << sum - sum0 << " out of " << sum0 << std::endl;
-#ifdef AMREX_LAZY
-    });
-#endif
-  }
-#endif
-}
-
-void
 ERF::computeTemp(amrex::MultiFab& S, int ng)
 {
-  reset_internal_energy(S, ng);
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif

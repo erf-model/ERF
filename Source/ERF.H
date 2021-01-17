@@ -343,8 +343,6 @@ public:
 
   static int numGrow();
 
-  void reset_internal_energy(amrex::MultiFab& State, int ng);
-
   void computeTemp(amrex::MultiFab& State, int ng);
 
   void getMOLSrcTerm(
