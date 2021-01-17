@@ -30,3 +30,5 @@ where :math:`\mathbf{U}` is the solution vector, we solve
 
   \mathbf{U}^{n+1} = \frac{1}{3} \mathbf{U}^n + \frac{2}{3} ( \mathbf{U}^{n+2/3} + \Delta t f(\mathbf{U}^{n+2/3}) )
 
+In the code, the time-stepping is implemented in :cpp:`Source/RK3/RK3_driver.cpp`, while 
+:math:`f` is computed in :cpp:`Source/RK3/RK3_stage.cpp`

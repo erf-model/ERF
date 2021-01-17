@@ -13,7 +13,8 @@
 #define R_d   287.06
 #define c_p  1004.5
 #define p_0  1000.0
-#define grav    9.8
+
+#define CONST_GRAV 9.8
 
 #define Outflow 2
 

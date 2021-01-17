@@ -30,6 +30,19 @@ void RK3_advance(MultiFab& cons_old, MultiFab& cons_new,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt);
 
+void RK3_stage  (MultiFab& cons_old, MultiFab& cons_new, 
+                 MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old, 
+                 MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new, 
+                 MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    , 
+                 MultiFab& prim    , MultiFab& source,
+                 MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
+                 std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
+                 std::array< MultiFab, 2 >& edgeflux_x,
+                 std::array< MultiFab, 2 >& edgeflux_y,
+                 std::array< MultiFab, 2 >& edgeflux_z,
+                 std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
+                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt);
+
 void calculateFluxStag(const MultiFab& cons_in, 
                        const MultiFab& cons_x, const MultiFab& cons_y, const MultiFab& cons_z, 
                        const MultiFab& prim_in, 
