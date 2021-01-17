@@ -14,6 +14,7 @@ Contents:
    Introduction.rst
    Applications_Requirements.rst
    Equations.rst
+   ArakawaCGrid.rst
    UnitsAndConstants.rst
    Algorithms.rst
    GettingStarted.rst
