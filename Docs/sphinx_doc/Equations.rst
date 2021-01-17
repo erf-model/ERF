@@ -49,7 +49,7 @@ these variables are all defined at cell centers.
 :math:`\mathbf{u}` and :math:`(\rho \mathbf{u})` are the velocity and momentum, respectively, 
 and are defined on faces.  :math:`\mathbf{g}` is the gravitational vector.
 
-`R_d and c_p` are the gas constant and specific heat capacity for dry air respectively, 
+`R_d` and `c_p` are the gas constant and specific heat capacity for dry air respectively, 
 and `\gamma = c_p / (c_p - R_d)` 
 
 The background pressure, `p_0`, is defined to be 1000 hPa.
