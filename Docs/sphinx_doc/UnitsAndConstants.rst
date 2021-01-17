@@ -1,10 +1,6 @@
 
  .. role:: cpp(code)
     :language: c++
-
- .. role:: f(code)
-    :language: fortran
-
  
 .. _Equations:
 
@@ -17,17 +13,17 @@ Units
 The following units are used in ERF:
 
    +-----------------------+-----------------------+-----------------------+
-   | Name                  | units                 | description           |
+   | Name                  | Units                 | Description           |
    +=======================+=======================+=======================+
    | :math:`t`             | seconds               | time                  |
    +-----------------------+-----------------------+-----------------------+
    | :math:`\rho`          | :math:`kg/m^3`        | mass density          |
    +-----------------------+-----------------------+-----------------------+
-   | :math:`\ub`           | :math:`m/s`           | velocity vector       |
+   | :math:`\mathbf{u}`    | :math:`m/s`           | velocity vector       |
    +-----------------------+-----------------------+-----------------------+
    | :math:`p`             | :math:`Hpa`           | pressure              |
    +-----------------------+-----------------------+-----------------------+
-   | :math:`\gb`           | :math:`m/s^2`         | gravitational         |
+   | :math:`\mathbf{g}`    | :math:`m/s^2`         | gravitational         |
    |                       |                       | acceleration          |
    +-----------------------+-----------------------+-----------------------+
    | :math:`T`             | Kelvin                | temperature           |
@@ -40,11 +36,11 @@ Constants
 ---------
 
    +-----------------------+-----------------------+--------------------------+
-   | Name                  | units                 | description              |
+   | Name                  | Value                 | Description              |
    +=======================+=======================+==========================+
    | :math:`R_d`           | 287.06 J/kg/K         | gas constant for dry air |
    +-----------------------+-----------------------+--------------------------+
-   | :math:`c_p`           | 1000.  J/kg/K         | specific heat capacity   |
+   | :math:`c_p`           | 1000   J/kg/K         | specific heat capacity   |
    +-----------------------+-----------------------+--------------------------+
-   | :math:`p_0`           | 1000.  hPa            | background pressure      |
+   | :math:`p_0`           | 1000   hPa            | background pressure      |
    +-----------------------+-----------------------+--------------------------+
