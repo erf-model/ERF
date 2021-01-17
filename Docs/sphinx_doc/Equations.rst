@@ -37,7 +37,7 @@ and we use the following equation of state:
 
   p = \rho R_d T;
 
-which can also be written in terms of `\theta` as
+which can also be written in terms of :math:`\theta` as
 
 .. math::
 
@@ -47,10 +47,8 @@ Here :math:`\rho, T, \theta`, and :math:`p` are the density, temperature, potent
 these variables are all defined at cell centers.
 :math:`A` is an advected quantity, i.e., a tracer, also defined at cell centers
 :math:`\mathbf{u}` and :math:`(\rho \mathbf{u})` are the velocity and momentum, respectively, 
-and are defined on faces.  :math:`\mathbf{g}` is the gravitational vector.
+and are defined on faces.  The gravitational vector is denoted by :math:`\mathbf{g}`.
 
-`R_d` and `c_p` are the gas constant and specific heat capacity for dry air respectively, 
-and `\gamma = c_p / (c_p - R_d)` 
-
-The background pressure, `p_0`, is defined to be 1000 hPa.
+:math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively, 
+and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0`, is a reference value for pressure.
 
