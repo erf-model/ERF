@@ -9,16 +9,24 @@
 .. _Algorithms:
 
 
-Numerical Treatment and Algorithms
-==================================
+Time Advance
+============
 
-ERF Time-stepping
-------------------
+ERF uses the three-stage low-storage TVD RK3 scheme of Gottlieb and Shu to advance the solution.
 
-ERF uses RK3 to advance the solution.
+Specifically, for 
 
+.. math::
 
-Equation of State
------------------
+    frac{d \mathbf{U}}{dt} = f(\mathbf{U}}
 
-ERF assumes an ideal gas equation of state.
+where :math:`\mathbf{U}` is the solution vector, we solve
+
+.. math::
+
+  \mathbf{U}^{n+1/3} = \mathbf{U}^n + \Delta t f(\mathbf{U}^n) 
+
+  \mathbf{U}^{n+2/3} = \frac{3}{4} \mathbf{U}^n + \frac{1}{4} ( \mathbf{U}^{n+1/3} + \Delta t f(\mathbf{U}^{n+1/3}) )
+
+  \mathbf{U}^{n+1} = \frac{1}{3} \mathbf{U}^n + \frac{2}{3} ( \mathbf{U}^{n+2/3} + \Delta t f(\mathbf{U}^{n+2/3}) )
+
