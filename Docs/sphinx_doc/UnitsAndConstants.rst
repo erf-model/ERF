@@ -25,7 +25,7 @@ The following units are used in ERF:
    +-----------------------+-----------------------+-----------------------+
    | :math:`T`             | :math:`K`             | temperature           |
    +-----------------------+-----------------------+-----------------------+
-   | :math:`theta`         | :math:`K`             | potential temperature |
+   | :math:`\theta`        | :math:`K`             | potential temperature |
    +-----------------------+-----------------------+-----------------------+
 
 
