@@ -18,7 +18,7 @@ Specifically, for
 
 .. math::
 
-    \frac{d \mathbf{U}}{dt} = f(\mathbf{U}}
+  \frac{d \mathbf{U}}{dt} = f(\mathbf{U})
 
 where :math:`\mathbf{U}` is the solution vector, we solve
 
