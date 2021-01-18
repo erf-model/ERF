@@ -23,19 +23,6 @@
 #define QTEMP 7
 #define QFA 8
 
-#define QGAMC 0
-#define QC 1
-#define QCSML 2
-#define QDPDR 3
-#define QDPDE 4
-
-#define GDRHO 0
-#define GDU 1
-#define GDV 2
-#define GDW 3
-#define GDPRES 4
-#define GDGAME 5
-
 #define dComp_rhoD 0
 #define dComp_mu dComp_rhoD + 1
 #define dComp_xi dComp_mu + 1

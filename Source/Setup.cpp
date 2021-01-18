@@ -143,31 +143,6 @@ ERF::variableSetUp()
 
   int dm = AMREX_SPACEDIM;
 
-  // NVAR = cnt;
-
-  // const amrex::Real run_strt = amrex::ParallelDescriptor::second() ;
-
-  // Real run_stop = ParallelDescriptor::second() - run_strt;
-
-  // ParallelDescriptor::ReduceRealMax(run_stop,ParallelDescriptor::IOProcessorNumber());
-
-  // if (ParallelDescriptor::IOProcessor())
-  //    std::cout << "\nTime in set_method_params: " << run_stop << '\n' ;
-
-  if (nscbc_adv == 1 && amrex::ParallelDescriptor::IOProcessor())
-    amrex::Print() << "Using Ghost-Cells Navier-Stokes Characteristic BCs for "
-                      "advection: nscbc_adv = "
-                   << nscbc_adv << '\n'
-                   << '\n';
-
-  if (nscbc_diff == 1 && amrex::ParallelDescriptor::IOProcessor())
-    amrex::Print() << "Using Ghost-Cells Navier-Stokes Characteristic BCs for "
-                      "diffusion: nscbc_diff = "
-                   << nscbc_diff << '\n'
-                   << '\n';
-
-  int coord_type = amrex::DefaultGeometry().Coord();
-
   amrex::Vector<amrex::Real> center(AMREX_SPACEDIM, 0.0);
   amrex::ParmParse ppc("erf");
   ppc.queryarr("center", center, 0, AMREX_SPACEDIM);
@@ -267,27 +242,15 @@ ERF::variableSetUp()
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
-  desc_lst.addDescriptor(X_Mom_Type, xface,
-                         amrex::StateDescriptor::Point, 1, 1,
-                         interp, state_data_extrap,
-                         store_in_checkpoint);
 
   amrex::IndexType yface(amrex::IntVect(0,1,0));
   desc_lst.addDescriptor(Y_Vel_Type, yface,
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
-  desc_lst.addDescriptor(Y_Mom_Type, yface,
-                         amrex::StateDescriptor::Point, 1, 1,
-                         interp, state_data_extrap,
-                         store_in_checkpoint);
 
   amrex::IndexType zface(amrex::IntVect(0,0,1));
   desc_lst.addDescriptor(Z_Vel_Type, zface,
-                         amrex::StateDescriptor::Point, 1, 1,
-                         interp, state_data_extrap,
-                         store_in_checkpoint);
-  desc_lst.addDescriptor(Z_Mom_Type, zface,
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
@@ -302,21 +265,6 @@ ERF::variableSetUp()
   derive_lst.add(
     "pressure", amrex::IndexType::TheCellType(), 1, pc_derpres, the_same_box);
   derive_lst.addComponent("pressure", desc_lst, State_Type, Density, NVAR);
-
-  //
-  // Kinetic energy
-  //
-  derive_lst.add(
-    "kineng", amrex::IndexType::TheCellType(), 1, pc_derkineng, the_same_box);
-  derive_lst.addComponent("kineng", desc_lst, State_Type, Density, NVAR);
-
-  //
-  // Enstrophy
-  //
-  derive_lst.add(
-    "enstrophy", amrex::IndexType::TheCellType(), 1, pc_derenstrophy,
-    grow_box_by_one);
-  derive_lst.addComponent("enstrophy", desc_lst, State_Type, Density, NVAR);
 
   //
   // Sound speed (c)
@@ -335,13 +283,6 @@ ERF::variableSetUp()
   derive_lst.addComponent("MachNumber", desc_lst, State_Type, Density, NVAR);
 
   //
-  // Entropy (S)
-  //
-  derive_lst.add(
-    "entropy", amrex::IndexType::TheCellType(), 1, pc_derentropy, the_same_box);
-  derive_lst.addComponent("entropy", desc_lst, State_Type, Density, NVAR);
-
-  //
   // Vorticity
   //
   derive_lst.add(
@@ -357,37 +298,20 @@ ERF::variableSetUp()
   derive_lst.addComponent("divu", desc_lst, State_Type, Density, NVAR);
 
   //
-  // Internal energy as derived from rho*E, part of the state
-  //
-  derive_lst.add(
-    "eint_E", amrex::IndexType::TheCellType(), 1, pc_dereint1, the_same_box);
-  derive_lst.addComponent("eint_E", desc_lst, State_Type, Density, NVAR);
-
-  //
-  // Internal energy as derived from rho*e, part of the state
-  //
-  derive_lst.add(
-    "eint_e", amrex::IndexType::TheCellType(), 1, pc_dereint2, the_same_box);
-  derive_lst.addComponent("eint_e", desc_lst, State_Type, Density, NVAR);
-
-  //
-  // Log(density)
-  //
-  derive_lst.add(
-    "logden", amrex::IndexType::TheCellType(), 1, pc_derlogden, the_same_box);
-  derive_lst.addComponent("logden", desc_lst, State_Type, Density, NVAR);
-
-  //
   // Velocities
   //
+
+  // This calculcates cell-centered x-velocity from x-face-centered values
   derive_lst.add(
     "x_velocity", amrex::IndexType::TheCellType(), 1, pc_dervelx, the_same_box);
   derive_lst.addComponent("x_velocity", desc_lst, State_Type, Density, NVAR);
 
+  // This calculcates cell-centered y-velocity from y-face-centered values
   derive_lst.add(
     "y_velocity", amrex::IndexType::TheCellType(), 1, pc_dervely, the_same_box);
   derive_lst.addComponent("y_velocity", desc_lst, State_Type, Density, NVAR);
 
+  // This calculcates cell-centered z-velocity from z-face-centered values
   derive_lst.add(
     "z_velocity", amrex::IndexType::TheCellType(), 1, pc_dervelz, the_same_box);
   derive_lst.addComponent("z_velocity", desc_lst, State_Type, Density, NVAR);
@@ -395,15 +319,6 @@ ERF::variableSetUp()
   derive_lst.add(
     "magvel", amrex::IndexType::TheCellType(), 1, pc_dermagvel, the_same_box);
   derive_lst.addComponent("magvel", desc_lst, State_Type, Density, NVAR);
-
-  derive_lst.add(
-    "radvel", amrex::IndexType::TheCellType(), 1, pc_derradialvel,
-    the_same_box);
-  derive_lst.addComponent("radvel", desc_lst, State_Type, Density, NVAR);
-
-  derive_lst.add(
-    "magmom", amrex::IndexType::TheCellType(), 1, pc_dermagmom, the_same_box);
-  derive_lst.addComponent("magmom", desc_lst, State_Type, Density, NVAR);
 
   //
   // LES coefficients

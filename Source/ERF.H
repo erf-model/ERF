@@ -25,9 +25,6 @@ enum StateType {
   X_Vel_Type,
   Y_Vel_Type,
   Z_Vel_Type,
-  X_Mom_Type,
-  Y_Mom_Type,
-  Z_Mom_Type,
   Work_Estimate_Type
 };
 

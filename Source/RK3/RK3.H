@@ -17,10 +17,13 @@ void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_o
                         MultiFab& cons_in,
                         MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in);
 
+void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in,
+                        MultiFab& cons_in,
+                        MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out);
+
 void RK3_advance(MultiFab& cons_old, MultiFab& cons_new, 
-                 MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old, 
-                 MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new, 
-                 MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    , 
+                 MultiFab& U_old, MultiFab& V_old, MultiFab& W_old, 
+                 MultiFab& U_new, MultiFab& V_new, MultiFab& W_new, 
                  MultiFab& source,
                  MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
