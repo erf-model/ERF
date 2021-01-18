@@ -37,15 +37,7 @@ all: $(executable)
 	$(SILENT) $(RM) AMReX_buildInfo.cpp
 	@echo SUCCESS
 
-# EOS
-EOS_HOME           = $(TOP)/Source/GammaLaw
-EXTERN_CORE       += $(EOS_HOME)
-INCLUDE_LOCATIONS += $(EOS_HOME)
-VPATH_LOCATIONS   += $(EOS_HOME)
-Bpack             += $(EOS_HOME)/Make.package
-Blocs             += $(EOS_HOME)
-
-Bdirs := Source Source/GammaLaw Source/Params/param_includes Source/RK3
+Bdirs := Source Source/Params/param_includes Source/RK3
 Pdirs := Base Amr Boundary AmrCore
 
 Bpack += $(foreach dir, $(Pdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)

@@ -57,152 +57,6 @@ small_pres                   Real          1.e-200
 # value will be reset
 small_ener                   Real         -1.e200
 
-# permits hydro to be turned on and off for running pure rad problems
-do_hydro                     int          -1
-
-# uses MOL aapproach to timestep advection and diffusion
-do_mol                       int          0
-
-# permits Ghost-Cells Navier-Stokes Boundary Conditions to be turned on and off
-# for advective terms (adv) and for diffusion terms (diff)
-nscbc_adv                    int          1
-nscbc_diff                   int          0
-
-# if true, define an additional source term
-add_ext_src                  int           0
-
-# if true, define an additional forcing term
-add_forcing_src              int           0
-
-# whether to use the hybrid advection scheme that updates
-# z-angular momentum, cylindrical momentum, and azimuthal
-# momentum (3D only)
-hybrid_hydro                 int           0
-
-# reconstruction type:
-# 0: piecewise linear;
-# 1: classic Colella \& Woodward ppm;
-# 2: extrema-preserving ppm (deprecated in C++)
-# 3: Hybrid WENO-PPM (deprecated in C++)
-ppm_type                     int           0
-
-# For Hybrid WENO-PPM (ppm_type=3), which kind of WENO reconstruction method at faces?
-# 0 : Classical 5th-order JS method (quite dissipative)
-# 1 : WENO-Z 5th-order (more robust than JS)
-# 2 : WENO-Z 3rd-order (dissipative)
-# 3 : WENO-Z 7th-order (good spectral properties but may be unstable with strong shocks)
-weno_variant                 int           1
-
-# to we reconstruct and trace under the parabolas of the source
-# terms to the velocity
-ppm_trace_sources            int           0
-
-# various methods of giving temperature a larger role in the
-# reconstruction---see Zingale \& Katz 2015
-ppm_temp_fix                 int           0
-
-# do we construct $\gamma_e = p/(\rho e) + 1$ and bring it
-# to the interfaces for additional thermodynamic information
-# (this is the Colella \& Glaz technique) or do we use $(\rho e)$.
-# Note this also uses $\tau = 1/\rho$ instead of $\rho$.
-ppm_predict_gammae           int           0
-
-# do we use the reference state in evaluating the eigenvectors?
-ppm_reference_eigenvectors   int           0
-
-# for piecewise linear, reconstruction order to use
-plm_iorder                   int           2
-
-# do we drop from our regular Riemann solver to HLL when we
-# are in shocks to avoid the odd-even decoupling instability?
-hybrid_riemann               int           0
-
-# this is deprecated---use {\tt riemann\_solver} instead
-use_colglaz                  int           -1
-
-# which Riemann solver do we use:
-# 0: Colella, Glaz, \& Ferguson (a two-shock solver);
-# 1: Colella \& Glaz (a two-shock solver)
-# 2: HLLC
-riemann_solver               int           0
-
-# for the Colella \& Glaz Riemann solver, the maximum number
-# of iterations to take when solving for the star state
-cg_maxiter                   int          12
-
-# for the Colella \& Glaz Riemann solver, the tolerance to
-# demand in finding the star state
-cg_tol                       Real          1.0e-5
-
-# for the Colella \& Glaz Riemann solver, what to do if
-# we do not converge to a solution for the star state.
-# 0 = do nothing; print iterations and exit
-# 1 = revert to the original guess for p-star
-# 2 = do a bisection search for another 2 * cg\_maxiter iterations.
-cg_blend                     int           2
-
-# flatten the reconstructed profiles around shocks to prevent them
-# from becoming too thin
-use_flattening               int           1
-
-# after we add the transverse correction to the interface states, replace
-# the predicted pressure with an EOS call (using $e$ and $\rho$).
-transverse_use_eos           int           0
-
-# if the transverse interface state correction, if the new density is
-# negative, then replace all of the interface quantities with their
-# values without the transverse correction.
-transverse_reset_density     int           1
-
-# if the interface state for $(\rho e)$ is negative after we add the
-# transverse terms, then replace the interface value of $(\rho e)$
-# with a value constructed from the $(\rho e)$ evolution equation
-transverse_reset_rhoe        int           0
-
-# Allow internal energy resets and temperature flooring to change the
-# total energy variable UEDEN in addition to the internal energy variable
-# UEINT.
-dual_energy_update_E_from_e  int           1
-
-# Threshold value of (E - K) / E such that above eta1, the hydrodynamic
-# pressure is derived from E - K; otherwise, we use the internal energy
-# variable UEINT.
-dual_energy_eta1             Real          1.0e0
-
-# Threshold value of (E - K) / E such that above eta2, we update the
-# internal energy variable UEINT to match E - K. Below this, UEINT
-# remains unchanged.
-dual_energy_eta2             Real          1.0e-4
-
-# Threshold value of (E - K) / E such that above eta3, the temperature used
-# in the burning module is derived from E-K; otherwise, we use UEINT.
-dual_energy_eta3             Real          1.0e0
-
-# for the piecewise linear reconstruction, do we subtract off $(\rho g)$
-# from the pressure before limiting?
-use_pslope                   int           1
-
-fix_mass_flux                int           0
-
-# Should we limit the density fluxes so that we do not create small densities?
-limit_fluxes_on_small_dens   int           0
-
-# Which method to use when resetting a negative/small density
-# 1 = Reset to characteristics of adjacent zone with largest density
-# 2 = Use average of all adjacent zones for all state variables
-# 3 = Reset to the original zone state before the hydro update
-density_reset_method         int           1
-
-# Whether or not to allow internal energy to be less than zero
-allow_negative_energy        int           1
-
-# Whether or not to allow the internal energy to be less than the
-# internal energy corresponding to small\_temp
-allow_small_energy           int           1
-
-# should we update the state in between evaluations of the new-time source terms
-update_state_between_sources int           0
-
 # extrapolate the source terms to $n+1/2$
 # timelevel for use in the interface state prediction
 source_term_predictor        int           0
@@ -249,24 +103,6 @@ CI                           Real          0.0
 PrT                          Real          1.0
 
 #-----------------------------------------------------------------------------
-# category: EB diffusion
-#-----------------------------------------------------------------------------
-eb_boundary_T                Real         1.0
-eb_isothermal                int          1
-eb_noslip                    int          1
-# Small vfrac - values below this will be pseudo-merged
-eb_small_vfrac               Real         1.0e-2
-#-----------------------------------------------------------------------------
-# category: method of manufactured solution
-#-----------------------------------------------------------------------------
-
-# permits MMS (using MASA library) to be turned on and off
-do_mms                       int           0
-
-# name of the MMS MASA solution to load
-masa_solution_name           string        "ad_cns_3d_les"
-
-#-----------------------------------------------------------------------------
 # category: timestep control
 #-----------------------------------------------------------------------------
 
@@ -295,14 +131,6 @@ init_shrink                  Real          1.0
 # the next.
 change_max                   Real          1.1
 
-# If we're doing retries, set the target threshold for changes in density
-# if a retry is triggered by a negative density. If this is set to a negative
-# number then it will disable retries using this criterion.
-retry_neg_dens_factor        Real          1.e-1
-
-# Number of iterations for the MOL advance.
-mol_iters                    int           1
-
 #-----------------------------------------------------------------------------
 # category: parallelization
 #-----------------------------------------------------------------------------
@@ -312,12 +140,6 @@ bndry_func_thread_safe       int           1
 #-----------------------------------------------------------------------------
 # category: diagnostics
 #-----------------------------------------------------------------------------
-
-# display breakdown of energy sources
-print_energy_diagnostics     int           (0, 1)
-
-# calculate losses of material through physical grid boundaries
-track_grid_losses            int            0
 
 # how often (number of coarse timesteps) to compute integral sums (for runtime diagnostics)
 sum_interval                 int           -1

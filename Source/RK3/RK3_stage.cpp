@@ -28,20 +28,12 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     int nvars = cons_old.nComp(); 
 
-    // ************************************************************************************** 
-    // 
-    // Convert old conservative variables cons_old --> prim
-    //     and old face-based momentum --> velocity
-    // 
-    // ************************************************************************************** 
-    ConservedToPrimitive(prim, xvel, yvel, zvel, cons_old, xmom_old, ymom_old, zmom_old);
-
     // ************************************************************************************ 
     // 
-    // Fill the ghost cells/faces of the MultiFabs we have just filled
+    // Fill the ghost cells/faces of the MultiFabs we will need
     // 
     // ************************************************************************************ 
-    prim.FillBoundary(geom.periodicity());
+    cons_old.FillBoundary(geom.periodicity());
 
     xvel.FillBoundary(geom.periodicity());
     yvel.FillBoundary(geom.periodicity());
@@ -61,11 +53,17 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     //           edge-based and cell-based fluxes to update face-centered quantities
     // 
     // ************************************************************************************** 
-    calculateFluxStag(cons_old, xmom_old, ymom_old, zmom_old, 
-                      prim    , xvel    , yvel    , zvel    , 
-                      eta, zeta, kappa,
-                      faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
-                      geom, dxp, dt);
+    CalcAdvFlux(cons_old, xmom_old, ymom_old, zmom_old, 
+                xvel    , yvel    , zvel    , 
+                faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
+                geom, dxp, dt);
+#if 0
+    CalcDiffFlux(cons_old, xmom_old, ymom_old, zmom_old, 
+                 xvel    , yvel    , zvel    , 
+                 eta, zeta, kappa,
+                 faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
+                 geom, dxp, dt);
+#endif
 
     // ************************************************************************************** 
     // 

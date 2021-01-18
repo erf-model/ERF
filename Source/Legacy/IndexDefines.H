@@ -4,10 +4,8 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Arena.H>
 
-#define Density_comp  0
-#define Theta_comp    1
-#define Scalar_comp   2
-#define NVAR          3
+#define Density_comp
+#define Theta_comp
 
 #define URHO 0
 #define UMX 1
@@ -42,9 +40,12 @@
 #define SlipWall 4
 #define NoSlipWall 5
 
+#define NTHERM 2
 #define QTHERM 8
+
 #define NUM_ADV 1
 
+#define NVAR NTHERM + NUM_ADV 
 #define QVAR QTHERM + NUM_ADV
 
 #define NQ QVAR

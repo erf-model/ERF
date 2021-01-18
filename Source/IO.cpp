@@ -94,27 +94,7 @@ ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
         grids, dmap, NVAR, newGrow, amrex::MFInfo(), Factory()));
   }
 
-  if (do_hydro) {
-    Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
-  } else if (do_diffuse) {
-    Sborder.define(grids, dmap, NVAR, nGrowTr, amrex::MFInfo(), Factory());
-  }
-
-  if (!do_mol) {
-    if (do_hydro) {
-      hydro_source.define(grids, dmap, NVAR, 0, amrex::MFInfo(), Factory());
-
-      // This array holds the sum of all source terms that affect the
-      // hydrodynamics. If we are doing the source term predictor, we'll also
-      // use this after the hydro update to store the sum of the new-time
-      // sources, so that we can compute the time derivative of the source
-      // terms.
-      sources_for_hydro.define(
-        grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
-    }
-  } else {
-    Sborder.define(grids, dmap, NVAR, nGrowTr, amrex::MFInfo(), Factory());
-  }
+  Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
 
   // get the elapsed CPU time to now;
   if (level == 0 && amrex::ParallelDescriptor::IOProcessor()) {

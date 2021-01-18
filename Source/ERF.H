@@ -161,15 +161,6 @@ public:
   virtual amrex::Real
   advance(amrex::Real time, amrex::Real dt, int iteration, int ncycle) override;
 
-  void construct_hydro_source(
-    const amrex::MultiFab& S,
-    amrex::Real time,
-    amrex::Real dt,
-    int amr_iteration,
-    int amr_ncycle,
-    int sub_iteration,
-    int sub_ncycle);
-
   void construct_old_source(
     int src,
     amrex::Real time,
@@ -349,8 +340,6 @@ public:
     amrex::Real dt,
     amrex::Real flux_factor);
 
-  void enforce_consistent_e(amrex::MultiFab& S);
-
   amrex::Real volWgtSum(
     const std::string& name,
     amrex::Real time,
@@ -369,8 +358,6 @@ public:
   maxDerive(const std::string& name, amrex::Real time, bool local = false);
 
   // static int NVAR;
-  static int Density, Xmom, Ymom, Zmom, Eden, Eint, Temp;
-
   static int FirstAdv, NumAdv;
   static int FirstAux;
 
@@ -418,11 +405,6 @@ protected:
   amrex::MultiFab sources_for_hydro;
 
   ///
-  /// Source term representing hydrodynamics update.
-  ///
-  amrex::MultiFab hydro_source;
-
-  ///
   /// Non-hydro source terms.
   ///
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> old_sources;
@@ -446,13 +428,6 @@ protected:
   ERF& getLevel(int lev);
 
   void reflux();
-
-  amrex::Real
-  enforce_min_density(amrex::MultiFab& S_old, amrex::MultiFab& S_new);
-
-  amrex::Real clean_state(amrex::MultiFab& state);
-
-  amrex::Real clean_state(amrex::MultiFab& state, amrex::MultiFab& state_old);
 
   void buildMetrics();
 

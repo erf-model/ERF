@@ -47,30 +47,16 @@ pc_initdata(
   const amrex::Real r0 = 0.05 * (prob_hi[0] - prob_lo[0]);
 
   // Set the density 
-  state(i, j, k, URHO) = ProbParm::rho_0;
-
-  // Set the momentum based on the face-based velocities which we assume have already been set
-  state(i, j, k, UMX) = 0.5 * (x_vel(i,j,k) + x_vel(i+1,j,k)) * state(i,j,k,URHO);
-  state(i, j, k, UMY) = 0.5 * (y_vel(i,j,k) + y_vel(i,j+1,k)) * state(i,j,k,URHO);
-  state(i, j, k, UMZ) = 0.5 * (z_vel(i,j,k) + z_vel(i,j,k+1)) * state(i,j,k,URHO);
-
-  // (rho e)
-  state(i, j, k, UEINT) = ProbParm::rhoe_0;
+  state(i, j, k, Density_comp) = ProbParm::rho_0;
  
-  // (rho E) = (rho e) + 1/2 rho vel^2
-  state(i, j, k, UEDEN) = ProbParm::rhoe_0 + 0.5 * (1.0/state(i,j,k,URHO)) * (
-                           state(i,j,k,UMX)*state(i,j,k,UMX) +
-                           state(i,j,k,UMY)*state(i,j,k,UMY) +
-                           state(i,j,k,UMZ)*state(i,j,k,UMZ) );
-
   // Initial temperature -- though we should make sure its consistent with (rho e) above
-  state(i, j, k, UTEMP) = ProbParm::T_0;
+  state(i, j, k, Theta_comp) = ProbParm::T_0;
 
   // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
   if (r < r0) 
-     state(i, j, k, UFA) = ProbParm::A_0;
+     state(i, j, k, Scalar_comp) = ProbParm::A_0;
   else
-     state(i, j, k, UFA) = 0.0;
+     state(i, j, k, Scalar_comp) = 0.0;
 }
 
 AMREX_GPU_DEVICE
@@ -81,16 +67,12 @@ pc_init_xvel(
   int j,
   int k,
   amrex::Array4<amrex::Real> const& x_vel,
-  amrex::Array4<amrex::Real> const& x_mom,
   amrex::GeometryData const& geomdata)
 {
   // Note that this is called on a box of x-faces
 
   // Set the x-velocity
   x_vel(i, j, k) = 100.0;
-
-  // Set the x-momentum
-  x_mom(i, j, k) = 100.0;
 }
 
 AMREX_GPU_DEVICE
@@ -101,16 +83,12 @@ pc_init_yvel(
   int j,
   int k,
   amrex::Array4<amrex::Real> const& y_vel,
-  amrex::Array4<amrex::Real> const& y_mom,
   amrex::GeometryData const& geomdata)
 {
   // Note that this is called on a box of x-faces
 
   // Set the y-velocity
   y_vel(i, j, k) = 0.0;
-
-  // Set the x-momentum
-  y_mom(i, j, k) = 0.0;
 }
 
 AMREX_GPU_DEVICE
@@ -121,16 +99,12 @@ pc_init_zvel(
   int j,
   int k,
   amrex::Array4<amrex::Real> const& z_vel,
-  amrex::Array4<amrex::Real> const& z_mom,
   amrex::GeometryData const& geomdata)
 {
   // Note that this is called on a box of z-faces
 
   // Set the z-velocity
   z_vel(i, j, k) = 0.0;
-
-  // Set the x-momentum
-  z_mom(i, j, k) = 0.0;
 }
 
 AMREX_GPU_DEVICE

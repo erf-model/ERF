@@ -121,15 +121,6 @@ ERF::variableSetUp()
   // Set number of state variables and pointers to components
   //
 
-  int cnt = 0;
-  Density = cnt++;
-  Xmom = cnt++;
-  Ymom = cnt++;
-  Zmom = cnt++;
-  Eden = cnt++;
-  Eint = cnt++;
-  Temp = cnt++;
-
 #ifdef NUM_ADV
   NumAdv = NUM_ADV;
 #else
@@ -137,8 +128,7 @@ ERF::variableSetUp()
 #endif
 
   if (NumAdv > 0) {
-    FirstAdv = cnt;
-    cnt += NumAdv;
+    FirstAdv = Theta_comp+1;
   }
 
   int dm = AMREX_SPACEDIM;
@@ -168,6 +158,7 @@ ERF::variableSetUp()
 
   int ngrow_state = 2;
 
+  // NVAR is currently set to 2 in IndexDefines.H
   store_in_checkpoint = true;
   desc_lst.addDescriptor(
     State_Type, amrex::IndexType::TheCellType(), amrex::StateDescriptor::Point,
@@ -177,34 +168,14 @@ ERF::variableSetUp()
   amrex::Vector<std::string> name(NVAR);
 
   amrex::BCRec bc;
-  cnt = 0;
+  int cnt = 0;
   set_scalar_bc(bc, phys_bc);
   bcs[cnt] = bc;
   name[cnt] = "density";
   cnt++;
-  set_x_vel_bc(bc, phys_bc);
-  bcs[cnt] = bc;
-  name[cnt] = "xmom";
-  cnt++;
-  set_y_vel_bc(bc, phys_bc);
-  bcs[cnt] = bc;
-  name[cnt] = "ymom";
-  cnt++;
-  set_z_vel_bc(bc, phys_bc);
-  bcs[cnt] = bc;
-  name[cnt] = "zmom";
-  cnt++;
   set_scalar_bc(bc, phys_bc);
   bcs[cnt] = bc;
-  name[cnt] = "rho_E";
-  cnt++;
-  set_scalar_bc(bc, phys_bc);
-  bcs[cnt] = bc;
-  name[cnt] = "rho_e";
-  cnt++;
-  set_scalar_bc(bc, phys_bc);
-  bcs[cnt] = bc;
-  name[cnt] = "Temp";
+  name[cnt] = "theta";
 
   for (int i = 0; i < NumAdv; ++i) {
     char buf[64];
@@ -218,7 +189,7 @@ ERF::variableSetUp()
   amrex::StateDescriptor::BndryFunc bndryfunc1(pc_bcfill_hyp);
   bndryfunc1.setRunOnGPU(true);
 
-  desc_lst.setComponent(State_Type, Density, name, bcs, bndryfunc1);
+  desc_lst.setComponent(State_Type, Density_comp, name, bcs, bndryfunc1);
 
   if (do_mol_load_balance) {
     desc_lst.addDescriptor(
@@ -264,38 +235,14 @@ ERF::variableSetUp()
   //
   derive_lst.add(
     "pressure", amrex::IndexType::TheCellType(), 1, pc_derpres, the_same_box);
-  derive_lst.addComponent("pressure", desc_lst, State_Type, Density, NVAR);
+  derive_lst.addComponent("pressure", desc_lst, State_Type, Density_comp, NVAR);
 
   //
-  // Sound speed (c)
+  // Temperature
   //
   derive_lst.add(
-    "soundspeed", amrex::IndexType::TheCellType(), 1, pc_dersoundspeed,
-    the_same_box);
-  derive_lst.addComponent("soundspeed", desc_lst, State_Type, Density, NVAR);
-
-  //
-  // Mach number(M)
-  //
-  derive_lst.add(
-    "MachNumber", amrex::IndexType::TheCellType(), 1, pc_dermachnumber,
-    the_same_box);
-  derive_lst.addComponent("MachNumber", desc_lst, State_Type, Density, NVAR);
-
-  //
-  // Vorticity
-  //
-  derive_lst.add(
-    "magvort", amrex::IndexType::TheCellType(), 1, pc_dermagvort,
-    grow_box_by_one);
-  derive_lst.addComponent("magvort", desc_lst, State_Type, Density, NVAR);
-
-  //
-  // Div(u)
-  //
-  derive_lst.add(
-    "divu", amrex::IndexType::TheCellType(), 1, pc_derdivu, grow_box_by_one);
-  derive_lst.addComponent("divu", desc_lst, State_Type, Density, NVAR);
+    "temp", amrex::IndexType::TheCellType(), 1, pc_dertemp, the_same_box);
+  derive_lst.addComponent("temp", desc_lst, State_Type, Density_comp, NVAR);
 
   //
   // Velocities
@@ -303,69 +250,18 @@ ERF::variableSetUp()
 
   // This calculcates cell-centered x-velocity from x-face-centered values
   derive_lst.add(
-    "x_velocity", amrex::IndexType::TheCellType(), 1, pc_dervelx, the_same_box);
-  derive_lst.addComponent("x_velocity", desc_lst, State_Type, Density, NVAR);
+    "x_velocity", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
+  derive_lst.addComponent("x_velocity", desc_lst, State_Type, Density_comp, NVAR);
 
   // This calculcates cell-centered y-velocity from y-face-centered values
   derive_lst.add(
-    "y_velocity", amrex::IndexType::TheCellType(), 1, pc_dervely, the_same_box);
-  derive_lst.addComponent("y_velocity", desc_lst, State_Type, Density, NVAR);
+    "y_velocity", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
+  derive_lst.addComponent("y_velocity", desc_lst, State_Type, Density_comp, NVAR);
 
   // This calculcates cell-centered z-velocity from z-face-centered values
   derive_lst.add(
-    "z_velocity", amrex::IndexType::TheCellType(), 1, pc_dervelz, the_same_box);
-  derive_lst.addComponent("z_velocity", desc_lst, State_Type, Density, NVAR);
-
-  derive_lst.add(
-    "magvel", amrex::IndexType::TheCellType(), 1, pc_dermagvel, the_same_box);
-  derive_lst.addComponent("magvel", desc_lst, State_Type, Density, NVAR);
-
-  //
-  // LES coefficients
-  //
-  if (do_les) {
-    derive_lst.add(
-      "C_s2", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
-    derive_lst.addComponent("C_s2", desc_lst, State_Type, Density, 1);
-
-    derive_lst.add(
-      "C_I", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
-    derive_lst.addComponent("C_I", desc_lst, State_Type, Density, 1);
-
-    derive_lst.add(
-      "Pr_T", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
-    derive_lst.addComponent("Pr_T", desc_lst, State_Type, Density, 1);
-  }
-
-  // MMS derives
-#ifdef ERF_USE_MASA
-  if (do_mms) {
-    derive_lst.add(
-      "rhommserror", amrex::IndexType::TheCellType(), 1, pc_derrhommserror,
-      the_same_box);
-    derive_lst.addComponent("rhommserror", desc_lst, State_Type, Density, NVAR);
-
-    derive_lst.add(
-      "ummserror", amrex::IndexType::TheCellType(), 1, pc_derummserror,
-      the_same_box);
-    derive_lst.addComponent("ummserror", desc_lst, State_Type, Density, NVAR);
-
-    derive_lst.add(
-      "vmmserror", amrex::IndexType::TheCellType(), 1, pc_dervmmserror,
-      the_same_box);
-    derive_lst.addComponent("vmmserror", desc_lst, State_Type, Density, NVAR);
-
-    derive_lst.add(
-      "wmmserror", amrex::IndexType::TheCellType(), 1, pc_derwmmserror,
-      the_same_box);
-    derive_lst.addComponent("wmmserror", desc_lst, State_Type, Density, NVAR);
-
-    derive_lst.add(
-      "pmmserror", amrex::IndexType::TheCellType(), 1, pc_derpmmserror,
-      the_same_box);
-    derive_lst.addComponent("pmmserror", desc_lst, State_Type, Density, NVAR);
-  }
-#endif
+    "z_velocity", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
+  derive_lst.addComponent("z_velocity", desc_lst, State_Type, Density_comp, NVAR);
 
   // Problem-specific derives
   add_problem_derives<ProblemDerives>(derive_lst, desc_lst);
@@ -377,10 +273,6 @@ ERF::variableSetUp()
 void
 ERF::set_active_sources()
 {
-  if (do_diffuse && !do_mol) {
-    src_list.push_back(diff_src);
-  }
-
   // optional external source
   if (add_ext_src == 1) {
     src_list.push_back(ext_src);
@@ -390,11 +282,4 @@ ERF::set_active_sources()
   if (add_forcing_src == 1) {
     src_list.push_back(forcing_src);
   }
-
-#ifdef ERF_USE_MASA
-  // optional MMS source
-  if (do_mms) {
-    src_list.push_back(mms_src);
-  }
-#endif
 }

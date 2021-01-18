@@ -29,35 +29,12 @@ bool ERF::dump_old = false;
 int ERF::verbose = 0;
 amrex::BCRec ERF::phys_bc;
 amrex::Real ERF::frac_change = 1.e200;
-int ERF::Density = -1;
-int ERF::Eden = -1;
-int ERF::Eint = -1;
-int ERF::Temp = -1;
-int ERF::Xmom = -1;
-int ERF::Ymom = -1;
-int ERF::Zmom = -1;
-int ERF::FirstAux = -1;
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
-int ERF::pstateVel = -1;
-int ERF::pstateT = -1;
-int ERF::pstateDia = -1;
-int ERF::pstateRho = -1;
-int ERF::pstateY = -1;
-int ERF::pstateNum = 0;
 
 #include "erf_defaults.H"
 
 int ERF::nGrowTr = 4;
-int ERF::diffuse_temp = 0;
-int ERF::diffuse_enth = 0;
-int ERF::diffuse_vel = 0;
-amrex::Real ERF::diffuse_cutoff_density = -1.e200;
-bool ERF::do_diffuse = false;
-
-#ifdef ERF_USE_MASA
-bool ERF::mms_initialized = false;
-#endif
 
 bool ERF::do_mol_load_balance = false;
 
@@ -199,13 +176,6 @@ ERF::read_params()
     amrex::Abort("We don't support spherical coordinate systems in 3D");
   }
 
-  pp.query("diffuse_temp", diffuse_temp);
-  pp.query("diffuse_enth", diffuse_enth);
-  pp.query("diffuse_vel", diffuse_vel);
-  pp.query("diffuse_cutoff_density", diffuse_cutoff_density);
-
-  do_diffuse = diffuse_temp || diffuse_enth || diffuse_vel;
-
   // sanity checks
   if (cfl <= 0.0 || cfl > 1.0) {
     amrex::Error("Invalid CFL factor; must be between zero and one.");
@@ -269,28 +239,7 @@ ERF::ERF(
         grids, dmap, NVAR, newGrow, amrex::MFInfo(), Factory()));
   }
 
-  if (do_hydro) {
-    Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
-  } else if (do_diffuse) {
-    Sborder.define(grids, dmap, NVAR, nGrowTr, amrex::MFInfo(), Factory());
-  }
-
-  if (!do_mol) {
-    if (do_hydro) {
-      hydro_source.define(
-        grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
-
-      // This array holds the sum of all source terms that affect the
-      // hydrodynamics. If we are doing the source term predictor, we'll also
-      // use this after the hydro update to store the sum of the new-time
-      // sources, so that we can compute the time derivative of the source
-      // terms.
-      sources_for_hydro.define(
-        grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
-    }
-  } else {
-    Sborder.define(grids, dmap, NVAR, nGrowTr, amrex::MFInfo(), Factory());
-  }
+  Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
 
   if (do_reflux && level > 0) {
     flux_reg.define(
@@ -480,15 +429,10 @@ ERF::initData()
     const auto geomdata = geom.data();
 
     // Call for all (i,j,k) in the cell-centered box
-    // Note that this uses the face-based velocities so needs to come after them
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
       pc_initdata(i, j, k, sfab, ufab, vfab, wfab, geomdata);
     });
   }
-
-  enforce_consistent_e(S_new);
-
-  // computeTemp(S_new,0);
 
   if (verbose) {
     amrex::Print() << "Done initializing level " << level << " data "
@@ -592,87 +536,32 @@ ERF::estTimeStep(amrex::Real dt_old)
   // criterion, we will get exactly max_dt for a timestep.
 
   amrex::Real estdt_hydro = max_dt / cfl;
-  amrex::Real estdt_vdif = max_dt / cfl;
-  amrex::Real estdt_tdif = max_dt / cfl;
-  amrex::Real estdt_edif = max_dt / cfl;
-  if (do_hydro || do_mol || diffuse_vel || diffuse_temp || diffuse_enth) {
 
-    prefetchToDevice(stateMF); // This should accelerate the below operations.
-    amrex::Real AMREX_D_DECL(dx1 = dx[0], dx2 = dx[1], dx3 = dx[2]);
+  prefetchToDevice(stateMF); // This should accelerate the below operations.
+  amrex::Real AMREX_D_DECL(dx1 = dx[0], dx2 = dx[1], dx3 = dx[2]);
 
-    if (do_hydro) {
-      amrex::Real dt = amrex::ReduceMin(
-        stateMF,
-        0,
-        [=] AMREX_GPU_HOST_DEVICE(
-          amrex::Box const& bx, const amrex::Array4<const amrex::Real>& fab_arr
-          ) noexcept -> amrex::Real {
-          return pc_estdt_hydro(
-            bx, fab_arr,
-            AMREX_D_DECL(dx1, dx2, dx3));
-        });
-      estdt_hydro = amrex::min(estdt_hydro, dt);
-    }
+   amrex::Real dt = amrex::ReduceMin( stateMF, 0,
+       [=] AMREX_GPU_HOST_DEVICE(
+         amrex::Box const& bx, const amrex::Array4<const amrex::Real>& fab_arr
+         ) noexcept -> amrex::Real 
+         {
+             return pc_estdt_hydro(bx, fab_arr, dx1, dx2, dx3);
+       });
+   estdt_hydro = amrex::min(estdt_hydro, dt);
 
-    if (diffuse_vel) {
-      amrex::Real dt = amrex::ReduceMin(
-        stateMF,
-        0,
-        [=] AMREX_GPU_HOST_DEVICE(
-          amrex::Box const& bx, const amrex::Array4<const amrex::Real>& fab_arr
-          ) noexcept -> amrex::Real {
-          return pc_estdt_veldif(
-            bx, fab_arr,
-            AMREX_D_DECL(dx1, dx2, dx3));
-        });
-      estdt_vdif = amrex::min(estdt_vdif, dt);
-    }
+   amrex::ParallelDescriptor::ReduceRealMin(estdt_hydro);
+   estdt_hydro *= cfl;
 
-    if (diffuse_temp) {
-      amrex::Real dt = amrex::ReduceMin(
-        stateMF,
-        0,
-        [=] AMREX_GPU_HOST_DEVICE(
-          amrex::Box const& bx, const amrex::Array4<const amrex::Real>& fab_arr
-          ) noexcept -> amrex::Real {
-          return pc_estdt_tempdif(
-            bx, fab_arr,
-            AMREX_D_DECL(dx1, dx2, dx3));
-        });
-      estdt_tdif = amrex::min(estdt_tdif, dt);
-    }
-
-    if (diffuse_enth) {
-      amrex::Real dt = amrex::ReduceMin(
-        stateMF,
-        0,
-        [=] AMREX_GPU_HOST_DEVICE(
-          amrex::Box const& bx, const amrex::Array4<const amrex::Real>& fab_arr
-          ) noexcept -> amrex::Real {
-          return pc_estdt_enthdif(
-            bx, fab_arr,
-            AMREX_D_DECL(dx1, dx2, dx3));
-        });
-      estdt_edif = amrex::min(estdt_edif, dt);
-    }
-
-    estdt_hydro = amrex::min(
-      estdt_hydro, amrex::min(estdt_vdif, amrex::min(estdt_tdif, estdt_edif)));
-
-    amrex::ParallelDescriptor::ReduceRealMin(estdt_hydro);
-    estdt_hydro *= cfl;
-
-    if (verbose) {
-      amrex::Print() << "...estimated hydro-limited timestep at level " << level
-                     << ": " << estdt_hydro << std::endl;
-    }
+   if (verbose) {
+     amrex::Print() << "...estimated hydro-limited timestep at level " << level
+                    << ": " << estdt_hydro << std::endl;
+   }
 
     // Determine if this is more restrictive than the maximum timestep limiting
     if (estdt_hydro < estdt) {
       limiter = "hydro";
       estdt = estdt_hydro;
     }
-  }
 
   if (verbose) {
     amrex::Print() << "ERF::estTimeStep (" << limiter << "-limited) at level "
@@ -822,7 +711,6 @@ ERF::post_timestep(int iteration)
   // Re-compute temperature after all the other updates.
   amrex::MultiFab& S_new = get_new_data(State_Type);
   int ng_pts = 0;
-  computeTemp(S_new, ng_pts);
 
 #ifdef DO_PROBLEM_POST_TIMESTEP
 
@@ -1005,105 +893,6 @@ ERF::avgDown()
 }
 
 void
-ERF::enforce_consistent_e(amrex::MultiFab& S)
-{
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-  for (amrex::MFIter mfi(S, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-    const amrex::Box& tbox = mfi.tilebox();
-    const auto Sfab = S.array(mfi);
-    amrex::ParallelFor(
-      tbox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        const amrex::Real rhoInv = 1.0 / Sfab(i, j, k, URHO);
-        const amrex::Real u = Sfab(i, j, k, UMX) * rhoInv;
-        const amrex::Real v = Sfab(i, j, k, UMY) * rhoInv;
-        const amrex::Real w = Sfab(i, j, k, UMZ) * rhoInv;
-        Sfab(i, j, k, UEDEN) = Sfab(i, j, k, UEINT) + 0.5 *
-                                                        Sfab(i, j, k, URHO) *
-                                                        (u * u + v * v + w * w);
-      });
-  }
-}
-
-amrex::Real
-ERF::enforce_min_density(amrex::MultiFab& S_old, amrex::MultiFab& S_new)
-{
-
-  /** This routine sets the density in S_new to be larger than the density
-     floor. Note that it will operate everywhere on S_new, including ghost
-     zones. S_old is present so that, after the hydro call, we know what the old
-     density was so that we have a reference for comparison. If you are calling
-     it elsewhere and there's no meaningful reference state, just pass in the
-     same amrex::MultiFab twice.
-      @return  The return value is the the negative fractional change in the
-     state that has the largest magnitude. If there is no reference state, this
-     is meaningless.
-  */
-
-  amrex::Real dens_change = 1.0;
-
-  amrex::Real mass_added = 0.0;
-  amrex::Real eint_added = 0.0;
-  amrex::Real eden_added = 0.0;
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion()) \
-  reduction(min                                           \
-            : dens_change)
-#endif
-  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid();
-       ++mfi) {
-
-    const amrex::Box& bx = mfi.growntilebox();
-
-    const auto& stateold = S_old[mfi];
-    auto& statenew = S_new[mfi];
-    const auto& vol = volume[mfi];
-
-    // Not enabled in CUDA
-    // enforce_minimum_density(stateold.dataPtr(), ARLIM_3D(stateold.loVect()),
-    // ARLIM_3D(stateold.hiVect()),
-    //                        statenew.dataPtr(), ARLIM_3D(statenew.loVect()),
-    //                        ARLIM_3D(statenew.hiVect()), vol.dataPtr(),
-    //                        ARLIM_3D(vol.loVect()), ARLIM_3D(vol.hiVect()),
-    //                        ARLIM_3D(bx.loVect()), ARLIM_3D(bx.hiVect()),
-    //                        &mass_added, &eint_added, &eden_added,
-    //                        &dens_change, &verbose);
-  }
-
-  if (print_energy_diagnostics) {
-    amrex::Real foo[3] = {mass_added, eint_added, eden_added};
-
-#ifdef AMREX_LAZY
-    Lazy::QueueReduction([=]() mutable {
-#endif
-      amrex::ParallelDescriptor::ReduceRealSum(
-        foo, 3, amrex::ParallelDescriptor::IOProcessorNumber());
-
-      if (amrex::ParallelDescriptor::IOProcessor()) {
-        mass_added = foo[0];
-        eint_added = foo[1];
-        eden_added = foo[2];
-
-        if (amrex::Math::abs(mass_added) != 0.0) {
-          amrex::Print() << "   Mass added from negative density correction : "
-                         << mass_added << std::endl;
-          amrex::Print() << "(rho e) added from negative density correction : "
-                         << eint_added << std::endl;
-          amrex::Print() << "(rho E) added from negative density correction : "
-                         << eden_added << std::endl;
-        }
-      }
-#ifdef AMREX_LAZY
-    });
-#endif
-  }
-
-  return dens_change;
-}
-
-void
 ERF::avgDown(int state_indx)
 {
   BL_PROFILE("ERF::avgDown(state_indx)");
@@ -1151,7 +940,7 @@ ERF::errorEst(
     get_new_data(State_Type).DistributionMap(), NVAR, 1);
   const amrex::Real cur_time = state[State_Type].curTime();
   FillPatch(
-    *this, S_data, S_data.nGrow(), cur_time, State_Type, Density, NVAR, 0);
+    *this, S_data, S_data.nGrow(), cur_time, State_Type, Density_comp, NVAR, 0);
 
   amrex::Vector<amrex::BCRec> bcs(NVAR);
   const char tagval = amrex::TagBox::SET;
@@ -1206,76 +995,6 @@ ERF::errorEst(
           tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             tag_graderror(
               i, j, k, tag_arr, S_derarr, TaggingParm::pressgrad, tagval);
-          });
-      }
-
-      // Tagging vel_x
-      S_derData.setVal<amrex::RunOn::Device>(0.0);
-      pc_dervelx(
-        datbox, S_derData, ncp, Sfab.nComp(), S_data[mfi], geom, time, bc,
-        level);
-      if (level < TaggingParm::max_velerr_lev) {
-        amrex::ParallelFor(
-          tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_error(i, j, k, tag_arr, S_derarr, TaggingParm::velerr, tagval);
-          });
-      }
-      if (level < TaggingParm::max_velgrad_lev) {
-        amrex::ParallelFor(
-          tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_graderror(
-              i, j, k, tag_arr, S_derarr, TaggingParm::velgrad, tagval);
-          });
-      }
-
-      // Tagging vel_y
-      S_derData.setVal<amrex::RunOn::Device>(0.0);
-      pc_dervely(
-        datbox, S_derData, ncp, Sfab.nComp(), S_data[mfi], geom, time, bc,
-        level);
-      if (level < TaggingParm::max_velerr_lev) {
-        amrex::ParallelFor(
-          tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_error(i, j, k, tag_arr, S_derarr, TaggingParm::velerr, tagval);
-          });
-      }
-      if (level < TaggingParm::max_velgrad_lev) {
-        amrex::ParallelFor(
-          tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_graderror(
-              i, j, k, tag_arr, S_derarr, TaggingParm::velgrad, tagval);
-          });
-      }
-
-      // Tagging vel_z
-      S_derData.setVal<amrex::RunOn::Device>(0.0);
-      pc_dervelz(
-        datbox, S_derData, ncp, Sfab.nComp(), S_data[mfi], geom, time, bc,
-        level);
-      if (level < TaggingParm::max_velerr_lev) {
-        amrex::ParallelFor(
-          tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_error(i, j, k, tag_arr, S_derarr, TaggingParm::velerr, tagval);
-          });
-      }
-      if (level < TaggingParm::max_velgrad_lev) {
-        amrex::ParallelFor(
-          tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_graderror(
-              i, j, k, tag_arr, S_derarr, TaggingParm::velgrad, tagval);
-          });
-      }
-
-      // Tagging magnitude of vorticity
-      S_derData.setVal<amrex::RunOn::Device>(0.0);
-      pc_dermagvort(
-        tilebox, S_derData, ncp, Sfab.nComp(), S_data[mfi], geom, time, bc,
-        level);
-      if (level < TaggingParm::max_vorterr_lev) {
-        const amrex::Real vorterr = TaggingParm::vorterr * std::pow(2.0, level);
-        amrex::ParallelFor(
-          tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_abserror(i, j, k, tag_arr, S_derarr, vorterr, tagval);
           });
       }
 
@@ -1364,22 +1083,6 @@ ERF::init_mms()
 }
 #endif
 
-void
-ERF::computeTemp(amrex::MultiFab& S, int ng)
-{
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-  for (amrex::MFIter mfi(S, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-    const amrex::Box& bx = mfi.growntilebox(ng);
-
-    const auto& sarr = S.array(mfi);
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_cmpTemp(i, j, k, sarr);
-    });
-  }
-}
-
 amrex::Real
 ERF::getCPUTime()
 {
@@ -1462,32 +1165,4 @@ ERF::build_interior_boundary_mask(int ng)
     other_cells, other_cells);
 
   return imf;
-}
-
-amrex::Real
-ERF::clean_state(amrex::MultiFab& S)
-{
-  // Enforce a minimum density.
-
-  amrex::MultiFab temp_state(
-    S.boxArray(), S.DistributionMap(), S.nComp(), S.nGrow(), amrex::MFInfo(),
-    Factory());
-
-  amrex::MultiFab::Copy(temp_state, S, 0, 0, S.nComp(), S.nGrow());
-
-  amrex::Real frac_change_t = enforce_min_density(temp_state, S);
-
-  return frac_change_t;
-}
-
-amrex::Real
-ERF::clean_state(amrex::MultiFab& S, amrex::MultiFab& S_old)
-{
-  // Enforce a minimum density.
-
-  amrex::Real frac_change_t = enforce_min_density(S_old, S);
-
-  // normalize_species(S);
-
-  return frac_change_t;
 }

@@ -10,9 +10,10 @@
 #define SMALL_E 1.0e-200
 #define SMALLU 1.0e-12
 
-#define R_d   287.06
-#define c_p  1004.5
-#define p_0  1000.0
+#define R_d     287.06
+#define c_p    1004.5
+#define p_0    1000.0
+#define Gamma  1.4
 
 #define CONST_GRAV 9.8
 

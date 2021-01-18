@@ -4,55 +4,6 @@
 #include <AMReX_FArrayBox.H>
 #include "Constants.H"
 #include "IndexDefines.H"
-#include "EOS.H"
-
-AMREX_GPU_DEVICE
-void pc_cmpTemp(
-  const int i, const int j, const int k, amrex::Array4<amrex::Real> const& S);
-
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-void
-pc_ctoprim(
-  const int i,
-  const int j,
-  const int k,
-  amrex::Array4<const amrex::Real> const& u,
-  amrex::Array4<amrex::Real> const& q)
-{
-  const amrex::Real rho = u(i, j, k, URHO);
-  const amrex::Real rhoinv = 1.0 / rho;
-  const amrex::Real vx = u(i, j, k, UMX) * rhoinv;
-  const amrex::Real vy = u(i, j, k, UMY) * rhoinv;
-  const amrex::Real vz = u(i, j, k, UMZ) * rhoinv;
-  const amrex::Real kineng = 0.5 * rho * (vx * vx + vy * vy + vz * vz);
-  q(i, j, k, QRHO) = rho;
-  q(i, j, k, QU) = vx;
-  q(i, j, k, QV) = vy;
-  q(i, j, k, QW) = vz;
-  for (int ipassive = 0; ipassive < NPASSIVE; ++ipassive) {
-    const int n = indxmap::upass_map(ipassive);
-    const int nq = indxmap::qpass_map(ipassive);
-    q(i, j, k, nq) = u(i, j, k, n) / rho;
-  }
-
-  const amrex::Real e = (u(i, j, k, UEDEN) - kineng) * rhoinv;
-  amrex::Real T = u(i, j, k, UTEMP);
-  amrex::Real dpdr_e, dpde, gam1, cs, wbar, p;
-
-  // Are all these EOS calls needed? Seems fairly convoluted.
-  EOS::E2T(e, T);
-  EOS::RT2P(rho, T, p);
-  EOS::RT2Cs(rho, T, cs);
-  EOS::T2G(T, gam1);
-  EOS::RPE2dpdr_e(rho, p, e, dpdr_e);
-  EOS::RG2dpde(rho, gam1, dpde);
-
-  q(i, j, k, QTEMP) = T;
-  q(i, j, k, QREINT) = e * rho;
-  q(i, j, k, QPRES) = p;
-  q(i, j, k, QGAME) = p / (e * rho) + 1.0;
-}
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
