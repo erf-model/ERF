@@ -19,7 +19,6 @@ using namespace MASA;
 #include "prob.H"
 #include "Transport.H"
 #include "EOS.H"
-#include "Timestep.H"
 #include "Utilities.H"
 #include "Tagging.H"
 #include "IndexDefines.H"
