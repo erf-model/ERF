@@ -99,7 +99,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     RK3_stage(cons_old, cons_upd_1,
               xmom_old, ymom_old, zmom_old, 
               xmom_update_1, ymom_update_1, zmom_update_1, 
-              xvel_new, yvel_new, zvel_new, prim,  // These are used as temporary space
+              xvel_old, yvel_old, zvel_old, prim,  // These are used as temporary space
               source,
               eta, zeta, kappa,
               faceflux,
@@ -166,6 +166,13 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     zmom_update_1.FillBoundary(geom.periodicity());
 
     cons_upd_1.FillBoundary(geom.periodicity());
+
+    // ************************************************************************************** 
+    // 
+    // Convert new momentum to new velocity on faces
+    // 
+    // ************************************************************************************** 
+    MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_1, xmom_update_1, ymom_update_1, zmom_update_1);
  
     // ************************************************************************************** 
     //
@@ -247,6 +254,13 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     zmom_update_2.FillBoundary(geom.periodicity());
 
     cons_upd_2.FillBoundary(geom.periodicity());
+
+    // ************************************************************************************** 
+    // 
+    // Convert new momentum to new velocity on faces
+    // 
+    // ************************************************************************************** 
+    MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_2, xmom_update_2, ymom_update_2, zmom_update_2);
 
     // ************************************************************************************** 
     //

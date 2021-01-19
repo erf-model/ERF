@@ -139,12 +139,5 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                     -dt*(cenz_w(i,j,k) - cenz_w(i,j,k-1))/dx[2] 
                     +0.5*dt*grav_gpu[2]*(cu_old(i,j,k-1,0)+cu_old(i,j,k,0));
         });
-        
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            cu_upd(i,j,k,4) += 0.5 * dt * (  grav_gpu[0]*(momx(i+1,j,k)+momx(i,j,k))
-                                           + grav_gpu[1]*(momy(i,j+1,k)+momy(i,j,k))
-                                           + grav_gpu[2]*(momz(i,j,k+1)+momz(i,j,k)) );
-        });
     }
 }

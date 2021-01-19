@@ -20,8 +20,6 @@ void CalcAdvFlux(const MultiFab& cons_in,
                  const amrex::Real* dx, const amrex::Real dt)
 {
     BL_PROFILE_VAR("CalcAdvFlux()",CalcAdvFlux);
-    
-    int nvars_gpu = cons_in.nComp();
 
     GpuArray<Real,AMREX_SPACEDIM> dx_gpu;
     for (int n=0; n<AMREX_SPACEDIM; ++n) {
@@ -138,7 +136,8 @@ void CalcAdvFlux(const MultiFab& cons_in,
 
             // Scalar: conservative flux is (rho u s)
             zflux(i,j,k,Scalar_comp) =  rho * scalar * velz(i,j,k);
-        });
+        }
+        );
 
             amrex::ParallelFor(bx_xy, bx_xz, bx_yz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {

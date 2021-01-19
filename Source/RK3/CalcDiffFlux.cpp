@@ -22,8 +22,6 @@ void CalcDiffFlux(const MultiFab& cons_in,
 {
     BL_PROFILE_VAR("CalcDiffFlux()",CalcDiffFlux);
     
-    int nvars_gpu = cons_in.nComp();
-    int nprimvars_gpu = prim_in.nComp();
     int visc_type_gpu = 3;  // Include bulk viscosity
 
     GpuArray<Real,AMREX_SPACEDIM> dx_gpu;
