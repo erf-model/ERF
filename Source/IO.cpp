@@ -527,7 +527,8 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
 
   for (std::list<amrex::DeriveRec>::const_iterator it = dlist.begin(),
                                                    end = dlist.end();
-       it != end; ++it) {
+       it != end; ++it) 
+  {
     if (parent->isDerivePlotVar(it->name())) {
       {
         derive_names.push_back(it->name());

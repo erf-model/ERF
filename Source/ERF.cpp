@@ -24,6 +24,8 @@ using namespace MASA;
 #include "Tagging.H"
 #include "IndexDefines.H"
 
+using namespace amrex;
+
 bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
@@ -1040,7 +1042,57 @@ ERF::errorEst(
 std::unique_ptr<amrex::MultiFab>
 ERF::derive(const std::string& name, amrex::Real time, int ngrow)
 {
-  return AmrLevel::derive(name, time, ngrow);
+  if (name == "x_velocity") 
+  {
+      MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
+      MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
+      MultiFab const& z_vel_on_face = get_new_data(Z_Vel_Type);
+
+      MultiFab ccvel(grids,dmap,3,0);
+
+      average_face_to_cellcenter(ccvel,0,
+          Array<const MultiFab*,3>{&x_vel_on_face, &y_vel_on_face, &z_vel_on_face});
+
+      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
+      MultiFab::Copy(*derive_dat, ccvel, 0, 0, 1, 0);
+
+      return std::move(derive_dat);
+  } 
+  else if (name == "y_velocity") 
+  {
+      MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
+      MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
+      MultiFab const& z_vel_on_face = get_new_data(Z_Vel_Type);
+
+      MultiFab ccvel(grids,dmap,3,0);
+
+      average_face_to_cellcenter(ccvel,0,
+          Array<const MultiFab*,3>{&x_vel_on_face, &y_vel_on_face, &z_vel_on_face});
+
+      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
+      MultiFab::Copy(*derive_dat, ccvel, 1, 0, 1, 0);
+
+      return std::move(derive_dat);
+  } 
+  else if (name == "z_velocity") 
+  {
+      MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
+      MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
+      MultiFab const& z_vel_on_face = get_new_data(Z_Vel_Type);
+
+      MultiFab ccvel(grids,dmap,3,0);
+
+      average_face_to_cellcenter(ccvel,0,
+          Array<const MultiFab*,3>{&x_vel_on_face, &y_vel_on_face, &z_vel_on_face});
+
+      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
+      MultiFab::Copy(*derive_dat, ccvel, 2, 0, 1, 0);
+
+      return std::move(derive_dat);
+
+  } else {
+     return AmrLevel::derive(name, time, ngrow);
+  } 
 }
 
 void

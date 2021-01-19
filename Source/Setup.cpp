@@ -249,19 +249,18 @@ ERF::variableSetUp()
   //
 
   // This calculcates cell-centered x-velocity from x-face-centered values
+  // Note that we don't need to use "addComponent" because we are are computing
+  //      these in ERF itself, not calling the AMReX derive routines
   derive_lst.add(
     "x_velocity", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
-  derive_lst.addComponent("x_velocity", desc_lst, State_Type, Density_comp, NVAR);
 
   // This calculcates cell-centered y-velocity from y-face-centered values
   derive_lst.add(
     "y_velocity", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
-  derive_lst.addComponent("y_velocity", desc_lst, State_Type, Density_comp, NVAR);
 
   // This calculcates cell-centered z-velocity from z-face-centered values
   derive_lst.add(
     "z_velocity", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
-  derive_lst.addComponent("z_velocity", desc_lst, State_Type, Density_comp, NVAR);
 
   // Problem-specific derives
   add_problem_derives<ProblemDerives>(derive_lst, desc_lst);
