@@ -522,11 +522,7 @@ ERF::estTimeStep(amrex::Real dt_old)
   if (fixed_dt > 0.0)
     return fixed_dt;
 
-  // set_amr_info(level, -1, -1, -1.0, -1.0);
-
   amrex::Real estdt = max_dt;
-
-  const amrex::MultiFab& stateMF = get_new_data(State_Type);
 
   const amrex::Real* dx = geom.CellSize();
 
@@ -539,20 +535,45 @@ ERF::estTimeStep(amrex::Real dt_old)
 
   amrex::Real estdt_hydro = max_dt / cfl;
 
-  prefetchToDevice(stateMF); // This should accelerate the below operations.
-  amrex::Real AMREX_D_DECL(dx1 = dx[0], dx2 = dx[1], dx3 = dx[2]);
+  auto const dxinv = geom.InvCellSizeArray();
 
-   amrex::Real dt = amrex::ReduceMin( stateMF, 0,
-       [=] AMREX_GPU_HOST_DEVICE(
-         amrex::Box const& bx, const amrex::Array4<const amrex::Real>& fab_arr
-         ) noexcept -> amrex::Real 
-         {
-             return pc_estdt_hydro(bx, fab_arr, dx1, dx2, dx3);
+  MultiFab& state = get_new_data(State_Type);
+
+  MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
+  MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
+  MultiFab const& z_vel_on_face = get_new_data(Z_Vel_Type);
+
+  MultiFab ccvel(grids,dmap,3,0);
+
+  average_face_to_cellcenter(ccvel,0,
+      Array<const MultiFab*,3>{&x_vel_on_face, &y_vel_on_face, &z_vel_on_face});
+
+  // Initialize to large value since we are taking min below
+  // Real estdt_hydro_inv = 1.e100;
+
+  Real estdt_hydro_inv = amrex::ReduceMax(state, ccvel, 0,
+       [=] AMREX_GPU_HOST_DEVICE (Box const& b,
+                                  Array4<Real const> const& s,
+                                  Array4<Real const> const& u) -> Real
+       {
+           Real dt = -1.e100;
+           amrex::Loop(b, [=,&dt] (int i, int j, int k) noexcept
+           {
+               const amrex::Real rho   = s(i, j, k, Density_comp);
+               const amrex::Real theta = s(i, j, k,   Theta_comp);
+
+               amrex::Real pressure = getPgivenRTh(rho,theta);
+               amrex::Real c = std::sqrt(Gamma * pressure / rho);
+
+               dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                               ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                               ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv[2]), dt);
+           });
+           return dt;
        });
-   estdt_hydro = amrex::min(estdt_hydro, dt);
 
-   amrex::ParallelDescriptor::ReduceRealMin(estdt_hydro);
-   estdt_hydro *= cfl;
+   amrex::ParallelDescriptor::ReduceRealMax(estdt_hydro_inv);
+   estdt_hydro = cfl / estdt_hydro_inv;;
 
    if (verbose) {
      amrex::Print() << "...estimated hydro-limited timestep at level " << level
