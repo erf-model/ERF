@@ -23,11 +23,6 @@ USE_DPCPP = FALSE
 # Debugging
 DEBUG = FALSE
 
-# ERF
-Eos_dir := GammaLaw
-Reactions_dir := Null
-Transport_dir := Constant
-
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
