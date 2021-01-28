@@ -3,12 +3,12 @@ Input Files and Controls
 
 The input file specified on the command line is a free-format text file, one entry per row, that specifies input data processed by the AMReX ``ParmParse`` module.
 
-This file needs to specified along with the executable as an `argv` option, for example:
+This file needs to be specified along with the executable as an ``argv`` option, for example:
 
 
 ::
 
-	mpirun -np 64 ./ERF2d.xxx,yyy.ex inputs
+	mpirun -np 64 ./ERF2d.xxx.yyy.ex inputs
 
 Also, any entry that can be specified in the inputs file can also be specified on the command line; values specified on the command line override values in the inputs file, e.g.:
 
@@ -16,11 +16,11 @@ Also, any entry that can be specified in the inputs file can also be specified o
 
 	mpirun -np 64 ./ERF2d.gnu.DEBUG.MPI.ex inputs amr.restart=sod_x_chk0030 erf.riemann_solver=3
 
-The available options are divided into groups: those that control primarily AMReX are prefaced with `amr.` while those that are specific to ERF are prefaced with `erf.`.
+The available options are divided into groups: those that control primarily AMReX are prefaced with ``amr.`` while those that are specific to ERF are prefaced with ``erf.``.
 
 A typical input file looks something like the example below; 
-a full list of ERF-specific input parameters are in `ERF/Source/_cpp_parameters`. 
-These parameters, once read, are available in the `ERF` object for use from c++ and are also copied to the module `prob_params_module` for use in FORTRAN. 
+a full list of ERF-specific input parameters are in ``Source/_cpp_parameters``. 
+These parameters, once read, are available in the ``ERF`` object for use from C++ and are also copied to the module ``prob_params_module`` for use in FORTRAN. 
 
 ::
 
