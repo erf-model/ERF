@@ -44,7 +44,7 @@ Once the user has performed the CMake configure step, the ``make`` command will 
 Running the Tests
 ~~~~~~~~~~~~~~~~~
 
-Once the test executables are built, CTest also creates working directories for each test within the ``Build`` directory where plot files will be output, etc. This directory is analogous to the source location of the tests in ``Testing/test_files``.
+Once the test executables are built, CTest also creates working directories for each test within the ``Build`` directory where plot files will be output, etc. This directory is analogous to the source location of the tests in ``Tests/test_files``.
 
 To run the test suite, run ``ctest`` in the ``Build`` directory. CTest will run the tests and report their exit status. Useful options for CTest are ``-VV`` which runs in a verbose mode where the output of each test can be seen. ``-R`` where a regex string can be used to run specific sets of tests. ``-j`` where CTest will bin pack and run tests in parallel based on how many processes each test is specified to use and fit them into the amount of cores available on the machine. ``-L`` where the subset of tests containing a particular label will be run. Output for the last set of tests run is available in the ``Build`` directory in ``Tests/Temporary/LastTest.log``.
 
