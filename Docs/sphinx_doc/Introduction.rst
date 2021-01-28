@@ -11,10 +11,10 @@ ERF solves the compressible Navier-Stokes on a Arakawa C-grid for large-scale we
 Dependencies
 ------------
 
-ERF is built on AMReX (available at `https://github.com/AMReX-Codes/amrex <https://github.com/AMReX-Codes/amrex>`_), 
+ERF is built on `AMReX <https://github.com/AMReX-Codes/amrex>`_, 
 an adaptive mesh refinement software framework, which provides the underlying software infrastructure for 
 block structured AMR operations. 
-The full AMReX documentation can be found `here <https://amrex-codes.github.io/AMReXUsersGuide.pdf>`_. 
+The full AMReX documentation can be found `here <https://amrex-codes.github.io/amrex/docs_html/>`_ and the tutorials can be found `here <https://amrex-codes.github.io/amrex/tutorials_html/>`_.
 
 
 Development
