@@ -3,7 +3,7 @@
 Building
 --------
 
-ERF uses executables which are customized to the case in which the user intends to run. As listed earlier, specific source code files are considered input to the program and compiled into the executable itself. Therefore, ERF has both compile-time and run-time inputs that the user must set for their case. The compile time inputs can be verified by running:
+ERF uses executables which are customized to the case in which the user intends to run. As listed earlier, specific source code files are considered input to the program and compiled into the executable itself. Therefore, ERF has both ``compile-time`` and ``run-time`` inputs that the user must set for their case. The compile time inputs can be verified by running:
 
 ::
    ./ERF --describe
