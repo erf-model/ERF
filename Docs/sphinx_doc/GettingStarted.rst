@@ -37,7 +37,7 @@ The source files contained in the case directory are treated preferentially and 
 A few key files that need to be supplied for (most) cases are:
 
 **inputs** -- a text file containing parameters that are ready by the ParmParse capability in AMReX. These include things like number of time steps, grid size, output file frequency, which physics to include, etc. 
-A list of available data in the ERF group can be found in ERF/Source/param_includes/erf_params.H
+A list of available data in the ERF group can be found in :cpp:`Source/param_includes/erf_params.H`
 
 **prob.cpp** -- Routines called at:
 
