@@ -42,8 +42,8 @@ A list of available data in the ERF group can be found in :cpp:`Source/param_inc
 **prob.cpp** -- Routines called at:
 
   * Initialization (`amrex_probinit`) 
-  * To set initial values on the grid (`pc_initdata`)
-  * Problem teardown (`pc_prob_close`)
+  * To set initial values on the grid (`erf_initdata`)
+  * Problem teardown (`erf_prob_close`)
 
 **prob.H** -- Something about prob.H
 
