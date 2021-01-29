@@ -32,7 +32,7 @@ void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
 
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            velx(i,j,k) = 2.*momx(i,j,k)/(cons(i,j,k,0) + cons(i-1,j,k,0));
+            velx(i,j,k) = 2.*momx(i,j,k)/(cons(i,j,k,0) + cons(i-1,j,k,0)); // Is cons same as rho?
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             vely(i,j,k) = 2.*momy(i,j,k)/(cons(i,j,k,0) + cons(i,j-1,k,0));

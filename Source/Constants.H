@@ -12,7 +12,7 @@
 
 #define R_d     287.06
 #define c_p    1004.5
-#define p_0    1000.0
+#define p_0    1000.0 // Check if is still good for ERF. This value came from PeleC
 #define Gamma  1.4
 
 #define CONST_GRAV 9.8
