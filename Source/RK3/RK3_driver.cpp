@@ -140,7 +140,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
             // Now cu_up1 holds the first intermediate solution
 
-        }); // [1:3 indices are not valuable -- momentum flux]
+        });
 
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
@@ -228,7 +228,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
             // Now cu_up2 holds the second intermediate solution
 
-        }); // [1:3 indices are not valuable -- momentum flux]
+        });
 
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
@@ -310,7 +310,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
             // Now cu_new holds the final solution
             
-        }); // [1:3 indices are not valuable -- momentum flux]
+        });
 
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,

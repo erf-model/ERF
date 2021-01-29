@@ -114,7 +114,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                                + (zflux(i,j,k+1,n) - zflux(i,j,k,n)) / dx[2])
                                                                                        )
                 + dt*source_fab(i,j,k,n);
-        }); // [1:3 indices are not valuable -- momentum flux]
+        });
 
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
