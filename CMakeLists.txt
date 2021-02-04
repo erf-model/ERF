@@ -16,6 +16,7 @@ option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_MASA "Enable tests that require MASA" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 option(ERF_ENABLE_FCOMPARE_FOR_TESTS "Check test plots against gold files" OFF)
+set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
