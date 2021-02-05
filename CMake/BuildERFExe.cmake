@@ -7,7 +7,7 @@ function(build_erf_exe erf_exe_name)
 
   add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/${erf_exe_name})
 
-  set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/Source/GammaLaw")
+  set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/Source")
   target_sources(${erf_exe_name} PRIVATE
                  ${ERF_EOS_DIR}/EOS.H)
   target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${ERF_EOS_DIR})
@@ -26,10 +26,6 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/Constants.H
        ${SRC_DIR}/Derive.H
        ${SRC_DIR}/Derive.cpp
-       ${SRC_DIR}/Diffterm.H
-       ${SRC_DIR}/Diffterm.cpp
-       ${SRC_DIR}/Diffusion.H
-       ${SRC_DIR}/Diffusion.cpp
        ${SRC_DIR}/External.cpp
        ${SRC_DIR}/Forcing.H
        ${SRC_DIR}/Forcing.cpp
@@ -50,17 +46,16 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/SumUtils.cpp
        ${SRC_DIR}/Tagging.H
        ${SRC_DIR}/Tagging.cpp
-       ${SRC_DIR}/Timestep.H
-       ${SRC_DIR}/Timestep.cpp
        ${SRC_DIR}/Utilities.H
-       ${SRC_DIR}/Utilities.cpp
        ${SRC_DIR}/Transport.cpp
        ${SRC_DIR}/TransportParams.cpp
-       ${SRC_DIR}/RK3/conservedPrimitiveConversionsStag.cpp  
-       ${SRC_DIR}/RK3/ConvertStag.cpp  
-       ${SRC_DIR}/RK3/fluxStag.cpp  
        ${SRC_DIR}/RK3/RK3.H
-       ${SRC_DIR}/RK3/timeStepStag.cpp
+       ${SRC_DIR}/RK3/CalcAdvFlux.cpp
+       ${SRC_DIR}/RK3/CalcDiffFlux.cpp
+       ${SRC_DIR}/RK3/MomentumToVelocity.cpp
+       ${SRC_DIR}/RK3/VelocityToMomentum.cpp
+       ${SRC_DIR}/RK3/RK3_driver.cpp
+       ${SRC_DIR}/RK3/RK3_stage.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
@@ -90,6 +85,7 @@ function(build_erf_exe erf_exe_name)
 
   #ERF include directories
   target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR})
+  target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR}/RK3)
   target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_BINARY_DIR})
   
   #Link to amrex library
