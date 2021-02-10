@@ -38,27 +38,27 @@ jobs:
         run: |
           # Install MPI
           ${{matrix.install_deps}}
-          # Install MetaPhysicL
-          cd ${{runner.workspace}}/deps
-          git clone --recursive https://github.com/roystgnr/MetaPhysicL.git ${{runner.workspace}}/deps/MetaPhysicL
-          cd ${{runner.workspace}}/deps/MetaPhysicL
-          ./bootstrap
-          ./configure --prefix="${{runner.workspace}}/deps/install/MetaPhysicL"
-          make -j ${{env.NPROCS}}
-          make install
-          # Install MASA
-          cd ${{runner.workspace}}/deps
-          git clone --recursive https://github.com/manufactured-solutions/MASA.git ${{runner.workspace}}/deps/MASA
-          cd ${{runner.workspace}}/deps/MASA
-          ./bootstrap
-          ./configure CXX='mpicxx -std=c++11' CC=mpicc \
-            METAPHYSICL_DIR="${{runner.workspace}}/deps/install/MetaPhysicL" \
-            --prefix="${{runner.workspace}}/deps/install/MASA"
-          make -j ${{env.NPROCS}}
-          make install
-          # Install Python packages
-          python -m pip install --upgrade pip
-          pip install nose numpy pandas
+          ## Install MetaPhysicL
+          #cd ${{runner.workspace}}/deps
+          #git clone --recursive https://github.com/roystgnr/MetaPhysicL.git ${{runner.workspace}}/deps/MetaPhysicL
+          #cd ${{runner.workspace}}/deps/MetaPhysicL
+          #./bootstrap
+          #./configure --prefix="${{runner.workspace}}/deps/install/MetaPhysicL"
+          #make -j ${{env.NPROCS}}
+          #make install
+          ## Install MASA
+          #cd ${{runner.workspace}}/deps
+          #git clone --recursive https://github.com/manufactured-solutions/MASA.git ${{runner.workspace}}/deps/MASA
+          #cd ${{runner.workspace}}/deps/MASA
+          #./bootstrap
+          #./configure CXX='mpicxx -std=c++11' CC=mpicc \
+          #  METAPHYSICL_DIR="${{runner.workspace}}/deps/install/MetaPhysicL" \
+          #  --prefix="${{runner.workspace}}/deps/install/MASA"
+          #make -j ${{env.NPROCS}}
+          #make install
+          ## Install Python packages
+          #python -m pip install --upgrade pip
+          #pip install nose numpy pandas
       - name: Configure
         run: |
           #for DIM in 1 2 3; do \
