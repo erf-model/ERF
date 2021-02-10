@@ -32,6 +32,7 @@ jobs:
           python-version: '3.x'
       - name: Setup
         run: |
+          echo "::add-matcher::.github/problem-matchers/gcc.json"
           echo "NPROCS=${{matrix.procs}}" >> $GITHUB_ENV
           cmake -E make_directory ${{runner.workspace}}/deps
       - name: Dependencies
