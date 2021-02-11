@@ -1,4 +1,4 @@
-name: ERF-CI
+name: ERF CI
 
 on:
   push:
@@ -17,7 +17,6 @@ jobs:
             install_deps: sudo apt-get install mpich libmpich-dev
             comp: gnu
             procs: $(nproc)
-            #mpipreflags:
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.6.0
@@ -26,10 +25,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: true
-      - name: Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.x'
       - name: Setup
         run: |
           echo "::add-matcher::.github/problem-matchers/gcc.json"
@@ -57,17 +52,8 @@ jobs:
           #  --prefix="${{runner.workspace}}/deps/install/MASA"
           #make -j ${{env.NPROCS}}
           #make install
-          ## Install Python packages
-          #python -m pip install --upgrade pip
-          #pip install nose numpy pandas
       - name: Configure
         run: |
-          #for DIM in 1 2 3; do \
-          #  if [ "${DIM}" != '3' ]; then WARNINGS=OFF; else WARNINGS=ON; fi; \
-          #  printf "\n-------- Configuring ${DIM}D --------\n"; \
-          #  cmake \
-          #  -B${{runner.workspace}}/build-${DIM}d-${{matrix.os}} \
-          #  -DERF_DIM:STRING=${DIM} \
           cmake \
           -B${{runner.workspace}}/build-${{matrix.os}} \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/install \
@@ -80,18 +66,7 @@ jobs:
           -DERF_ENABLE_MASA:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           ${{github.workspace}}; \
-          #done
       - name: Build
         run: |
-          #for DIM in 1 2 3; do \
-          #  printf "\n-------- Building ${DIM}D --------\n"; \
-          #  cmake --build ${{runner.workspace}}/build-${DIM}d-${{matrix.os}} \
-          #    --parallel ${{env.NPROCS}} 2>&1 | tee -a ${{runner.workspace}}/build-output.txt; \
-          #done
           cmake --build ${{runner.workspace}}/build-${{matrix.os}} \
             --parallel ${{env.NPROCS}}; \
-      #- name: Report
-      #  run: |
-      #    echo "::add-matcher::.github/problem-matchers/gcc.json"
-      #    cat ${{runner.workspace}}/build-output.txt | egrep "warning:|error:" | sort | uniq | sort -nr | \
-      #      awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}'
