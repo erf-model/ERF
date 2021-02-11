@@ -40,8 +40,8 @@ if(ERF_ENABLE_CUDA)
   endif()
 endif()
 
-if((NOT ERF_DIM EQUAL 3) AND ERF_ENABLE_AMREX_EB)
-  message(FATAL_ERROR "EB is only supported in 3D.")
+if(NOT ERF_DIM EQUAL 3)
+  message(FATAL_ERROR "ERF is only supported in 3D.")
 endif()
 
 ########################### AMReX #####################################
