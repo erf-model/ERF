@@ -13,10 +13,11 @@ Contents:
 
    Introduction.rst
    Applications_Requirements.rst
-   Equations.rst
+   Euler_Equations.rst
    UnitsAndConstants.rst
    Algorithms.rst
    ArakawaCGrid.rst
+   Euler_Discretization.rst
    GettingStarted.rst
    BoundaryConditions.rst
    Visualization.rst
