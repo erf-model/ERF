@@ -126,7 +126,7 @@ lead to:
   p_{i, j, k}^n = (\rho_{i, j, k}^n R_d \theta_{i, j, k}^n / p_0^{R_d / c_p} )^\gamma
 
 Here :math:`\rho_{i, j, k}^n, T_{i, j, k}^n, \theta_{i, j, k}^n`, and :math:`p_{i, j, k}^n` are the density, temperature, potential temperature and pressure, respectively; 
-these variables are all defined at cell centers of cell indexed by :math: `(i, j, k)` and at time level :math: `n`.
+these variables are all defined at cell centers of cell indexed by :math:`(i, j, k)` and at time level :math:`n`.
 
 :math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively, 
 and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
