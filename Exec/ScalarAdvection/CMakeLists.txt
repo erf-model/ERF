@@ -1,4 +1,4 @@
-set(erf_exe_name erf_Sod)
+set(erf_exe_name erf_scalar_advect)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
