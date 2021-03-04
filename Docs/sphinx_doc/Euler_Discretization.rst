@@ -183,3 +183,26 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Differencing of Different Orders
 ================================
 
+:math:`[\rho, u, v, w, \theta]`
+:math:`m = i, j, k`
+:math:`U_d = [u, v, w]` for :math:`[x, y, z]` differences respectively.
+
+.. math::
+
+	\begin{align*}
+		q_{m+\frac{1}{2}}|^{2^{nd}} &= \frac{1}{2} (q_{m+1} + q_{m})\\
+		q_{m+\frac{1}{2}}|^{4^{th}} &=   \frac{7}{12} (q_{m+1} + q_{m})
+									  - \frac{1}{12} (q_{m+2} + q_{m-1})\\
+		q_{m+\frac{1}{2}}|^{6^{th}} &=   \frac{37}{60} (q_{m+1} + q_{m})
+									  - \frac{2}{15} (q_{m+2} + q_{m-1})
+									  + \frac{1}{60} (q_{m+1} + q_{m-2})\\
+		q_{m+\frac{1}{2}}|^{3^{rd}} &=   q_{m+\frac{1}{2}}|^{4^{th}}
+									   + \frac{U_d}{|U_d|} \frac{1}{12} [ 
+									     	  (q_{m+2} + q_{m-1})
+									   	   - 3(q_{m+1} + q_{m})]\\
+		q_{m+\frac{1}{2}}|^{5^{th}} &=   q_{m+\frac{1}{2}}|^{6^{th}}
+									   - \frac{U_d}{|U_d|} \frac{1}{60} [
+									  		  (q_{m+3} + q_{m-2}) 
+										  -  5(q_{m+2} + q_{m-1})
+									      + 10(q_{m+1} + q_{m})]\\
+	\end{align*}
