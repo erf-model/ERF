@@ -27,6 +27,16 @@ Difference Equation
 -------------------
 .. image:: figures/grid_discretization/continuity_eqn.PNG
   :width: 400
+  
+.. math::
+
+	\begin{align*}
+		\rho_{i, j, k}^{n+1} = \rho_{i, j, k}^{n}
+		- \Delta t
+		\{& \frac{1}{\Delta x} [ {(\rho u)}_{i+1, j, k}^{n} - {(\rho u)}_{i, j, k}^{n}]\\
+		+ & \frac{1}{\Delta y} [ {(\rho v)}_{i, j+1, k}^{n} - {(\rho v)}_{i, j, k}^{n}]\\
+		+ & \frac{1}{\Delta z} [ {(\rho w)}_{i, j, k+1}^{n} - {(\rho w)}_{i, j, k}^{n}] \}
+	\end{align*}
 
 Divergence Compoments
 ---------------------
@@ -45,6 +55,20 @@ Difference Equation
 .. image:: figures/grid_discretization/x_mom_eqn.PNG
   :width: 400
 
+.. math::
+
+	\begin{align*}
+		(\rho u)_{i, j, k}^{n+1} = (\rho u)_{i, j, k}^{n}
+		- \Delta t
+		\{& \frac{1}{2 \Delta x} [( {(\rho u)}_{i+1, j, k}^{n} + {(\rho u)}_{i, j, k}^{n}) u_{i+\frac{1}{2},j,k}^n
+								 -( {(\rho u)}_{i, j, k}^{n} + {(\rho u)}_{i-1, j, k}^{n}) u_{i-\frac{1}{2},j,k}^n]\\
+		+ & \frac{1}{2 \Delta y} [( {(\rho v)}_{i, j+1, k}^{n} + {(\rho v)}_{i-1, j+1, k}^{n}) u_{i, j+\frac{1}{2},k}^n
+							     -( {(\rho v)}_{i, j, k}^{n} + {(\rho v)}_{i-1, j, k}^{n}) u_{i, j-\frac{1}{2},k}^n]\\
+		+ & \frac{1}{2 \Delta z} [( {(\rho w)}_{i, j, k+1}^{n} + {(\rho w)}_{i-1, j, k+1}^{n}) u_{i, j, k+\frac{1}{2}}^n
+							     -( {(\rho w)}_{i, j, k}^{n} + {(\rho w)}_{i-1, j, k}^{n}) u_{i, j, k-\frac{1}{2}}^n] \}\\
+		- & \frac{\Delta t}{\Delta x}[p_{i, j, k}^{n} - p_{i-1, j, k}^{n}]	
+	\end{align*}
+
 Divergence Compoments
 ---------------------
 .. image:: figures/grid_discretization/x_mom_advec_x.PNG
@@ -62,6 +86,20 @@ Difference Equation
 .. image:: figures/grid_discretization/y_mom_eqn.PNG
   :width: 400
 
+.. math::
+
+	\begin{align*}
+	(\rho v)_{i, j, k}^{n+1} = (\rho v)_{i, j, k}^{n}
+	- \Delta t
+		\{& \frac{1}{2 \Delta x} [( {(\rho u)}_{i+1, j, k}^{n} + {(\rho u)}_{i+1, j-1, k}^{n}) v_{i+\frac{1}{2},j,k}^n
+						   	  -( {(\rho u)}_{i, j, k}^{n} + {(\rho u)}_{i, j-1, k}^{n}) v_{i-\frac{1}{2},j,k}^n]\\
+		+ & \frac{1}{2 \Delta y} [( {(\rho v)}_{i, j+1, k}^{n} + {(\rho v)}_{i, j, k}^{n}) v_{i, j+\frac{1}{2},k}^n
+							  -( {(\rho v)}_{i, j, k}^{n} + {(\rho v)}_{i, j-1, k}^{n}) v_{i, j-\frac{1}{2},k}^n]\\
+		+ & \frac{1}{2 \Delta z} [( {(\rho w)}_{i, j, k+1}^{n} + {(\rho w)}_{i, j-1, k+1}^{n}) v_{i, j, k+\frac{1}{2}}^n
+							  -( {(\rho w)}_{i, j, k}^{n} + {(\rho w)}_{i, j-1, k}^{n}) v_{i, j, k-\frac{1}{2}}^n] \}\\
+		- & \frac{\Delta t}{\Delta y}[p_{i, j, k}^{n} - p_{i, j-1, k}^{n}]
+	\end{align*}
+
 Divergence Compoments
 ---------------------
 .. image:: figures/grid_discretization/y_mom_advec_x.PNG
@@ -78,6 +116,21 @@ Difference Equation
 -------------------
 .. image:: figures/grid_discretization/z_mom_eqn.PNG
   :width: 400
+  
+.. math::
+
+	\begin{align*}
+	(\rho w)_{i, j, k}^{n+1} = (\rho w)_{i, j, k}^{n}
+	- \Delta t
+		\{& \frac{1}{2 \Delta x} [( {(\rho u)}_{i+1, j, k}^{n} + {(\rho u)}_{i+1, j, k-1}^{n}) w_{i+\frac{1}{2},j,k}^n
+								 -( {(\rho u)}_{i, j, k}^{n} + {(\rho u)}_{i, j, k-1}^{n}) w_{i-\frac{1}{2},j,k}^n]\\
+		+ & \frac{1}{2 \Delta y} [( {(\rho v)}_{i, j+1, k}^{n} + {(\rho v)}_{i, j+1, k-1}^{n}) w_{i, j+\frac{1}{2},k}^n
+							     -( {(\rho v)}_{i, j, k}^{n} + {(\rho v)}_{i, j, k-1}^{n}) w_{i, j-\frac{1}{2},k}^n]\\
+		+ & \frac{1}{2 \Delta z} [( {(\rho w)}_{i, j, k+1}^{n} + {(\rho w)}_{i, j, k}^{n}) w_{i, j, k+\frac{1}{2}}^n
+							     -( {(\rho w)}_{i, j, k}^{n} + {(\rho w)}_{i, j, k-1}^{n}) w_{i, j, k-\frac{1}{2}}^n] \}\\
+		- & \frac{\Delta t}{\Delta z}[p_{i, j, k}^{n} - p_{i, j, k-1}^{n}] + \Delta t g \rho_{i, j, k-\frac{1}{2}}^n
+	\end{align*}
+
 
 Divergence Compoments
 ---------------------
@@ -96,6 +149,20 @@ Difference Equation
 -------------------
 .. image:: figures/grid_discretization/temp_eqn.PNG
   :width: 400
+    
+.. math::
+
+	\begin{align*}
+		(\rho \theta)_{i, j, k}^{n+1} = (\rho \theta)_{i, j, k}^{n}
+		- \Delta t
+		\{& \frac{1}{\Delta x} [{(\rho u)}_{i+1, j, k}^{n} \theta_{i+\frac{1}{2},j,k}^n
+								 -{(\rho u)}_{i, j, k}^{n})  \theta_{i-\frac{1}{2},j,k}^n]\\
+		+ & \frac{1}{\Delta y} [{(\rho v)}_{i, j+1, k}^{n} \theta_{i, j+\frac{1}{2},k}^n
+							     -{(\rho v)}_{i, j, k}^{n} \theta_{i, j-\frac{1}{2},k}^n]\\
+		+ & \frac{1}{\Delta z} [{(\rho w)}_{i, j, k+1}^{n} \theta_{i, j, k+\frac{1}{2}}^n
+								 -{(\rho w)}_{i, j, k}^{n} \theta_{i, j, k-\frac{1}{2}}^n] \}
+	\end{align*}
+
 
 Divergence Compoments
 ---------------------
@@ -111,19 +178,11 @@ Diagnostic Variables
  
 .. math::
 
-  p_{i, j, k}^n = \rho_{i, j, k}^n R_d T_{i, j, k}^n;
-
-and 
-
-.. math::
-
-  \theta_{i, j, k}^n = T_{i, j, k}^n (\frac{p_0}{p_{i, j, k}^n})^{R_d / c_p}
-
-lead to:
-
-.. math::
-
   p_{i, j, k}^n = (\rho_{i, j, k}^n R_d \theta_{i, j, k}^n / p_0^{R_d / c_p} )^\gamma
+  
+.. math::
+
+  T_{i, j, k}^n =  \frac{p_{i, j, k}^n}{  \rho_{i, j, k}^n R_d}
 
 Here :math:`\rho_{i, j, k}^n, T_{i, j, k}^n, \theta_{i, j, k}^n`, and :math:`p_{i, j, k}^n` are the density, temperature, potential temperature and pressure, respectively; 
 these variables are all defined at cell centers of cell indexed by :math:`(i, j, k)` and at time level :math:`n`.
