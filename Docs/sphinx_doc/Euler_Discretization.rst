@@ -4,7 +4,7 @@
 Finite Difference Discretization of Euler Equations
 ###################################################
 
-Last update: 2021-02-12
+Last update: 2021-03-04
 
 Staggered Grids
 ===============
@@ -146,7 +146,7 @@ Difference Equation
 		(\rho \theta)_{i, j, k}^{n+1} = (\rho \theta)_{i, j, k}^{n}
 		- \Delta t
 		\{& \frac{1}{\Delta x} [{(\rho u)}_{i+1, j, k}^{n} \theta_{i+\frac{1}{2},j,k}^n
-								 -{(\rho u)}_{i, j, k}^{n})  \theta_{i-\frac{1}{2},j,k}^n]\\
+								 -{(\rho u)}_{i, j, k}^{n}  \theta_{i-\frac{1}{2},j,k}^n]\\
 		+ & \frac{1}{\Delta y} [{(\rho v)}_{i, j+1, k}^{n} \theta_{i, j+\frac{1}{2},k}^n
 							     -{(\rho v)}_{i, j, k}^{n} \theta_{i, j-\frac{1}{2},k}^n]\\
 		+ & \frac{1}{\Delta z} [{(\rho w)}_{i, j, k+1}^{n} \theta_{i, j, k+\frac{1}{2}}^n
@@ -183,5 +183,3 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Differencing of Different Orders
 ================================
 
-.. image:: figures/grid_discretization/differencing.PNG
-  :width: 400
