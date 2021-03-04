@@ -9,33 +9,16 @@
 
 Arakawa C-Grid
 ==============
+Variables are located on Arakawa C-grid as pictured in the images below.
 
-Variables are located as pictured in the images below.
-
-.. raw:: latex
-
-   \begin{center}
-
-.. _fig:arakawa:
-
-.. figure:: ./figures/Arakawa_1.png
-   :width: 3in
-
-.. figure:: ./figures/Arakawa_2.png
-   :width: 3in
-
-.. figure:: ./figures/Arakawa_3.png
-   :width: 3in
-
-.. figure:: ./figures/Arakawa_4.png
-   :width: 3in
-
-.. figure:: ./figures/Arakawa_5.png
-   :width: 3in
-
-   Variable locations on Arakawa C-grid
-
-.. raw:: latex
-
-   \end{center}
-
+.. image:: figures/grid_discretization/Arakawa_1.png
+  :width: 400
+.. image:: figures/grid_discretization/Arakawa_2.png
+  :width: 400
+.. image:: figures/grid_discretization/Arakawa_3.png
+  :width: 400
+.. image:: figures/grid_discretization/Arakawa_4.png
+  :width: 400
+.. image:: figures/grid_discretization/Arakawa_5.png
+  :width: 400
+  
