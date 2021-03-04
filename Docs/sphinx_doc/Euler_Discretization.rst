@@ -25,9 +25,7 @@ Mass Conservation
 
 Difference Equation
 -------------------
-.. image:: figures/grid_discretization/continuity_eqn.PNG
-  :width: 400
-  
+
 .. math::
 
 	\begin{align*}
@@ -52,8 +50,6 @@ X-Momentum Conservation
 
 Difference Equation
 -------------------
-.. image:: figures/grid_discretization/x_mom_eqn.PNG
-  :width: 400
 
 .. math::
 
@@ -83,8 +79,6 @@ Y-Momentum Conservation
 
 Difference Equation
 -------------------
-.. image:: figures/grid_discretization/y_mom_eqn.PNG
-  :width: 400
 
 .. math::
 
@@ -114,8 +108,6 @@ Z-Momentum Conservation
 
 Difference Equation
 -------------------
-.. image:: figures/grid_discretization/z_mom_eqn.PNG
-  :width: 400
   
 .. math::
 
@@ -147,9 +139,7 @@ Energy Conservation
 
 Difference Equation
 -------------------
-.. image:: figures/grid_discretization/temp_eqn.PNG
-  :width: 400
-    
+   
 .. math::
 
 	\begin{align*}
