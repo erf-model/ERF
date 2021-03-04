@@ -183,9 +183,7 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Differencing of Different Orders
 ================================
 
-:math:`[\rho, u, v, w, \theta]`
-:math:`m = i, j, k`
-:math:`U_d = [u, v, w]` for :math:`[x, y, z]` differences respectively.
+:math:`[\rho, u, v, w, \theta]`,  :math:`m = i, j, k`,  and :math:`U_d = [u, v, w]` for :math:`[x, y, z]` differences respectively.
 
 .. math::
 
