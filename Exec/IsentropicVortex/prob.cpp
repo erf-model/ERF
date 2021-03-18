@@ -31,5 +31,12 @@ amrex_probinit(
   pp.query("beta", ProbParm::beta);
   pp.query("sigma", ProbParm::sigma);
   pp.query("R", ProbParm::R);
+
+  amrex::Print() << "  freestream u/a = "
+                 << ProbParm::M_inf * std::cos(ProbParm::alpha)
+                 << std::endl;
+  amrex::Print() << "  freestream v/a = "
+                 << ProbParm::M_inf * std::sin(ProbParm::alpha)
+                 << std::endl;
 }
 }

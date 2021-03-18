@@ -35,8 +35,8 @@ erf_vortex_Gaussian(
   const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
   const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
 
-  const amrex::Real r2  = ((x-xc)*(x-xc) + (y-yc)*(y-yc)) / (ProbParm::R*ProbParm::R);
-
+  // Evaluate Gaussian function
+  const amrex::Real r2 = ((x-xc)*(x-xc) + (y-yc)*(y-yc)) / (ProbParm::R*ProbParm::R);
   return ProbParm::beta * std::exp(-r2/(2*ProbParm::sigma*ProbParm::sigma));
 }
 
@@ -53,11 +53,11 @@ pc_initdata(
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata)
 {
+  // Calculate perturbation temperature
   const amrex::Real Omg = erf_vortex_Gaussian(i,j,geomdata);
   const amrex::Real deltaT = -(ProbParm::gamma - 1.0)/(2.0*ProbParm::sigma*ProbParm::sigma) * Omg*Omg;
-  const amrex::Real inv_gm1 = 1.0 / (ProbParm::gamma - 1);
-
   // Set the density 
+  const amrex::Real inv_gm1 = 1.0 / (ProbParm::gamma - 1);
   state(i, j, k, Density_comp) = std::pow(1.0 + deltaT, inv_gm1);
  
   // Initial temperature -- though we should make sure its consistent with (rho e) above
