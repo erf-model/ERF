@@ -47,16 +47,13 @@ pc_initdata(
   const amrex::Real r0 = 0.05 * (prob_hi[0] - prob_lo[0]);
 
   // Set the density 
-  state(i, j, k, Density_comp) = ProbParm::rho_0;
+  state(i, j, k, Density_comp) = 1.0;
  
   // Initial temperature -- though we should make sure its consistent with (rho e) above
-  state(i, j, k, Theta_comp) = ProbParm::T_0;
+  state(i, j, k, Theta_comp) = 1.0;
 
-  // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
-  if (r < r0) 
-     state(i, j, k, Scalar_comp) = ProbParm::A_0;
-  else
-     state(i, j, k, Scalar_comp) = 0.0;
+  // Set scalar = 0 -- unused
+  state(i, j, k, Scalar_comp) = 0.0;
 }
 
 AMREX_GPU_DEVICE

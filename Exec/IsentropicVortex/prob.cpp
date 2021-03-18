@@ -1,10 +1,12 @@
 #include "prob.H"
 
 namespace ProbParm {
-AMREX_GPU_DEVICE_MANAGED amrex::Real rho_0 = 0.0; // left density (g/cc)
-AMREX_GPU_DEVICE_MANAGED amrex::Real rhoe_0;
-AMREX_GPU_DEVICE_MANAGED amrex::Real T_0 = 1.0;
-AMREX_GPU_DEVICE_MANAGED amrex::Real A_0 = 1.0;
+AMREX_GPU_DEVICE_MANAGED amrex::Real M_inf = 0.2; //freestream Mach number [-]
+AMREX_GPU_DEVICE_MANAGED amrex::Real alpha = 0.0; //inflow angle, 0 --> x-aligned [rad] 
+AMREX_GPU_DEVICE_MANAGED amrex::Real gamma = 1.4; //specific heat ratio [-]
+AMREX_GPU_DEVICE_MANAGED amrex::Real beta = 1.0; //non-dimensional max perturbation strength [-]
+AMREX_GPU_DEVICE_MANAGED amrex::Real sigma = 1.0; //Gaussian standard deviation, i.e., spreading parameter [-]
+AMREX_GPU_DEVICE_MANAGED amrex::Real R = 1.0; //characteristic length scale for grid [m]
 } // namespace ProbParm
 
 void
@@ -23,8 +25,11 @@ amrex_probinit(
 {
   // Parse params
   amrex::ParmParse pp("prob");
-  pp.query("rho_0", ProbParm::rho_0);
-  pp.query("T_0", ProbParm::T_0);
-  pp.query("A_0", ProbParm::A_0);
+  pp.query("M_inf", ProbParm::M_inf);
+  pp.query("alpha", ProbParm::alpha);
+  pp.query("gamma", ProbParm::gamma);
+  pp.query("beta", ProbParm::beta);
+  pp.query("sigma", ProbParm::sigma);
+  pp.query("R", ProbParm::R);
 }
 }

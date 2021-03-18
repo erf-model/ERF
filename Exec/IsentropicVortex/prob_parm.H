@@ -5,10 +5,12 @@
 #include <AMReX_GpuQualifiers.H>
 
 namespace ProbParm {
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real rho_0;
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real rhoe_0;
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real T_0;
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real A_0;
+extern AMREX_GPU_DEVICE_MANAGED amrex::Real M_inf;
+extern AMREX_GPU_DEVICE_MANAGED amrex::Real alpha;
+extern AMREX_GPU_DEVICE_MANAGED amrex::Real gamma;
+extern AMREX_GPU_DEVICE_MANAGED amrex::Real beta;
+extern AMREX_GPU_DEVICE_MANAGED amrex::Real sigma;
+extern AMREX_GPU_DEVICE_MANAGED amrex::Real R;
 } // namespace ProbParm
 
 #endif
