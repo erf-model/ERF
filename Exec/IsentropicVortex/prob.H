@@ -31,12 +31,9 @@ erf_vortex_Gaussian(
   const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
 //const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-  // Define a point (xc,yc,zc) at the center of the domain 
-  const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-  const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-
   // Evaluate Gaussian function
-  const amrex::Real r2 = ((x-xc)*(x-xc) + (y-yc)*(y-yc)) / (ProbParm::R*ProbParm::R);
+  const amrex::Real r2 = ((x-ProbParm::xc)*(x-ProbParm::xc) + (y-ProbParm::yc)*(y-ProbParm::yc))
+                         / (ProbParm::R*ProbParm::R);
   return ProbParm::beta * std::exp(-r2/(2*ProbParm::sigma*ProbParm::sigma));
 }
 
@@ -57,11 +54,10 @@ pc_initdata(
   const amrex::Real Omg = erf_vortex_Gaussian(i,j,geomdata);
   const amrex::Real deltaT = -(ProbParm::gamma - 1.0)/(2.0*ProbParm::sigma*ProbParm::sigma) * Omg*Omg;
   // Set the density 
-  const amrex::Real inv_gm1 = 1.0 / (ProbParm::gamma - 1);
-  state(i, j, k, Density_comp) = std::pow(1.0 + deltaT, inv_gm1);
+  state(i, j, k, Density_comp) = std::pow(1.0 + deltaT, ProbParm::inv_gm1) * ProbParm::rho_inf;
  
   // Initial temperature -- though we should make sure its consistent with (rho e) above
-  state(i, j, k, Theta_comp) = deltaT;
+  state(i, j, k, Theta_comp) = (1.0 + deltaT) * ProbParm::T_inf;
 
   // Set scalar = 0 -- unused
   state(i, j, k, Scalar_comp) = 0.0;
@@ -85,8 +81,8 @@ pc_init_xvel(
   const amrex::Real Omg = erf_vortex_Gaussian(i,j,geomdata);
 
   // Set the x-velocity
-  x_vel(i, j, k) = ProbParm::M_inf * std::cos(ProbParm::alpha)
-                 - y/ProbParm::R * Omg;
+  x_vel(i, j, k) = (ProbParm::M_inf * std::cos(ProbParm::alpha)
+                    - (y-ProbParm::yc)/ProbParm::R * Omg) * ProbParm::a_inf;
 }
 
 AMREX_GPU_DEVICE
@@ -107,8 +103,8 @@ pc_init_yvel(
   const amrex::Real Omg = erf_vortex_Gaussian(i,j,geomdata);
 
   // Set the y-velocity
-  y_vel(i, j, k) = ProbParm::M_inf * std::sin(ProbParm::alpha)
-                 + x/ProbParm::R * Omg;
+  y_vel(i, j, k) = (ProbParm::M_inf * std::sin(ProbParm::alpha)
+                    + (x-ProbParm::xc)/ProbParm::R * Omg) * ProbParm::a_inf;
 }
 
 AMREX_GPU_DEVICE
