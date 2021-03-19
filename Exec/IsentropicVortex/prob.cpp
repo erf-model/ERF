@@ -6,7 +6,7 @@ AMREX_GPU_DEVICE_MANAGED amrex::Real T_inf = 293.0; //freestream temperature [K]
 AMREX_GPU_DEVICE_MANAGED amrex::Real M_inf = 0.2; //freestream Mach number [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real alpha = 0.0; //inflow angle, 0 --> x-aligned [rad] 
 AMREX_GPU_DEVICE_MANAGED amrex::Real gamma = 1.4; //specific heat ratio [-]
-AMREX_GPU_DEVICE_MANAGED amrex::Real beta = 1.0; //non-dimensional max perturbation strength [-]
+AMREX_GPU_DEVICE_MANAGED amrex::Real beta = 0.01; //non-dimensional max perturbation strength [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real sigma = 2.5; //Gaussian standard deviation, i.e., spreading parameter [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real R = 1.0; //characteristic length scale for grid [m]
 AMREX_GPU_DEVICE_MANAGED amrex::Real xc = 0.5; //normalized x-location of vortex center [-]
@@ -42,6 +42,13 @@ amrex_probinit(
   pp.query("R", ProbParm::R);
   pp.query("xc", ProbParm::xc);
   pp.query("yc", ProbParm::yc);
+
+  ProbParm::xc = problo[0] + ProbParm::xc * (probhi[0] - problo[0]);
+  ProbParm::yc = problo[1] + ProbParm::yc * (probhi[1] - problo[1]);
+  amrex::Print() << "  vortex initialized at ("
+                 << ProbParm::xc << ", "
+                 << ProbParm::yc << ")"
+                 << std::endl;
 
   ProbParm::inv_gm1 = 1.0 / (ProbParm::gamma - 1.0);
 
