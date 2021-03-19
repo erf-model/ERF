@@ -41,7 +41,7 @@ pc_initdata(
   const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
   const amrex::Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
 
-  const amrex::Real r  = (x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc);
+  const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
   // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
   const amrex::Real r0 = 0.05 * (prob_hi[0] - prob_lo[0]);
