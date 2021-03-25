@@ -12,6 +12,7 @@ void CalcAdvFlux(const MultiFab& cons_in,
                  const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in, 
                  const MultiFab& xvel_in, const MultiFab& yvel_in, const MultiFab& zvel_in, 
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
+                 std::array<MultiFab, AMREX_SPACEDIM>& facegrad_scalar,
                  std::array< MultiFab, 2 >& edgeflux_x,
                  std::array< MultiFab, 2 >& edgeflux_y,
                  std::array< MultiFab, 2 >& edgeflux_z,
@@ -29,6 +30,10 @@ void CalcAdvFlux(const MultiFab& cons_in,
     faceflux[0].setVal(0.0);
     faceflux[1].setVal(0.0);
     faceflux[2].setVal(0.0);
+
+    facegrad_scalar[0].setVal(0.0);
+    facegrad_scalar[1].setVal(0.0);
+    facegrad_scalar[2].setVal(0.0);
 
     edgeflux_x[0].setVal(0.0);
     edgeflux_x[1].setVal(0.0);
@@ -57,6 +62,10 @@ void CalcAdvFlux(const MultiFab& cons_in,
         const Array4<Real>& xflux = faceflux[0].array(mfi);
         const Array4<Real>& yflux = faceflux[1].array(mfi);
         const Array4<Real>& zflux = faceflux[2].array(mfi);
+
+        const Array4<Real>& xgrad_scalar = facegrad_scalar[0].array(mfi);
+        const Array4<Real>& ygrad_scalar = facegrad_scalar[1].array(mfi);
+        const Array4<Real>& zgrad_scalar = facegrad_scalar[2].array(mfi);
 
         const Array4<Real>& edgex_v = edgeflux_x[0].array(mfi);
         const Array4<Real>& edgex_w = edgeflux_x[1].array(mfi);
@@ -102,6 +111,10 @@ void CalcAdvFlux(const MultiFab& cons_in,
 
             // Scalar: conservative flux is (rho u s)
             xflux(i,j,k,Scalar_comp)  = rho * scalar * velx(i,j,k);
+
+            xgrad_scalar(i,j,k,Density_comp) = (cons(i,j,k,Density_comp) - cons(i-1,j,k,Density_comp)) / dx[0];
+            xgrad_scalar(i,j,k,  Theta_comp) = (cons(i,j,k,  Theta_comp) - cons(i-1,j,k,  Theta_comp)) / dx[0];
+            xgrad_scalar(i,j,k, Scalar_comp) = (cons(i,j,k, Scalar_comp) - cons(i-1,j,k, Scalar_comp)) / dx[0];
         },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -119,6 +132,10 @@ void CalcAdvFlux(const MultiFab& cons_in,
 
             // Scalar: conservative flux is (rho u s)
             yflux(i,j,k,Scalar_comp) =  rho * scalar * vely(i,j,k);
+
+            ygrad_scalar(i,j,k,Density_comp) = (cons(i,j,k,Density_comp) - cons(i,j-1,k,Density_comp)) / dx[1];
+            ygrad_scalar(i,j,k,  Theta_comp) = (cons(i,j,k,  Theta_comp) - cons(i,j-1,k,  Theta_comp)) / dx[1];
+            ygrad_scalar(i,j,k, Scalar_comp) = (cons(i,j,k, Scalar_comp) - cons(i,j-1,k, Scalar_comp)) / dx[1];
         },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -136,6 +153,10 @@ void CalcAdvFlux(const MultiFab& cons_in,
 
             // Scalar: conservative flux is (rho u s)
             zflux(i,j,k,Scalar_comp) =  rho * scalar * velz(i,j,k);
+
+            zgrad_scalar(i,j,k,Density_comp) = (cons(i,j,k,Density_comp) - cons(i,j,k-1,Density_comp)) / dx[2];
+            zgrad_scalar(i,j,k,  Theta_comp) = (cons(i,j,k,  Theta_comp) - cons(i,j,k-1,  Theta_comp)) / dx[2];
+            zgrad_scalar(i,j,k, Scalar_comp) = (cons(i,j,k, Scalar_comp) - cons(i,j,k-1, Scalar_comp)) / dx[2];
         }
         );
 
@@ -167,6 +188,7 @@ void CalcAdvFlux(const MultiFab& cons_in,
     for (int d=0; d<AMREX_SPACEDIM; d++) {
         cenflux[d].FillBoundary(geom.periodicity());
         faceflux[d].FillBoundary(geom.periodicity());
+        facegrad_scalar[d].FillBoundary(geom.periodicity());
     }
 
     for (int d=0; d<2; d++) {

@@ -83,11 +83,20 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   MultiFab kappa(ba,dm,1,1); 
   kappa.setVal(0.0);
 
+  // Place-holder for alpha array -- scalar diffusivity
+  MultiFab alpha(ba,dm,1,1); 
+  alpha.setVal(0.1);
+
   //fluxes (except momentum) at faces
   std::array< MultiFab, AMREX_SPACEDIM > faceflux;
   faceflux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
   faceflux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
   faceflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
+  
+  std::array< MultiFab, AMREX_SPACEDIM > facegrad_scalar;
+  facegrad_scalar[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
+  facegrad_scalar[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
+  facegrad_scalar[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
 
   std::array< MultiFab, 2 > edgeflux_x; // v, w
   std::array< MultiFab, 2 > edgeflux_y; // u, w
@@ -126,8 +135,8 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
               U_old, V_old, W_old,
               U_new, V_new, W_new, 
               source, 
-              eta, zeta, kappa, 
-              faceflux, 
+              eta, zeta, kappa, alpha,
+              faceflux, facegrad_scalar, 
               edgeflux_x, edgeflux_y, edgeflux_z, 
               cenflux, geom, dx, dt);
 

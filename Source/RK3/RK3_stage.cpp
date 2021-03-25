@@ -16,8 +16,9 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                  MultiFab& xmom_upd, MultiFab& ymom_upd, MultiFab& zmom_upd, 
                  MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    ,  
                  MultiFab& prim    , MultiFab& source,
-                 MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
+                 MultiFab& eta, MultiFab& zeta, MultiFab& kappa, MultiFab& alpha,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
+                 std::array< MultiFab, AMREX_SPACEDIM>& facegrad_scalar,
                  std::array< MultiFab, 2 >& edgeflux_x,
                  std::array< MultiFab, 2 >& edgeflux_y,
                  std::array< MultiFab, 2 >& edgeflux_z,
@@ -55,7 +56,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     // ************************************************************************************** 
     CalcAdvFlux(cons_old, xmom_old, ymom_old, zmom_old, 
                 xvel    , yvel    , zvel    , 
-                faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
+                faceflux, facegrad_scalar, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
                 geom, dxp, dt);
 #if 0
     CalcDiffFlux(cons_old, xmom_old, ymom_old, zmom_old, 
@@ -93,6 +94,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         Array4<Real const> const& yflux = faceflux[1].array(mfi);
         Array4<Real const> const& zflux = faceflux[2].array(mfi);
 
+        Array4<Real const> const& xgrad_scalar = facegrad_scalar[0].array(mfi);
+        Array4<Real const> const& ygrad_scalar = facegrad_scalar[1].array(mfi);
+        Array4<Real const> const& zgrad_scalar = facegrad_scalar[2].array(mfi);
+
         Array4<Real const> const& edgex_v = edgeflux_x[0].array(mfi);
         Array4<Real const> const& edgex_w = edgeflux_x[1].array(mfi);
 
@@ -106,14 +111,23 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         Array4<Real const> const& ceny_v = cenflux[1].array(mfi);
         Array4<Real const> const& cenz_w = cenflux[2].array(mfi);
 
+        const Array4<const Real> alpha_s = alpha.array(mfi);
+        const Array4<const Real> kappa_t = kappa.array(mfi);
         amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            cu_upd(i,j,k,n) = - dt *
-                ( AMREX_D_TERM(  (xflux(i+1,j,k,n) - xflux(i,j,k,n)) / dx[0],
-                               + (yflux(i,j+1,k,n) - yflux(i,j,k,n)) / dx[1],
-                               + (zflux(i,j,k+1,n) - zflux(i,j,k,n)) / dx[2])
-                                                                                       )
-                + dt*source_fab(i,j,k,n);
+            //could unwarp the n loop to accelarate
+            Real coef = (n==0) ? 0.0 : (n==1) ? kappa_t(i,j,k)/(cu_old(i,j,k,0)*c_p) : alpha_s(i,j,k);
+
+            cu_upd(i,j,k,n) = 
+                - dt * 
+                    ( (xflux(i+1,j,k,n) - xflux(i,j,k,n)) / dx[0]
+                    + (yflux(i,j+1,k,n) - yflux(i,j,k,n)) / dx[1]
+                    + (zflux(i,j,k+1,n) - zflux(i,j,k,n)) / dx[2] )
+                + dt * coef *
+                    ( (xgrad_scalar(i+1,j,k,n) - xgrad_scalar(i,j,k,n)) / dx[0]
+                    + (ygrad_scalar(i,j+1,k,n) - ygrad_scalar(i,j,k,n)) / dx[1]
+                    + (zgrad_scalar(i,j,k+1,n) - zgrad_scalar(i,j,k,n)) / dx[2] )
+                + dt * source_fab(i,j,k,n);
         });
 
         // momentum flux

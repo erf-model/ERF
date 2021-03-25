@@ -13,8 +13,9 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
                  MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old, 
                  MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new, 
                  MultiFab& source,
-                 MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
+                 MultiFab& eta, MultiFab& zeta, MultiFab& kappa, MultiFab& alpha,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
+                 std::array< MultiFab, AMREX_SPACEDIM>& facegrad_scalar,
                  std::array< MultiFab, 2 >& edgeflux_x,
                  std::array< MultiFab, 2 >& edgeflux_y,
                  std::array< MultiFab, 2 >& edgeflux_z,
@@ -101,8 +102,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
               xmom_update_1, ymom_update_1, zmom_update_1, 
               xvel_old, yvel_old, zvel_old, prim,  // These are used as temporary space
               source,
-              eta, zeta, kappa,
-              faceflux,
+              eta, zeta, kappa, alpha,
+              faceflux, facegrad_scalar,
               edgeflux_x,
               edgeflux_y,
               edgeflux_z,
@@ -184,8 +185,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
               xmom_update_2, ymom_update_2, zmom_update_2, 
               xvel_new, yvel_new, zvel_new, prim,  // These are used as temporary space
               source,
-              eta, zeta, kappa,
-              faceflux,
+              eta, zeta, kappa, alpha,
+              faceflux, facegrad_scalar,
               edgeflux_x,
               edgeflux_y,
               edgeflux_z,
@@ -272,8 +273,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
               xmom_new, ymom_new, zmom_new, 
               xvel_new, yvel_new, zvel_new, prim,  // These are used as temporary space
               source,
-              eta, zeta, kappa,
-              faceflux,   // These are just temporary space
+              eta, zeta, kappa, alpha,
+              faceflux, facegrad_scalar,  // These are just temporary space
               edgeflux_x, // These are just temporary space
               edgeflux_y, // These are just temporary space
               edgeflux_z, // These are just temporary space
