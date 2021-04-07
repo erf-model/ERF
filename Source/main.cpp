@@ -13,6 +13,8 @@
 
 std::string inputs_name = "";
 
+amrex::LevelBld* getLevelBld();
+
 int
 main(int argc, char* argv[])
 {
@@ -96,7 +98,7 @@ main(int argc, char* argv[])
                    << time_pointer->tm_mday << "." << std::endl;
 
   // Initialize random seed after we're running in parallel.
-  amrex::Amr* amrptr = new amrex::Amr;
+  amrex::Amr* amrptr = new amrex::Amr(getLevelBld());
 
   amrptr->init(strt_time, stop_time);
 
