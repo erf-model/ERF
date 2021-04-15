@@ -15,7 +15,7 @@
 #define p_0    1.0e5 // reference surface pressure [Pa]
 #define Gamma  1.4
 
-#define CONST_GRAV 9.8
+#define CONST_GRAV 9.81
 
 #define Outflow 2
 
