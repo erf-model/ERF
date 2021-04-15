@@ -352,7 +352,7 @@ ERF::setGridInfo()
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-pc_prob_close()
+erf_prob_close()
 {
 }
 */
@@ -397,7 +397,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the x-face-centered box
     amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_init_xvel(i, j, k, ufab, geomdata);
+      erf_init_xvel(i, j, k, ufab, geomdata);
     });
 
     // Construct a box that is on y-faces
@@ -405,7 +405,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the y-face-centered box
     amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_init_yvel(i, j, k, vfab, geomdata);
+      erf_init_yvel(i, j, k, vfab, geomdata);
     });
 
     // Construct a box that is on z-faces
@@ -413,7 +413,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the z-face-centered box
     amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_init_zvel(i, j, k, wfab, geomdata);
+      erf_init_zvel(i, j, k, wfab, geomdata);
     });
   }
 
@@ -431,7 +431,7 @@ ERF::initData()
 
     // Call for all (i,j,k) in the cell-centered box
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_initdata(i, j, k, sfab, ufab, vfab, wfab, geomdata);
+      erf_initdata(i, j, k, sfab, ufab, vfab, wfab, geomdata);
     });
   }
 
@@ -1127,7 +1127,7 @@ ERF::derive(
 void
 ERF::clear_prob()
 {
-  pc_prob_close();
+  erf_prob_close();
 }
 
 void
