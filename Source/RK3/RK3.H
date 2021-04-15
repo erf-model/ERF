@@ -8,10 +8,14 @@
 
 using namespace amrex;
 
-void ConservedToPrimitive(MultiFab& prim_out, 
-                          MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
-                          MultiFab& cons_in,
-                          MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in);
+// cons: cell-centered state
+// U,V,W: face-based velocity
+// source: cell-centered source term
+
+//void ConservedToPrimitive(MultiFab& prim_out, 
+//                          MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
+//                          MultiFab& cons_in,
+//                          MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in);
                           
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         MultiFab& cons_in,
@@ -69,8 +73,8 @@ void CalcDiffFlux(const MultiFab& cons_in,
                   const amrex::Geometry geom,
                   const amrex::Real* dx, const amrex::Real dt);
 
-void conservedToPrimitive(MultiFab& prim_in, const MultiFab& cons_in);
+//void conservedToPrimitive(MultiFab& prim_in, const MultiFab& cons_in);
 
-void primitiveToConserved(const MultiFab& prim, MultiFab& cons);
+//void primitiveToConserved(const MultiFab& prim, MultiFab& cons);
 
 #endif
