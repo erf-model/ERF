@@ -15,7 +15,7 @@ const int nCompTan = AMREX_D_PICK(0, 2, 6);
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-pc_compute_tangential_vel_derivs(
+erf_compute_tangential_vel_derivs(
   const int i,
   const int j,
   const int k,

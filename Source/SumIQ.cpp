@@ -20,8 +20,8 @@ ERF::sum_integrated_quantities()
   int datprecision = 6;
 
   for (int lev = 0; lev <= finest_level; lev++) {
-    ERF& pc_lev = getLevel(lev);
-    mass += pc_lev.volWgtSum("density", time, local_flag);
+    ERF& erf_lev = getLevel(lev);
+    mass += erf_lev.volWgtSum("density", time, local_flag);
   }
 
   if (verbose > 0) {

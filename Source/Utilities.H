@@ -8,7 +8,7 @@
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-pc_move_transcoefs_to_ec(
+erf_move_transcoefs_to_ec(
   const int i,
   const int j,
   const int k,
