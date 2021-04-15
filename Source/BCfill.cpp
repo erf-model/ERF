@@ -5,7 +5,7 @@
 #include "ERF.H"
 #include "prob.H"
 
-struct PCHypFillExtDir
+struct ERFHypFillExtDir
 {
   AMREX_GPU_DEVICE
   void operator()(
@@ -103,7 +103,8 @@ struct PCHypFillExtDir
   }
 };
 
-struct PCReactFillExtDir
+/*
+struct ERFReactFillExtDir
 {
   AMREX_GPU_DEVICE
   void operator()(
@@ -119,15 +120,16 @@ struct PCReactFillExtDir
   {
   }
 };
+*/
 
 namespace {
-static PCHypFillExtDir pc_hyp_fill_ext_dir;
-static amrex::GpuBndryFuncFab<PCHypFillExtDir>
-  hyp_bndry_func(pc_hyp_fill_ext_dir);
+static ERFHypFillExtDir erf_hyp_fill_ext_dir;
+static amrex::GpuBndryFuncFab<ERFHypFillExtDir>
+  hyp_bndry_func(erf_hyp_fill_ext_dir);
 } // namespace
 
 void
-pc_bcfill_hyp(
+erf_bcfill_hyp(
   amrex::Box const& bx,
   amrex::FArrayBox& data,
   const int dcomp,
@@ -142,7 +144,7 @@ pc_bcfill_hyp(
 }
 
 void
-pc_nullfill(
+erf_nullfill(
   amrex::Box const& bx,
   amrex::FArrayBox& data,
   const int dcomp,

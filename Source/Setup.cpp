@@ -186,7 +186,7 @@ ERF::variableSetUp()
     name[cnt] = std::string(buf);
   }
 
-  amrex::StateDescriptor::BndryFunc bndryfunc1(pc_bcfill_hyp);
+  amrex::StateDescriptor::BndryFunc bndryfunc1(erf_bcfill_hyp);
   bndryfunc1.setRunOnGPU(true);
 
   desc_lst.setComponent(State_Type, Density_comp, name, bcs, bndryfunc1);
@@ -199,7 +199,7 @@ ERF::variableSetUp()
     // BndryFunc.
     desc_lst.setComponent(
       Work_Estimate_Type, 0, "WorkEstimate", bc,
-      amrex::StateDescriptor::BndryFunc(pc_nullfill));
+      amrex::StateDescriptor::BndryFunc(erf_nullfill));
   }
 
   // 
