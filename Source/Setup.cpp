@@ -234,14 +234,14 @@ ERF::variableSetUp()
   // Pressure
   //
   derive_lst.add(
-    "pressure", amrex::IndexType::TheCellType(), 1, pc_derpres, the_same_box);
+    "pressure", amrex::IndexType::TheCellType(), 1, erf_derpres, the_same_box);
   derive_lst.addComponent("pressure", desc_lst, State_Type, Density_comp, NVAR);
 
   //
   // Temperature
   //
   derive_lst.add(
-    "temp", amrex::IndexType::TheCellType(), 1, pc_dertemp, the_same_box);
+    "temp", amrex::IndexType::TheCellType(), 1, erf_dertemp, the_same_box);
   derive_lst.addComponent("temp", desc_lst, State_Type, Density_comp, NVAR);
 
   //
@@ -252,15 +252,15 @@ ERF::variableSetUp()
   // Note that we don't need to use "addComponent" because we are are computing
   //      these in ERF itself, not calling the AMReX derive routines
   derive_lst.add(
-    "x_velocity", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
+    "x_velocity", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
 
   // This calculcates cell-centered y-velocity from y-face-centered values
   derive_lst.add(
-    "y_velocity", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
+    "y_velocity", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
 
   // This calculcates cell-centered z-velocity from z-face-centered values
   derive_lst.add(
-    "z_velocity", amrex::IndexType::TheCellType(), 1, pc_dernull, the_same_box);
+    "z_velocity", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
 
   // Problem-specific derives
   add_problem_derives<ProblemDerives>(derive_lst, desc_lst);

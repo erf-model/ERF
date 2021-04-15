@@ -1002,7 +1002,7 @@ ERF::errorEst(
 
       // Tagging pressure
       S_derData.setVal<amrex::RunOn::Device>(0.0);
-      pc_derpres(
+      erf_derpres(
         datbox, S_derData, ncp, Sfab.nComp(), S_data[mfi], geom, time, bc,
         level);
       if (level < TaggingParm::max_presserr_lev) {
@@ -1022,7 +1022,7 @@ ERF::errorEst(
 
       // Tagging temperature
       S_derData.setVal<amrex::RunOn::Device>(0.0);
-      pc_dertemp(
+      erf_dertemp(
         datbox, S_derData, ncp, Sfab.nComp(), S_data[mfi], geom, time, bc,
         level);
       if (level < TaggingParm::max_temperr_lev) {
