@@ -4,7 +4,7 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
 
-void pc_dernull(
+void erf_dernull(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int dcomp,
@@ -15,7 +15,7 @@ void pc_dernull(
   const int* bcrec,
   const int level);
 
-void pc_derpres(
+void erf_derpres(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int dcomp,
@@ -26,7 +26,7 @@ void pc_derpres(
   const int* bcrec,
   const int level);
 
-void pc_dertemp(
+void erf_dertemp(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int dcomp,
