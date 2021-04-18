@@ -15,12 +15,12 @@ struct EmptyProbDeriveStruct
   {
     // Add derives as follows and define the derive function below:
     // derive_lst.add(
-    //  "varname", amrex::IndexType::TheCellType(), 1, pc_varname,
+    //  "varname", amrex::IndexType::TheCellType(), 1, erf_varname,
     //  the_same_box);
     // derive_lst.addComponent("varname", desc_lst, State_Type, 0, NVAR);
   }
 
-  static void pc_varname(
+  static void erf_varname(
     const amrex::Box& bx,
     amrex::FArrayBox& derfab,
     int dcomp,

@@ -503,7 +503,7 @@ protected:
   static bool do_mol_load_balance;
 };
 
-void pc_bcfill_hyp(
+void erf_bcfill_hyp(
   amrex::Box const& bx,
   amrex::FArrayBox& data,
   const int dcomp,
@@ -514,7 +514,7 @@ void pc_bcfill_hyp(
   const int bcomp,
   const int scomp);
 
-void pc_nullfill(
+void erf_nullfill(
   amrex::Box const& bx,
   amrex::FArrayBox& data,
   const int dcomp,

@@ -8,7 +8,7 @@ AMREX_GPU_DEVICE_MANAGED amrex::Real A_0 = 1.0;
 } // namespace ProbParm
 
 void
-pc_prob_close()
+erf_prob_close()
 {
 }
 
