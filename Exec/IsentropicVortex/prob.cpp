@@ -5,7 +5,7 @@ AMREX_GPU_DEVICE_MANAGED amrex::Real rho_inf = 1.2; //freestream density [kg/m^3
 AMREX_GPU_DEVICE_MANAGED amrex::Real T_inf = 293.0; //freestream temperature [K]
 AMREX_GPU_DEVICE_MANAGED amrex::Real M_inf = 0.2; //freestream Mach number [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real alpha = 0.0; //inflow angle, 0 --> x-aligned [rad] 
-AMREX_GPU_DEVICE_MANAGED amrex::Real gamma = 1.4; //specific heat ratio [-]
+AMREX_GPU_DEVICE_MANAGED amrex::Real gamma = Gamma; //specific heat ratio [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real beta = 0.01; //non-dimensional max perturbation strength [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real sigma = 2.5; //Gaussian standard deviation, i.e., spreading parameter [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real R = 1.0; //characteristic length scale for grid [m]
@@ -17,7 +17,7 @@ AMREX_GPU_DEVICE_MANAGED amrex::Real inv_gm1; //1/(gamma - 1) [-]
 } // namespace ProbParm
 
 void
-pc_prob_close()
+erf_prob_close()
 {
 }
 

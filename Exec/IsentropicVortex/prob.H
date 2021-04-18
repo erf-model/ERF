@@ -40,7 +40,7 @@ erf_vortex_Gaussian(
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-pc_initdata(
+erf_initdata(
   int i,
   int j,
   int k,
@@ -66,7 +66,7 @@ pc_initdata(
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-pc_init_xvel(
+erf_init_xvel(
   int i,
   int j,
   int k,
@@ -88,7 +88,7 @@ pc_init_xvel(
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-pc_init_yvel(
+erf_init_yvel(
   int i,
   int j,
   int k,
@@ -110,7 +110,7 @@ pc_init_yvel(
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-pc_init_zvel(
+erf_init_zvel(
   int i,
   int j,
   int k,
@@ -140,7 +140,7 @@ bcnormal(
   }
 }
 
-void pc_prob_close();
+void erf_prob_close();
 
 using ProblemTags = EmptyProbTagStruct;
 using ProblemDerives = EmptyProbDeriveStruct;
