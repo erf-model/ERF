@@ -54,10 +54,14 @@ erf_initdata(
   const amrex::Real Omg = erf_vortex_Gaussian(i,j,geomdata);
   const amrex::Real deltaT = -(ProbParm::gamma - 1.0)/(2.0*ProbParm::sigma*ProbParm::sigma) * Omg*Omg;
   // Set the density 
-  state(i, j, k, Density_comp) = std::pow(1.0 + deltaT, ProbParm::inv_gm1) * ProbParm::rho_inf;
+  const amrex::Real rho_norm = std::pow(1.0 + deltaT, ProbParm::inv_gm1);
+  state(i, j, k, Density_comp) = rho_norm * ProbParm::rho_inf;
  
-  // Initial temperature -- though we should make sure its consistent with (rho e) above
-  state(i, j, k, Theta_comp) = (1.0 + deltaT) * ProbParm::T_inf;
+  // Initial _potential_ temperature
+  const amrex::Real T = (1.0 + deltaT) * ProbParm::T_inf;
+  const amrex::Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
+                        * ProbParm::rho_inf*ProbParm::a_inf*ProbParm::a_inf;
+  state(i, j, k, Theta_comp) = T * std::pow(p_0 / p, R_d/c_p); // T --> theta
 
   // Set scalar = 0 -- unused
   state(i, j, k, Scalar_comp) = 0.0;
