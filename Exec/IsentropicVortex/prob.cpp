@@ -1,8 +1,8 @@
 #include "prob.H"
 
 namespace ProbParm {
-AMREX_GPU_DEVICE_MANAGED amrex::Real rho_inf = 1.2; //freestream density [kg/m^3]
-AMREX_GPU_DEVICE_MANAGED amrex::Real T_inf = 293.0; //freestream temperature [K]
+AMREX_GPU_DEVICE_MANAGED amrex::Real p_inf = p_0; //freestream temperature [K]
+AMREX_GPU_DEVICE_MANAGED amrex::Real T_inf = 300.0; //freestream temperature [K]
 AMREX_GPU_DEVICE_MANAGED amrex::Real M_inf = 0.2; //freestream Mach number [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real alpha = 0.0; //inflow angle, 0 --> x-aligned [rad] 
 AMREX_GPU_DEVICE_MANAGED amrex::Real gamma = Gamma; //specific heat ratio [-]
@@ -12,6 +12,7 @@ AMREX_GPU_DEVICE_MANAGED amrex::Real R = 1.0; //characteristic length scale for 
 AMREX_GPU_DEVICE_MANAGED amrex::Real xc = 0.5; //normalized x-location of vortex center [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real yc = 0.5; //normalized y-location of vortex center [-]
 // calculated quantiites
+AMREX_GPU_DEVICE_MANAGED amrex::Real rho_inf; //characteristic density [m/s]
 AMREX_GPU_DEVICE_MANAGED amrex::Real a_inf; //speed of sound [m/s]
 AMREX_GPU_DEVICE_MANAGED amrex::Real inv_gm1; //1/(gamma - 1) [-]
 } // namespace ProbParm
@@ -32,7 +33,7 @@ amrex_probinit(
 {
   // Parse params
   amrex::ParmParse pp("prob");
-  pp.query("rho_inf", ProbParm::rho_inf);
+  pp.query("p_inf", ProbParm::p_inf);
   pp.query("T_inf", ProbParm::T_inf);
   pp.query("M_inf", ProbParm::M_inf);
   pp.query("alpha", ProbParm::alpha);
@@ -52,8 +53,16 @@ amrex_probinit(
 
   ProbParm::inv_gm1 = 1.0 / (ProbParm::gamma - 1.0);
 
-  ProbParm::a_inf = std::sqrt(ProbParm::gamma * 287.0 * ProbParm::T_inf);
-  amrex::Print() << "  freestream a = "
+  amrex::Print() << "  reference pressure = " << ProbParm::p_inf << " Pa" << std::endl;
+  amrex::Print() << "  reference temperature = " << ProbParm::T_inf << " K" << std::endl;
+
+  ProbParm::rho_inf = ProbParm::p_inf / (R_d * ProbParm::T_inf);
+  amrex::Print() << "  calculated freestream air density = "
+                 << ProbParm::rho_inf << " kg/m^3"
+                 << std::endl;
+
+  ProbParm::a_inf = std::sqrt(ProbParm::gamma * R_d * ProbParm::T_inf);
+  amrex::Print() << "  calculated speed of sound, a = "
                  << ProbParm::a_inf << " m/s"
                  << std::endl;
 
