@@ -119,3 +119,25 @@ erf_dertemp(
     tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
   });
 }
+
+void
+erf_dertheta(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+  auto const dat = datfab.array();
+  auto thetafab  = derfab.array();
+
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const amrex::Real rho      = dat(i, j, k, Density_comp);
+    const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
+    thetafab(i,j,k) = rhotheta / rho;
+  });
+}
