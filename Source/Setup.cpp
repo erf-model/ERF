@@ -173,7 +173,7 @@ ERF::variableSetUp()
   cnt++;
   set_scalar_bc(bc, phys_bc);
   bcs[cnt] = bc;
-  name[cnt] = "theta";
+  name[cnt] = "rhotheta";
 
   for (int i = 0; i < NumAdv; ++i) {
     char buf[64];
@@ -241,6 +241,13 @@ ERF::variableSetUp()
   derive_lst.add(
     "temp", amrex::IndexType::TheCellType(), 1, erf_dertemp, the_same_box);
   derive_lst.addComponent("temp", desc_lst, State_Type, Density_comp, NVAR);
+
+  //
+  // Potential Temperature
+  //
+  derive_lst.add(
+    "theta", amrex::IndexType::TheCellType(), 1, erf_dertheta, the_same_box);
+  derive_lst.addComponent("theta", desc_lst, State_Type, Density_comp, NVAR);
 
   //
   // Velocities
