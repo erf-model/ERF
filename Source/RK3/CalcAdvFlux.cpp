@@ -112,7 +112,7 @@ void CalcAdvFlux(const MultiFab& cons_in,
             Real scalar   = 0.5 * (cons(i,j,k,  Scalar_comp) + cons(i,j-1,k,  Scalar_comp));
 
             // Density
-            yflux(i,j,k,Density_comp) += rho * vely(i,j,k);
+            yflux(i,j,k,Density_comp)  = rho * vely(i,j,k);
 
             // Theta: conservative flux is (rho u theta)
             yflux(i,j,k,RhoTheta_comp) = rhotheta * vely(i,j,k);
@@ -129,7 +129,7 @@ void CalcAdvFlux(const MultiFab& cons_in,
             Real scalar   = 0.5 * (cons(i,j,k,  Scalar_comp) + cons(i,j,k-1,  Scalar_comp));
 
             // Density
-            zflux(i,j,k,Density_comp) += rho * velz(i,j,k);
+            zflux(i,j,k,Density_comp)  = rho * velz(i,j,k);
 
             // Theta: conservative flux is (rho u theta)
             zflux(i,j,k,RhoTheta_comp) = rhotheta * velz(i,j,k);
