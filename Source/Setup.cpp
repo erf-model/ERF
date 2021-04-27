@@ -109,8 +109,6 @@ ERF::variableSetUp()
 
   init_transport();
 
-  indxmap::init();
-
 #ifdef ERF_USE_MASA
   if (do_mms) {
     init_mms();
