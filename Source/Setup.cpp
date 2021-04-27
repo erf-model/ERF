@@ -128,7 +128,7 @@ ERF::variableSetUp()
 #endif
 
   if (NumAdv > 0) {
-    FirstAdv = Theta_comp+1;
+    FirstAdv = RhoTheta_comp+1;
   }
 
   int dm = AMREX_SPACEDIM;
