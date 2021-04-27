@@ -4,8 +4,9 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Arena.H>
 
+// cell-centered state variables
 #define Density_comp  0
-#define Theta_comp    1
+#define RhoTheta_comp 1
 #define Scalar_comp   2
 #define NVAR          3
 

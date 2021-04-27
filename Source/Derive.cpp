@@ -93,10 +93,8 @@ erf_derpres(
   auto pfab      = derfab.array();
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real rho   = dat(i, j, k, Density_comp);
-    const amrex::Real theta = dat(i, j, k, Theta_comp);
-    amrex::Real p = getPgivenRTh(rho,theta);
-    pfab(i,j,k) = p;
+    const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
+    pfab(i,j,k) = getPgivenRTh(rhotheta);
   });
 }
 
@@ -116,9 +114,8 @@ erf_dertemp(
   auto tfab      = derfab.array();
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real rho   = dat(i, j, k, Density_comp);
-    const amrex::Real theta = dat(i, j, k, Theta_comp);
-    amrex::Real T = getTgivenRTh(rho,theta);
-    tfab(i,j,k) = T;
+    const amrex::Real rho      = dat(i, j, k, Density_comp);
+    const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
+    tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
   });
 }
