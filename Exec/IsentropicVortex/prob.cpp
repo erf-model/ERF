@@ -8,7 +8,7 @@ AMREX_GPU_DEVICE_MANAGED amrex::Real alpha = 0.0; //inflow angle, 0 --> x-aligne
 AMREX_GPU_DEVICE_MANAGED amrex::Real gamma = Gamma; //specific heat ratio [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real beta = 0.01; //non-dimensional max perturbation strength [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real sigma = 1.0; //Gaussian standard deviation, i.e., spreading parameter [-]
-AMREX_GPU_DEVICE_MANAGED amrex::Real R = 1.0; //characteristic length scale for grid [m]
+AMREX_GPU_DEVICE_MANAGED amrex::Real R = 2.0; //characteristic length scale for grid [m]
 AMREX_GPU_DEVICE_MANAGED amrex::Real xc = 0.5; //normalized x-location of vortex center [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real yc = 0.5; //normalized y-location of vortex center [-]
 // calculated quantiites
