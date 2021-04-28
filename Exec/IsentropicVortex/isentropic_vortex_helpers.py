@@ -2,10 +2,10 @@ import numpy as np
 
 R_d = 287.0 # dry ideal gas constant
 
-def read_input(fpath,prefix=''):
+def read_input(fpath,defaults={},prefix=''):
     """Read parameters with specified prefix from input file"""
-    prob_parm = {}
-    with open('inputs_ex','r') as f:
+    prob_parm = {key:val for key,val in defaults.items()}
+    with open(fpath,'r') as f:
         for line in f:
             line = line.strip().split('#')[0] # ignore comments
             if line == '':
@@ -31,9 +31,9 @@ def read_input(fpath,prefix=''):
 class IsentropicVortex(object):
     """Generate 2D analytical solution"""
     def __init__(self,
-                 M_inf=0.1, alpha=0.0, # freestream def
+                 M_inf=0.0, alpha=0.0, # freestream def
                  p_inf=1e5, T_inf=300.0, gamma=1.4, # fluid params
-                 beta=0.05, sigma=0.2, R=0.03125, # vortex params
+                 beta=0.05, sigma=1.0, R=2.0, # vortex params
                 ):
         """Initialize vortex, can directly use parameters parsed from
         the input file, e.g., `read_input(fpath,prefix='prob.')`
