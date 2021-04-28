@@ -58,7 +58,8 @@ erf_initdata(
   const amrex::Real T = (1.0 + deltaT) * ProbParm::T_inf;
   const amrex::Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
                         * ProbParm::rho_inf*ProbParm::a_inf*ProbParm::a_inf;
-  state(i, j, k, Theta_comp) = T * std::pow(p_0 / p, R_d/c_p); // T --> theta
+  state(i, j, k, RhoTheta_comp) = T * std::pow(p_0 / p, R_d/c_p); // T --> theta
+  state(i, j, k, RhoTheta_comp) *= state(i, j, k, Density_comp);
 
   // Set scalar = 0 -- unused
   state(i, j, k, Scalar_comp) = 0.0;
