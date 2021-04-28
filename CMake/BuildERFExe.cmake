@@ -29,7 +29,7 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/External.cpp
        ${SRC_DIR}/Forcing.H
        ${SRC_DIR}/Forcing.cpp
-       ${SRC_DIR}/GradUtil.H
+#      ${SRC_DIR}/GradUtil.H
        ${SRC_DIR}/IndexDefines.H
 #      ${SRC_DIR}/IndexDefines.cpp
        ${SRC_DIR}/IO.H
