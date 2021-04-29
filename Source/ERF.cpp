@@ -558,10 +558,10 @@ ERF::estTimeStep(amrex::Real dt_old)
            Real dt = -1.e100;
            amrex::Loop(b, [=,&dt] (int i, int j, int k) noexcept
            {
-               const amrex::Real rho   = s(i, j, k, Density_comp);
-               const amrex::Real theta = s(i, j, k,   Theta_comp);
+               const amrex::Real rho      = s(i, j, k, Density_comp);
+               const amrex::Real rhotheta = s(i, j, k, RhoTheta_comp);
 
-               amrex::Real pressure = getPgivenRTh(rho,theta);
+               amrex::Real pressure = getPgivenRTh(rhotheta);
                amrex::Real c = std::sqrt(Gamma * pressure / rho);
 
                dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),

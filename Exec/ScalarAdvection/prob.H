@@ -50,7 +50,7 @@ erf_initdata(
   state(i, j, k, Density_comp) = ProbParm::rho_0;
  
   // Initial potential temperature
-  state(i, j, k, Theta_comp) = ProbParm::T_0;
+  state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
 
   // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
   if (r < r0) 

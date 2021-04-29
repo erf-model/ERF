@@ -90,52 +90,52 @@ void CalcAdvFlux(const MultiFab& cons_in,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
             // Define average values on faces
-            Real rho    = 0.5 * (cons(i,j,k,Density_comp) + cons(i-1,j,k,Density_comp));
-            Real theta  = 0.5 * (cons(i,j,k,  Theta_comp) + cons(i-1,j,k,  Theta_comp));
-            Real scalar = 0.5 * (cons(i,j,k, Scalar_comp) + cons(i-1,j,k, Scalar_comp));
+            Real rho      = 0.5 * (cons(i,j,k, Density_comp) + cons(i-1,j,k, Density_comp));
+            Real rhotheta = 0.5 * (cons(i,j,k,RhoTheta_comp) + cons(i-1,j,k,RhoTheta_comp));
+            Real scalar   = 0.5 * (cons(i,j,k,  Scalar_comp) + cons(i-1,j,k,  Scalar_comp));
 
             // Density flux
-            xflux(i,j,k,Density_comp) = rho * velx(i,j,k);
+            xflux(i,j,k,Density_comp)  = rho * velx(i,j,k);
 
             // Theta: conservative flux is (rho u theta)
-            xflux(i,j,k,Theta_comp)   = rho * theta * velx(i,j,k);
+            xflux(i,j,k,RhoTheta_comp) = rhotheta * velx(i,j,k);
 
             // Scalar: conservative flux is (rho u s)
-            xflux(i,j,k,Scalar_comp)  = rho * scalar * velx(i,j,k);
+            xflux(i,j,k,Scalar_comp)   = rho * scalar * velx(i,j,k);
         },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
             // Define average values on faces
-            Real rho    = 0.5 * (cons(i,j,k,Density_comp) + cons(i,j-1,k,Density_comp));
-            Real theta  = 0.5 * (cons(i,j,k,  Theta_comp) + cons(i,j-1,k,  Theta_comp));
-            Real scalar = 0.5 * (cons(i,j,k, Scalar_comp) + cons(i,j-1,k, Scalar_comp));
+            Real rho      = 0.5 * (cons(i,j,k, Density_comp) + cons(i,j-1,k, Density_comp));
+            Real rhotheta = 0.5 * (cons(i,j,k,RhoTheta_comp) + cons(i,j-1,k,RhoTheta_comp));
+            Real scalar   = 0.5 * (cons(i,j,k,  Scalar_comp) + cons(i,j-1,k,  Scalar_comp));
 
             // Density
-            yflux(i,j,k,Density_comp) += rho * vely(i,j,k);
+            yflux(i,j,k,Density_comp)  = rho * vely(i,j,k);
 
             // Theta: conservative flux is (rho u theta)
-            yflux(i,j,k,Theta_comp) = rho * theta * vely(i,j,k);
+            yflux(i,j,k,RhoTheta_comp) = rhotheta * vely(i,j,k);
 
             // Scalar: conservative flux is (rho u s)
-            yflux(i,j,k,Scalar_comp) =  rho * scalar * vely(i,j,k);
+            yflux(i,j,k,Scalar_comp)   = rho * scalar * vely(i,j,k);
         },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
             // Define average values on faces
-            Real rho    = 0.5 * (cons(i,j,k,Density_comp) + cons(i,j,k-1,Density_comp));
-            Real theta  = 0.5 * (cons(i,j,k,  Theta_comp) + cons(i,j,k-1,  Theta_comp));
-            Real scalar = 0.5 * (cons(i,j,k, Scalar_comp) + cons(i,j,k-1, Scalar_comp));
+            Real rho      = 0.5 * (cons(i,j,k, Density_comp) + cons(i,j,k-1, Density_comp));
+            Real rhotheta = 0.5 * (cons(i,j,k,RhoTheta_comp) + cons(i,j,k-1,RhoTheta_comp));
+            Real scalar   = 0.5 * (cons(i,j,k,  Scalar_comp) + cons(i,j,k-1,  Scalar_comp));
 
             // Density
-            zflux(i,j,k,Density_comp) += rho * velz(i,j,k);
+            zflux(i,j,k,Density_comp)  = rho * velz(i,j,k);
 
             // Theta: conservative flux is (rho u theta)
-            zflux(i,j,k,Theta_comp) = rho * theta * velz(i,j,k);
+            zflux(i,j,k,RhoTheta_comp) = rhotheta * velz(i,j,k);
 
             // Scalar: conservative flux is (rho u s)
-            zflux(i,j,k,Scalar_comp) =  rho * scalar * velz(i,j,k);
+            zflux(i,j,k,Scalar_comp)   = rho * scalar * velz(i,j,k);
         }
         );
 
@@ -154,9 +154,8 @@ void CalcAdvFlux(const MultiFab& cons_in,
             });
 
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                Real rho   = cons(i,j,k,Density_comp);
-                Real theta = cons(i,j,k,  Theta_comp);
-                Real pressure = getPgivenRTh(rho,theta);
+                Real rhotheta = cons(i,j,k, RhoTheta_comp);
+                Real pressure = getPgivenRTh(rhotheta);
                 cenx_u(i,j,k) = 0.25*(momx(i,j,k)+momx(i+1,j,k))*(velx(i,j,k)+velx(i+1,j,k)) + pressure;
                 ceny_v(i,j,k) = 0.25*(momy(i,j,k)+momy(i,j+1,k))*(vely(i,j,k)+vely(i,j+1,k)) + pressure;
                 cenz_w(i,j,k) = 0.25*(momz(i,j,k)+momz(i,j,k+1))*(velz(i,j,k)+velz(i,j,k+1)) + pressure;
