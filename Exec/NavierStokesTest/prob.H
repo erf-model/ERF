@@ -13,7 +13,6 @@
 #include "Transport.H"
 #include "ProblemDerive.H"
 #include "prob_parm.H"
-#include "../../Submodules/AMReX/Src/Base/AMReX_Print.H"
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
