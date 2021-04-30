@@ -86,7 +86,7 @@ erf_init_xvel(
   // Note that this is called on a box of x-faces
 
   // Set the x-velocity
-  x_vel(i, j, k) = 100.0;
+  x_vel(i, j, k) = 10.0;
 }
 
 AMREX_GPU_DEVICE
@@ -102,7 +102,7 @@ erf_init_yvel(
   // Note that this is called on a box of x-faces
 
   // Set the y-velocity
-  y_vel(i, j, k) = 0.0;
+  y_vel(i, j, k) = 5.0;
 }
 
 AMREX_GPU_DEVICE
