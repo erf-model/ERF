@@ -13,6 +13,7 @@
 #include "Transport.H"
 #include "ProblemDerive.H"
 #include "prob_parm.H"
+#include "../../Submodules/AMReX/Src/Base/AMReX_Print.H"
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -36,6 +37,10 @@ erf_initdata(
   const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
   const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
+  //amrex::Print() << "x[i][j][k] = x[" << i << "][" << j << "][" << k << "] = " << x << std::endl;
+  //amrex::Print() << "y[i][j][k] = y[" << i << "][" << j << "][" << k << "] = " << y << std::endl;
+  //amrex::Print() << "z[i][j][k] = z[" << i << "][" << j << "][" << k << "] = " << z << std::endl;
+
   // Define a point (xc,yc,zc) at the center of the domain 
   const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
   const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
@@ -44,7 +49,7 @@ erf_initdata(
   const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
   // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
-  const amrex::Real r0 = 0.05 * (prob_hi[0] - prob_lo[0]);
+  const amrex::Real r0 = 0.25 * (prob_hi[0] - prob_lo[0]);
 
   // Set the density 
   state(i, j, k, Density_comp) = ProbParm::rho_0;
@@ -52,11 +57,18 @@ erf_initdata(
   // Initial potential temperature
   state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
 
+
+
   // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
   if (r < r0) 
      state(i, j, k, Scalar_comp) = ProbParm::A_0;
   else
      state(i, j, k, Scalar_comp) = 0.0;
+
+  amrex::Print() << "r[i][j][k] = r[" << i << "][" << j << "][" << k << "] = " << r << std::endl;
+  amrex::Print() << "state[i][j][k]:-> " << "Density: " << state(i,j,k, Density_comp)
+                 << ", RhoTheta: " << state(i, j, k, RhoTheta_comp)
+                 << ", Scalar: " << state(i,j,k, Scalar_comp)<< std::endl;
 }
 
 AMREX_GPU_DEVICE
