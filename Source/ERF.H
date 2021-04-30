@@ -51,6 +51,21 @@ grow_box_by_one(const amrex::Box& b)
   return amrex::grow(b, 1);
 }
 
+struct SolverChoice {
+public:
+    SolverChoice(const bool use_advection_in, const bool  use_diffusion_in, const bool smagorinsky_in):
+            use_advection(use_advection_in), use_diffusion(use_diffusion_in), smagorinsky(smagorinsky_in){}
+    void display() {
+        amrex::Print() << "SOLVER CHOICE: " << std::endl;
+        amrex::Print() << "use_advection: " << use_advection << std::endl;
+        amrex::Print() << "use_diffusion: " << use_diffusion << std::endl;
+        amrex::Print() << "smagorinsky: " << smagorinsky << std::endl;
+    }
+    bool use_advection;
+    bool  use_diffusion;
+    bool smagorinsky;
+};
+
 //
 // AmrLevel-derived class for hyperbolic conservation equations for stellar
 // media
@@ -438,7 +453,7 @@ protected:
 
   void sum_integrated_quantities();
 
-  void write_info();
+  //void write_info();
 
   void stopJob();
 

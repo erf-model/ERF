@@ -45,3 +45,6 @@ int         ERF::sum_interval = -1;
 amrex::Real ERF::sum_per = -1.0e0;
 int         ERF::hard_cfl_limit = 1;
 std::string ERF::job_name = "";
+bool         ERF::use_advection = 1;
+bool        ERF::use_diffusion = 1;
+bool         ERF::smagorinsky = 1;

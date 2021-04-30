@@ -45,3 +45,6 @@ pp.query("sum_interval", sum_interval);
 pp.query("sum_per", sum_per);
 pp.query("hard_cfl_limit", hard_cfl_limit);
 pp.query("job_name", job_name);
+pp.query("use_advection", use_advection);
+pp.query("use_diffusion", use_diffusion);
+pp.query("smagorinsky", smagorinsky);

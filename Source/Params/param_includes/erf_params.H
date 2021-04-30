@@ -45,3 +45,6 @@ static int sum_interval;
 static amrex::Real sum_per;
 static int hard_cfl_limit;
 static std::string job_name;
+static bool  use_advection;
+static bool  use_diffusion;
+static bool  smagorinsky;
