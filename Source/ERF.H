@@ -216,25 +216,25 @@ public:
     amrex::MultiFab& mms_src,
     int ng);
 #endif
-
-  void getLESTerm(
-    amrex::Real time,
-    amrex::Real dt,
-    amrex::MultiFab& LESTerm,
-    amrex::Real flux_factor);
-
-  void getSmagorinskyLESTerm(
-    amrex::Real time,
-    amrex::Real dt,
-    amrex::MultiFab& LESTerm,
-    amrex::Real flux_factor);
-
-  void getDynamicSmagorinskyLESTerm(
-    amrex::Real time,
-    amrex::Real dt,
-    amrex::MultiFab& LESTerm,
-    amrex::Real flux_factor);
-
+///*
+//  void getLESTerm(
+//    amrex::Real time,
+//    amrex::Real dt,
+//    amrex::MultiFab& LESTerm,
+//    amrex::Real flux_factor);
+//
+//  void getSmagorinskyLESTerm(
+//    amrex::Real time,
+//    amrex::Real dt,
+//    amrex::MultiFab& LESTerm,
+//    amrex::Real flux_factor);
+//
+//  void getDynamicSmagorinskyLESTerm(
+//    amrex::Real time,
+//    amrex::Real dt,
+//    amrex::MultiFab& LESTerm,
+//    amrex::Real flux_factor);
+//*/
   static void set_active_sources();
 
   //
@@ -282,7 +282,7 @@ public:
   //
   // Print information about energy budget.
   //
-  void do_energy_diagnostics();
+  //void do_energy_diagnostics();
   //
   // Do work after timestep().
   //
@@ -412,8 +412,8 @@ protected:
 
   static void init_transport();
 
-  void init_les();
-  void init_filters();
+  //void init_les();
+  //void init_filters();
 
 #ifdef ERF_USE_MASA
   static void init_mms();

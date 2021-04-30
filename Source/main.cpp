@@ -48,13 +48,14 @@ main(int argc, char* argv[])
   amrex::Real dRunTime1 = amrex::ParallelDescriptor::second();
 
   amrex::Print() << std::setprecision(10);
-
+/*
   int max_step;
   amrex::Real strt_time;
   amrex::Real stop_time;
-  amrex::ParmParse pp;
+  amrex::ParmParse pp; */
 
   bool pause_for_debug = false;
+  amrex::ParmParse pp;
   pp.query("pause_for_debug", pause_for_debug);
   if (pause_for_debug) {
     if (amrex::ParallelDescriptor::IOProcessor()) {
@@ -65,9 +66,10 @@ main(int argc, char* argv[])
     amrex::ParallelDescriptor::Barrier();
   }
 
-  max_step = -1;
-  strt_time = 0.0;
-  stop_time = -1.0;
+  int max_step = -1;
+  amrex::Real strt_time = 0.0;
+  amrex::Real stop_time = -1.0;
+
 
   pp.query("max_step", max_step);
   pp.query("strt_time", strt_time);
