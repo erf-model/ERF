@@ -88,8 +88,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
     
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, 0.0};
-    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+//    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, 0.0};
+//    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // ************************************************************************************** 
     //

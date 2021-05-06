@@ -28,7 +28,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
     getFluxReg(level + 1).reset();
   }
 
-  Real dt_new = dt;
+//  Real dt_new = dt;
 
   BL_PROFILE("ERF::do_rk3_advance()");
 

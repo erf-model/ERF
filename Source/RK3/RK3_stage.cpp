@@ -81,9 +81,9 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         const Array4<Real> & cu_upd     = cons_upd.array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
-        const Array4<Real>& momx = xmom_old.array(mfi);
-        const Array4<Real>& momy = ymom_old.array(mfi);
-        const Array4<Real>& momz = zmom_old.array(mfi);
+//        const Array4<Real>& momx = xmom_old.array(mfi);
+//        const Array4<Real>& momy = ymom_old.array(mfi);
+//        const Array4<Real>& momz = zmom_old.array(mfi);
 
         const Array4<Real>& mompx = xmom_upd.array(mfi);
         const Array4<Real>& mompy = ymom_upd.array(mfi);

@@ -38,7 +38,7 @@ ERF::volWgtSum(
   BL_PROFILE("ERF::volWgtSum()");
 
   amrex::Real sum = 0.0;
-  const amrex::Real* dx = geom.CellSize();
+//  const amrex::Real* dx = geom.CellSize();
   auto mf = derive(name, time, 0);
 
   AMREX_ASSERT(mf != 0);
@@ -62,7 +62,7 @@ ERF::volWgtSquaredSum(const std::string& name, amrex::Real time, bool local)
   BL_PROFILE("ERF::volWgtSquaredSum()");
 
   amrex::Real sum = 0.0;
-  const amrex::Real* dx = geom.CellSize();
+//  const amrex::Real* dx = geom.CellSize();
   auto mf = derive(name, time, 0);
 
   AMREX_ASSERT(mf != 0);
@@ -92,7 +92,7 @@ ERF ::volWgtSquaredSumDiff(int comp, amrex::Real time, bool local)
   // between the old and new quantity
 
   amrex::Real sum = 0.0;
-  const amrex::Real* dx = geom.CellSize();
+//  const amrex::Real* dx = geom.CellSize();
   amrex::MultiFab& S_old = get_old_data(State_Type);
   amrex::MultiFab& S_new = get_new_data(State_Type);
   amrex::MultiFab diff(grids, dmap, 1, 0);
@@ -125,7 +125,7 @@ ERF::volWgtSumMF(
   BL_PROFILE("ERF::volWgtSumMF()");
 
   amrex::Real sum = 0.0;
-  const amrex::Real* dx = geom.CellSize();
+//  const amrex::Real* dx = geom.CellSize();
   amrex::MultiFab vol(grids, dmap, 1, 0);
   amrex::MultiFab::Copy(vol, mf, comp, 0, 1, 0);
 
