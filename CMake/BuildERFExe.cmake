@@ -56,6 +56,7 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/RK3/VelocityToMomentum.cpp
        ${SRC_DIR}/RK3/RK3_driver.cpp
        ${SRC_DIR}/RK3/RK3_stage.cpp
+       ${SRC_DIR}/RK3/RK3_utils.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")

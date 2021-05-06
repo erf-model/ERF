@@ -18,7 +18,8 @@ void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_o
 
 void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in,
                         MultiFab& cons_in,
-                        MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out);
+                        MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out,
+                        const SolverChoice& solverChoice);
 
 void RK3_advance(MultiFab& cons_old, MultiFab& cons_new, 
                  MultiFab& U_old, MultiFab& V_old, MultiFab& W_old, 
@@ -71,5 +72,10 @@ void CalcDiffFlux(const MultiFab& cons_in,
                   const amrex::Geometry geom,
                   const amrex::Real* dx, const amrex::Real dt,
                   const SolverChoice& solverChoice);
+Real InterpolateCellToFace(const int &i, const int &j, const int &k,
+                           const Array4<Real>& cons_in, const int &cons_qty_index,
+                           const enum NextOrPrev &nextOrPrev,
+                           const enum AdvectionDirection &advectionDirection,
+                           const int &spatial_order);
 
 #endif

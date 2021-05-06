@@ -82,6 +82,9 @@ enum class AdvectingQuantity {
   rho_u, rho_v, rho_w
 };
 
+enum class AdvectionDirection {
+  x, y, z
+};
 
 //
 // AmrLevel-derived class for hyperbolic conservation equations for stellar

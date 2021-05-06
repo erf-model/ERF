@@ -2,7 +2,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-#include <AMReX_VisMF.H>
+//#include <AMReX_VisMF.H>
 
 #include <ERF.H>
 #include <RK3.H>
@@ -32,7 +32,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // Allocate temporary MultiFab to hold the primitive variables
     // 
     // ************************************************************************************** 
-    MultiFab prim(cons_old.boxArray(),cons_old.DistributionMap(),nvars,2); 
+    MultiFab primitive(cons_old.boxArray(),cons_old.DistributionMap(),nvars,2);
 
     // ************************************************************************************** 
     // 
@@ -75,7 +75,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // ************************************************************************************** 
     cons_old.FillBoundary(geom.periodicity());
 
-    VelocityToMomentum(xvel_old, yvel_old, zvel_old, cons_old, xmom_old, ymom_old, zmom_old);
+    VelocityToMomentum(xvel_old, yvel_old, zvel_old, cons_old, xmom_old, ymom_old, zmom_old, solverChoice);
 
     xmom_old.FillBoundary(geom.periodicity());
     ymom_old.FillBoundary(geom.periodicity());
@@ -100,7 +100,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     RK3_stage(cons_old, cons_upd_1,
               xmom_old, ymom_old, zmom_old, 
               xmom_update_1, ymom_update_1, zmom_update_1, 
-              xvel_old, yvel_old, zvel_old, prim,  // These are used as temporary space
+              xvel_old, yvel_old, zvel_old, primitive,  // These are used as temporary space
               source,
               eta, zeta, kappa,
               faceflux,
@@ -184,7 +184,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     RK3_stage(cons_upd_1, cons_upd_2,
               xmom_update_1, ymom_update_1, zmom_update_1, 
               xmom_update_2, ymom_update_2, zmom_update_2, 
-              xvel_new, yvel_new, zvel_new, prim,  // These are used as temporary space
+              xvel_new, yvel_new, zvel_new, primitive,  // These are used as temporary space
               source,
               eta, zeta, kappa,
               faceflux,
@@ -273,7 +273,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     RK3_stage(cons_upd_2, cons_new, 
               xmom_update_2, ymom_update_2, zmom_update_2, 
               xmom_new, ymom_new, zmom_new, 
-              xvel_new, yvel_new, zvel_new, prim,  // These are used as temporary space
+              xvel_new, yvel_new, zvel_new, primitive,  // These are used as temporary space
               source,
               eta, zeta, kappa,
               faceflux,   // These are just temporary space
