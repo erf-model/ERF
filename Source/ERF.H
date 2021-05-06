@@ -53,18 +53,20 @@ grow_box_by_one(const amrex::Box& b)
 
 struct SolverChoice {
 public:
-    SolverChoice() {}; //Default
-    SolverChoice(const bool use_advection_in, const bool  use_diffusion_in, const bool smagorinsky_in):
-            use_advection(use_advection_in), use_diffusion(use_diffusion_in), use_smagorinsky(smagorinsky_in){}
+    //SolverChoice() {}; //Default
+    SolverChoice(const bool use_advection_in, const bool  use_diffusion_in, const bool smagorinsky_in, const int spatial_order_in):
+            use_advection(use_advection_in), use_diffusion(use_diffusion_in), use_smagorinsky(smagorinsky_in), spatial_order(spatial_order_in){}
     void display() {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "use_advection: " << use_advection << std::endl;
         amrex::Print() << "use_diffusion: " << use_diffusion << std::endl;
         amrex::Print() << "use_smagorinsky: " << use_smagorinsky << std::endl;
+        amrex::Print() << "spatial_order: " << spatial_order << std::endl;
     }
-    bool use_advection;
-    bool  use_diffusion;
-    bool use_smagorinsky;
+    const bool use_advection;
+    const bool  use_diffusion;
+    const bool use_smagorinsky;
+    const int spatial_order;
 };
 
 enum class NextOrPrev {

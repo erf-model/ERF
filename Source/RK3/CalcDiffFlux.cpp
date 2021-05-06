@@ -18,7 +18,8 @@ void CalcDiffFlux(const MultiFab& cons_in,
                        std::array< MultiFab, 2 >& edgeflux_z,
                        std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                        const amrex::Geometry geom,
-                       const amrex::Real* dx, const amrex::Real dt)
+                       const amrex::Real* dx, const amrex::Real dt,
+                       const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("CalcDiffFlux()",CalcDiffFlux);
     

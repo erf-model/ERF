@@ -30,7 +30,8 @@ void RK3_advance(MultiFab& cons_old, MultiFab& cons_new,
                  std::array< MultiFab, 2 >& edgeflux_y,
                  std::array< MultiFab, 2 >& edgeflux_z,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
-                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt);
+                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 const SolverChoice& solverChoice);
 
 void RK3_stage  (MultiFab& cons_old, MultiFab& cons_new, 
                  MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old, 
@@ -43,7 +44,8 @@ void RK3_stage  (MultiFab& cons_old, MultiFab& cons_new,
                  std::array< MultiFab, 2 >& edgeflux_y,
                  std::array< MultiFab, 2 >& edgeflux_z,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
-                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt);
+                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 const SolverChoice& solverChoice);
 
 void CalcAdvFlux (const MultiFab& cons_in, 
                   const MultiFab& cons_x, const MultiFab& cons_y, const MultiFab& cons_z, 
@@ -54,7 +56,8 @@ void CalcAdvFlux (const MultiFab& cons_in,
                   std::array< MultiFab, 2 >& edgeflux_z_in,
                   std::array< MultiFab, AMREX_SPACEDIM>& cenflux_in,
                   const amrex::Geometry geom,
-                  const amrex::Real* dx, const amrex::Real dt);
+                  const amrex::Real* dx, const amrex::Real dt,
+                  const SolverChoice& solverChoice);
 
 void CalcDiffFlux(const MultiFab& cons_in, 
                   const MultiFab& cons_x, const MultiFab& cons_y, const MultiFab& cons_z, 
@@ -66,6 +69,7 @@ void CalcDiffFlux(const MultiFab& cons_in,
                   std::array< MultiFab, 2 >& edgeflux_z_in,
                   std::array< MultiFab, AMREX_SPACEDIM>& cenflux_in,
                   const amrex::Geometry geom,
-                  const amrex::Real* dx, const amrex::Real dt);
+                  const amrex::Real* dx, const amrex::Real dt,
+                  const SolverChoice& solverChoice);
 
 #endif

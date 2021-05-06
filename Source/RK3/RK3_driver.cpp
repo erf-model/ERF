@@ -19,7 +19,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
                  std::array< MultiFab, 2 >& edgeflux_y,
                  std::array< MultiFab, 2 >& edgeflux_z,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
-                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt)
+                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("RK3stepStag()",RK3stepStag);
 
@@ -107,7 +108,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
               edgeflux_y,
               edgeflux_z,
               cenflux,
-              geom, dxp, dt);
+              geom, dxp, dt,
+              solverChoice);
 
      
     // ************************************************************************************** 
@@ -190,7 +192,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
               edgeflux_y,
               edgeflux_z,
               cenflux,
-              geom, dxp, dt);
+              geom, dxp, dt,
+              solverChoice);
 
     // ************************************************************************************** 
     // 
@@ -278,7 +281,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
               edgeflux_y, // These are just temporary space
               edgeflux_z, // These are just temporary space
               cenflux,    // These are just temporary space
-              geom, dxp, dt);
+              geom, dxp, dt,
+              solverChoice);
 
     for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         
