@@ -48,3 +48,4 @@ pp.query("job_name", job_name);
 pp.query("use_advection", use_advection);
 pp.query("use_diffusion", use_diffusion);
 pp.query("use_smagorinsky", use_smagorinsky);
+pp.query("spatial_order", spatial_order);

@@ -54,9 +54,10 @@ amr.plot_vars        =  density adv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.use_advection = false
+erf.use_advection = true
 erf.use_diffusion = false
 erf.use_smagorinsky   = false
+erf.spatial_order = 3
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
