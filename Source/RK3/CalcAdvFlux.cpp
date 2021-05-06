@@ -43,10 +43,6 @@ void CalcAdvFlux(const MultiFab& cons_in,
     cenflux[1].setVal(0.0);
     cenflux[2].setVal(0.0);
 
-    ////////////////////
-    // hyperbolic fluxes
-    ////////////////////
-
     // Loop over boxes
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) 
     {

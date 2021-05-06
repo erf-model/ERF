@@ -53,18 +53,33 @@ grow_box_by_one(const amrex::Box& b)
 
 struct SolverChoice {
 public:
+    SolverChoice() {}; //Default
     SolverChoice(const bool use_advection_in, const bool  use_diffusion_in, const bool smagorinsky_in):
-            use_advection(use_advection_in), use_diffusion(use_diffusion_in), smagorinsky(smagorinsky_in){}
+            use_advection(use_advection_in), use_diffusion(use_diffusion_in), use_smagorinsky(smagorinsky_in){}
     void display() {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "use_advection: " << use_advection << std::endl;
         amrex::Print() << "use_diffusion: " << use_diffusion << std::endl;
-        amrex::Print() << "smagorinsky: " << smagorinsky << std::endl;
+        amrex::Print() << "use_smagorinsky: " << use_smagorinsky << std::endl;
     }
     bool use_advection;
     bool  use_diffusion;
-    bool smagorinsky;
+    bool use_smagorinsky;
 };
+
+enum class NextOrPrev {
+  prev = -1,
+  next = 1
+};
+
+enum class AdvectedQuantity {
+  unity, u, v, w, theta
+};
+
+enum class AdvectingQuantity {
+  rho_u, rho_v, rho_w
+};
+
 
 //
 // AmrLevel-derived class for hyperbolic conservation equations for stellar

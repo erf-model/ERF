@@ -121,7 +121,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   //          V_new    (y-velocity on y-faces)
   //          W_new    (z-velocity on z-faces)
   // *****************************************************************
-  SolverChoice solverChoice(use_advection, use_diffusion, smagorinsky);
+  SolverChoice solverChoice(use_advection, use_diffusion, use_smagorinsky);
   solverChoice.display();
   RK3_advance(S_old, S_new, 
               U_old, V_old, W_old,

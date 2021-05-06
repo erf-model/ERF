@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 10
+max_step = 50
 
 #amrex.fpe_trap_invalid = 1
 
@@ -10,7 +10,7 @@ geometry.is_periodic = 1 1 1
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
 geometry.prob_lo     =  0     0     0
 geometry.prob_hi     =  8     8     8
-amr.n_cell           = 4     4     4
+amr.n_cell           = 32     32     4
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
@@ -56,7 +56,7 @@ amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 # SOLVER CHOICE
 erf.use_advection = false
 erf.use_diffusion = false
-erf.smagorinsky   = false
+erf.use_smagorinsky   = false
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

@@ -64,10 +64,10 @@ erf_initdata(
   else
      state(i, j, k, Scalar_comp) = 0.0;
 
-  amrex::Print() << "r[i][j][k] = r[" << i << "][" << j << "][" << k << "] = " << r << std::endl;
-  amrex::Print() << "state[i][j][k]:-> " << "Density: " << state(i,j,k, Density_comp)
-                 << ", RhoTheta: " << state(i, j, k, RhoTheta_comp)
-                 << ", Scalar: " << state(i,j,k, Scalar_comp)<< std::endl;
+//  amrex::Print() << "r[i][j][k] = r[" << i << "][" << j << "][" << k << "] = " << r << std::endl;
+//  amrex::Print() << "state[i][j][k]:-> " << "Density: " << state(i,j,k, Density_comp)
+//                 << ", RhoTheta: " << state(i, j, k, RhoTheta_comp)
+//                 << ", Scalar: " << state(i,j,k, Scalar_comp)<< std::endl;
 }
 
 AMREX_GPU_DEVICE
