@@ -43,13 +43,13 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     const BoxArray& ba            = cons_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();
 
-    // Intermediate solutions -- At cell centers
+    // Intermediate solutions (state) -- At cell centers
     MultiFab cons_upd_1(ba,dm,nvars,ngc);
     MultiFab cons_upd_2(ba,dm,nvars,ngc);
     cons_upd_1.setVal(0.0,0,nvars,ngc);
     cons_upd_2.setVal(0.0,0,nvars,ngc);
 
-    // Intermediate solutions -- On faces
+    // Intermediate momentum -- On faces
     MultiFab xmom_update_1(convert(ba,IntVect(1,0,0)), dm, 1, 1);
     MultiFab ymom_update_1(convert(ba,IntVect(0,1,0)), dm, 1, 1);
     MultiFab zmom_update_1(convert(ba,IntVect(0,0,1)), dm, 1, 1);
@@ -173,7 +173,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // 
     // Convert new momentum to new velocity on faces
     // 
-    // ************************************************************************************** 
+    // **************************************************************************************
+    // Need to update this taking into account 'InterpolateCellToFace'
     MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_1, xmom_update_1, ymom_update_1, zmom_update_1);
  
     // ************************************************************************************** 
@@ -262,7 +263,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // 
     // Convert new momentum to new velocity on faces
     // 
-    // ************************************************************************************** 
+    // **************************************************************************************
+  // Need to update this taking into account 'InterpolateCellToFace'
     MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_2, xmom_update_2, ymom_update_2, zmom_update_2);
 
     // ************************************************************************************** 
@@ -335,11 +337,20 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         });
     }
 
+    /* TODO: Check if we need to apply BC on mom_new, since we are using them in 'MomentumToVelocity'
+    xmom_new.FillBoundary(geom.periodicity());
+    ymom_new.FillBoundary(geom.periodicity());
+    zmom_new.FillBoundary(geom.periodicity());
+
+    cons_new.FillBoundary(geom.periodicity());
+     */
+
     // ************************************************************************************** 
     // 
     // Convert new momentum to new velocity on faces
     // 
     // ************************************************************************************** 
-    cons_new.FillBoundary(geom.periodicity());
+
+    // Need to update this taking into account 'InterpolateCellToFace'
     MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_new, xmom_new, ymom_new, zmom_new);
 }

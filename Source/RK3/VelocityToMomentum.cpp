@@ -21,15 +21,15 @@ void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in
         const Box& tby = mfi.nodaltilebox(1);
         const Box& tbz = mfi.nodaltilebox(2);
 
-        // Conserved variables on cell centers -- we use this for density
+        // Conserved/state variables on cell centers -- we use this for density
         const Array4<Real>& cons = cons_in.array(mfi);
 
-        // Momentum on faces
+        // Momentum on faces, to be computed
         Array4<Real> const& momx = xmom.array(mfi);
         Array4<Real> const& momy = ymom.array(mfi);
         Array4<Real> const& momz = zmom.array(mfi);
 
-        // Velocity on faces
+        // Velocity on faces, used in computation
         const Array4<Real const>& velx = xvel_in.array(mfi);
         const Array4<Real const>& vely = yvel_in.array(mfi);
         const Array4<Real const>& velz = zvel_in.array(mfi);
@@ -52,3 +52,4 @@ void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in
         });
     } // end MFIter
 }
+

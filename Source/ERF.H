@@ -86,6 +86,10 @@ enum class AdvectionDirection {
   x, y, z
 };
 
+enum class DiffusionDirection {
+  x, y, z
+};
+
 //
 // AmrLevel-derived class for hyperbolic conservation equations for stellar
 // media

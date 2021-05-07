@@ -6,9 +6,7 @@ using namespace amrex;
 
 Real
 InterpolateCellToFace(
-  const int& i,
-  const int& j,
-  const int& k,
+  const int& i, const int& j, const int& k,
   const Array4<Real>& cons_in,
   const int& cons_qty_index,
   const NextOrPrev& nextOrPrev,
@@ -90,4 +88,137 @@ InterpolateCellToFace(
   }
 
   return interpolatedVal;
+}
+
+Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
+                             const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                             const enum NextOrPrev &nextOrPrev,
+                             const enum AdvectedQuantity &advectedQuantity,
+                             const enum AdvectingQuantity &advectingQuantity,
+                             const int &spatial_order) {
+  Real advectingMom = 0.0;
+  Real advectedVel = 1.0;
+  if (nextOrPrev == NextOrPrev::next) {
+    switch(advectedQuantity) {
+      case AdvectedQuantity::u:
+        switch (advectingQuantity) {
+          case AdvectingQuantity::rho_u:
+            advectedVel = 1.0; // u(i+1/2,    j, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i, j, k));
+            break;
+          case AdvectingQuantity::rho_v:
+            advectedVel = 1.0; // u(i   , j+1/2, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
+            break;
+          case AdvectingQuantity::rho_w:
+            advectedVel = 1.0; // u(i   , j    , k+1/2)..Needs to be called properly
+            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
+            break;
+          default:
+            amrex::Abort("Error: Advecting quantity is unrecognized");
+        }
+        break;
+      case AdvectedQuantity::v:
+        switch (advectingQuantity) {
+          case AdvectingQuantity::rho_u:
+            advectedVel = 1.0; // v(i+1/2,    j, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
+            break;
+          case AdvectingQuantity::rho_v:
+            advectedVel = 1.0; // v(i   , j+1/2, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k));
+            break;
+          case AdvectingQuantity::rho_w:
+            advectedVel = 1.0; // v(i   , j    , k+1/2)..Needs to be called properly
+            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
+            break;
+          default:
+            amrex::Abort("Error: Advecting quantity is unrecognized");
+        }
+        break;
+      case AdvectedQuantity::w:
+        switch (advectingQuantity) {
+          case AdvectingQuantity::rho_u:
+            advectedVel = 1.0; // w(i+1/2,    j, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
+            break;
+          case AdvectingQuantity::rho_v:
+            advectedVel = 1.0; // w(i   , j+1/2, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
+            break;
+          case AdvectingQuantity::rho_w:
+            advectedVel = 1.0; // w(i   , j    , k+1/2)..Needs to be called properly
+            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k));
+            break;
+          default:
+            amrex::Abort("Error: Advecting quantity is unrecognized");
+        }
+        break;
+      default:
+        amrex::Abort("Error: Advected quantity is unrecognized");
+    }
+  }
+  else { // nextOrPrev == NextOrPrev::prev
+    switch(advectedQuantity) {
+      case AdvectedQuantity::u:
+        switch (advectingQuantity) {
+          case AdvectingQuantity::rho_u:
+            advectedVel = 1.0; // u(i-1/2,    j, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i, j, k));
+            break;
+          case AdvectingQuantity::rho_v:
+            advectedVel = 1.0; // u(i   , j-1/2, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
+            break;
+          case AdvectingQuantity::rho_w:
+            advectedVel = 1.0; // u(i   , j    , k-1/2)..Needs to be called properly
+            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
+            break;
+          default:
+            amrex::Abort("Error: Advecting quantity is unrecognized");
+        }
+        break;
+      case AdvectedQuantity::v:
+        switch (advectingQuantity) {
+          case AdvectingQuantity::rho_u:
+            advectedVel = 1.0; // v(i-1/2,    j, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
+            break;
+          case AdvectingQuantity::rho_v:
+            advectedVel = 1.0; // v(i   , j-1/2, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k));
+            break;
+          case AdvectingQuantity::rho_w:
+            advectedVel = 1.0; // v(i   , j    , k-1/2)..Needs to be called properly
+            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
+            break;
+          default:
+            amrex::Abort("Error: Advecting quantity is unrecognized");
+        }
+        break;
+      case AdvectedQuantity::w:
+        switch (advectingQuantity) {
+          case AdvectingQuantity::rho_u:
+            advectedVel = 1.0; // w(i-1/2,    j, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
+            break;
+          case AdvectingQuantity::rho_v:
+            advectedVel = 1.0; // w(i   , j-1/2, k    )..Needs to be called properly
+            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
+            break;
+          case AdvectingQuantity::rho_w:
+            advectedVel = 1.0; // w(i   , j    , k-1/2)..Needs to be called properly
+            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k));
+            break;
+          default:
+            amrex::Abort("Error: Advecting quantity is unrecognized");
+        }
+        break;
+      default:
+        amrex::Abort("Error: Advected quantity is unrecognized");
+    }
+  }
+
+  return advectingMom*advectedVel;
 }
