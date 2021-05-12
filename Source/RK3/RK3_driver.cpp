@@ -28,8 +28,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // Determine the number of ghost cells depending on the spatial order
     // **************************************************************************************
     //TODO: Check if this is the only place to specify the number of ghost cells
-    //TODO: If so, make this a function of spatial order
-    int ngc = 1;
+    //TODO: Also explore how 'ngrow' should be related to the spatial_order
+    int ngc = ComputeGhostCells(solverChoice.spatial_order);
 
     // Allocate temporary MultiFab to hold the primitive variables
     // ************************************************************************************** 

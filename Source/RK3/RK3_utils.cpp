@@ -4,6 +4,37 @@
 
 using namespace amrex;
 
+int
+ComputeGhostCells(const int& spatial_order) {
+  int nGhostCells;
+
+  //TODO: Make sure we have correct number of ghost cells for different spatial orders.
+  switch (spatial_order) {
+    case 1:
+      nGhostCells = 1;
+      break;
+    case 2:
+      nGhostCells = 1;
+      break;
+    case 3:
+      nGhostCells = 1;
+      break;
+    case 4:
+      nGhostCells = 1;
+      break;
+    case 5:
+      nGhostCells = 1;
+      break;
+    case 6:
+      nGhostCells = 1;
+      break;
+    default:
+      nGhostCells = 1;
+  }
+
+  return nGhostCells;
+}
+
 Real
 InterpolateFromCellToFace(
   // (i, j, k) is reference cell index w.r.t. which a face is being considered

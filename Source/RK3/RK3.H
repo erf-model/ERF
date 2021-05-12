@@ -79,7 +79,7 @@ Real InterpolateFromCellToFace(const int &i, const int &j, const int &k,
                            const enum AdvectionDirection &advectionDirection,
                            const int &spatial_order);
 
-// Mean for the three momentum equations
+// Meant for the continuity, three momentum, energy, and scalar equations
 Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
                              const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                              const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
@@ -87,5 +87,7 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
                              const enum AdvectedQuantity &advectedQuantity,
                              const enum AdvectingQuantity &advectingQuantity,
                              const int &spatial_order);
+
+int ComputeGhostCells(const int &spatial_order);
 
 #endif
