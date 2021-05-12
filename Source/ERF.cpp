@@ -29,7 +29,7 @@ bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
 amrex::BCRec ERF::phys_bc;
-amrex::Real ERF::frac_change = 1.e200;
+//amrex::Real ERF::frac_change = 1.e200;
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
 
