@@ -42,10 +42,37 @@ InterpolateDensityFromCellToFace(
   const Array4<Real>& cons_in,
   const NextOrPrev& nextOrPrev,
   const AdvectionDirection& advectionDirection,
-  const int& spatial_order) {
-
+  const int& spatial_order)
+{
   return InterpolateFromCellToFace(i, j, k, cons_in, Density_comp,
                                      nextOrPrev, advectionDirection, spatial_order);
+}
+
+Real
+InterpolateRhoThetaFromCellToFace(
+  const int& i,
+  const int& j,
+  const int& k,
+  const Array4<Real>& cons_in,
+  const NextOrPrev& nextOrPrev,
+  const AdvectionDirection& advectionDirection,
+  const int& spatial_order)
+{
+  return InterpolateFromCellToFace(i, j, k, cons_in, RhoTheta_comp,
+                                   nextOrPrev, advectionDirection, spatial_order);
+}
+Real
+InterpolateScalarFromCellToFace(
+  const int& i,
+  const int& j,
+  const int& k,
+  const Array4<Real>& cons_in,
+  const NextOrPrev& nextOrPrev,
+  const AdvectionDirection& advectionDirection,
+  const int& spatial_order)
+{
+  return InterpolateFromCellToFace(i, j, k, cons_in, Scalar_comp,
+                                   nextOrPrev, advectionDirection, spatial_order);
 }
 
 Real
