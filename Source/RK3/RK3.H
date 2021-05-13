@@ -5,6 +5,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <ERF.H>
+#include "IndexDefines.H"
 
 using namespace amrex;
 
@@ -14,7 +15,8 @@ using namespace amrex;
 
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         MultiFab& cons_in,
-                        MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in);
+                        MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in,
+                        const SolverChoice& solverChoice);
 
 void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in,
                         MultiFab& cons_in,
@@ -89,5 +91,11 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
                              const int &spatial_order);
 
 int ComputeGhostCells(const int &spatial_order);
+
+Real InterpolateDensityFromCellToFace(const int &i, const int &j, const int &k,
+                               const Array4<Real>& cons_in,
+                               const enum NextOrPrev &nextOrPrev,
+                               const enum AdvectionDirection &advectionDirection,
+                               const int &spatial_order);
 
 #endif

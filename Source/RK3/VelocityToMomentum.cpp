@@ -1,8 +1,5 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-//#include <AMReX_ArrayLim.H>
-
-#include "IndexDefines.H"
 #include "RK3.H"
 
 using namespace amrex;
@@ -38,27 +35,26 @@ void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             //momx(i,j,k) = 0.5*velx(i,j,k)*(cons(i,j,k,Density_comp) + cons(i-1,j,k,Density_comp));
             // rho_u (i, j, k)
-            momx(i,j,k) = velx(i,j,k)* InterpolateFromCellToFace(
-                                i, j, k, cons, Density_comp, NextOrPrev::prev,
+            momx(i,j,k) = velx(i,j,k)* InterpolateDensityFromCellToFace(
+                                i, j, k, cons, NextOrPrev::prev,
                                 AdvectionDirection::x,
                                 solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             //momy(i,j,k) = 0.5*vely(i,j,k)*(cons(i,j,k,Density_comp) + cons(i,j-1,k,Density_comp));
             // rho_v (i, j, k)
-            momy(i,j,k) = vely(i,j,k)* InterpolateFromCellToFace(
-                                i, j, k, cons, Density_comp, NextOrPrev::prev,
+            momy(i,j,k) = vely(i,j,k)* InterpolateDensityFromCellToFace(
+                                i, j, k, cons, NextOrPrev::prev,
                                 AdvectionDirection::y,
                                 solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             //momz(i,j,k) = 0.5*velz(i,j,k)*(cons(i,j,k,Density_comp) + cons(i,j,k-1,Density_comp));
             // rho_w (i, j, k)
-            momz(i,j,k) = velz(i,j,k)* InterpolateFromCellToFace(
-                                i, j, k, cons, Density_comp, NextOrPrev::prev,
+            momz(i,j,k) = velz(i,j,k)* InterpolateDensityFromCellToFace(
+                                i, j, k, cons, NextOrPrev::prev,
                                 AdvectionDirection::z,
                                 solverChoice.spatial_order);
         });
     } // end MFIter
 }
-

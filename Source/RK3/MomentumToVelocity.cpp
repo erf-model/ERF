@@ -1,14 +1,13 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_ArrayLim.H>
-
-#include "IndexDefines.H"
+#include "RK3.H"
 
 using namespace amrex;
 
 void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel, 
                          MultiFab& cons_in, 
-                         MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in)
+                         MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in,
+                         const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
 
@@ -34,16 +33,25 @@ void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
 
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-          // Need to update this taking into account 'InterpolateFromCellToFace'
-            velx(i,j,k) = 2.*momx(i,j,k)/(cons(i,j,k,Density_comp) + cons(i-1,j,k,Density_comp));
+            //velx(i,j,k) = 2.*momx(i,j,k)/(cons(i,j,k,Density_comp) + cons(i-1,j,k,Density_comp));
+            velx(i,j,k) = momx(i,j,k)/InterpolateDensityFromCellToFace(
+                                        i, j, k, cons, NextOrPrev::prev,
+                                        AdvectionDirection::x,
+                                        solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-          // Need to update this taking into account 'InterpolateFromCellToFace'
-            vely(i,j,k) = 2.*momy(i,j,k)/(cons(i,j,k,Density_comp) + cons(i,j-1,k,Density_comp));
+            //vely(i,j,k) = 2.*momy(i,j,k)/(cons(i,j,k,Density_comp) + cons(i,j-1,k,Density_comp));
+            vely(i,j,k) = momy(i,j,k)/InterpolateDensityFromCellToFace(
+                                        i, j, k, cons, NextOrPrev::prev,
+                                        AdvectionDirection::y,
+                                        solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-          // Need to update this taking into account 'InterpolateFromCellToFace'
-            velz(i,j,k) = 2.*momz(i,j,k)/(cons(i,j,k,Density_comp) + cons(i,j,k-1,Density_comp));
+            //velz(i,j,k) = 2.*momz(i,j,k)/(cons(i,j,k,Density_comp) + cons(i,j,k-1,Density_comp));
+            velz(i,j,k) = momz(i,j,k)/InterpolateDensityFromCellToFace(
+                                        i, j, k, cons, NextOrPrev::prev,
+                                        AdvectionDirection::z,
+                                        solverChoice.spatial_order);
         });
     } // end MFIter
 }

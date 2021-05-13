@@ -168,7 +168,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     // Convert updated momentum to updated velocity on faces after stage 1 and before stage 2
     // **************************************************************************************
-    MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_1, xmom_update_1, ymom_update_1, zmom_update_1);
+    MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_1, xmom_update_1, ymom_update_1, zmom_update_1, solverChoice);
  
     // **************************************************************************************
     // RK3 stage 2: Return update in the cons_upd_2 and [x,y,z]mom_update_2 MultiFabs
@@ -251,7 +251,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     // Convert updated momentum to updated velocity on faces after stage 2 and before stage 3
     // **************************************************************************************
-    MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_2, xmom_update_2, ymom_update_2, zmom_update_2);
+    MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_2, xmom_update_2, ymom_update_2, zmom_update_2, solverChoice);
 
     // **************************************************************************************
     // RK3 stage 3: Return update in the cons_new and [x,y,z]mom_new MultiFabs
@@ -337,5 +337,5 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     // Convert updated momentum to updated velocity on faces after stage 3 and before going to next time step
     // ************************************************************************************** 
-    MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_new, xmom_new, ymom_new, zmom_new);
+    MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_new, xmom_new, ymom_new, zmom_new, solverChoice);
 }
