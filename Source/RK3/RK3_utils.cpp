@@ -108,7 +108,7 @@ InterpolateFromCellToFace(
     switch (spatial_order) {
       case 2:
         switch (advectionDirection) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, ...}
+          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case AdvectionDirection::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
             interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i-1, j, k, cons_qty_index));
             break;
@@ -124,7 +124,7 @@ InterpolateFromCellToFace(
         break;
       case 4:
         switch (advectionDirection) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, ...}
+          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case AdvectionDirection::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
             interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i-1, j, k, cons_qty_index))
                              -(1.0/12.0)*(cons_in(i+1, j, k, cons_qty_index) + cons_in(i-2, j, k, cons_qty_index));
@@ -143,7 +143,7 @@ InterpolateFromCellToFace(
         break;
       case 6: // In order to make this work 'cons_in' must have indices m-3 and m+2 where m = {i, j, k}
         switch (advectionDirection) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, ...}
+          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case AdvectionDirection::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
             interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i-1, j, k, cons_qty_index))
                               -(2.0/15.0)*(cons_in(i+1, j, k, cons_qty_index) + cons_in(i-2, j, k, cons_qty_index))
@@ -178,7 +178,7 @@ InterpolateFromCellToFace(
     switch (spatial_order) {
       case 2:
         switch (advectionDirection) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, ...}
+          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case AdvectionDirection::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
             interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i+1, j, k, cons_qty_index));
             break;
@@ -194,7 +194,7 @@ InterpolateFromCellToFace(
         break;
       case 4:
         switch (advectionDirection) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, ...}
+          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case AdvectionDirection::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
             interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i+1, j, k, cons_qty_index))
                               -(1.0/12.0)*(cons_in(i-1, j, k, cons_qty_index) + cons_in(i+2, j, k, cons_qty_index));
@@ -213,7 +213,7 @@ InterpolateFromCellToFace(
         break;
       case 6: // In order to make this work 'cons_in' must have indices m+3 and m-2 where m = {i, j, k}
         switch (advectionDirection) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, ...}
+          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case AdvectionDirection::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
             interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i+1, j, k, cons_qty_index))
                               -(2.0/15.0)*(cons_in(i-1, j, k, cons_qty_index) + cons_in(i+2, j, k, cons_qty_index))
@@ -248,23 +248,23 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
                              const enum AdvectedQuantity &advectedQuantity,
                              const enum AdvectingQuantity &advectingQuantity,
                              const int &spatial_order) {
-  Real advectingMom = 0.0;
-  Real advectedVel = 1.0;
+  Real advectingQty = 0.0;
+  Real advectedQty = 1.0;
   if (nextOrPrev == NextOrPrev::next) {
     switch(advectedQuantity) {
       case AdvectedQuantity::u:
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedVel = 1.0; // u(i+1/2,    j, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i, j, k));
+            advectedQty = 1.0; // u(i+1/2,    j, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i, j, k)); // Effectively rho_u (i+1/2, j, k)
             break;
           case AdvectingQuantity::rho_v:
-            advectedVel = 1.0; // u(i   , j+1/2, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
+            advectedQty = 1.0; // u(i   , j+1/2, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
             break;
           case AdvectingQuantity::rho_w:
-            advectedVel = 1.0; // u(i   , j    , k+1/2)..Needs to be called properly
-            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
+            advectedQty = 1.0; // u(i   , j    , k+1/2)..Needs to be called properly
+            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -273,16 +273,16 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
       case AdvectedQuantity::v:
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedVel = 1.0; // v(i+1/2,    j, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
+            advectedQty = 1.0; // v(i+1/2,    j, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
             break;
           case AdvectingQuantity::rho_v:
-            advectedVel = 1.0; // v(i   , j+1/2, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k));
+            advectedQty = 1.0; // v(i   , j+1/2, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k));
             break;
           case AdvectingQuantity::rho_w:
-            advectedVel = 1.0; // v(i   , j    , k+1/2)..Needs to be called properly
-            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
+            advectedQty = 1.0; // v(i   , j    , k+1/2)..Needs to be called properly
+            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -291,16 +291,16 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
       case AdvectedQuantity::w:
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedVel = 1.0; // w(i+1/2,    j, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
+            advectedQty = 1.0; // w(i+1/2,    j, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
             break;
           case AdvectingQuantity::rho_v:
-            advectedVel = 1.0; // w(i   , j+1/2, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
+            advectedQty = 1.0; // w(i   , j+1/2, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
             break;
           case AdvectingQuantity::rho_w:
-            advectedVel = 1.0; // w(i   , j    , k+1/2)..Needs to be called properly
-            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k));
+            advectedQty = 1.0; // w(i   , j    , k+1/2)..Needs to be called properly
+            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k));
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -315,16 +315,16 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
       case AdvectedQuantity::u:
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedVel = 1.0; // u(i-1/2,    j, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i, j, k));
+            advectedQty = 1.0; // u(i-1/2,    j, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_u(i-1, j, k) + rho_u(i, j, k)); // Effectively rho_u (i-1/2, j, k)
             break;
           case AdvectingQuantity::rho_v:
-            advectedVel = 1.0; // u(i   , j-1/2, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
+            advectedQty = 1.0; // u(i   , j-1/2, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
             break;
           case AdvectingQuantity::rho_w:
-            advectedVel = 1.0; // u(i   , j    , k-1/2)..Needs to be called properly
-            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
+            advectedQty = 1.0; // u(i   , j    , k-1/2)..Needs to be called properly
+            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -333,16 +333,16 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
       case AdvectedQuantity::v:
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedVel = 1.0; // v(i-1/2,    j, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
+            advectedQty = 1.0; // v(i-1/2,    j, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
             break;
           case AdvectingQuantity::rho_v:
-            advectedVel = 1.0; // v(i   , j-1/2, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k));
+            advectedQty = 1.0; // v(i   , j-1/2, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k));
             break;
           case AdvectingQuantity::rho_w:
-            advectedVel = 1.0; // v(i   , j    , k-1/2)..Needs to be called properly
-            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
+            advectedQty = 1.0; // v(i   , j    , k-1/2)..Needs to be called properly
+            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -351,16 +351,16 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
       case AdvectedQuantity::w:
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedVel = 1.0; // w(i-1/2,    j, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
+            advectedQty = 1.0; // w(i-1/2,    j, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
             break;
           case AdvectingQuantity::rho_v:
-            advectedVel = 1.0; // w(i   , j-1/2, k    )..Needs to be called properly
-            advectingMom = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
+            advectedQty = 1.0; // w(i   , j-1/2, k    )..Needs to be called properly
+            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
             break;
           case AdvectingQuantity::rho_w:
-            advectedVel = 1.0; // w(i   , j    , k-1/2)..Needs to be called properly
-            advectingMom = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k));
+            advectedQty = 1.0; // w(i   , j    , k-1/2)..Needs to be called properly
+            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k));
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -371,5 +371,5 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
     }
   }
 
-  return advectingMom*advectedVel;
+  return advectingQty * advectedQty;
 }
