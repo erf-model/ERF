@@ -252,7 +252,7 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
   Real advectedQty = 1.0;
   if (nextOrPrev == NextOrPrev::next) {
     switch(advectedQuantity) {
-      case AdvectedQuantity::u:
+      case AdvectedQuantity::u: //x-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
             advectedQty = 1.0; // u(i+1/2,    j, k    )..Needs to be called properly
@@ -260,47 +260,47 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
             break;
           case AdvectingQuantity::rho_v:
             advectedQty = 1.0; // u(i   , j+1/2, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
+            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k)); // Effectively rho_v (i-1/2, j+1, k)
             break;
           case AdvectingQuantity::rho_w:
             advectedQty = 1.0; // u(i   , j    , k+1/2)..Needs to be called properly
-            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
+            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1)); // Effectively rho_w (i-1/2, j, k+1)
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
         }
         break;
-      case AdvectedQuantity::v:
+      case AdvectedQuantity::v: //y-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
             advectedQty = 1.0; // v(i+1/2,    j, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
+            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k)); // Effectively rho_u (i+1, j-1/2, k)
             break;
           case AdvectingQuantity::rho_v:
             advectedQty = 1.0; // v(i   , j+1/2, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k));
+            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k)); // Effectively rho_v (i, j+1/2, k)
             break;
           case AdvectingQuantity::rho_w:
             advectedQty = 1.0; // v(i   , j    , k+1/2)..Needs to be called properly
-            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
+            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1)); // Effectively rho_w (i, j-1/2, k+1)
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
         }
         break;
-      case AdvectedQuantity::w:
+      case AdvectedQuantity::w: //z-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
             advectedQty = 1.0; // w(i+1/2,    j, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
+            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1)); // Effectively rho_u (i+1, j, k-1/2)
             break;
           case AdvectingQuantity::rho_v:
             advectedQty = 1.0; // w(i   , j+1/2, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
+            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1)); // Effectively rho_v (i, j+1, k-1/2)
             break;
           case AdvectingQuantity::rho_w:
             advectedQty = 1.0; // w(i   , j    , k+1/2)..Needs to be called properly
-            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k));
+            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k)); // Effectively rho_w (i, j, k+1/2)
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -312,7 +312,7 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
   }
   else { // nextOrPrev == NextOrPrev::prev
     switch(advectedQuantity) {
-      case AdvectedQuantity::u:
+      case AdvectedQuantity::u: //x-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
             advectedQty = 1.0; // u(i-1/2,    j, k    )..Needs to be called properly
@@ -320,47 +320,47 @@ Real ComputeAdvectedQuantity(const int &i, const int &j, const int &k,
             break;
           case AdvectingQuantity::rho_v:
             advectedQty = 1.0; // u(i   , j-1/2, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
+            advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i-1, j, k)); // Effectively rho_v (i-1/2, j, k)
             break;
           case AdvectingQuantity::rho_w:
             advectedQty = 1.0; // u(i   , j    , k-1/2)..Needs to be called properly
-            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
+            advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i-1, j, k)); // Effectively rho_w (i-1/2, j, k)
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
         }
         break;
-      case AdvectedQuantity::v:
+      case AdvectedQuantity::v: //y-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
             advectedQty = 1.0; // v(i-1/2,    j, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
+            advectingQty = 0.5*(rho_u(i, j, k) + rho_u(i, j-1, k)); // Effectively rho_u (i, j-1/2, k)
             break;
           case AdvectingQuantity::rho_v:
             advectedQty = 1.0; // v(i   , j-1/2, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k));
+            advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k)); // Effectively rho_v (i, j-1/2, k)
             break;
           case AdvectingQuantity::rho_w:
             advectedQty = 1.0; // v(i   , j    , k-1/2)..Needs to be called properly
-            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
+            advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k)); // Effectively rho_w (i, j-1/2, k)
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
         }
         break;
-      case AdvectedQuantity::w:
+      case AdvectedQuantity::w: //z-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
             advectedQty = 1.0; // w(i-1/2,    j, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
+            advectingQty = 0.5*(rho_u(i, j, k) + rho_u(i, j, k-1)); // Effectively rho_u (i, j, k-1/2)
             break;
           case AdvectingQuantity::rho_v:
             advectedQty = 1.0; // w(i   , j-1/2, k    )..Needs to be called properly
-            advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
+            advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i, j, k-1)); // Effectively rho_v (i, j, k-1/2)
             break;
           case AdvectingQuantity::rho_w:
             advectedQty = 1.0; // w(i   , j    , k-1/2)..Needs to be called properly
-            advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k));
+            advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i, j, k-1)); // Effectively rho_w (i, j, k-1/2)
             break;
           default:
             amrex::Abort("Error: Advecting quantity is unrecognized");
