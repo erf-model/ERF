@@ -75,7 +75,7 @@ enum class NextOrPrev {
 };
 
 enum class AdvectedQuantity {
-  unity, u, v, w, theta
+  unity, u, v, w, theta, scalar
 };
 
 enum class AdvectingQuantity {
