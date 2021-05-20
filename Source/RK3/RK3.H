@@ -117,6 +117,14 @@ Real ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                              const enum AdvectingQuantity &advectingQuantity,
                              const int &spatial_order);
 
+// Compute Sij
+Real ComputeStressTerm (const int &i, const int &j, const int &k,
+                        const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                        const enum NextOrPrev &nextOrPrev,
+                        const enum MomentumEqn &momentumEqn,
+                        const enum DiffusionDir &diffDir,
+                        const Geometry &geom);
+
 int ComputeGhostCells(const int &spatial_order);
 
 #endif
