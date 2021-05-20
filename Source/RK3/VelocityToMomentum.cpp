@@ -37,7 +37,7 @@ void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in
             // rho_u (i, j, k)
             momx(i,j,k) = velx(i,j,k)* InterpolateDensityFromCellToFace(
                                 i, j, k, cons, NextOrPrev::prev,
-                                AdvectionDirection::x,
+                                AdvectionDir::x,
                                 solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -45,7 +45,7 @@ void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in
             // rho_v (i, j, k)
             momy(i,j,k) = vely(i,j,k)* InterpolateDensityFromCellToFace(
                                 i, j, k, cons, NextOrPrev::prev,
-                                AdvectionDirection::y,
+                                AdvectionDir::y,
                                 solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -53,7 +53,7 @@ void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in
             // rho_w (i, j, k)
             momz(i,j,k) = velz(i,j,k)* InterpolateDensityFromCellToFace(
                                 i, j, k, cons, NextOrPrev::prev,
-                                AdvectionDirection::z,
+                                AdvectionDir::z,
                                 solverChoice.spatial_order);
         });
     } // end MFIter

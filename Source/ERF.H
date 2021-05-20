@@ -71,6 +71,7 @@ public:
 
 enum class NextOrPrev {
   prev = -1,
+  local = 0,
   next = 1
 };
 
@@ -82,11 +83,15 @@ enum class AdvectingQuantity {
   rho_u, rho_v, rho_w
 };
 
-enum class AdvectionDirection {
+enum class AdvectionDir {
   x, y, z
 };
 
-enum class DiffusionDirection {
+enum class DiffusionDir {
+  x, y, z
+};
+
+enum class MomentumEqn {
   x, y, z
 };
 
