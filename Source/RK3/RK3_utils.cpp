@@ -576,3 +576,96 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
 
   return stressTerm;
 }
+
+
+// Compute tau_ij
+Real ComputeStressTermSmag (const int &i, const int &j, const int &k,
+                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                            const enum NextOrPrev &nextOrPrev,
+                            const enum MomentumEqn &momentumEqn,
+                            const enum DiffusionDir &diffDir,
+                            const Geometry &geom,
+                            const Array4<Real>& nut) {
+
+  auto stressTerm = ComputeStressTerm(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom); // S_ij (next or prev)
+  Real K_turb = 1.0;
+
+  switch (momentumEqn) {
+    case MomentumEqn::x:
+      switch (diffDir) {
+        case DiffusionDir::x: // tau11
+          if (nextOrPrev == NextOrPrev::next)
+            K_turb = nut(i, j, k); // K (i, j, k) needed to obtain tau11 (i+1/2)
+          else // nextOrPrev == NextOrPrev::prev
+            K_turb = nut(i-1, j, k); // K (i-1, j, k) needed to obtain tau11 (i-1/2)
+          break;
+        case DiffusionDir::y: // tau12
+          if (nextOrPrev == NextOrPrev::next)
+            K_turb = nut(i, j, k); // K (i-1/2, j+1/2, k) needed to obtain tau12 (j+1/2)
+          else // nextOrPrev == NextOrPrev::prev
+            K_turb = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau12 (j-1/2)
+          break;
+        case DiffusionDir::z: // tau13
+          if (nextOrPrev == NextOrPrev::next)
+            K_turb = nut(i, j, k); // K (i-1/2, j, k+1/2) needed to obtain tau13 (k+1/2)
+          else // nextOrPrev == NextOrPrev::prev
+            K_turb = nut(i, j, k); // K (i-1/2, j, k-1/2) needed to obtain tau13 (k-1/2)
+          break;
+        default:
+          amrex::Abort("Error: Diffusion direction is unrecognized");
+      }
+      break;
+    case MomentumEqn::y:
+      switch (diffDir) {
+        case DiffusionDir::x: // tau21
+          if (nextOrPrev == NextOrPrev::next)
+            K_turb = nut(i, j, k); // K (i+1/2, j-1/2, k) needed to obtain tau21 (i+1/2)
+          else // nextOrPrev == NextOrPrev::prev
+            K_turb = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau21 (i-1/2)
+          break;
+        case DiffusionDir::y: // tau22
+          if (nextOrPrev == NextOrPrev::next)
+            K_turb = nut(i, j, k); // K (i, j, k) needed to obtain tau22 (j+1/2)
+          else // nextOrPrev == NextOrPrev::prev
+            K_turb = nut(i, j-1, k); // K (i, j-1, k) needed to obtain tau22 (j-1/2)
+          break;
+        case DiffusionDir::z: // tau23
+          if (nextOrPrev == NextOrPrev::next)
+            K_turb = nut(i, j, k); // K (i, j-1/2, k+1/2) needed to obtain tau23 (k+1/2)
+          else // nextOrPrev == NextOrPrev::prev
+            K_turb = nut(i, j, k); // K (i, j-1/2, k-1/2) needed to obtain tau23 (k-1/2)
+          break;
+        default:
+          amrex::Abort("Error: Diffusion direction is unrecognized");
+      }
+      break;
+    case MomentumEqn::z:
+      switch (diffDir) {
+        case DiffusionDir::x: // tau31
+          if (nextOrPrev == NextOrPrev::next)
+            K_turb = nut(i, j, k); // K (i+1/2, j, k-1/2) needed to obtain tau31 (i+1/2)
+          else // nextOrPrev == NextOrPrev::prev
+            K_turb = nut(i, j, k); // K (i-1/2, j, k-1/2) needed to obtain tau31 (i-1/2)
+          break;
+        case DiffusionDir::y: // tau32
+          if (nextOrPrev == NextOrPrev::next)
+            K_turb = nut(i, j, k); // K (i, j+1/2, k-1/2) needed to obtain tau32 (j+1/2)
+          else // nextOrPrev == NextOrPrev::prev
+            K_turb = nut(i, j, k); // K (i, j-1/2, k-1/2) needed to obtain tau32 (j-1/2)
+          break;
+        case DiffusionDir::z: // tau33
+          if (nextOrPrev == NextOrPrev::next)
+            K_turb = nut(i, j, k); // K (i, j, k) needed to obtain tau33 (k+1/2)
+          else // nextOrPrev == NextOrPrev::prev
+            K_turb = nut(i, j, k-1); // K (i, j, k-1) needed to obtain tau33 (k-1/2)
+          break;
+        default:
+          amrex::Abort("Error: Diffusion direction is unrecognized");
+      }
+      break;
+    default:
+      amrex::Abort("Error: Momentum equation is unrecognized");
+  }
+
+  return K_turb*stressTerm;
+}

@@ -125,6 +125,24 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const enum DiffusionDir &diffDir,
                         const Geometry &geom);
 
+// Compute turbVisc or Kij
+Real ComputeTurbViscosity (const int &i, const int &j, const int &k,
+                           const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                           const enum NextOrPrev &nextOrPrev,
+                           const enum MomentumEqn &momentumEqn,
+                           const enum DiffusionDir &diffDir,
+                           const Geometry &geom);
+
+// Compute tau_ij
+Real ComputeStressTermSmag (const int &i, const int &j, const int &k,
+                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                            const enum NextOrPrev &nextOrPrev,
+                            const enum MomentumEqn &momentumEqn,
+                            const enum DiffusionDir &diffDir,
+                            const Geometry &geom,
+                            const Array4<Real>& nut);
+
+
 int ComputeGhostCells(const int &spatial_order);
 
 #endif
