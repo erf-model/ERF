@@ -83,6 +83,10 @@ enum class AdvectingQuantity {
   rho_u, rho_v, rho_w
 };
 
+enum class Coord {
+  x, y, z
+};
+
 enum class AdvectionDir {
   x, y, z
 };
@@ -93,6 +97,10 @@ enum class DiffusionDir {
 
 enum class MomentumEqn {
   x, y, z
+};
+
+enum class TurbulenceModel {
+  DNS, Smagorinsky
 };
 
 // AmrLevel-derived class for solving equations for atmospheric flows

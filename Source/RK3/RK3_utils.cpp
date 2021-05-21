@@ -478,7 +478,7 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
 }
 
 Real
-ComputeStressTerm (const int &i, const int &j, const int &k,
+ComputeViscousStress(const int &i, const int &j, const int &k,
                    const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                    const enum NextOrPrev &nextOrPrev,
                    const enum MomentumEqn &momentumEqn,
@@ -489,30 +489,30 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
   Real dy = geom.CellSize()[1];
   Real dz = geom.CellSize()[2];
 
-  Real stressTerm = 0;
+  Real viscousStress = 0;
 
   switch (momentumEqn) {
     case MomentumEqn::x:
       switch (diffDir) {
         case DiffusionDir::x: // S11
           if (nextOrPrev == NextOrPrev::next)
-            stressTerm = (u(i+1, j, k) - u(i, j, k))/dx; // S11 (i+1/2)
+            viscousStress = (u(i+1, j, k) - u(i, j, k))/dx; // S11 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            stressTerm = (u(i, j, k) - u(i-1, j, k))/dx; // S11 (i-1/2)
+            viscousStress = (u(i, j, k) - u(i-1, j, k))/dx; // S11 (i-1/2)
           break;
         case DiffusionDir::y: // S12
           if (nextOrPrev == NextOrPrev::next)
-            stressTerm = (u(i, j+1, k) - u(i, j, k))/dy + (v(i, j+1, k) - v(i-1, j+1, k))/dx; // S12 (j+1/2)
+            viscousStress = (u(i, j+1, k) - u(i, j, k))/dy + (v(i, j+1, k) - v(i-1, j+1, k))/dx; // S12 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            stressTerm = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S12 (j-1/2)
-          stressTerm*= 0.5;
+            viscousStress = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S12 (j-1/2)
+          viscousStress *= 0.5;
           break;
         case DiffusionDir::z: // S13
           if (nextOrPrev == NextOrPrev::next)
-            stressTerm = (u(i, j, k+1) - u(i, j, k))/dz + (w(i, j, k+1) - w(i-1, j, k+1))/dx; // S13 (k+1/2)
+            viscousStress = (u(i, j, k+1) - u(i, j, k))/dz + (w(i, j, k+1) - w(i-1, j, k+1))/dx; // S13 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            stressTerm = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S13 (k-1/2)
-          stressTerm*= 0.5;
+            viscousStress = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S13 (k-1/2)
+          viscousStress *= 0.5;
           break;
         default:
           amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -522,23 +522,23 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
       switch (diffDir) {
         case DiffusionDir::x: // S21
           if (nextOrPrev == NextOrPrev::next)
-            stressTerm = (u(i+1, j, k) - u(i+1, j-1, k))/dy + (v(i+1, j, k) - v(i, j, k))/dx; // S21 (i+1/2)
+            viscousStress = (u(i+1, j, k) - u(i+1, j-1, k))/dy + (v(i+1, j, k) - v(i, j, k))/dx; // S21 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            stressTerm = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S21 (i-1/2)
-          stressTerm*= 0.5;
+            viscousStress = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S21 (i-1/2)
+          viscousStress *= 0.5;
           break;
         case DiffusionDir::y: // S22
           if (nextOrPrev == NextOrPrev::next)
-            stressTerm = (v(i, j+1, k) - v(i, j, k))/dy; // S22 (j+1/2)
+            viscousStress = (v(i, j+1, k) - v(i, j, k))/dy; // S22 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            stressTerm = (v(i, j, k) - v(i, j-1, k))/dy; // S22 (j-1/2)
+            viscousStress = (v(i, j, k) - v(i, j-1, k))/dy; // S22 (j-1/2)
           break;
         case DiffusionDir::z: // S23
           if (nextOrPrev == NextOrPrev::next)
-            stressTerm = (v(i, j, k+1) - v(i, j, k))/dz + (w(i, j, k+1) - w(i, j-1, k+1))/dy; // S23 (k+1/2) //TODO: Check this with Branko
+            viscousStress = (v(i, j, k+1) - v(i, j, k))/dz + (w(i, j, k+1) - w(i, j-1, k+1))/dy; // S23 (k+1/2) //TODO: Check this with Branko
           else // nextOrPrev == NextOrPrev::prev
-            stressTerm = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S23 (k-1/2) //TODO: Check this with Branko
-          stressTerm*= 0.5;
+            viscousStress = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S23 (k-1/2) //TODO: Check this with Branko
+          viscousStress *= 0.5;
           break;
         default:
           amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -548,23 +548,23 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
       switch (diffDir) {
         case DiffusionDir::x: // S31
           if (nextOrPrev == NextOrPrev::next)
-            stressTerm = (u(i+1, j, k) - u(i+1, j, k-1))/dz + (w(i+1, j, k) - w(i, j, k))/dx; // S31 (i+1/2)
+            viscousStress = (u(i+1, j, k) - u(i+1, j, k-1))/dz + (w(i+1, j, k) - w(i, j, k))/dx; // S31 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            stressTerm = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S31 (i-1/2)
-          stressTerm*= 0.5;
+            viscousStress = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S31 (i-1/2)
+          viscousStress *= 0.5;
           break;
         case DiffusionDir::y: // S32
           if (nextOrPrev == NextOrPrev::next)
-            stressTerm = (v(i, j+1, k) - v(i, j+1, k-1))/dz + (w(i, j+1, k) - w(i, j, k))/dy; // S32 (j+1/2) //TODO: Check this with Branko
+            viscousStress = (v(i, j+1, k) - v(i, j+1, k-1))/dz + (w(i, j+1, k) - w(i, j, k))/dy; // S32 (j+1/2) //TODO: Check this with Branko
           else // nextOrPrev == NextOrPrev::prev
-            stressTerm = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S32 (j-1/2) //TODO: Check this with Branko
-          stressTerm*= 0.5;
+            viscousStress = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S32 (j-1/2) //TODO: Check this with Branko
+          viscousStress *= 0.5;
           break;
         case DiffusionDir::z: // S33
           if (nextOrPrev == NextOrPrev::next)
-            stressTerm = (w(i, j, k+1) - w(i, j, k))/dz; // S33 (k+1/2)
+            viscousStress = (w(i, j, k+1) - w(i, j, k))/dz; // S33 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            stressTerm = (w(i, j, k) - w(i, j, k-1))/dz; // S33 (k-1/2)
+            viscousStress = (w(i, j, k) - w(i, j, k-1))/dz; // S33 (k-1/2)
           break;
         default:
           amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -574,42 +574,43 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
       amrex::Abort("Error: Momentum equation is unrecognized");
   }
 
-  return stressTerm;
+  return viscousStress;
 }
 
 
-// Compute tau_ij
-Real ComputeStressTermSmag (const int &i, const int &j, const int &k,
+/// Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known
+Real
+InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                             const enum NextOrPrev &nextOrPrev,
                             const enum MomentumEqn &momentumEqn,
                             const enum DiffusionDir &diffDir,
                             const Geometry &geom,
                             const Array4<Real>& nut) {
-
-  auto stressTerm = ComputeStressTerm(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom); // S_ij (next or prev)
-  Real K_turb = 1.0;
+ // Assuming we already have 'nut' computed for all (i, j, k)
+// TODO: Check exactly where we should compute 'nut'
+  Real turbViscInterpolated = 1.0;
 
   switch (momentumEqn) {
     case MomentumEqn::x:
       switch (diffDir) {
         case DiffusionDir::x: // tau11
           if (nextOrPrev == NextOrPrev::next)
-            K_turb = nut(i, j, k); // K (i, j, k) needed to obtain tau11 (i+1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i, j, k) needed to obtain tau11 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            K_turb = nut(i-1, j, k); // K (i-1, j, k) needed to obtain tau11 (i-1/2)
+            turbViscInterpolated = nut(i-1, j, k); // K (i-1, j, k) needed to obtain tau11 (i-1/2)
           break;
         case DiffusionDir::y: // tau12
           if (nextOrPrev == NextOrPrev::next)
-            K_turb = nut(i, j, k); // K (i-1/2, j+1/2, k) needed to obtain tau12 (j+1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i-1/2, j+1/2, k) needed to obtain tau12 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            K_turb = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau12 (j-1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau12 (j-1/2)
           break;
         case DiffusionDir::z: // tau13
           if (nextOrPrev == NextOrPrev::next)
-            K_turb = nut(i, j, k); // K (i-1/2, j, k+1/2) needed to obtain tau13 (k+1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i-1/2, j, k+1/2) needed to obtain tau13 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            K_turb = nut(i, j, k); // K (i-1/2, j, k-1/2) needed to obtain tau13 (k-1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i-1/2, j, k-1/2) needed to obtain tau13 (k-1/2)
           break;
         default:
           amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -619,21 +620,21 @@ Real ComputeStressTermSmag (const int &i, const int &j, const int &k,
       switch (diffDir) {
         case DiffusionDir::x: // tau21
           if (nextOrPrev == NextOrPrev::next)
-            K_turb = nut(i, j, k); // K (i+1/2, j-1/2, k) needed to obtain tau21 (i+1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i+1/2, j-1/2, k) needed to obtain tau21 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            K_turb = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau21 (i-1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau21 (i-1/2)
           break;
         case DiffusionDir::y: // tau22
           if (nextOrPrev == NextOrPrev::next)
-            K_turb = nut(i, j, k); // K (i, j, k) needed to obtain tau22 (j+1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i, j, k) needed to obtain tau22 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            K_turb = nut(i, j-1, k); // K (i, j-1, k) needed to obtain tau22 (j-1/2)
+            turbViscInterpolated = nut(i, j-1, k); // K (i, j-1, k) needed to obtain tau22 (j-1/2)
           break;
         case DiffusionDir::z: // tau23
           if (nextOrPrev == NextOrPrev::next)
-            K_turb = nut(i, j, k); // K (i, j-1/2, k+1/2) needed to obtain tau23 (k+1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i, j-1/2, k+1/2) needed to obtain tau23 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            K_turb = nut(i, j, k); // K (i, j-1/2, k-1/2) needed to obtain tau23 (k-1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i, j-1/2, k-1/2) needed to obtain tau23 (k-1/2)
           break;
         default:
           amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -643,21 +644,21 @@ Real ComputeStressTermSmag (const int &i, const int &j, const int &k,
       switch (diffDir) {
         case DiffusionDir::x: // tau31
           if (nextOrPrev == NextOrPrev::next)
-            K_turb = nut(i, j, k); // K (i+1/2, j, k-1/2) needed to obtain tau31 (i+1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i+1/2, j, k-1/2) needed to obtain tau31 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            K_turb = nut(i, j, k); // K (i-1/2, j, k-1/2) needed to obtain tau31 (i-1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i-1/2, j, k-1/2) needed to obtain tau31 (i-1/2)
           break;
         case DiffusionDir::y: // tau32
           if (nextOrPrev == NextOrPrev::next)
-            K_turb = nut(i, j, k); // K (i, j+1/2, k-1/2) needed to obtain tau32 (j+1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i, j+1/2, k-1/2) needed to obtain tau32 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            K_turb = nut(i, j, k); // K (i, j-1/2, k-1/2) needed to obtain tau32 (j-1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i, j-1/2, k-1/2) needed to obtain tau32 (j-1/2)
           break;
         case DiffusionDir::z: // tau33
           if (nextOrPrev == NextOrPrev::next)
-            K_turb = nut(i, j, k); // K (i, j, k) needed to obtain tau33 (k+1/2)
+            turbViscInterpolated = nut(i, j, k); // K (i, j, k) needed to obtain tau33 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            K_turb = nut(i, j, k-1); // K (i, j, k-1) needed to obtain tau33 (k-1/2)
+            turbViscInterpolated = nut(i, j, k-1); // K (i, j, k-1) needed to obtain tau33 (k-1/2)
           break;
         default:
           amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -667,5 +668,78 @@ Real ComputeStressTermSmag (const int &i, const int &j, const int &k,
       amrex::Abort("Error: Momentum equation is unrecognized");
   }
 
-  return K_turb*stressTerm;
+  return turbViscInterpolated;
 }
+
+// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) for m = {i, j, k}
+Real
+ComputeSubfilterStress(const int &i, const int &j, const int &k,
+                       const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                       const enum NextOrPrev &nextOrPrev,
+                       const enum MomentumEqn &momentumEqn,
+                       const enum DiffusionDir &diffDir,
+                       const Geometry &geom,
+                       const Array4<Real>& nut) {
+
+  Real subfilterStress = 0.0;
+
+  auto viscousStress = ComputeViscousStress(i, j , k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom);
+  auto turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom, nut);
+
+  subfilterStress = turbViscInterpolated * viscousStress;
+
+  return subfilterStress;
+}
+
+
+Real ComputeStressTerm (const int &i, const int &j, const int &k,
+                        const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                        const enum NextOrPrev &nextOrPrev,
+                        const enum MomentumEqn &momentumEqn,
+                        const enum DiffusionDir &diffDir,
+                        const Geometry &geom,
+                        const Array4<Real>& nut,
+                        const SolverChoice &solverChoice) {
+  Real stressTerm = 0.0;
+
+  // TODO: Consider passing turbModel to this function instead of computing it here from SolverChoice
+  enum TurbulenceModel turbModel;
+
+  //TODO: Update this to account for other turbulence models in future. This would alo require update in SolverChoice
+  if (solverChoice.use_smagorinsky)
+    turbModel = TurbulenceModel::Smagorinsky;
+  else
+    turbModel = TurbulenceModel::DNS;
+
+  switch (turbModel) {
+    case TurbulenceModel::DNS:
+      stressTerm = ComputeViscousStress(i, j , k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom);
+      break;
+    case TurbulenceModel::Smagorinsky:
+      stressTerm = ComputeSubfilterStress(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom, nut);
+      break;
+    default:
+      amrex::Abort("Error: Turbulence model is unrecognized");
+  }
+
+  return stressTerm;
+}
+
+// Compute Eddy Viscosity
+Real
+ComputeTurbulentViscosity(
+  const int& i,
+  const int& j,
+  const int& k,
+  const Array4<Real>& u,
+  const Array4<Real>& v,
+  const Array4<Real>& w,
+  const NextOrPrev& nextOrPrev,
+  const MomentumEqn& momentumEqn,
+  const DiffusionDir& diffDir,
+  const Geometry& geom,
+  Array4<Real>& nut)
+{
+  return 0;
+}
+

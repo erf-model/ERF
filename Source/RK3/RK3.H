@@ -118,30 +118,49 @@ Real ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                              const int &spatial_order);
 
 // Compute Sij
-Real ComputeStressTerm (const int &i, const int &j, const int &k,
+Real ComputeViscousStress(const int &i, const int &j, const int &k,
                         const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                         const enum NextOrPrev &nextOrPrev,
                         const enum MomentumEqn &momentumEqn,
                         const enum DiffusionDir &diffDir,
                         const Geometry &geom);
 
-// Compute turbVisc or Kij
-Real ComputeTurbViscosity (const int &i, const int &j, const int &k,
+// Compute turbVisc, i.e., 'nut' or Kij at cell centres. Initialize it to 1.0
+//TODO: Check if it is better to  fill all Kij and use it or compute on the fly
+Real ComputeTurbulentViscosity(const int &i, const int &j, const int &k,
                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                            const enum NextOrPrev &nextOrPrev,
                            const enum MomentumEqn &momentumEqn,
                            const enum DiffusionDir &diffDir,
-                           const Geometry &geom);
+                           const Geometry &geom,
+                           Array4<Real>& nut);
 
-// Compute tau_ij
-Real ComputeStressTermSmag (const int &i, const int &j, const int &k,
+// Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known
+Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                             const enum NextOrPrev &nextOrPrev,
                             const enum MomentumEqn &momentumEqn,
                             const enum DiffusionDir &diffDir,
                             const Geometry &geom,
                             const Array4<Real>& nut);
+// Compute tau_ij
+Real ComputeSubfilterStress(const int &i, const int &j, const int &k,
+                               const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                               const enum NextOrPrev &nextOrPrev,
+                               const enum MomentumEqn &momentumEqn,
+                               const enum DiffusionDir &diffDir,
+                               const Geometry &geom,
+                               const Array4<Real>& nut);
 
+// Compute Sij or tau_ij
+Real ComputeStressTerm (const int &i, const int &j, const int &k,
+                        const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                        const enum NextOrPrev &nextOrPrev,
+                        const enum MomentumEqn &momentumEqn,
+                        const enum DiffusionDir &diffDir,
+                        const Geometry &geom,
+                        const Array4<Real>& nut,
+                        const SolverChoice &solverChoice);
 
 int ComputeGhostCells(const int &spatial_order);
 
