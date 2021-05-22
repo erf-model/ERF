@@ -257,15 +257,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
       case AdvectedQuantity::u: //x-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedQty = 1.0; // u(i+1/2,    j, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::x, spatial_order); // u(i+1/2,    j, k    )
             advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i, j, k)); // Effectively rho_u (i+1/2, j, k)
             break;
           case AdvectingQuantity::rho_v:
-            advectedQty = 1.0; // u(i   , j+1/2, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::y, spatial_order); // u(i   , j+1/2, k    )
             advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k)); // Effectively rho_v (i-1/2, j+1, k)
             break;
           case AdvectingQuantity::rho_w:
-            advectedQty = 1.0; // u(i   , j    , k+1/2)..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::z, spatial_order); // u(i   , j    , k+1/2)
             advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1)); // Effectively rho_w (i-1/2, j, k+1)
             break;
           default:
@@ -275,15 +275,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
       case AdvectedQuantity::v: //y-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedQty = 1.0; // v(i+1/2,    j, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::x, spatial_order); // v(i+1/2,    j, k    )
             advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k)); // Effectively rho_u (i+1, j-1/2, k)
             break;
           case AdvectingQuantity::rho_v:
-            advectedQty = 1.0; // v(i   , j+1/2, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::y, spatial_order); // v(i   , j+1/2, k    )
             advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k)); // Effectively rho_v (i, j+1/2, k)
             break;
           case AdvectingQuantity::rho_w:
-            advectedQty = 1.0; // v(i   , j    , k+1/2)..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::z, spatial_order); // v(i   , j    , k+1/2)
             advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1)); // Effectively rho_w (i, j-1/2, k+1)
             break;
           default:
@@ -293,15 +293,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
       case AdvectedQuantity::w: //z-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedQty = 1.0; // w(i+1/2,    j, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::x, spatial_order); // w(i+1/2,    j, k    )
             advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1)); // Effectively rho_u (i+1, j, k-1/2)
             break;
           case AdvectingQuantity::rho_v:
-            advectedQty = 1.0; // w(i   , j+1/2, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::y, spatial_order); // w(i   , j+1/2, k    )
             advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1)); // Effectively rho_v (i, j+1, k-1/2)
             break;
           case AdvectingQuantity::rho_w:
-            advectedQty = 1.0; // w(i   , j    , k+1/2)..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::z, spatial_order); // w(i   , j    , k+1/2)
             advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k)); // Effectively rho_w (i, j, k+1/2)
             break;
           default:
@@ -317,15 +317,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
       case AdvectedQuantity::u: //x-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedQty = 1.0; // u(i-1/2,    j, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::x, spatial_order); // u(i-1/2,    j, k    )
             advectingQty = 0.5*(rho_u(i-1, j, k) + rho_u(i, j, k)); // Effectively rho_u (i-1/2, j, k)
             break;
           case AdvectingQuantity::rho_v:
-            advectedQty = 1.0; // u(i   , j-1/2, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::y, spatial_order); // u(i   , j-1/2, k    )
             advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i-1, j, k)); // Effectively rho_v (i-1/2, j, k)
             break;
           case AdvectingQuantity::rho_w:
-            advectedQty = 1.0; // u(i   , j    , k-1/2)..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::z, spatial_order); // u(i   , j    , k-1/2)
             advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i-1, j, k)); // Effectively rho_w (i-1/2, j, k)
             break;
           default:
@@ -335,15 +335,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
       case AdvectedQuantity::v: //y-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedQty = 1.0; // v(i-1/2,    j, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::x, spatial_order); // v(i-1/2,    j, k    )
             advectingQty = 0.5*(rho_u(i, j, k) + rho_u(i, j-1, k)); // Effectively rho_u (i, j-1/2, k)
             break;
           case AdvectingQuantity::rho_v:
-            advectedQty = 1.0; // v(i   , j-1/2, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::y, spatial_order); // v(i   , j-1/2, k    )
             advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k)); // Effectively rho_v (i, j-1/2, k)
             break;
           case AdvectingQuantity::rho_w:
-            advectedQty = 1.0; // v(i   , j    , k-1/2)..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::z, spatial_order); // v(i   , j    , k-1/2)
             advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k)); // Effectively rho_w (i, j-1/2, k)
             break;
           default:
@@ -353,15 +353,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
       case AdvectedQuantity::w: //z-momentum, reference face index is (i, j, k)
         switch (advectingQuantity) {
           case AdvectingQuantity::rho_u:
-            advectedQty = 1.0; // w(i-1/2,    j, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::x, spatial_order); // w(i-1/2,    j, k    )
             advectingQty = 0.5*(rho_u(i, j, k) + rho_u(i, j, k-1)); // Effectively rho_u (i, j, k-1/2)
             break;
           case AdvectingQuantity::rho_v:
-            advectedQty = 1.0; // w(i   , j-1/2, k    )..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::y, spatial_order); // w(i   , j-1/2, k    )
             advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i, j, k-1)); // Effectively rho_v (i, j, k-1/2)
             break;
           case AdvectingQuantity::rho_w:
-            advectedQty = 1.0; // w(i   , j    , k-1/2)..Needs to be called properly
+            advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::z, spatial_order); // w(i   , j    , k-1/2)
             advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i, j, k-1)); // Effectively rho_w (i, j, k-1/2)
             break;
           default:
