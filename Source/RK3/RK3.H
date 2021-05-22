@@ -75,8 +75,8 @@ void CalcDiffFlux(const MultiFab& cons_in,
                   const amrex::Real* dx, const amrex::Real dt,
                   const SolverChoice& solverChoice);
 
-Real InterpolateFromCellToFace(const int &i, const int &j, const int &k,
-                           const Array4<Real>& cons_in, const int &cons_qty_index,
+Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
+                           const Array4<Real>& qty, const int & qty_index,
                            const enum NextOrPrev &nextOrPrev,
                            const enum Coord& coordDir,
                            const int &spatial_order);

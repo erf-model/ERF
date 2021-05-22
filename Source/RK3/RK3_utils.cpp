@@ -44,8 +44,8 @@ InterpolateDensityFromCellToFace(
   const Coord& coordDir,
   const int& spatial_order)
 {
-  return InterpolateFromCellToFace(i, j, k, cons_in, Density_comp,
-                                     nextOrPrev, coordDir, spatial_order);
+  return InterpolateFromCellOrFace(
+    i, j, k, cons_in, Density_comp, nextOrPrev, coordDir, spatial_order);
 }
 
 Real
@@ -58,8 +58,8 @@ InterpolateRhoThetaFromCellToFace(
   const Coord& coordDir,
   const int& spatial_order)
 {
-  return InterpolateFromCellToFace(i, j, k, cons_in, RhoTheta_comp,
-                                   nextOrPrev, coordDir, spatial_order);
+  return InterpolateFromCellOrFace(
+    i, j, k, cons_in, RhoTheta_comp, nextOrPrev, coordDir, spatial_order);
 }
 Real
 InterpolateScalarFromCellToFace(
@@ -71,16 +71,16 @@ InterpolateScalarFromCellToFace(
   const Coord& coordDir,
   const int& spatial_order)
 {
-  return InterpolateFromCellToFace(i, j, k, cons_in, Scalar_comp,
-                                   nextOrPrev, coordDir, spatial_order);
+  return InterpolateFromCellOrFace(
+    i, j, k, cons_in, Scalar_comp, nextOrPrev, coordDir, spatial_order);
 }
 
 Real
-InterpolateFromCellToFace(
+InterpolateFromCellOrFace(
   // (i, j, k) is the reference cell index w.r.t. which a face is being considered
   const int& i, const int& j, const int& k,
-  const Array4<Real>& cons_in,
-  const int& cons_qty_index,
+  const Array4<Real>& qty,
+  const int& qty_index,
   const NextOrPrev& nextOrPrev,
   const Coord& coordDir,
   const int& spatial_order)
@@ -88,13 +88,14 @@ InterpolateFromCellToFace(
   /*
    If the interpolation is to be done on face (i, j, k) which is previous to cell (i,j,k)
    in the coordinate direction,
-   call as InterpolateFromCellToFace(i, j, k, cons_in, cons_qty_index, NextOrPrev::prev, ...)
+   call as InterpolateFromCellOrFace(i, j, k, qty, qty_index, NextOrPrev::prev, ...)
    */
   /*
    If the interpolation is to be done on face (i+1, j, k), (i, j+1, k) or (i, j, k+1)
    which are next to cell (i,j,k) in the coordinate direction,
-   call as InterpolateFromCellToFace(i, j, k, cons_in, cons_qty_index, NextOrPrev::next, ...)
+   call as InterpolateFromCellOrFace(i, j, k, qty, qty_index, NextOrPrev::next, ...)
    */
+  //TODO: Update the description. This interpolation is applicable to cell- or face-centered quantities
 
   Real interpolatedVal = 0.0;
   if (nextOrPrev == NextOrPrev::prev) {
@@ -108,15 +109,15 @@ InterpolateFromCellToFace(
     switch (spatial_order) {
       case 2:
         switch (coordDir) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
+          // q = qty(i, j, k, qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case Coord::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
-            interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i-1, j, k, cons_qty_index));
+            interpolatedVal = 0.5*(qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index));
             break;
           case Coord::y: // m = j, q(m-1/2) = q(i    , j-1/2, k    )
-            interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j-1, k, cons_qty_index));
+            interpolatedVal = 0.5*(qty(i, j, k, qty_index) + qty(i, j-1, k, qty_index));
             break;
           case Coord::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
-            interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k-1, cons_qty_index));
+            interpolatedVal = 0.5*(qty(i, j, k, qty_index) + qty(i, j, k-1, qty_index));
             break;
           default:
             amrex::Abort("Error: Advection direction is unrecognized");
@@ -124,40 +125,40 @@ InterpolateFromCellToFace(
         break;
       case 4:
         switch (coordDir) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
+          // q = qty(i, j, k, qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case Coord::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
-            interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i-1, j, k, cons_qty_index))
-                             -(1.0/12.0)*(cons_in(i+1, j, k, cons_qty_index) + cons_in(i-2, j, k, cons_qty_index));
+            interpolatedVal = (7.0/12.0)*(qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index))
+                             -(1.0/12.0)*(qty(i+1, j, k, qty_index) + qty(i-2, j, k, qty_index));
             break;
           case Coord::y: // m = j, q(m-1/2) = q(i    , j-1/2, k    )
-            interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j-1, k, cons_qty_index))
-                             -(1.0/12.0)*(cons_in(i, j+1, k, cons_qty_index) + cons_in(i, j-2, k, cons_qty_index));
+            interpolatedVal = (7.0/12.0)*(qty(i, j, k, qty_index) + qty(i, j-1, k, qty_index))
+                             -(1.0/12.0)*(qty(i, j+1, k, qty_index) + qty(i, j-2, k, qty_index));
             break;
           case Coord::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
-            interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k-1, cons_qty_index))
-                             -(1.0/12.0)*(cons_in(i, j, k+1, cons_qty_index) + cons_in(i, j, k-2, cons_qty_index));
+            interpolatedVal = (7.0/12.0)*(qty(i, j, k, qty_index) + qty(i, j, k-1, qty_index))
+                             -(1.0/12.0)*(qty(i, j, k+1, qty_index) + qty(i, j, k-2, qty_index));
             break;
           default:
             amrex::Abort("Error: Advection direction is unrecognized");
         }
         break;
-      case 6: // In order to make this work 'cons_in' must have indices m-3 and m+2 where m = {i, j, k}
+      case 6: // In order to make this work 'qty' must have indices m-3 and m+2 where m = {i, j, k}
         switch (coordDir) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
+          // q = qty(i, j, k, qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case Coord::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
-            interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i-1, j, k, cons_qty_index))
-                              -(2.0/15.0)*(cons_in(i+1, j, k, cons_qty_index) + cons_in(i-2, j, k, cons_qty_index))
-                              +(1.0/60.0)*(cons_in(i+2, j, k, cons_qty_index) + cons_in(i-3, j, k, cons_qty_index));
+            interpolatedVal = (37.0/60.0)*(qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index))
+                              -(2.0/15.0)*(qty(i+1, j, k, qty_index) + qty(i-2, j, k, qty_index))
+                              +(1.0/60.0)*(qty(i+2, j, k, qty_index) + qty(i-3, j, k, qty_index));
             break;
           case Coord::y: // m = j, q(m-1/2) = q(i    , j-1/2, k    )
-            interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j-1, k, cons_qty_index))
-                              -(2.0/15.0)*(cons_in(i, j+1, k, cons_qty_index) + cons_in(i, j-2, k, cons_qty_index))
-                              +(1.0/60.0)*(cons_in(i, j+2, k, cons_qty_index) + cons_in(i, j-3, k, cons_qty_index));
+            interpolatedVal = (37.0/60.0)*(qty(i, j, k, qty_index) + qty(i, j-1, k, qty_index))
+                              -(2.0/15.0)*(qty(i, j+1, k, qty_index) + qty(i, j-2, k, qty_index))
+                              +(1.0/60.0)*(qty(i, j+2, k, qty_index) + qty(i, j-3, k, qty_index));
             break;
           case Coord::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
-            interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k-1, cons_qty_index))
-                              -(2.0/15.0)*(cons_in(i, j, k+1, cons_qty_index) + cons_in(i, j, k-2, cons_qty_index))
-                              +(1.0/60.0)*(cons_in(i, j, k+2, cons_qty_index) + cons_in(i, j, k-3, cons_qty_index));
+            interpolatedVal = (37.0/60.0)*(qty(i, j, k, qty_index) + qty(i, j, k-1, qty_index))
+                              -(2.0/15.0)*(qty(i, j, k+1, qty_index) + qty(i, j, k-2, qty_index))
+                              +(1.0/60.0)*(qty(i, j, k+2, qty_index) + qty(i, j, k-3, qty_index));
             break;
           default:
             amrex::Abort("Error: Advection direction is unrecognized");
@@ -178,15 +179,15 @@ InterpolateFromCellToFace(
     switch (spatial_order) {
       case 2:
         switch (coordDir) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
+          // q = qty(i, j, k, qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case Coord::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
-            interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i+1, j, k, cons_qty_index));
+            interpolatedVal = 0.5*(qty(i, j, k, qty_index) + qty(i+1, j, k, qty_index));
             break;
           case Coord::y: // m = j, q(m+1/2) = q(i    , j+1/2, k    )
-            interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j+1, k, cons_qty_index));
+            interpolatedVal = 0.5*(qty(i, j, k, qty_index) + qty(i, j+1, k, qty_index));
             break;
           case Coord::z: // m = k, q(m+1/2) = q(i    , j    , k+1/2)
-            interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k+1, cons_qty_index));
+            interpolatedVal = 0.5*(qty(i, j, k, qty_index) + qty(i, j, k+1, qty_index));
             break;
           default:
             amrex::Abort("Error: Advection direction is unrecognized");
@@ -194,40 +195,40 @@ InterpolateFromCellToFace(
         break;
       case 4:
         switch (coordDir) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
+          // q = qty(i, j, k, qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case Coord::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
-            interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i+1, j, k, cons_qty_index))
-                              -(1.0/12.0)*(cons_in(i-1, j, k, cons_qty_index) + cons_in(i+2, j, k, cons_qty_index));
+            interpolatedVal = (7.0/12.0)*(qty(i, j, k, qty_index) + qty(i+1, j, k, qty_index))
+                              -(1.0/12.0)*(qty(i-1, j, k, qty_index) + qty(i+2, j, k, qty_index));
             break;
           case Coord::y: // m = j, q(m+1/2) = q(i    , j+1/2, k    )
-            interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j+1, k, cons_qty_index))
-                              -(1.0/12.0)*(cons_in(i, j-1, k, cons_qty_index) + cons_in(i, j+2, k, cons_qty_index));
+            interpolatedVal = (7.0/12.0)*(qty(i, j, k, qty_index) + qty(i, j+1, k, qty_index))
+                              -(1.0/12.0)*(qty(i, j-1, k, qty_index) + qty(i, j+2, k, qty_index));
             break;
           case Coord::z: // m = k, q(m+1/2) = q(i    , j    , k+1/2)
-            interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k+1, cons_qty_index))
-                              -(1.0/12.0)*(cons_in(i, j, k-1, cons_qty_index) + cons_in(i, j, k+2, cons_qty_index));
+            interpolatedVal = (7.0/12.0)*(qty(i, j, k, qty_index) + qty(i, j, k+1, qty_index))
+                              -(1.0/12.0)*(qty(i, j, k-1, qty_index) + qty(i, j, k+2, qty_index));
             break;
           default:
             amrex::Abort("Error: Advection direction is unrecognized");
         }
         break;
-      case 6: // In order to make this work 'cons_in' must have indices m+3 and m-2 where m = {i, j, k}
+      case 6: // In order to make this work 'qty' must have indices m+3 and m-2 where m = {i, j, k}
         switch (coordDir) {
-          // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
+          // q = qty(i, j, k, qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
           case Coord::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
-            interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i+1, j, k, cons_qty_index))
-                              -(2.0/15.0)*(cons_in(i-1, j, k, cons_qty_index) + cons_in(i+2, j, k, cons_qty_index))
-                              +(1.0/60.0)*(cons_in(i-2, j, k, cons_qty_index) + cons_in(i+3, j, k, cons_qty_index));
+            interpolatedVal = (37.0/60.0)*(qty(i, j, k, qty_index) + qty(i+1, j, k, qty_index))
+                              -(2.0/15.0)*(qty(i-1, j, k, qty_index) + qty(i+2, j, k, qty_index))
+                              +(1.0/60.0)*(qty(i-2, j, k, qty_index) + qty(i+3, j, k, qty_index));
             break;
           case Coord::y: // m = j, q(m+1/2) = q(i    , j+1/2, k    )
-            interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j+1, k, cons_qty_index))
-                              -(2.0/15.0)*(cons_in(i, j-1, k, cons_qty_index) + cons_in(i, j+2, k, cons_qty_index))
-                              +(1.0/60.0)*(cons_in(i, j-2, k, cons_qty_index) + cons_in(i, j+3, k, cons_qty_index));
+            interpolatedVal = (37.0/60.0)*(qty(i, j, k, qty_index) + qty(i, j+1, k, qty_index))
+                              -(2.0/15.0)*(qty(i, j-1, k, qty_index) + qty(i, j+2, k, qty_index))
+                              +(1.0/60.0)*(qty(i, j-2, k, qty_index) + qty(i, j+3, k, qty_index));
             break;
           case Coord::z: // m = k, q(m+1/2) = q(i    , j    , k+1/2)
-            interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k+1, cons_qty_index))
-                              -(2.0/15.0)*(cons_in(i, j, k-1, cons_qty_index) + cons_in(i, j, k+2, cons_qty_index))
-                              +(1.0/60.0)*(cons_in(i, j, k-2, cons_qty_index) + cons_in(i, j, k+3, cons_qty_index));
+            interpolatedVal = (37.0/60.0)*(qty(i, j, k, qty_index) + qty(i, j, k+1, qty_index))
+                              -(2.0/15.0)*(qty(i, j, k-1, qty_index) + qty(i, j, k+2, qty_index))
+                              +(1.0/60.0)*(qty(i, j, k-2, qty_index) + qty(i, j, k+3, qty_index));
             break;
           default:
             amrex::Abort("Error: Advection direction is unrecognized");
