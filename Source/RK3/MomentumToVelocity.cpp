@@ -35,22 +35,19 @@ void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             //velx(i,j,k) = 2.*momx(i,j,k)/(cons(i,j,k,Density_comp) + cons(i-1,j,k,Density_comp));
             velx(i,j,k) = momx(i,j,k)/InterpolateDensityFromCellToFace(
-                                        i, j, k, cons, NextOrPrev::prev,
-                                        AdvectionDir::x,
+                                        i, j, k, cons, NextOrPrev::prev, Coord::x,
                                         solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             //vely(i,j,k) = 2.*momy(i,j,k)/(cons(i,j,k,Density_comp) + cons(i,j-1,k,Density_comp));
             vely(i,j,k) = momy(i,j,k)/InterpolateDensityFromCellToFace(
-                                        i, j, k, cons, NextOrPrev::prev,
-                                        AdvectionDir::y,
+                                        i, j, k, cons, NextOrPrev::prev, Coord::y,
                                         solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             //velz(i,j,k) = 2.*momz(i,j,k)/(cons(i,j,k,Density_comp) + cons(i,j,k-1,Density_comp));
             velz(i,j,k) = momz(i,j,k)/InterpolateDensityFromCellToFace(
-                                        i, j, k, cons, NextOrPrev::prev,
-                                        AdvectionDir::z,
+                                        i, j, k, cons, NextOrPrev::prev, Coord::z,
                                         solverChoice.spatial_order);
         });
     } // end MFIter

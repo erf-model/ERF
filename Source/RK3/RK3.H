@@ -78,25 +78,25 @@ void CalcDiffFlux(const MultiFab& cons_in,
 Real InterpolateFromCellToFace(const int &i, const int &j, const int &k,
                            const Array4<Real>& cons_in, const int &cons_qty_index,
                            const enum NextOrPrev &nextOrPrev,
-                           const enum AdvectionDir & advectionDir,
+                           const enum Coord& coordDir,
                            const int &spatial_order);
 
 Real InterpolateDensityFromCellToFace(const int &i, const int &j, const int &k,
                                const Array4<Real>& cons_in,
                                const enum NextOrPrev &nextOrPrev,
-                               const enum AdvectionDir & advectionDir,
+                               const enum Coord& coordDir,
                                const int &spatial_order);
 
 Real InterpolateRhoThetaFromCellToFace(const int &i, const int &j, const int &k,
                                       const Array4<Real>& cons_in,
                                       const enum NextOrPrev &nextOrPrev,
-                                      const enum AdvectionDir & advectionDir,
+                                      const enum Coord& coordDir,
                                       const int &spatial_order);
 
 Real InterpolateScalarFromCellToFace(const int &i, const int &j, const int &k,
                                       const Array4<Real>& cons_in,
                                       const enum NextOrPrev &nextOrPrev,
-                                      const enum AdvectionDir & advectionDir,
+                                      const enum Coord& coordDir,
                                       const int &spatial_order);
 
 // Meant for {x, y, z}- momentum equations

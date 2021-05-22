@@ -41,11 +41,11 @@ InterpolateDensityFromCellToFace(
   const int& k,
   const Array4<Real>& cons_in,
   const NextOrPrev& nextOrPrev,
-  const AdvectionDir& advectionDir,
+  const Coord& coordDir,
   const int& spatial_order)
 {
   return InterpolateFromCellToFace(i, j, k, cons_in, Density_comp,
-                                     nextOrPrev, advectionDir, spatial_order);
+                                     nextOrPrev, coordDir, spatial_order);
 }
 
 Real
@@ -55,11 +55,11 @@ InterpolateRhoThetaFromCellToFace(
   const int& k,
   const Array4<Real>& cons_in,
   const NextOrPrev& nextOrPrev,
-  const AdvectionDir& advectionDir,
+  const Coord& coordDir,
   const int& spatial_order)
 {
   return InterpolateFromCellToFace(i, j, k, cons_in, RhoTheta_comp,
-                                   nextOrPrev, advectionDir, spatial_order);
+                                   nextOrPrev, coordDir, spatial_order);
 }
 Real
 InterpolateScalarFromCellToFace(
@@ -68,11 +68,11 @@ InterpolateScalarFromCellToFace(
   const int& k,
   const Array4<Real>& cons_in,
   const NextOrPrev& nextOrPrev,
-  const AdvectionDir& advectionDir,
+  const Coord& coordDir,
   const int& spatial_order)
 {
   return InterpolateFromCellToFace(i, j, k, cons_in, Scalar_comp,
-                                   nextOrPrev, advectionDir, spatial_order);
+                                   nextOrPrev, coordDir, spatial_order);
 }
 
 Real
@@ -82,7 +82,7 @@ InterpolateFromCellToFace(
   const Array4<Real>& cons_in,
   const int& cons_qty_index,
   const NextOrPrev& nextOrPrev,
-  const AdvectionDir& advectionDir,
+  const Coord& coordDir,
   const int& spatial_order)
 {
   /*
@@ -107,15 +107,15 @@ InterpolateFromCellToFace(
     */
     switch (spatial_order) {
       case 2:
-        switch (advectionDir) {
+        switch (coordDir) {
           // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
-          case AdvectionDir::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
+          case Coord::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
             interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i-1, j, k, cons_qty_index));
             break;
-          case AdvectionDir::y: // m = j, q(m-1/2) = q(i    , j-1/2, k    )
+          case Coord::y: // m = j, q(m-1/2) = q(i    , j-1/2, k    )
             interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j-1, k, cons_qty_index));
             break;
-          case AdvectionDir::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
+          case Coord::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
             interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k-1, cons_qty_index));
             break;
           default:
@@ -123,17 +123,17 @@ InterpolateFromCellToFace(
         }
         break;
       case 4:
-        switch (advectionDir) {
+        switch (coordDir) {
           // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
-          case AdvectionDir::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
+          case Coord::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
             interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i-1, j, k, cons_qty_index))
                              -(1.0/12.0)*(cons_in(i+1, j, k, cons_qty_index) + cons_in(i-2, j, k, cons_qty_index));
             break;
-          case AdvectionDir::y: // m = j, q(m-1/2) = q(i    , j-1/2, k    )
+          case Coord::y: // m = j, q(m-1/2) = q(i    , j-1/2, k    )
             interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j-1, k, cons_qty_index))
                              -(1.0/12.0)*(cons_in(i, j+1, k, cons_qty_index) + cons_in(i, j-2, k, cons_qty_index));
             break;
-          case AdvectionDir::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
+          case Coord::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
             interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k-1, cons_qty_index))
                              -(1.0/12.0)*(cons_in(i, j, k+1, cons_qty_index) + cons_in(i, j, k-2, cons_qty_index));
             break;
@@ -142,19 +142,19 @@ InterpolateFromCellToFace(
         }
         break;
       case 6: // In order to make this work 'cons_in' must have indices m-3 and m+2 where m = {i, j, k}
-        switch (advectionDir) {
+        switch (coordDir) {
           // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
-          case AdvectionDir::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
+          case Coord::x: // m = i, q(m-1/2) = q(i-1/2, j    , k    )
             interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i-1, j, k, cons_qty_index))
                               -(2.0/15.0)*(cons_in(i+1, j, k, cons_qty_index) + cons_in(i-2, j, k, cons_qty_index))
                               +(1.0/60.0)*(cons_in(i+2, j, k, cons_qty_index) + cons_in(i-3, j, k, cons_qty_index));
             break;
-          case AdvectionDir::y: // m = j, q(m-1/2) = q(i    , j-1/2, k    )
+          case Coord::y: // m = j, q(m-1/2) = q(i    , j-1/2, k    )
             interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j-1, k, cons_qty_index))
                               -(2.0/15.0)*(cons_in(i, j+1, k, cons_qty_index) + cons_in(i, j-2, k, cons_qty_index))
                               +(1.0/60.0)*(cons_in(i, j+2, k, cons_qty_index) + cons_in(i, j-3, k, cons_qty_index));
             break;
-          case AdvectionDir::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
+          case Coord::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
             interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k-1, cons_qty_index))
                               -(2.0/15.0)*(cons_in(i, j, k+1, cons_qty_index) + cons_in(i, j, k-2, cons_qty_index))
                               +(1.0/60.0)*(cons_in(i, j, k+2, cons_qty_index) + cons_in(i, j, k-3, cons_qty_index));
@@ -177,15 +177,15 @@ InterpolateFromCellToFace(
     */
     switch (spatial_order) {
       case 2:
-        switch (advectionDir) {
+        switch (coordDir) {
           // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
-          case AdvectionDir::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
+          case Coord::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
             interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i+1, j, k, cons_qty_index));
             break;
-          case AdvectionDir::y: // m = j, q(m+1/2) = q(i    , j+1/2, k    )
+          case Coord::y: // m = j, q(m+1/2) = q(i    , j+1/2, k    )
             interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j+1, k, cons_qty_index));
             break;
-          case AdvectionDir::z: // m = k, q(m+1/2) = q(i    , j    , k+1/2)
+          case Coord::z: // m = k, q(m+1/2) = q(i    , j    , k+1/2)
             interpolatedVal = 0.5*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k+1, cons_qty_index));
             break;
           default:
@@ -193,17 +193,17 @@ InterpolateFromCellToFace(
         }
         break;
       case 4:
-        switch (advectionDir) {
+        switch (coordDir) {
           // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
-          case AdvectionDir::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
+          case Coord::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
             interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i+1, j, k, cons_qty_index))
                               -(1.0/12.0)*(cons_in(i-1, j, k, cons_qty_index) + cons_in(i+2, j, k, cons_qty_index));
             break;
-          case AdvectionDir::y: // m = j, q(m+1/2) = q(i    , j+1/2, k    )
+          case Coord::y: // m = j, q(m+1/2) = q(i    , j+1/2, k    )
             interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j+1, k, cons_qty_index))
                               -(1.0/12.0)*(cons_in(i, j-1, k, cons_qty_index) + cons_in(i, j+2, k, cons_qty_index));
             break;
-          case AdvectionDir::z: // m = k, q(m+1/2) = q(i    , j    , k+1/2)
+          case Coord::z: // m = k, q(m+1/2) = q(i    , j    , k+1/2)
             interpolatedVal = (7.0/12.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k+1, cons_qty_index))
                               -(1.0/12.0)*(cons_in(i, j, k-1, cons_qty_index) + cons_in(i, j, k+2, cons_qty_index));
             break;
@@ -212,19 +212,19 @@ InterpolateFromCellToFace(
         }
         break;
       case 6: // In order to make this work 'cons_in' must have indices m+3 and m-2 where m = {i, j, k}
-        switch (advectionDir) {
+        switch (coordDir) {
           // q = cons_in(i, j, k, cons_qty_index) = {rho, theta, rhoTheta, scalar, pressure, ...}
-          case AdvectionDir::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
+          case Coord::x: // m = i, q(m+1/2) = q(i+1/2, j    , k    )
             interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i+1, j, k, cons_qty_index))
                               -(2.0/15.0)*(cons_in(i-1, j, k, cons_qty_index) + cons_in(i+2, j, k, cons_qty_index))
                               +(1.0/60.0)*(cons_in(i-2, j, k, cons_qty_index) + cons_in(i+3, j, k, cons_qty_index));
             break;
-          case AdvectionDir::y: // m = j, q(m+1/2) = q(i    , j+1/2, k    )
+          case Coord::y: // m = j, q(m+1/2) = q(i    , j+1/2, k    )
             interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j+1, k, cons_qty_index))
                               -(2.0/15.0)*(cons_in(i, j-1, k, cons_qty_index) + cons_in(i, j+2, k, cons_qty_index))
                               +(1.0/60.0)*(cons_in(i, j-2, k, cons_qty_index) + cons_in(i, j+3, k, cons_qty_index));
             break;
-          case AdvectionDir::z: // m = k, q(m+1/2) = q(i    , j    , k+1/2)
+          case Coord::z: // m = k, q(m+1/2) = q(i    , j    , k+1/2)
             interpolatedVal = (37.0/60.0)*(cons_in(i, j, k, cons_qty_index) + cons_in(i, j, k+1, cons_qty_index))
                               -(2.0/15.0)*(cons_in(i, j, k-1, cons_qty_index) + cons_in(i, j, k+2, cons_qty_index))
                               +(1.0/60.0)*(cons_in(i, j, k-2, cons_qty_index) + cons_in(i, j, k+3, cons_qty_index));
@@ -429,20 +429,20 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
         case AdvectingQuantity::rho_u:
           // Get theta (i+1/2,    j, k    ) = theta on face (i+1, j  , k  ) for x-dir if nextOrPrev = NextOrPrev::next
           // Get theta (i-1/2,    j, k    ) = theta on face (i,   j  , k  ) for x-dir if nextOrPrev = NextOrPrev::prev
-          advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, AdvectionDir::x, spatial_order);
-          advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, AdvectionDir::x, spatial_order);
+          advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
+          advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
           break;
         case AdvectingQuantity::rho_v:
           // Get theta (i   , j+1/2, k    ) = theta on face (i  , j+1, k  ) for y-dir if nextOrPrev = NextOrPrev::next
           // Get theta (i   , j-1/2, k    ) = theta on face (i  , j  , k  ) for y-dir if nextOrPrev = NextOrPrev::prev
-          advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, AdvectionDir::y, spatial_order);
-          advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, AdvectionDir::y, spatial_order);
+          advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
+          advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
           break;
         case AdvectingQuantity::rho_w:
           // Get theta (i   , j    , k+1/2) = theta on face (i  , j  , k+1) for z-dir if nextOrPrev = NextOrPrev::next
           // Get theta (i   , j    , k-1/2) = theta on face (i  , j  , k  ) for z-dir if nextOrPrev = NextOrPrev::prev
-          advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, AdvectionDir::z, spatial_order);
-          advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, AdvectionDir::z, spatial_order);
+          advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
+          advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
           break;
         default:
           amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -453,17 +453,17 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
         case AdvectingQuantity::rho_u:
           // Get scalar (i+1/2,    j, k    ) = scalar on face (i+1, j  , k  ) for x-dir if nextOrPrev = NextOrPrev::next
           // Get scalar (i-1/2,    j, k    ) = scalar on face (i,   j  , k  ) for x-dir if nextOrPrev = NextOrPrev::prev
-          advectedQty = InterpolateScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, AdvectionDir::x, spatial_order);
+          advectedQty = InterpolateScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
           break;
         case AdvectingQuantity::rho_v:
           // Get scalar (i   , j+1/2, k    ) = scalar on face (i  , j+1, k  ) for y-dir if nextOrPrev = NextOrPrev::next
           // Get scalar (i   , j-1/2, k    ) = scalar on face (i  , j  , k  ) for y-dir if nextOrPrev = NextOrPrev::prev
-          advectedQty = InterpolateScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, AdvectionDir::y, spatial_order);
+          advectedQty = InterpolateScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
           break;
         case AdvectingQuantity::rho_w:
           // Get scalar (i   , j    , k+1/2) = scalar on face (i  , j  , k+1) for z-dir if nextOrPrev = NextOrPrev::next
           // Get scalar (i   , j    , k-1/2) = scalar on face (i  , j  , k  ) for z-dir if nextOrPrev = NextOrPrev::prev
-          advectedQty = InterpolateScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, AdvectionDir::z, spatial_order);
+          advectedQty = InterpolateScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
           break;
         default:
           amrex::Abort("Error: Advecting quantity is unrecognized");
