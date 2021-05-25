@@ -118,7 +118,7 @@ Real ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                              const int &spatial_order);
 
 // Compute Sij
-Real ComputeViscousStress(const int &i, const int &j, const int &k,
+Real ComputeStrainRate(const int &i, const int &j, const int &k,
                         const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                         const enum NextOrPrev &nextOrPrev,
                         const enum MomentumEqn &momentumEqn,
@@ -143,14 +143,25 @@ Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const enum DiffusionDir &diffDir,
                             const Geometry &geom,
                             const Array4<Real>& nut);
-// Compute tau_ij
-Real ComputeSubfilterStress(const int &i, const int &j, const int &k,
+// Compute tau_ij fir DNS
+Real ComputeViscousStress(const int &i, const int &j, const int &k,
                                const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                                const enum NextOrPrev &nextOrPrev,
                                const enum MomentumEqn &momentumEqn,
                                const enum DiffusionDir &diffDir,
                                const Geometry &geom,
-                               const Array4<Real>& nut);
+                               const Real &molViscosity,
+                               const Real &strainRate);
+
+// Compute tau_ij for Smagorinsky
+Real ComputeSubfilterStress(const int &i, const int &j, const int &k,
+                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                            const enum NextOrPrev &nextOrPrev,
+                            const enum MomentumEqn &momentumEqn,
+                            const enum DiffusionDir &diffDir,
+                            const Geometry &geom,
+                            const Array4<Real>& nut,
+                            const Real &strainRate);
 
 // Compute Sij or tau_ij
 Real ComputeStressTerm (const int &i, const int &j, const int &k,
@@ -160,7 +171,8 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const enum DiffusionDir &diffDir,
                         const Geometry &geom,
                         const Array4<Real>& nut,
-                        const SolverChoice &solverChoice);
+                        const SolverChoice &solverChoice,
+                        const Real &molViscosity);
 
 int ComputeGhostCells(const int &spatial_order);
 

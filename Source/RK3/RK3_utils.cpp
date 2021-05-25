@@ -479,7 +479,7 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
 }
 
 Real
-ComputeViscousStress(const int &i, const int &j, const int &k,
+ComputeStrainRate(const int &i, const int &j, const int &k,
                    const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                    const enum NextOrPrev &nextOrPrev,
                    const enum MomentumEqn &momentumEqn,
@@ -595,19 +595,19 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   switch (momentumEqn) {
     case MomentumEqn::x:
       switch (diffDir) {
-        case DiffusionDir::x: // tau11
+        case DiffusionDir::x:
           if (nextOrPrev == NextOrPrev::next)
             turbViscInterpolated = nut(i, j, k); // K (i, j, k) needed to obtain tau11 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
             turbViscInterpolated = nut(i-1, j, k); // K (i-1, j, k) needed to obtain tau11 (i-1/2)
           break;
-        case DiffusionDir::y: // tau12
+        case DiffusionDir::y:
           if (nextOrPrev == NextOrPrev::next)
             turbViscInterpolated = nut(i, j, k); // K (i-1/2, j+1/2, k) needed to obtain tau12 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
             turbViscInterpolated = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau12 (j-1/2)
           break;
-        case DiffusionDir::z: // tau13
+        case DiffusionDir::z:
           if (nextOrPrev == NextOrPrev::next)
             turbViscInterpolated = nut(i, j, k); // K (i-1/2, j, k+1/2) needed to obtain tau13 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
@@ -619,19 +619,19 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
       break;
     case MomentumEqn::y:
       switch (diffDir) {
-        case DiffusionDir::x: // tau21
+        case DiffusionDir::x:
           if (nextOrPrev == NextOrPrev::next)
             turbViscInterpolated = nut(i, j, k); // K (i+1/2, j-1/2, k) needed to obtain tau21 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
             turbViscInterpolated = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau21 (i-1/2)
           break;
-        case DiffusionDir::y: // tau22
+        case DiffusionDir::y:
           if (nextOrPrev == NextOrPrev::next)
             turbViscInterpolated = nut(i, j, k); // K (i, j, k) needed to obtain tau22 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
             turbViscInterpolated = nut(i, j-1, k); // K (i, j-1, k) needed to obtain tau22 (j-1/2)
           break;
-        case DiffusionDir::z: // tau23
+        case DiffusionDir::z:
           if (nextOrPrev == NextOrPrev::next)
             turbViscInterpolated = nut(i, j, k); // K (i, j-1/2, k+1/2) needed to obtain tau23 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
@@ -643,19 +643,19 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
       break;
     case MomentumEqn::z:
       switch (diffDir) {
-        case DiffusionDir::x: // tau31
+        case DiffusionDir::x:
           if (nextOrPrev == NextOrPrev::next)
             turbViscInterpolated = nut(i, j, k); // K (i+1/2, j, k-1/2) needed to obtain tau31 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
             turbViscInterpolated = nut(i, j, k); // K (i-1/2, j, k-1/2) needed to obtain tau31 (i-1/2)
           break;
-        case DiffusionDir::y: // tau32
+        case DiffusionDir::y:
           if (nextOrPrev == NextOrPrev::next)
             turbViscInterpolated = nut(i, j, k); // K (i, j+1/2, k-1/2) needed to obtain tau32 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
             turbViscInterpolated = nut(i, j, k); // K (i, j-1/2, k-1/2) needed to obtain tau32 (j-1/2)
           break;
-        case DiffusionDir::z: // tau33
+        case DiffusionDir::z:
           if (nextOrPrev == NextOrPrev::next)
             turbViscInterpolated = nut(i, j, k); // K (i, j, k) needed to obtain tau33 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
@@ -672,7 +672,20 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   return turbViscInterpolated;
 }
 
-// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) for m = {i, j, k}
+// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) for m = {i, j, k} for DNS
+Real ComputeViscousStress(const int &i, const int &j, const int &k,
+                          const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                          const enum NextOrPrev &nextOrPrev,
+                          const enum MomentumEqn &momentumEqn,
+                          const enum DiffusionDir &diffDir,
+                          const Geometry &geom,
+                          const Real &molViscosity,
+                          const Real &strainRate) {
+  Real viscousStress = 2.0*molViscosity * strainRate;
+  return viscousStress;
+}
+
+// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) for m = {i, j, k} for Smagorinsky
 Real
 ComputeSubfilterStress(const int &i, const int &j, const int &k,
                        const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
@@ -680,19 +693,14 @@ ComputeSubfilterStress(const int &i, const int &j, const int &k,
                        const enum MomentumEqn &momentumEqn,
                        const enum DiffusionDir &diffDir,
                        const Geometry &geom,
-                       const Array4<Real>& nut) {
-
-  Real subfilterStress = 0.0;
-
-  auto viscousStress = ComputeViscousStress(i, j , k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom);
+                       const Array4<Real>& nut,
+                       const Real &strainRate) {
   auto turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom, nut);
-
-  subfilterStress = turbViscInterpolated * viscousStress;
-
+  Real subfilterStress = turbViscInterpolated * strainRate;
   return subfilterStress;
 }
 
-
+// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) for m = {i, j, k} for DNS Smagorinsky
 Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                         const enum NextOrPrev &nextOrPrev,
@@ -700,8 +708,14 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const enum DiffusionDir &diffDir,
                         const Geometry &geom,
                         const Array4<Real>& nut,
-                        const SolverChoice &solverChoice) {
+                        const SolverChoice &solverChoice,
+                        const Real &molViscosity) {
   Real stressTerm = 0.0;
+  Real turbViscInterpolated = 0.0;
+
+  // Here, we have computed strain rate on the fly.
+  // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
+  Real strainRate = ComputeStrainRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom);
 
   // TODO: Consider passing turbModel to this function instead of computing it here from SolverChoice
   enum TurbulenceModel turbModel;
@@ -714,10 +728,11 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
 
   switch (turbModel) {
     case TurbulenceModel::DNS:
-      stressTerm = ComputeViscousStress(i, j , k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom);
+      stressTerm = 2.0*molViscosity * strainRate; // 2*nu*Sij(m+1/2) or 2*nu*Sij(m-1/2)
       break;
     case TurbulenceModel::Smagorinsky:
-      stressTerm = ComputeSubfilterStress(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom, nut);
+      turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom, nut);
+      stressTerm = turbViscInterpolated * strainRate; // // K_interp*Sij(m+1/2) or K_interp*Sij(m-1/2)
       break;
     default:
       amrex::Abort("Error: Turbulence model is unrecognized");
