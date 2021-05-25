@@ -490,30 +490,30 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
   Real dy = geom.CellSize()[1];
   Real dz = geom.CellSize()[2];
 
-  Real viscousStress = 0;
+  Real strainRate = 0;
 
   switch (momentumEqn) {
     case MomentumEqn::x:
       switch (diffDir) {
         case DiffusionDir::x: // S11
           if (nextOrPrev == NextOrPrev::next)
-            viscousStress = (u(i+1, j, k) - u(i, j, k))/dx; // S11 (i+1/2)
+            strainRate = (u(i+1, j, k) - u(i, j, k))/dx; // S11 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            viscousStress = (u(i, j, k) - u(i-1, j, k))/dx; // S11 (i-1/2)
+            strainRate = (u(i, j, k) - u(i-1, j, k))/dx; // S11 (i-1/2)
           break;
         case DiffusionDir::y: // S12
           if (nextOrPrev == NextOrPrev::next)
-            viscousStress = (u(i, j+1, k) - u(i, j, k))/dy + (v(i, j+1, k) - v(i-1, j+1, k))/dx; // S12 (j+1/2)
+            strainRate = (u(i, j+1, k) - u(i, j, k))/dy + (v(i, j+1, k) - v(i-1, j+1, k))/dx; // S12 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            viscousStress = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S12 (j-1/2)
-          viscousStress *= 0.5;
+            strainRate = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S12 (j-1/2)
+          strainRate *= 0.5;
           break;
         case DiffusionDir::z: // S13
           if (nextOrPrev == NextOrPrev::next)
-            viscousStress = (u(i, j, k+1) - u(i, j, k))/dz + (w(i, j, k+1) - w(i-1, j, k+1))/dx; // S13 (k+1/2)
+            strainRate = (u(i, j, k+1) - u(i, j, k))/dz + (w(i, j, k+1) - w(i-1, j, k+1))/dx; // S13 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            viscousStress = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S13 (k-1/2)
-          viscousStress *= 0.5;
+            strainRate = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S13 (k-1/2)
+          strainRate *= 0.5;
           break;
         default:
           amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -523,23 +523,23 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       switch (diffDir) {
         case DiffusionDir::x: // S21
           if (nextOrPrev == NextOrPrev::next)
-            viscousStress = (u(i+1, j, k) - u(i+1, j-1, k))/dy + (v(i+1, j, k) - v(i, j, k))/dx; // S21 (i+1/2)
+            strainRate = (u(i+1, j, k) - u(i+1, j-1, k))/dy + (v(i+1, j, k) - v(i, j, k))/dx; // S21 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            viscousStress = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S21 (i-1/2)
-          viscousStress *= 0.5;
+            strainRate = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S21 (i-1/2)
+          strainRate *= 0.5;
           break;
         case DiffusionDir::y: // S22
           if (nextOrPrev == NextOrPrev::next)
-            viscousStress = (v(i, j+1, k) - v(i, j, k))/dy; // S22 (j+1/2)
+            strainRate = (v(i, j+1, k) - v(i, j, k))/dy; // S22 (j+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            viscousStress = (v(i, j, k) - v(i, j-1, k))/dy; // S22 (j-1/2)
+            strainRate = (v(i, j, k) - v(i, j-1, k))/dy; // S22 (j-1/2)
           break;
         case DiffusionDir::z: // S23
           if (nextOrPrev == NextOrPrev::next)
-            viscousStress = (v(i, j, k+1) - v(i, j, k))/dz + (w(i, j, k+1) - w(i, j-1, k+1))/dy; // S23 (k+1/2) //TODO: Check this with Branko
+            strainRate = (v(i, j, k+1) - v(i, j, k))/dz + (w(i, j, k+1) - w(i, j-1, k+1))/dy; // S23 (k+1/2) //TODO: Check this with Branko
           else // nextOrPrev == NextOrPrev::prev
-            viscousStress = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S23 (k-1/2) //TODO: Check this with Branko
-          viscousStress *= 0.5;
+            strainRate = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S23 (k-1/2) //TODO: Check this with Branko
+          strainRate *= 0.5;
           break;
         default:
           amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -549,23 +549,23 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       switch (diffDir) {
         case DiffusionDir::x: // S31
           if (nextOrPrev == NextOrPrev::next)
-            viscousStress = (u(i+1, j, k) - u(i+1, j, k-1))/dz + (w(i+1, j, k) - w(i, j, k))/dx; // S31 (i+1/2)
+            strainRate = (u(i+1, j, k) - u(i+1, j, k-1))/dz + (w(i+1, j, k) - w(i, j, k))/dx; // S31 (i+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            viscousStress = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S31 (i-1/2)
-          viscousStress *= 0.5;
+            strainRate = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S31 (i-1/2)
+          strainRate *= 0.5;
           break;
         case DiffusionDir::y: // S32
           if (nextOrPrev == NextOrPrev::next)
-            viscousStress = (v(i, j+1, k) - v(i, j+1, k-1))/dz + (w(i, j+1, k) - w(i, j, k))/dy; // S32 (j+1/2) //TODO: Check this with Branko
+            strainRate = (v(i, j+1, k) - v(i, j+1, k-1))/dz + (w(i, j+1, k) - w(i, j, k))/dy; // S32 (j+1/2) //TODO: Check this with Branko
           else // nextOrPrev == NextOrPrev::prev
-            viscousStress = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S32 (j-1/2) //TODO: Check this with Branko
-          viscousStress *= 0.5;
+            strainRate = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S32 (j-1/2) //TODO: Check this with Branko
+          strainRate *= 0.5;
           break;
         case DiffusionDir::z: // S33
           if (nextOrPrev == NextOrPrev::next)
-            viscousStress = (w(i, j, k+1) - w(i, j, k))/dz; // S33 (k+1/2)
+            strainRate = (w(i, j, k+1) - w(i, j, k))/dz; // S33 (k+1/2)
           else // nextOrPrev == NextOrPrev::prev
-            viscousStress = (w(i, j, k) - w(i, j, k-1))/dz; // S33 (k-1/2)
+            strainRate = (w(i, j, k) - w(i, j, k-1))/dz; // S33 (k-1/2)
           break;
         default:
           amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -575,7 +575,7 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       amrex::Abort("Error: Momentum equation is unrecognized");
   }
 
-  return viscousStress;
+  return strainRate;
 }
 
 
@@ -672,35 +672,7 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   return turbViscInterpolated;
 }
 
-// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) for m = {i, j, k} for DNS
-Real ComputeViscousStress(const int &i, const int &j, const int &k,
-                          const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                          const enum NextOrPrev &nextOrPrev,
-                          const enum MomentumEqn &momentumEqn,
-                          const enum DiffusionDir &diffDir,
-                          const Geometry &geom,
-                          const Real &molViscosity,
-                          const Real &strainRate) {
-  Real viscousStress = 2.0*molViscosity * strainRate;
-  return viscousStress;
-}
-
-// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) for m = {i, j, k} for Smagorinsky
-Real
-ComputeSubfilterStress(const int &i, const int &j, const int &k,
-                       const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                       const enum NextOrPrev &nextOrPrev,
-                       const enum MomentumEqn &momentumEqn,
-                       const enum DiffusionDir &diffDir,
-                       const Geometry &geom,
-                       const Array4<Real>& nut,
-                       const Real &strainRate) {
-  auto turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom, nut);
-  Real subfilterStress = turbViscInterpolated * strainRate;
-  return subfilterStress;
-}
-
-// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) for m = {i, j, k} for DNS Smagorinsky
+// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
 Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                         const enum NextOrPrev &nextOrPrev,

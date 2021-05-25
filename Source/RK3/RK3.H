@@ -143,27 +143,8 @@ Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const enum DiffusionDir &diffDir,
                             const Geometry &geom,
                             const Array4<Real>& nut);
-// Compute tau_ij fir DNS
-Real ComputeViscousStress(const int &i, const int &j, const int &k,
-                               const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                               const enum NextOrPrev &nextOrPrev,
-                               const enum MomentumEqn &momentumEqn,
-                               const enum DiffusionDir &diffDir,
-                               const Geometry &geom,
-                               const Real &molViscosity,
-                               const Real &strainRate);
 
-// Compute tau_ij for Smagorinsky
-Real ComputeSubfilterStress(const int &i, const int &j, const int &k,
-                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                            const enum NextOrPrev &nextOrPrev,
-                            const enum MomentumEqn &momentumEqn,
-                            const enum DiffusionDir &diffDir,
-                            const Geometry &geom,
-                            const Array4<Real>& nut,
-                            const Real &strainRate);
-
-// Compute Sij or tau_ij
+// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
 Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                         const enum NextOrPrev &nextOrPrev,
