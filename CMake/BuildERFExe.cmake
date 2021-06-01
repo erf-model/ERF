@@ -57,6 +57,10 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/RK3/RK3_driver.cpp
        ${SRC_DIR}/RK3/RK3_stage.cpp
        ${SRC_DIR}/RK3/RK3_utils.cpp
+       ${SRC_DIR}/RK3/Interpolation.cpp
+       ${SRC_DIR}/RK3/Advection.cpp
+       ${SRC_DIR}/RK3/StrainRate.cpp
+       ${SRC_DIR}/RK3/EddyViscosity.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
