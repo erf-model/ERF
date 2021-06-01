@@ -1,4 +1,4 @@
-set(erf_exe_name erf_scalar_advect)
+set(erf_exe_name scalar_advec_unif_u)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
