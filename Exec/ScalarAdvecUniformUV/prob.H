@@ -26,8 +26,7 @@ erf_initdata(
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata)
-{ // Do we really need to pass x_vel, y_vel, and z_vel here?
-
+{
   // Geometry
   const amrex::Real* prob_lo = geomdata.ProbLo();
   const amrex::Real* prob_hi = geomdata.ProbHi();
@@ -35,10 +34,6 @@ erf_initdata(
   const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
   const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
   const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
-
-  //amrex::Print() << "x[i][j][k] = x[" << i << "][" << j << "][" << k << "] = " << x << std::endl;
-  //amrex::Print() << "y[i][j][k] = y[" << i << "][" << j << "][" << k << "] = " << y << std::endl;
-  //amrex::Print() << "z[i][j][k] = z[" << i << "][" << j << "][" << k << "] = " << z << std::endl;
 
   // Define a point (xc,yc,zc) at the center of the domain 
   const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
@@ -56,18 +51,11 @@ erf_initdata(
   // Initial potential temperature
   state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
 
-
-
   // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
   if (r < r0) 
      state(i, j, k, Scalar_comp) = ProbParm::A_0;
   else
      state(i, j, k, Scalar_comp) = 0.0;
-
-//  amrex::Print() << "r[i][j][k] = r[" << i << "][" << j << "][" << k << "] = " << r << std::endl;
-//  amrex::Print() << "state[i][j][k]:-> " << "Density: " << state(i,j,k, Density_comp)
-//                 << ", RhoTheta: " << state(i, j, k, RhoTheta_comp)
-//                 << ", Scalar: " << state(i,j,k, Scalar_comp)<< std::endl;
 }
 
 AMREX_GPU_DEVICE
@@ -79,10 +67,7 @@ erf_init_xvel(
   int k,
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::GeometryData const& geomdata)
-{ // geomdata is not used expicity in this function
-  // How does it understand the range of indices?
-  // Likewise with functions for y_vel and z_vel
-  
+{
   // Note that this is called on a box of x-faces
 
   // Set the x-velocity

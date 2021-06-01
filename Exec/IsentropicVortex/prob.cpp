@@ -1,7 +1,7 @@
 #include "prob.H"
 
 namespace ProbParm {
-AMREX_GPU_DEVICE_MANAGED amrex::Real p_inf = p_0; //freestream temperature [K]
+AMREX_GPU_DEVICE_MANAGED amrex::Real p_inf = p_0; //freestream pressure [Pa]
 AMREX_GPU_DEVICE_MANAGED amrex::Real T_inf = 300.0; //freestream temperature [K]
 AMREX_GPU_DEVICE_MANAGED amrex::Real M_inf = 0.2; //freestream Mach number [-]
 AMREX_GPU_DEVICE_MANAGED amrex::Real alpha = 0.0; //inflow angle, 0 --> x-aligned [rad] 
