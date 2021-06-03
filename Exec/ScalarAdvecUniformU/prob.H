@@ -84,7 +84,7 @@ erf_init_yvel(
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::GeometryData const& geomdata)
 {
-  // Note that this is called on a box of x-faces
+  // Note that this is called on a box of y-faces
 
   // Set the y-velocity
   y_vel(i, j, k) = 0.0;

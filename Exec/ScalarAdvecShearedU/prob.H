@@ -69,9 +69,15 @@ erf_init_xvel(
   amrex::GeometryData const& geomdata)
 {
   // Note that this is called on a box of x-faces
+  const amrex::Real* prob_lo = geomdata.ProbLo();
+  const amrex::Real* dx = geomdata.CellSize();
+  // i and j indices determining x and y coordinates won't have any effect in computing z
+  const amrex::Real z = prob_lo[2] + k * dx[2];
 
   // Set the x-velocity
-  x_vel(i, j, k) = 10.0;
+  x_vel(i, j, k) = ProbParm::uRef *
+                   std::log((z + ProbParm::z0)/ProbParm::z0)/
+                   std::log((ProbParm::zRef +ProbParm::z0)/ProbParm::z0);
 }
 
 AMREX_GPU_DEVICE
@@ -87,7 +93,7 @@ erf_init_yvel(
   // Note that this is called on a box of y-faces
 
   // Set the y-velocity
-  y_vel(i, j, k) = 5.0;
+  y_vel(i, j, k) = 0.0;
 }
 
 AMREX_GPU_DEVICE
