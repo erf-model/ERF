@@ -5,6 +5,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <ERF.H>
+#include "IndexDefines.H"
 
 using namespace amrex;
 
@@ -14,11 +15,13 @@ using namespace amrex;
 
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         MultiFab& cons_in,
-                        MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in);
+                        MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in,
+                        const SolverChoice& solverChoice);
 
 void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in,
                         MultiFab& cons_in,
-                        MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out);
+                        MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out,
+                        const SolverChoice& solverChoice);
 
 void RK3_advance(MultiFab& cons_old, MultiFab& cons_new, 
                  MultiFab& U_old, MultiFab& V_old, MultiFab& W_old, 
@@ -30,7 +33,8 @@ void RK3_advance(MultiFab& cons_old, MultiFab& cons_new,
                  std::array< MultiFab, 2 >& edgeflux_y,
                  std::array< MultiFab, 2 >& edgeflux_z,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
-                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt);
+                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 const SolverChoice& solverChoice);
 
 void RK3_stage  (MultiFab& cons_old, MultiFab& cons_new, 
                  MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old, 
@@ -43,7 +47,8 @@ void RK3_stage  (MultiFab& cons_old, MultiFab& cons_new,
                  std::array< MultiFab, 2 >& edgeflux_y,
                  std::array< MultiFab, 2 >& edgeflux_z,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
-                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt);
+                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 const SolverChoice& solverChoice);
 
 void CalcAdvFlux (const MultiFab& cons_in, 
                   const MultiFab& cons_x, const MultiFab& cons_y, const MultiFab& cons_z, 
@@ -54,7 +59,8 @@ void CalcAdvFlux (const MultiFab& cons_in,
                   std::array< MultiFab, 2 >& edgeflux_z_in,
                   std::array< MultiFab, AMREX_SPACEDIM>& cenflux_in,
                   const amrex::Geometry geom,
-                  const amrex::Real* dx, const amrex::Real dt);
+                  const amrex::Real* dx, const amrex::Real dt,
+                  const SolverChoice& solverChoice);
 
 void CalcDiffFlux(const MultiFab& cons_in, 
                   const MultiFab& cons_x, const MultiFab& cons_y, const MultiFab& cons_z, 
@@ -66,6 +72,99 @@ void CalcDiffFlux(const MultiFab& cons_in,
                   std::array< MultiFab, 2 >& edgeflux_z_in,
                   std::array< MultiFab, AMREX_SPACEDIM>& cenflux_in,
                   const amrex::Geometry geom,
-                  const amrex::Real* dx, const amrex::Real dt);
+                  const amrex::Real* dx, const amrex::Real dt,
+                  const SolverChoice& solverChoice);
+
+AMREX_GPU_DEVICE
+Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
+                           const Array4<Real>& qty, const int & qty_index,
+                           const enum NextOrPrev &nextOrPrev,
+                           const enum Coord& coordDir,
+                           const int &spatial_order);
+
+AMREX_GPU_DEVICE
+Real InterpolateDensityFromCellToFace(const int &i, const int &j, const int &k,
+                               const Array4<Real>& cons_in,
+                               const enum NextOrPrev &nextOrPrev,
+                               const enum Coord& coordDir,
+                               const int &spatial_order);
+
+AMREX_GPU_DEVICE
+Real InterpolateRhoThetaFromCellToFace(const int &i, const int &j, const int &k,
+                                      const Array4<Real>& cons_in,
+                                      const enum NextOrPrev &nextOrPrev,
+                                      const enum Coord& coordDir,
+                                      const int &spatial_order);
+
+AMREX_GPU_DEVICE
+Real InterpolateScalarFromCellToFace(const int &i, const int &j, const int &k,
+                                      const Array4<Real>& cons_in,
+                                      const enum NextOrPrev &nextOrPrev,
+                                      const enum Coord& coordDir,
+                                      const int &spatial_order);
+
+// Meant for {x, y, z}- momentum equations
+AMREX_GPU_DEVICE
+Real ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
+                             const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                             const enum NextOrPrev &nextOrPrev,
+                             const enum AdvectedQuantity &advectedQuantity,
+                             const enum AdvectingQuantity &advectingQuantity,
+                             const int &spatial_order);
+
+// Meant for the continuity, energy, and scalar equations
+AMREX_GPU_DEVICE
+Real ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
+                             const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                             const Array4<Real>& cons_in,
+                             const enum NextOrPrev &nextOrPrev,
+                             const enum AdvectedQuantity &advectedQuantity,
+                             const enum AdvectingQuantity &advectingQuantity,
+                             const int &spatial_order);
+
+// Compute Sij
+AMREX_GPU_DEVICE
+Real ComputeStrainRate(const int &i, const int &j, const int &k,
+                        const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                        const enum NextOrPrev &nextOrPrev,
+                        const enum MomentumEqn &momentumEqn,
+                        const enum DiffusionDir &diffDir,
+                        const Geometry &geom);
+
+// Compute turbVisc, i.e., 'nut' or Kij at cell centres. Initialize it to 1.0
+//TODO: Check if it is better to  fill all Kij and use it or compute on the fly
+AMREX_GPU_DEVICE
+Real ComputeTurbulentViscosity(const int &i, const int &j, const int &k,
+                           const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                           const enum NextOrPrev &nextOrPrev,
+                           const enum MomentumEqn &momentumEqn,
+                           const enum DiffusionDir &diffDir,
+                           const Geometry &geom,
+                           Array4<Real>& nut);
+
+// Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known
+AMREX_GPU_DEVICE
+Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
+                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                            const enum NextOrPrev &nextOrPrev,
+                            const enum MomentumEqn &momentumEqn,
+                            const enum DiffusionDir &diffDir,
+                            const Geometry &geom,
+                            const Array4<Real>& nut);
+
+// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
+AMREX_GPU_DEVICE
+Real ComputeStressTerm (const int &i, const int &j, const int &k,
+                        const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                        const enum NextOrPrev &nextOrPrev,
+                        const enum MomentumEqn &momentumEqn,
+                        const enum DiffusionDir &diffDir,
+                        const Geometry &geom,
+                        const Array4<Real>& nut,
+                        const SolverChoice &solverChoice,
+                        const Real &molViscosity);
+
+int ComputeGhostCells(const int &spatial_order);
 
 #endif

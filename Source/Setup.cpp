@@ -21,11 +21,11 @@ using namespace MASA;
 static int scalar_bc[] = {INT_DIR,      EXT_DIR,      FOEXTRAP, REFLECT_EVEN,
                           REFLECT_EVEN, REFLECT_EVEN, EXT_DIR};
 
-static int norm_vel_bc[] = {INT_DIR,     EXT_DIR,     FOEXTRAP, REFLECT_ODD,
-                            REFLECT_ODD, REFLECT_ODD, EXT_DIR};
+//static int norm_vel_bc[] = {INT_DIR,     EXT_DIR,     FOEXTRAP, REFLECT_ODD,
+//                            REFLECT_ODD, REFLECT_ODD, EXT_DIR};
 
-static int tang_vel_bc[] = {INT_DIR,      EXT_DIR,     FOEXTRAP, REFLECT_EVEN,
-                            REFLECT_EVEN, REFLECT_ODD, EXT_DIR};
+//static int tang_vel_bc[] = {INT_DIR,      EXT_DIR,     FOEXTRAP, REFLECT_EVEN,
+//                            REFLECT_EVEN, REFLECT_ODD, EXT_DIR};
 
 static void
 set_scalar_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
@@ -38,38 +38,38 @@ set_scalar_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
   }
 }
 
-static void
-set_x_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
-{
-  const int* lo_bc = phys_bc.lo();
-  const int* hi_bc = phys_bc.hi();
-  AMREX_D_TERM(
-    bc.setLo(0, norm_vel_bc[lo_bc[0]]); bc.setHi(0, norm_vel_bc[hi_bc[0]]);
-    , bc.setLo(1, tang_vel_bc[lo_bc[1]]); bc.setHi(1, tang_vel_bc[hi_bc[1]]);
-    , bc.setLo(2, tang_vel_bc[lo_bc[2]]); bc.setHi(2, tang_vel_bc[hi_bc[2]]););
-}
-
-static void
-set_y_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
-{
-  const int* lo_bc = phys_bc.lo();
-  const int* hi_bc = phys_bc.hi();
-  AMREX_D_TERM(
-    bc.setLo(0, tang_vel_bc[lo_bc[0]]); bc.setHi(0, tang_vel_bc[hi_bc[0]]);
-    , bc.setLo(1, norm_vel_bc[lo_bc[1]]); bc.setHi(1, norm_vel_bc[hi_bc[1]]);
-    , bc.setLo(2, tang_vel_bc[lo_bc[2]]); bc.setHi(2, tang_vel_bc[hi_bc[2]]););
-}
-
-static void
-set_z_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
-{
-  const int* lo_bc = phys_bc.lo();
-  const int* hi_bc = phys_bc.hi();
-  AMREX_D_TERM(
-    bc.setLo(0, tang_vel_bc[lo_bc[0]]); bc.setHi(0, tang_vel_bc[hi_bc[0]]);
-    , bc.setLo(1, tang_vel_bc[lo_bc[1]]); bc.setHi(1, tang_vel_bc[hi_bc[1]]);
-    , bc.setLo(2, norm_vel_bc[lo_bc[2]]); bc.setHi(2, norm_vel_bc[hi_bc[2]]););
-}
+//static void
+//set_x_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
+//{
+//  const int* lo_bc = phys_bc.lo();
+//  const int* hi_bc = phys_bc.hi();
+//  AMREX_D_TERM(
+//    bc.setLo(0, norm_vel_bc[lo_bc[0]]); bc.setHi(0, norm_vel_bc[hi_bc[0]]);
+//    , bc.setLo(1, tang_vel_bc[lo_bc[1]]); bc.setHi(1, tang_vel_bc[hi_bc[1]]);
+//    , bc.setLo(2, tang_vel_bc[lo_bc[2]]); bc.setHi(2, tang_vel_bc[hi_bc[2]]););
+//}
+//
+//static void
+//set_y_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
+//{
+//  const int* lo_bc = phys_bc.lo();
+//  const int* hi_bc = phys_bc.hi();
+//  AMREX_D_TERM(
+//    bc.setLo(0, tang_vel_bc[lo_bc[0]]); bc.setHi(0, tang_vel_bc[hi_bc[0]]);
+//    , bc.setLo(1, norm_vel_bc[lo_bc[1]]); bc.setHi(1, norm_vel_bc[hi_bc[1]]);
+//    , bc.setLo(2, tang_vel_bc[lo_bc[2]]); bc.setHi(2, tang_vel_bc[hi_bc[2]]););
+//}
+//
+//static void
+//set_z_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
+//{
+//  const int* lo_bc = phys_bc.lo();
+//  const int* hi_bc = phys_bc.hi();
+//  AMREX_D_TERM(
+//    bc.setLo(0, tang_vel_bc[lo_bc[0]]); bc.setHi(0, tang_vel_bc[hi_bc[0]]);
+//    , bc.setLo(1, tang_vel_bc[lo_bc[1]]); bc.setHi(1, tang_vel_bc[hi_bc[1]]);
+//    , bc.setLo(2, norm_vel_bc[lo_bc[2]]); bc.setHi(2, norm_vel_bc[hi_bc[2]]););
+//}
 
 void
 ERF::variableSetUp()
@@ -129,7 +129,7 @@ ERF::variableSetUp()
     FirstAdv = RhoTheta_comp+1;
   }
 
-  int dm = AMREX_SPACEDIM;
+//  int dm = AMREX_SPACEDIM;
 
   amrex::Vector<amrex::Real> center(AMREX_SPACEDIM, 0.0);
   amrex::ParmParse ppc("erf");

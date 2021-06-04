@@ -26,8 +26,7 @@ erf_initdata(
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata)
-{ // Do we really need to pass x_vel, y_vel, and z_vel here?
-
+{
   // Geometry
   const amrex::Real* prob_lo = geomdata.ProbLo();
   const amrex::Real* prob_hi = geomdata.ProbHi();
@@ -68,10 +67,7 @@ erf_init_xvel(
   int k,
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::GeometryData const& geomdata)
-{ // geomdata is not used expicity in this function
-  // How does it understand the range of indices?
-  // Likewise with functions for y_vel and z_vel
-  
+{
   // Note that this is called on a box of x-faces
 
   // Set the x-velocity

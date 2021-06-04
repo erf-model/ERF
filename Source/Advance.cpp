@@ -28,7 +28,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
     getFluxReg(level + 1).reset();
   }
 
-  Real dt_new = dt;
+//  Real dt_new = dt;
 
   BL_PROFILE("ERF::do_rk3_advance()");
 
@@ -56,6 +56,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   MultiFab& W_new = get_new_data(Z_Vel_Type);
 
   // Fill level 0 ghost cells (including at periodic boundaries)
+  //TODO: Check if we should consider the number of ghost cells as a function of spatial order here itself
   S_old.FillBoundary(geom.periodicity());
   U_old.FillBoundary(geom.periodicity());
   V_old.FillBoundary(geom.periodicity());
@@ -83,10 +84,14 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   MultiFab kappa(ba,dm,1,1); 
   kappa.setVal(0.0);
 
-  //fluxes (except momentum) at faces
+  // Fluxes (except momentum) at faces. This should comprise of advective as well as diffusive fluxes.
+  // There are separate variables to handle the momentum at the faces
   std::array< MultiFab, AMREX_SPACEDIM > faceflux;
+  //faceflux[0] is of size (ncells_x + 1, ncells_y    , ncells_z    )
   faceflux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
+  //faceflux[1] is of size (ncells_x    , ncells_y + 1, ncells_z    )
   faceflux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
+  //faceflux[2] is of size (ncells_x    , ncells_y    , ncells_z + 1)
   faceflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
 
   std::array< MultiFab, 2 > edgeflux_x; // v, w
@@ -107,6 +112,9 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   cenflux[1].define(ba,dmap,1,1);
   cenflux[2].define(ba,dmap,1,1);
 
+  SolverChoice solverChoice(use_advection, use_diffusion, use_smagorinsky, spatial_order); // Better make it a member of the ERF class
+  //solverChoice.display();
+
   // *****************************************************************
   // Update the cell-centered state and face-based velocity using RK3
   // Inputs:  
@@ -121,15 +129,16 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   //          V_new    (y-velocity on y-faces)
   //          W_new    (z-velocity on z-faces)
   // *****************************************************************
-
-  RK3_advance(S_old, S_new, 
+  RK3_advance(
+              S_old, S_new,
               U_old, V_old, W_old,
-              U_new, V_new, W_new, 
-              source, 
-              eta, zeta, kappa, 
-              faceflux, 
-              edgeflux_x, edgeflux_y, edgeflux_z, 
-              cenflux, geom, dx, dt);
+              U_new, V_new, W_new,
+              source,
+              eta, zeta,kappa,
+              faceflux,
+              edgeflux_x, edgeflux_y, edgeflux_z,
+              cenflux, geom, dx, dt,
+              solverChoice);
 
   return dt;
 }

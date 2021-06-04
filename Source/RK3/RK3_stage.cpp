@@ -2,7 +2,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-#include <AMReX_VisMF.H>
+//#include <AMReX_VisMF.H>
 
 #include <Constants.H>
 
@@ -22,19 +22,21 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                  std::array< MultiFab, 2 >& edgeflux_y,
                  std::array< MultiFab, 2 >& edgeflux_z,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
-                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt)
+                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("RK3_stage()",RK3_stage);
 
     int nvars = cons_old.nComp(); 
 
-    // ************************************************************************************ 
-    // 
+    // ************************************************************************************
     // Fill the ghost cells/faces of the MultiFabs we will need
-    // 
+    // Apply BC on state data at cells
     // ************************************************************************************ 
     cons_old.FillBoundary(geom.periodicity());
 
+    // Apply BC on velocity data on faces
+    // Note that in RK3_advance, the BC was applied on momentum
     xvel.FillBoundary(geom.periodicity());
     yvel.FillBoundary(geom.periodicity());
     zvel.FillBoundary(geom.periodicity());
@@ -43,8 +45,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
     
-    // const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, CONST_GRAV};
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, 0.0};
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, CONST_GRAV};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // ************************************************************************************** 
@@ -56,19 +57,19 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     CalcAdvFlux(cons_old, xmom_old, ymom_old, zmom_old, 
                 xvel    , yvel    , zvel    , 
                 faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
-                geom, dxp, dt);
+                geom, dxp, dt,
+                solverChoice);
 #if 0
     CalcDiffFlux(cons_old, xmom_old, ymom_old, zmom_old, 
                  xvel    , yvel    , zvel    , 
                  eta, zeta, kappa,
                  faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux, 
-                 geom, dxp, dt);
+                 geom, dxp, dt,
+                 solverChoice);
 #endif
 
-    // ************************************************************************************** 
-    // 
-    // Define updates in the first RK stage
-    // 
+    // **************************************************************************************
+    // Define updates in the current RK stage, after fluxes have been computed
     // ************************************************************************************** 
     for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         
@@ -81,9 +82,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         const Array4<Real> & cu_upd     = cons_upd.array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
-        const Array4<Real>& momx = xmom_old.array(mfi);
-        const Array4<Real>& momy = ymom_old.array(mfi);
-        const Array4<Real>& momz = zmom_old.array(mfi);
+        // Note that we are not making use of [x, y, x]mom_old
+//        const Array4<Real>& momx = xmom_old.array(mfi);
+//        const Array4<Real>& momy = ymom_old.array(mfi);
+//        const Array4<Real>& momz = zmom_old.array(mfi);
 
         const Array4<Real>& mompx = xmom_upd.array(mfi);
         const Array4<Real>& mompy = ymom_upd.array(mfi);

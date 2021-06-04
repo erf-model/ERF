@@ -17,7 +17,8 @@ void CalcAdvFlux(const MultiFab& cons_in,
                  std::array< MultiFab, 2 >& edgeflux_z,
                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                  const amrex::Geometry geom,
-                 const amrex::Real* dx, const amrex::Real dt)
+                 const amrex::Real* dx, const amrex::Real dt,
+                 const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("CalcAdvFlux()",CalcAdvFlux);
 
@@ -42,10 +43,6 @@ void CalcAdvFlux(const MultiFab& cons_in,
     cenflux[0].setVal(0.0);
     cenflux[1].setVal(0.0);
     cenflux[2].setVal(0.0);
-
-    ////////////////////
-    // hyperbolic fluxes
-    ////////////////////
 
     // Loop over boxes
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) 

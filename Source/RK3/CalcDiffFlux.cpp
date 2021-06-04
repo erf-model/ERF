@@ -18,11 +18,12 @@ void CalcDiffFlux(const MultiFab& cons_in,
                        std::array< MultiFab, 2 >& edgeflux_z,
                        std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                        const amrex::Geometry geom,
-                       const amrex::Real* dx, const amrex::Real dt)
+                       const amrex::Real* dx, const amrex::Real dt,
+                       const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("CalcDiffFlux()",CalcDiffFlux);
     
-    int visc_type_gpu = 3;  // Include bulk viscosity
+//    int visc_type_gpu = 3;  // Include bulk viscosity
 
     GpuArray<Real,AMREX_SPACEDIM> dx_gpu;
     for (int n=0; n<AMREX_SPACEDIM; ++n) {

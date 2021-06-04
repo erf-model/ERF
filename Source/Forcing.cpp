@@ -50,8 +50,8 @@ ERF::fill_forcing_source(
   amrex::MultiFab& forcing_src,
   int ng)
 {
-  const amrex::Real* dx = geom.CellSize();
-  const amrex::Real* prob_lo = geom.ProbLo();
+//  const amrex::Real* dx = geom.CellSize();
+//  const amrex::Real* prob_lo = geom.ProbLo();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -62,8 +62,8 @@ ERF::fill_forcing_source(
     amrex::RealBox gridloc =
       amrex::RealBox(grids[mfi.index()], geom.CellSize(), geom.ProbLo());
 
-    auto const& sarr = state_new.array(mfi);
-    auto const& src = forcing_src.array(mfi);
+//    auto const& sarr = state_new.array(mfi);
+//    auto const& src = forcing_src.array(mfi);
 
     // Evaluate the linear forcing term
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {

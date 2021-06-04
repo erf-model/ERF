@@ -42,7 +42,7 @@ erf_initdata(
 {
   // Geometry
   const amrex::Real* prob_lo = geomdata.ProbLo();
-  const amrex::Real* prob_hi = geomdata.ProbHi();
+//  const amrex::Real* prob_hi = geomdata.ProbHi();
   const amrex::Real* dx = geomdata.CellSize();
   const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0]; // cell center
   const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
@@ -77,7 +77,7 @@ erf_init_xvel(
 {
   // Note that this is called on a box of x-faces
   const amrex::Real* prob_lo = geomdata.ProbLo();
-  const amrex::Real* prob_hi = geomdata.ProbHi();
+//  const amrex::Real* prob_hi = geomdata.ProbHi();
   const amrex::Real* dx = geomdata.CellSize();
   const amrex::Real x = prob_lo[0] + i * dx[0]; // face center
   const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
@@ -100,7 +100,7 @@ erf_init_yvel(
 {
   // Note that this is called on a box of y-faces
   const amrex::Real* prob_lo = geomdata.ProbLo();
-  const amrex::Real* prob_hi = geomdata.ProbHi();
+//  const amrex::Real* prob_hi = geomdata.ProbHi();
   const amrex::Real* dx = geomdata.CellSize();
   const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0]; // cell center
   const amrex::Real y = prob_lo[1] + j * dx[1]; // face center

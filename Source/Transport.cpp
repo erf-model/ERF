@@ -26,18 +26,18 @@ get_transport_coeffs(
   const auto lo = amrex::lbound(bx);
   const auto hi = amrex::ubound(bx);
 
-  bool wtr_get_xi, wtr_get_mu, wtr_get_lam, wtr_get_Ddiag;
+  bool wtr_get_xi, wtr_get_mu, wtr_get_lam;// wtr_get_Ddiag;
 
   wtr_get_xi = true;
   wtr_get_mu = true;
   wtr_get_lam = true;
-  wtr_get_Ddiag = true;
+//  wtr_get_Ddiag = true;
 
   amrex::Real T;
   amrex::Real rho;
 
   amrex::Real muloc, xiloc, lamloc;
-  amrex::Real Ddiag;
+//  amrex::Real Ddiag;
 
   for (int k = lo.z; k <= hi.z; ++k) {
     for (int j = lo.y; j <= hi.y; ++j) {
