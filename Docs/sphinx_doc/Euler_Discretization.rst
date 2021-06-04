@@ -204,3 +204,6 @@ Differencing of Different Orders
 										  -  5(q_{m+2} + q_{m-1})
 									      + 10(q_{m+1} + q_{m})]\\
 	\end{align*}
+
+Ref: Skamarock, W. C., Klemp, J. B., Dudhia, J., Gill, D. O., Liu, Z., Berner, J., ... Huang, X. -yu. (2019). A Description of the Advanced Research WRF Model Version 4 (No. NCAR/TN-556+STR). doi:10.5065/1dfh-6p97
+`doi:10.5065/1dfh-6p97 <http://dx.doi.org/10.5065/1dfh-6p97>`_

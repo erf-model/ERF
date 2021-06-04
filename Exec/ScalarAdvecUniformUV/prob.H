@@ -42,7 +42,7 @@ erf_initdata(
 
   const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
-  // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
+  // Arbitrarily choose the radius of the bubble to be 0.25 times the length of the domain
   const amrex::Real r0 = 0.25 * (prob_hi[0] - prob_lo[0]);
 
   // Set the density 
