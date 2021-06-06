@@ -54,8 +54,8 @@ grow_box_by_one(const amrex::Box& b)
 struct SolverChoice {
 public:
     //SolverChoice() {}; //Default
-    SolverChoice(const bool use_advection_in, const bool  use_diffusion_in, const bool smagorinsky_in, const int spatial_order_in):
-            use_advection(use_advection_in), use_diffusion(use_diffusion_in), use_smagorinsky(smagorinsky_in), spatial_order(spatial_order_in){}
+    SolverChoice(const bool use_advection_in, const bool  use_diffusion_in, const bool smagorinsky_in, const bool use_gravity_in, const int spatial_order_in):
+            use_advection(use_advection_in), use_diffusion(use_diffusion_in), use_smagorinsky(smagorinsky_in), use_gravity(use_gravity_in), spatial_order(spatial_order_in){}
     void display() {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "use_advection: " << use_advection << std::endl;
@@ -66,6 +66,7 @@ public:
     const bool use_advection;
     const bool  use_diffusion;
     const bool use_smagorinsky;
+    const bool use_gravity;
     const int spatial_order;
 };
 

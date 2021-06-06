@@ -57,6 +57,7 @@ amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 erf.use_advection = true
 erf.use_diffusion = false
 erf.use_smagorinsky   = false
+erf.use_gravity = false
 erf.spatial_order = 2
 
 # PROBLEM PARAMETERS
