@@ -49,3 +49,4 @@ bool        ERF::use_advection = 1;
 bool        ERF::use_diffusion = 1;
 bool        ERF::use_smagorinsky = 1;
 int         ERF::spatial_order = 2;
+bool        ERF::use_gravity = 1;

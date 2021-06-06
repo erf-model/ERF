@@ -49,3 +49,4 @@ pp.query("use_advection", use_advection);
 pp.query("use_diffusion", use_diffusion);
 pp.query("use_smagorinsky", use_smagorinsky);
 pp.query("spatial_order", spatial_order);
+pp.query("use_gravity", use_gravity);
