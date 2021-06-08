@@ -134,7 +134,7 @@ void CalcAdvFlux(const MultiFab& cons_in,
             // Scalar: conservative flux is (rho u s)
             zflux(i,j,k,Scalar_comp)   = rho * scalar * velz(i,j,k);
         }
-        );
+        ); // 'ParallelFor' ends here
 
             amrex::ParallelFor(bx_xy, bx_xz, bx_yz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {

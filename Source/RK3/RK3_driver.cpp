@@ -32,7 +32,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     int ngc = ComputeGhostCells(solverChoice.spatial_order);
 
     // Allocate temporary MultiFab to hold the primitive variables
-    // ************************************************************************************** 
+    // **************************************************************************************
+    // TODO: Check if we need this. This is passed to RK3_stage, but nothing is done on it.
     MultiFab primitive(cons_old.boxArray(),cons_old.DistributionMap(),nvars,2);
 
     // Allocate temporary MultiFabs to hold the intermediate updates
