@@ -124,46 +124,50 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         amrex::ParallelFor(bx, nvars,
        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-               Real xflux_next, xflux_prev, yflux_next, yflux_prev, zflux_next, zflux_prev;
-               switch(n) {
+                cu_upd(i,j,k,n) = 0.0; // Initialize the updated state eqn term to zero.
+
+                // Compute advection terms. TODO: Put these under if condition. No need to compute these for pure diffusion problems
+                Real xFaceFluxNext, xFaceFluxPrev, yFaceFluxNext, yFaceFluxPrev, zFaceFluxNext, zFaceFluxPrev;
+                switch(n) {
                 case Density_comp:
-                    xflux_next = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                    xflux_prev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                    yflux_next = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                    yflux_prev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                    zflux_next = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                    zflux_prev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                    xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                    xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                    yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                    yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                    zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                    zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
                     break;
                 case RhoTheta_comp:
-                    xflux_next = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                    xflux_prev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                    yflux_next = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                    yflux_prev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                    zflux_next = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                    zflux_prev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                    xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                    xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                    yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                    yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                    zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                    zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
                     break;
                 case Scalar_comp:
-                    xflux_next = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                    xflux_prev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                    yflux_next = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                    yflux_prev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                    zflux_next = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                    zflux_prev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                    xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                    xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                    yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                    yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                    zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                    zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
                     break;
                 default:
                     amrex::Abort("Error: Conserved quantity index is unrecognized");
-            }
-            cu_upd(i,j,k,n) = 0.0;
-            // Add advective terms. Put this under a if condition
-            cu_upd(i,j,k,n) += (-dt) *
-                    (  (xflux_next - xflux_prev) / dx[0]
-                     + (yflux_next - yflux_prev) / dx[1]
-                     + (zflux_next - zflux_prev) / dx[2]
-                    );
-            // Add diffusive terms. Put this under a if condition
+                }
 
-            // Add source terms. Put this under a if condition
-            cu_upd(i,j,k,n) += dt*source_fab(i,j,k,n);
+                // Add advective terms. TODO: Put this under a if condition
+                cu_upd(i,j,k,n) += (-dt) *
+                        (  (xFaceFluxNext - xFaceFluxPrev) / dx[0]
+                         + (yFaceFluxNext - yFaceFluxPrev) / dx[1]
+                         + (zFaceFluxNext - zFaceFluxPrev) / dx[2]
+                        );
+
+                // Add diffusive terms. TODO: Put this under a if condition
+
+                // Add source terms. TODO: Put this under a if condition
+                cu_upd(i,j,k,n) += dt*source_fab(i,j,k,n);
            }
         );
 
