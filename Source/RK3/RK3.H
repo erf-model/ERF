@@ -97,7 +97,7 @@ Real InterpolateRhoThetaFromCellToFace(const int &i, const int &j, const int &k,
                                       const int &spatial_order);
 
 AMREX_GPU_DEVICE
-Real InterpolateScalarFromCellToFace(const int &i, const int &j, const int &k,
+Real InterpolateRhoScalarFromCellToFace(const int &i, const int &j, const int &k,
                                       const Array4<Real>& cons_in,
                                       const enum NextOrPrev &nextOrPrev,
                                       const enum Coord& coordDir,

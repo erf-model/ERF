@@ -215,17 +215,20 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     case AdvectingQuantity::rho_u:
       // Get scalar (i+1/2,    j, k    ) = scalar on face (i+1, j  , k  ) for x-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i-1/2,    j, k    ) = scalar on face (i,   j  , k  ) for x-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
       break;
     case AdvectingQuantity::rho_v:
       // Get scalar (i   , j+1/2, k    ) = scalar on face (i  , j+1, k  ) for y-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i   , j-1/2, k    ) = scalar on face (i  , j  , k  ) for y-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
       break;
     case AdvectingQuantity::rho_w:
       // Get scalar (i   , j    , k+1/2) = scalar on face (i  , j  , k+1) for z-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i   , j    , k-1/2) = scalar on face (i  , j  , k  ) for z-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
       break;
     default:
       amrex::Abort("Error: Advecting quantity is unrecognized");

@@ -62,7 +62,7 @@ erf_initdata(
   state(i, j, k, RhoTheta_comp) *= state(i, j, k, Density_comp);
 
   // Set scalar = 0 -- unused
-  state(i, j, k, Scalar_comp) = 0.0;
+  state(i, j, k, RhoScalar_comp) = 0.0;
 }
 
 AMREX_GPU_DEVICE
