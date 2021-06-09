@@ -6,7 +6,7 @@
 
 // cell-centered state variables
 //TODO: Change these types of macros to 'const'
-#define Density_comp  0
+#define Rho_comp  0
 #define RhoTheta_comp 1
 #define RhoScalar_comp   2
 #define NVAR          3

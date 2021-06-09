@@ -14,7 +14,7 @@ InterpolateDensityFromCellToFace(
   const int& spatial_order)
 {
   return InterpolateFromCellOrFace(
-    i, j, k, cons_in, Density_comp, nextOrPrev, coordDir, spatial_order);
+    i, j, k, cons_in, Rho_comp, nextOrPrev, coordDir, spatial_order);
 }
 
 Real

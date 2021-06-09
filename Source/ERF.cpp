@@ -558,7 +558,7 @@ ERF::estTimeStep(amrex::Real dt_old)
            Real dt = -1.e100;
            amrex::Loop(b, [=,&dt] (int i, int j, int k) noexcept
            {
-               const amrex::Real rho      = s(i, j, k, Density_comp);
+               const amrex::Real rho      = s(i, j, k, Rho_comp);
                const amrex::Real rhotheta = s(i, j, k, RhoTheta_comp);
 
                amrex::Real pressure = getPgivenRTh(rhotheta);
@@ -962,7 +962,7 @@ ERF::errorEst(
     get_new_data(State_Type).DistributionMap(), NVAR, 1);
   const amrex::Real cur_time = state[State_Type].curTime();
   FillPatch(
-    *this, S_data, S_data.nGrow(), cur_time, State_Type, Density_comp, NVAR, 0);
+    *this, S_data, S_data.nGrow(), cur_time, State_Type, Rho_comp, NVAR, 0);
 
   amrex::Vector<amrex::BCRec> bcs(NVAR);
   const char tagval = amrex::TagBox::SET;

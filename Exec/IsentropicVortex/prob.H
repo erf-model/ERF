@@ -52,14 +52,14 @@ erf_initdata(
   const amrex::Real deltaT = -(ProbParm::gamma - 1.0)/(2.0*ProbParm::sigma*ProbParm::sigma) * Omg*Omg;
   // Set the density 
   const amrex::Real rho_norm = std::pow(1.0 + deltaT, ProbParm::inv_gm1);
-  state(i, j, k, Density_comp) = rho_norm * ProbParm::rho_inf;
+  state(i, j, k, Rho_comp) = rho_norm * ProbParm::rho_inf;
  
   // Initial _potential_ temperature
   const amrex::Real T = (1.0 + deltaT) * ProbParm::T_inf;
   const amrex::Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
                         * ProbParm::rho_inf*ProbParm::a_inf*ProbParm::a_inf;
   state(i, j, k, RhoTheta_comp) = T * std::pow(p_0 / p, R_d/c_p); // T --> theta
-  state(i, j, k, RhoTheta_comp) *= state(i, j, k, Density_comp);
+  state(i, j, k, RhoTheta_comp) *= state(i, j, k, Rho_comp);
 
   // Set scalar = 0 -- unused
   state(i, j, k, RhoScalar_comp) = 0.0;

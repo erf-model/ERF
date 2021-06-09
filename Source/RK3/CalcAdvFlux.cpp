@@ -87,52 +87,52 @@ void CalcAdvFlux(const MultiFab& cons_in,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
             // Define average values on faces
-            Real rho      = 0.5 * (cons(i,j,k, Density_comp) + cons(i-1,j,k, Density_comp));
-            Real rhotheta = 0.5 * (cons(i,j,k,RhoTheta_comp) + cons(i-1,j,k,RhoTheta_comp));
-            Real rhoscalar   = 0.5 * (cons(i, j, k, RhoScalar_comp) + cons(i - 1, j, k, RhoScalar_comp));
+            Real rho       = 0.5 * (cons(i,j,k,Rho_comp)       + cons(i-1,j,k,Rho_comp));
+            Real rhotheta  = 0.5 * (cons(i,j,k,RhoTheta_comp)  + cons(i-1,j,k,RhoTheta_comp));
+            Real rhoscalar = 0.5 * (cons(i,j,k,RhoScalar_comp) + cons(i-1,j,k,RhoScalar_comp));
 
             // Density flux
-            xflux(i,j,k,Density_comp)  = rho * velx(i,j,k);
+            xflux(i,j,k,Rho_comp) = rho * velx(i,j,k);
 
             // Theta: conservative flux is (rho u theta)
             xflux(i,j,k,RhoTheta_comp) = rhotheta * velx(i,j,k);
 
             // Scalar: conservative flux is (rho u s)
-            xflux(i, j, k, RhoScalar_comp)   = rhoscalar * velx(i, j, k);
+            xflux(i,j,k,RhoScalar_comp) = rhoscalar * velx(i, j, k);
         },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
             // Define average values on faces
-            Real rho      = 0.5 * (cons(i,j,k, Density_comp) + cons(i,j-1,k, Density_comp));
-            Real rhotheta = 0.5 * (cons(i,j,k,RhoTheta_comp) + cons(i,j-1,k,RhoTheta_comp));
-            Real rhoscalar   = 0.5 * (cons(i, j, k, RhoScalar_comp) + cons(i, j - 1, k, RhoScalar_comp));
+            Real rho       = 0.5 * (cons(i,j,k,Rho_comp)       + cons(i,j-1,k,Rho_comp));
+            Real rhotheta  = 0.5 * (cons(i,j,k,RhoTheta_comp)  + cons(i,j-1,k,RhoTheta_comp));
+            Real rhoscalar = 0.5 * (cons(i,j,k,RhoScalar_comp) + cons(i,j-1,k,RhoScalar_comp));
 
             // Density
-            yflux(i,j,k,Density_comp)  = rho * vely(i,j,k);
+            yflux(i,j,k,Rho_comp) = rho * vely(i,j,k);
 
             // Theta: conservative flux is (rho u theta)
             yflux(i,j,k,RhoTheta_comp) = rhotheta * vely(i,j,k);
 
             // Scalar: conservative flux is (rho u s)
-            yflux(i, j, k, RhoScalar_comp)   = rhoscalar * vely(i, j, k);
+            yflux(i,j,k,RhoScalar_comp) = rhoscalar * vely(i, j, k);
         },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
             // Define average values on faces
-            Real rho      = 0.5 * (cons(i,j,k, Density_comp) + cons(i,j,k-1, Density_comp));
-            Real rhotheta = 0.5 * (cons(i,j,k,RhoTheta_comp) + cons(i,j,k-1,RhoTheta_comp));
-            Real rhoscalar   = 0.5 * (cons(i, j, k, RhoScalar_comp) + cons(i, j, k - 1, RhoScalar_comp));
+            Real rho       = 0.5 * (cons(i,j,k,Rho_comp)       + cons(i,j,k-1,Rho_comp));
+            Real rhotheta  = 0.5 * (cons(i,j,k,RhoTheta_comp)  + cons(i,j,k-1,RhoTheta_comp));
+            Real rhoscalar = 0.5 * (cons(i,j,k,RhoScalar_comp) + cons(i,j,k-1,RhoScalar_comp));
 
             // Density
-            zflux(i,j,k,Density_comp)  = rho * velz(i,j,k);
+            zflux(i,j,k,Rho_comp) = rho * velz(i,j,k);
 
             // Theta: conservative flux is (rho u theta)
             zflux(i,j,k,RhoTheta_comp) = rhotheta * velz(i,j,k);
 
             // Scalar: conservative flux is (rho u s)
-            zflux(i, j, k, RhoScalar_comp)   = rhoscalar * velz(i, j, k);
+            zflux(i,j,k,RhoScalar_comp) = rhoscalar * velz(i, j, k);
         }
         ); // 'ParallelFor' ends here
 
