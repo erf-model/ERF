@@ -95,7 +95,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     // **************************************************************************************
     // RK3 stage 1: Return update in the cons_upd_1 and [x,y,z]mom_update_1 MultiFabs
-    // ************************************************************************************** 
+    // **************************************************************************************
+    // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
     RK3_stage(cons_old, cons_upd_1,
               xmom_old, ymom_old, zmom_old, 
               xmom_update_1, ymom_update_1, zmom_update_1, 
@@ -173,7 +174,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
  
     // **************************************************************************************
     // RK3 stage 2: Return update in the cons_upd_2 and [x,y,z]mom_update_2 MultiFabs
-    // ************************************************************************************** 
+    // **************************************************************************************
+    // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
     RK3_stage(cons_upd_1, cons_upd_2,
               xmom_update_1, ymom_update_1, zmom_update_1, 
               xmom_update_2, ymom_update_2, zmom_update_2, 
@@ -256,7 +258,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     // **************************************************************************************
     // RK3 stage 3: Return update in the cons_new and [x,y,z]mom_new MultiFabs
-    // ************************************************************************************** 
+    // **************************************************************************************
+    // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
     RK3_stage(cons_upd_2, cons_new, 
               xmom_update_2, ymom_update_2, zmom_update_2, 
               xmom_new, ymom_new, zmom_new, 
