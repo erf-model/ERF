@@ -8,6 +8,7 @@
 
 #include <ERF.H>
 #include <RK3.H>
+#include <EOS.H>
 
 using namespace amrex;
 
@@ -134,7 +135,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             // Compute advection terms. TODO: Put these under if condition. No need to compute these for pure diffusion problems
             Real xFaceFluxNext, xFaceFluxPrev, yFaceFluxNext, yFaceFluxPrev, zFaceFluxNext, zFaceFluxPrev;
             switch(n) {
-            case Density_comp:
+            case Density_comp: // Continuity
                 xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
                 xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
                 yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
@@ -142,7 +143,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                 zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
                 zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
                 break;
-            case RhoTheta_comp:
+            case RhoTheta_comp: // Temperature
                 xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
                 xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
                 yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
@@ -150,7 +151,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                 zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
                 zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
                 break;
-            case Scalar_comp:
+            case Scalar_comp: // Scalar
                 xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
                 xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
                 yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cu_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
@@ -181,32 +182,100 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         // **************************************************************************************
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // x-momentum equation
-            mompx(i,j,k) = 
-                    -dt*(cenx_u(i,j,k) - cenx_u(i-1,j,k))/dx[0]
-                    -dt*(edgey_u(i,j+1,k) - edgey_u(i,j,k))/dx[1]
-                    -dt*(edgez_u(i,j,k+1) - edgez_u(i,j,k))/dx[2]
-                    +0.5*dt*grav_gpu[0]*(cu_old(i-1,j,k,0)+cu_old(i,j,k,0));
+//            mompx(i,j,k) =
+//                    -dt*(cenx_u(i,j,k) - cenx_u(i-1,j,k))/dx[0]
+//                    -dt*(edgey_u(i,j+1,k) - edgey_u(i,j,k))/dx[1]
+//                    -dt*(edgez_u(i,j,k+1) - edgez_u(i,j,k))/dx[2]
+//                    +0.5*dt*grav_gpu[0]*(cu_old(i-1,j,k,0)+cu_old(i,j,k,0));
 
-            //mompx(i,j,k) = 0.0; // Initialize the updated x-mom eqn term to zero
+            mompx(i,j,k) = 0.0; // Initialize the updated x-mom eqn term to zero
 
+            // Add advective terms
+            Real centFluxXXNext, centFluxXXPrev, edgeFluxXYNext, edgeFluxXYPrev, edgeFluxXZNext, edgeFluxXZPrev;
+            centFluxXXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            centFluxXXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            edgeFluxXYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            edgeFluxXYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            edgeFluxXZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            edgeFluxXZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+
+            mompx(i, j, k) += (-dt)*(
+                         (centFluxXXNext - centFluxXXPrev) / dx[0] // Contribution to x-mom eqn from flux in x-dir
+                        +(edgeFluxXYNext - edgeFluxXYPrev) / dx[1] // Contribution to x-mom eqn from flux in y-dir
+                        +(edgeFluxXZNext - edgeFluxXZPrev) / dx[2] // Contribution to x-mom eqn from flux in z-dir
+                    );
+
+            // Add diffusive terms
+
+            // Add pressure gradient
+            mompx(i, j, k) += (-dt/dx[0])*(getPgivenRTh(cu_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cu_old(i-1, j, k, RhoTheta_comp)));
+
+            // Add gravity term
+            mompx(i, j, k) += dt*grav_gpu[0] * InterpolateDensityFromCellToFace(i, j, k, cu_old, NextOrPrev::prev, Coord::x, solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
-            mompy(i,j,k) = 
-                    -dt*(edgex_v(i+1,j,k) - edgex_v(i,j,k))/dx[0]
-                    -dt*(ceny_v(i,j,k) - ceny_v(i,j-1,k))/dx[1]
-                    -dt*(edgez_v(i,j,k+1) - edgez_v(i,j,k))/dx[2]
-                    +0.5*dt*grav_gpu[1]*(cu_old(i,j-1,k,0)+cu_old(i,j,k,0));
+//            mompy(i,j,k) =
+//                    -dt*(edgex_v(i+1,j,k) - edgex_v(i,j,k))/dx[0]
+//                    -dt*(ceny_v(i,j,k) - ceny_v(i,j-1,k))/dx[1]
+//                    -dt*(edgez_v(i,j,k+1) - edgez_v(i,j,k))/dx[2]
+//                    +0.5*dt*grav_gpu[1]*(cu_old(i,j-1,k,0)+cu_old(i,j,k,0));
 
-            //mompy(i,j,k) = 0.0; // Initialize the updated y-mom eqn term to zero
+            mompy(i,j,k) = 0.0; // Initialize the updated y-mom eqn term to zero
+
+            // Add advective terms
+            Real centFluxYYNext, centFluxYYPrev, edgeFluxYXNext, edgeFluxYXPrev, edgeFluxYZNext, edgeFluxYZPrev;
+            edgeFluxYXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            edgeFluxYXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            centFluxYYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            centFluxYYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            edgeFluxYZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            edgeFluxYZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+
+            mompy(i, j, k) += (-dt)*(
+                         (edgeFluxYXNext - edgeFluxYXPrev) / dx[0] // Contribution to y-mom eqn from flux in x-dir
+                        +(centFluxYYNext - centFluxYYPrev) / dx[1] // Contribution to y-mom eqn from flux in y-dir
+                        +(edgeFluxYZNext - edgeFluxYZPrev) / dx[2] // Contribution to y-mom eqn from flux in z-dir
+            );
+
+            // Add diffusive terms
+
+            // Add pressure gradient
+            mompy(i, j, k) += (-dt/dx[1])*(getPgivenRTh(cu_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cu_old(i, j-1, k, RhoTheta_comp)));
+
+            // Add gravity term
+            mompy(i, j, k) += dt*grav_gpu[1] * InterpolateDensityFromCellToFace(i, j, k, cu_old, NextOrPrev::prev, Coord::y, solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
-            mompz(i,j,k) = 
-                    -dt*(edgex_w(i+1,j,k) - edgex_w(i,j,k))/dx[0]
-                    -dt*(edgey_w(i,j+1,k) - edgey_w(i,j,k))/dx[1]
-                    -dt*(cenz_w(i,j,k) - cenz_w(i,j,k-1))/dx[2] 
-                    +0.5*dt*grav_gpu[2]*(cu_old(i,j,k-1,0)+cu_old(i,j,k,0));
+//            mompz(i,j,k) =
+//                    -dt*(edgex_w(i+1,j,k) - edgex_w(i,j,k))/dx[0]
+//                    -dt*(edgey_w(i,j+1,k) - edgey_w(i,j,k))/dx[1]
+//                    -dt*(cenz_w(i,j,k) - cenz_w(i,j,k-1))/dx[2]
+//                    +0.5*dt*grav_gpu[2]*(cu_old(i,j,k-1,0)+cu_old(i,j,k,0));
 
-            //mompz(i,j,k) = 0.0; // Initialize the updated z-mom eqn term to zero
+            mompz(i,j,k) = 0.0; // Initialize the updated z-mom eqn term to zero
+
+            // Add advective terms
+            Real centFluxZZNext, centFluxZZPrev, edgeFluxZXNext, edgeFluxZXPrev, edgeFluxZYNext, edgeFluxZYPrev;
+            edgeFluxZXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            edgeFluxZXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            edgeFluxZYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            edgeFluxZYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            centFluxZZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            centFluxZZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+
+            mompz(i, j, k) += (-dt)*(
+                         (edgeFluxZXNext - edgeFluxZXPrev) / dx[0] // Contribution to z-mom eqn from flux in x-dir
+                        +(edgeFluxZYNext - edgeFluxZYPrev) / dx[1] // Contribution to z-mom eqn from flux in y-dir
+                        +(centFluxZZNext - centFluxZZPrev) / dx[2] // Contribution to z-mom eqn from flux in z-dir
+            );
+
+            // Add diffusive terms
+
+            // Add pressure gradient
+            mompz(i, j, k) += (-dt/dx[2])*(getPgivenRTh(cu_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cu_old(i, j, k-1, RhoTheta_comp)));
+
+            // Add gravity term
+            mompz(i, j, k) += dt*grav_gpu[2] * InterpolateDensityFromCellToFace(i, j, k, cu_old, NextOrPrev::prev, Coord::z, solverChoice.spatial_order);
         });
     }
 }
