@@ -14,7 +14,7 @@ InterpolateDensityFromCellToFace(
   const int& spatial_order)
 {
   return InterpolateFromCellOrFace(
-    i, j, k, cons_in, Density_comp, nextOrPrev, coordDir, spatial_order);
+    i, j, k, cons_in, Rho_comp, nextOrPrev, coordDir, spatial_order);
 }
 
 Real
@@ -31,7 +31,7 @@ InterpolateRhoThetaFromCellToFace(
     i, j, k, cons_in, RhoTheta_comp, nextOrPrev, coordDir, spatial_order);
 }
 Real
-InterpolateScalarFromCellToFace(
+InterpolateRhoScalarFromCellToFace(
   const int& i,
   const int& j,
   const int& k,
@@ -41,7 +41,7 @@ InterpolateScalarFromCellToFace(
   const int& spatial_order)
 {
   return InterpolateFromCellOrFace(
-    i, j, k, cons_in, Scalar_comp, nextOrPrev, coordDir, spatial_order);
+    i, j, k, cons_in, RhoScalar_comp, nextOrPrev, coordDir, spatial_order);
 }
 
 Real

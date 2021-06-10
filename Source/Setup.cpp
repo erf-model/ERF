@@ -187,7 +187,7 @@ ERF::variableSetUp()
   amrex::StateDescriptor::BndryFunc bndryfunc1(erf_bcfill_hyp);
   bndryfunc1.setRunOnGPU(true);
 
-  desc_lst.setComponent(State_Type, Density_comp, name, bcs, bndryfunc1);
+  desc_lst.setComponent(State_Type, Rho_comp, name, bcs, bndryfunc1);
 
   if (do_mol_load_balance) {
     desc_lst.addDescriptor(
@@ -233,21 +233,21 @@ ERF::variableSetUp()
   //
   derive_lst.add(
     "pressure", amrex::IndexType::TheCellType(), 1, erf_derpres, the_same_box);
-  derive_lst.addComponent("pressure", desc_lst, State_Type, Density_comp, NVAR);
+  derive_lst.addComponent("pressure", desc_lst, State_Type, Rho_comp, NVAR);
 
   //
   // Temperature
   //
   derive_lst.add(
     "temp", amrex::IndexType::TheCellType(), 1, erf_dertemp, the_same_box);
-  derive_lst.addComponent("temp", desc_lst, State_Type, Density_comp, NVAR);
+  derive_lst.addComponent("temp", desc_lst, State_Type, Rho_comp, NVAR);
 
   //
   // Potential Temperature
   //
   derive_lst.add(
     "theta", amrex::IndexType::TheCellType(), 1, erf_dertheta, the_same_box);
-  derive_lst.addComponent("theta", desc_lst, State_Type, Density_comp, NVAR);
+  derive_lst.addComponent("theta", desc_lst, State_Type, Rho_comp, NVAR);
 
   //
   // Velocities

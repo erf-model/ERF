@@ -5,9 +5,10 @@
 #include <AMReX_Arena.H>
 
 // cell-centered state variables
-#define Density_comp  0
+//TODO: Change these types of macros to 'const'
+#define Rho_comp  0
 #define RhoTheta_comp 1
-#define Scalar_comp   2
+#define RhoScalar_comp   2
 #define NVAR          3
 
 #define SlipWall 4

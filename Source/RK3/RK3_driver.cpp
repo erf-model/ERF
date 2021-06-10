@@ -32,7 +32,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     int ngc = ComputeGhostCells(solverChoice.spatial_order);
 
     // Allocate temporary MultiFab to hold the primitive variables
-    // ************************************************************************************** 
+    // **************************************************************************************
+    // TODO: Check if we need this. This is passed to RK3_stage, but nothing is done on it.
     MultiFab primitive(cons_old.boxArray(),cons_old.DistributionMap(),nvars,2);
 
     // Allocate temporary MultiFabs to hold the intermediate updates
@@ -43,8 +44,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // Intermediate solutions (state) -- At cell centers
     MultiFab cons_upd_1(ba,dm,nvars,ngc);
     MultiFab cons_upd_2(ba,dm,nvars,ngc);
-    cons_upd_1.setVal(0.0,Density_comp,nvars,ngc);
-    cons_upd_2.setVal(0.0,Density_comp,nvars,ngc);
+    cons_upd_1.setVal(0.0,Rho_comp,nvars,ngc);
+    cons_upd_2.setVal(0.0,Rho_comp,nvars,ngc);
 
     // Intermediate momentum -- On faces
     MultiFab xmom_update_1(convert(ba,IntVect(1,0,0)), dm, 1, 1);
@@ -86,15 +87,16 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // **************************************************************************************
     Real rho0 = 1.0;
     //TODO: Do we really need to use setVal again when we have done earlier with values of 0
-    cons_upd_1.setVal(rho0,Density_comp,1,ngc);
-    cons_upd_2.setVal(rho0,Density_comp,1,ngc);
+    cons_upd_1.setVal(rho0,Rho_comp,1,ngc);
+    cons_upd_2.setVal(rho0,Rho_comp,1,ngc);
 //    const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
 //    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, 0.0};
 //    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // **************************************************************************************
     // RK3 stage 1: Return update in the cons_upd_1 and [x,y,z]mom_update_1 MultiFabs
-    // ************************************************************************************** 
+    // **************************************************************************************
+    // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
     RK3_stage(cons_old, cons_upd_1,
               xmom_old, ymom_old, zmom_old, 
               xmom_update_1, ymom_update_1, zmom_update_1, 
@@ -172,7 +174,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
  
     // **************************************************************************************
     // RK3 stage 2: Return update in the cons_upd_2 and [x,y,z]mom_update_2 MultiFabs
-    // ************************************************************************************** 
+    // **************************************************************************************
+    // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
     RK3_stage(cons_upd_1, cons_upd_2,
               xmom_update_1, ymom_update_1, zmom_update_1, 
               xmom_update_2, ymom_update_2, zmom_update_2, 
@@ -255,7 +258,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     // **************************************************************************************
     // RK3 stage 3: Return update in the cons_new and [x,y,z]mom_new MultiFabs
-    // ************************************************************************************** 
+    // **************************************************************************************
+    // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
     RK3_stage(cons_upd_2, cons_new, 
               xmom_update_2, ymom_update_2, zmom_update_2, 
               xmom_new, ymom_new, zmom_new, 

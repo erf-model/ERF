@@ -10,6 +10,7 @@
 #define SMALL_E 1.0e-200
 #define SMALLU 1.0e-12
 
+//TODO: Change these types of macros to 'const'
 #define R_d     287.0 // gas constant for dry air [J/(kg-K)]
 #define c_p    1004.5 // specific heat for at constant pressure for dry air [J/(kg-K)]
 #define p_0    1.0e5 // reference surface pressure [Pa]

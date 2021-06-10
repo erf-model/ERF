@@ -84,6 +84,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   MultiFab kappa(ba,dm,1,1); 
   kappa.setVal(0.0);
 
+  // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture. Remove them.
   // Fluxes (except momentum) at faces. This should comprise of advective as well as diffusive fluxes.
   // There are separate variables to handle the momentum at the faces
   std::array< MultiFab, AMREX_SPACEDIM > faceflux;
@@ -94,6 +95,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   //faceflux[2] is of size (ncells_x    , ncells_y    , ncells_z + 1)
   faceflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
 
+  // Edge fluxes for {x, y, z}-momentum equations
   std::array< MultiFab, 2 > edgeflux_x; // v, w
   std::array< MultiFab, 2 > edgeflux_y; // u, w
   std::array< MultiFab, 2 > edgeflux_z; // u, v
