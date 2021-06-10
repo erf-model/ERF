@@ -72,6 +72,9 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     // **************************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
+    //TODO: Benchmarking ofperformance. We are computing the fluxes on the fly. 
+    //If the performance slows, consider saving all the fluxes apriori and accessing them here.
+  
     // ************************************************************************************** 
     for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         
