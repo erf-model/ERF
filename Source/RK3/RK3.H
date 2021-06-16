@@ -171,6 +171,11 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const SolverChoice &solverChoice,
                         const Real &molViscosity);
 
+AMREX_GPU_DEVICE
+Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
+                                  const Array4<Real>& qty, const int & qty_index,
+                                  const enum Coord& coordDir);
+
 int ComputeGhostCells(const int &spatial_order);
 
 #endif
