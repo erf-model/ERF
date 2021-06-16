@@ -1,7 +1,21 @@
-/Exec/WORK/*
+
+# IDE files
+.idea
+.vscode
+
+# macOS files
 .DS_Store
+
+# Log files
 datlog
 mmslog
+
+# Ignore everything in Build except the cmake script
+/Build/*
+!/Build/cmake.sh
+
+
+/Exec/WORK/*
 ic.txt
 plt*
 chk*
@@ -13,4 +27,5 @@ extern_parameters.cpp
 extern_parameters_F.H
 cmake-*
 cmake_*
+cmake*
 .idea
