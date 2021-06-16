@@ -1,64 +1,76 @@
-#=============================================================================
-# Regression tests
-#=============================================================================
 
-# # Run in CI
-# if(ERF_DIM GREATER 1)
-#   add_test_r(tg-1 TG)
-#   add_test_r(tg-2 TG)
-#   add_test_r(hit-1 HIT)
-#   add_test_r(hit-2 HIT)
-#   add_test_r(hit-3 HIT)
-#   add_test_r(sod-1 Sod)
-# endif()
-# if(ERF_ENABLE_MASA)
-#   add_test_r(mms-3 MMS)
-#   if(ERF_DIM GREATER 1)
-#     add_test_r(mms-1 MMS)
-#     add_test_r(mms-2 MMS)
-#     add_test_r(mms-4 MMS)
-#     if(ERF_DIM GREATER 2)
-#       add_test_r(mms-5 MMS)
-#     endif()
-#     if(ERF_ENABLE_AMREX_EB)
-#       add_test_r(ebmms-1 EB_MMS)
-#     endif()
-#   endif()
-# endif()
-# 
-# # Not run in CI
-# if(ERF_DIM GREATER 1)
-#   add_test_re(pmf-1 PMF)
-#   add_test_re(multispecsod-1 MultiSpecSod)
-#   if(ERF_DIM GREATER 2)
-#     add_test_re(tg-3 TG)
-#     add_test_re(tg-4 TG)
-#   endif()
-# endif()
+# Have CMake discover the number of cores on the node
+include(ProcessorCount)
+ProcessorCount(PROCESSES)
 
 #=============================================================================
-# Verification tests
+# Functions for adding tests / Categories of tests
 #=============================================================================
-# if(ERF_ENABLE_MASA AND (ERF_DIM GREATER 2))
-#   add_test_v1(symmetry MMS)
-#   if(ERF_ENABLE_AMREX_EB)
-#     add_test_v1(eb-symmetry EB_MMS)
-#   endif()
-# 
-#   # Create list of resolutions we want to test with; make sure to pass it as a string in quotes
-#   set(LIST_OF_GRID_SIZES 8 12 16 20)
-#   add_test_v2(cns-no-amr MMS "${LIST_OF_GRID_SIZES}")
-#   add_test_v2(cns-no-amr-mol MMS "${LIST_OF_GRID_SIZES}")
-#   #add_test_v3(cns-amr MMS "${LIST_OF_GRID_SIZES}") # This one takes a while with AMR
-# 
-#   set(LIST_OF_GRID_SIZES 8 12 16 24)
-#   add_test_v2(cns-les-no-amr MMS "${LIST_OF_GRID_SIZES}")
-# endif()
+macro(setup_test)
+    set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${TEST_NAME})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    set(PLOT_GOLD ${FCOMPARE_GOLD_FILES_DIRECTORY}/${TEST_NAME}/plt00010)
+    set(PLOT_TEST ${CURRENT_TEST_BINARY_DIR}/plt00010)
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    # set(RUNTIME_OPTIONS "time.max_step=10 amr.plot_file=plt time.plot_interval=10 amrex.throw_exception=1 amrex.signal_handling=0")
+
+    if(ERF_ENABLE_MPI)
+        set(NP 4)
+        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        unset(MPI_COMMANDS)
+    endif()
+
+    # Set some default runtime options for all tests in this category
+    # set(RUNTIME_OPTIONS "max_step=10 amr.plot_file=plt amr.checkpoint_files_output=0 amr.plot_files_output=1 amrex.signal_handling=0")    
+
+endmacro(setup_test)
+
+# Standard regression test
+function(add_test_r TEST_NAME TEST_EXE)
+    setup_test()
+
+    set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_NAME}/${TEST_EXE})
+    set(TEST_NP 1)
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${TEST_NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
+    )
+endfunction(add_test_r)
+
+# Standard unit test
+function(add_test_u TEST_NAME)
+    setup_test()
+    set(TEST_NP 1)
+    add_test(${TEST_NAME} sh -c "${MPI_COMMANDS} ${CMAKE_BINARY_DIR}/${amr_wind_unit_test_exe_name}")
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 500
+        PROCESSORS ${TEST_NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "unit"
+    )
+endfunction(add_test_u)
 
 #=============================================================================
 # Unit tests
 #=============================================================================
 # add_test_u(unit_tests)
+
+#=============================================================================
+# Regression tests
+#=============================================================================
+add_test_r(IsentropicVortex erf_isentropic_vortex)
 
 #=============================================================================
 # Performance tests
