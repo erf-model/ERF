@@ -71,6 +71,7 @@ erf_init_xvel(
   // Note that this is called on a box of x-faces
 
   // Set the x-velocity
+  //TODO: Read it through input into ProbParm:: suitable_variable
   x_vel(i, j, k) = 10.0;
 }
 
@@ -87,6 +88,7 @@ erf_init_yvel(
   // Note that this is called on a box of y-faces
 
   // Set the y-velocity
+  //TODO: Read it through input into ProbParm:: suitable_variable
   y_vel(i, j, k) = 5.0;
 }
 
@@ -103,6 +105,7 @@ erf_init_zvel(
   // Note that this is called on a box of z-faces
 
   // Set the z-velocity
+  //TODO: Read it through input into ProbParm:: suitable_variable
   z_vel(i, j, k) = 0.0;
 }
 
