@@ -54,6 +54,18 @@ amr.plot_int        = 10         # number of timesteps between plotfiles
 amr.plot_vars        =  density
 amr.derive_plot_vars = pressure theta temp x_velocity y_velocity z_velocity
 
+# SOLVER CHOICE
+erf.use_advection = true
+erf.use_thermal_diffusion = false
+erf.alpha_T = 0.0
+erf.use_scalar_diffusion = false
+erf.alpha_S = 0.0
+erf.use_momentum_diffusion = false
+erf.kinematicViscosity = 0.0
+erf.use_smagorinsky   = false
+erf.use_gravity = false
+erf.spatial_order = 2
+
 # PROBLEM PARAMETERS
 prob.p_inf = 1e5  # reference pressure [Pa]
 prob.T_inf = 300. # reference temperature [K]
