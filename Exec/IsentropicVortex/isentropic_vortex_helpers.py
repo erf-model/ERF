@@ -127,11 +127,11 @@ class IsentropicVortex(object):
                           xc_norm=0.5,yc_norm=0.5):
         Uinf = self.M_inf*self.a_inf * np.cos(self.alpha)
         Vinf = self.M_inf*self.a_inf * np.sin(self.alpha)
-        rho = np.zeros(dims)
-        u = np.zeros(dims)
-        v = np.zeros(dims)
-        p = np.zeros(dims)
-        T = np.zeros(dims)
+        rho = np.zeros(dims[:2])
+        u = np.zeros(dims[:2])
+        v = np.zeros(dims[:2])
+        p = np.zeros(dims[:2])
+        T = np.zeros(dims[:2])
         for xoff_norm in [-1,0,1]:
             for yoff_norm in [-1,0,1]:
                 xxn,yyn,drho,du,dv,dp,dT = self.evaluate(
