@@ -10,7 +10,7 @@ geometry.is_periodic = 1 1 1
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
 geometry.prob_lo     =  0     0     0
 geometry.prob_hi     =  1     1     1    
-amr.n_cell           = 32     32     32
+amr.n_cell           = 32     32     32 #TODO: Need to play around with resolution to get rid of ringing
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
@@ -22,7 +22,7 @@ erf.hi_bc       = "Interior"   "Interior"   "Interior"
 erf.do_hydro = 1
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 5e-5    # fixed time step
+erf.fixed_dt       = 5e-5    # fixed time step #TODO: Need to play around with time step to get rid of ringing
 #erf.cfl            = 0.9     # cfl number for hyperbolic system
 erf.init_shrink    = 1.0     # scale back initial timestep
 erf.change_max     = 1.05    # scale back initial timestep
