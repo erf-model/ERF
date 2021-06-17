@@ -9,8 +9,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.is_periodic = 1 1 1
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
 geometry.prob_lo     =  0    0    0
-geometry.prob_hi     = 64   64   64  
-amr.n_cell           = 64   64   64  # Consider reducing n_cell in z-dir
+geometry.prob_hi     = 64   64   4  
+amr.n_cell           = 64   64   4  # Consider reducing n_cell in z-dir
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
