@@ -141,12 +141,16 @@ class IsentropicVortex(object):
                     xc_norm=xc_norm+xoff_norm,
                     yc_norm=yc_norm+yoff_norm
                 )
+                rho += drho - self.rho_inf
                 u += du - Uinf
                 v += dv - Vinf
-                p += dp
-                T += dT
+                p += dp - self.p_inf
+                T += dT - self.T_inf
+        rho += self.rho_inf
         u += Uinf
         v += Vinf
+        p += self.p_inf
+        T += self.T_inf
         return xxn,yyn,rho,u,v,p,T
         
     def evaluate_at_time(self,t,
