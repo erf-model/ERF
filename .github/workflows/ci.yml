@@ -2,7 +2,7 @@ name: ERF CI
 
 on:
   push:
-    branches: [development]
+    # branches: [development]
   pull_request:
     branches: [development]
 
@@ -61,7 +61,7 @@ jobs:
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           ${{matrix.mpipreflags}} \
-          -DERF_ENABLE_TESTS:BOOL=OFF \
+          -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE_FOR_TESTS:BOOL=OFF \
           -DERF_ENABLE_MASA:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
