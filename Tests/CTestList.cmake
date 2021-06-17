@@ -3,14 +3,17 @@
 include(ProcessorCount)
 ProcessorCount(PROCESSES)
 
+set(FCOMPARE_GOLD_FILES_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ERF-WindGoldFiles)
+
 #=============================================================================
 # Functions for adding tests / Categories of tests
 #=============================================================================
 macro(setup_test)
     set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${TEST_NAME})
     set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
-    set(PLOT_GOLD ${FCOMPARE_GOLD_FILES_DIRECTORY}/${TEST_NAME}/plt00010)
-    set(PLOT_TEST ${CURRENT_TEST_BINARY_DIR}/plt00010)
+    set(PLOT_GOLD ${FCOMPARE_GOLD_FILES_DIRECTORY}/${TEST_NAME}/plt01000)
+    set(PLOT_TEST ${CURRENT_TEST_BINARY_DIR}/plt01000)
+
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
     file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
     file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
@@ -35,7 +38,8 @@ function(add_test_r TEST_NAME TEST_EXE)
 
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_NAME}/${TEST_EXE})
     set(TEST_NP 1)
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log")
+    set(FCOMPARE_TOLERANCE "-r 1e-10 --abs_tol 1.0e-12")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_TOLERANCE} ${PLOT_GOLD} ${PLOT_TEST}")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
