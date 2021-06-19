@@ -28,7 +28,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 {
     BL_PROFILE_VAR("RK3_stage()",RK3_stage);
 
-    int nvars = cons_old.nComp(); 
+    const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray(); // TODO: Remove this once all the flux computations are modularized
 
     // ************************************************************************************
     // Fill the ghost cells/faces of the MultiFabs we will need
@@ -44,16 +44,13 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     // **************************************************************************************
     // Deal with gravity
-    const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
     Real gravity = solverChoice.use_gravity? CONST_GRAV: 0.0;
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
-    // ************************************************************************************** 
-    // 
+    // **************************************************************************************
     // Calculate face-based fluxes to update cell-centered quantities, and 
     //           edge-based and cell-based fluxes to update face-centered quantities
-    // 
     // **************************************************************************************
     // TODO: No need for 'CalcAdvFlux'. Remove/clean this
 //    CalcAdvFlux(cons_old, xmom_old, ymom_old, zmom_old,
@@ -72,7 +69,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     // **************************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
-    //TODO: Benchmarking ofperformance. We are computing the fluxes on the fly. 
+    //TODO: Benchmarking of performance. We are computing the fluxes on the fly.
     //If the performance slows, consider saving all the fluxes apriori and accessing them here.
 
     // ************************************************************************************** 
@@ -117,7 +114,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 //        Array4<Real const> const& ceny_v = cenflux[1].array(mfi);
 //        Array4<Real const> const& cenz_w = cenflux[2].array(mfi);
 
-//        amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+//        amrex::ParallelFor(bx, cons_old.nComp(), [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
 //        {
 //            cell_data_upd(i,j,k,n) = - dt *
 //                ( AMREX_D_TERM(  (xflux(i+1,j,k,n) - xflux(i,j,k,n)) / dx[0],
@@ -130,71 +127,21 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         // **************************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************************
-        amrex::ParallelFor(bx, nvars,
+        amrex::ParallelFor(bx, cons_old.nComp(),
        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             cell_data_upd(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
-            // Compute advection terms.
-            if (solverChoice.use_advection) { // TODO: Put the stuff within this 'if' in a function and simply call it
-                Real xFaceFluxNext, xFaceFluxPrev, yFaceFluxNext, yFaceFluxPrev, zFaceFluxNext, zFaceFluxPrev;
-                switch(n) {
-                    case Rho_comp: // Continuity
-                        xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                        xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                        yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                        yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                        zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                        zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                        break;
-                    case RhoTheta_comp: // Temperature
-                        xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                        xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                        yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                        yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                        zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                        zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                        break;
-                    case RhoScalar_comp: // Scalar
-                        xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                        xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                        yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                        yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                        zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                        zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                        break;
-                    default:
-                        amrex::Abort("Error: Conserved quantity index is unrecognized");
-                }
-                // Add advective terms. TODO: Put this under a if condition
-                cell_data_upd(i, j, k, n) += (-dt) *
-                                             (    (xFaceFluxNext - xFaceFluxPrev) / dx[0]
-                                                + (yFaceFluxNext - yFaceFluxPrev) / dx[1]
-                                                + (zFaceFluxNext - zFaceFluxPrev) / dx[2]
-                                             );
-            } // Stuff to do with advection
+            // Add advection terms.
+            if (solverChoice.use_advection)
+                cell_data_upd(i, j, k, n) += (-dt) * AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, n, geom, solverChoice.spatial_order);
 
-            // Compute diffusive terms terms. TODO: Put this under a if condition
-            Real xDiffFlux = 0.0, yDiffFlux = 0.0, zDiffFlux = 0.0, diffCoeff = 0.0;
-            if (solverChoice.use_thermal_diffusion) {
-                xDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoTheta_comp, Coord::x);
-                yDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoTheta_comp, Coord::y);
-                zDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoTheta_comp, Coord::z);
-                diffCoeff = solverChoice.alpha_T;
-            }
-            if (solverChoice.use_scalar_diffusion) {
-                xDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoScalar_comp, Coord::x);
-                yDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoScalar_comp, Coord::y);
-                zDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoScalar_comp, Coord::z);
-                diffCoeff = solverChoice.alpha_S;
-            }
             // Add diffusive terms.
-            cell_data_upd(i, j, k, n) += dt * diffCoeff *
-                                        (    xDiffFlux / (dx[0]*dx[0])
-                                           + yDiffFlux / (dx[1]*dx[1])
-                                           + zDiffFlux / (dx[2]*dx[2])
-                                        );
+            if (solverChoice.use_thermal_diffusion && n == RhoTheta_comp)
+                cell_data_upd(i, j, k, n) += dt * DiffusionContributionForState(i, j, k,cell_data_old, RhoTheta_comp, geom, solverChoice);
+            if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
+                cell_data_upd(i, j, k, n) += dt * DiffusionContributionForState(i, j, k,cell_data_old, RhoScalar_comp, geom, solverChoice);
 
-            // Add source terms. TODO: Put this under a if condition
+            // Add source terms. TODO: Put this under a if condition when we implement source term
             cell_data_upd(i, j, k, n) += dt * source_fab(i, j, k, n);
         }
         );

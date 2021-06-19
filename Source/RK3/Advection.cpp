@@ -140,7 +140,7 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
 Real
 ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                                 const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
-                                const Array4<Real>& cons_in,
+                                const Array4<Real>& cell_data,
                                 const enum NextOrPrev &nextOrPrev,
                                 const enum AdvectedQuantity &advectedQuantity,
                                 const enum AdvectingQuantity &advectingQuantity,
@@ -191,20 +191,20 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     case AdvectingQuantity::rho_u:
       // Get theta (i+1/2,    j, k    ) = theta on face (i+1, j  , k  ) for x-dir if nextOrPrev = NextOrPrev::next
       // Get theta (i-1/2,    j, k    ) = theta on face (i,   j  , k  ) for x-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
+      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
       break;
     case AdvectingQuantity::rho_v:
       // Get theta (i   , j+1/2, k    ) = theta on face (i  , j+1, k  ) for y-dir if nextOrPrev = NextOrPrev::next
       // Get theta (i   , j-1/2, k    ) = theta on face (i  , j  , k  ) for y-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
+      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
       break;
     case AdvectingQuantity::rho_w:
       // Get theta (i   , j    , k+1/2) = theta on face (i  , j  , k+1) for z-dir if nextOrPrev = NextOrPrev::next
       // Get theta (i   , j    , k-1/2) = theta on face (i  , j  , k  ) for z-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
+      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
       break;
     default:
       amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -215,20 +215,20 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     case AdvectingQuantity::rho_u:
       // Get scalar (i+1/2,    j, k    ) = scalar on face (i+1, j  , k  ) for x-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i-1/2,    j, k    ) = scalar on face (i,   j  , k  ) for x-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
       break;
     case AdvectingQuantity::rho_v:
       // Get scalar (i   , j+1/2, k    ) = scalar on face (i  , j+1, k  ) for y-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i   , j-1/2, k    ) = scalar on face (i  , j  , k  ) for y-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
       break;
     case AdvectingQuantity::rho_w:
       // Get scalar (i   , j    , k+1/2) = scalar on face (i  , j  , k+1) for z-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i   , j    , k-1/2) = scalar on face (i  , j  , k  ) for z-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
       break;
     default:
       amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -240,4 +240,51 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
 
   // Return the product of advected and advecting quantities
   return advectingQty * advectedQty;
+}
+
+Real
+AdvectionContributionForState(const int &i, const int &j, const int &k,
+                              const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                              const Array4<Real>& cell_data, const int &qty_index,
+                              const amrex::Geometry &geom,
+                              const int &spatial_order) {
+
+    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
+    auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
+    Real xFaceFluxNext, xFaceFluxPrev, yFaceFluxNext, yFaceFluxPrev, zFaceFluxNext, zFaceFluxPrev;
+
+    switch(qty_index) {
+        case Rho_comp: // Continuity
+            xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_u, spatial_order);
+            xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_u, spatial_order);
+            yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_v, spatial_order);
+            yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_v, spatial_order);
+            zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_w, spatial_order);
+            zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_w, spatial_order);
+            break;
+        case RhoTheta_comp: // Temperature
+            xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_u, spatial_order);
+            xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_u, spatial_order);
+            yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_v, spatial_order);
+            yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_v, spatial_order);
+            zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_w, spatial_order);
+            zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_w, spatial_order);
+            break;
+        case RhoScalar_comp: // Scalar
+            xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, spatial_order);
+            xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, spatial_order);
+            yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, spatial_order);
+            yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, spatial_order);
+            zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, spatial_order);
+            zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, spatial_order);
+            break;
+        default:
+            amrex::Abort("Error: Conserved quantity index is unrecognized");
+    }
+    // Assemble advection contribution
+    Real advectionContribution = (xFaceFluxNext - xFaceFluxPrev)/ dx  // Advective flux in x-dir
+                               + (yFaceFluxNext - yFaceFluxPrev)/ dy  // Advective flux in y-dir
+                               + (zFaceFluxNext - zFaceFluxPrev)/ dz; // Advective flux in z-dir
+
+    return advectionContribution;
 }

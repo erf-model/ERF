@@ -45,23 +45,58 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
 }
 
 Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
-                                  const Array4<Real>& qty, const int & qty_index,
+                                  const Array4<Real>& cell_data, const int & qty_index,
                                   const enum Coord& coordDir) {
-    Real diffusionTrem = 0.0;
+    Real diffusionTerm = 0.0;
 
     switch (coordDir) {
         case Coord::x:
-            diffusionTrem = qty(i+1, j, k, qty_index) -2.0*qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index);
+            diffusionTerm = cell_data(i+1, j, k, qty_index) -2.0*cell_data(i, j, k, qty_index) + cell_data(i-1, j, k, qty_index);
             break;
         case Coord::y:
-            diffusionTrem = qty(i, j+1, k, qty_index) -2.0*qty(i, j, k, qty_index) + qty(i, j-1, k, qty_index);
+            diffusionTerm = cell_data(i, j+1, k, qty_index) -2.0*cell_data(i, j, k, qty_index) + cell_data(i, j-1, k, qty_index);
             break;
         case Coord::z:
-            diffusionTrem = qty(i, j, k+1, qty_index) -2.0*qty(i, j, k, qty_index) + qty(i, j, k-1, qty_index);
+            diffusionTerm = cell_data(i, j, k+1, qty_index) -2.0*cell_data(i, j, k, qty_index) + cell_data(i, j, k-1, qty_index);
             break;
         default:
             amrex::Abort("Error: Coord direction is unrecognized");
     }
 
-    return diffusionTrem;
+    return diffusionTerm;
+}
+
+Real
+DiffusionContributionForState(const int &i, const int &j, const int &k,
+                              const Array4<Real>& cell_data, const int & qty_index,
+                              const amrex::Geometry &geom,
+                              const SolverChoice &solverChoice) {
+
+    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
+    auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
+    Real xDiffFlux, yDiffFlux, zDiffFlux, diffCoeff = 0.0;
+
+    xDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::x);
+    yDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::y);
+    zDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::z);
+
+    switch(qty_index) {
+        case RhoTheta_comp: // Temperature
+            diffCoeff = solverChoice.alpha_T;
+            break;
+        case RhoScalar_comp: // Scalar
+            diffCoeff = solverChoice.alpha_S;
+            break;
+        default:
+            amrex::Abort("Error: Diffusion term for the data index isn't implemented");
+    }
+
+    // Assemble diffusion contribution.
+    Real diffusionContribution = diffCoeff *
+                                 (  xDiffFlux / (dx*dx)  // Diffusive flux in x-dir
+                                  + yDiffFlux / (dy*dy)  // Diffusive flux in y-dir
+                                  + zDiffFlux / (dz*dz)  // Diffusive flux in z-dir
+                                 );
+
+    return diffusionContribution;
 }
