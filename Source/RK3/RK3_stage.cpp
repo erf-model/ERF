@@ -147,7 +147,6 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         );
 
         // TODO: Fine-tune dealing with kinematic and eddy viscosity
-        Real nu = 0.0; // Obtained from solver choice
         Array4<Real> nut;
         if (solverChoice.use_smagorinsky) // Compute nut, otherwise remains whatever it's initialized to
             ComputeTurbulentViscosity(u, v, w, geom,nut);
@@ -166,38 +165,12 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_u_upd(i, j, k) = 0.0; // Initialize the updated x-mom eqn term to zero
 
             // Add advective terms
-            if (solverChoice.use_advection) { // TODO: Put the stuff within this 'if' in a function and simply call it
-                Real centFluxXXNext, centFluxXXPrev, edgeFluxXYNext, edgeFluxXYPrev, edgeFluxXZNext, edgeFluxXZPrev;
-                centFluxXXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                centFluxXXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                edgeFluxXYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                edgeFluxXYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                edgeFluxXZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                edgeFluxXZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-
-                rho_u_upd(i, j, k) += (-dt) * (
-                         (centFluxXXNext - centFluxXXPrev) / dx[0] // Contribution to x-mom eqn from advective flux in x-dir
-                        +(edgeFluxXYNext - edgeFluxXYPrev) / dx[1] // Contribution to x-mom eqn from advective flux in y-dir
-                        +(edgeFluxXZNext - edgeFluxXZPrev) / dx[2] // Contribution to x-mom eqn from advective flux in z-dir
-                );
-            }
+            if (solverChoice.use_advection)
+                rho_u_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, geom, solverChoice);
 
             // Add diffusive terms
-            if (solverChoice.use_momentum_diffusion) { // TODO: Put the stuff within this 'if' in a function and simply call it
-                Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
-                tau11Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x,DiffusionDir::x, geom, nut, solverChoice, nu);
-                tau11Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x,DiffusionDir::x, geom, nut, solverChoice, nu);
-                tau12Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x,DiffusionDir::y, geom, nut, solverChoice, nu);
-                tau12Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x,DiffusionDir::y, geom, nut, solverChoice, nu);
-                tau13Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x,DiffusionDir::z, geom, nut, solverChoice, nu);
-                tau13Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x,DiffusionDir::z, geom, nut, solverChoice, nu);
-
-                rho_u_upd(i, j, k) += dt * (
-                         (tau11Next - tau11Prev) / dx[0] // Contribution to x-mom eqn from diffusive flux in x-dir
-                        +(tau12Next - tau12Prev) / dx[1] // Contribution to x-mom eqn from diffusive flux in y-dir
-                        +(tau13Next - tau13Prev) / dx[2] // Contribution to x-mom eqn from diffusive flux in z-dir
-                );
-            }
+            if (solverChoice.use_momentum_diffusion)
+                rho_u_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, geom, nut, solverChoice);
 
             // Add pressure gradient
             rho_u_upd(i, j, k) += (-dt / dx[0]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i - 1, j, k, RhoTheta_comp)));
@@ -215,38 +188,12 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_v_upd(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
 
             // Add advective terms
-            if (solverChoice.use_advection) { // TODO: Put the stuff within this 'if' in a function and simply call it
-                Real centFluxYYNext, centFluxYYPrev, edgeFluxYXNext, edgeFluxYXPrev, edgeFluxYZNext, edgeFluxYZPrev;
-                edgeFluxYXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                edgeFluxYXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                centFluxYYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                centFluxYYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                edgeFluxYZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                edgeFluxYZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-
-                rho_v_upd(i, j, k) += (-dt) * (
-                         (edgeFluxYXNext - edgeFluxYXPrev) / dx[0] // Contribution to y-mom eqn from advective flux in x-dir
-                        +(centFluxYYNext - centFluxYYPrev) / dx[1] // Contribution to y-mom eqn from advective flux in y-dir
-                        +(edgeFluxYZNext - edgeFluxYZPrev) / dx[2] // Contribution to y-mom eqn from advective flux in z-dir
-                );
-            }
+            if (solverChoice.use_advection)
+                rho_v_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, geom, solverChoice);
 
             // Add diffusive terms
-            if (solverChoice.use_momentum_diffusion) { // TODO: Put the stuff within this 'if' in a function and simply call it
-                Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
-                tau21Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::x, geom, nut, solverChoice, nu);
-                tau21Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::x, geom, nut, solverChoice, nu);
-                tau22Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::y, geom, nut, solverChoice, nu);
-                tau22Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::y, geom, nut, solverChoice, nu);
-                tau23Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::z, geom, nut, solverChoice, nu);
-                tau23Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::z, geom, nut, solverChoice, nu);
-
-                rho_v_upd(i, j, k) += dt * (
-                        (tau21Next - tau21Prev) / dx[0] // Contribution to y-mom eqn from diffusive flux in x-dir
-                        + (tau22Next - tau22Prev) / dx[1] // Contribution to y-mom eqn from diffusive flux in y-dir
-                        + (tau23Next - tau23Prev) / dx[2] // Contribution to y-mom eqn from diffusive flux in z-dir
-                );
-            }
+            if (solverChoice.use_momentum_diffusion)
+                rho_v_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, geom, nut, solverChoice);
 
             // Add pressure gradient
             rho_v_upd(i, j, k) += (-dt / dx[1]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j - 1, k, RhoTheta_comp)));
@@ -264,38 +211,12 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_w_upd(i, j, k) = 0.0; // Initialize the updated z-mom eqn term to zero
 
             // Add advective terms
-            if (solverChoice.use_advection) { // TODO: Put the stuff within this 'if' in a function and simply call it
-                Real centFluxZZNext, centFluxZZPrev, edgeFluxZXNext, edgeFluxZXPrev, edgeFluxZYNext, edgeFluxZYPrev;
-                edgeFluxZXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                edgeFluxZXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                edgeFluxZYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                edgeFluxZYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                centFluxZZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                centFluxZZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-
-                rho_w_upd(i, j, k) += (-dt) * (
-                         (edgeFluxZXNext - edgeFluxZXPrev) / dx[0] // Contribution to z-mom eqn from advective flux in x-dir
-                        +(edgeFluxZYNext - edgeFluxZYPrev) / dx[1] // Contribution to z-mom eqn from advective flux in y-dir
-                        +(centFluxZZNext - centFluxZZPrev) / dx[2] // Contribution to z-mom eqn from advective flux in z-dir
-                );
-            }
+            if (solverChoice.use_advection)
+                rho_w_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, geom, solverChoice);
 
             // Add diffusive terms
-            if (solverChoice.use_momentum_diffusion) { // TODO: Put the stuff within this 'if' in a function and simply call it
-                Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev;
-                tau31Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::z, DiffusionDir::x, geom, nut, solverChoice, nu);
-                tau31Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::z, DiffusionDir::x, geom, nut, solverChoice, nu);
-                tau32Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::z, DiffusionDir::y, geom, nut, solverChoice, nu);
-                tau32Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::z, DiffusionDir::y, geom, nut, solverChoice, nu);
-                tau33Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::z, DiffusionDir::z, geom, nut, solverChoice, nu);
-                tau33Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::z, DiffusionDir::z, geom, nut, solverChoice, nu);
-
-                rho_w_upd(i, j, k) += dt * (
-                        (tau31Next - tau31Prev) / dx[0] // Contribution to y-mom eqn from diffusive flux in x-dir
-                        + (tau32Next - tau32Prev) / dx[1] // Contribution to y-mom eqn from diffusive flux in y-dir
-                        + (tau33Next - tau33Prev) / dx[2] // Contribution to y-mom eqn from diffusive flux in z-dir
-                );
-            }
+            if (solverChoice.use_momentum_diffusion)
+                rho_w_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, geom, nut, solverChoice);
 
             // Add pressure gradient
             rho_w_upd(i, j, k) += (-dt / dx[2]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j, k - 1, RhoTheta_comp)));
