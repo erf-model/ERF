@@ -46,7 +46,8 @@ pp.query("sum_per", sum_per);
 pp.query("hard_cfl_limit", hard_cfl_limit);
 pp.query("job_name", job_name);
 
-pp.query("use_advection", use_advection);
+pp.query("use_state_advection", use_state_advection);
+pp.query("use_momentum_advection", use_momentum_advection);
 pp.query("use_thermal_diffusion", use_thermal_diffusion);
 pp.query("alpha_T", alpha_T);
 pp.query("use_scalar_diffusion", use_scalar_diffusion);
@@ -54,5 +55,6 @@ pp.query("alpha_S", alpha_S);
 pp.query("use_momentum_diffusion", use_momentum_diffusion);
 pp.query("kinematicViscosity", kinematicViscosity);
 pp.query("use_smagorinsky", use_smagorinsky);
+pp.query("use_pressure", use_pressure);
 pp.query("use_gravity", use_gravity);
 pp.query("spatial_order", spatial_order);

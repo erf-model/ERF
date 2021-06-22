@@ -45,7 +45,7 @@ erf_initdata(
   // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
   const amrex::Real r0 = 0.05 * (prob_hi[0] - prob_lo[0]);
 
-  // Set the density 
+  // Set the density
   state(i, j, k, Rho_comp) = ProbParm::rho_0;
  
   // Initial potential temperature

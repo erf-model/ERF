@@ -55,7 +55,8 @@ amr.plot_vars        =  density adv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.use_advection = false
+erf.use_state_advection = false
+erf.use_momentum_advection = false
 erf.use_thermal_diffusion = false
 erf.alpha_T = 0.0
 erf.use_scalar_diffusion = true
@@ -63,6 +64,7 @@ erf.alpha_S = 1.0
 erf.use_momentum_diffusion = false
 erf.kinematicViscosity = 0.0
 erf.use_smagorinsky   = false
+erf.use_pressure = true
 erf.use_gravity = false
 erf.spatial_order = 2
 

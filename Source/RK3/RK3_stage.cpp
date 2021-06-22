@@ -132,7 +132,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             cell_data_upd(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
             // Add advection terms.
-            if (solverChoice.use_advection)
+            if (solverChoice.use_state_advection)
                 cell_data_upd(i, j, k, n) += (-dt) * AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, n, geom, solverChoice.spatial_order);
 
             // Add diffusive terms.
@@ -165,7 +165,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_u_upd(i, j, k) = 0.0; // Initialize the updated x-mom eqn term to zero
 
             // Add advective terms
-            if (solverChoice.use_advection)
+            if (solverChoice.use_momentum_advection)
                 rho_u_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, geom, solverChoice);
 
             // Add diffusive terms
@@ -173,7 +173,8 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                 rho_u_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, geom, nut, solverChoice);
 
             // Add pressure gradient
-            rho_u_upd(i, j, k) += (-dt / dx[0]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i - 1, j, k, RhoTheta_comp)));
+            if (solverChoice.use_pressure)
+                rho_u_upd(i, j, k) += (-dt / dx[0]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i - 1, j, k, RhoTheta_comp)));
 
             // Add gravity term
             rho_u_upd(i, j, k) += dt * grav_gpu[0] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::x, solverChoice.spatial_order);
@@ -188,7 +189,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_v_upd(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
 
             // Add advective terms
-            if (solverChoice.use_advection)
+            if (solverChoice.use_momentum_advection)
                 rho_v_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, geom, solverChoice);
 
             // Add diffusive terms
@@ -196,7 +197,8 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                 rho_v_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, geom, nut, solverChoice);
 
             // Add pressure gradient
-            rho_v_upd(i, j, k) += (-dt / dx[1]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j - 1, k, RhoTheta_comp)));
+            if (solverChoice.use_pressure)
+                rho_v_upd(i, j, k) += (-dt / dx[1]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j - 1, k, RhoTheta_comp)));
 
             // Add gravity term
             rho_v_upd(i, j, k) += dt * grav_gpu[1] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::y, solverChoice.spatial_order);
@@ -211,7 +213,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_w_upd(i, j, k) = 0.0; // Initialize the updated z-mom eqn term to zero
 
             // Add advective terms
-            if (solverChoice.use_advection)
+            if (solverChoice.use_momentum_advection)
                 rho_w_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, geom, solverChoice);
 
             // Add diffusive terms
@@ -219,7 +221,8 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                 rho_w_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, geom, nut, solverChoice);
 
             // Add pressure gradient
-            rho_w_upd(i, j, k) += (-dt / dx[2]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j, k - 1, RhoTheta_comp)));
+            if (solverChoice.use_pressure)
+                rho_w_upd(i, j, k) += (-dt / dx[2]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j, k - 1, RhoTheta_comp)));
 
             // Add gravity term
             rho_w_upd(i, j, k) += dt * grav_gpu[2] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::z, solverChoice.spatial_order);
