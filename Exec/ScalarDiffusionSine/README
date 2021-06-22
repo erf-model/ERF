@@ -1,0 +1,7 @@
+See http://ammar-hakim.org/sj/je/je16/je16-ldg.html#local-dg-for-advection-diffusion-equation
+Need to
+  1. turn off velocity (prob.H), so that only diffusion takes effect 
+  2. set scalar diffusivity = constant D
+
+Analytical Solution:
+scalar f(x,t)=exp(−Dt)sin(x−at)
