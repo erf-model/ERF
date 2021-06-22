@@ -29,29 +29,24 @@ erf_initdata(
 {
   // Geometry
   const amrex::Real* prob_lo = geomdata.ProbLo();
-  const amrex::Real* prob_hi = geomdata.ProbHi();
   const amrex::Real* dx = geomdata.CellSize();
   const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
   const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
+  const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-  // Define a point (xc,yc,zc) at (0.25,0.5,0.5) of domain span
-  const amrex::Real xc = 0.25 * (prob_lo[0] + prob_hi[0]);
-  const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-
-  // 2D problem
-  const amrex::Real r = std::sqrt((x - xc) * (x - xc) + (y - yc) * (y - yc));
-
-  // Arbitrary radius of disc
-  const amrex::Real r0 = 0.2 * (prob_hi[0] - prob_lo[0]);
-
-  // Set the density
+  // Set the density 
   state(i, j, k, Rho_comp) = ProbParm::rho_0;
  
   // Initial potential temperature
-  state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
+  const amrex::Real p = ProbParm::rho_0 * ProbParm::V_0*ProbParm::V_0*
+                        (
+                           1.0 / (Gamma * ProbParm::M_0 * ProbParm::M_0)
+                        + (1.0 / 16.0) * (cos(2 * x) + cos(2 * y)) * (cos(2 * z) + 2)
+                        );
+  state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p); // std::pow(p, 1.0 / Gamma) * p_0 / R_d;
 
-  // Set scalar = non-zero in a disk of radius r0 and 0 elsewhere
-  state(i, j, k, RhoScalar_comp) = ProbParm::A_0 * 0.25 * (1 + cos(PI * std::min(r, r0) / r0));
+  // Set scalar = 0 everywhere
+  state(i, j, k, RhoScalar_comp) = 0.0;
 }
 
 AMREX_GPU_DEVICE
@@ -68,10 +63,12 @@ erf_init_xvel(
   // Geometry
   const amrex::Real* prob_lo = geomdata.ProbLo();
   const amrex::Real* dx = geomdata.CellSize();
+  const amrex::Real x = prob_lo[0] + (i + 0.0) * dx[0];
   const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
+  const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
   // Set the x-velocity
-  x_vel(i, j, k) = -y + 0.5;
+  x_vel(i, j, k) = ProbParm::V_0 * sin(x) * cos(y) * cos(z);
 }
 
 AMREX_GPU_DEVICE
@@ -89,9 +86,11 @@ erf_init_yvel(
   const amrex::Real* prob_lo = geomdata.ProbLo();
   const amrex::Real* dx = geomdata.CellSize();
   const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
+  const amrex::Real y = prob_lo[1] + (j + 0.0) * dx[1];
+  const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
   // Set the y-velocity
-  y_vel(i, j, k) = x - 0.5;
+  y_vel(i, j, k) = - ProbParm::V_0 * cos(x) * sin(y) * cos(z);
 }
 
 AMREX_GPU_DEVICE
