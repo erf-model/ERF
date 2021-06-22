@@ -77,6 +77,9 @@ public:
         amrex::Print() << "use_momentum_diffusion: " << use_momentum_diffusion << std::endl;
         amrex::Print() << "kinematicViscosity: " << kinematicViscosity << std::endl;
         amrex::Print() << "use_smagorinsky: " << use_smagorinsky << std::endl;
+        if (use_smagorinsky) {
+            amrex::Print() << "  NOTE: ComputeTurbulentViscosity() currently disabled!" << std::endl;
+        }
         amrex::Print() << "use_pressure: " << use_pressure << std::endl;
         amrex::Print() << "use_gravity: " << use_gravity << std::endl;
         amrex::Print() << "spatial_order: " << spatial_order << std::endl;

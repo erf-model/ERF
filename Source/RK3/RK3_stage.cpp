@@ -148,8 +148,8 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
         // TODO: Fine-tune dealing with kinematic and eddy viscosity
         Array4<Real> nut;
-        if (solverChoice.use_smagorinsky) // Compute nut, otherwise remains whatever it's initialized to
-            ComputeTurbulentViscosity(u, v, w, geom,nut);
+//        if (solverChoice.use_smagorinsky) // Compute nut, otherwise remains whatever it's initialized to
+//            ComputeTurbulentViscosity(u, v, w, geom,nut);
 
         // **************************************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
