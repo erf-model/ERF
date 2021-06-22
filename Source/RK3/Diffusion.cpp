@@ -47,21 +47,21 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
 Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
                                   const Array4<Real>& qty, const int & qty_index,
                                   const enum Coord& coordDir) {
-    Real diffusionTrem = 0.0;
+    Real diffusionTerm = 0.0;
 
     switch (coordDir) {
         case Coord::x:
-            diffusionTrem = qty(i+1, j, k, qty_index) -2.0*qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index);
+            diffusionTerm = qty(i+1, j, k, qty_index) -2.0*qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index);
             break;
         case Coord::y:
-            diffusionTrem = qty(i, j+1, k, qty_index) -2.0*qty(i, j, k, qty_index) + qty(i, j-1, k, qty_index);
+            diffusionTerm = qty(i, j+1, k, qty_index) -2.0*qty(i, j, k, qty_index) + qty(i, j-1, k, qty_index);
             break;
         case Coord::z:
-            diffusionTrem = qty(i, j, k+1, qty_index) -2.0*qty(i, j, k, qty_index) + qty(i, j, k-1, qty_index);
+            diffusionTerm = qty(i, j, k+1, qty_index) -2.0*qty(i, j, k, qty_index) + qty(i, j, k-1, qty_index);
             break;
         default:
             amrex::Abort("Error: Coord direction is unrecognized");
     }
 
-    return diffusionTrem;
+    return diffusionTerm;
 }
