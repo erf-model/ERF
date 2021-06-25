@@ -17,7 +17,6 @@ macro(setup_test)
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
     file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
     file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
-    # set(RUNTIME_OPTIONS "time.max_step=10 amr.plot_file=plt time.plot_interval=10 amrex.throw_exception=1 amrex.signal_handling=0")
 
     if(ERF_ENABLE_MPI)
         set(NP 4)
@@ -28,6 +27,7 @@ macro(setup_test)
     endif()
 
     # Set some default runtime options for all tests in this category
+    # set(RUNTIME_OPTIONS "time.max_step=10 amr.plot_file=plt time.plot_interval=10 amrex.throw_exception=1 amrex.signal_handling=0")
     # set(RUNTIME_OPTIONS "max_step=10 amr.plot_file=plt amr.checkpoint_files_output=0 amr.plot_files_output=1 amrex.signal_handling=0")    
 
 endmacro(setup_test)
@@ -39,7 +39,8 @@ function(add_test_r TEST_NAME TEST_EXE)
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_NAME}/${TEST_EXE})
     set(TEST_NP 1)
     set(FCOMPARE_TOLERANCE "-r 1e-10 --abs_tol 1.0e-12")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_TOLERANCE} ${PLOT_GOLD} ${PLOT_TEST}")
+    set(FCOMPARE_FLAGS "-a ${FCOMPARE_TOLERANCE}")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${PLOT_TEST}")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
