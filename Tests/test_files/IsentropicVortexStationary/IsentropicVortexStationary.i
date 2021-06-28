@@ -8,9 +8,9 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 1
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
-geometry.prob_lo     =  0    0    0
-geometry.prob_hi     = 64   64   4  
-amr.n_cell           = 64   64   4  # Consider reducing n_cell in z-dir
+geometry.prob_lo     =   0    0   0
+geometry.prob_hi     =  64   64   4
+amr.n_cell           =  64   64   4
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
@@ -26,13 +26,13 @@ erf.do_hydro = 1
 #erf.init_shrink    = 1.0     # scale back initial timestep
 #erf.change_max     = 1.05    # scale back initial timestep
 #erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
-erf.fixed_dt       = 0.001
+erf.fixed_dt        = 0.001
 
 # DIAGNOSTICS & VERBOSITY
-erf.sum_interval   = 1       # timesteps between computing mass
-erf.v              = 1       # verbosity in ERF.cpp
-amr.v                = 1       # verbosity in Amr.cpp
-amr.data_log         = datlog
+erf.sum_interval    = 1       # timesteps between computing mass
+erf.v               = 1       # verbosity in ERF.cpp
+amr.v               = 1       # verbosity in Amr.cpp
+amr.data_log        = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -50,7 +50,7 @@ amr.check_int       = 100        # number of timesteps between checkpoints
 # PLOTFILES
 amr.plot_files_output = 1
 amr.plot_file       = plt        # root name of plotfile
-amr.plot_int        = 10         # number of timesteps between plotfiles
+amr.plot_int        = 1000       # number of timesteps between plotfiles
 amr.plot_vars        =  density
 amr.derive_plot_vars = pressure theta temp x_velocity y_velocity z_velocity
 
