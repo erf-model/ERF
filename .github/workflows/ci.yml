@@ -23,20 +23,15 @@ jobs:
 
     steps:
 
-    # - name: Cancel previous runs
-    #     uses: styfle/cancel-workflow-action@0.6.0
-    #     with:
-    #     access_token: ${{github.token}}
-
     - uses: actions/checkout@v2
       with:
         submodules: true
 
     - name: Setup
       run: |
-        echo "::add-matcher::.github/problem-matchers/gcc.json"
+        # echo "::add-matcher::.github/problem-matchers/gcc.json"
         echo "NPROCS=${{matrix.procs}}" >> $GITHUB_ENV
-        cmake -E make_directory ${{runner.workspace}}/deps
+        # cmake -E make_directory ${{runner.workspace}}/deps
 
     - name: Handle Dependencies
       run: |
@@ -81,9 +76,11 @@ jobs:
 
     - name: Build
       run: |
-        cmake --build ${{runner.workspace}}/build-${{matrix.os}} \
-          --parallel ${{env.NPROCS}}; \
+        cmake --build ${{runner.workspace}}/build-${{matrix.os}} --parallel ${{env.NPROCS}};
 
     - name: Regression Tests
       run: |
+        ctest -N
         ctest -R IsentropicVortex
+      working-directory:
+        ${{runner.workspace}}/build-${{matrix.os}}
