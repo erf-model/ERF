@@ -82,7 +82,6 @@ include(${CMAKE_SOURCE_DIR}/CMake/SetRpath.cmake)
 add_subdirectory(Exec)
 
 if(ERF_ENABLE_TESTS)
-  enable_testing()
   include(CTest)
   add_subdirectory("Submodules/GoogleTest")
   add_subdirectory(Tests)
