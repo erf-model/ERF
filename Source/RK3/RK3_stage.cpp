@@ -35,10 +35,6 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     // Apply BC on state data at cells
     // ************************************************************************************ 
     cons_old.FillBoundary(geom.periodicity());
-    for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
-      phys_bc[dir].applyBC();
-      phys_bc[dir+1].applyBC(geom, vec<fabs>);
-    }
 
     xmom_old.FillBoundary(geom.periodicity());
     ymom_old.FillBoundary(geom.periodicity());
@@ -52,6 +48,17 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     // **************************************************************************************
     // Deal with gravity
+    // ************************************************************************************** 
+
+    amrex::Vector<MultiFab&> vars{cons_old, xvel, yvel, zvel};
+
+    for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
+      phys_bc[dir].applyBC(geom, vars);
+    }
+
+    // ************************************************************************************** 
+
+    const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
     Real gravity = solverChoice.use_gravity? CONST_GRAV: 0.0;
     // CONST_GRAV is a positive constant, but application of grav_gpu to the vertical momentum
     // tendency assumes this quantity is negative.
