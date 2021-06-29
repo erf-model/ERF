@@ -35,6 +35,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     // Apply BC on state data at cells
     // ************************************************************************************ 
     cons_old.FillBoundary(geom.periodicity());
+    for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
+      phys_bc[dir].applyBC();
+      phys_bc[dir+1].applyBC(geom, vec<fabs>);
+    }
 
     xmom_old.FillBoundary(geom.periodicity());
     ymom_old.FillBoundary(geom.periodicity());

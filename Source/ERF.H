@@ -487,7 +487,7 @@ protected:
   static bool signalStopJob;
   static bool dump_old;
   static int verbose;
-  static amrex::BCRec phys_bc;
+  static amrex::BCBase[AMREX_SPACEDIM] phys_bc;
 
   /// for keeping track of mass changes from negative density resets
 //  static amrex::Real frac_change;
