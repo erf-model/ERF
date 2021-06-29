@@ -147,7 +147,7 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
 
     const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
-    Real advectionContribution;
+    Real advectionContribution = 0.0;
 
     switch (momentumEqn) {
         case MomentumEqn::x:
@@ -310,7 +310,8 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
 
     const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
-    Real xFaceFluxNext, xFaceFluxPrev, yFaceFluxNext, yFaceFluxPrev, zFaceFluxNext, zFaceFluxPrev;
+    Real xFaceFluxNext = 0.0, xFaceFluxPrev = 0.0, yFaceFluxNext = 0.0, yFaceFluxPrev = 0.0, zFaceFluxNext = 0.0, zFaceFluxPrev = 0.0;
+    Real advectionContribution = 0.0;
 
     switch(qty_index) {
         case Rho_comp: // Continuity
@@ -341,7 +342,7 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
             amrex::Abort("Error: Conserved quantity index is unrecognized");
     }
     // Assemble advection contribution
-    Real advectionContribution = (xFaceFluxNext - xFaceFluxPrev)/ dx  // Advective flux in x-dir
+    advectionContribution = (xFaceFluxNext - xFaceFluxPrev)/ dx  // Advective flux in x-dir
                                + (yFaceFluxNext - yFaceFluxPrev)/ dy  // Advective flux in y-dir
                                + (zFaceFluxNext - zFaceFluxPrev)/ dz; // Advective flux in z-dir
 

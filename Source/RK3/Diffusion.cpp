@@ -53,7 +53,7 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
 
     const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
-    Real diffusionContribution;
+    Real diffusionContribution = 0.0;
 
     switch (momentumEqn) {
         case MomentumEqn::x:
@@ -132,7 +132,7 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
 
     const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
-    Real xDiffFlux, yDiffFlux, zDiffFlux, diffCoeff = 0.0;
+    Real xDiffFlux = 0.0, yDiffFlux = 0.0, zDiffFlux = 0.0, diffCoeff = 0.0;
 
     xDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::x);
     yDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::y);

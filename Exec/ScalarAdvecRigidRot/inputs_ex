@@ -64,7 +64,7 @@ erf.alpha_S = 0.0
 erf.use_momentum_diffusion = false
 erf.kinematicViscosity = 0.0
 erf.use_smagorinsky   = false
-erf.use_pressure = true
+erf.use_pressure = false
 erf.use_gravity = false
 erf.spatial_order = 2
 

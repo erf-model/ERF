@@ -36,6 +36,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     // ************************************************************************************ 
     cons_old.FillBoundary(geom.periodicity());
 
+    xmom_old.FillBoundary(geom.periodicity());
+    ymom_old.FillBoundary(geom.periodicity());
+    zmom_old.FillBoundary(geom.periodicity());
+
     // Apply BC on velocity data on faces
     // Note that in RK3_advance, the BC was applied on momentum
     xvel.FillBoundary(geom.periodicity());
