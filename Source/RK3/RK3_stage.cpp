@@ -35,16 +35,18 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     // Apply BC on state data at cells
     // ************************************************************************************ 
     cons_old.FillBoundary(geom.periodicity());
-    for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
-      phys_bc[dir].applyBC();
-      phys_bc[dir+1].applyBC(geom, vec<fabs>);
-    }
 
     // Apply BC on velocity data on faces
     // Note that in RK3_advance, the BC was applied on momentum
     xvel.FillBoundary(geom.periodicity());
     yvel.FillBoundary(geom.periodicity());
     zvel.FillBoundary(geom.periodicity());
+
+    amrex::Vector<MultiFab&> vars{cons_old, xvel, yvel, zvel};
+
+    for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
+      phys_bc[dir].applyBC(geom, vars);
+    }
 
     // ************************************************************************************** 
 
