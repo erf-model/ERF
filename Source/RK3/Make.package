@@ -7,6 +7,7 @@ CEXE_sources += RK3_stage.cpp
 CEXE_sources += RK3_utils.cpp
 CEXE_sources += Interpolation.cpp
 CEXE_sources += Advection.cpp
+CEXE_sources += Diffusion.cpp
 CEXE_sources += StrainRate.cpp
 CEXE_sources += EddyViscosity.cpp
 

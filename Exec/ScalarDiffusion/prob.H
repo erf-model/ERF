@@ -42,8 +42,7 @@ erf_initdata(
 
   const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
-  // Arbitrarily choose the radius of the bubble to be 0.25 times the length of the domain
-  const amrex::Real r0 = 0.25 * (prob_hi[0] - prob_lo[0]);
+  // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
 
   // Set the density 
   state(i, j, k, Rho_comp) = ProbParm::rho_0;
@@ -51,11 +50,8 @@ erf_initdata(
   // Initial potential temperature
   state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
 
-  // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
-  if (r < r0) 
-     state(i, j, k, RhoScalar_comp) = ProbParm::A_0;
-  else
-     state(i, j, k, RhoScalar_comp) = 0.0;
+  // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
+  state(i, j, k, RhoScalar_comp) = ProbParm::A_0 * exp(-10.*r*r);
 }
 
 AMREX_GPU_DEVICE
@@ -72,7 +68,7 @@ erf_init_xvel(
 
   // Set the x-velocity
   //TODO: Read it through input into ProbParm:: suitable_variable
-  x_vel(i, j, k) = 10.0;
+  x_vel(i, j, k) = 0.0;
 }
 
 AMREX_GPU_DEVICE
@@ -89,7 +85,7 @@ erf_init_yvel(
 
   // Set the y-velocity
   //TODO: Read it through input into ProbParm:: suitable_variable
-  y_vel(i, j, k) = 5.0;
+  y_vel(i, j, k) = 0.0;
 }
 
 AMREX_GPU_DEVICE

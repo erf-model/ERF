@@ -48,8 +48,8 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
       phys_bc[dir].applyBC(geom, vars);
     }
 
-    // ************************************************************************************** 
-
+    // **************************************************************************************
+    // Deal with gravity
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
     Real gravity = solverChoice.use_gravity? CONST_GRAV: 0.0;
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, gravity};
@@ -80,7 +80,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     // Define updates in the current RK stage, fluxes are computed here itself
     //TODO: Benchmarking ofperformance. We are computing the fluxes on the fly. 
     //If the performance slows, consider saving all the fluxes apriori and accessing them here.
-  
+
     // ************************************************************************************** 
     for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         
@@ -140,50 +140,76 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             cell_data_upd(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
-            // Compute advection terms. TODO: Put these under if condition. No need to compute these for pure diffusion problems
-            Real xFaceFluxNext, xFaceFluxPrev, yFaceFluxNext, yFaceFluxPrev, zFaceFluxNext, zFaceFluxPrev;
-            switch(n) {
-            case Rho_comp: // Continuity
-                xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                break;
-            case RhoTheta_comp: // Temperature
-                xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                break;
-            case RhoScalar_comp: // Scalar
-                xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-                yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-                zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-                break;
-            default:
-                amrex::Abort("Error: Conserved quantity index is unrecognized");
+            // Compute advection terms.
+            if (solverChoice.use_advection) { // TODO: Put the stuff within this 'if' in a function and simply call it
+                Real xFaceFluxNext, xFaceFluxPrev, yFaceFluxNext, yFaceFluxPrev, zFaceFluxNext, zFaceFluxPrev;
+                switch(n) {
+                    case Rho_comp: // Continuity
+                        xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                        xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                        yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                        yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                        zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                        zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                        break;
+                    case RhoTheta_comp: // Temperature
+                        xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                        xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                        yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                        yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                        zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                        zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                        break;
+                    case RhoScalar_comp: // Scalar
+                        xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                        xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                        yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                        yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                        zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                        zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                        break;
+                    default:
+                        amrex::Abort("Error: Conserved quantity index is unrecognized");
+                }
+                // Add advective terms. TODO: Put this under a if condition
+                cell_data_upd(i, j, k, n) += (-dt) *
+                                             (    (xFaceFluxNext - xFaceFluxPrev) / dx[0]
+                                                + (yFaceFluxNext - yFaceFluxPrev) / dx[1]
+                                                + (zFaceFluxNext - zFaceFluxPrev) / dx[2]
+                                             );
+            } // Stuff to do with advection
+
+            // Compute diffusive terms terms. TODO: Put this under a if condition
+            Real xDiffFlux = 0.0, yDiffFlux = 0.0, zDiffFlux = 0.0, diffCoeff = 0.0;
+            if (solverChoice.use_thermal_diffusion) {
+                xDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoTheta_comp, Coord::x);
+                yDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoTheta_comp, Coord::y);
+                zDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoTheta_comp, Coord::z);
+                diffCoeff = solverChoice.alpha_T;
             }
-
-            // Add advective terms. TODO: Put this under a if condition
-            cell_data_upd(i, j, k, n) += (-dt) *
-                    (  (xFaceFluxNext - xFaceFluxPrev) / dx[0]
-                     + (yFaceFluxNext - yFaceFluxPrev) / dx[1]
-                     + (zFaceFluxNext - zFaceFluxPrev) / dx[2]
-                    );
-
-            // Add diffusive terms. TODO: Put this under a if condition
+            if (solverChoice.use_scalar_diffusion) {
+                xDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoScalar_comp, Coord::x);
+                yDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoScalar_comp, Coord::y);
+                zDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data_old, RhoScalar_comp, Coord::z);
+                diffCoeff = solverChoice.alpha_S;
+            }
+            // Add diffusive terms.
+            cell_data_upd(i, j, k, n) += dt * diffCoeff *
+                                        (    xDiffFlux / (dx[0]*dx[0])
+                                           + yDiffFlux / (dx[1]*dx[1])
+                                           + zDiffFlux / (dx[2]*dx[2])
+                                        );
 
             // Add source terms. TODO: Put this under a if condition
             cell_data_upd(i, j, k, n) += dt * source_fab(i, j, k, n);
         }
         );
+
+        // TODO: Fine-tune dealing with kinematic and eddy viscosity
+        Real nu = 0.0; // Obtained from solver choice
+        Array4<Real> nut;
+//        if (solverChoice.use_smagorinsky) // Compute nut, otherwise remains whatever it's initialized to
+//            ComputeTurbulentViscosity(u, v, w, geom,nut);
 
         // **************************************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
@@ -199,21 +225,38 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_u_upd(i, j, k) = 0.0; // Initialize the updated x-mom eqn term to zero
 
             // Add advective terms
-            Real centFluxXXNext, centFluxXXPrev, edgeFluxXYNext, edgeFluxXYPrev, edgeFluxXZNext, edgeFluxXZPrev;
-            centFluxXXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            centFluxXXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            edgeFluxXYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            edgeFluxXYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            edgeFluxXZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-            edgeFluxXZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            if (solverChoice.use_advection) { // TODO: Put the stuff within this 'if' in a function and simply call it
+                Real centFluxXXNext, centFluxXXPrev, edgeFluxXYNext, edgeFluxXYPrev, edgeFluxXZNext, edgeFluxXZPrev;
+                centFluxXXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                centFluxXXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                edgeFluxXYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                edgeFluxXYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                edgeFluxXZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                edgeFluxXZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
 
-            rho_u_upd(i, j, k) += (-dt) * (
-                         (centFluxXXNext - centFluxXXPrev) / dx[0] // Contribution to x-mom eqn from flux in x-dir
-                        +(edgeFluxXYNext - edgeFluxXYPrev) / dx[1] // Contribution to x-mom eqn from flux in y-dir
-                        +(edgeFluxXZNext - edgeFluxXZPrev) / dx[2] // Contribution to x-mom eqn from flux in z-dir
-                    );
+                rho_u_upd(i, j, k) += (-dt) * (
+                         (centFluxXXNext - centFluxXXPrev) / dx[0] // Contribution to x-mom eqn from advective flux in x-dir
+                        +(edgeFluxXYNext - edgeFluxXYPrev) / dx[1] // Contribution to x-mom eqn from advective flux in y-dir
+                        +(edgeFluxXZNext - edgeFluxXZPrev) / dx[2] // Contribution to x-mom eqn from advective flux in z-dir
+                );
+            }
 
             // Add diffusive terms
+            if (solverChoice.use_momentum_diffusion) { // TODO: Put the stuff within this 'if' in a function and simply call it
+                Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
+                tau11Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x,DiffusionDir::x, geom, nut, solverChoice, nu);
+                tau11Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x,DiffusionDir::x, geom, nut, solverChoice, nu);
+                tau12Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x,DiffusionDir::y, geom, nut, solverChoice, nu);
+                tau12Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x,DiffusionDir::y, geom, nut, solverChoice, nu);
+                tau13Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x,DiffusionDir::z, geom, nut, solverChoice, nu);
+                tau13Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x,DiffusionDir::z, geom, nut, solverChoice, nu);
+
+                rho_u_upd(i, j, k) += dt * (
+                         (tau11Next - tau11Prev) / dx[0] // Contribution to x-mom eqn from diffusive flux in x-dir
+                        +(tau12Next - tau12Prev) / dx[1] // Contribution to x-mom eqn from diffusive flux in y-dir
+                        +(tau13Next - tau13Prev) / dx[2] // Contribution to x-mom eqn from diffusive flux in z-dir
+                );
+            }
 
             // Add pressure gradient
             rho_u_upd(i, j, k) += (-dt / dx[0]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i - 1, j, k, RhoTheta_comp)));
@@ -231,21 +274,38 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_v_upd(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
 
             // Add advective terms
-            Real centFluxYYNext, centFluxYYPrev, edgeFluxYXNext, edgeFluxYXPrev, edgeFluxYZNext, edgeFluxYZPrev;
-            edgeFluxYXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            edgeFluxYXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            centFluxYYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            centFluxYYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            edgeFluxYZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-            edgeFluxYZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            if (solverChoice.use_advection) { // TODO: Put the stuff within this 'if' in a function and simply call it
+                Real centFluxYYNext, centFluxYYPrev, edgeFluxYXNext, edgeFluxYXPrev, edgeFluxYZNext, edgeFluxYZPrev;
+                edgeFluxYXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                edgeFluxYXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                centFluxYYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                centFluxYYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                edgeFluxYZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                edgeFluxYZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
 
-            rho_v_upd(i, j, k) += (-dt) * (
-                         (edgeFluxYXNext - edgeFluxYXPrev) / dx[0] // Contribution to y-mom eqn from flux in x-dir
-                        +(centFluxYYNext - centFluxYYPrev) / dx[1] // Contribution to y-mom eqn from flux in y-dir
-                        +(edgeFluxYZNext - edgeFluxYZPrev) / dx[2] // Contribution to y-mom eqn from flux in z-dir
-            );
+                rho_v_upd(i, j, k) += (-dt) * (
+                         (edgeFluxYXNext - edgeFluxYXPrev) / dx[0] // Contribution to y-mom eqn from advective flux in x-dir
+                        +(centFluxYYNext - centFluxYYPrev) / dx[1] // Contribution to y-mom eqn from advective flux in y-dir
+                        +(edgeFluxYZNext - edgeFluxYZPrev) / dx[2] // Contribution to y-mom eqn from advective flux in z-dir
+                );
+            }
 
             // Add diffusive terms
+            if (solverChoice.use_momentum_diffusion) { // TODO: Put the stuff within this 'if' in a function and simply call it
+                Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
+                tau21Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::x, geom, nut, solverChoice, nu);
+                tau21Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::x, geom, nut, solverChoice, nu);
+                tau22Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::y, geom, nut, solverChoice, nu);
+                tau22Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::y, geom, nut, solverChoice, nu);
+                tau23Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::z, geom, nut, solverChoice, nu);
+                tau23Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::z, geom, nut, solverChoice, nu);
+
+                rho_v_upd(i, j, k) += dt * (
+                        (tau21Next - tau21Prev) / dx[0] // Contribution to y-mom eqn from diffusive flux in x-dir
+                        + (tau22Next - tau22Prev) / dx[1] // Contribution to y-mom eqn from diffusive flux in y-dir
+                        + (tau23Next - tau23Prev) / dx[2] // Contribution to y-mom eqn from diffusive flux in z-dir
+                );
+            }
 
             // Add pressure gradient
             rho_v_upd(i, j, k) += (-dt / dx[1]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j - 1, k, RhoTheta_comp)));
@@ -263,21 +323,38 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_w_upd(i, j, k) = 0.0; // Initialize the updated z-mom eqn term to zero
 
             // Add advective terms
-            Real centFluxZZNext, centFluxZZPrev, edgeFluxZXNext, edgeFluxZXPrev, edgeFluxZYNext, edgeFluxZYPrev;
-            edgeFluxZXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            edgeFluxZXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            edgeFluxZYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            edgeFluxZYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            centFluxZZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-            centFluxZZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            if (solverChoice.use_advection) { // TODO: Put the stuff within this 'if' in a function and simply call it
+                Real centFluxZZNext, centFluxZZPrev, edgeFluxZXNext, edgeFluxZXPrev, edgeFluxZYNext, edgeFluxZYPrev;
+                edgeFluxZXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                edgeFluxZXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+                edgeFluxZYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                edgeFluxZYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+                centFluxZZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+                centFluxZZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
 
-            rho_w_upd(i, j, k) += (-dt) * (
-                         (edgeFluxZXNext - edgeFluxZXPrev) / dx[0] // Contribution to z-mom eqn from flux in x-dir
-                        +(edgeFluxZYNext - edgeFluxZYPrev) / dx[1] // Contribution to z-mom eqn from flux in y-dir
-                        +(centFluxZZNext - centFluxZZPrev) / dx[2] // Contribution to z-mom eqn from flux in z-dir
-            );
+                rho_w_upd(i, j, k) += (-dt) * (
+                         (edgeFluxZXNext - edgeFluxZXPrev) / dx[0] // Contribution to z-mom eqn from advective flux in x-dir
+                        +(edgeFluxZYNext - edgeFluxZYPrev) / dx[1] // Contribution to z-mom eqn from advective flux in y-dir
+                        +(centFluxZZNext - centFluxZZPrev) / dx[2] // Contribution to z-mom eqn from advective flux in z-dir
+                );
+            }
 
             // Add diffusive terms
+            if (solverChoice.use_momentum_diffusion) { // TODO: Put the stuff within this 'if' in a function and simply call it
+                Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev;
+                tau31Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::z, DiffusionDir::x, geom, nut, solverChoice, nu);
+                tau31Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::z, DiffusionDir::x, geom, nut, solverChoice, nu);
+                tau32Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::z, DiffusionDir::y, geom, nut, solverChoice, nu);
+                tau32Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::z, DiffusionDir::y, geom, nut, solverChoice, nu);
+                tau33Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::z, DiffusionDir::z, geom, nut, solverChoice, nu);
+                tau33Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::z, DiffusionDir::z, geom, nut, solverChoice, nu);
+
+                rho_w_upd(i, j, k) += dt * (
+                        (tau31Next - tau31Prev) / dx[0] // Contribution to y-mom eqn from diffusive flux in x-dir
+                        + (tau32Next - tau32Prev) / dx[1] // Contribution to y-mom eqn from diffusive flux in y-dir
+                        + (tau33Next - tau33Prev) / dx[2] // Contribution to y-mom eqn from diffusive flux in z-dir
+                );
+            }
 
             // Add pressure gradient
             rho_w_upd(i, j, k) += (-dt / dx[2]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j, k - 1, RhoTheta_comp)));
