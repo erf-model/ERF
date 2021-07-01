@@ -28,7 +28,7 @@ using namespace amrex;
 bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
-phys_bc::BCBase* ERF::bc_recs[AMREX_SPACEDIM*2];
+phys_bcs::BCBase* ERF::bc_recs[AMREX_SPACEDIM*2];
 //amrex::Real ERF::frac_change = 1.e200;
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
