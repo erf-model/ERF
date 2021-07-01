@@ -28,7 +28,7 @@ using namespace amrex;
 bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
-amrex::BCBase* ERF::phys_bc[AMREX_SPACEDIM*2];
+phys_bc::BCBase* ERF::bc_recs[AMREX_SPACEDIM*2];
 //amrex::Real ERF::frac_change = 1.e200;
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
@@ -83,25 +83,25 @@ ERF::read_params()
   amrex::Vector<int> lo_bc(AMREX_SPACEDIM), hi_bc(AMREX_SPACEDIM);
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     if (!lo_bc_char[dir].compare("Interior")) {
-      phys_bc[dir*2] = new BCInterior();
+      bc_recs[dir*2] = new phys_bc::BCInterior();
       std::cout << "DIR IS INTERIOR " << dir << std::endl;
     } else if (!lo_bc_char[dir].compare("Hard")) {
-      phys_bc[dir*2] = new BCDummy();
+      bc_recs[dir*2] = new phys_bc::BCDummy();
       //lo_bc[dir] = 1;
     } else if (!lo_bc_char[dir].compare("FOExtrap")) {
-      phys_bc[dir*2] = new BCDummy();
+      bc_recs[dir*2] = new phys_bc::BCDummy();
       //lo_bc[dir] = 2;
     } else if (!lo_bc_char[dir].compare("Symmetry")) {
-      phys_bc[dir*2] = new BCDummy();
+      bc_recs[dir*2] = new phys_bc::BCDummy();
       //lo_bc[dir] = 3;
     } else if (!lo_bc_char[dir].compare("SlipWall")) {
-      phys_bc[dir*2] = new BCSlipWall();
+      bc_recs[dir*2] = new phys_bc::BCSlipWall();
       //lo_bc[dir] = 4;
     } else if (!lo_bc_char[dir].compare("NoSlipWall")) {
-      phys_bc[dir*2] = new Dummy();
+      bc_recs[dir*2] = new phys_bc::BCDummy();
       //lo_bc[dir] = 5;
     } else if (!lo_bc_char[dir].compare("UserBC")) {
-      phys_bc[dir*2] = new BCDummy();
+      bc_recs[dir*2] = new phys_bc::BCDummy();
       //lo_bc[dir] = 6;
     } else {
       amrex::Abort("Wrong boundary condition word in lo_bc, please use: "
@@ -109,25 +109,25 @@ ERF::read_params()
     }
 
     if (!hi_bc_char[dir].compare("Interior")) {
-      phys_bc[dir*2+1] = new BCInterior();
+      bc_recs[dir*2+1] = new phys_bc::BCInterior();
       //hi_bc[dir] = 0;
     } else if (!hi_bc_char[dir].compare("Hard")) {
-      phys_bc[dir*2+1] = new BCDummy();
+      bc_recs[dir*2+1] = new phys_bc::BCDummy();
       //hi_bc[dir] = 1;
     } else if (!hi_bc_char[dir].compare("FOExtrap")) {
-      phys_bc[dir*2+1] = new BCDummy();
+      bc_recs[dir*2+1] = new phys_bc::BCDummy();
       //hi_bc[dir] = 2;
     } else if (!hi_bc_char[dir].compare("Symmetry")) {
-      phys_bc[dir*2+1] = new BCDummy();
+      bc_recs[dir*2+1] = new phys_bc::BCDummy();
       //hi_bc[dir] = 3;
     } else if (!hi_bc_char[dir].compare("SlipWall")) {
-      phys_bc[dir*2+1] = new BCSlipWall();
+      bc_recs[dir*2+1] = new phys_bc::BCSlipWall();
       //hi_bc[dir] = 4;
     } else if (!hi_bc_char[dir].compare("NoSlipWall")) {
-      phys_bc[dir*2+1] = new Dummy();
+      bc_recs[dir*2+1] = new phys_bc::BCDummy();
       //hi_bc[dir] = 5;
     } else if (!hi_bc_char[dir].compare("UserBC")) {
-      phys_bc[dir*2+1] = new BCDummy();
+      bc_recs[dir*2+1] = new phys_bc::BCDummy();
       //hi_bc[dir] = 6;
     } else {
       amrex::Abort("Wrong boundary condition word in hi_bc, please use: "
@@ -136,7 +136,7 @@ ERF::read_params()
   }
 
   //
-  // Check phys_bc against possible periodic geometry
+  // Check bc_recs against possible periodic geometry
   // if periodic, must have internal BC marked.
   //
   //
@@ -145,13 +145,13 @@ ERF::read_params()
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     if (amrex::DefaultGeometry().isPeriodic(dir)) {
       if (
-        !(phys_bc[dir]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
+        !(bc_recs[2*dir]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
         std::cerr << "ERF::read_params:periodic in direction " << dir
                   << " but low BC is not Interior\n";
         amrex::Error();
       }
       if (
-        !(phys_bc[dir+1]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
+        !(bc_recs[2*dir+1]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
         std::cerr << "ERF::read_params:periodic in direction " << dir
                   << " but high BC is not Interior\n";
         amrex::Error();
@@ -160,12 +160,12 @@ ERF::read_params()
       //
       // Do idiot check. If not periodic, should not be interior.
       //
-      if (phys_bc[dir]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
+      if (bc_recs[2*dir]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
         std::cerr << "ERF::read_params:interior bc in direction " << dir
                   << " but not periodic\n";
         amrex::Error();
       }
-      if (phys_bc[dir+1]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
+      if (bc_recs[2*dir+1]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
         std::cerr << "ERF::read_params:interior bc in direction " << dir
                   << " but not periodic\n";
         amrex::Error();
