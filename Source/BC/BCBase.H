@@ -42,8 +42,8 @@ namespace math_bcs {
         arr(nx+1,j,k,ncomp) = 1.0*dx + arr(nx,j,k,ncomp);
     });
   }
-}
 */
+}
 
 namespace phys_bcs {
 
