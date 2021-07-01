@@ -49,7 +49,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     amrex::Vector<MultiFab*> vars{&cons_old, &xvel, &yvel, &zvel};
 
     for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
-      bc_recs[dir].applyBC(geom, vars, dir/2);
+      ERF::bc_recs[dir].applyBC(geom, vars, dir/2);
     }
 
     // **************************************************************************************
