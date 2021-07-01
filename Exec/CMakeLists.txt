@@ -1,4 +1,6 @@
 add_subdirectory(ScalarAdvecUniformU)
 add_subdirectory(ScalarAdvecUniformUV)
 add_subdirectory(ScalarAdvecShearedU)
+add_subdirectory(ScalarDiffusion)
+add_subdirectory(ScalarAdvecDiffUniformU)
 add_subdirectory(IsentropicVortex)

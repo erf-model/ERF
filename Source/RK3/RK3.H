@@ -143,6 +143,12 @@ Real ComputeTurbulentViscosity(const int &i, const int &j, const int &k,
                            const Geometry &geom,
                            Array4<Real>& nut);
 
+// Given a velocity field and a geometry, compute nut or K(i, j, k) are cell-centers
+AMREX_GPU_DEVICE
+void ComputeTurbulentViscosity(const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                               const Geometry &geom,
+                               Array4<Real>& nut);
+
 // Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known
 AMREX_GPU_DEVICE
 Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
@@ -164,6 +170,11 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const Array4<Real>& nut,
                         const SolverChoice &solverChoice,
                         const Real &molViscosity);
+
+AMREX_GPU_DEVICE
+Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
+                                  const Array4<Real>& qty, const int & qty_index,
+                                  const enum Coord& coordDir);
 
 int ComputeGhostCells(const int &spatial_order);
 
