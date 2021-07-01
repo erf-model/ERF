@@ -8,7 +8,7 @@ namespace phys_bcs {
 
 class BCDummy : public BCBase {
   public:
-  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab>& vars, int dim) override {}
+  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, int dim) override {}
 };
 
 }

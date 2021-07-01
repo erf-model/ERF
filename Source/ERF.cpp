@@ -83,25 +83,25 @@ ERF::read_params()
   amrex::Vector<int> lo_bc(AMREX_SPACEDIM), hi_bc(AMREX_SPACEDIM);
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     if (!lo_bc_char[dir].compare("Interior")) {
-      phys_bc[dir*2] = BCInterior();
+      phys_bc[dir*2] = new BCInterior();
       std::cout << "DIR IS INTERIOR " << dir << std::endl;
     } else if (!lo_bc_char[dir].compare("Hard")) {
-      phys_bc[dir*2] = BCDummy();
+      phys_bc[dir*2] = new BCDummy();
       //lo_bc[dir] = 1;
     } else if (!lo_bc_char[dir].compare("FOExtrap")) {
-      phys_bc[dir*2] = BCDummy();
+      phys_bc[dir*2] = new BCDummy();
       //lo_bc[dir] = 2;
     } else if (!lo_bc_char[dir].compare("Symmetry")) {
-      phys_bc[dir*2] = BCDummy();
+      phys_bc[dir*2] = new BCDummy();
       //lo_bc[dir] = 3;
     } else if (!lo_bc_char[dir].compare("SlipWall")) {
-      phys_bc[dir*2] = BCSlipWall();
+      phys_bc[dir*2] = new BCSlipWall();
       //lo_bc[dir] = 4;
     } else if (!lo_bc_char[dir].compare("NoSlipWall")) {
-      phys_bc[dir*2] = BCNoSlipWall();
+      phys_bc[dir*2] = new Dummy();
       //lo_bc[dir] = 5;
     } else if (!lo_bc_char[dir].compare("UserBC")) {
-      phys_bc[dir*2] = BCDummy();
+      phys_bc[dir*2] = new BCDummy();
       //lo_bc[dir] = 6;
     } else {
       amrex::Abort("Wrong boundary condition word in lo_bc, please use: "
@@ -109,25 +109,25 @@ ERF::read_params()
     }
 
     if (!hi_bc_char[dir].compare("Interior")) {
-      phys_bc[dir*2+1] = BCInterior();
+      phys_bc[dir*2+1] = new BCInterior();
       //hi_bc[dir] = 0;
     } else if (!hi_bc_char[dir].compare("Hard")) {
-      phys_bc[dir*2+1] = BCDummy();
+      phys_bc[dir*2+1] = new BCDummy();
       //hi_bc[dir] = 1;
     } else if (!hi_bc_char[dir].compare("FOExtrap")) {
-      phys_bc[dir*2+1] = BCDummy();
+      phys_bc[dir*2+1] = new BCDummy();
       //hi_bc[dir] = 2;
     } else if (!hi_bc_char[dir].compare("Symmetry")) {
-      phys_bc[dir*2+1] = BCDummy();
+      phys_bc[dir*2+1] = new BCDummy();
       //hi_bc[dir] = 3;
     } else if (!hi_bc_char[dir].compare("SlipWall")) {
-      phys_bc[dir*2+1] = BCSlipWall();
+      phys_bc[dir*2+1] = new BCSlipWall();
       //hi_bc[dir] = 4;
     } else if (!hi_bc_char[dir].compare("NoSlipWall")) {
-      phys_bc[dir*2+1] = BCNoSlipWall();
+      phys_bc[dir*2+1] = new Dummy();
       //hi_bc[dir] = 5;
     } else if (!hi_bc_char[dir].compare("UserBC")) {
-      phys_bc[dir*2+1] = BCDummy();
+      phys_bc[dir*2+1] = new BCDummy();
       //hi_bc[dir] = 6;
     } else {
       amrex::Abort("Wrong boundary condition word in hi_bc, please use: "
