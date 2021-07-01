@@ -15,6 +15,11 @@
 
 #include "IndexDefines.H"
 
+#include "BC/BCBase.H"
+#include "BC/BCDummy.H"
+#include "BC/BCInterior.H"
+#include "BC/BCSlipWall.H"
+
 using std::istream;
 using std::ostream;
 
