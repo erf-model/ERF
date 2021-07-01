@@ -83,25 +83,25 @@ ERF::read_params()
   amrex::Vector<int> lo_bc(AMREX_SPACEDIM), hi_bc(AMREX_SPACEDIM);
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     if (!lo_bc_char[dir].compare("Interior")) {
-      bc_recs[dir*2] = new phys_bc::BCInterior();
+      bc_recs[dir*2] = new phys_bcs::BCInterior();
       std::cout << "DIR IS INTERIOR " << dir << std::endl;
     } else if (!lo_bc_char[dir].compare("Hard")) {
-      bc_recs[dir*2] = new phys_bc::BCDummy();
+      bc_recs[dir*2] = new phys_bcs::BCDummy();
       //lo_bc[dir] = 1;
     } else if (!lo_bc_char[dir].compare("FOExtrap")) {
-      bc_recs[dir*2] = new phys_bc::BCDummy();
+      bc_recs[dir*2] = new phys_bcs::BCDummy();
       //lo_bc[dir] = 2;
     } else if (!lo_bc_char[dir].compare("Symmetry")) {
-      bc_recs[dir*2] = new phys_bc::BCDummy();
+      bc_recs[dir*2] = new phys_bcs::BCDummy();
       //lo_bc[dir] = 3;
     } else if (!lo_bc_char[dir].compare("SlipWall")) {
-      bc_recs[dir*2] = new phys_bc::BCSlipWall();
+      bc_recs[dir*2] = new phys_bcs::BCSlipWall();
       //lo_bc[dir] = 4;
     } else if (!lo_bc_char[dir].compare("NoSlipWall")) {
-      bc_recs[dir*2] = new phys_bc::BCDummy();
+      bc_recs[dir*2] = new phys_bcs::BCDummy();
       //lo_bc[dir] = 5;
     } else if (!lo_bc_char[dir].compare("UserBC")) {
-      bc_recs[dir*2] = new phys_bc::BCDummy();
+      bc_recs[dir*2] = new phys_bcs::BCDummy();
       //lo_bc[dir] = 6;
     } else {
       amrex::Abort("Wrong boundary condition word in lo_bc, please use: "
@@ -109,25 +109,25 @@ ERF::read_params()
     }
 
     if (!hi_bc_char[dir].compare("Interior")) {
-      bc_recs[dir*2+1] = new phys_bc::BCInterior();
+      bc_recs[dir*2+1] = new phys_bcs::BCInterior();
       //hi_bc[dir] = 0;
     } else if (!hi_bc_char[dir].compare("Hard")) {
-      bc_recs[dir*2+1] = new phys_bc::BCDummy();
+      bc_recs[dir*2+1] = new phys_bcs::BCDummy();
       //hi_bc[dir] = 1;
     } else if (!hi_bc_char[dir].compare("FOExtrap")) {
-      bc_recs[dir*2+1] = new phys_bc::BCDummy();
+      bc_recs[dir*2+1] = new phys_bcs::BCDummy();
       //hi_bc[dir] = 2;
     } else if (!hi_bc_char[dir].compare("Symmetry")) {
-      bc_recs[dir*2+1] = new phys_bc::BCDummy();
+      bc_recs[dir*2+1] = new phys_bcs::BCDummy();
       //hi_bc[dir] = 3;
     } else if (!hi_bc_char[dir].compare("SlipWall")) {
-      bc_recs[dir*2+1] = new phys_bc::BCSlipWall();
+      bc_recs[dir*2+1] = new phys_bcs::BCSlipWall();
       //hi_bc[dir] = 4;
     } else if (!hi_bc_char[dir].compare("NoSlipWall")) {
-      bc_recs[dir*2+1] = new phys_bc::BCDummy();
+      bc_recs[dir*2+1] = new phys_bcs::BCDummy();
       //hi_bc[dir] = 5;
     } else if (!hi_bc_char[dir].compare("UserBC")) {
-      bc_recs[dir*2+1] = new phys_bc::BCDummy();
+      bc_recs[dir*2+1] = new phys_bcs::BCDummy();
       //hi_bc[dir] = 6;
     } else {
       amrex::Abort("Wrong boundary condition word in hi_bc, please use: "
