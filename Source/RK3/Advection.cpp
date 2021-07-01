@@ -138,9 +138,68 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
 }
 
 Real
+AdvectionContributionForMom(const int &i, const int &j, const int &k,
+                            const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                            const enum MomentumEqn &momentumEqn,
+                            const amrex::Geometry &geom,
+                            const SolverChoice &solverChoice) {
+
+    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
+    auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
+    Real advectionContribution = 0.0;
+
+    switch (momentumEqn) {
+        case MomentumEqn::x:
+            Real centFluxXXNext, centFluxXXPrev, edgeFluxXYNext, edgeFluxXYPrev, edgeFluxXZNext, edgeFluxXZPrev;
+            centFluxXXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            centFluxXXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            edgeFluxXYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            edgeFluxXYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            edgeFluxXZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            edgeFluxXZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+
+            advectionContribution = (centFluxXXNext - centFluxXXPrev) / dx   // Contribution to x-mom eqn from advective flux in x-dir
+                                  + (edgeFluxXYNext - edgeFluxXYPrev) / dy   // Contribution to x-mom eqn from advective flux in y-dir
+                                  + (edgeFluxXZNext - edgeFluxXZPrev) / dz;  // Contribution to x-mom eqn from advective flux in z-dir
+            break;
+        case MomentumEqn::y:
+            Real centFluxYYNext, centFluxYYPrev, edgeFluxYXNext, edgeFluxYXPrev, edgeFluxYZNext, edgeFluxYZPrev;
+            edgeFluxYXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            edgeFluxYXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            centFluxYYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            centFluxYYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            edgeFluxYZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            edgeFluxYZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+
+            advectionContribution = (edgeFluxYXNext - edgeFluxYXPrev) / dx   // Contribution to y-mom eqn from advective flux in x-dir
+                                  + (centFluxYYNext - centFluxYYPrev) / dy   // Contribution to y-mom eqn from advective flux in y-dir
+                                  + (edgeFluxYZNext - edgeFluxYZPrev) / dz;  // Contribution to y-mom eqn from advective flux in z-dir
+            break;
+        case MomentumEqn::z:
+            Real centFluxZZNext, centFluxZZPrev, edgeFluxZXNext, edgeFluxZXPrev, edgeFluxZYNext, edgeFluxZYPrev;
+            edgeFluxZXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            edgeFluxZXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
+            edgeFluxZYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            edgeFluxZYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
+            centFluxZZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            centFluxZZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+
+            advectionContribution = (edgeFluxZXNext - edgeFluxZXPrev) / dx  // Contribution to z-mom eqn from advective flux in x-dir
+                                  + (edgeFluxZYNext - edgeFluxZYPrev) / dy  // Contribution to z-mom eqn from advective flux in y-dir
+                                  + (centFluxZZNext - centFluxZZPrev) / dz; // Contribution to z-mom eqn from advective flux in z-dir
+            break;
+        default:
+            amrex::Abort("Error: Momentum equation is unrecognized");
+    }
+
+    return advectionContribution;
+}
+
+Real
 ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                                 const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
-                                const Array4<Real>& cons_in,
+                                const Array4<Real>& cell_data,
                                 const enum NextOrPrev &nextOrPrev,
                                 const enum AdvectedQuantity &advectedQuantity,
                                 const enum AdvectingQuantity &advectingQuantity,
@@ -191,20 +250,20 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     case AdvectingQuantity::rho_u:
       // Get theta (i+1/2,    j, k    ) = theta on face (i+1, j  , k  ) for x-dir if nextOrPrev = NextOrPrev::next
       // Get theta (i-1/2,    j, k    ) = theta on face (i,   j  , k  ) for x-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
+      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
       break;
     case AdvectingQuantity::rho_v:
       // Get theta (i   , j+1/2, k    ) = theta on face (i  , j+1, k  ) for y-dir if nextOrPrev = NextOrPrev::next
       // Get theta (i   , j-1/2, k    ) = theta on face (i  , j  , k  ) for y-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
+      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
       break;
     case AdvectingQuantity::rho_w:
       // Get theta (i   , j    , k+1/2) = theta on face (i  , j  , k+1) for z-dir if nextOrPrev = NextOrPrev::next
       // Get theta (i   , j    , k-1/2) = theta on face (i  , j  , k  ) for z-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
+      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
       break;
     default:
       amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -215,20 +274,20 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     case AdvectingQuantity::rho_u:
       // Get scalar (i+1/2,    j, k    ) = scalar on face (i+1, j  , k  ) for x-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i-1/2,    j, k    ) = scalar on face (i,   j  , k  ) for x-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::x, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
       break;
     case AdvectingQuantity::rho_v:
       // Get scalar (i   , j+1/2, k    ) = scalar on face (i  , j+1, k  ) for y-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i   , j-1/2, k    ) = scalar on face (i  , j  , k  ) for y-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::y, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
       break;
     case AdvectingQuantity::rho_w:
       // Get scalar (i   , j    , k+1/2) = scalar on face (i  , j  , k+1) for z-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i   , j    , k-1/2) = scalar on face (i  , j  , k  ) for z-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cons_in, nextOrPrev, Coord::z, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
       break;
     default:
       amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -240,4 +299,52 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
 
   // Return the product of advected and advecting quantities
   return advectingQty * advectedQty;
+}
+
+Real
+AdvectionContributionForState(const int &i, const int &j, const int &k,
+                              const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                              const Array4<Real>& cell_data, const int &qty_index,
+                              const amrex::Geometry &geom,
+                              const int &spatial_order) {
+
+    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
+    auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
+    Real xFaceFluxNext = 0.0, xFaceFluxPrev = 0.0, yFaceFluxNext = 0.0, yFaceFluxPrev = 0.0, zFaceFluxNext = 0.0, zFaceFluxPrev = 0.0;
+    Real advectionContribution = 0.0;
+
+    switch(qty_index) {
+        case Rho_comp: // Continuity
+            xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_u, spatial_order);
+            xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_u, spatial_order);
+            yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_v, spatial_order);
+            yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_v, spatial_order);
+            zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::unity, AdvectingQuantity::rho_w, spatial_order);
+            zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::unity, AdvectingQuantity::rho_w, spatial_order);
+            break;
+        case RhoTheta_comp: // Temperature
+            xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_u, spatial_order);
+            xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_u, spatial_order);
+            yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_v, spatial_order);
+            yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_v, spatial_order);
+            zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::theta, AdvectingQuantity::rho_w, spatial_order);
+            zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::theta, AdvectingQuantity::rho_w, spatial_order);
+            break;
+        case RhoScalar_comp: // Scalar
+            xFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, spatial_order);
+            xFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_u, spatial_order);
+            yFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, spatial_order);
+            yFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_v, spatial_order);
+            zFaceFluxNext = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::next, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, spatial_order);
+            zFaceFluxPrev = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, NextOrPrev::prev, AdvectedQuantity::scalar, AdvectingQuantity::rho_w, spatial_order);
+            break;
+        default:
+            amrex::Abort("Error: Conserved quantity index is unrecognized");
+    }
+    // Assemble advection contribution
+    advectionContribution = (xFaceFluxNext - xFaceFluxPrev)/ dx  // Advective flux in x-dir
+                               + (yFaceFluxNext - yFaceFluxPrev)/ dy  // Advective flux in y-dir
+                               + (zFaceFluxNext - zFaceFluxPrev)/ dz; // Advective flux in z-dir
+
+    return advectionContribution;
 }

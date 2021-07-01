@@ -54,19 +54,22 @@ grow_box_by_one(const amrex::Box& b)
 struct SolverChoice {
 public:
     //SolverChoice() {}; //Default
-    SolverChoice(const bool use_advection_in, const bool  use_thermal_diffusion_in, const amrex::Real alpha_T_in,
+    SolverChoice(const bool use_state_advection_in, const bool use_momentum_advection_in,
+                 bool  use_thermal_diffusion_in, const amrex::Real alpha_T_in,
                  const bool use_scalar_diffusion_in, const amrex::Real alpha_S_in,
                  const bool use_momentum_diffusion_in, const amrex::Real kinematicViscosity_in,
-                 const bool use_smagorinsky_in, const bool use_gravity_in, const int spatial_order_in):
-            use_advection(use_advection_in), use_thermal_diffusion(use_thermal_diffusion_in), alpha_T(alpha_T_in),
+                 const bool use_smagorinsky_in, const bool use_pressure_in, const bool use_gravity_in, const int spatial_order_in):
+            use_state_advection(use_state_advection_in), use_momentum_advection(use_momentum_advection_in),
+            use_thermal_diffusion(use_thermal_diffusion_in), alpha_T(alpha_T_in),
             use_scalar_diffusion(use_scalar_diffusion_in), alpha_S(alpha_S_in),
             use_momentum_diffusion(use_momentum_diffusion_in), kinematicViscosity(kinematicViscosity_in),
-            use_smagorinsky(use_smagorinsky_in), use_gravity(use_gravity_in), spatial_order(spatial_order_in) {
+            use_smagorinsky(use_smagorinsky_in), use_pressure(use_pressure_in), use_gravity(use_gravity_in), spatial_order(spatial_order_in) {
         // All members are constant and are initialized at construction
     }
     void display() {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "use_advection: " << use_advection << std::endl;
+        amrex::Print() << "use_state_advection: " << use_state_advection << std::endl;
+        amrex::Print() << "use_momentum_advection: " << use_momentum_advection << std::endl;
         amrex::Print() << "use_thermal_diffusion: " << use_thermal_diffusion << std::endl;
         amrex::Print() << "alpha_T: " << alpha_T << std::endl;
         amrex::Print() << "use_scalar_diffusion: " << use_scalar_diffusion << std::endl;
@@ -77,11 +80,13 @@ public:
         if (use_smagorinsky) {
             amrex::Print() << "  NOTE: ComputeTurbulentViscosity() currently disabled!" << std::endl;
         }
+        amrex::Print() << "use_pressure: " << use_pressure << std::endl;
         amrex::Print() << "use_gravity: " << use_gravity << std::endl;
         amrex::Print() << "spatial_order: " << spatial_order << std::endl;
     }
     // Members
-    const bool        use_advection;
+    const bool        use_state_advection;
+    const bool        use_momentum_advection;
     const bool        use_thermal_diffusion;
     const amrex::Real alpha_T;
     const bool        use_scalar_diffusion;
@@ -89,6 +94,7 @@ public:
     const bool        use_momentum_diffusion;
     const amrex::Real kinematicViscosity;
     const bool        use_smagorinsky;
+    const bool        use_pressure;
     const bool        use_gravity;
     const int         spatial_order;
 };

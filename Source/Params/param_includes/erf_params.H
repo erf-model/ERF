@@ -46,7 +46,8 @@ static amrex::Real sum_per;
 static int hard_cfl_limit;
 static std::string job_name;
 
-static bool        use_advection;
+static bool        use_state_advection;
+static bool        use_momentum_advection;
 static bool        use_thermal_diffusion;
 static amrex::Real alpha_T;
 static bool        use_scalar_diffusion;
@@ -54,5 +55,6 @@ static amrex::Real alpha_S;
 static bool        use_momentum_diffusion;
 static amrex::Real kinematicViscosity;
 static bool        use_smagorinsky;
+static bool        use_pressure;
 static bool        use_gravity;
 static int         spatial_order;

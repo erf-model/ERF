@@ -329,11 +329,11 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // PKJ comments: Even after applying BC on *mom_new, no noticeable difference in flow data was observed
     // Apply BC on updated momentum data on faces after stage 3 and before going to next time step
     // **************************************************************************************
-    /*
+    ///*
     xmom_new.FillBoundary(geom.periodicity());
     ymom_new.FillBoundary(geom.periodicity());
     zmom_new.FillBoundary(geom.periodicity());
-    */
+    //*/
 
     // Apply BC on updated state data at cells after stage 3 and before going to next time step
     // **************************************************************************************

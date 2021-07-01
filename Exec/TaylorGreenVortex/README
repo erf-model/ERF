@@ -1,0 +1,8 @@
+See https://www1.grc.nasa.gov/wp-content/uploads/C3.3_Ames.pdf
+
+For non-diffusive problem, the flow can be reversed. So one can advance with dt and then -dt, and re-generate initial condition. 
+This can be done in Advance.cpp
+
+See the following for more details:
+(1) "Time-reversibility of the Euler equations as a benchmark for energy conserving schemes" https://www.sciencedirect.com/science/article/pii/S0021999108003422
+(2) "Benchmarks for the Transport Equation: The Convection‐Diffusion Forum and Beyond" https://agupubs.onlinelibrary.wiley.com/doi/10.1029/CE047p0241

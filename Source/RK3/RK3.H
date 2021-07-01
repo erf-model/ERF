@@ -106,8 +106,27 @@ Real InterpolateRhoScalarFromCellToFace(const int &i, const int &j, const int &k
 // Meant for {x, y, z}- momentum equations
 AMREX_GPU_DEVICE
 Real ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
+                                   const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                                   const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                                   const enum NextOrPrev &nextOrPrev,
+                                   const enum AdvectedQuantity &advectedQuantity,
+                                   const enum AdvectingQuantity &advectingQuantity,
+                                   const int &spatial_order);
+
+// Meant for {x, y, z}- momentum equations
+AMREX_GPU_DEVICE
+Real AdvectionContributionForMom(const int &i, const int &j, const int &k,
+                                 const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                                 const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                                 const enum MomentumEqn &momentumEqn,
+                                 const amrex::Geometry &geom,
+                                 const SolverChoice &solverChoice);
+
+// Meant for the continuity, energy, and scalar equations
+AMREX_GPU_DEVICE
+Real ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                              const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
-                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                             const Array4<Real>& cell_data,
                              const enum NextOrPrev &nextOrPrev,
                              const enum AdvectedQuantity &advectedQuantity,
                              const enum AdvectingQuantity &advectingQuantity,
@@ -115,13 +134,12 @@ Real ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
 
 // Meant for the continuity, energy, and scalar equations
 AMREX_GPU_DEVICE
-Real ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
-                             const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
-                             const Array4<Real>& cons_in,
-                             const enum NextOrPrev &nextOrPrev,
-                             const enum AdvectedQuantity &advectedQuantity,
-                             const enum AdvectingQuantity &advectingQuantity,
-                             const int &spatial_order);
+Real AdvectionContributionForState(const int &i, const int &j, const int &k,
+                                   const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                                   const Array4<Real>& cell_data, const int &qty_index,
+                                   const amrex::Geometry &geom,
+                                   const int &spatial_order);
+
 
 // Compute Sij
 AMREX_GPU_DEVICE
@@ -168,13 +186,26 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const enum DiffusionDir &diffDir,
                         const Geometry &geom,
                         const Array4<Real>& nut,
-                        const SolverChoice &solverChoice,
-                        const Real &molViscosity);
+                        const SolverChoice &solverChoice);
+
+AMREX_GPU_DEVICE
+Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
+                                 const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                                 const enum MomentumEqn &momentumEqn,
+                                 const amrex::Geometry &geom,
+                                 const Array4<Real>& nut,
+                                 const SolverChoice &solverChoice);
 
 AMREX_GPU_DEVICE
 Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
-                                  const Array4<Real>& qty, const int & qty_index,
+                                  const Array4<Real>& cell_data, const int & qty_index,
                                   const enum Coord& coordDir);
+
+AMREX_GPU_DEVICE
+Real DiffusionContributionForState(const int &i, const int &j, const int &k,
+                                   const Array4<Real>& cell_data, const int & qty_index,
+                                   const amrex::Geometry &geom,
+                                   const SolverChoice &solverChoice);
 
 int ComputeGhostCells(const int &spatial_order);
 
