@@ -115,10 +115,11 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   cenflux[2].define(ba,dmap,1,1);
 
   // TODO: Better make it a member of the ERF class. Need to deal with static stuff.
-   SolverChoice solverChoice(use_advection, use_thermal_diffusion, alpha_T,
+   SolverChoice solverChoice(use_state_advection, use_momentum_advection,
+                             use_thermal_diffusion, alpha_T,
                              use_scalar_diffusion, alpha_S,
                              use_momentum_diffusion, kinematicViscosity,
-                             use_smagorinsky, use_gravity, spatial_order);
+                             use_smagorinsky, use_pressure, use_gravity, spatial_order);
   //solverChoice.display();
 
   // *****************************************************************

@@ -1,0 +1,4 @@
+See http://ammar-hakim.org/sj/je/je16/je16-ldg.html#rigid-body-rotating-flow
+Need to
+  1. turn off momentum advancing (set AdvectionTerm_vel=false, PressureTerm=false in CalcAdvFlux.cpp), so that velocity is constant
+  2. set scalar diffusivity = 0 (Advancing.cpp)
