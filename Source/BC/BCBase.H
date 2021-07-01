@@ -5,7 +5,7 @@
 using namespace amrex;
 
 namespace math_bcs {
-  inline void foextrap_lo(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> arr) {
+  inline void foextrap_lo(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data) {
     amrex::ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
       if (i < lo) {
@@ -14,7 +14,7 @@ namespace math_bcs {
     });
   }
 
-  inline void foextrap_hi(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> arr) {
+  inline void foextrap_hi(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> data) {
     amrex::ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
       if (i > hi) {
@@ -23,6 +23,7 @@ namespace math_bcs {
     });
   }
 
+/*
   inline void DirichletBC(const amrex::Geometry& geom, const Box& b, int ncomp, Array4<Real> arr, ) {
     int nx = geom.Domain().bigEnd(0);
     amrex::ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -42,6 +43,7 @@ namespace math_bcs {
     });
   }
 }
+*/
 
 namespace phys_bcs {
 
