@@ -37,7 +37,7 @@ erf_initdata(
   // Set the density 
   state(i, j, k, Rho_comp) = ProbParm::rho_0;
  
-  // Initial potential temperature
+  // Initial potential temperature (Actually rho*theta)
   const amrex::Real p = ProbParm::rho_0 * ProbParm::V_0*ProbParm::V_0*
                         (
                            1.0 / (Gamma * ProbParm::M_0 * ProbParm::M_0)
