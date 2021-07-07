@@ -46,7 +46,8 @@ amrex::Real ERF::sum_per = -1.0e0;
 int         ERF::hard_cfl_limit = 1;
 std::string ERF::job_name = "";
 
-bool        ERF::use_advection = true;
+bool        ERF::use_state_advection = true;
+bool        ERF::use_momentum_advection = true;
 bool        ERF::use_thermal_diffusion = true;
 amrex::Real ERF::alpha_T = 1.0;
 bool        ERF::use_scalar_diffusion = true;
@@ -54,5 +55,6 @@ amrex::Real ERF::alpha_S = 1.0;
 bool        ERF::use_momentum_diffusion = true;
 amrex::Real ERF::kinematicViscosity = 1.5e-5;
 bool        ERF::use_smagorinsky = true;
+bool        ERF::use_pressure = true;
 bool        ERF::use_gravity = true;
 int         ERF::spatial_order = 2;

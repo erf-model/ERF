@@ -29,33 +29,24 @@ erf_initdata(
 {
   // Geometry
   const amrex::Real* prob_lo = geomdata.ProbLo();
-  const amrex::Real* prob_hi = geomdata.ProbHi();
   const amrex::Real* dx = geomdata.CellSize();
   const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
   const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
   const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-  // Define a point (xc,yc,zc) at the center of the domain 
-  const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-  const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-  const amrex::Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
-
-  const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
-
-  // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
-  const amrex::Real r0 = 0.05 * (prob_hi[0] - prob_lo[0]);
-
-  // Set the density
+  // Set the density 
   state(i, j, k, Rho_comp) = ProbParm::rho_0;
  
   // Initial potential temperature
-  state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
+  const amrex::Real p = ProbParm::rho_0 * ProbParm::V_0*ProbParm::V_0*
+                        (
+                           1.0 / (Gamma * ProbParm::M_0 * ProbParm::M_0)
+                        + (1.0 / 16.0) * (cos(2 * x) + cos(2 * y)) * (cos(2 * z) + 2)
+                        );
+  state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p); // std::pow(p, 1.0 / Gamma) * p_0 / R_d;
 
-  // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
-  if (r < r0) 
-     state(i, j, k, RhoScalar_comp) = ProbParm::A_0;
-  else
-     state(i, j, k, RhoScalar_comp) = 0.0;
+  // Set scalar = 0 everywhere
+  state(i, j, k, RhoScalar_comp) = 0.0;
 }
 
 AMREX_GPU_DEVICE
@@ -69,10 +60,15 @@ erf_init_xvel(
   amrex::GeometryData const& geomdata)
 {
   // Note that this is called on a box of x-faces
+  // Geometry
+  const amrex::Real* prob_lo = geomdata.ProbLo();
+  const amrex::Real* dx = geomdata.CellSize();
+  const amrex::Real x = prob_lo[0] + (i + 0.0) * dx[0];
+  const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
+  const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
   // Set the x-velocity
-  //TODO: Read it through input into ProbParm:: suitable_variable
-  x_vel(i, j, k) = 100.0;
+  x_vel(i, j, k) = ProbParm::V_0 * sin(x) * cos(y) * cos(z);
 }
 
 AMREX_GPU_DEVICE
@@ -86,10 +82,15 @@ erf_init_yvel(
   amrex::GeometryData const& geomdata)
 {
   // Note that this is called on a box of y-faces
+  // Geometry
+  const amrex::Real* prob_lo = geomdata.ProbLo();
+  const amrex::Real* dx = geomdata.CellSize();
+  const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
+  const amrex::Real y = prob_lo[1] + (j + 0.0) * dx[1];
+  const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
   // Set the y-velocity
-  //TODO: Read it through input into ProbParm:: suitable_variable
-  y_vel(i, j, k) = 0.0;
+  y_vel(i, j, k) = - ProbParm::V_0 * cos(x) * sin(y) * cos(z);
 }
 
 AMREX_GPU_DEVICE
@@ -105,7 +106,6 @@ erf_init_zvel(
   // Note that this is called on a box of z-faces
 
   // Set the z-velocity
-  //TODO: Read it through input into ProbParm:: suitable_variable
   z_vel(i, j, k) = 0.0;
 }
 
