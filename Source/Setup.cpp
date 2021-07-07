@@ -167,11 +167,11 @@ ERF::variableSetUp()
 
   amrex::BCRec bc;
   int cnt = 0;
-  set_scalar_bc(bc, phys_bc);
+  //set_scalar_bc(bc, phys_bc);
   bcs[cnt] = bc;
   name[cnt] = "density";
   cnt++;
-  set_scalar_bc(bc, phys_bc);
+  //set_scalar_bc(bc, phys_bc);
   bcs[cnt] = bc;
   name[cnt] = "rhotheta";
 
@@ -179,7 +179,7 @@ ERF::variableSetUp()
     char buf[64];
     sprintf(buf, "adv_%d", i);
     cnt++;
-    set_scalar_bc(bc, phys_bc);
+    //set_scalar_bc(bc, phys_bc);
     bcs[cnt] = bc;
     name[cnt] = std::string(buf);
   }

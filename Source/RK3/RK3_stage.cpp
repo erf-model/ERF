@@ -46,6 +46,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     yvel.FillBoundary(geom.periodicity());
     zvel.FillBoundary(geom.periodicity());
 
+    amrex::Vector<MultiFab*> vars{&cons_old, &xvel, &yvel, &zvel};
+
+    ERF::applyBCs(geom, vars);
+
     // **************************************************************************************
     // Deal with gravity
     Real gravity = solverChoice.use_gravity? CONST_GRAV: 0.0;
