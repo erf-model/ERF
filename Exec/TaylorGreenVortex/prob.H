@@ -43,7 +43,7 @@ erf_initdata(
                            1.0 / (Gamma * ProbParm::M_0 * ProbParm::M_0)
                         + (1.0 / 16.0) * (cos(2 * x) + cos(2 * y)) * (cos(2 * z) + 2)
                         );
-  state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p); // std::pow(p, 1.0 / Gamma) * p_0 / R_d;
+  state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p);
 
   // Set scalar = 0 everywhere
   state(i, j, k, RhoScalar_comp) = 0.0;
