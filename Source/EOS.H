@@ -25,6 +25,6 @@ amrex::Real getRhoThetagivenP(amrex::Real p)
 {
     // diagnostic relation for the full pressure
     // see https://erf.readthedocs.io/en/latest/Euler_Equations.html
-    return std::pow(p, 1.0 / Gamma) * p_0 / R_d;
+    return std::pow(p*std::pow(p_0, Gamma-1), 1.0 / Gamma)/ R_d;
 }
 #endif
