@@ -12,7 +12,7 @@
 #include <AMReX_ParmParse.H>
 
 #include "ERF.H"
-#include "IO.H"
+#include "PlotFile.H"
 #include "IndexDefines.H"
 
 // ERF maintains an internal checkpoint version numbering system.
@@ -32,12 +32,17 @@ amrex::Real vfraceps = 0.000001;
 } // namespace
 
 // I/O routines for ERF
-
 void
 ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 {
   // Let's check ERF checkpoint version first;
   // trying to read from checkpoint; if nonexisting, set it to 0.
+
+#ifdef ERF_USE_NETCDF
+   ncrestart(papa, is, bReadSpecial);
+   return;
+#endif
+
   if (input_version == -1) {
     if (amrex::ParallelDescriptor::IOProcessor()) {
       std::ifstream ERFHeaderFile;
@@ -174,6 +179,12 @@ ERF::checkPoint(
   amrex::VisMF::How how,
   bool dump_old_default)
 {
+
+#ifdef ERF_USE_NETCDF
+  NCWriteCheckpointFile (dir, os, dump_old);
+  return;
+#endif
+
   amrex::AmrLevel::checkPoint(dir, os, how, dump_old);
 
   if (level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
@@ -513,6 +524,11 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
   // first component of pair is state_type,
   // second component of pair is component # within the state_type
   //
+#ifdef ERF_USE_NETCDF
+  writeNCPlotFile(dir, os);
+  return;
+#endif
+
   amrex::Vector<std::pair<int, int>> plot_var_map;
   for (int typ = 0; typ < desc_lst.size(); typ++)
     for (int comp = 0; comp < desc_lst[typ].nComp(); comp++)
