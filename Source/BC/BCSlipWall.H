@@ -26,6 +26,7 @@ class BCSlipWall : public BCBase {
          for (amrex::MFIter mfi(*vars[i], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             // get the index box
             amrex::Box b = vars[i]->get(mfi).box();
+            auto ncomp = vars[i]->nComp();
             const amrex::Array4<amrex::Real> data = vars[i]->array(mfi);
 
             // index box type
@@ -34,19 +35,19 @@ class BCSlipWall : public BCBase {
             if (type == amrex::IntVect::Zero) {  // for state type variable
                if (dim == 0) {
                   // low x 
-                  if(b.smallEnd(0) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  if(b.smallEnd(0) < lo) math_bcs::foextrap_lo(geom, b, lo, data, ncomp);
                   // high x 
-                  if(b.bigEnd(0) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+                  if(b.bigEnd(0) > hi) math_bcs::foextrap_hi(geom, b, hi, data, ncomp);
                } else if (dim == 1) {
                   // low y 
-                  if(b.smallEnd(1) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  if(b.smallEnd(1) < lo) math_bcs::foextrap_lo(geom, b, lo, data, ncomp);
                   // high y
-                  if(b.bigEnd(1) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+                  if(b.bigEnd(1) > hi) math_bcs::foextrap_hi(geom, b, hi, data, ncomp);
                } else if (dim == 2) {
                   // low z 
-                  if(b.smallEnd(2) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  if(b.smallEnd(2) < lo) math_bcs::foextrap_lo(geom, b, lo, data, ncomp);
                   // high z
-                  if(b.bigEnd(2) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+                  if(b.bigEnd(2) > hi) math_bcs::foextrap_hi(geom, b, hi, data, ncomp);
                }
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
                if (dim == 0) {
