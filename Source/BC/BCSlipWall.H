@@ -16,8 +16,8 @@ class BCSlipWall : public BCBase {
     // Physical Domain
     amrex::Box dom(geom.Domain());
 
-    amrex::IntVect lo = dom.smallEnd();
-    amrex::IntVect hi = dom.bigEnd();
+    int lo = dom.smallEnd(dim);
+    int hi = dom.bigEnd(dim);
         
     // setup boundary conditions
     for( auto i = 0; i < vars.size(); ++i) {
@@ -32,62 +32,77 @@ class BCSlipWall : public BCBase {
             amrex::IntVect type = b.type();
  
             if (type == amrex::IntVect::Zero) {  // for state type variable
-               // low x boundary
-               if(b.smallEnd(0) < lo[0]) math_bcs::foextrap_lo(geom, b, lo[0], data);
-               // high x boundary
-               if(b.bigEnd(0) > hi[0]) math_bcs::foextrap_hi(geom, b, hi[0], data);
-               // low y boundary
-               if(b.smallEnd(1) < lo[1]) math_bcs::foextrap_lo(geom, b, lo[1], data);
-               // high y boundary
-               if(b.bigEnd(1) > hi[1]) math_bcs::foextrap_hi(geom, b, hi[1], data);
-               // low z boundary
-               if(b.smallEnd(2) < lo[2]) math_bcs::foextrap_lo(geom, b, lo[2], data);
-               // high z boundary 
-               if(b.bigEnd(2) > hi[2]) math_bcs::foextrap_hi(geom, b, hi[2], data);
+               if (dim == 0) {
+                  // low x 
+                  if(b.smallEnd(0) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high x 
+                  if(b.bigEnd(0) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               } else if (dim == 1) {
+                  // low y 
+                  if(b.smallEnd(1) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high y
+                  if(b.bigEnd(1) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               } else if (dim == 2) {
+                  // low z 
+                  if(b.smallEnd(2) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high z
+                  if(b.bigEnd(2) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               }
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
-
-               // TODO: we need a special extrapolation function for edge based X_VEL
-               // low x 
-               if(b.smallEnd(0) < lo[0]) math_bcs::foextrap_lo(geom, b, lo[0], data);
-               // TODO: same here
-               // high x 
-               if(b.bigEnd(0) > hi[0]) math_bcs::foextrap_hi(geom, b, hi[0], data);
-               // low y 
-               if(b.smallEnd(1) < lo[1]) math_bcs::foextrap_lo(geom, b, lo[1], data);
-               // high y 
-               if(b.bigEnd(1) > hi[1]) math_bcs::foextrap_hi(geom, b, hi[1], data);
-               // low z
-               if(b.smallEnd(2) < lo[2]) math_bcs::foextrap_lo(geom, b, lo[2], data);
-               // high z 
-               if(b.bigEnd(2) > hi[2]) math_bcs::foextrap_hi(geom, b, hi[2], data);
+               if (dim == 0) {
+                  // TODO: we need a special extrapolation function for edge based X_VEL
+                  // low x 
+                  if(b.smallEnd(0) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // TODO: same here
+                  // high x 
+                  if(b.bigEnd(0) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               } else if (dim == 1) {
+                  // low y 
+                  if(b.smallEnd(1) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high y 
+                  if(b.bigEnd(1) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               } else if (dim == 2) {
+                  // low z
+                  if(b.smallEnd(2) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high z 
+                  if(b.bigEnd(2) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               }
             
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
-               // low x
-               if(b.smallEnd(0) < lo[0]) math_bcs::foextrap_lo(geom, b, lo[0], data);
-               // high x 
-               if(b.bigEnd(0) > hi[0]) math_bcs::foextrap_hi(geom, b, hi[0], data);
-               // low y
-               if(b.smallEnd(1) < lo[1]) math_bcs::foextrap_lo(geom, b, lo[1], data);
-               // high y
-               if(b.bigEnd(1) > hi[1]) math_bcs::foextrap_hi(geom, b, hi[1], data);
-               // low z
-               if(b.smallEnd(2) < lo[2]) math_bcs::foextrap_lo(geom, b, lo[2], data);
-               // high z
-               if(b.bigEnd(2) > hi[2]) math_bcs::foextrap_hi(geom, b, hi[2], data);
+               if (dim == 0) {
+                  // low x
+                  if(b.smallEnd(0) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high x 
+                  if(b.bigEnd(0) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               } else if (dim == 1) {
+                  // low y
+                  if(b.smallEnd(1) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high y
+                  if(b.bigEnd(1) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               } else if (dim == 2) {
+                  // low z
+                  if(b.smallEnd(2) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high z
+                  if(b.bigEnd(2) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               }
  
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
-               // low x
-               if(b.smallEnd(0) < lo[0]) math_bcs::foextrap_lo(geom, b, lo[0], data);
-               // high x
-               if(b.bigEnd(0) > hi[0]) math_bcs::foextrap_hi(geom, b, hi[0], data);
-               // low y
-               if(b.smallEnd(1) < lo[1]) math_bcs::foextrap_lo(geom, b, lo[1], data);
-               // high y
-               if(b.bigEnd(1) > hi[1]) math_bcs::foextrap_hi(geom, b, hi[1], data);
-               // low z
-               if(b.smallEnd(2) < lo[2]) math_bcs::foextrap_lo(geom, b, lo[2], data);
-                // high z
-               if(b.bigEnd(2) > hi[2]) math_bcs::foextrap_hi(geom, b, hi[2], data);
+               if (dim == 0) {
+                  // low x
+                  if(b.smallEnd(0) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high x
+                  if(b.bigEnd(0) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               } else if (dim == 1) {
+                  // low y
+                  if(b.smallEnd(1) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high y
+                  if(b.bigEnd(1) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               } else if (dim == 2) {
+                  // low z
+                  if(b.smallEnd(2) < lo) math_bcs::foextrap_lo(geom, b, lo, data);
+                  // high z
+                  if(b.bigEnd(2) > hi) math_bcs::foextrap_hi(geom, b, hi, data);
+               }
             }
          }
      }
