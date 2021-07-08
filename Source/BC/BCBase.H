@@ -8,10 +8,10 @@ namespace math_bcs {
 
   enum BCBound { lower, upper };
 
-  template<BCBound b>
+  template<BCBound Bound>
   inline void foextrap(const amrex::Geometry& geom, const Box& b, int extent, Array4<Real> data, int idir, int ncomp = 1);
 
-  template<BCBound b>
+  template<BCBound Bound>
   inline void foextrap_face_based(const amrex::Geometry& geom, const Box& b, int extent, Array4<Real> data, int idir, int ncomp = 1);
 
   template<>
