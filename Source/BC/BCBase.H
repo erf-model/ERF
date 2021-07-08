@@ -12,10 +12,10 @@ namespace math_bcs {
   inline void foextrap(const amrex::Geometry& geom, const Box& b, int extent, Array4<Real> data, int idir, int ncomp = 1);
 
   template<BCBound b>
-  inline void foextrap_face_based(const amrex::Geometry& geom, const Box& b, int extent, Array4<Real> data, int idir, int ncomp=1);
+  inline void foextrap_face_based(const amrex::Geometry& geom, const Box& b, int extent, Array4<Real> data, int idir, int ncomp = 1);
 
   template<>
-  inline void foextrap<BCBound::lower>(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data, int idir, int ncomp = 1) {
+  inline void foextrap<BCBound::lower>(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data, int idir, int ncomp) {
     if(b.smallEnd(idir) < lo) {
       if (idir == 0) {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -43,7 +43,7 @@ namespace math_bcs {
   }
 
   template<>
-  inline void foextrap<BCBound::upper>(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> data, int idir, int ncomp = 1) {
+  inline void foextrap<BCBound::upper>(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> data, int idir, int ncomp) {
     if(b.bigEnd(idir) > hi) {
       if (idir == 0) {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -71,7 +71,7 @@ namespace math_bcs {
   }
 
   template<>
-  inline void foextrap_face_based<BCBound::lower>(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data, int idir, int ncomp=1) {
+  inline void foextrap_face_based<BCBound::lower>(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data, int idir, int ncomp) {
     if(b.smallEnd(idir) < lo) {
       if (idir == 0) {
          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -105,7 +105,7 @@ namespace math_bcs {
   }
 
   template<>
-  inline void foextrap_face_based<BCBound::upper>(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> data, int idir, int ncomp=1) {
+  inline void foextrap_face_based<BCBound::upper>(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> data, int idir, int ncomp) {
     if(b.bigEnd(idir) > hi) {
       if (idir == 0) {
          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
