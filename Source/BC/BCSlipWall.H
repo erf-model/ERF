@@ -38,19 +38,19 @@ class BCSlipWall : public BCBase {
                math_bcs::foextrap<Bound>(geom, b, extent, data, dim, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
                if (dim == 0) {
-                  math_bcs::foextrap_edgebased<Bound>(geom, b, extent, data, dim);
+                  math_bcs::foextrap_face_based<Bound>(geom, b, extent, data, dim, 1);
                } else {
                   math_bcs::foextrap<Bound>(geom, b, extent, data, dim, 1);
                }
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
                if (dim == 1) {
-                  math_bcs::foextrap_edgebased<Bound>(geom, b, extent, data, dim);
+                  math_bcs::foextrap_face_based<Bound>(geom, b, extent, data, dim, 1);
                } else {
                   math_bcs::foextrap<Bound>(geom, b, extent, data, dim, 1);
                }
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
                if (dim == 2) {
-                  math_bcs::foextrap_edgebased<Bound>(geom, b, extent, data, dim);
+                  math_bcs::foextrap_face_based<Bound>(geom, b, extent, data, dim, 1);
                } else {
                   math_bcs::foextrap<Bound>(geom, b, extent, data, dim, 1);
                }
