@@ -5,20 +5,20 @@
 using namespace amrex;
 
 namespace math_bcs {
-  inline void foextrap_lo(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data) {
-    amrex::ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+  inline void foextrap_lo(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data, int ncomp = 0) {
+    amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       if (i < lo) {
-        data(i,j,k) = 2.0*data(lo,j,k) - data(lo+1,j,k);
+        data(i,j,k,n) = 2.0*data(lo,j,k,n) - data(lo+1,j,k,n);
       }
     });
   }
 
-  inline void foextrap_hi(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> data) {
-    amrex::ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+  inline void foextrap_hi(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> data, int ncomp = 0) {
+    amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       if (i > hi) {
-        data(i,j,k) = 2.*data(hi,j,k) - data(hi-1,j,k);
+        data(i,j,k,n) = 2.*data(hi,j,k,n) - data(hi-1,j,k,n);
       }
     });
   }
