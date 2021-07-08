@@ -49,7 +49,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     // **************************************************************************************
     // Deal with gravity
     Real gravity = solverChoice.use_gravity? CONST_GRAV: 0.0;
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, gravity};
+    // CONST_GRAV is a positive constant, but application of grav_gpu to the vertical momentum
+    // tendency assumes this quantity is negative.
+    //    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, gravity};
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // **************************************************************************************
