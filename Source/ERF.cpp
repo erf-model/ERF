@@ -61,7 +61,7 @@ void
 ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
   if (!bc_char.compare("Interior")) {
     *bc_rec = new phys_bcs::BCInterior();
-    std::cout << "DIR IS INTERIOR " << dir << std::endl;
+    std::cout << "DIR IS INTERIOR " << DIM << std::endl;
   } else if (!bc_char.compare("Hard")) {
     *bc_rec = new phys_bcs::BCDummy();
   } else if (!bc_char.compare("FOExtrap")) {
