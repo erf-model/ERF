@@ -107,16 +107,16 @@ ERF::read_params()
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     switch (dir) {
       case 0:
-        initalize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0], &bc_recs[0]);
-        initalize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0], &bc_recs[1]);
+        ERF::initalize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0], &bc_recs[0]);
+        ERF::initalize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0], &bc_recs[1]);
         break;
       case 1:
-        initalize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1], &bc_recs[2]);
-        initalize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1], &bc_recs[3]);
+        ERF::initalize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1], &bc_recs[2]);
+        ERF::initalize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1], &bc_recs[3]);
         break;
       case 2:
-        initalize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2], &bc_recs[4]);
-        initalize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2], &bc_recs[5]);
+        ERF::initalize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2], &bc_recs[4]);
+        ERF::initalize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2], &bc_recs[5]);
         break;
     }
   }
