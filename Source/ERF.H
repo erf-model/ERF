@@ -487,7 +487,7 @@ protected:
   void stopJob();
 
   template<int DIM, math_bcs::BCBound Bound>
-  void ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec);
+  void initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec);
   // ***************************************************************************
   // The data or the member variables
   amrex::MultiFab volume;
