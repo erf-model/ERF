@@ -167,7 +167,7 @@ namespace math_bcs {
     template <bool val>
     static inline 
     std::enable_if_t<!val>
-    apply_face_based<false>(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
     }
 
