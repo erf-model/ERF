@@ -2,6 +2,7 @@
 #define ERF_BCBASE_H
 
 #include "ERF.H"
+#include "IndexDefines.H"
 using namespace amrex;
 
 namespace math_bcs {
@@ -151,9 +152,9 @@ namespace math_bcs {
        pp.query("theta0", theta0);
        pp.query("press0", press0);
 
-       bvalue[0] = rho0;
-       bvalue[1] = theta0;
-       bvalue[2] = press0;
+       bvalue[Rho_comp]       = rho0;
+       bvalue[RhoTheta_comp]  = theta0;
+       bvalue[RhoScalar_comp] = press0;
     } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
        amrex::Real velocity_x = 0.0;
        pp.query("velocity_x", velocity_x);
@@ -207,9 +208,9 @@ namespace math_bcs {
        pp.query("theta0", theta0);
        pp.query("press0", press0);
 
-       bvalue[0] = rho0;
-       bvalue[1] = theta0;
-       bvalue[2] = press0;
+       bvalue[Rho_comp]       = rho0;
+       bvalue[RhoTheta_comp]  = theta0;
+       bvalue[RhoScalar_comp] = press0;
     } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
        amrex::Real velocity_x = 0.0;
        pp.query("velocity_x", velocity_x);
@@ -263,9 +264,9 @@ namespace math_bcs {
        pp.query("theta0", theta0);
        pp.query("press0", press0);
 
-       bvalue[0] = rho0;
-       bvalue[1] = theta0;
-       bvalue[2] = press0;
+       bvalue[Rho_comp]       = rho0;
+       bvalue[RhoTheta_comp]  = theta0;
+       bvalue[RhoScalar_comp] = press0;
     } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
        amrex::Real velocity_x = 0.0;
        pp.query("velocity_x", velocity_x);
@@ -319,9 +320,9 @@ namespace math_bcs {
        pp.query("theta0", theta0);
        pp.query("press0", press0);
 
-       bvalue[0] = rho0;
-       bvalue[1] = theta0;
-       bvalue[2] = press0;
+       bvalue[Rho_comp]       = rho0;
+       bvalue[RhoTheta_comp]  = theta0;
+       bvalue[RhoScalar_comp] = press0;
     } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
        amrex::Real velocity_x = 0.0;
        pp.query("velocity_x", velocity_x);
