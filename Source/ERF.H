@@ -380,7 +380,7 @@ public:
 
   static void applyBCs(const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) {
     for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
-      bc_recs[dir]->applyBC(geom, vars, dir/2);
+      bc_recs[dir]->applyBC(geom, vars);
     }
   }
 
