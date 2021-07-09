@@ -470,6 +470,9 @@ protected:
 
   static void read_tagging_params();
 
+  template<int DIM, math_bcs::BCBound Bound>
+  static void initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec);
+
   ERF& getLevel(int lev);
 
   void reflux();
@@ -486,8 +489,6 @@ protected:
 
   void stopJob();
 
-  template<int DIM, math_bcs::BCBound Bound>
-  void initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec);
   // ***************************************************************************
   // The data or the member variables
   amrex::MultiFab volume;
