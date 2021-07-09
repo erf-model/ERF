@@ -14,7 +14,7 @@ namespace math_bcs {
   struct foextrap<IDIR, BCBound::lower> {
     using self = foextrap<IDIR, BCBound::lower>;
 
-    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp) {
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
  
       if(b.smallEnd(IDIR) < lo) {
@@ -44,7 +44,9 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline void apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp) {
+    static inline 
+    std::enable_if_t<val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
  
       if(b.smallEnd(IDIR) < lo) {
@@ -79,8 +81,10 @@ namespace math_bcs {
       }
     }
 
-    template <>
-    static inline void apply_face_based<false>(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp) {
+    template <bool val>
+    static inline 
+    std::enable_if_t<!val>
+    apply_face_based<false>(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
     }
 
@@ -90,7 +94,7 @@ namespace math_bcs {
   struct foextrap<IDIR, BCBound::upper> {
     using self = foextrap<IDIR, BCBound::upper>;
 
-    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp) {
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
  
       if(b.bigEnd(IDIR) > hi) {
@@ -120,7 +124,9 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline void apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp) {
+    static inline 
+    std::enable_if_t<val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
  
       if(b.bigEnd(IDIR) > hi) {
@@ -155,8 +161,10 @@ namespace math_bcs {
       }
     }
 
-    template <>
-    static inline void apply_face_based<false>(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp) {
+    template <bool val>
+    static inline 
+    std::enable_if_t<!val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
     }
 
