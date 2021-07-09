@@ -138,6 +138,231 @@ namespace math_bcs {
     }
   }
 
+  template<>
+  inline void extval<BCBound::lower>(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data, int idir, int ncomp) {
+    amrex::IntVect type = b.type();
+    amrex::Vector bvalue(ncomp);
+    if (type == amrex::IntVect::Zero) {
+       amrex::Real rho0   = 0.0;
+       amrex::Real theta0 = 0.0;
+       amrex::Real press0 = 0.0;
+
+       pp.query("rho0"  , rho0);
+       pp.query("theta0", theta0);
+       pp.query("press0", press0);
+
+       bvalue[0] = rho0;
+       bvalue[1] = theta0;
+       bvalue[2] = press0;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
+       amrex::Real velocity_x = 0.0;
+       pp.query("velocity_x", velocity_x);
+       bvalue[0] = velocity_x;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL 
+       amrex::Real velocity_y = 0.0;
+       pp.query("velocity_y", velocity_y);
+       bvalue[0] = velocity_y;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Z_VEL 
+       amrex::Real velocity_y = 0.0;
+       pp.query("velocity_y", velocity_y);
+       bvalue[0] = velocity_y;
+    }    
+
+    if(b.smallEnd(idir) < lo) {
+      if (idir == 0) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (i < lo) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      } else if (idir == 1) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (j < lo) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      } else if (idir == 2) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (k < lo) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      }
+    }
+  }
+
+  template<>
+  inline void extval_face<BCBound::lower>(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data, int idir, int ncomp) {
+    amrex::IntVect type = b.type();
+    amrex::Vector bvalue(ncomp);
+    if (type == amrex::IntVect::Zero) {
+       amrex::Real rho0   = 0.0;
+       amrex::Real theta0 = 0.0;
+       amrex::Real press0 = 0.0;
+
+       pp.query("rho0"  , rho0);
+       pp.query("theta0", theta0);
+       pp.query("press0", press0);
+
+       bvalue[0] = rho0;
+       bvalue[1] = theta0;
+       bvalue[2] = press0;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
+       amrex::Real velocity_x = 0.0;
+       pp.query("velocity_x", velocity_x);
+       bvalue[0] = velocity_x;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL 
+       amrex::Real velocity_y = 0.0;
+       pp.query("velocity_y", velocity_y);
+       bvalue[0] = velocity_y;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Z_VEL 
+       amrex::Real velocity_y = 0.0;
+       pp.query("velocity_y", velocity_y);
+       bvalue[0] = velocity_y;
+    }
+
+    if(b.smallEnd(idir) < lo) {
+      if (idir == 0) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (i <= lo) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      } else if (idir == 1) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (j <= lo) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      } else if (idir == 2) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (k <= lo) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      }
+    }
+  }
+
+  template<>
+  inline void extval<BCBound::upper>(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> data, int idir, int ncomp) {
+    amrex::IntVect type = b.type();
+    amrex::Vector bvalue(ncomp);
+    if (type == amrex::IntVect::Zero) {
+       amrex::Real rho0   = 0.0;
+       amrex::Real theta0 = 0.0;
+       amrex::Real press0 = 0.0;
+
+       pp.query("rho0"  , rho0);
+       pp.query("theta0", theta0);
+       pp.query("press0", press0);
+
+       bvalue[0] = rho0;
+       bvalue[1] = theta0;
+       bvalue[2] = press0;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
+       amrex::Real velocity_x = 0.0;
+       pp.query("velocity_x", velocity_x);
+       bvalue[0] = velocity_x;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL 
+       amrex::Real velocity_y = 0.0;
+       pp.query("velocity_y", velocity_y);
+       bvalue[0] = velocity_y;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Z_VEL 
+       amrex::Real velocity_y = 0.0;
+       pp.query("velocity_y", velocity_y);
+       bvalue[0] = velocity_y;
+    }
+
+    if(b.smallEnd(idir) < lo) {
+      if (idir == 0) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (i > hi) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      } else if (idir == 1) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (j > hi) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      } else if (idir == 2) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (k > hi) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      }
+    }
+  }
+
+  template<>
+  inline void extval<BCBound::upper>(const amrex::Geometry& geom, const Box& b, int hi, Array4<Real> data, int idir, int ncomp) {
+    amrex::IntVect type = b.type();
+    amrex::Vector bvalue(ncomp);
+    if (type == amrex::IntVect::Zero) {
+       amrex::Real rho0   = 0.0;
+       amrex::Real theta0 = 0.0;
+       amrex::Real press0 = 0.0;
+
+       pp.query("rho0"  , rho0);
+       pp.query("theta0", theta0);
+       pp.query("press0", press0);
+
+       bvalue[0] = rho0;
+       bvalue[1] = theta0;
+       bvalue[2] = press0;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
+       amrex::Real velocity_x = 0.0;
+       pp.query("velocity_x", velocity_x);
+       bvalue[0] = velocity_x;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL 
+       amrex::Real velocity_y = 0.0;
+       pp.query("velocity_y", velocity_y);
+       bvalue[0] = velocity_y;
+    } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Z_VEL 
+       amrex::Real velocity_y = 0.0;
+       pp.query("velocity_y", velocity_y);
+       bvalue[0] = velocity_y;
+    }
+
+    if(b.bigEnd(idir) > hi) {
+      if (idir == 0) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (i >= hi) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      } else if (idir == 1) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (j >= hi) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      } else if (idir == 2) {
+         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+          if (k >= hi) {
+            data(i,j,k,n) = bvalue[n];
+          }
+         });
+      }
+    }
+  }
+
+
 }
 
 namespace phys_bcs {
