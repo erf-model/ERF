@@ -19,6 +19,11 @@ ifneq ($(USE_MASA), TRUE)
   BL_NO_FORT = TRUE
 endif
 
+ifeq ($(USE_NETCDF), TRUE)
+ LDFLAGS += -L${NETCDF_DIR}/lib
+ LIBRARIES += -lnetcdf
+endif
+
 #sundials stuff
 ifeq ($(USE_SUNDIALS_PP), TRUE)
   USE_ARKODE_PP=TRUE
@@ -33,11 +38,16 @@ include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 # ERF uses a coarse grained OMP approach
 DEFINES += -DCRSEGRNDOMP
 
+#trun on NetCDF macro define
+ifeq ($(USE_NETCDF), TRUE)
+  DEFINES += -DERF_USE_NETCDF
+endif
+
 all: $(executable) 
 	$(SILENT) $(RM) AMReX_buildInfo.cpp
 	@echo SUCCESS
 
-Bdirs := Source Source/Params/param_includes Source/RK3
+Bdirs := Source Source/Params/param_includes Source/RK3 Source/IO
 Pdirs := Base Amr Boundary AmrCore
 
 Bpack += $(foreach dir, $(Pdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)

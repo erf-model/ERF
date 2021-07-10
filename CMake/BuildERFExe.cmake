@@ -17,7 +17,14 @@ function(build_erf_exe erf_exe_name)
                    ${SRC_DIR}/MMS.cpp)
     target_compile_definitions(${erf_exe_name} PRIVATE ERF_USE_MASA)
   endif()
-  
+ 
+  if(ERF_ENABLE_NETCDF)
+    target_sources(${erf_exe_name} PRIVATE
+                   ${SRC_DIR}/IO/NCInterface.cpp
+                   ${SRC_DIR}/IO/NCPlotFile.cpp)
+    target_compile_definitions(${erf_exe_name} PRIVATE ERF_USE_NETCDF)
+  endif()
+ 
   target_sources(${erf_exe_name}
      PRIVATE
        ${SRC_DIR}/Advance.cpp
@@ -32,8 +39,6 @@ function(build_erf_exe erf_exe_name)
 #      ${SRC_DIR}/GradUtil.H
        ${SRC_DIR}/IndexDefines.H
 #      ${SRC_DIR}/IndexDefines.cpp
-       ${SRC_DIR}/IO.H
-       ${SRC_DIR}/IO.cpp
        ${SRC_DIR}/Transport.H
        ${SRC_DIR}/TransportParams.H
        ${SRC_DIR}/ERF.H
@@ -49,6 +54,7 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/Utilities.H
        ${SRC_DIR}/Transport.cpp
        ${SRC_DIR}/TransportParams.cpp
+       ${SRC_DIR}/IO/PlotFile.cpp
        ${SRC_DIR}/RK3/RK3.H
        ${SRC_DIR}/RK3/CalcAdvFlux.cpp
        ${SRC_DIR}/RK3/CalcDiffFlux.cpp
@@ -82,6 +88,14 @@ function(build_erf_exe erf_exe_name)
       target_compile_definitions(${erf_exe_name} PRIVATE USE_MASA DO_PROBLEM_POST_TIMESTEP DO_PROBLEM_POST_INIT)
       target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${MASA_INCLUDE_DIRS})
       target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${MASA_MOD_DIRS})
+    endif()
+  endif()
+
+  if(ERF_ENABLE_NETCDF)
+    if(NETCDF_FOUND)
+      #Link our executable to the NETCDF libraries, etc
+      target_link_libraries(${erf_exe_name} PUBLIC ${NETCDF_LIBRARIES_C})
+      target_include_directories(${erf_exe_name} PUBLIC ${NETCDF_INCLUDES})
     endif()
   endif()
 
