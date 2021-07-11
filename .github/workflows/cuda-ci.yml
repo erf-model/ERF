@@ -12,7 +12,7 @@ jobs:
     name: CUDA v${{matrix.cuda_ver}}
     strategy:
       matrix:
-        cuda_pkg: [11-0, 10-2, 10-1, 10-0]
+        cuda_pkg: [11-0]
         include:
           - cuda_ver: "11.0"
             cuda_pkg: 11-0
