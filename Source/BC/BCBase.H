@@ -18,21 +18,23 @@ namespace math_bcs {
       int lo = geom.Domain().smallEnd(IDIR);
  
       if(b.smallEnd(IDIR) < lo) {
-        if (IDIR == 0) {
+        if constexpr (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i < lo) {
               data(i,j,k,n) = 2.0*data(lo,j,k,n) - data(lo+1,j,k,n);
             }
           });
-        } else if (IDIR == 1) {
+        }
+        if constexpr (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j < lo) {
               data(i,j,k,n) = 2.0*data(i,lo,k,n) - data(i,lo+1,k,n);
             }
           });
-        } else if (IDIR == 2) {
+        }
+        if constexpr (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
@@ -50,7 +52,7 @@ namespace math_bcs {
       int lo = geom.Domain().smallEnd(IDIR);
  
       if(b.smallEnd(IDIR) < lo) {
-        if (IDIR == 0) {
+        if constexpr (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
             if (i < lo) {
@@ -59,7 +61,8 @@ namespace math_bcs {
               data(i,j,k,n) = 2.*data(lo,j,k,n) - data(lo+1,j,k,n);
             }
            });
-        } else if (IDIR == 1) {
+        }
+        if constexpr (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
             if (j < lo) {
@@ -68,7 +71,8 @@ namespace math_bcs {
               data(i,j,k,n) = 2.*data(i,lo,k,n) - data(i,lo+1,k,n);
             }
            });
-        } else if (IDIR == 2) {
+        }
+        if constexpr (IDIR == 2) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
             if (k < lo) {
@@ -181,21 +185,23 @@ namespace math_bcs {
       int hi = geom.Domain().bigEnd(IDIR);
  
       if(b.bigEnd(IDIR) > hi) {
-        if (IDIR == 0) {
+        if constexpr (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i > hi) {
               data(i,j,k,n) = 2.*data(hi,j,k,n) - data(hi-1,j,k,n);
             }
           });
-        } else if (IDIR == 1) {
+        }
+        if constexpr (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j > hi) {
               data(i,j,k,n) = 2.*data(i,hi,k,n) - data(i,hi-1,k,n);
             }
           });
-        } else if (IDIR == 2) {
+        }
+        if constexpr (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k > hi) {
@@ -298,7 +304,7 @@ namespace math_bcs {
       int hi = geom.Domain().bigEnd(IDIR);
  
       if(b.bigEnd(IDIR) > hi) {
-        if (IDIR == 0) {
+        if constexpr (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (i > hi) {
@@ -307,7 +313,8 @@ namespace math_bcs {
                data(i,j,k,n) = 2.*data(hi,j,k,n) - data(hi-1,j,k,n);
              }
            });
-        } else if (IDIR == 1) {
+        }
+        if constexpr (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (j > hi) {
@@ -316,7 +323,8 @@ namespace math_bcs {
                data(i,j,k,n) = 2.*data(i,hi,k,n) - data(i,hi-1,k,n);
              }
            });
-        } else if (IDIR == 2) {
+        }
+        if constexpr (IDIR == 2) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (k > hi) {
