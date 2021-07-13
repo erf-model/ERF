@@ -74,7 +74,7 @@ endfunction(add_test_u)
 # Regression tests
 #=============================================================================
 add_test_r(IsentropicVortexStationary "IsentropicVortex/erf_isentropic_vortex" )
-# add_test_r(IsentropicVortexAdvecting "IsentropicVortex/erf_isentropic_vortex" )
+add_test_r(IsentropicVortexAdvecting "IsentropicVortex/erf_isentropic_vortex" )
 
 #=============================================================================
 # Performance tests
