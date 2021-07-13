@@ -3,12 +3,16 @@
 include(ProcessorCount)
 ProcessorCount(PROCESSES)
 
+set(FCOMPARE_GOLD_FILES_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ERF-WindGoldFiles)
+
 #=============================================================================
 # Functions for adding tests / Categories of tests
 #=============================================================================
 macro(setup_test)
     set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${TEST_NAME})
     set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    set(PLOT_GOLD ${FCOMPARE_GOLD_FILES_DIRECTORY}/${TEST_NAME}/plt00010)
+    set(PLOT_TEST ${CURRENT_TEST_BINARY_DIR}/plt00010)
 
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
     file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
@@ -29,11 +33,8 @@ macro(setup_test)
 endmacro(setup_test)
 
 # Standard regression test
-function(reg_test_t0_baseline TEST_NAME TEST_EXE)
+function(add_test_r TEST_NAME TEST_EXE)
     setup_test()
-
-    set(PLOT_GOLD ${CURRENT_TEST_BINARY_DIR}/plt00000)
-    set(PLOT_TEST ${CURRENT_TEST_BINARY_DIR}/plt01000)
 
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
     set(FCOMPARE_TOLERANCE "-r 1e-10 --abs_tol 1.0e-12")
@@ -49,7 +50,7 @@ function(reg_test_t0_baseline TEST_NAME TEST_EXE)
         LABELS "regression"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
     )
-endfunction(reg_test_t0_baseline)
+endfunction(add_test_r)
 
 # Standard unit test
 function(add_test_u TEST_NAME)
@@ -72,8 +73,8 @@ endfunction(add_test_u)
 #=============================================================================
 # Regression tests
 #=============================================================================
-reg_test_t0_baseline(IsentropicVortexStationary "IsentropicVortex/erf_isentropic_vortex" )
-reg_test_t0_baseline(IsentropicVortexAdvecting "IsentropicVortex/erf_isentropic_vortex" )
+add_test_r(IsentropicVortexStationary "IsentropicVortex/erf_isentropic_vortex" )
+# add_test_r(IsentropicVortexAdvecting "IsentropicVortex/erf_isentropic_vortex" )
 
 #=============================================================================
 # Performance tests
