@@ -32,11 +32,11 @@ class BCSlipWall : public BCBase {
             if (type == amrex::IntVect::Zero) {  // for state type variable
                math_bcs::foextrap<IDIR, Bound>::apply_cell_based(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
-               math_bcs::foextrap<IDIR, Bound>::template apply_face_based<(IDIR==0)>(geom, b, data, ncomp);
+               math_bcs::foextrap<0, Bound>::template apply_face_based<(IDIR==0)>(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
-               math_bcs::foextrap<IDIR, Bound>::template apply_face_based<(IDIR==1)>(geom, b, data, ncomp);
+               math_bcs::foextrap<1, Bound>::template apply_face_based<(IDIR==1)>(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
-               math_bcs::foextrap<IDIR, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
+               math_bcs::foextrap<2, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
             }
          }
      }
