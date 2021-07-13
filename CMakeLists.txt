@@ -15,7 +15,6 @@ option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_MASA "Enable tests that require MASA" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
-option(ERF_ENABLE_FCOMPARE_FOR_TESTS "Check test plots against gold files" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
 #Options for performance
@@ -27,10 +26,6 @@ option(ERF_ENABLE_CUDA "Enable CUDA" OFF)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-if(ERF_ENABLE_TESTS AND ERF_ENABLE_FCOMPARE_FOR_TESTS)
-  set(ERF_ENABLE_FCOMPARE ON)
-endif()
 
 if(ERF_ENABLE_CUDA)
   enable_language(CUDA)
