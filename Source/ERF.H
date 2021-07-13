@@ -19,6 +19,7 @@
 #include "BC/BCDummy.H"
 #include "BC/BCInterior.H"
 #include "BC/BCSlipWall.H"
+#include "BC/BCNoSlipWall.H"
 
 using std::istream;
 using std::ostream;

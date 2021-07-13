@@ -98,7 +98,7 @@ ERF::read_params()
       bc_recs[dir*2] = new phys_bcs::BCSlipWall<math_bcs::BCBound::lower>();
       //lo_bc[dir] = 4;
     } else if (!lo_bc_char[dir].compare("NoSlipWall")) {
-      bc_recs[dir*2] = new phys_bcs::BCDummy();
+      bc_recs[dir*2] = new phys_bcs::BCNoSlipWall<math_bcs::BCBound::lower>();
       //lo_bc[dir] = 5;
     } else if (!lo_bc_char[dir].compare("UserBC")) {
       bc_recs[dir*2] = new phys_bcs::BCDummy();
@@ -124,7 +124,7 @@ ERF::read_params()
       bc_recs[dir*2+1] = new phys_bcs::BCSlipWall<math_bcs::BCBound::upper>();
       //hi_bc[dir] = 4;
     } else if (!hi_bc_char[dir].compare("NoSlipWall")) {
-      bc_recs[dir*2+1] = new phys_bcs::BCDummy();
+      bc_recs[dir*2+1] = new phys_bcs::BCNoSlipWall<math_bcs::BCBound::upper>();
       //hi_bc[dir] = 5;
     } else if (!hi_bc_char[dir].compare("UserBC")) {
       bc_recs[dir*2+1] = new phys_bcs::BCDummy();
