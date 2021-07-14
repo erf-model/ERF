@@ -119,6 +119,90 @@ class IsentropicVortex(object):
         p *= self.rho_inf*self.a_inf**2 # note: this is _not_ p_inf!
         T = self.T_inf * (1.0 + deltaT)
         assert np.allclose(p, rho*R_d*T)
-        
+
+        return xxn,yyn,rho,u,v,p,T
+
+    def evaluate_periodic(self,
+                          left_edge,right_edge,dims,
+                          xc_norm=0.5,yc_norm=0.5):
+        Uinf = self.M_inf*self.a_inf * np.cos(self.alpha)
+        Vinf = self.M_inf*self.a_inf * np.sin(self.alpha)
+        rho = np.zeros(dims[:2])
+        u = np.zeros(dims[:2])
+        v = np.zeros(dims[:2])
+        p = np.zeros(dims[:2])
+        T = np.zeros(dims[:2])
+        for xoff_norm in [-1,0,1]:
+            for yoff_norm in [-1,0,1]:
+                xxn,yyn,drho,du,dv,dp,dT = self.evaluate(
+                    left_edge,
+                    right_edge,
+                    dims,
+                    xc_norm=xc_norm+xoff_norm,
+                    yc_norm=yc_norm+yoff_norm
+                )
+                rho += drho - self.rho_inf
+                u += du - Uinf
+                v += dv - Vinf
+                p += dp - self.p_inf
+                T += dT - self.T_inf
+        rho += self.rho_inf
+        u += Uinf
+        v += Vinf
+        p += self.p_inf
+        T += self.T_inf
         return xxn,yyn,rho,u,v,p,T
         
+    def evaluate_at_time(self,t,
+                         left_edge,right_edge,dims,
+                         xc_norm_init=0.5,yc_norm_init=0.5,
+                         debug=False):
+        """Evaluate on specified grid at specified time and initial
+        vortex position. A periodic domain is assumed.
+        
+        1. Calculate the instantaneous vortex position
+        2. Calculate the periodic position 
+        3. Evaluate at new normalized position
+        """
+        Nx,Ny = dims[0],dims[1]
+        # handle edge inputs as YTArray
+        try:
+            left_edge = left_edge.value
+        except AttributeError:
+            pass
+        try:
+            right_edge = right_edge.value
+        except AttributeError:
+            pass
+        Lx = right_edge[0] - left_edge[0]
+        Ly = right_edge[1] - left_edge[1] 
+        xv_init = xc_norm_init * Lx
+        yv_init = yc_norm_init * Ly
+        # instantaneous vortex position
+        Uinf = self.M_inf*self.a_inf * np.cos(self.alpha)
+        Vinf = self.M_inf*self.a_inf * np.sin(self.alpha)
+        xv = xv_init + Uinf*t
+        yv = yv_init + Vinf*t
+        if debug:
+            print('Current vortex position:',xv,yv)
+        # periodic vortex position
+        xv -= left_edge[0]
+        yv -= left_edge[1]
+        Nxpass = np.floor(xv / Lx)
+        Nypass = np.floor(yv / Ly)
+        xv = xv - Nxpass*Lx 
+        yv = yv - Nypass*Ly
+        if debug:
+            print('Num passes:',Nxpass,Nypass)
+            print('Periodic vortex position:',
+                    xv+left_edge[0], yv+left_edge[1])
+        # now evaluate
+        return self.evaluate_periodic(
+            left_edge,
+            right_edge,
+            dims,
+            xc_norm=xv/Lx,
+            yc_norm=yv/Ly
+        )
+
+
