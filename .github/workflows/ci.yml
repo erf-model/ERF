@@ -80,7 +80,6 @@ jobs:
 
     - name: Regression Tests
       run: |
-        # ctest -R IsentropicVortex -VV
-        ctest -R IsentropicVortexStationary -VV
+        ctest -R IsentropicVortex -VV
       working-directory:
         ${{runner.workspace}}/build-${{matrix.os}}
