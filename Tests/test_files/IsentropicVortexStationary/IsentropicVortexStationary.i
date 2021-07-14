@@ -71,7 +71,9 @@ erf.spatial_order = 2
 # PROBLEM PARAMETERS
 prob.p_inf = 1e5  # reference pressure [Pa]
 prob.T_inf = 300. # reference temperature [K]
-prob.M_inf = 0.0  # freestream Mach number [-]
-prob.alpha = 0.0  # inflow angle, 0 --> x-aligned [rad]
-prob.gamma = 1.4  # specific heat ratio [-]
-prob.beta = 0.05  # non-dimensional max perturbation strength [-]
+prob.M_inf = 1.1952286093343936  # freestream Mach number [-]
+prob.alpha = 0.7853981633974483  # inflow angle, 0 --> x-aligned [rad]
+prob.beta  = 1.1088514254079065 # non-dimensional max perturbation strength [-]
+prob.R     = 1.0  # characteristic length scale for grid [m]
+prob.sigma = 1.0  # Gaussian standard deviation [-]
+#prob.init_periodic = true # initialize a 3x3 array of vortices (8 vortices off-grid)
