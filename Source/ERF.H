@@ -380,7 +380,7 @@ public:
 
   static void applyBCs(const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) {
     for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
-      bc_recs[dir]->applyBC(geom, vars, dir/2);
+      bc_recs[dir]->applyBC(geom, vars);
     }
   }
 
@@ -469,6 +469,9 @@ protected:
   static void read_params();
 
   static void read_tagging_params();
+
+  template<int DIM, math_bcs::BCBound Bound>
+  static void initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec);
 
   ERF& getLevel(int lev);
 
