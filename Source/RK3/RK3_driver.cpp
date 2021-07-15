@@ -342,4 +342,9 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // Convert updated momentum to updated velocity on faces after stage 3 and before going to next time step
     // ************************************************************************************** 
     MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_new, xmom_new, ymom_new, zmom_new, solverChoice);
+
+    amrex::Vector<MultiFab*> vars{&cons_new, &xvel_new, &yvel_new, &zvel_new};
+
+    ERF::applyBCs(geom, vars);
+
 }
