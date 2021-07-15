@@ -167,14 +167,14 @@ namespace math_bcs {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
           if (j < lo) {
-            data(i,j,k,n) = -data(i,lo+(lo-i)-1,k,n);
+            data(i,j,k,n) = -data(i,lo+(lo-j)-1,k,n);
           }
         });
       } else if (idir == 2) {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
           if (k < lo) {
-            data(i,j,k,n) = -data(i,j,lo+(lo-i)-1,n);
+            data(i,j,k,n) = -data(i,j,lo+(lo-k)-1,n);
           }
         });
       }
@@ -195,14 +195,14 @@ namespace math_bcs {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
           if (j > hi) {
-            data(i,j,k,n) =  -data(i,hi-(i-hi+1),k,n);
+            data(i,j,k,n) =  -data(i,hi-(j-hi)+1,k,n);
           }
         });
       } else if (idir == 2) {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
           if (k > hi) {
-            data(i,j,k,n) = -data(i,j,hi-(i-hi)+1,n);
+            data(i,j,k,n) = -data(i,j,hi-(k-hi)+1,n);
           }
         });
       }
@@ -225,7 +225,7 @@ namespace math_bcs {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
           if (j < lo) {
-            data(i,j,k,n) = -data(i,lo+(lo-i),k,n);
+            data(i,j,k,n) = -data(i,lo+(lo-j),k,n);
           } else if (j == lo) {
             data(i,j,k,n) = 0.0;
           }
@@ -235,8 +235,8 @@ namespace math_bcs {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
           if (k < lo) {
-            data(i,j,k,n) = -data(i,j,lo+(lo-i),n);
-          } else if (k == 0) {
+            data(i,j,k,n) = -data(i,j,lo+(lo-k),n);
+          } else if (k == lo) {
             data(i,j,k,n) = 0.0;
 	  }
         });
@@ -260,7 +260,7 @@ namespace math_bcs {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
           if (j > hi) {
-            data(i,j,k,n) =  -data(i,hi-(i-hi),k,n);
+            data(i,j,k,n) =  -data(i,hi-(j-hi),k,n);
           } else if (j == hi) {
             data(i,j,k,n) = 0.0;
 	  }
@@ -269,7 +269,7 @@ namespace math_bcs {
         amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
           if (k > hi) {
-            data(i,j,k,n) = -data(i,j,hi-(i-hi),n);
+            data(i,j,k,n) = -data(i,j,hi-(k-hi),n);
           } else if (k == hi) {
             data(i,j,k,n) = 0.0;
 	  }
