@@ -513,6 +513,186 @@ namespace math_bcs {
   };
 
 
+  template<int IDIR, BCBound Bound> struct hoextrap;
+
+  template<int IDIR>
+  struct hoextrap<IDIR, BCBound::lower> {
+    using self = hoextrap<IDIR, BCBound::lower>;
+
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int lo = geom.Domain().smallEnd(IDIR);
+ 
+      if(b.smallEnd(IDIR) < lo) {
+        if (IDIR == 0) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (i < lo) {
+              amrex::Real grad = (4.*data(lo,j,k,n)-3.*data(lo+1,j,k,n)-data(lo+2,j,k,n))/3.;
+              data(i,j,k,n) = data(lo,j,k,n) - (lo-i)*grad;
+            }
+          });
+        } else if (IDIR == 1) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (j < lo) {
+              amrex::Real grad = (4.*data(i,lo,k,n)-3.*data(i,lo+1,k,n)-data(i,lo+2,k,n))/3.;
+              data(i,j,k,n) = data(i,lo,k,n) - (lo-j)*grad;
+            }
+          });
+        } else if (IDIR == 2) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (k < lo) {
+              amrex::Real grad = (4.*data(i,j,lo,n)-3.*data(i,j,lo+1,n)-data(i,j,lo+2,n))/3.;
+              data(i,j,k,n) = data(i,j,lo,n) - (lo-k)*grad;
+            }
+          });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline 
+    std::enable_if_t<val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int lo = geom.Domain().smallEnd(IDIR);
+ 
+      if(b.smallEnd(IDIR) < lo) {
+        if (IDIR == 0) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (i < lo) {
+              amrex::Real grad = (4.*data(lo+1,j,k,n)-3.*data(lo+2,j,k,n)-data(lo+3,j,k,n))/3.;
+              data(i,j,k,n) = data(lo+1,j,k,n) - (lo-i+1)*grad;
+            } else if (i == lo) {
+              amrex::Real grad = (4.*data(lo+1,j,k,n)-3.*data(lo+2,j,k,n)-data(lo+3,j,k,n))/3.;
+              data(i,j,k,n) = data(lo+1,j,k,n) - grad;
+            }
+           });
+        } else if (IDIR == 1) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (j < lo) {
+              amrex::Real grad = (4.*data(i,lo+1,k,n)-3.*data(i,lo+2,k,n)-data(i,lo+3,k,n))/3.;
+              data(i,j,k,n) = data(i,lo+1,k,n) - (lo-j+1)*grad;
+            } else if (j == lo) {
+              amrex::Real grad = (4.*data(i,j,lo+1,n)-3.*data(i,j,lo+2,n)-data(i,j,lo+3,n))/3.;
+              data(i,j,k,n) = data(i,lo+1,k,n)-grad;
+            }
+           });
+        } else if (IDIR == 2) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (k < lo) {
+              amrex::Real grad = (4.*data(i,j,lo+1,n)-3.*data(i,j,lo+2,n)-data(i,j,lo+3,n))/3.;
+              data(i,j,k,n) = data(i,j,lo+1,n) - (lo-k+1)*grad;
+            } else if (k == lo) {
+              amrex::Real grad = (4.*data(i,j,lo+1,n)-3.*data(i,j,lo+2,n)-data(i,j,lo+3,n))/3.;
+              data(i,j,k,n) = data(i,j,lo+1,n) - grad;
+            }
+           });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline 
+    std::enable_if_t<!val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      self::apply_cell_based(geom, b, data, ncomp);
+    }
+
+  };
+
+  template<int IDIR>
+  struct hoextrap<IDIR, BCBound::upper> {
+    using self = hoextrap<IDIR, BCBound::upper>;
+
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int hi = geom.Domain().bigEnd(IDIR);
+ 
+      if(b.bigEnd(IDIR) > hi) {
+        if (IDIR == 0) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (i > hi) {
+              amrex::Real grad = (4.*data(hi,j,k,n)-3.*data(hi+1,j,k,n)-data(hi,j,k,n))/3.;
+              data(i,j,k,n) = data(hi,j,k,n) - (i-hi)*grad;
+            }
+          });
+        } else if (IDIR == 1) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (j > hi) {
+              amrex::Real grad = (4.*data(i,hi,k,n)-3.*data(i,hi+1,k,n)-data(i,hi,k,n))/3.;
+              data(i,j,k,n) = data(i,hi,k,n) - (j-hi)*grad;
+            }
+          });
+        } else if (IDIR == 2) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (k > hi) {
+              amrex::Real grad = (4.*data(i,j,hi,n)-3.*data(i,j,hi+1,n)-data(i,j,hi+2,n))/3.;
+              data(i,j,k,n) = data(i,j,hi,n) - (k-hi)*grad;
+            }
+          });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline 
+    std::enable_if_t<val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int hi = geom.Domain().bigEnd(IDIR);
+ 
+      if(b.bigEnd(IDIR) > hi) {
+        if (IDIR == 0) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             if (i > hi) {
+               amrex::Real grad = (4.*data(hi+1,j,k,n)-3.*data(hi+2,j,k,n)-data(hi+3,j,k,n))/3.;
+               data(i,j,k,n) = data(hi,j,k,n) - (i-hi-1)*grad;
+             } else if (i == hi) {
+               amrex::Real grad = (4.*data(hi+1,j,k,n)-3.*data(hi+2,j,k,n)-data(hi+3,j,k,n))/3.;
+               data(i,j,k,n) = data(hi,j,k,n) - grad;
+             }
+           });
+        } else if (IDIR == 1) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             if (j > hi) {
+               amrex::Real grad = (4.*data(i,hi+1,k,n)-3.*data(i,hi+2,k,n)-data(i,hi+3,k,n))/3.;
+               data(i,j,k,n) = data(i,hi,k,n) - (j-hi-1)*grad;
+             } else if (j == hi) {
+               amrex::Real grad = (4.*data(i,hi+1,k,n)-3.*data(i,hi+2,k,n)-data(i,hi+3,k,n))/3.;
+               data(i,j,k,n) = data(i,hi,k,n) - grad;
+             }
+           });
+        } else if (IDIR == 2) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             if (k > hi) {
+               amrex::Real grad = (4.*data(i,j,hi+1,n)-3.*data(i,j,hi+2,n)-data(i,j,hi+3))/3.;
+               data(i,j,k,n) = data(i,j,hi,n) - (k-hi-1)*grad;
+             } else if (k == hi) {
+               amrex::Real grad = (4.*data(i,j,hi+1,n)-3.*data(i,j,hi+2,n)-data(i,j,hi+3))/3.;
+               data(i,j,k,n) = data(i,j,hi) - grad;
+             }
+           });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline 
+    std::enable_if_t<!val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      self::apply_cell_based(geom, b, data, ncomp);
+    }
+  };
+
+
   template<>
   inline void brian_reflect_odd<BCBound::lower>(const amrex::Geometry& geom, const Box& b, int lo, Array4<Real> data, int idir, int ncomp) {
     if(b.smallEnd(idir) < lo) {
