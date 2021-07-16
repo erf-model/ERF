@@ -38,21 +38,21 @@ class BCNoSlipWall : public BCBase {
                math_bcs::wall_scalars<Bound>(geom, b, extent, data, dim, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
                if (dim == 0) {
-                  math_bcs::reflect_odd_face_based<Bound>(geom, b, extent, data, dim, 1);
+                  math_bcs::brian_reflect_odd_face_based<Bound>(geom, b, extent, data, dim, 1);
                } else {
-                  math_bcs::reflect_odd<Bound>(geom, b, extent, data, dim, 1);
+                   math_bcs::brian_reflect_odd<Bound > (geom, b, extent, data, dim, 1);
                }
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
                if (dim == 1) {
-                  math_bcs::reflect_odd_face_based<Bound>(geom, b, extent, data, dim, 1);
+                  math_bcs::brian_reflect_odd_face_based<Bound>(geom, b, extent, data, dim, 1);
                } else {
-                  math_bcs::reflect_odd<Bound>(geom, b, extent, data, dim, 1);
+                   math_bcs::brian_reflect_odd<Bound > (geom, b, extent, data, dim, 1);
                }
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
                if (dim == 2) {
-                  math_bcs::reflect_odd_face_based<Bound>(geom, b, extent, data, dim, 1);
+                  math_bcs::brian_reflect_odd_face_based<Bound>(geom, b, extent, data, dim, 1);
                } else {
-                  math_bcs::reflect_odd<Bound>(geom, b, extent, data, dim, 1);
+                   math_bcs::brian_reflect_odd<Bound > (geom, b, extent, data, dim, 1);
                }
             }
          }
