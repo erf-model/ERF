@@ -54,6 +54,7 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/Utilities.H
        ${SRC_DIR}/Transport.cpp
        ${SRC_DIR}/TransportParams.cpp
+       ${SRC_DIR}/IO/IOManager.H
        ${SRC_DIR}/IO/PlotFile.cpp
        ${SRC_DIR}/IO/IOManager.cpp
        ${SRC_DIR}/RK3/RK3.H
