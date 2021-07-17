@@ -20,6 +20,7 @@ function(build_erf_exe erf_exe_name)
  
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_exe_name} PRIVATE
+                   ${SRC_DIR}/IO/NCInterface.H
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp)
     target_compile_definitions(${erf_exe_name} PRIVATE ERF_USE_NETCDF)
@@ -55,6 +56,7 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/Transport.cpp
        ${SRC_DIR}/TransportParams.cpp
        ${SRC_DIR}/IO/IOManager.H
+       ${SRC_DIR}/IO/PlotFile.H
        ${SRC_DIR}/IO/PlotFile.cpp
        ${SRC_DIR}/IO/IOManager.cpp
        ${SRC_DIR}/RK3/RK3.H
@@ -108,6 +110,7 @@ function(build_erf_exe erf_exe_name)
   #ERF include directories
   target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR})
   target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR}/RK3)
+  target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR}/IO)
   target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_BINARY_DIR})
   
   #Link to amrex library
