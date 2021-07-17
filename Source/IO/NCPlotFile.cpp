@@ -12,6 +12,7 @@
 #include <AMReX_ParmParse.H>
 
 #include "ERF.H"
+#include "IOManager.H"
 #include "NCInterface.H"
 #include "NCPlotFile.H"
 #include "IndexDefines.H"
@@ -35,7 +36,7 @@ namespace {
 
 // I/O routines for ERF
 void
-ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
+IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 {
     // Let's check ERF checkpoint version first;
     // trying to read from checkpoint; if nonexisting, set it to 0.
@@ -60,17 +61,17 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
     AMREX_ASSERT(input_version >= 0);
 
-    parent = &papa;
+    erf.parent = &papa;
 
     // This is urgly in NetCDF input/output, we should store everything in NetCDF file, however,
     // the directory layout is the way need to know the level before it can read the file.
     // TODO: we need find a way to reorganize the output directory structure later.
-    is >> level;
+    is >> erf.level;
 
     std::string LevelDir, FullPath;
-    LevelDir = amrex::Concatenate("Level_", level, 1);
-    LevelDirectoryNames(papa.theRestartFile(), LevelDir, FullPath);
-    if( ! levelDirectoryCreated) {
+    LevelDir = amrex::Concatenate("Level_", erf.level, 1);
+    erf.LevelDirectoryNames(papa.theRestartFile(), LevelDir, FullPath);
+    if( ! erf.levelDirectoryCreated) {
       amrex::Print() << "ERF::ncrestart: NetCDF restart file doesn't exist!" << '\n';
     }
 
@@ -78,7 +79,7 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
     std::vector<int> data;
     ncf.get_attr("Level", data);
-    level = data[0];
+    erf.level = data[0];
 
     ncf.get_attr("finest_level",data);
     papa.SetFinestLevel(data[0]);
@@ -86,14 +87,14 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
     ncf.get_attr("CoordSys_ID", data);
     int coord = data[0];
-    geom.SetCoord(static_cast<amrex::CoordSys::CoordType>(data[0]));
+    erf.geom.SetCoord(static_cast<amrex::CoordSys::CoordType>(data[0]));
 
     std::vector<amrex::Real> offset(AMREX_SPACEDIM);
     std::vector<amrex::Real> cellsize(AMREX_SPACEDIM);
     ncf.var("Coord.Offset").get(offset.data(), {0}, {AMREX_SPACEDIM});
     ncf.var("Coord.CellSize").get(cellsize.data(), {0}, {AMREX_SPACEDIM});
   
-    geom.SetOffset(offset.data());
+    erf.geom.SetOffset(offset.data());
     // TODO (this is important)
     // we need to setup the cellsize to coordinate here!!!
 //    geom.SetCellsize(cellsize.data());
@@ -114,31 +115,31 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
     amrex::RealBox rb = amrex::RealBox(plo, phi);
 
-    geom.Domain(bx);
-    geom.ProbDomain(rb);
+    erf.geom.Domain(bx);
+    erf.geom.ProbDomain(rb);
 
     amrex::IntArray periodic;
     ncf.var("Geom.Periodic").get(periodic.begin(), {0}, {AMREX_SPACEDIM});
 
-    geom.setPeriodicity({{AMREX_D_DECL(periodic[0],periodic[1],periodic[2])}});
+    erf.geom.setPeriodicity({{AMREX_D_DECL(periodic[0],periodic[1],periodic[2])}});
 
     // setup geom
-    geom.define(bx, rb, coord, periodic); 
+    erf.geom.define(bx, rb, coord, periodic); 
 
-    fine_ratio = amrex::IntVect::TheUnitVector(); fine_ratio.scale(-1);
-    crse_ratio = amrex::IntVect::TheUnitVector(); crse_ratio.scale(-1);
+    erf.fine_ratio = amrex::IntVect::TheUnitVector(); erf.fine_ratio.scale(-1);
+    erf.crse_ratio = amrex::IntVect::TheUnitVector(); erf.crse_ratio.scale(-1);
 
-    if (level > 0) {
-       crse_ratio = papa.refRatio(level-1);
+    if (erf.level > 0) {
+       erf.crse_ratio = papa.refRatio(erf.level-1);
     }
 
-    if (level < papa.maxLevel()) {
-       fine_ratio = papa.refRatio(level);
+    if (erf.level < papa.maxLevel()) {
+       erf.fine_ratio = papa.refRatio(erf.level);
     }
 
     auto grids_dim = ncf.dim("num_grids");
     int num_grids = static_cast<int>(grids_dim.len());
-    grids.resize(num_grids);
+    erf.grids.resize(num_grids);
 
     for (auto ib=0; ib<num_grids; ++ib) {
        int blo[AMREX_SPACEDIM];
@@ -150,25 +151,25 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
        ncf.var("Grids.BType").get(btype, {ib, 0}, {1, AMREX_SPACEDIM});
 
        amrex::Box b = amrex::Box(amrex::IntVect(blo), amrex::IntVect(bhi), amrex::IntVect(btype));
-       grids.set(ib, b);
+       erf.grids.set(ib, b);
     }
 
-    int ndesc = desc_lst.size();
+    int ndesc = erf.desc_lst.size();
     int nstate = ndesc;
 
     amrex::Vector<int> state_in_checkpoint(ndesc, 1);
     if (ndesc > nstate) {
-        set_state_in_checkpoint(state_in_checkpoint);
+        erf.set_state_in_checkpoint(state_in_checkpoint);
     } else {
         BL_ASSERT(nstate == ndesc);
     }
 
-    dmap.define(grids);
-    papa.SetBoxArray(level, grids);
-    papa.SetDistributionMap(level, dmap);
-    m_factory.reset(new amrex::FArrayBoxFactory());
+    erf.dmap.define(erf.grids);
+    papa.SetBoxArray(erf.level, erf.grids);
+    papa.SetDistributionMap(erf.level, erf.dmap);
+    erf.m_factory.reset(new amrex::FArrayBoxFactory());
 
-    state.resize(ndesc);
+    erf.state.resize(ndesc);
 
     amrex::Vector<int> npts;
     amrex::Vector<int> nsize; 
@@ -179,13 +180,13 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     amrex::Vector<std::string> var_names;
     std::map<std::pair<int, int>, int> var_map;
     int inc = 0;
-    for (int typ = 0; typ < desc_lst.size(); typ++) {
-        for (int comp = 0; comp < desc_lst[typ].nComp(); comp++) {
+    for (int typ = 0; typ < erf.desc_lst.size(); typ++) {
+        for (int comp = 0; comp < erf.desc_lst[typ].nComp(); comp++) {
            std::string name;
            std::pair<int, int> p {std::pair<int, int>(typ, comp)};
            var_map[p] = inc;
-           if (desc_lst[typ].name(comp) != "") {
-              name = desc_lst[typ].name(comp);
+           if (erf.desc_lst[typ].name(comp) != "") {
+              name = erf.desc_lst[typ].name(comp);
            } else {
               name = EnumToString(static_cast<StateType>(typ));
            }
@@ -201,7 +202,7 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
        nsize.push_back(num_size);
     }
 
-    for (int k = 0; k < desc_lst.size(); ++k) {
+    for (int k = 0; k < erf.desc_lst.size(); ++k) {
       std::string typ_name = EnumToString(static_cast<StateType>(k));
       lo_names.push_back("lo_"+typ_name);
       hi_names.push_back("hi_"+typ_name);
@@ -221,10 +222,10 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
            ncf.get_attr("DtOld",data);
            dt_old = static_cast<amrex::Real>(data[0]);
 
-           auto state_domain = geom.Domain();
-           auto state_grids  = grids;
+           auto state_domain = erf.geom.Domain();
+           auto state_grids  = erf.grids;
 
-           amrex::IndexType typ(desc_lst[i].getType());
+           amrex::IndexType typ(erf.desc_lst[i].getType());
            if (!typ.cellCentered()) {
              state_domain.convert(typ);
              state_grids.convert(typ);
@@ -233,18 +234,18 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
            amrex::Arena* arena = nullptr;
 
            // initialize state
-           state[i].define(state_domain, state_grids, dmap, desc_lst[i], time, dt_new, *m_factory);
+           erf.state[i].define(state_domain, state_grids, erf.dmap, erf.desc_lst[i], time, dt_new, *(erf.m_factory));
 
-           amrex::MultiFab& new_data = state[i].newData();
+           amrex::MultiFab& new_data = erf.state[i].newData();
 
            // initialize multifab
-           new_data.define(state_grids,dmap,desc_lst[i].nComp(),desc_lst[i].nExtra(),
+           new_data.define(state_grids,erf.dmap,erf.desc_lst[i].nComp(),erf.desc_lst[i].nExtra(),
                             amrex::MFInfo().SetTag("StateData").SetArena(arena),
-                            *m_factory);
+                            *(erf.m_factory));
 
            new_data.setVal(0.);
 
-           state[i].setTimeLevel(time, dt_old, dt_new);
+           erf.state[i].setTimeLevel(time, dt_old, dt_new);
 
           for (amrex::MFIter new_mfi(new_data); new_mfi.isValid(); ++new_mfi) {
               auto ncomp   = new_data.nComp();
@@ -275,62 +276,62 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     }
 
     if (papa.useFixedCoarseGrids()) {
-      constructAreaNotToTag();
+      erf.constructAreaNotToTag();
     }
 
-    post_step_regrid = 0;
+    erf.post_step_regrid = 0;
 
-    finishConstructor();
+    erf.finishConstructor();
 
-   if (level > 0 && do_reflux) {
-     flux_reg.define(
-       grids, papa.boxArray(level - 1), dmap, papa.DistributionMap(level - 1),
-       geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, NVAR);
+   if (erf.level > 0 && erf.do_reflux) {
+     erf.flux_reg.define(
+       erf.grids, papa.boxArray(erf.level - 1), erf.dmap, papa.DistributionMap(erf.level - 1),
+       erf.geom, papa.Geom(erf.level - 1), papa.refRatio(erf.level - 1), erf.level, NVAR);
    }
 
   /*
     Deal here with new state descriptor types added, with corresponding
     input_version > 0, if applicable
    */
-  for (int i = 0; i < desc_lst.size(); ++i) {
+  for (int i = 0; i < erf.desc_lst.size(); ++i) {
     if (state_in_checkpoint[i] == 0) {
-      const amrex::Real ctime = state[i - 1].curTime();
-      state[i].define(
-        geom.Domain(), grids, dmap, desc_lst[i], ctime, papa.dtLevel(level),
-        *m_factory);
-      state[i] = state[i - 1];
+      const amrex::Real ctime = erf.state[i-1].curTime();
+      erf.state[i].define(
+        erf.geom.Domain(), erf.grids, erf.dmap, erf.desc_lst[i], ctime, papa.dtLevel(erf.level),
+        *(erf.m_factory));
+      erf.state[i] = erf.state[i - 1];
     }
   }
-  buildMetrics();
+  erf.buildMetrics();
 
-  amrex::MultiFab& S_new = get_new_data(State_Type);
+  amrex::MultiFab& S_new = erf.get_new_data(State_Type);
 
-  for (int n = 0; n < src_list.size(); ++n) {
+  for (int n = 0; n < erf.src_list.size(); ++n) {
     int oldGrow = NUM_GROW;
     int newGrow = S_new.nGrow();
-    old_sources[src_list[n]] =
+    erf.old_sources[erf.src_list[n]] =
       std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
-        grids, dmap, NVAR, oldGrow, amrex::MFInfo(), Factory()));
-    new_sources[src_list[n]] =
+        erf.grids, erf.dmap, NVAR, oldGrow, amrex::MFInfo(), erf.Factory()));
+    erf.new_sources[erf.src_list[n]] =
       std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
-        grids, dmap, NVAR, newGrow, amrex::MFInfo(), Factory()));
+        erf.grids, erf.dmap, NVAR, newGrow, amrex::MFInfo(), erf.Factory()));
   }
 
-  Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
+  erf.Sborder.define(erf.grids, erf.dmap, NVAR, NUM_GROW, amrex::MFInfo(), erf.Factory());
 
   // get the elapsed CPU time to now;
-  if (level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
+  if (erf.level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
     // get elapsed CPU time
     std::ifstream CPUFile;
     std::string FullPathCPUFile = papa.theRestartFile();
     FullPathCPUFile += "/CPUtime";
     CPUFile.open(FullPathCPUFile.c_str(), std::ios::in);
-    CPUFile >> previousCPUTimeUsed;
+    CPUFile >> erf.previousCPUTimeUsed;
     CPUFile.close();
-    amrex::Print() << "read CPU time: " << previousCPUTimeUsed << "\n";
+    amrex::Print() << "read CPU time: " << erf.previousCPUTimeUsed << "\n";
   }
 
-  if (track_grid_losses && level == 0) {
+  if (erf.track_grid_losses && erf.level == 0) {
 
     // get the current value of the diagnostic quantities
     std::ifstream DiagFile;
@@ -338,8 +339,8 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     FullPathDiagFile += "/Diagnostics";
     DiagFile.open(FullPathDiagFile.c_str(), std::ios::in);
 
-    for (int i = 0; i < n_lost; i++)
-      DiagFile >> material_lost_through_boundary_cumulative[i];
+    for (int i = 0; i < erf.n_lost; i++)
+      DiagFile >> erf.material_lost_through_boundary_cumulative[i];
 
     DiagFile.close();
   }
@@ -368,15 +369,15 @@ ERF::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
       }*/
 
-  if (level > 0 && do_reflux) {
-    flux_reg.define(
-      grids, papa.boxArray(level - 1), dmap, papa.DistributionMap(level - 1),
-      geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, NVAR);
+  if (erf.level > 0 && erf.do_reflux) {
+    erf.flux_reg.define(
+      erf.grids, papa.boxArray(erf.level - 1), erf.dmap, papa.DistributionMap(erf.level - 1),
+      erf.geom, papa.Geom(erf.level - 1), papa.refRatio(erf.level - 1), erf.level, NVAR);
   }
 }
 
 void
-ERF::writeNCPlotFile(const std::string& dir, ostream& os)
+IOManager::writeNCPlotFile(const std::string& dir, ostream& os)
 {
   int i, j, n;
   // number of blocks in this level
@@ -391,7 +392,7 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
   // set the full IO path for NetCDF output
   static const std::string BaseName = "/NetCDF";
   char buf[64];
-  sprintf(buf, "Level_%d", level);
+  sprintf(buf, "Level_%d", erf.level);
   std::string LevelStr = buf;
 
   std::cout << "Write NetCDF file!" << '\n';
@@ -410,40 +411,40 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
   // open netcdf file to write data
   auto ncf = ncutils::NCFile::create(FullPath+'/'+nc_state_filename, NC_CLOBBER | NC_NETCDF4);
 
-  nblocks = numGrids();
-  flev = parent->finestLevel();
+  nblocks = erf.numGrids();
+  flev = erf.parent->finestLevel();
 
 #if (AMREX_SPACEDIM == 1)
-  n_cells.push_back(amrex::length(boxArray()[0]).x);
-  num_pts = amrex::length(boxArray()[0]).x;
+  n_cells.push_back(amrex::length(erf.boxArray()[0]).x);
+  num_pts = amrex::length(erf.boxArray()[0]).x;
 #elif (AMREX_SPACEDIM == 2)
-  n_cells.push_back(amrex::length(boxArray()[0]).x);
-  n_cells.push_back(amrex::length(boxArray()[0]).y);
-  num_pts = (amrex::length(boxArray()[0]).x)*(amrex::length(boxArray()[0]).y);
+  n_cells.push_back(amrex::length(erf.boxArray()[0]).x);
+  n_cells.push_back(amrex::length(erf.boxArray()[0]).y);
+  num_pts = (amrex::length(erf.boxArray()[0]).x)*(amrex::length(erf.boxArray()[0]).y);
 #elif (AMREX_SPACEDIM == 3)
-  n_cells.push_back(amrex::length(boxArray()[0]).x);
-  n_cells.push_back(amrex::length(boxArray()[0]).y);
-  n_cells.push_back(amrex::length(boxArray()[0]).z);
-  num_pts = (amrex::length(boxArray()[0]).x)*(amrex::length(boxArray()[0]).y)*(amrex::length(boxArray()[0]).z);
+  n_cells.push_back(amrex::length(erf.boxArray()[0]).x);
+  n_cells.push_back(amrex::length(erf.boxArray()[0]).y);
+  n_cells.push_back(amrex::length(erf.boxArray()[0]).z);
+  num_pts = (amrex::length(erf.boxArray()[0]).x)*(amrex::length(erf.boxArray()[0]).y)*(amrex::length(erf.boxArray()[0]).z);
 #endif
 
   amrex::Vector<std::string> plot_var_names;
   amrex::Vector<std::pair<int, int>> plot_var_map;
-  for (int typ = 0; typ < desc_lst.size(); typ++)
-    for (int comp = 0; comp < desc_lst[typ].nComp(); comp++) {
-      if ( parent->isStatePlotVar(desc_lst[typ].name(comp)) &&
-           desc_lst[typ].getType() == amrex::IndexType::TheCellType()) {
+  for (int typ = 0; typ < erf.desc_lst.size(); typ++)
+    for (int comp = 0; comp < erf.desc_lst[typ].nComp(); comp++) {
+      if ( erf.parent->isStatePlotVar(erf.desc_lst[typ].name(comp)) &&
+           erf.desc_lst[typ].getType() == amrex::IndexType::TheCellType()) {
         plot_var_map.push_back(std::pair<int, int>(typ, comp));
-        plot_var_names.push_back(desc_lst[typ].name(comp));
+        plot_var_names.push_back(erf.desc_lst[typ].name(comp));
       }
   }
 
   int num_derive = 0;
   std::list<std::string> derive_names;
-  const std::list<amrex::DeriveRec>& dlist = derive_lst.dlist();
+  const std::list<amrex::DeriveRec>& dlist = erf.derive_lst.dlist();
 
   for (std::list<amrex::DeriveRec>::const_iterator it = dlist.begin(), end = dlist.end(); it != end; ++it) {
-    if (parent->isDerivePlotVar(it->name())) {
+    if (erf.parent->isDerivePlotVar(it->name())) {
        derive_names.push_back(it->name());
        plot_var_names.push_back(it->name());
        num_derive += it->numDerive();
@@ -494,17 +495,17 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
   }
   ncf.exit_def_mode();
 
-  amrex::Real cur_time = state[State_Type].curTime();
+  amrex::Real cur_time = erf.state[State_Type].curTime();
   input_version = 1;
 
-  if (level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
+  if (erf.level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
     //
     // write out the netcdf plotfile head information.
     //
     if (n_data_items == 0)
       amrex::Error("Must specify at least one valid data item to plot");
 
-    ncf.put_attr("PlotFileType", thePlotFileType());
+    ncf.put_attr("PlotFileType", erf.thePlotFileType());
     ncf.put_attr("number_variables", std::vector<int>{n_data_items});
     ncf.put_attr("input_version", std::vector<int>{input_version});
 
@@ -512,7 +513,7 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
     for (i = 0; i < plot_var_map.size(); i++) {
       int typ = plot_var_map[i].first;
       int comp = plot_var_map[i].second;
-      variable_names.push_back(desc_lst[typ].name(comp).c_str());
+      variable_names.push_back(erf.desc_lst[typ].name(comp).c_str());
     }
 
     for(const auto& d_var_name : derive_names) {
@@ -521,28 +522,28 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
     ncf.var("VARNAMES").put(variable_names.data(), {0}, {n_data_items});
 
     ncf.put_attr("space_dimension", std::vector<int>{AMREX_SPACEDIM});
-    ncf.put_attr("current_time", std::vector<double>{parent->cumTime()});
+    ncf.put_attr("current_time", std::vector<double>{erf.parent->cumTime()});
 
-    ncf.put_attr("FinestLevel", std::vector<int>{parent->finestLevel()});
-    ncf.put_attr("CurrentLevel", std::vector<int>{level});
+    ncf.put_attr("FinestLevel", std::vector<int>{erf.parent->finestLevel()});
+    ncf.put_attr("CurrentLevel", std::vector<int>{erf.level});
 
     amrex::Vector<amrex::Real> probLo;
     amrex::Vector<amrex::Real> probHi;
     for (i = 0; i < AMREX_SPACEDIM; i++) {
-      probLo.push_back(Geom().ProbLo(i));
-      probHi.push_back(Geom().ProbHi(i));
+      probLo.push_back(erf.Geom().ProbLo(i));
+      probHi.push_back(erf.Geom().ProbHi(i));
     }
     ncf.var("probLo").put(probLo.data(), {0}, {AMREX_SPACEDIM});
     ncf.var("probHi").put(probHi.data(), {0}, {AMREX_SPACEDIM});
 
     amrex::Vector<int> refRatio;
     for (i = 0; i < flev; i++)
-      refRatio.push_back(parent->refRatio(i)[0]);
+      refRatio.push_back(erf.parent->refRatio(i)[0]);
     ncf.var("refRatio").put(refRatio.data(), {0}, {flev});
    
     amrex::Vector<int> levelSteps;
     for (i = 0; i <= flev; i++)
-      levelSteps.push_back(parent->levelSteps(i));
+      levelSteps.push_back(erf.parent->levelSteps(i));
     ncf.var("levelSteps").put(levelSteps.data(), {0}, {flev});
 
     amrex::Vector<int> smallend;
@@ -550,8 +551,8 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
     for (i = 0; i <= flev; i++) {
       smallend.clear(); bigend.clear();
       for (j = 0; j < AMREX_SPACEDIM; j++) {
-         smallend.push_back(parent->Geom(i).Domain().smallEnd(j));
-         bigend.push_back(parent->Geom(i).Domain().bigEnd(j));
+         smallend.push_back(erf.parent->Geom(i).Domain().smallEnd(j));
+         bigend.push_back(erf.parent->Geom(i).Domain().bigEnd(j));
       }
       ncf.var("Geom.smallend").put(smallend.data(), {i, 0}, {1, AMREX_SPACEDIM});
       ncf.var("Geom.bigend").put(bigend.data(), {i, 0}, {1, AMREX_SPACEDIM});
@@ -561,7 +562,7 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
     for (i = 0; i <= flev; i++) {
       CellSize.clear();
       for (j = 0; j < AMREX_SPACEDIM; j++) {
-        CellSize.push_back(parent->Geom(i).CellSize()[j]);
+        CellSize.push_back(erf.parent->Geom(i).CellSize()[j]);
       }
       ncf.var("CellSize").put(CellSize.data(), {i, 0}, {1, AMREX_SPACEDIM});
     }
@@ -580,25 +581,26 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
     std::vector<amrex::Real> x_grid;
     std::vector<amrex::Real> y_grid;
     std::vector<amrex::Real> z_grid;
-    for (i = 0; i < grids.size(); ++i) {
-      amrex::RealBox gridloc = amrex::RealBox(grids[i], geom.CellSize(), geom.ProbLo());
+    for (i = 0; i < erf.grids.size(); ++i) {
+      amrex::RealBox gridloc = amrex::RealBox(erf.grids[i], erf.geom.CellSize(), erf.geom.ProbLo());
 
       x_grid.clear(); y_grid.clear(); z_grid.clear();
-      for (auto k1 = 0; k1 < grids[i].length(0); ++k1) {
-        x_grid.push_back(gridloc.lo(0)+geom.CellSize(0)*static_cast<amrex::Real>(k1));
+      for (auto k1 = 0; k1 < erf.grids[i].length(0); ++k1) {
+        x_grid.push_back(gridloc.lo(0)+erf.geom.CellSize(0)*static_cast<amrex::Real>(k1));
       }
-      for (auto k2 = 0; k2 < grids[i].length(1); ++k2) {
-        y_grid.push_back(gridloc.lo(1)+geom.CellSize(1)*static_cast<amrex::Real>(k2));
+      for (auto k2 = 0; k2 < erf.grids[i].length(1); ++k2) {
+        y_grid.push_back(gridloc.lo(1)+erf.geom.CellSize(1)*static_cast<amrex::Real>(k2));
       }
-      for (auto k3 = 0; k3 < grids[i].length(2); ++k3) {
-        z_grid.push_back(gridloc.lo(2)+geom.CellSize(2)*static_cast<amrex::Real>(k3));
+      for (auto k3 = 0; k3 < erf.grids[i].length(2); ++k3) {
+        z_grid.push_back(gridloc.lo(2)+erf.geom.CellSize(2)*static_cast<amrex::Real>(k3));
       }
 
-      ncf.var("x_grid").put(x_grid.data(), {i, 0}, {1, grids[i].length(0)});
-      ncf.var("y_grid").put(y_grid.data(), {i, 0}, {1, grids[i].length(1)});
-      ncf.var("z_grid").put(z_grid.data(), {i, 0}, {1, grids[i].length(2)});
+      ncf.var("x_grid").put(x_grid.data(), {i, 0}, {1, erf.grids[i].length(0)});
+      ncf.var("y_grid").put(y_grid.data(), {i, 0}, {1, erf.grids[i].length(1)});
+      ncf.var("z_grid").put(z_grid.data(), {i, 0}, {1, erf.grids[i].length(2)});
     }
   }
+
   //
   // combine all of the multifabs -- state, derived, etc -- into one multifab -- plotMF.
   // NOTE: we are assuming that each state variable has one component,
@@ -607,7 +609,7 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
   int cnt = 0;
   int ncomp = 1;
   const int nGrow = 0;
-  amrex::MultiFab plotMF(grids, dmap, n_data_items, nGrow, amrex::MFInfo(), Factory());
+  amrex::MultiFab plotMF(erf.grids, erf.dmap, n_data_items, nGrow, amrex::MFInfo(), erf.Factory());
   amrex::MultiFab* this_dat = 0;
   //
   // Cull data from state variables -- use no ghost cells.
@@ -615,7 +617,7 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
   for (i = 0; i < plot_var_map.size(); i++) {
     int typ = plot_var_map[i].first;
     int comp = plot_var_map[i].second;
-    this_dat = &state[typ].newData();
+    this_dat = &(erf.state[typ].newData());
     amrex::MultiFab::Copy(plotMF, *this_dat, comp, cnt, 1, nGrow);
     cnt++;
   }
@@ -625,9 +627,9 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
   if (derive_names.size() > 0) {
     for (std::list<std::string>::const_iterator it = derive_names.begin(),
          end = derive_names.end(); it != end; ++it) {
-      const amrex::DeriveRec* rec = derive_lst.get(*it);
+      const amrex::DeriveRec* rec = erf.derive_lst.get(*it);
       ncomp = rec->numDerive();
-      auto derive_dat = derive(*it, cur_time, nGrow);
+      auto derive_dat = erf.derive(*it, cur_time, nGrow);
       amrex::MultiFab::Copy(plotMF, *derive_dat, 0, cnt, ncomp, nGrow);
       cnt += ncomp;
     }
@@ -651,35 +653,35 @@ ERF::writeNCPlotFile(const std::string& dir, ostream& os)
 // write checkpoint file in NetCDF format for restart use
 //
 void
-ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool& dump_old)
+IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool& dump_old)
 {
     //
     // Build directory to hold the MultiFabs in the StateData at this level.
     // The directory is relative the the directory containing the Header file.
     //
     std::string LevelDir, FullPath;
-    LevelDirectoryNames(dir, LevelDir, FullPath);
-    if( ! levelDirectoryCreated) {
-      CreateLevelDirectory(dir);
+    erf.LevelDirectoryNames(dir, LevelDir, FullPath);
+    if( ! erf.levelDirectoryCreated) {
+      erf.CreateLevelDirectory(dir);
       // ---- Force other processors to wait until directory is built.
       amrex::ParallelDescriptor::Barrier("AmrLevel::checkPoint::dir");
     }
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
-      os << level << '\n';
+      os << erf.level << '\n';
 
       // get the output variable names
       amrex::Vector<std::string> var_names;
       std::map<std::pair<int, int>, int> var_map;
       int inc = 0;
-      for (int typ = 0; typ < desc_lst.size(); typ++) {
-        for (int comp = 0; comp < desc_lst[typ].nComp(); comp++) {
+      for (int typ = 0; typ < erf.desc_lst.size(); typ++) {
+        for (int comp = 0; comp < erf.desc_lst[typ].nComp(); comp++) {
           std::string name;
           std::pair<int, int> p {std::pair<int, int>(typ, comp)};
           var_map[p] = inc;
-          if (desc_lst[typ].name(comp) != "") {
-             name = desc_lst[typ].name(comp);
+          if (erf.desc_lst[typ].name(comp) != "") {
+             name = erf.desc_lst[typ].name(comp);
           } else {
             name = EnumToString(static_cast<StateType>(typ));
           }
@@ -696,8 +698,8 @@ ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool
       {
         // get the multifab data
         amrex::Vector<amrex::MultiFab*> newMF;
-        for (int typ = 0; typ < desc_lst.size(); typ++) {
-          newMF.push_back(&get_new_data(typ));
+        for (int typ = 0; typ < erf.desc_lst.size(); typ++) {
+          newMF.push_back(&(erf.get_new_data(typ)));
         }
 
         // get the number points and size of different variable type, and geometric blocks
@@ -728,9 +730,9 @@ ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool
            }
         }
 
-        int ndesc  = desc_lst.size();
-        int ngrids = numGrids();
-        int nflev  = parent->finestLevel();
+        int ndesc  = erf.desc_lst.size();
+        int ngrids = erf.numGrids();
+        int nflev  = erf.parent->finestLevel();
 
         const std::string ndim_name = "num_geo_dimensions";
         const std::string nl_name   = "finest_levels";
@@ -797,23 +799,23 @@ ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool
         // Output geometric data.
         //      
 
-        amrex::Real prev_time = state[State_Type].prevTime(); 
-        amrex::Real dt_new = parent->dtLevel(level);
-        amrex::Real dt_old = parent->cumTime()-prev_time;
+        amrex::Real prev_time = erf.state[State_Type].prevTime(); 
+        amrex::Real dt_new = erf.parent->dtLevel(erf.level);
+        amrex::Real dt_old = erf.parent->cumTime()-prev_time;
 
         // scalar to NetCDF as attr
-        ncf_new.put_attr("Level", std::vector<int>{level});
+        ncf_new.put_attr("Level", std::vector<int>{erf.level});
         ncf_new.put_attr("nVarType",  std::vector<int>{ndesc});
         ncf_new.put_attr("CheckPointVersion",CheckPointVersion);
         ncf_new.put_attr("AMREX_SPECEDIM",std::vector<int>{AMREX_SPACEDIM});
-        ncf_new.put_attr("cumtime",std::vector<float>{parent->cumTime()});
+        ncf_new.put_attr("cumtime",std::vector<float>{erf.parent->cumTime()});
         ncf_new.put_attr("DtNew",std::vector<float>{dt_new});
         ncf_new.put_attr("DtOld",std::vector<float>{dt_old});
-        ncf_new.put_attr("max_level",std::vector<int>{parent->maxLevel()});
-        ncf_new.put_attr("finest_level",std::vector<int>{parent->finestLevel()});
-        ncf_new.put_attr("CoordSys_ID",std::vector<int>{geom.CoordInt()});
+        ncf_new.put_attr("max_level",std::vector<int>{erf.parent->maxLevel()});
+        ncf_new.put_attr("finest_level",std::vector<int>{erf.parent->finestLevel()});
+        ncf_new.put_attr("CoordSys_ID",std::vector<int>{erf.geom.CoordInt()});
 
-        auto domain = Domain();
+        auto domain = erf.Domain();
         amrex::IntVect dsmallend = domain.smallEnd();
         amrex::IntVect dbigend   = domain.bigEnd();
         amrex::IntVect ditype    = domain.type();
@@ -822,47 +824,47 @@ ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool
         ncf_new.var("Domain.BigEnd").put(dbigend.begin(), {0}, {AMREX_SPACEDIM});
         ncf_new.var("Domain.BType").put(ditype.begin(), {0}, {AMREX_SPACEDIM});
 
-        auto offset   = geom.Offset();
-        auto cellsize = geom.CellSize();
+        auto offset   = erf.geom.Offset();
+        auto cellsize = erf.geom.CellSize();
         ncf_new.var("Coord.Offset").put(offset, {0}, {AMREX_SPACEDIM});
         ncf_new.var("Coord.CellSize").put(cellsize, {0}, {AMREX_SPACEDIM});
 
-        ncf_new.var("PDomain.Lo").put(geom.ProbDomain().lo(), {0}, {AMREX_SPACEDIM});
-        ncf_new.var("PDomain.Hi").put(geom.ProbDomain().hi(), {0}, {AMREX_SPACEDIM});
+        ncf_new.var("PDomain.Lo").put(erf.geom.ProbDomain().lo(), {0}, {AMREX_SPACEDIM});
+        ncf_new.var("PDomain.Hi").put(erf.geom.ProbDomain().hi(), {0}, {AMREX_SPACEDIM});
 
-        amrex::IntVect periodic = static_cast<amrex::IntVect>(geom.isPeriodic());
+        amrex::IntVect periodic = static_cast<amrex::IntVect>(erf.geom.isPeriodic());
         ncf_new.var("Geom.Periodic").put(periodic.begin(), {0}, {AMREX_SPACEDIM});
 
         for(auto ilev=0; ilev<nflev; ++ilev) 
-           ncf_new.var("RefRatio").put(parent->refRatio(level).begin(), {ilev, 0}, {1, AMREX_SPACEDIM});
+           ncf_new.var("RefRatio").put(erf.parent->refRatio(erf.level).begin(), {ilev, 0}, {1, AMREX_SPACEDIM});
 
         std::vector<amrex::Real> dtlevel;
         for(auto ilev=0; ilev<nflev; ++ilev)
-          dtlevel.push_back(parent->dtLevel(ilev));
+          dtlevel.push_back(erf.parent->dtLevel(ilev));
         ncf_new.var("DtLevel").put(dtlevel.data(), {0}, {nflev});
 
         std::vector<amrex::Real> dtmin;
         for(auto ilev=0; ilev<nflev; ++ilev)
-           dtmin.push_back(parent->dtMin(ilev));
+           dtmin.push_back(erf.parent->dtMin(ilev));
         ncf_new.var("DtMin").put(dtmin.data(), {0}, {nflev});
 
         std::vector<int> ncycle;
         for(auto ilev=0; ilev<nflev; ++ilev)
-           ncycle.push_back(parent->nCycle(ilev));
+           ncycle.push_back(erf.parent->nCycle(ilev));
         ncf_new.var("NCycle").put(ncycle.data(), {0}, {nflev});
 
         std::vector<int> levelsteps;
         for(auto ilev=0; ilev<nflev; ++ilev)
-           levelsteps.push_back(parent->levelSteps(ilev));
+           levelsteps.push_back(erf.parent->levelSteps(ilev));
         ncf_new.var("LevelSteps").put(levelsteps.data(), {0}, {nflev});
 
         std::vector<int> levelcount;
         for(auto ilev=0; ilev<nflev; ++ilev)
-           levelcount.push_back(parent->levelCount(ilev));
+           levelcount.push_back(erf.parent->levelCount(ilev));
         ncf_new.var("LevelCount").put(levelcount.data(), {0}, {nflev});
 
         for (auto ig=0; ig<ngrids; ++ig) {
-           amrex::Box b = grids[ig];
+           amrex::Box b = erf.grids[ig];
            amrex::IntVect blo    = b.smallEnd();
            amrex::IntVect bhi    = b.bigEnd();
            amrex::IntVect btype  = b.type();
@@ -907,8 +909,8 @@ ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool
       //
       if (dump_old) {
          amrex::Vector<amrex::MultiFab*> oldMF;
-         for (int typ = 0; typ < desc_lst.size(); typ++) {
-            oldMF.push_back(&get_old_data(typ));
+         for (int typ = 0; typ < erf.desc_lst.size(); typ++) {
+            oldMF.push_back(&erf.get_old_data(typ));
          }
 
         // get the number points and size of different variable type, and geometric blocks
@@ -939,9 +941,9 @@ ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool
            }
         }
 
-        int ndesc  = desc_lst.size();
-        int ngrids = numGrids();
-        int nflev  = parent->finestLevel();
+        int ndesc  = erf.desc_lst.size();
+        int ngrids = erf.numGrids();
+        int nflev  = erf.parent->finestLevel();
 
         const std::string ndim_name = "num_geo_dimensions";
         const std::string nl_name   = "finest_levels";
@@ -1009,23 +1011,23 @@ ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool
         // Output geometric data.
         //      
 
-        amrex::Real prev_time = state[State_Type].prevTime();
-        amrex::Real dt_new = parent->dtLevel(level);
-        amrex::Real dt_old = parent->cumTime()-prev_time;
+        amrex::Real prev_time = erf.state[State_Type].prevTime();
+        amrex::Real dt_new = erf.parent->dtLevel(erf.level);
+        amrex::Real dt_old = erf.parent->cumTime()-prev_time;
 
         // scalar to NetCDF as attr
-        ncf_old.put_attr("Level", std::vector<int>{level});
+        ncf_old.put_attr("Level", std::vector<int>{erf.level});
         ncf_old.put_attr("nVarType",  std::vector<int>{ndesc});
         ncf_old.put_attr("CheckPointVersion",CheckPointVersion);
         ncf_old.put_attr("AMREX_SPECEDIM",std::vector<int>{AMREX_SPACEDIM});
-        ncf_old.put_attr("cumtime",std::vector<float>{parent->cumTime()});
+        ncf_old.put_attr("cumtime",std::vector<float>{erf.parent->cumTime()});
         ncf_old.put_attr("DtNew",std::vector<float>{dt_new});
         ncf_old.put_attr("DtOld",std::vector<float>{dt_old});
-        ncf_old.put_attr("max_level",std::vector<int>{parent->maxLevel()});
-        ncf_old.put_attr("finest_level",std::vector<int>{parent->finestLevel()});
-        ncf_old.put_attr("CoordSys_ID",std::vector<int>{geom.CoordInt()});
+        ncf_old.put_attr("max_level",std::vector<int>{erf.parent->maxLevel()});
+        ncf_old.put_attr("finest_level",std::vector<int>{erf.parent->finestLevel()});
+        ncf_old.put_attr("CoordSys_ID",std::vector<int>{erf.geom.CoordInt()});
 
-        auto domain = Domain();
+        auto domain = erf.Domain();
         amrex::IntVect dsmallend = domain.smallEnd();
         amrex::IntVect dbigend   = domain.bigEnd();
         amrex::IntVect ditype    = domain.type();
@@ -1034,47 +1036,47 @@ ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool
         ncf_old.var("Domain.BigEnd").put(dbigend.begin(), {0}, {AMREX_SPACEDIM});
         ncf_old.var("Domain.BType").put(ditype.begin(), {0}, {AMREX_SPACEDIM});
 
-        auto offset   = geom.Offset();
-        auto cellsize = geom.CellSize();
+        auto offset   = erf.geom.Offset();
+        auto cellsize = erf.geom.CellSize();
         ncf_old.var("Coord.Offset").put(offset, {0}, {AMREX_SPACEDIM});
         ncf_old.var("Coord.CellSize").put(cellsize, {0}, {AMREX_SPACEDIM});
 
-        ncf_old.var("PDomain.Lo").put(geom.ProbDomain().lo(), {0}, {AMREX_SPACEDIM});
-        ncf_old.var("PDomain.Hi").put(geom.ProbDomain().hi(), {0}, {AMREX_SPACEDIM});
+        ncf_old.var("PDomain.Lo").put(erf.geom.ProbDomain().lo(), {0}, {AMREX_SPACEDIM});
+        ncf_old.var("PDomain.Hi").put(erf.geom.ProbDomain().hi(), {0}, {AMREX_SPACEDIM});
 
-        amrex::IntVect periodic = static_cast<amrex::IntVect>(geom.isPeriodic());
+        amrex::IntVect periodic = static_cast<amrex::IntVect>(erf.geom.isPeriodic());
         ncf_old.var("Geom.Periodic").put(periodic.begin(), {0}, {AMREX_SPACEDIM});
 
         for(auto ilev=0; ilev<nflev; ++ilev)
-           ncf_old.var("RefRatio").put(parent->refRatio(level).begin(), {ilev, 0}, {1, AMREX_SPACEDIM});
+           ncf_old.var("RefRatio").put(erf.parent->refRatio(erf.level).begin(), {ilev, 0}, {1, AMREX_SPACEDIM});
 
         std::vector<amrex::Real> dtlevel;
         for(auto ilev=0; ilev<nflev; ++ilev)
-          dtlevel.push_back(parent->dtLevel(ilev));
+          dtlevel.push_back(erf.parent->dtLevel(ilev));
         ncf_old.var("DtLevel").put(dtlevel.data(), {0}, {nflev});
 
         std::vector<amrex::Real> dtmin;
         for(auto ilev=0; ilev<nflev; ++ilev)
-           dtmin.push_back(parent->dtMin(ilev));
+           dtmin.push_back(erf.parent->dtMin(ilev));
         ncf_old.var("DtMin").put(dtmin.data(), {0}, {nflev});
 
         std::vector<int> ncycle;
         for(auto ilev=0; ilev<nflev; ++ilev)
-           ncycle.push_back(parent->nCycle(ilev));
+           ncycle.push_back(erf.parent->nCycle(ilev));
         ncf_old.var("NCycle").put(ncycle.data(), {0}, {nflev});
 
         std::vector<int> levelsteps;
         for(auto ilev=0; ilev<nflev; ++ilev)
-           levelsteps.push_back(parent->levelSteps(ilev));
+           levelsteps.push_back(erf.parent->levelSteps(ilev));
         ncf_old.var("LevelSteps").put(levelsteps.data(), {0}, {nflev});
 
         std::vector<int> levelcount;
         for(auto ilev=0; ilev<nflev; ++ilev)
-           levelcount.push_back(parent->levelCount(ilev));
+           levelcount.push_back(erf.parent->levelCount(ilev));
         ncf_old.var("LevelCount").put(levelcount.data(), {0}, {nflev});
 
         for (auto ig=0; ig<ngrids; ++ig) {
-           amrex::Box b = grids[ig];
+           amrex::Box b = erf.grids[ig];
            amrex::IntVect blo    = b.smallEnd();
            amrex::IntVect bhi    = b.bigEnd();
            amrex::IntVect btype  = b.type();
@@ -1115,7 +1117,7 @@ ERF::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool
         ncf_old.close();
       }
 
-      levelDirectoryCreated = false;  // ---- now that the checkpoint is finished
+      erf.levelDirectoryCreated = false;  // ---- now that the checkpoint is finished
     }
     else {
        std::cout << "No NetCDF checkPoint Data outputed!" << '\n';

@@ -32,17 +32,12 @@ amrex::Real vfraceps = 0.000001;
 } // namespace
 
 // I/O routines for ERF
+
 void
-ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
+IOManager::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 {
   // Let's check ERF checkpoint version first;
   // trying to read from checkpoint; if nonexisting, set it to 0.
-
-#ifdef ERF_USE_NETCDF
-   ncrestart(papa, is, bReadSpecial);
-   return;
-#endif
-
   if (input_version == -1) {
     if (amrex::ParallelDescriptor::IOProcessor()) {
       std::ifstream ERFHeaderFile;
@@ -65,66 +60,62 @@ ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
   AMREX_ASSERT(input_version >= 0);
 
-  // also need to mod checkPoint function to store the new version in a text
-  // file
-  AmrLevel::restart(papa, is, bReadSpecial);
-
   /*
     Deal here with new state descriptor types added, with corresponding
     input_version > 0, if applicable
    */
-  amrex::Vector<int> state_in_checkpoint(desc_lst.size(), 1);
+  amrex::Vector<int> state_in_checkpoint(erf.desc_lst.size(), 1);
   set_state_in_checkpoint(state_in_checkpoint);
-  for (int i = 0; i < desc_lst.size(); ++i) {
+  for (int i = 0; i < erf.desc_lst.size(); ++i) {
     if (state_in_checkpoint[i] == 0) {
-      const amrex::Real ctime = state[i - 1].curTime();
-      state[i].define(
-        geom.Domain(), grids, dmap, desc_lst[i], ctime, parent->dtLevel(level),
-        *m_factory);
-      state[i] = state[i - 1];
+      const amrex::Real ctime = erf.state[i - 1].curTime();
+      erf.state[i].define(
+        erf.geom.Domain(), erf.grids, erf.dmap, erf.desc_lst[i], ctime, erf.parent->dtLevel(erf.level),
+        *(erf.m_factory));
+      erf.state[i] = erf.state[i - 1];
     }
   }
-  buildMetrics();
+  erf.buildMetrics();
 
-  amrex::MultiFab& S_new = get_new_data(State_Type);
+  amrex::MultiFab& S_new = erf.get_new_data(State_Type);
 
-  for (int n = 0; n < src_list.size(); ++n) {
+  for (int n = 0; n < erf.src_list.size(); ++n) {
     int oldGrow = NUM_GROW;
     int newGrow = S_new.nGrow();
-    old_sources[src_list[n]] =
+    erf.old_sources[erf.src_list[n]] =
       std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
-        grids, dmap, NVAR, oldGrow, amrex::MFInfo(), Factory()));
-    new_sources[src_list[n]] =
+        erf.grids, erf.dmap, NVAR, oldGrow, amrex::MFInfo(), erf.Factory()));
+    erf.new_sources[erf.src_list[n]] =
       std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
-        grids, dmap, NVAR, newGrow, amrex::MFInfo(), Factory()));
+        erf.grids, erf.dmap, NVAR, newGrow, amrex::MFInfo(), erf.Factory()));
   }
 
-  Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
+  erf.Sborder.define(erf.grids, erf.dmap, NVAR, NUM_GROW, amrex::MFInfo(), erf.Factory());
 
   // get the elapsed CPU time to now;
-  if (level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
+  if (erf.level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
     // get elapsed CPU time
     std::ifstream CPUFile;
-    std::string FullPathCPUFile = parent->theRestartFile();
+    std::string FullPathCPUFile = erf.parent->theRestartFile();
     FullPathCPUFile += "/CPUtime";
     CPUFile.open(FullPathCPUFile.c_str(), std::ios::in);
 
-    CPUFile >> previousCPUTimeUsed;
+    CPUFile >> erf.previousCPUTimeUsed;
     CPUFile.close();
 
-    amrex::Print() << "read CPU time: " << previousCPUTimeUsed << "\n";
+    amrex::Print() << "read CPU time: " << erf.previousCPUTimeUsed << "\n";
   }
 
-  if (track_grid_losses && level == 0) {
+  if (erf.track_grid_losses && erf.level == 0) {
 
     // get the current value of the diagnostic quantities
     std::ifstream DiagFile;
-    std::string FullPathDiagFile = parent->theRestartFile();
+    std::string FullPathDiagFile = erf.parent->theRestartFile();
     FullPathDiagFile += "/Diagnostics";
     DiagFile.open(FullPathDiagFile.c_str(), std::ios::in);
 
-    for (int i = 0; i < n_lost; i++)
-      DiagFile >> material_lost_through_boundary_cumulative[i];
+    for (int i = 0; i < erf.n_lost; i++)
+      DiagFile >> erf.material_lost_through_boundary_cumulative[i];
 
     DiagFile.close();
   }
@@ -153,17 +144,17 @@ ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
       }*/
 
-  if (level > 0 && do_reflux) {
-    flux_reg.define(
-      grids, papa.boxArray(level - 1), dmap, papa.DistributionMap(level - 1),
-      geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, NVAR);
+  if (erf.level > 0 && erf.do_reflux) {
+    erf.flux_reg.define(
+      erf.grids, papa.boxArray(erf.level - 1), erf.dmap, papa.DistributionMap(erf.level - 1),
+      erf.geom, papa.Geom(erf.level - 1), papa.refRatio(erf.level - 1), erf.level, NVAR);
   }
 }
 
 void
-ERF::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
+IOManager::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
 {
-  for (int i = 0; i < num_state_type; ++i) {
+  for (int i = 0; i < erf.num_state_type; ++i) {
     state_in_checkpoint[i] = 1;
 
     if (i == Work_Estimate_Type) {
@@ -173,21 +164,13 @@ ERF::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
 }
 
 void
-ERF::checkPoint(
+IOManager::checkPoint(
   const std::string& dir,
   std::ostream& os,
   amrex::VisMF::How how,
   bool dump_old_default)
 {
-
-#ifdef ERF_USE_NETCDF
-  NCWriteCheckpointFile (dir, os, dump_old);
-  return;
-#endif
-
-  amrex::AmrLevel::checkPoint(dir, os, how, dump_old);
-
-  if (level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
+  if (erf.level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
     {
       std::ofstream ERFHeaderFile;
       std::string FullPathERFHeaderFile = dir;
@@ -205,11 +188,11 @@ ERF::checkPoint(
       FullPathCPUFile += "/CPUtime";
       CPUFile.open(FullPathCPUFile.c_str(), std::ios::out);
 
-      CPUFile << std::setprecision(15) << getCPUTime();
+      CPUFile << std::setprecision(15) << erf.getCPUTime();
       CPUFile.close();
     }
 
-    if (track_grid_losses) {
+    if (erf.track_grid_losses) {
 
       // store diagnostic quantities
       std::ofstream DiagFile;
@@ -217,9 +200,9 @@ ERF::checkPoint(
       FullPathDiagFile += "/Diagnostics";
       DiagFile.open(FullPathDiagFile.c_str(), std::ios::out);
 
-      for (int i = 0; i < n_lost; i++)
+      for (int i = 0; i < erf.n_lost; i++)
         DiagFile << std::setprecision(15)
-                 << material_lost_through_boundary_cumulative[i] << std::endl;
+                 << erf.material_lost_through_boundary_cumulative[i] << std::endl;
 
       DiagFile.close();
     }
@@ -245,21 +228,19 @@ ERF::checkPoint(
 }
 
 void
-ERF::setPlotVariables()
+IOManager::setPlotVariables()
 {
-  amrex::AmrLevel::setPlotVariables();
-
   amrex::ParmParse pp("erf");
 
   bool plot_cost = true;
   pp.query("plot_cost", plot_cost);
   if (plot_cost) {
-    parent->addDerivePlotVar("WorkEstimate");
+    erf.parent->addDerivePlotVar("WorkEstimate");
   }
 }
 
 void
-ERF::writeJobInfo(const std::string& dir)
+IOManager::writeJobInfo(const std::string& dir)
 {
   // job_info file with details about the run
   std::ofstream jobInfoFile;
@@ -278,7 +259,7 @@ ERF::writeJobInfo(const std::string& dir)
   jobInfoFile << " ERF Job Information\n";
   jobInfoFile << PrettyLine;
 
-  jobInfoFile << "job name: " << job_name << "\n\n";
+  jobInfoFile << "job name: " << erf.job_name << "\n\n";
   jobInfoFile << "inputs file: " << inputs_name << "\n\n";
 
   jobInfoFile << "number of MPI processes: "
@@ -289,7 +270,7 @@ ERF::writeJobInfo(const std::string& dir)
 
   jobInfoFile << "\n";
   jobInfoFile << "CPU time used since start of simulation (CPU-hours): "
-              << getCPUTime() / 3600.0;
+              << erf.getCPUTime() / 3600.0;
 
   jobInfoFile << "\n\n";
 
@@ -357,14 +338,14 @@ ERF::writeJobInfo(const std::string& dir)
   jobInfoFile << " Grid Information\n";
   jobInfoFile << PrettyLine;
 
-  int f_lev = parent->finestLevel();
+  int f_lev = erf.parent->finestLevel();
 
   for (int i = 0; i <= f_lev; i++) {
     jobInfoFile << " level: " << i << "\n";
-    jobInfoFile << "   number of boxes = " << parent->numGrids(i) << "\n";
+    jobInfoFile << "   number of boxes = " << erf.parent->numGrids(i) << "\n";
     jobInfoFile << "   maximum zones   = ";
     for (int n = 0; n < AMREX_SPACEDIM; n++) {
-      jobInfoFile << parent->Geom(i).Domain().length(n) << " ";
+      jobInfoFile << erf.parent->Geom(i).Domain().length(n) << " ";
       // jobInfoFile << parent->Geom(i).ProbHi(n) << " ";
     }
     jobInfoFile << "\n\n";
@@ -419,8 +400,10 @@ ERF::writeJobInfo(const std::string& dir)
  */
 
 void
-ERF::writeBuildInfo(std::ostream& os)
+IOManager::writeBuildInfo(std::ostream& os)
 {
+std::cout << "writeBuildInfo_00" << std::endl;
+
   std::string PrettyLine = std::string(78, '=') + "\n";
   std::string OtherLine = std::string(78, '-') + "\n";
   std::string SkipSpace = std::string(8, ' ');
@@ -516,36 +499,32 @@ ERF::writeBuildInfo(std::ostream& os)
 }
 
 void
-ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
+IOManager::writePlotFile(const std::string& dir, std::ostream& os, amrex::VisMF::How how)
 {
+std::cout << "writePlotFile_00" << std::endl;
   int i, n;
   //
   // The list of indices of State to write to plotfile.
   // first component of pair is state_type,
   // second component of pair is component # within the state_type
   //
-#ifdef ERF_USE_NETCDF
-  writeNCPlotFile(dir, os);
-  return;
-#endif
-
   amrex::Vector<std::pair<int, int>> plot_var_map;
-  for (int typ = 0; typ < desc_lst.size(); typ++)
-    for (int comp = 0; comp < desc_lst[typ].nComp(); comp++)
+  for (int typ = 0; typ < erf.desc_lst.size(); typ++)
+    for (int comp = 0; comp < erf.desc_lst[typ].nComp(); comp++)
       if (
-        parent->isStatePlotVar(desc_lst[typ].name(comp)) &&
-        desc_lst[typ].getType() == amrex::IndexType::TheCellType())
+        erf.parent->isStatePlotVar(erf.desc_lst[typ].name(comp)) &&
+        erf.desc_lst[typ].getType() == amrex::IndexType::TheCellType())
         plot_var_map.push_back(std::pair<int, int>(typ, comp));
 
   int num_derive = 0;
   std::list<std::string> derive_names;
-  const std::list<amrex::DeriveRec>& dlist = derive_lst.dlist();
+  const std::list<amrex::DeriveRec>& dlist = erf.derive_lst.dlist();
 
   for (std::list<amrex::DeriveRec>::const_iterator it = dlist.begin(),
                                                    end = dlist.end();
        it != end; ++it) 
   {
-    if (parent->isDerivePlotVar(it->name())) {
+    if (erf.parent->isDerivePlotVar(it->name())) {
       {
         derive_names.push_back(it->name());
         num_derive += it->numDerive();
@@ -555,13 +534,13 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
 
   int n_data_items = plot_var_map.size() + num_derive;
 
-  amrex::Real cur_time = state[State_Type].curTime();
+  amrex::Real cur_time = erf.state[State_Type].curTime();
 
-  if (level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
+  if (erf.level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
     //
     // The first thing we write out is the plotfile type.
     //
-    os << thePlotFileType() << '\n';
+    os << erf.thePlotFileType() << '\n';
 
     if (n_data_items == 0)
       amrex::Error("Must specify at least one valid data item to plot");
@@ -574,20 +553,20 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
     for (i = 0; i < plot_var_map.size(); i++) {
       int typ = plot_var_map[i].first;
       int comp = plot_var_map[i].second;
-      os << desc_lst[typ].name(comp) << '\n';
+      os << erf.desc_lst[typ].name(comp) << '\n';
     }
 
     for (std::list<std::string>::const_iterator it = derive_names.begin(),
                                                 end = derive_names.end();
          it != end; ++it) {
-      const amrex::DeriveRec* rec = derive_lst.get(*it);
+      const amrex::DeriveRec* rec = erf.derive_lst.get(*it);
       for (i = 0; i < rec->numDerive(); i++)
         os << rec->variableName(i) << '\n';
     }
 
     os << AMREX_SPACEDIM << '\n';
-    os << parent->cumTime() << '\n';
-    int f_lev = parent->finestLevel();
+    os << erf.parent->cumTime() << '\n';
+    int f_lev = erf.parent->finestLevel();
     os << f_lev << '\n';
     for (i = 0; i < AMREX_SPACEDIM; i++)
       os << amrex::DefaultGeometry().ProbLo(i) << ' ';
@@ -596,17 +575,17 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
       os << amrex::DefaultGeometry().ProbHi(i) << ' ';
     os << '\n';
     for (i = 0; i < f_lev; i++)
-      os << parent->refRatio(i)[0] << ' ';
+      os << erf.parent->refRatio(i)[0] << ' ';
     os << '\n';
     for (i = 0; i <= f_lev; i++)
-      os << parent->Geom(i).Domain() << ' ';
+      os << erf.parent->Geom(i).Domain() << ' ';
     os << '\n';
     for (i = 0; i <= f_lev; i++)
-      os << parent->levelSteps(i) << ' ';
+      os << erf.parent->levelSteps(i) << ' ';
     os << '\n';
     for (i = 0; i <= f_lev; i++) {
       for (int k = 0; k < AMREX_SPACEDIM; k++)
-        os << parent->Geom(i).CellSize()[k] << ' ';
+        os << erf.parent->Geom(i).CellSize()[k] << ' ';
       os << '\n';
     }
     os << (int)amrex::DefaultGeometry().Coord() << '\n';
@@ -619,7 +598,7 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
   //
   static const std::string BaseName = "/Cell";
   char buf[64];
-  sprintf(buf, "Level_%d", level);
+  sprintf(buf, "Level_%d", erf.level);
   std::string LevelStr = buf;
   //
   // Now for the full pathname of that directory.
@@ -640,12 +619,12 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
   amrex::ParallelDescriptor::Barrier();
 
   if (amrex::ParallelDescriptor::IOProcessor()) {
-    os << level << ' ' << grids.size() << ' ' << cur_time << '\n';
-    os << parent->levelSteps(level) << '\n';
+    os << erf.level << ' ' << erf.grids.size() << ' ' << cur_time << '\n';
+    os << erf.parent->levelSteps(erf.level) << '\n';
 
-    for (i = 0; i < grids.size(); ++i) {
+    for (i = 0; i < erf.grids.size(); ++i) {
       amrex::RealBox gridloc =
-        amrex::RealBox(grids[i], geom.CellSize(), geom.ProbLo());
+        amrex::RealBox(erf.grids[i], erf.geom.CellSize(), erf.geom.ProbLo());
       for (n = 0; n < AMREX_SPACEDIM; n++)
         os << gridloc.lo(n) << ' ' << gridloc.hi(n) << '\n';
     }
@@ -670,7 +649,7 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
   int ncomp = 1;
   const int nGrow = 0;
   amrex::MultiFab plotMF(
-    grids, dmap, n_data_items, nGrow, amrex::MFInfo(), Factory());
+    erf.grids, erf.dmap, n_data_items, nGrow, amrex::MFInfo(), erf.Factory());
   amrex::MultiFab* this_dat = 0;
   //
   // Cull data from state variables -- use no ghost cells.
@@ -678,7 +657,7 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
   for (i = 0; i < plot_var_map.size(); i++) {
     int typ = plot_var_map[i].first;
     int comp = plot_var_map[i].second;
-    this_dat = &state[typ].newData();
+    this_dat = &(erf.state[typ].newData());
     amrex::MultiFab::Copy(plotMF, *this_dat, comp, cnt, 1, nGrow);
     cnt++;
   }
@@ -690,10 +669,10 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
     for (std::list<std::string>::const_iterator it = derive_names.begin(),
                                                 end = derive_names.end();
          it != end; ++it) {
-      const amrex::DeriveRec* rec = derive_lst.get(*it);
+      const amrex::DeriveRec* rec = erf.derive_lst.get(*it);
       ncomp = rec->numDerive();
 
-      auto derive_dat = derive(*it, cur_time, nGrow);
+      auto derive_dat = erf.derive(*it, cur_time, nGrow);
       amrex::MultiFab::Copy(plotMF, *derive_dat, 0, cnt, ncomp, nGrow);
       cnt += ncomp;
     }
@@ -708,7 +687,7 @@ ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
 }
 
 void
-ERF::writeSmallPlotFile(
+IOManager::writeSmallPlotFile(
   const std::string& dir, ostream& os, amrex::VisMF::How how)
 {
   int i, n;
@@ -718,22 +697,22 @@ ERF::writeSmallPlotFile(
   // second component of pair is component # within the state_type
   //
   amrex::Vector<std::pair<int, int>> plot_var_map;
-  for (int typ = 0; typ < desc_lst.size(); typ++)
-    for (int comp = 0; comp < desc_lst[typ].nComp(); comp++)
+  for (int typ = 0; typ < erf.desc_lst.size(); typ++)
+    for (int comp = 0; comp < erf.desc_lst[typ].nComp(); comp++)
       if (
-        parent->isStateSmallPlotVar(desc_lst[typ].name(comp)) &&
-        desc_lst[typ].getType() == amrex::IndexType::TheCellType())
+        erf.parent->isStateSmallPlotVar(erf.desc_lst[typ].name(comp)) &&
+        erf.desc_lst[typ].getType() == amrex::IndexType::TheCellType())
         plot_var_map.push_back(std::pair<int, int>(typ, comp));
 
   int n_data_items = plot_var_map.size();
 
-  amrex::Real cur_time = state[State_Type].curTime();
+  amrex::Real cur_time = erf.state[State_Type].curTime();
 
-  if (level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
+  if (erf.level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
     //
     // The first thing we write out is the plotfile type.
     //
-    os << thePlotFileType() << '\n';
+    os << erf.thePlotFileType() << '\n';
 
     if (n_data_items == 0)
       amrex::Error("Must specify at least one valid data item to plot");
@@ -746,12 +725,12 @@ ERF::writeSmallPlotFile(
     for (i = 0; i < plot_var_map.size(); i++) {
       int typ = plot_var_map[i].first;
       int comp = plot_var_map[i].second;
-      os << desc_lst[typ].name(comp) << '\n';
+      os << erf.desc_lst[typ].name(comp) << '\n';
     }
 
     os << AMREX_SPACEDIM << '\n';
-    os << parent->cumTime() << '\n';
-    int f_lev = parent->finestLevel();
+    os << erf.parent->cumTime() << '\n';
+    int f_lev = erf.parent->finestLevel();
     os << f_lev << '\n';
     for (i = 0; i < AMREX_SPACEDIM; i++)
       os << amrex::DefaultGeometry().ProbLo(i) << ' ';
@@ -760,17 +739,17 @@ ERF::writeSmallPlotFile(
       os << amrex::DefaultGeometry().ProbHi(i) << ' ';
     os << '\n';
     for (i = 0; i < f_lev; i++)
-      os << parent->refRatio(i)[0] << ' ';
+      os << erf.parent->refRatio(i)[0] << ' ';
     os << '\n';
     for (i = 0; i <= f_lev; i++)
-      os << parent->Geom(i).Domain() << ' ';
+      os << erf.parent->Geom(i).Domain() << ' ';
     os << '\n';
     for (i = 0; i <= f_lev; i++)
-      os << parent->levelSteps(i) << ' ';
+      os << erf.parent->levelSteps(i) << ' ';
     os << '\n';
     for (i = 0; i <= f_lev; i++) {
       for (int k = 0; k < AMREX_SPACEDIM; k++)
-        os << parent->Geom(i).CellSize()[k] << ' ';
+        os << erf.parent->Geom(i).CellSize()[k] << ' ';
       os << '\n';
     }
     os << (int)amrex::DefaultGeometry().Coord() << '\n';
@@ -784,7 +763,7 @@ ERF::writeSmallPlotFile(
   //
   static const std::string BaseName = "/Cell";
   char buf[64];
-  sprintf(buf, "Level_%d", level);
+  sprintf(buf, "Level_%d", erf.level);
   std::string LevelStr = buf;
   //
   // Now for the full pathname of that directory.
@@ -805,12 +784,12 @@ ERF::writeSmallPlotFile(
   amrex::ParallelDescriptor::Barrier();
 
   if (amrex::ParallelDescriptor::IOProcessor()) {
-    os << level << ' ' << grids.size() << ' ' << cur_time << '\n';
-    os << parent->levelSteps(level) << '\n';
+    os << erf.level << ' ' << erf.grids.size() << ' ' << cur_time << '\n';
+    os << erf.parent->levelSteps(erf.level) << '\n';
 
-    for (i = 0; i < grids.size(); ++i) {
+    for (i = 0; i < erf.grids.size(); ++i) {
       amrex::RealBox gridloc =
-        amrex::RealBox(grids[i], geom.CellSize(), geom.ProbLo());
+        amrex::RealBox(erf.grids[i], erf.geom.CellSize(), erf.geom.ProbLo());
       for (n = 0; n < AMREX_SPACEDIM; n++)
         os << gridloc.lo(n) << ' ' << gridloc.hi(n) << '\n';
     }
@@ -834,7 +813,7 @@ ERF::writeSmallPlotFile(
   int cnt = 0;
   const int nGrow = 0;
   amrex::MultiFab plotMF(
-    grids, dmap, n_data_items, nGrow, amrex::MFInfo(), Factory());
+    erf.grids, erf.dmap, n_data_items, nGrow, amrex::MFInfo(), erf.Factory());
   amrex::MultiFab* this_dat = 0;
   //
   // Cull data from state variables -- use no ghost cells.
@@ -842,7 +821,7 @@ ERF::writeSmallPlotFile(
   for (i = 0; i < plot_var_map.size(); i++) {
     int typ = plot_var_map[i].first;
     int comp = plot_var_map[i].second;
-    this_dat = &state[typ].newData();
+    this_dat = &(erf.state[typ].newData());
     amrex::MultiFab::Copy(plotMF, *this_dat, comp, cnt, 1, nGrow);
     cnt++;
   }
