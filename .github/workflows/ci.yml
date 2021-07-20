@@ -2,71 +2,84 @@ name: ERF CI
 
 on:
   push:
-    branches: [development]
+    # branches: [development]
+
   pull_request:
     branches: [development]
 
 jobs:
-  CMake:
+
+  Build-And-Test:
+
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
         os: [ubuntu-latest]
         include:
-          - os: ubuntu-latest
-            install_deps: sudo apt-get install mpich libmpich-dev
-            comp: gnu
-            procs: $(nproc)
+        - os: ubuntu-latest
+          install_deps: sudo apt-get install mpich libmpich-dev
+          comp: gnu
+          procs: $(nproc)
+
     steps:
-      - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.6.0
-        with:
-          access_token: ${{github.token}}
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-      - name: Setup
-        run: |
-          echo "::add-matcher::.github/problem-matchers/gcc.json"
-          echo "NPROCS=${{matrix.procs}}" >> $GITHUB_ENV
-          cmake -E make_directory ${{runner.workspace}}/deps
-      - name: Dependencies
-        run: |
-          # Install MPI
-          ${{matrix.install_deps}}
-          ## Install MetaPhysicL
-          #cd ${{runner.workspace}}/deps
-          #git clone --recursive https://github.com/roystgnr/MetaPhysicL.git ${{runner.workspace}}/deps/MetaPhysicL
-          #cd ${{runner.workspace}}/deps/MetaPhysicL
-          #./bootstrap
-          #./configure --prefix="${{runner.workspace}}/deps/install/MetaPhysicL"
-          #make -j ${{env.NPROCS}}
-          #make install
-          ## Install MASA
-          #cd ${{runner.workspace}}/deps
-          #git clone --recursive https://github.com/manufactured-solutions/MASA.git ${{runner.workspace}}/deps/MASA
-          #cd ${{runner.workspace}}/deps/MASA
-          #./bootstrap
-          #./configure CXX='mpicxx -std=c++11' CC=mpicc \
-          #  METAPHYSICL_DIR="${{runner.workspace}}/deps/install/MetaPhysicL" \
-          #  --prefix="${{runner.workspace}}/deps/install/MASA"
-          #make -j ${{env.NPROCS}}
-          #make install
-      - name: Configure
-        run: |
-          cmake \
+
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Setup
+      run: |
+        # echo "::add-matcher::.github/problem-matchers/gcc.json"
+        echo "NPROCS=${{matrix.procs}}" >> $GITHUB_ENV
+        # cmake -E make_directory ${{runner.workspace}}/deps
+
+    - name: Handle Dependencies
+      run: |
+        # Install MPI
+        ${{matrix.install_deps}}
+
+        ## Install MetaPhysicL
+        #cd ${{runner.workspace}}/deps
+        #git clone --recursive https://github.com/roystgnr/MetaPhysicL.git ${{runner.workspace}}/deps/MetaPhysicL
+        #cd ${{runner.workspace}}/deps/MetaPhysicL
+        #./bootstrap
+        #./configure --prefix="${{runner.workspace}}/deps/install/MetaPhysicL"
+        #make -j ${{env.NPROCS}}
+        #make install
+
+        ## Install MASA
+        #cd ${{runner.workspace}}/deps
+        #git clone --recursive https://github.com/manufactured-solutions/MASA.git ${{runner.workspace}}/deps/MASA
+        #cd ${{runner.workspace}}/deps/MASA
+        #./bootstrap
+        #./configure CXX='mpicxx -std=c++11' CC=mpicc \
+        #  METAPHYSICL_DIR="${{runner.workspace}}/deps/install/MetaPhysicL" \
+        #  --prefix="${{runner.workspace}}/deps/install/MASA"
+        #make -j ${{env.NPROCS}}
+        #make install
+
+    - name: Configure CMake
+      run: |
+        cmake \
           -B${{runner.workspace}}/build-${{matrix.os}} \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/install \
           -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
-          ${{matrix.mpipreflags}} \
-          -DERF_ENABLE_TESTS:BOOL=OFF \
-          -DERF_ENABLE_FCOMPARE_FOR_TESTS:BOOL=OFF \
+          -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_MASA:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
-          ${{github.workspace}}; \
-      - name: Build
-        run: |
-          cmake --build ${{runner.workspace}}/build-${{matrix.os}} \
-            --parallel ${{env.NPROCS}}; \
+          -DERF_ENABLE_AMREX_EB:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          ${{github.workspace}};
+        # ${{matrix.mpipreflags}} \
+
+    - name: Build
+      run: |
+        cmake --build ${{runner.workspace}}/build-${{matrix.os}} --parallel ${{env.NPROCS}};
+
+    - name: Regression Tests
+      run: |
+        ctest -R IsentropicVortex -VV
+      working-directory:
+        ${{runner.workspace}}/build-${{matrix.os}}
