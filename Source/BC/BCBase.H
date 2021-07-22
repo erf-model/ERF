@@ -2,18 +2,12 @@
 #define ERF_BCBASE_H
 
 #include "ERF.H"
-#include "IndexDefines.H"
-#include "Constants.H"
-#include "EOS.H"
-
-
-
 using namespace amrex;
 
 namespace math_bcs {
 
   enum BCBound { lower, upper };
-  
+
   template<int IDIR, BCBound Bound> struct foextrap;
 
   template<int IDIR>

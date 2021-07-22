@@ -46,8 +46,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     yvel.FillBoundary(geom.periodicity());
     zvel.FillBoundary(geom.periodicity());
 
-        amrex::Vector<MultiFab*> vars{&cons_old, &xmom_old, &ymom_old, &zmom_old};
-    //    amrex::Vector<MultiFab*> vars{&cons_old, &xvel, &yvel, &zvel};
+    amrex::Vector<MultiFab*> vars{&cons_old, &xvel, &yvel, &zvel};
 
     ERF::applyBCs(geom, vars);
 
