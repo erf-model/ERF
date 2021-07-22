@@ -21,11 +21,56 @@ ComputeTurbulentViscosity(
   return 0;
 }
 
-void ComputeTurbulentViscosity(const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                               const Geometry &geom,
-                               Array4<Real>& nut) {
+void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
+                               MultiFab& eddyViscosity,
+                               const Geometry &geom, const SolverChoice& solverChoice) {
 
-}
+    Real CsDeltaSqr = 1.0; // TODO: Extract this from solverChoice
+
+    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        const Box &bx = mfi.tilebox();
+
+        //const Array4<Real> &cell_data = cons_in.array(mfi);
+        const Array4<Real> &K = eddyViscosity.array(mfi);
+
+        const Array4<Real> &u = xvel.array(mfi);
+        const Array4<Real> &v = yvel.array(mfi);
+        const Array4<Real> &w = zvel.array(mfi);
+
+        amrex::ParallelFor(bx, eddyViscosity.nComp(),[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            Real S11 = ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::x, geom);
+            Real S22 = ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::y, geom);
+            Real S33 = ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::z, DiffusionDir::z, geom);
+
+            Real S12 = 0.25* (
+                      ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::y, geom)
+                    + ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::y, geom)
+                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::y, geom)
+                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::y, geom)
+                    );
+
+            Real S13 = 0.25* (
+                      ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::z, geom)
+                    + ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::z, geom)
+                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::z, geom)
+                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::z, geom)
+                    );
+
+            Real S23 = 0.25* (
+                      ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::z, geom)
+                    + ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::z, geom)
+                    + ComputeStrainRate(i, j+1, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::z, geom)
+                    + ComputeStrainRate(i, j+1, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::z, geom)
+                    );
+
+            Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
+            K(i, j, k, 0) = -2.0 * CsDeltaSqr * std::sqrt(2.0*SmnSmn);
+        });
+
+    } //mfi
+} // function call
 
 /// Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known
 Real
