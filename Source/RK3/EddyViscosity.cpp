@@ -41,73 +41,73 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   Real turbViscInterpolated = 1.0;
 
   switch (momentumEqn) {
-  case MomentumEqn::x:
+  case MomentumEqn::x: // Reference face is x-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      if (nextOrPrev == NextOrPrev::next)
-        turbViscInterpolated = nut(i, j, k); // K (i, j, k) needed to obtain tau11 (i+1/2)
-      else // nextOrPrev == NextOrPrev::prev
-        turbViscInterpolated = nut(i-1, j, k); // K (i-1, j, k) needed to obtain tau11 (i-1/2)
+      if (nextOrPrev == NextOrPrev::next)    // K (i  , j, k) needed to obtain tau11 (i+1/2)
+        turbViscInterpolated = nut(i, j, k);
+      else // nextOrPrev == NextOrPrev::prev // K (i-1, j, k) needed to obtain tau11 (i-1/2)
+        turbViscInterpolated = nut(i-1, j, k);
       break;
     case DiffusionDir::y:
-      if (nextOrPrev == NextOrPrev::next)
-        turbViscInterpolated = nut(i, j, k); // K (i-1/2, j+1/2, k) needed to obtain tau12 (j+1/2)
-      else // nextOrPrev == NextOrPrev::prev
-        turbViscInterpolated = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau12 (j-1/2)
+      if (nextOrPrev == NextOrPrev::next)    // K (i-1/2, j+1/2, k) needed to obtain tau12 (j+1/2)
+        turbViscInterpolated = 0.25*( nut(i-1, j, k) + nut(i, j, k) + nut(i-1, j+1, k) + nut(i, j+1, k) );
+      else // nextOrPrev == NextOrPrev::prev // K (i-1/2, j-1/2, k) needed to obtain tau12 (j-1/2)
+        turbViscInterpolated = 0.25*( nut(i-1, j, k) + nut(i, j, k) + nut(i-1, j-1, k) + nut(i, j-1, k) );
       break;
     case DiffusionDir::z:
-      if (nextOrPrev == NextOrPrev::next)
-        turbViscInterpolated = nut(i, j, k); // K (i-1/2, j, k+1/2) needed to obtain tau13 (k+1/2)
-      else // nextOrPrev == NextOrPrev::prev
-        turbViscInterpolated = nut(i, j, k); // K (i-1/2, j, k-1/2) needed to obtain tau13 (k-1/2)
+      if (nextOrPrev == NextOrPrev::next)    // K (i-1/2, j, k+1/2) needed to obtain tau13 (k+1/2)
+        turbViscInterpolated = 0.25*( nut(i-1, j, k) + nut(i, j, k) + nut(i-1, j, k+1) + nut(i, j, k+1) );
+      else // nextOrPrev == NextOrPrev::prev // K (i-1/2, j, k-1/2) needed to obtain tau13 (k-1/2)
+        turbViscInterpolated = 0.25*( nut(i-1, j, k) + nut(i, j, k) + nut(i-1, j, k-1) + nut(i, j, k-1) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
     }
     break;
-  case MomentumEqn::y:
+  case MomentumEqn::y: // Reference face is y-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      if (nextOrPrev == NextOrPrev::next)
-        turbViscInterpolated = nut(i, j, k); // K (i+1/2, j-1/2, k) needed to obtain tau21 (i+1/2)
-      else // nextOrPrev == NextOrPrev::prev
-        turbViscInterpolated = nut(i, j, k); // K (i-1/2, j-1/2, k) needed to obtain tau21 (i-1/2)
+      if (nextOrPrev == NextOrPrev::next)    // K (i+1/2, j-1/2, k) needed to obtain tau21 (i+1/2)
+        turbViscInterpolated = 0.25*( nut(i, j-1, k) + nut(i, j, k) + nut(i+1, j-1, k) + nut(i+1, j, k) );
+      else // nextOrPrev == NextOrPrev::prev // K (i-1/2, j-1/2, k) needed to obtain tau21 (i-1/2)
+        turbViscInterpolated = 0.25*( nut(i, j-1, k) + nut(i, j, k) + nut(i-1, j-1, k) + nut(i-1, j, k) );
       break;
     case DiffusionDir::y:
-      if (nextOrPrev == NextOrPrev::next)
-        turbViscInterpolated = nut(i, j, k); // K (i, j, k) needed to obtain tau22 (j+1/2)
-      else // nextOrPrev == NextOrPrev::prev
-        turbViscInterpolated = nut(i, j-1, k); // K (i, j-1, k) needed to obtain tau22 (j-1/2)
+      if (nextOrPrev == NextOrPrev::next)    // K (i, j  , k) needed to obtain tau22 (j+1/2)
+        turbViscInterpolated = nut(i, j, k);
+      else // nextOrPrev == NextOrPrev::prev // K (i, j-1, k) needed to obtain tau22 (j-1/2)
+        turbViscInterpolated = nut(i, j-1, k);
       break;
     case DiffusionDir::z:
-      if (nextOrPrev == NextOrPrev::next)
-        turbViscInterpolated = nut(i, j, k); // K (i, j-1/2, k+1/2) needed to obtain tau23 (k+1/2)
-      else // nextOrPrev == NextOrPrev::prev
-        turbViscInterpolated = nut(i, j, k); // K (i, j-1/2, k-1/2) needed to obtain tau23 (k-1/2)
+      if (nextOrPrev == NextOrPrev::next)    // K (i, j-1/2, k+1/2) needed to obtain tau23 (k+1/2)
+        turbViscInterpolated = 0.25*( nut(i, j-1, k) + nut(i, j, k) + nut(i, j-1, k+1) + nut(i, j, k+1) );
+      else // nextOrPrev == NextOrPrev::prev // K (i, j-1/2, k-1/2) needed to obtain tau23 (k-1/2)
+        turbViscInterpolated = 0.25*( nut(i, j-1, k) + nut(i, j, k) + nut(i, j-1, k-1) + nut(i, j, k-1) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
     }
     break;
-  case MomentumEqn::z:
+  case MomentumEqn::z: // Reference face is z-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      if (nextOrPrev == NextOrPrev::next)
-        turbViscInterpolated = nut(i, j, k); // K (i+1/2, j, k-1/2) needed to obtain tau31 (i+1/2)
-      else // nextOrPrev == NextOrPrev::prev
-        turbViscInterpolated = nut(i, j, k); // K (i-1/2, j, k-1/2) needed to obtain tau31 (i-1/2)
+      if (nextOrPrev == NextOrPrev::next)    // K (i+1/2, j, k-1/2) needed to obtain tau31 (i+1/2)
+        turbViscInterpolated = 0.25*( nut(i, j, k-1) + nut(i, j, k) + nut(i+1, j, k-1) + nut(i+1, j, k) );
+      else // nextOrPrev == NextOrPrev::prev // K (i-1/2, j, k-1/2) needed to obtain tau31 (i-1/2)
+        turbViscInterpolated = 0.25*( nut(i, j, k-1) + nut(i, j, k) + nut(i-1, j, k-1) + nut(i-1, j, k) );
       break;
     case DiffusionDir::y:
-      if (nextOrPrev == NextOrPrev::next)
-        turbViscInterpolated = nut(i, j, k); // K (i, j+1/2, k-1/2) needed to obtain tau32 (j+1/2)
-      else // nextOrPrev == NextOrPrev::prev
-        turbViscInterpolated = nut(i, j, k); // K (i, j-1/2, k-1/2) needed to obtain tau32 (j-1/2)
+      if (nextOrPrev == NextOrPrev::next)    // K (i, j+1/2, k-1/2) needed to obtain tau32 (j+1/2)
+        turbViscInterpolated = 0.25*( nut(i, j, k-1) + nut(i, j, k) + nut(i, j+1, k-1) + nut(i, j+1, k) );
+      else // nextOrPrev == NextOrPrev::prev // K (i, j-1/2, k-1/2) needed to obtain tau32 (j-1/2)
+        turbViscInterpolated = 0.25*( nut(i, j, k-1) + nut(i, j, k) + nut(i, j-1, k-1) + nut(i, j-1, k) );
       break;
     case DiffusionDir::z:
-      if (nextOrPrev == NextOrPrev::next)
-        turbViscInterpolated = nut(i, j, k); // K (i, j, k) needed to obtain tau33 (k+1/2)
-      else // nextOrPrev == NextOrPrev::prev
-        turbViscInterpolated = nut(i, j, k-1); // K (i, j, k-1) needed to obtain tau33 (k-1/2)
+      if (nextOrPrev == NextOrPrev::next)    // K (i, j, k  ) needed to obtain tau33 (k+1/2)
+        turbViscInterpolated = nut(i, j, k);
+      else // nextOrPrev == NextOrPrev::prev // K (i, j, k-1) needed to obtain tau33 (k-1/2)
+        turbViscInterpolated = nut(i, j, k-1);
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
