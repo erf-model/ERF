@@ -29,7 +29,7 @@ main(int argc, char* argv[])
   if (argc >= 2) {
     for (auto i = 1; i < argc; i++) {
       if (std::string(argv[i]) == "--describe") {
-        ERF::writeBuildInfo(std::cout);
+        IOManager::writeBuildInfo(std::cout);
         return 0;
       }
     }

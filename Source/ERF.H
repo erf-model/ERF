@@ -14,19 +14,39 @@
 #endif
 
 #include "IndexDefines.H"
+#include "IOManager.H"
 
 using std::istream;
 using std::ostream;
 
 #define UserBC 6
 
-enum StateType {
-  State_Type = 0,
-  X_Vel_Type,
-  Y_Vel_Type,
-  Z_Vel_Type,
-  Work_Estimate_Type
-};
+#define ENUM_BUILDER(name, ...) enum name { __VA_ARGS__ }; \
+inline std::string EnumToString(name value) {              \
+std::string str = #__VA_ARGS__;                            \
+std::string rs;                                            \
+int len = str.length();                                    \
+std::vector<std::string> strings;                          \
+std::ostringstream ss;                                     \
+for(int i = 0; i < len; i ++) {                            \
+    if(isspace(str[i])) continue;                          \
+    else if(str[i] == ',') {                               \
+        strings.push_back(ss.str());                       \
+        ss.str(std::string());                             \
+        }                                                  \
+    else ss<<str[i];                                       \
+}                                                          \
+strings.push_back(ss.str());                               \
+rs = strings[static_cast<int>(value)];                     \
+return rs; }
+
+
+ENUM_BUILDER(StateType,
+             State_Type,
+             X_Vel_Type,
+             Y_Vel_Type,
+             Z_Vel_Type,
+             Work_Estimate_Type)
 
 // Create storage for all source terms.
 
@@ -175,7 +195,9 @@ public:
   virtual void writeSmallPlotFile(
     const std::string& dir, ostream& os, amrex::VisMF::How how) override;
   void writeJobInfo(const std::string& dir);
-  static void writeBuildInfo(std::ostream& os);
+
+  IOManager& get_io_manager() { return *io_mgr; }
+  const IOManager& get_io_manager() const { return *io_mgr; }
 
   // Define data descriptors.
   static void variableSetUp();
@@ -427,6 +449,11 @@ public:
   void avgDown(int state_indx);
 
 protected:
+  friend class IOManager;
+
+  // io manager
+  std::unique_ptr<IOManager> io_mgr;
+  
   amrex::iMultiFab level_mask;
 
   // Build a mask that ghost cells overlapping with interior cells in the same

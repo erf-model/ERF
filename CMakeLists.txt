@@ -14,6 +14,7 @@ option(ERF_ENABLE_AMREX_EB "Enable EB in AMReX library" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_MASA "Enable tests that require MASA" OFF)
+option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
@@ -55,6 +56,17 @@ if(ERF_ENABLE_MASA)
   if(MASA_FOUND)
     message(STATUS "Found MASA = ${MASA_DIR}")
   endif()
+endif()
+
+########################## NETCDF ##################################
+
+if(ERF_ENABLE_NETCDF)
+  set(CMAKE_PREFIX_PATH ${NETCDF_DIR} ${CMAKE_PREFIX_PATH})
+##  set(NETCDF_CXX "YES")
+  find_package (NetCDF REQUIRED)
+  if(NETCDF_FOUND)
+     message(STATUS "Found NetCDF, NETCDF_DIR = ${NETCDF_DIR}")
+  endif() 
 endif()
 
 ########################### ERF #####################################
