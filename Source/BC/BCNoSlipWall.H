@@ -8,19 +8,14 @@ using namespace amrex;
 
 namespace phys_bcs {
 
-template <math_bcs::BCBound Bound>
+template <int IDIR, math_bcs::BCBound Bound>
 class BCNoSlipWall : public BCBase {
   public:
   BCNoSlipWall() = default;
 
-  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, int dim) override {
+  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) override {
     if ((geom.isAllPeriodic()) || (vars.size() == 0)) return;
 
-    // Physical Domain
-    amrex::Box dom(geom.Domain());
-
-    int extent = (Bound == math_bcs::BCBound::lower) ? dom.smallEnd(dim) : dom.bigEnd(dim);
-        
     // setup boundary conditions
     for( auto i = 0; i < vars.size(); ++i) {
       int nghost = vars[i]->nGrow();
@@ -35,30 +30,17 @@ class BCNoSlipWall : public BCBase {
             amrex::IntVect type = b.type();
  
             if (type == amrex::IntVect::Zero) {  // for state type variable
-               math_bcs::wall_scalars<Bound>(geom, b, extent, data, dim, ncomp);
+               math_bcs::wall_scalars<IDIR, Bound>::apply(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
-               if (dim == 0) {
-                  math_bcs::brian_reflect_odd_face_based<Bound>(geom, b, extent, data, dim, 1);
-               } else {
-                   math_bcs::brian_reflect_odd<Bound > (geom, b, extent, data, dim, 1);
-               }
+               math_bcs::reflect_odd<0, Bound>::template apply_face_based<(IDIR==0)>(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
-               if (dim == 1) {
-                  math_bcs::brian_reflect_odd_face_based<Bound>(geom, b, extent, data, dim, 1);
-               } else {
-                   math_bcs::brian_reflect_odd<Bound > (geom, b, extent, data, dim, 1);
-               }
+               math_bcs::reflect_odd<1, Bound>::template apply_face_based<(IDIR==1)>(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
-               if (dim == 2) {
-                  math_bcs::brian_reflect_odd_face_based<Bound>(geom, b, extent, data, dim, 1);
-               } else {
-                   math_bcs::brian_reflect_odd<Bound > (geom, b, extent, data, dim, 1);
-               }
+               math_bcs::reflect_odd<2, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
             }
          }
-     }
-  }
-
+      }
+    }
   }
 };
 

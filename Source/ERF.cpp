@@ -71,7 +71,7 @@ ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
   } else if (!bc_char.compare("SlipWall")) {
     *bc_rec = new phys_bcs::BCSlipWall<DIM, Bound>();
   } else if (!bc_char.compare("NoSlipWall")) {
-    *bc_rec = new phys_bcs::BCDummy();
+    *bc_rec = new phys_bcs::BCNoSlipWall<DIM, Bound>();
   } else if (!bc_char.compare("UserBC")) {
     *bc_rec = new phys_bcs::BCDummy();
   } else {
