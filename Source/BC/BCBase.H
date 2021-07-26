@@ -161,33 +161,24 @@ namespace math_bcs {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (i > hi) {
-               amrex::Real grad = data(hi-1,j,k,n) - data(hi-2,j,k,n);
-               data(i,j,k,n) = data(hi-1,j,k,n) - (hi-1-i)*grad;
-             } else if (i == hi) {
-               amrex::Real grad = data(hi-1,j,k,n) - data(hi-2,j,k,n);
-               data(i,j,k,n) = data(hi-1,j,k,n) - (hi-1-i)*grad;
+               amrex::Real grad = data(hi,j,k,n) - data(hi-1,j,k,n);
+               data(i,j,k,n) = data(hi,j,k,n) - (hi-i)*grad;
              }
            });
         } else if (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (j > hi) {
-               amrex::Real grad = data(i,hi-1,k,n) - data(i,hi-2,k,n);
-               data(i,j,k,n) = data(i,hi-1,k,n) - (hi-1-j)*grad; 
-             } else if (j == hi) {
-               amrex::Real grad = data(i,hi-1,k,n) - data(i,hi-2,k,n);
-               data(i,j,k,n) = data(i,hi-1,k,n) - (hi-1-j)*grad;
+               amrex::Real grad = data(i,hi,k,n) - data(i,hi-1,k,n);
+               data(i,j,k,n) = data(i,hi,k,n) - (hi-j)*grad; 
              }
            });
         } else if (IDIR == 2) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (k > hi) {
-               amrex::Real grad = data(i,j,hi-1,n) - data(i,j,hi-2,n);
-               data(i,j,k,n) = data(i,j,hi-1,n) - (hi-1-k)*grad;
-             } else if (k == hi) {
-               amrex::Real grad = data(i,j,hi-1,n) - data(i,j,hi-2,n);
-               data(i,j,k,n) = data(i,j,hi-1,n) - (hi-1-k)*grad; 
+               amrex::Real grad = data(i,j,hi,n) - data(i,j,hi-1,n);
+               data(i,j,k,n) = data(i,j,hi,n) - (hi-k)*grad;
              }
            });
         }
@@ -340,31 +331,31 @@ namespace math_bcs {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-            // for face center variables, if mirrored with zone (hi), then hi-1 is the mirror of hi+1 (see below)
+            // for face center variables, if mirrored with zone (hi+1), then hi is the mirror of hi+2 (see below)
             //  |_______|_______|________|________|________|
             // hi-2    hi-1    hi       hi+1     hi+2    hi+3
             //
-             if (i > hi) {
-               data(i,j,k,n) = data(2*hi-i,j,k,n);
-             } else if (i == hi) {
+             if (i > hi+1) {
+               data(i,j,k,n) = data(2*(hi+1)-i,j,k,n);
+             } else if (i == hi+1) {
                data(i,j,k,n) = 0.;
              }
            });
         } else if (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-             if (j > hi) {
-               data(i,j,k,n) = data(i,2*hi-j,k,n);
-             } else if (j == hi) {
+             if (j > hi+1) {
+               data(i,j,k,n) = data(i,2*(hi+1)-j,k,n);
+             } else if (j == hi+1) {
                data(i,j,k,n) = 0.;
              }
            });
         } else if (IDIR == 2) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-             if (k > hi) {
-               data(i,j,k,n) = data(i,j,2*hi-k,n);
-             } else if (k == hi) {
+             if (k > hi+1) {
+               data(i,j,k,n) = data(i,j,2*(hi+1)-k,n);
+             } else if (k == hi+1) {
                data(i,j,k,n) = 0.;
              }
            });
@@ -395,7 +386,7 @@ namespace math_bcs {
         if (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
-            // for zone center variables, if mirrored with zone (hi), then hi-1 is the mirror of hi+1 (see below)
+            // for zone center variables, if mirrored with zone (hi), then lo-1 is the mirror of lo+1 (see below)
             //   |_______|_______|________|________|________|
             //      lo-2    lo-1     lo       lo+1     lo+2
             //
@@ -519,13 +510,13 @@ namespace math_bcs {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-            // for face center variables, if mirrored with zone (hi), then hi-1 is the mirror of hi+1 (see below)
+            // for face center variables, if mirrored with zone (hi+1), then hi is the mirror of hi+2 (see below)
             //   |_______|_______|________|________|________|
             //  hi-2    hi-1    hi       hi+1     hi+2
             //
-             if (i > hi) {
-               data(i,j,k,n) = -data(2*hi-i,j,k,n);
-             } else if (i == hi) {
+             if (i > hi+1) {
+               data(i,j,k,n) = -data(2*(hi+1)-i,j,k,n);
+             } else if (i == hi+1) {
                data(i,j,k,n) = 0.;
              }
            });
@@ -533,8 +524,8 @@ namespace math_bcs {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (j > hi) {
-               data(i,j,k,n) = -data(i,2*hi-j,k,n);
-             } else if (j == hi) {
+               data(i,j,k,n) = -data(i,2*(hi+1)-j,k,n);
+             } else if (j == hi+1) {
                data(i,j,k,n) = 0.;
              }
            });
@@ -542,8 +533,8 @@ namespace math_bcs {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (k > hi) {
-               data(i,j,k,n) = -data(i,j,2*hi-k,n);
-             } else if (k == hi) {
+               data(i,j,k,n) = -data(i,j,2*(hi+1)-k,n);
+             } else if (k == hi+1) {
                data(i,j,k,n) = 0.;
              }
            });
@@ -710,34 +701,34 @@ namespace math_bcs {
             // NOTE: this is 2nd order of accuracy
             //  using third order 3-points formula fprime = (-3f(x-2h)+4f(x-h))-f(x))/2h
             //
-             if (i > hi) {
-               amrex::Real grad = (-3.*data(hi-3,j,k,n)+4.*data(hi-2,j,k,n)-data(hi-1,j,k,n))/2.;
-               data(i,j,k,n) = data(hi-1,j,k,n) - (hi-i-1)*grad;
-             } else if (i == hi) {
-               amrex::Real grad = (-3.*data(hi-3,j,k,n)+4.*data(hi-2,j,k,n)-data(hi-1,j,k,n))/2.;
-               data(i,j,k,n) = data(hi-1,j,k,n) - (hi-i-1)*grad;
+             if (i > hi+1) {
+               amrex::Real grad = (-3.*data(hi-2,j,k,n)+4.*data(hi-1,j,k,n)-data(hi,j,k,n))/2.;
+               data(i,j,k,n) = data(hi,j,k,n) - (hi-i)*grad;
+             } else if (i == hi+1) {
+               amrex::Real grad = (-3.*data(hi-2,j,k,n)+4.*data(hi-1,j,k,n)-data(hi,j,k,n))/2.;
+               data(i,j,k,n) = data(hi,j,k,n) - (hi-i)*grad;
              }
            });
         } else if (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-             if (j > hi) {
-               amrex::Real grad = (-3.*data(i,hi-3,k,n)+4.*data(i,hi-2,k,n)-data(i,hi-1,k,n))/2.;
-               data(i,j,k,n) = data(i,hi-1,k,n) - (hi-j-1)*grad;
-             } else if (j == hi) {
-               amrex::Real grad = (-3.*data(i,hi-3,k,n)+4.*data(i,hi-2,k,n)-data(i,hi-1,k,n))/2.;
-               data(i,j,k,n) = data(i,hi-1,k,n) - (hi-j-1)*grad;
+             if (j > hi+1) {
+               amrex::Real grad = (-3.*data(i,hi-2,k,n)+4.*data(i,hi-1,k,n)-data(i,hi,k,n))/2.;
+               data(i,j,k,n) = data(i,hi,k,n) - (hi-j)*grad;
+             } else if (j == hi+1) {
+               amrex::Real grad = (-3.*data(i,hi-2,k,n)+4.*data(i,hi-1,k,n)-data(i,hi,k,n))/2.;
+               data(i,j,k,n) = data(i,hi,k,n) - (hi-j)*grad;
              }
            });
         } else if (IDIR == 2) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (k > hi) {
-               amrex::Real grad = (-3.*data(i,j,hi-3,n)+4.*data(i,j,hi-2,n)-data(i,j,hi-1))/2.;
-               data(i,j,k,n) = data(i,j,hi-1,n) - (hi-k-1)*grad;
+               amrex::Real grad = (-3.*data(i,j,hi-2,n)+4.*data(i,j,hi-1,n)-data(i,j,hi))/2.;
+               data(i,j,k,n) = data(i,j,hi,n) - (hi-k)*grad;
              } else if (k == hi) {
-               amrex::Real grad = (-3.*data(i,j,hi-3,n)+4.*data(i,j,hi-2,n)-data(i,j,hi-1))/2.;
-               data(i,j,k,n) = data(i,j,hi-1,n) - (hi-k-1)*grad;
+               amrex::Real grad = (-3.*data(i,j,hi-2,n)+4.*data(i,j,hi-1,n)-data(i,j,hi))/2.;
+               data(i,j,k,n) = data(i,j,hi,n) - (hi-k)*grad;
              }
            });
         }
