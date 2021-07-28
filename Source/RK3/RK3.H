@@ -164,7 +164,7 @@ Real ComputeTurbulentViscosity(const int &i, const int &j, const int &k,
 // Given a velocity field and a geometry, compute nut or K(i, j, k) are cell-centers
 //AMREX_GPU_DEVICE
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
-                               MultiFab& eddyViscosity,
+                               MultiFab& cons_in, MultiFab& eddyViscosity,
                                const Geometry &geom, const SolverChoice& solverChoice);
 
 // Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known

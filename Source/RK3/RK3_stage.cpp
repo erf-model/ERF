@@ -76,7 +76,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     MultiFab eddyViscosity(cons_old.boxArray(),cons_old.DistributionMap(),1,1);
     if (solverChoice.use_smagorinsky)
-        ComputeTurbulentViscosity(xvel, yvel, zvel, eddyViscosity, geom, solverChoice);
+        ComputeTurbulentViscosity(xvel, yvel, zvel, cons_old, eddyViscosity, geom, solverChoice);
 
     // **************************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself

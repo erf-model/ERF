@@ -22,16 +22,19 @@ ComputeTurbulentViscosity(
 }
 
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
-                               MultiFab& eddyViscosity,
+                               MultiFab& cons_in, MultiFab& eddyViscosity,
                                const Geometry &geom, const SolverChoice& solverChoice) {
 
-    Real CsDeltaSqr = 1.0; // TODO: Extract this from solverChoice
+    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
+    const Real cellVol = cellSize[0] * cellSize[1] * cellSize[2];
+    Real Cs = solverChoice.Cs;
+    Real CsDeltaSqr = Cs*Cs * std::pow(cellVol, 2.0/3.0);
 
     for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.tilebox();
 
-        //const Array4<Real> &cell_data = cons_in.array(mfi);
+        const Array4<Real> &cell_data = cons_in.array(mfi);
         const Array4<Real> &K = eddyViscosity.array(mfi);
 
         const Array4<Real> &u = xvel.array(mfi);
@@ -66,7 +69,8 @@ void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                     );
 
             Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
-            K(i, j, k, 0) = -2.0 * CsDeltaSqr * std::sqrt(2.0*SmnSmn);
+            // TODO: Check sign in the below equation
+            K(i, j, k, 0) = -2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
         });
 
     } //mfi
