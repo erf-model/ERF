@@ -19,6 +19,7 @@ class BCNoSlipWall : public BCBase {
     // setup boundary conditions
     for( auto i = 0; i < vars.size(); ++i) {
       int nghost = vars[i]->nGrow();
+      std::cout << "i,nghost:  " << i << " " << nghost << std::endl;
       if(nghost > 0) { 
          for (amrex::MFIter mfi(*vars[i], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             // get the index box
@@ -32,11 +33,11 @@ class BCNoSlipWall : public BCBase {
             if (type == amrex::IntVect::Zero) {  // for state type variable
                math_bcs::wall_scalars<IDIR, Bound>::apply(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
-               math_bcs::reflect_odd<0, Bound>::template apply_face_based<(IDIR==0)>(geom, b, data, ncomp);
+               math_bcs::reflect_odd<IDIR, Bound>::template apply_face_based<(IDIR==0)>(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
-               math_bcs::reflect_odd<1, Bound>::template apply_face_based<(IDIR==1)>(geom, b, data, ncomp);
+               math_bcs::reflect_odd<IDIR, Bound>::template apply_face_based<(IDIR==1)>(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
-               math_bcs::reflect_odd<2, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
+               math_bcs::reflect_odd<IDIR, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
             }
          }
       }
