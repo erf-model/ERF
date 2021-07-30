@@ -30,7 +30,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
 
     switch (turbModel) {
         case TurbulenceModel::DNS:
-            stressTerm = 2.0 * solverChoice.kinematicViscosity * strainRate; // 2*nu*Sij(m+1/2) or 2*nu*Sij(m-1/2)
+            stressTerm = 2.0 * solverChoice.dynamicViscosity * strainRate; // 2*mu*Sij(m+1/2) or 2*mu*Sij(m-1/2)
             break;
         case TurbulenceModel::Smagorinsky:
             turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom, nut);

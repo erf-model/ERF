@@ -77,13 +77,15 @@ public:
     SolverChoice(const bool use_state_advection_in, const bool use_momentum_advection_in,
                  bool  use_thermal_diffusion_in, const amrex::Real alpha_T_in,
                  const bool use_scalar_diffusion_in, const amrex::Real alpha_S_in,
-                 const bool use_momentum_diffusion_in, const amrex::Real kinematicViscosity_in,
-                 const bool use_smagorinsky_in, const bool use_pressure_in, const bool use_gravity_in, const int spatial_order_in):
+                 const bool use_momentum_diffusion_in, const amrex::Real dynamicViscosity_in,
+                 const bool use_smagorinsky_in, const amrex::Real Cs_in,
+                 const bool use_pressure_in, const bool use_gravity_in, const int spatial_order_in):
             use_state_advection(use_state_advection_in), use_momentum_advection(use_momentum_advection_in),
             use_thermal_diffusion(use_thermal_diffusion_in), alpha_T(alpha_T_in),
             use_scalar_diffusion(use_scalar_diffusion_in), alpha_S(alpha_S_in),
-            use_momentum_diffusion(use_momentum_diffusion_in), kinematicViscosity(kinematicViscosity_in),
-            use_smagorinsky(use_smagorinsky_in), use_pressure(use_pressure_in), use_gravity(use_gravity_in), spatial_order(spatial_order_in) {
+            use_momentum_diffusion(use_momentum_diffusion_in), dynamicViscosity(dynamicViscosity_in),
+            use_smagorinsky(use_smagorinsky_in), Cs(Cs_in),
+            use_pressure(use_pressure_in), use_gravity(use_gravity_in), spatial_order(spatial_order_in) {
         // All members are constant and are initialized at construction
     }
     void display() {
@@ -95,11 +97,9 @@ public:
         amrex::Print() << "use_scalar_diffusion: " << use_scalar_diffusion << std::endl;
         amrex::Print() << "alpha_S: " << alpha_S << std::endl;
         amrex::Print() << "use_momentum_diffusion: " << use_momentum_diffusion << std::endl;
-        amrex::Print() << "kinematicViscosity: " << kinematicViscosity << std::endl;
+        amrex::Print() << "dynamicViscosity: " << dynamicViscosity << std::endl;
         amrex::Print() << "use_smagorinsky: " << use_smagorinsky << std::endl;
-        if (use_smagorinsky) {
-            amrex::Print() << "  NOTE: ComputeTurbulentViscosity() currently disabled!" << std::endl;
-        }
+        amrex::Print() << "Cs: " << Cs << std::endl;
         amrex::Print() << "use_pressure: " << use_pressure << std::endl;
         amrex::Print() << "use_gravity: " << use_gravity << std::endl;
         amrex::Print() << "spatial_order: " << spatial_order << std::endl;
@@ -112,8 +112,9 @@ public:
     const bool        use_scalar_diffusion;
     const amrex::Real alpha_S;
     const bool        use_momentum_diffusion;
-    const amrex::Real kinematicViscosity;
+    const amrex::Real dynamicViscosity;
     const bool        use_smagorinsky;
+    const amrex::Real Cs;
     const bool        use_pressure;
     const bool        use_gravity;
     const int         spatial_order;
