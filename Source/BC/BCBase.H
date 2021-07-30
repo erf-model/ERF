@@ -22,21 +22,21 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i < lo) {
-              data(i,j,k,n) = 2.0*data(lo,j,k,n) - data(lo+1,j,k,n);
+              data(i,j,k,n) = (lo-i+1)*data(lo,j,k,n) - (lo-i)*data(lo+1,j,k,n);
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j < lo) {
-              data(i,j,k,n) = 2.0*data(i,lo,k,n) - data(i,lo+1,k,n);
+              data(i,j,k,n) = (lo-j+1)*data(i,lo,k,n) - (lo-j)*data(i,lo+1,k,n);
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
-              data(i,j,k,n) = 2.0*data(i,j,lo,n) - data(i,j,lo+1,n);
+              data(i,j,k,n) = (lo-k+1)*data(i,j,lo,n) - (lo-k)*data(i,j,lo+1,n);
             }
           });
         }
@@ -52,28 +52,22 @@ namespace math_bcs {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-            if (i < lo) {
-              data(i,j,k,n) = 1.5*data(lo,j,k,n) - 0.5*data(lo+1,j,k,n);
-            } else if (i == lo) {
-              data(i,j,k,n) = 2.*data(lo,j,k,n) - data(lo+1,j,k,n);
+            if (i <= lo) {
+              data(i,j,k,n) = (lo-i+2)*data(lo+1,j,k,n) - (lo-i+1)*data(lo+2,j,k,n);
             }
            });
         } else if (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-            if (j < lo) {
-              data(i,j,k,n) = 1.5*data(i,lo,k,n) - 0.5*data(i,lo+1,k,n);
-            } else if (j == lo) {
-              data(i,j,k,n) = 2.*data(i,lo,k,n) - data(i,lo+1,k,n);
+            if (j <= lo) {
+              data(i,j,k,n) = (lo-j+2)*data(i,lo+1,k,n) - (lo-j+1)*data(i,lo+2,k,n);
             }
            });
         } else if (IDIR == 2) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
             if (k < lo) {
-              data(i,j,k,n) = 1.5*data(i,j,lo,n) - 0.5*data(i,j,lo+1,n);
-            } else if (k == lo) {
-              data(i,j,k,n) = 2.*data(i,j,lo,n) - data(i,j,lo+1,n);
+              data(i,j,k,n) = (lo-k+2)*data(i,j,lo+1,n) - (lo-k+1)*data(i,j,lo+2,n);
             }
            });
         }
@@ -101,21 +95,21 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i > hi) {
-              data(i,j,k,n) = 2.*data(hi,j,k,n) - data(hi-1,j,k,n);
+              data(i,j,k,n) = (i-hi+1)*data(hi,j,k,n) -(i-hi)*data(hi-1,j,k,n);
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j > hi) {
-              data(i,j,k,n) = 2.*data(i,hi,k,n) - data(i,hi-1,k,n);
+              data(i,j,k,n) = (j-hi+1)*data(i,hi,k,n) - (j-hi)*data(i,hi-1,k,n);
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k > hi) {
-              data(i,j,k,n) = 2.*data(i,j,hi,n) - data(i,j,hi-1,n);
+              data(i,j,k,n) = (k-hi+1)*data(i,j,hi,n) - (k-hi)*data(i,j,hi-1,n);
             }
           });
         }
@@ -133,27 +127,21 @@ namespace math_bcs {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (i > hi) {
-               data(i,j,k,n) = 1.5*data(hi,j,k,n) - 0.5*data(hi-1,j,k,n);
-             } else if (i == hi) {
-               data(i,j,k,n) = 2.*data(hi,j,k,n) - data(hi-1,j,k,n);
+               data(i,j,k,n) = (i-hi+1)*data(hi,j,k,n) - (i-hi)*data(hi-1,j,k,n);
              }
            });
         } else if (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (j > hi) {
-               data(i,j,k,n) = 1.5*data(i,hi,k,n) - 0.5*data(i,hi-1,k,n);
-             } else if (j == hi) {
-               data(i,j,k,n) = 2.*data(i,hi,k,n) - data(i,hi-1,k,n);
+               data(i,j,k,n) = (j-hi+1)*data(i,hi,k,n) - (j-hi)*data(i,hi-1,k,n);
              }
            });
         } else if (IDIR == 2) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (k > hi) {
-               data(i,j,k,n) = 1.5*data(i,j,hi,n) - 0.5*data(i,j,hi-1,n);
-             } else if (k == hi) {
-               data(i,j,k,n) = 2.*data(i,j,hi,n) - data(i,j,hi-1,n);
+               data(i,j,k,n) = (k-hi+1)*data(i,j,hi,n) - (k-hi)*data(i,j,hi-1,n);
              }
            });
         }
@@ -177,27 +165,31 @@ namespace math_bcs {
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
- 
+            //
+            // for zone center variables, if mirrored with zone interface (lo-1/2), then lo-1 is the mirror of lo (see below)
+            // |_______|_______|________|________|
+            //   lo-2     lo-1    lo      lo+1
+            //
       if(b.smallEnd(IDIR) < lo) {
         if (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i < lo) {
-              data(i,j,k,n) = data(2*lo-i,j,k,n);
+              data(i,j,k,n) = data(2*lo-i-1,j,k,n);
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j < lo) {
-              data(i,j,k,n) = data(i,2*lo-j,k,n);
+              data(i,j,k,n) = data(i,2*lo-j-1,k,n);
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
-              data(i,j,k,n) = data(i,j,2*lo-k,n);
+              data(i,j,k,n) = data(i,j,2*lo-k-1,n);
             }
           });
         }
@@ -210,6 +202,10 @@ namespace math_bcs {
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
  
+            // for face center variables, if mirrored with zone (lo), then lo-1 is the mirror of lo+1 (see below)
+            //   |_______|_______|________|________|
+            //  lo-2    lo-1    lo      lo+1     lo+2
+            //
       if(b.smallEnd(IDIR) < lo) {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -257,27 +253,32 @@ namespace math_bcs {
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
- 
+            //
+            // NOTE: we should mirror at the zone interface to match the face-based boundary configuration
+            // for zone center variables, if mirrored with zone interface (hi+1/2), then hi is the mirror of hi+1 (see below)
+            // |_______|_______|________|________|________|
+            //    hi-2    hi-1    hi       hi+1     hi+2
+            //
       if(b.bigEnd(IDIR) > hi) {
         if (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i > hi) {
-              data(i,j,k,n) = data(2*hi-i,j,k,n);
+              data(i,j,k,n) = data(2*hi-i+1,j,k,n);
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j > hi) {
-              data(i,j,k,n) = data(i,2*hi-j,k,n);
+              data(i,j,k,n) = data(i,2*hi-j+1,k,n);
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k > hi) {
-              data(i,j,k,n) = data(i,j,2*hi-k,n);
+              data(i,j,k,n) = data(i,j,2*hi-k+1,n);
             }
           });
         }
@@ -289,23 +290,27 @@ namespace math_bcs {
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
- 
+            //
+            // for face center variables, if mirrored with zone (hi+1), then hi is the mirror of hi+2 (see below)
+            //  |_______|_______|________|________|________|
+            // hi-2    hi-1    hi       hi+1     hi+2    hi+3
+            //
       if(b.bigEnd(IDIR) > hi) {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-             if (i > hi) {
-               data(i,j,k,n) = data(2*hi-i,j,k,n);
-             } else if (i == hi) {
+             if (i > hi+1) {
+               data(i,j,k,n) = data(2*hi-i+2,j,k,n);
+             } else if (i == hi+1) {
                data(i,j,k,n) = 0.;
              }
            });
         } else if (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-             if (j > hi) {
-               data(i,j,k,n) = data(i,2*hi-j,k,n);
-             } else if (j == hi) {
+             if (j > hi+1) {
+               data(i,j,k,n) = data(i,2*hi-j+2,k,n);
+             } else if (j == hi+1) {
                data(i,j,k,n) = 0.;
              }
            });
@@ -313,8 +318,8 @@ namespace math_bcs {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
              if (k > hi) {
-               data(i,j,k,n) = data(i,j,2*hi-k,n);
-             } else if (k == hi) {
+               data(i,j,k,n) = data(i,j,2*hi-k+2,n);
+             } else if (k == hi+1) {
                data(i,j,k,n) = 0.;
              }
            });
@@ -340,7 +345,11 @@ namespace math_bcs {
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
- 
+             //
+             // for zone center variables, if mirrored with zone interface (lo-1/2), then lo-1 is the mirror of lo (see below)
+             //   |_______|_______|________|________|________|
+             //      lo-2    lo-1     lo       lo+1     lo+2
+             //
       if(b.smallEnd(IDIR) < lo) {
         if (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -372,7 +381,11 @@ namespace math_bcs {
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
- 
+
+            // for face center variables, if mirrored with zone (lo), then lo-1 is the mirror of lo+1 (see below)
+            //    |_______|_______|________|________|________|
+            //   lo-2    lo-1    lo       lo+1     lo+2    lo+3
+            //
       if(b.smallEnd(IDIR) < lo) {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -420,6 +433,11 @@ namespace math_bcs {
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
+
+            // for zone center variables, if mirrored with zone (hi+1/2), then hi is the mirror of hi+1 (see below)
+            //    |_______|_______|________|________|________|
+            //       hi-2    hi-1    hi       hi+1     hi+2
+            //
       if(b.bigEnd(IDIR) > hi) {
         if (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -451,7 +469,10 @@ namespace math_bcs {
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
-
+            // for face center variables, if mirrored with zone (hi+1), then hi is the mirror of hi+2 (see below)
+            //   |_______|_______|________|________|________|
+            //  hi-2    hi-1    hi       hi+1     hi+2
+            //
       if(b.bigEnd(IDIR) > hi) {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -502,13 +523,16 @@ namespace math_bcs {
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
- 
+
+            // NOTE: this is 2nd order of accuracy
+            // using third order 3-points formula fprime = (-3f(x)+4f(x+h))-f(x+2h))/2h
+            //
       if(b.smallEnd(IDIR) < lo) {
         if (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i < lo) {
-              amrex::Real grad = (4.*data(lo,j,k,n)-3.*data(lo+1,j,k,n)-data(lo+2,j,k,n))/3.;
+              amrex::Real grad = (-3.*data(lo,j,k,n)+4.*data(lo+1,j,k,n)-data(lo+2,j,k,n))/2.;
               data(i,j,k,n) = data(lo,j,k,n) - (lo-i)*grad;
             }
           });
@@ -516,7 +540,7 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j < lo) {
-              amrex::Real grad = (4.*data(i,lo,k,n)-3.*data(i,lo+1,k,n)-data(i,lo+2,k,n))/3.;
+              amrex::Real grad = (-3.*data(i,lo,k,n)+4.*data(i,lo+1,k,n)-data(i,lo+2,k,n))/2.;
               data(i,j,k,n) = data(i,lo,k,n) - (lo-j)*grad;
             }
           });
@@ -524,7 +548,7 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
-              amrex::Real grad = (4.*data(i,j,lo,n)-3.*data(i,j,lo+1,n)-data(i,j,lo+2,n))/3.;
+              amrex::Real grad = (-3.*data(i,j,lo,n)+4.*data(i,j,lo+1,n)-data(i,j,lo+2,n))/2.;
               data(i,j,k,n) = data(i,j,lo,n) - (lo-k)*grad;
             }
           });
@@ -542,34 +566,25 @@ namespace math_bcs {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-            if (i < lo) {
-              amrex::Real grad = (4.*data(lo+1,j,k,n)-3.*data(lo+2,j,k,n)-data(lo+3,j,k,n))/3.;
+            if (i <= lo) {
+              amrex::Real grad = (-3.*data(lo+1,j,k,n)+4.*data(lo+2,j,k,n)-data(lo+3,j,k,n))/2.;
               data(i,j,k,n) = data(lo+1,j,k,n) - (lo-i+1)*grad;
-            } else if (i == lo) {
-              amrex::Real grad = (4.*data(lo+1,j,k,n)-3.*data(lo+2,j,k,n)-data(lo+3,j,k,n))/3.;
-              data(i,j,k,n) = data(lo+1,j,k,n) - grad;
             }
            });
         } else if (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-            if (j < lo) {
-              amrex::Real grad = (4.*data(i,lo+1,k,n)-3.*data(i,lo+2,k,n)-data(i,lo+3,k,n))/3.;
+            if (j <= lo) {
+              amrex::Real grad = (-3.*data(i,lo+1,k,n)+4.*data(i,lo+2,k,n)-data(i,lo+3,k,n))/2.;
               data(i,j,k,n) = data(i,lo+1,k,n) - (lo-j+1)*grad;
-            } else if (j == lo) {
-              amrex::Real grad = (4.*data(i,j,lo+1,n)-3.*data(i,j,lo+2,n)-data(i,j,lo+3,n))/3.;
-              data(i,j,k,n) = data(i,lo+1,k,n)-grad;
             }
            });
         } else if (IDIR == 2) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-            if (k < lo) {
-              amrex::Real grad = (4.*data(i,j,lo+1,n)-3.*data(i,j,lo+2,n)-data(i,j,lo+3,n))/3.;
+            if (k <= lo) {
+              amrex::Real grad = (-3.*data(i,j,lo+1,n)+4.*data(i,j,lo+2,n)-data(i,j,lo+3,n))/2.;
               data(i,j,k,n) = data(i,j,lo+1,n) - (lo-k+1)*grad;
-            } else if (k == lo) {
-              amrex::Real grad = (4.*data(i,j,lo+1,n)-3.*data(i,j,lo+2,n)-data(i,j,lo+3,n))/3.;
-              data(i,j,k,n) = data(i,j,lo+1,n) - grad;
             }
            });
         }
@@ -597,7 +612,7 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i > hi) {
-              amrex::Real grad = (4.*data(hi,j,k,n)-3.*data(hi+1,j,k,n)-data(hi,j,k,n))/3.;
+              amrex::Real grad = (-3.*data(hi,j,k,n)+4.*data(hi+1,j,k,n)-data(hi,j,k,n))/2.;
               data(i,j,k,n) = data(hi,j,k,n) - (i-hi)*grad;
             }
           });
@@ -605,7 +620,7 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j > hi) {
-              amrex::Real grad = (4.*data(i,hi,k,n)-3.*data(i,hi+1,k,n)-data(i,hi,k,n))/3.;
+              amrex::Real grad = (-3.*data(i,hi,k,n)+4.*data(i,hi+1,k,n)-data(i,hi,k,n))/2.;
               data(i,j,k,n) = data(i,hi,k,n) - (j-hi)*grad;
             }
           });
@@ -613,7 +628,7 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k > hi) {
-              amrex::Real grad = (4.*data(i,j,hi,n)-3.*data(i,j,hi+1,n)-data(i,j,hi+2,n))/3.;
+              amrex::Real grad = (-3.*data(i,j,hi,n)+4.*data(i,j,hi+1,n)-data(i,j,hi+2,n))/2.;
               data(i,j,k,n) = data(i,j,hi,n) - (k-hi)*grad;
             }
           });
@@ -631,34 +646,25 @@ namespace math_bcs {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-             if (i > hi) {
-               amrex::Real grad = (4.*data(hi+1,j,k,n)-3.*data(hi+2,j,k,n)-data(hi+3,j,k,n))/3.;
-               data(i,j,k,n) = data(hi,j,k,n) - (i-hi-1)*grad;
-             } else if (i == hi) {
-               amrex::Real grad = (4.*data(hi+1,j,k,n)-3.*data(hi+2,j,k,n)-data(hi+3,j,k,n))/3.;
-               data(i,j,k,n) = data(hi,j,k,n) - grad;
+             if (i >= hi+1) {
+               amrex::Real grad = (-3.*data(hi-2,j,k,n)+4.*data(hi-1,j,k,n)-data(hi,j,k,n))/2.;
+               data(i,j,k,n) = data(hi,j,k,n) - (i-hi)*grad;
              }
            });
         } else if (IDIR == 1) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-             if (j > hi) {
-               amrex::Real grad = (4.*data(i,hi+1,k,n)-3.*data(i,hi+2,k,n)-data(i,hi+3,k,n))/3.;
-               data(i,j,k,n) = data(i,hi,k,n) - (j-hi-1)*grad;
-             } else if (j == hi) {
-               amrex::Real grad = (4.*data(i,hi+1,k,n)-3.*data(i,hi+2,k,n)-data(i,hi+3,k,n))/3.;
-               data(i,j,k,n) = data(i,hi,k,n) - grad;
+             if (j >= hi+1) {
+               amrex::Real grad = (-3.*data(i,hi-2,k,n)+4.*data(i,hi-1,k,n)-data(i,hi,k,n))/2.;
+               data(i,j,k,n) = data(i,hi,k,n) - (j-hi)*grad;
              }
            });
         } else if (IDIR == 2) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-             if (k > hi) {
-               amrex::Real grad = (4.*data(i,j,hi+1,n)-3.*data(i,j,hi+2,n)-data(i,j,hi+3))/3.;
-               data(i,j,k,n) = data(i,j,hi,n) - (k-hi-1)*grad;
-             } else if (k == hi) {
-               amrex::Real grad = (4.*data(i,j,hi+1,n)-3.*data(i,j,hi+2,n)-data(i,j,hi+3))/3.;
-               data(i,j,k,n) = data(i,j,hi) - grad;
+             if (k >= hi+1) {
+               amrex::Real grad = (-3.*data(i,j,hi-2,n)+4.*data(i,j,hi-1,n)-data(i,j,hi))/2.;
+               data(i,j,k,n) = data(i,j,hi,n) - (k-hi)*grad;
              }
            });
         }
