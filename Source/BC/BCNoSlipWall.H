@@ -14,12 +14,11 @@ class BCNoSlipWall : public BCBase {
   BCNoSlipWall() = default;
 
   void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) override {
-    if ((geom.isAllPeriodic()) || (vars.size() == 0)) return;
+    if ((geom.isAllPeriodic(IDIR)) || (vars.size() == 0)) return;
 
     // setup boundary conditions
     for( auto i = 0; i < vars.size(); ++i) {
       int nghost = vars[i]->nGrow();
-      std::cout << "i,nghost:  " << i << " " << nghost << std::endl;
       if(nghost > 0) { 
          for (amrex::MFIter mfi(*vars[i], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             // get the index box
