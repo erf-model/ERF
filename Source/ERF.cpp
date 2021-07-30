@@ -28,7 +28,7 @@ using namespace amrex;
 bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
-amrex::BCRec ERF::phys_bc;
+phys_bcs::BCBase* ERF::bc_recs[AMREX_SPACEDIM*2];
 //amrex::Real ERF::frac_change = 1.e200;
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
@@ -56,6 +56,30 @@ ERF::variableCleanUp()
   clear_prob();
 }
 
+template<int DIM, math_bcs::BCBound Bound>
+void
+ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
+  if (!bc_char.compare("Interior")) {
+    *bc_rec = new phys_bcs::BCInterior();
+    std::cout << "DIR IS INTERIOR " << DIM << std::endl;
+  } else if (!bc_char.compare("Hard")) {
+    *bc_rec = new phys_bcs::BCDummy();
+  } else if (!bc_char.compare("FOExtrap")) {
+    *bc_rec = new phys_bcs::BCDummy();
+  } else if (!bc_char.compare("Symmetry")) {
+    *bc_rec = new phys_bcs::BCDummy();
+  } else if (!bc_char.compare("SlipWall")) {
+    *bc_rec = new phys_bcs::BCSlipWall<DIM, Bound>();
+  } else if (!bc_char.compare("NoSlipWall")) {
+    *bc_rec = new phys_bcs::BCNoSlipWall<DIM, Bound>();
+  } else if (!bc_char.compare("UserBC")) {
+    *bc_rec = new phys_bcs::BCDummy();
+  } else {
+    amrex::Abort("Wrong boundary condition word, please use: "
+                 "Interior, UserBC, Symmetry, SlipWall, NoSlipWall");
+  }
+}
+
 void
 ERF::read_params()
 {
@@ -80,55 +104,25 @@ ERF::read_params()
   pp.getarr("lo_bc", lo_bc_char, 0, AMREX_SPACEDIM);
   pp.getarr("hi_bc", hi_bc_char, 0, AMREX_SPACEDIM);
 
-  amrex::Vector<int> lo_bc(AMREX_SPACEDIM), hi_bc(AMREX_SPACEDIM);
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-    if (!lo_bc_char[dir].compare("Interior")) {
-      lo_bc[dir] = 0;
-      std::cout << "DIR IS INTERIOR " << dir << std::endl;
-    } else if (!lo_bc_char[dir].compare("Hard")) {
-      lo_bc[dir] = 1;
-    } else if (!lo_bc_char[dir].compare("FOExtrap")) {
-      lo_bc[dir] = 2;
-    } else if (!lo_bc_char[dir].compare("Symmetry")) {
-      lo_bc[dir] = 3;
-    } else if (!lo_bc_char[dir].compare("SlipWall")) {
-      lo_bc[dir] = 4;
-    } else if (!lo_bc_char[dir].compare("NoSlipWall")) {
-      lo_bc[dir] = 5;
-    } else if (!lo_bc_char[dir].compare("UserBC")) {
-      lo_bc[dir] = 6;
-    } else {
-      amrex::Abort("Wrong boundary condition word in lo_bc, please use: "
-                   "Interior, UserBC, Symmetry, SlipWall, NoSlipWall");
+    switch (dir) {
+      case 0:
+        ERF::initalize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0], &bc_recs[0]);
+        ERF::initalize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0], &bc_recs[1]);
+        break;
+      case 1:
+        ERF::initalize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1], &bc_recs[2]);
+        ERF::initalize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1], &bc_recs[3]);
+        break;
+      case 2:
+        ERF::initalize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2], &bc_recs[4]);
+        ERF::initalize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2], &bc_recs[5]);
+        break;
     }
-
-    if (!hi_bc_char[dir].compare("Interior")) {
-      hi_bc[dir] = 0;
-    } else if (!hi_bc_char[dir].compare("Hard")) {
-      hi_bc[dir] = 1;
-    } else if (!hi_bc_char[dir].compare("FOExtrap")) {
-      hi_bc[dir] = 2;
-    } else if (!hi_bc_char[dir].compare("Symmetry")) {
-      hi_bc[dir] = 3;
-    } else if (!hi_bc_char[dir].compare("SlipWall")) {
-      hi_bc[dir] = 4;
-    } else if (!hi_bc_char[dir].compare("NoSlipWall")) {
-      hi_bc[dir] = 5;
-    } else if (!hi_bc_char[dir].compare("UserBC")) {
-      hi_bc[dir] = 6;
-    } else {
-      amrex::Abort("Wrong boundary condition word in hi_bc, please use: "
-                   "Interior, UserBC, Symmetry, SlipWall, NoSlipWall");
-    }
-  }
-
-  for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-    phys_bc.setLo(dir, lo_bc[dir]);
-    phys_bc.setHi(dir, hi_bc[dir]);
   }
 
   //
-  // Check phys_bc against possible periodic geometry
+  // Check bc_recs against possible periodic geometry
   // if periodic, must have internal BC marked.
   //
   //
@@ -137,13 +131,13 @@ ERF::read_params()
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     if (amrex::DefaultGeometry().isPeriodic(dir)) {
       if (
-        lo_bc[dir] != Interior && amrex::ParallelDescriptor::IOProcessor()) {
+        !(bc_recs[2*dir]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
         std::cerr << "ERF::read_params:periodic in direction " << dir
                   << " but low BC is not Interior\n";
         amrex::Error();
       }
       if (
-        hi_bc[dir] != Interior && amrex::ParallelDescriptor::IOProcessor()) {
+        !(bc_recs[2*dir+1]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
         std::cerr << "ERF::read_params:periodic in direction " << dir
                   << " but high BC is not Interior\n";
         amrex::Error();
@@ -152,12 +146,12 @@ ERF::read_params()
       //
       // Do idiot check. If not periodic, should not be interior.
       //
-      if (lo_bc[dir] == Interior && amrex::ParallelDescriptor::IOProcessor()) {
+      if (bc_recs[2*dir]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
         std::cerr << "ERF::read_params:interior bc in direction " << dir
                   << " but not periodic\n";
         amrex::Error();
       }
-      if (hi_bc[dir] == Interior && amrex::ParallelDescriptor::IOProcessor()) {
+      if (bc_recs[2*dir+1]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
         std::cerr << "ERF::read_params:interior bc in direction " << dir
                   << " but not periodic\n";
         amrex::Error();
@@ -165,10 +159,11 @@ ERF::read_params()
     }
   }
 
-  if (amrex::DefaultGeometry().IsRZ() && (lo_bc[0] != Symmetry)) {
-    amrex::Error("ERF::read_params: must set r=0 boundary condition to "
-                 "Symmetry for r-z");
-  }
+  // TODO: Uncomment this when we implement RZ coordinates
+  //if (amrex::DefaultGeometry().IsRZ() && (lo_bc[0] != Symmetry)) {
+  //  amrex::Error("ERF::read_params: must set r=0 boundary condition to "
+  //               "Symmetry for r-z");
+  //}
 
   // TODO: Any reason to support spherical in ERF?
   if (amrex::DefaultGeometry().IsRZ()) {

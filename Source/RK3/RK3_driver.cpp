@@ -84,6 +84,10 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     ymom_old.FillBoundary(geom.periodicity());
     zmom_old.FillBoundary(geom.periodicity());
 
+    amrex::Vector<MultiFab*> vars_old{&cons_old, &xmom_old, &ymom_old, &zmom_old};
+
+    ERF::applyBCs(geom, vars_old);
+
     // **************************************************************************************
     Real rho0 = 1.0;
     //TODO: Do we really need to use setVal again when we have done earlier with values of 0
@@ -168,6 +172,10 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // **************************************************************************************
     cons_upd_1.FillBoundary(geom.periodicity());
 
+    amrex::Vector<MultiFab*> vars1{&cons_upd_1, &xmom_update_1, &ymom_update_1, &zmom_update_1};
+
+    ERF::applyBCs(geom, vars1);
+
     // Convert updated momentum to updated velocity on faces after stage 1 and before stage 2
     // **************************************************************************************
     MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_1, xmom_update_1, ymom_update_1, zmom_update_1, solverChoice);
@@ -251,6 +259,10 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // Apply BC on updated state data at cells after stage 2 and before stage 3
     // **************************************************************************************
     cons_upd_2.FillBoundary(geom.periodicity());
+
+    amrex::Vector<MultiFab*> vars2{&cons_upd_2, &xmom_update_2, &ymom_update_2, &zmom_update_2};
+
+    ERF::applyBCs(geom, vars2);
 
     // Convert updated momentum to updated velocity on faces after stage 2 and before stage 3
     // **************************************************************************************
@@ -339,7 +351,18 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // **************************************************************************************
     cons_new.FillBoundary(geom.periodicity());
 
+    amrex::Vector<MultiFab*> vars_new{&cons_new, &xmom_new, &ymom_new, &zmom_new};
+
+    ERF::applyBCs(geom, vars_new);
+
     // Convert updated momentum to updated velocity on faces after stage 3 and before going to next time step
     // ************************************************************************************** 
     MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_new, xmom_new, ymom_new, zmom_new, solverChoice);
+
+    // One final application of non-periodic BCs after all RK3 stages have been called, this time on velocities
+
+    amrex::Vector<MultiFab*> vars{&cons_new, &xvel_new, &yvel_new, &zvel_new};
+
+    ERF::applyBCs(geom, vars);
+    
 }

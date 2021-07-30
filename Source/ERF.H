@@ -16,6 +16,12 @@
 #include "IndexDefines.H"
 #include "IOManager.H"
 
+#include "BC/BCBase.H"
+#include "BC/BCDummy.H"
+#include "BC/BCInterior.H"
+#include "BC/BCSlipWall.H"
+#include "BC/BCNoSlipWall.H"
+
 using std::istream;
 using std::ostream;
 
@@ -396,6 +402,12 @@ public:
 
   static int numGrow();
 
+  static void applyBCs(const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) {
+    for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
+      bc_recs[dir]->applyBC(geom, vars);
+    }
+  }
+
 //  void computeTemp(amrex::MultiFab& State, int ng);
 
 //  void getMOLSrcTerm(
@@ -487,6 +499,9 @@ protected:
 
   static void read_tagging_params();
 
+  template<int DIM, math_bcs::BCBound Bound>
+  static void initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec);
+
   ERF& getLevel(int lev);
 
   void reflux();
@@ -515,7 +530,7 @@ protected:
   static bool signalStopJob;
   static bool dump_old;
   static int verbose;
-  static amrex::BCRec phys_bc;
+  static phys_bcs::BCBase* bc_recs[AMREX_SPACEDIM*2];
 
   /// for keeping track of mass changes from negative density resets
 //  static amrex::Real frac_change;
