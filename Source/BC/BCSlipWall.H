@@ -14,7 +14,7 @@ class BCSlipWall : public BCBase {
   BCSlipWall() = default;
 
   void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) override {
-    if ((geom.isAllPeriodic(IDIR)) || (vars.size() == 0)) return;
+    if ((geom.isPeriodic(IDIR)) || (vars.size() == 0)) return;
 
     // setup boundary conditions
     for( auto i = 0; i < vars.size(); ++i) {
