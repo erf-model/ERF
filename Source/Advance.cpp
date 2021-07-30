@@ -118,8 +118,9 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
    SolverChoice solverChoice(use_state_advection, use_momentum_advection,
                              use_thermal_diffusion, alpha_T,
                              use_scalar_diffusion, alpha_S,
-                             use_momentum_diffusion, kinematicViscosity,
-                             use_smagorinsky, use_pressure, use_gravity, spatial_order);
+                             use_momentum_diffusion, dynamicViscosity,
+                             use_smagorinsky, Cs,
+                             use_pressure, use_gravity, spatial_order);
   //solverChoice.display();
 
   // *****************************************************************

@@ -1,4 +1,4 @@
-AMREX_HOME ?= $(HOME)/Codes/ERF/Submodules/AMReX
+AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
 
 # AMReX
 COMP = gnu

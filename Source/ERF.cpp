@@ -197,7 +197,8 @@ ERF::read_params()
 
 ERF::ERF()
   : old_sources(num_src),
-    new_sources(num_src)
+    new_sources(num_src),
+    io_mgr(new IOManager(*this))
 #ifdef ERF_USE_MASA
     ,
     mms_src_evaluated(false)
@@ -214,7 +215,8 @@ ERF::ERF(
   amrex::Real time)
   : AmrLevel(papa, lev, level_geom, bl, dm, time),
     old_sources(num_src),
-    new_sources(num_src)
+    new_sources(num_src),
+    io_mgr(new IOManager(*this))
 #ifdef ERF_USE_MASA
     ,
     mms_src_evaluated(false)
@@ -1233,3 +1235,55 @@ ERF::build_interior_boundary_mask(int ng)
 
   return imf;
 }
+
+void ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
+{
+#ifdef ERF_USE_NETCDF
+  io_mgr->ncrestart(papa, is, bReadSpecial);
+#else
+  AmrLevel::restart(papa, is, bReadSpecial); 
+  io_mgr->restart(papa, is, bReadSpecial);
+#endif
+}
+
+void ERF::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
+{
+  io_mgr->set_state_in_checkpoint(state_in_checkpoint);
+}
+
+void ERF::checkPoint(const std::string& dir, std::ostream& os,
+                     amrex::VisMF::How how, bool dump_old_default)
+{
+#ifdef ERF_USE_NETCDF
+  io_mgr->NCWriteCheckpointFile (dir, os, dump_old);
+#else
+  AmrLevel::checkPoint(dir, os, how, dump_old);
+  io_mgr->checkPoint(dir, os, how, dump_old_default);
+#endif
+}
+
+void ERF::setPlotVariables()
+{ 
+  amrex::AmrLevel::setPlotVariables();
+  io_mgr->setPlotVariables();
+}
+
+void ERF::writeJobInfo(const std::string& dir)
+{
+  io_mgr->writeJobInfo(dir);
+}
+
+void ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
+{
+#ifdef ERF_USE_NETCDF
+  io_mgr->writeNCPlotFile(dir, os);
+#else
+  io_mgr->writePlotFile(dir, os, how);
+#endif
+}
+
+void ERF::writeSmallPlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
+{
+  io_mgr->writeSmallPlotFile(dir, os, how);
+}
+

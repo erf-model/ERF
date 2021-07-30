@@ -78,6 +78,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 //                 solverChoice);
 //#endif
 
+    MultiFab eddyViscosity(cons_old.boxArray(),cons_old.DistributionMap(),1,1);
+    if (solverChoice.use_smagorinsky)
+        ComputeTurbulentViscosity(xvel, yvel, zvel, cons_old, eddyViscosity, geom, solverChoice);
+
     // **************************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
     //TODO: Benchmarking of performance. We are computing the fluxes on the fly.
@@ -106,6 +110,8 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         const Array4<Real>& rho_u_upd = xmom_upd.array(mfi);
         const Array4<Real>& rho_v_upd = ymom_upd.array(mfi);
         const Array4<Real>& rho_w_upd = zmom_upd.array(mfi);
+
+        const Array4<Real>& nut = eddyViscosity.array(mfi);
 
         // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture.Remove them. Fluxes are computed here itself.
 //        Array4<Real const> const& xflux = faceflux[0].array(mfi);
@@ -158,7 +164,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         );
 
         // TODO: Fine-tune dealing with kinematic and eddy viscosity
-        Array4<Real> nut;
+ //       Array4<Real> nut;
 //        if (solverChoice.use_smagorinsky) // Compute nut, otherwise remains whatever it's initialized to
 //            ComputeTurbulentViscosity(u, v, w, geom,nut);
 
