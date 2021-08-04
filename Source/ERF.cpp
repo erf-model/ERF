@@ -72,11 +72,11 @@ ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
     *bc_rec = new phys_bcs::BCSlipWall<DIM, Bound>();
   } else if (!bc_char.compare("NoSlipWall")) {
     *bc_rec = new phys_bcs::BCNoSlipWall<DIM, Bound>();
-  } else if (!bc_char.compare("UserBC")) {
-    *bc_rec = new phys_bcs::BCDummy();
+  } else if (!bc_char.compare("SimSlipWall")) {
+    *bc_rec = new phys_bcs::BCSimSlipWall<DIM, Bound>();
   } else {
     amrex::Abort("Wrong boundary condition word, please use: "
-                 "Interior, UserBC, Symmetry, SlipWall, NoSlipWall");
+                 "Interior, SimSlipWall, Symmetry, SlipWall, NoSlipWall");
   }
 }
 
