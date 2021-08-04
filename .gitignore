@@ -25,7 +25,6 @@ ERF*.ex
 extern_parameters.H
 extern_parameters.cpp
 extern_parameters_F.H
-cmake-*
-cmake_*
-cmake*
+cmake-build*
+cmake_build*
 .idea
