@@ -13,6 +13,7 @@
 
 #define SlipWall 4
 #define NoSlipWall 5
+#define SimSlipWall 6
 
 #define NUM_ADV 1
 
