@@ -47,8 +47,8 @@ erf_initdata(
   // Set the density 
   state(i, j, k, Rho_comp) = ProbParm::rho_0;
  
-  // Initial potential temperature
-  state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
+  // Initial Rho0*Theta0
+  state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::Theta_0;
 
   // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
   state(i, j, k, RhoScalar_comp) = ProbParm::A_0 * exp(-10.*r*r);
@@ -67,8 +67,12 @@ erf_init_xvel(
   // Note that this is called on a box of x-faces
 
   // Set the x-velocity
-  //TODO: Read it through input into ProbParm:: suitable_variable
-  x_vel(i, j, k) = 10.0;
+  amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
+  amrex::Real x_vel_prime = (rand_double*2.0 - 1.0)*ProbParm::U0_Pert_Mag;
+//  if (i < 2 && j < 2 && k <2)
+//      amrex::Print() << "random number in erf_init_xvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
+//                     << rand_double << ", U' = " << x_vel_prime  << std::endl;
+  x_vel(i, j, k) = ProbParm::U0 + x_vel_prime;
 }
 
 AMREX_GPU_DEVICE
@@ -84,8 +88,12 @@ erf_init_yvel(
   // Note that this is called on a box of y-faces
 
   // Set the y-velocity
-  //TODO: Read it through input into ProbParm:: suitable_variable
-  y_vel(i, j, k) = 0.0;
+  amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
+  amrex::Real y_vel_prime = (rand_double*2.0 - 1.0)*ProbParm::V0_Pert_Mag;
+//  if (i < 2 && j < 2 && k <2)
+//      amrex::Print() << "random number in erf_init_yvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
+//                     << rand_double << ", V' = " << y_vel_prime << std::endl;
+  y_vel(i, j, k) = ProbParm::V0 + y_vel_prime;
 }
 
 AMREX_GPU_DEVICE
@@ -101,8 +109,12 @@ erf_init_zvel(
   // Note that this is called on a box of z-faces
 
   // Set the z-velocity
-  //TODO: Read it through input into ProbParm:: suitable_variable
-  z_vel(i, j, k) = 0.0;
+  amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
+  amrex::Real z_vel_prime = (rand_double*2.0 - 1.0)*ProbParm::W0_Pert_Mag;
+//  if (i < 2 && j < 2 && k <2)
+//      amrex::Print() << "random number in erf_init_zvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
+//                     << rand_double << ", W' = " << z_vel_prime << std::endl;
+  z_vel(i, j, k) = ProbParm::W0 + z_vel_prime;
 }
 
 AMREX_GPU_DEVICE

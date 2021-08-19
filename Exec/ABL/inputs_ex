@@ -10,7 +10,7 @@ geometry.is_periodic = 1 1 0
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
 geometry.prob_lo     =     0        0       0
 geometry.prob_hi     =  1024     1024    1024
-amr.n_cell           =    64        4     64   # TODO: Enhance the resolution in y-direction
+amr.n_cell           =    128        4     128   # TODO: Enhance the resolution in y-direction
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, SimSlipWall, Symmetry, SlipWall, NoSlipWall
@@ -64,7 +64,8 @@ erf.use_scalar_diffusion = true
 erf.alpha_S = 1.0
 erf.use_momentum_diffusion = true
 erf.dynamicViscosity = 1.0e-1
-erf.use_smagorinsky   = false
+erf.use_smagorinsky   = true
+erf.Cs = 0.1
 erf.use_pressure = true
 erf.use_gravity = false
 erf.spatial_order = 2
@@ -73,3 +74,13 @@ erf.spatial_order = 2
 prob.rho_0 = 1.0
 prob.rhoe_0 = 1.0
 prob.A_0 = 1.0
+
+prob.U0 = 10.0
+prob.V0 = 0.0
+prob.W0 = 0.0
+
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
+prob.U0_Pert_Mag = 0.8
+prob.V0_Pert_Mag = 0.8 #
+prob.W0_Pert_Mag = 0.0
