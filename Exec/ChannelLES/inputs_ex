@@ -10,7 +10,7 @@ geometry.is_periodic = 1 0 1
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
 geometry.prob_lo     =  0     0     0
 geometry.prob_hi     =  1     1     1    
-amr.n_cell           = 64     64     4 #TODO: Need to play around with resolution to get rid of ringing
+amr.n_cell           = 128    128     4 #TODO: Need to play around with resolution to get rid of ringing
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
@@ -22,7 +22,7 @@ erf.hi_bc       = "Interior"   "NoSlipWall"   "Interior"
 erf.do_hydro = 1
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 5e-5    # fixed time step #TODO: Need to play around with time step to get rid of ringing
+erf.fixed_dt       = 2e-5    # fixed time step #TODO: Need to play around with time step to get rid of ringing
 #erf.cfl            = 0.9     # cfl number for hyperbolic system
 erf.init_shrink    = 1.0     # scale back initial timestep
 erf.change_max     = 1.05    # scale back initial timestep
@@ -39,7 +39,7 @@ amr.max_level       = 0       # maximum level number allowed
 amr.ref_ratio       = 2 2 2 2 # refinement ratio
 amr.regrid_int      = 2 2 2 2 # how often to regrid
 amr.blocking_factor = 4       # block factor in grid generation
-amr.max_grid_size   = 64
+amr.max_grid_size   = 128
 amr.n_error_buf     = 2 2 2 2 # number of buffer cells in error est
 
 # CHECKPOINT FILES
@@ -64,6 +64,7 @@ erf.alpha_S = 1.0
 erf.use_momentum_diffusion = true
 erf.dynamicViscosity = 1.0e-1
 erf.use_smagorinsky   = true
+erf.Cs = 0.1
 erf.use_pressure = true
 erf.use_gravity = false
 erf.spatial_order = 2
@@ -72,3 +73,13 @@ erf.spatial_order = 2
 prob.rho_0 = 1.0
 prob.rhoe_0 = 1.0
 prob.A_0 = 1.0
+
+prob.U0 = 10.0
+prob.V0 = 0.0
+prob.W0 = 0.0
+
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
+prob.U0_Pert_Mag = 0.8
+prob.V0_Pert_Mag = 0.8 #
+prob.W0_Pert_Mag = 0.0
