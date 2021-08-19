@@ -515,6 +515,215 @@ namespace math_bcs {
   };
 
 
+
+  template<int IDIR, BCBound Bound> struct sim_bc;
+
+  template<int IDIR>
+  struct sim_bc<IDIR, BCBound::lower> {
+    using self = sim_bc<IDIR, BCBound::lower>;
+
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int lo = geom.Domain().smallEnd(IDIR);
+      const auto dxarray = geom.CellSizeArray();
+      const auto zrough = 0.01;
+             //
+             // For similarity BCs, the condition on the tangential velocities is found by 
+             // setting the ghost point value to that which causes the shear stress at the lower boundary
+             // (S_(-1/2)) equal to ustar / (2 * vonkarman * z) * ( (u,v) / (u * u + v * v) ^ 0.5 )
+             //
+             // Should work in viscous case, may need to recast for Smagorinksy, as well as for > 1 ghost point
+             // Also only uses local velocity fields for now -- may need to recast taking average tangential
+             // velocity along lower boundary into account, as in Moeng, Schumann, etc.
+
+      if(b.smallEnd(IDIR) < lo) {
+        if (IDIR == 0) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+             if (i < lo) {
+	       // Assume distance between lo and lo-1 is dxarray(IDIR), and height of lo
+	       // above boundary is dxarray(IDIR) / 2.0
+               // zrough is set to constant value 0.1 m here.  Should be passed in through input file.
+
+       	       data(i,j,k,n) = data(lo,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+            }
+          });
+        } else if (IDIR == 1) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (j < lo) {
+	      data(i,j,k,n) = data(i,lo,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+            }
+          });
+        } else if (IDIR == 2) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (k < lo) {
+	      data(i,j,k,n) = data(i,j,lo,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+            }
+          });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline 
+    std::enable_if_t<val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int lo = geom.Domain().smallEnd(IDIR);
+            
+      // For similarity BC, conditions on normal velocity are same as with no slip
+
+            // for face center variables, if mirrored with zone (lo), then lo-1 is the mirror of lo+1 (see below)
+            //    |_______|_______|________|________|________|
+            //   lo-2    lo-1    lo       lo+1     lo+2    lo+3
+            //
+      if(b.smallEnd(IDIR) < lo) {
+        if (IDIR == 0) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (i < lo) {
+              data(i,j,k,n) = -data(2*lo-i,j,k,n);
+            } else if (i == lo) {
+              data(i,j,k,n) = 0.;
+            }
+           });
+        } else if (IDIR == 1) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (j < lo) {
+              data(i,j,k,n) = -data(i,2*lo-j,k,n);
+            } else if (j == lo) {
+              data(i,j,k,n) = 0.;
+            }
+           });
+        } else if (IDIR == 2) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (k < lo) {
+              data(i,j,k,n) = -data(i,j,2*lo-k,n);
+            } else if (k == lo) {
+              data(i,j,k,n) = 0.;
+            }
+           });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline 
+    std::enable_if_t<!val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      self::apply_cell_based(geom, b, data, ncomp);
+    }
+
+  };
+
+  template<int IDIR>
+  struct sim_bc<IDIR, BCBound::upper> {
+    using self = sim_bc<IDIR, BCBound::upper>;
+
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int hi = geom.Domain().bigEnd(IDIR);
+      const auto dxarray = geom.CellSizeArray();
+      const auto zrough = 0.01;
+             //
+             // For similarity BCs, the condition on the tangential velocities is found by 
+             // setting the ghost point value to that which causes the shear stress at the upper boundary
+             // (S_(hi+1/2)) equal to ustar / (2 * vonkarman * z) * ( (u,v) / (u * u + v * v) ^ 0.5 )
+             //
+             // Should work in viscous case, may need to recast for Smagorinksy, as well as for > 1 ghost point
+             // Also only uses local velocity fields for now -- may need to recast taking average tangential
+             // velocity along lower boundary into account, as in Moeng, Schumann, etc.
+
+            // for zone center variables, if mirrored with zone (hi+1/2), then hi is the mirror of hi+1 (see below)
+            //    |_______|_______|________|________|________|
+            //       hi-2    hi-1    hi       hi+1     hi+2
+            //
+      if(b.bigEnd(IDIR) > hi) {
+        if (IDIR == 0) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (i > hi) {
+	       // Assume distance between hi and hi+1 is dxarray(IDIR), and height of hi
+	       // below boundary is dxarray(IDIR) / 2.0
+               // zrough is set to constant value 0.1 m here.  Should be passed in through input file.
+
+       	      data(i,j,k,n) = data(hi,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+            }
+          });
+        } else if (IDIR == 1) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (j > hi) {
+     	      data(i,j,k,n) = data(i,hi,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+            }
+          });
+        } else if (IDIR == 2) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (k > hi) {
+     	      data(i,j,k,n) = data(i,j,hi,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+            }
+          });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline 
+    std::enable_if_t<val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int hi = geom.Domain().bigEnd(IDIR);
+      //  For similarity BCs, condition on normal velocity is same as with no slip
+
+            // for face center variables, if mirrored with zone (hi+1), then hi is the mirror of hi+2 (see below)
+            //   |_______|_______|________|________|________|
+            //  hi-2    hi-1    hi       hi+1     hi+2
+            //
+      if(b.bigEnd(IDIR) > hi) {
+        if (IDIR == 0) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             if (i > (hi+1)) {
+               data(i,j,k,n) = -data(2*(hi+1)-i,j,k,n);
+             } else if (i == (hi+1)) {
+               data(i,j,k,n) = 0.;
+             }
+           });
+        } else if (IDIR == 1) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             if (j > (hi+1)) {
+               data(i,j,k,n) = -data(i,2*(hi+1)-j,k,n);
+             } else if (j == (hi+1)) {
+               data(i,j,k,n) = 0.;
+             }
+           });
+        } else if (IDIR == 2) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             if (k > (hi+1)) {
+               data(i,j,k,n) = -data(i,j,2*(hi+1)-k,n);
+             } else if (k == (hi+1)) {
+               data(i,j,k,n) = 0.;
+             }
+           });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline 
+    std::enable_if_t<!val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      self::apply_cell_based(geom, b, data, ncomp);
+    }
+
+  };
+
+
+
+
   template<int IDIR, BCBound Bound> struct hoextrap;
 
   template<int IDIR>
