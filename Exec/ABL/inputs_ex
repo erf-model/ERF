@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 400
+max_step = 800
 
 amrex.fpe_trap_invalid = 1
 
@@ -81,6 +81,6 @@ prob.W0 = 0.0
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U0_Pert_Mag = 0.8
-prob.V0_Pert_Mag = 0.8 #
+prob.U0_Pert_Mag = 0.4
+prob.V0_Pert_Mag = 0.4 #
 prob.W0_Pert_Mag = 0.0
