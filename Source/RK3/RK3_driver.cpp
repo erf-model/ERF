@@ -361,6 +361,9 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     // One final application of non-periodic BCs after all RK3 stages have been called, this time on velocities
 
+    xvel_new.FillBoundary(geom.periodicity());
+    yvel_new.FillBoundary(geom.periodicity());
+    zvel_new.FillBoundary(geom.periodicity());
     amrex::Vector<MultiFab*> vars{&cons_new, &xvel_new, &yvel_new, &zvel_new};
 
     ERF::applyBCs(geom, vars);
