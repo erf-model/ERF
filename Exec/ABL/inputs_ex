@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 800
+max_step = 400
 
 amrex.fpe_trap_invalid = 1
 
@@ -69,6 +69,10 @@ erf.Cs = 0.1
 erf.use_pressure = true
 erf.use_gravity = false
 erf.spatial_order = 2
+
+erf.abl_driver_type = "PressureGradient"     #"None", "PressureGradient", or "GeostrophicWind"
+erf.abl_pressure_grad = 5.5      # dp/dx  for "PressureGradient"
+erf.abl_geo_wind = 10.5 0.5 0.25  # {u_geo, v_geo, w_geo} for "GeostrophicWind
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

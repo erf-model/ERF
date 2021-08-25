@@ -120,7 +120,8 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
                              use_scalar_diffusion, alpha_S,
                              use_momentum_diffusion, dynamicViscosity,
                              use_smagorinsky, Cs,
-                             use_pressure, use_gravity, spatial_order);
+                             use_pressure, use_gravity, spatial_order,
+                             abl_driver_type, abl_pressure_grad, abl_geo_wind);
   //solverChoice.display();
 
   // *****************************************************************
