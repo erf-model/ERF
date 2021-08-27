@@ -154,7 +154,7 @@ ERF::variableSetUp()
   bool state_data_extrap = false;
   bool store_in_checkpoint;
 
-  int ngrow_state = 2;
+  int ngrow_state = 1;
 
   // NVAR is currently set to 2 in IndexDefines.H
   store_in_checkpoint = true;
