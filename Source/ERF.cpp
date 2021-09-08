@@ -68,6 +68,10 @@ ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
     *bc_rec = new phys_bcs::BCDummy();
   } else if (!bc_char.compare("Symmetry")) {
     *bc_rec = new phys_bcs::BCDummy();
+  } else if (!bc_char.compare("Dirichlet")) {
+    std::cout << "Dirichlet selected for DIM=" << DIM
+              << " lower/upper=" << Bound << std::endl;
+    *bc_rec = new phys_bcs::BCDirichlet<DIM, Bound>();
   } else if (!bc_char.compare("SlipWall")) {
     *bc_rec = new phys_bcs::BCSlipWall<DIM, Bound>();
   } else if (!bc_char.compare("NoSlipWall")) {
