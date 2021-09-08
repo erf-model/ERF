@@ -51,7 +51,7 @@ erf_initdata(
   state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
 
   // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-  state(i, j, k, RhoScalar_comp) = ProbParm::A_0 * exp(-10.*r*r);
+  state(i, j, k, RhoScalar_comp) = 0.0;
 }
 
 AMREX_GPU_DEVICE
@@ -68,7 +68,7 @@ erf_init_xvel(
 
   // Set the x-velocity
   //TODO: Read it through input into ProbParm:: suitable_variable
-  x_vel(i, j, k) = 10.0;
+  x_vel(i, j, k) = 1.0;
 }
 
 AMREX_GPU_DEVICE

@@ -6,9 +6,7 @@
 
 namespace ProbParm {
 extern AMREX_GPU_DEVICE_MANAGED amrex::Real rho_0;
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real rhoe_0;
 extern AMREX_GPU_DEVICE_MANAGED amrex::Real T_0;
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real A_0;
 } // namespace ProbParm
 
 #endif

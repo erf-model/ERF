@@ -1,10 +1,8 @@
 #include "prob.H"
 
 namespace ProbParm {
-AMREX_GPU_DEVICE_MANAGED amrex::Real rho_0 = 0.0; // left density (g/cc)
-AMREX_GPU_DEVICE_MANAGED amrex::Real rhoe_0;
-AMREX_GPU_DEVICE_MANAGED amrex::Real T_0 = 1.0;
-AMREX_GPU_DEVICE_MANAGED amrex::Real A_0 = 1.0;
+AMREX_GPU_DEVICE_MANAGED amrex::Real rho_0 = 1.0; // left density (g/cc)
+AMREX_GPU_DEVICE_MANAGED amrex::Real T_0 = 300.0;
 } // namespace ProbParm
 
 void
@@ -25,6 +23,5 @@ amrex_probinit(
   amrex::ParmParse pp("prob");
   pp.query("rho_0", ProbParm::rho_0);
   pp.query("T_0", ProbParm::T_0);
-  pp.query("A_0", ProbParm::A_0);
 }
 }
