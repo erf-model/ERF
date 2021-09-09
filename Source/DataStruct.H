@@ -11,7 +11,7 @@ public:
                  const bool use_smagorinsky_in, const amrex::Real Cs_in,
                  const bool use_pressure_in, const bool use_gravity_in, const int spatial_order_in,
                  const std::string &abl_driver_type_in,
-                 const amrex::Real &abl_pressure_grad_in,
+                 const std::vector<amrex::Real> &abl_pressure_grad_in,
                  const std::vector<amrex::Real> &abl_geo_wind_in):
             use_state_advection(use_state_advection_in), use_momentum_advection(use_momentum_advection_in),
             use_thermal_diffusion(use_thermal_diffusion_in), alpha_T(alpha_T_in),
@@ -40,11 +40,15 @@ public:
         amrex::Print() << "spatial_order: " << spatial_order << std::endl;
         amrex::Print() << "abl_driver_type: " << abl_driver_type << std::endl;
         if (!abl_driver_type.compare("None"))
-            amrex::Print() << "No ABL driver selcted " << std::endl;
-        if (!abl_driver_type.compare("PressureGradient"))
-            amrex::Print() << "abl_pressure_grad: " << abl_pressure_grad << std::endl;
+            amrex::Print() << "No ABL driver selected " << std::endl;
+        if (!abl_driver_type.compare("PressureGradient")) {
+            amrex::Print() << "Driving abl_pressure_grad: (";
+            for (auto &x: abl_pressure_grad)
+                amrex::Print() << x << " ";
+            amrex::Print() << ")" << std::endl;
+        }
         if (!abl_driver_type.compare("GeostrophicWind")) {
-            amrex::Print() << "abl_geo_wind: (";
+            amrex::Print() << "Driving abl_geo_wind: (";
             for (auto &x: abl_geo_wind)
                 amrex::Print() << x << " ";
             amrex::Print() << ")" << std::endl;
@@ -65,7 +69,7 @@ public:
     const bool        use_gravity;
     const int         spatial_order;
     const std::string abl_driver_type;
-    const amrex::Real abl_pressure_grad;
+    const std::vector<amrex::Real> abl_pressure_grad;
     const std::vector<amrex::Real> abl_geo_wind;
 };
 

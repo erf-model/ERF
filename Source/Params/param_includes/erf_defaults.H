@@ -60,5 +60,5 @@ bool        ERF::use_pressure = true;
 bool        ERF::use_gravity = true;
 int         ERF::spatial_order = 2;
 std::string ERF::abl_driver_type = "None"; //"None", "PressureGradient", or "GeostrophicWind"
-amrex::Real ERF::abl_pressure_grad = 0.0; // dp/dx  for "PressureGradient"
+std::vector<amrex::Real> ERF::abl_pressure_grad = {0.0, 0.0, 0.0}; // {dp/dx, dp/dy, dp/dz}  for "PressureGradient"
 std::vector<amrex::Real> ERF::abl_geo_wind = {10.0, 0.0, 0.0}; // {u_geo, v_geo, w_geo} for "GeostrophicWind"
