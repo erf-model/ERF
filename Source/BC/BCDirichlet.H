@@ -10,12 +10,13 @@ namespace phys_bcs {
 
 template <int IDIR, math_bcs::BCBound Bound>
 class BCDirichlet : public BCBase {
-  Real uvel = 2.0;
-  Real vvel = 0.0;
-  Real wvel = 0.0;
+  amrex::Vector<amrex::Real> vel;
 
   public:
-    BCDirichlet() = default;
+  BCDirichlet(const amrex::Vector<amrex::Real> inputvel)
+  {
+    vel = inputvel;
+  }
 
   void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) override {
     if ((geom.isPeriodic(IDIR)) || (vars.size() == 0)) return;
@@ -36,11 +37,11 @@ class BCDirichlet : public BCBase {
             if (type == amrex::IntVect::Zero) {  // for state type variable
                math_bcs::wall_scalars<IDIR, Bound>::apply(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL 
-               math_bcs::dirichlet<IDIR, Bound>::template apply<(IDIR==0)>(geom, b, data, ncomp, uvel);
+               math_bcs::dirichlet<IDIR, Bound>::template apply<(IDIR==0)>(geom, b, data, ncomp, vel[0]);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
-               math_bcs::dirichlet<IDIR, Bound>::template apply<(IDIR==1)>(geom, b, data, ncomp, vvel);
+               math_bcs::dirichlet<IDIR, Bound>::template apply<(IDIR==1)>(geom, b, data, ncomp, vel[1]);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
-               math_bcs::dirichlet<IDIR, Bound>::template apply<(IDIR==2)>(geom, b, data, ncomp, wvel);
+               math_bcs::dirichlet<IDIR, Bound>::template apply<(IDIR==2)>(geom, b, data, ncomp, vel[2]);
             }
          }
       }
