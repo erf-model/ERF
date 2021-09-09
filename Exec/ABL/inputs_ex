@@ -70,7 +70,12 @@ erf.use_pressure = true
 erf.use_gravity = false
 erf.spatial_order = 2
 
+erf.abl_driver_type = "PressureGradient"     #"None", "PressureGradient", or "GeostrophicWind"
+erf.abl_pressure_grad = 0.0 0.0 0.0    # {dp/dx, dp/dy, dp/dz}  for "PressureGradient"
+erf.abl_geo_wind = 0.0 0.0 0.0  # {u_geo, v_geo, w_geo} for "GeostrophicWind"
+
 # PROBLEM PARAMETERS
+prob.rho_0 = 1.0
 prob.rho_0 = 1.0
 prob.rhoe_0 = 1.0
 prob.A_0 = 1.0
@@ -81,6 +86,6 @@ prob.W0 = 0.0
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U0_Pert_Mag = 0.8
-prob.V0_Pert_Mag = 0.8 #
+prob.U0_Pert_Mag = 0.4
+prob.V0_Pert_Mag = 0.4 #
 prob.W0_Pert_Mag = 0.0

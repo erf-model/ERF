@@ -195,6 +195,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add gravity term
             rho_u_upd(i, j, k) += dt * grav_gpu[0] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::x, solverChoice.spatial_order);
+
+            // Add driving pressure gradient
+            if (!solverChoice.abl_driver_type.compare("PressureGradient"))
+                rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[0];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
 //            rho_v_upd(i,j,k) =
@@ -219,6 +223,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add gravity term
             rho_v_upd(i, j, k) += dt * grav_gpu[1] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::y, solverChoice.spatial_order);
+
+            // Add driving pressure gradient
+            if (!solverChoice.abl_driver_type.compare("PressureGradient"))
+                rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[1];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 //            rho_w_upd(i,j,k) =
@@ -243,6 +251,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add gravity term
             rho_w_upd(i, j, k) += dt * grav_gpu[2] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::z, solverChoice.spatial_order);
+
+            // Add driving pressure gradient
+            if (!solverChoice.abl_driver_type.compare("PressureGradient"))
+                rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[2];
         });
     }
 }

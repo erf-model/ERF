@@ -31,6 +31,7 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/Advance.cpp
        ${SRC_DIR}/BCfill.cpp
        ${SRC_DIR}/Bld.cpp
+       ${SRC_DIR}/DataStruct.H
        ${SRC_DIR}/Constants.H
        ${SRC_DIR}/Derive.H
        ${SRC_DIR}/Derive.cpp

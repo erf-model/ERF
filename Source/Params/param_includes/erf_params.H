@@ -59,3 +59,6 @@ static amrex::Real Cs;
 static bool        use_pressure;
 static bool        use_gravity;
 static int         spatial_order;
+static std::string abl_driver_type;
+static std::vector<amrex::Real> abl_pressure_grad;
+static std::vector<amrex::Real> abl_geo_wind;

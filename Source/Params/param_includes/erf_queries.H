@@ -59,3 +59,6 @@ pp.query("Cs", Cs);
 pp.query("use_pressure", use_pressure);
 pp.query("use_gravity", use_gravity);
 pp.query("spatial_order", spatial_order);
+pp.query("abl_driver_type", abl_driver_type);
+pp.queryarr("abl_pressure_grad", abl_pressure_grad);
+pp.queryarr("abl_geo_wind", abl_geo_wind);

@@ -69,6 +69,10 @@ erf.use_pressure = true
 erf.use_gravity = false
 erf.spatial_order = 2
 
+#erf.abl_driver_type = "None"     #"None", "PressureGradient", or "GeostrophicWind"
+#erf.abl_pressure_grad = 0.0 0.0 0.0    # {dp/dx, dp/dy, dp/dz}  for "PressureGradient"
+#erf.abl_geo_wind = 0.0 0.0 0.0  # {u_geo, v_geo, w_geo} for "GeostrophicWind"
+
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.rhoe_0 = 1.0
