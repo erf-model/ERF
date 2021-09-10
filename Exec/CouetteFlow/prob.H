@@ -66,9 +66,15 @@ erf_init_xvel(
 {
   // Note that this is called on a box of x-faces
 
+  // Geometry
+  const amrex::Real* prob_lo = geomdata.ProbLo();
+  const amrex::Real* prob_hi = geomdata.ProbHi();
+  const int Ny = prob_hi[1] - prob_lo[1] + 1;
+  const amrex::Real y_h = (j + 0.5) / Ny;
+
   // Set the x-velocity
-  //TODO: Read it through input into ProbParm:: suitable_variable
-  x_vel(i, j, k) = 1.0;
+  x_vel(i, j, k) = 0.0;
+//x_vel(i, j, k) = Utop * y_h; // steady-state solution
 }
 
 AMREX_GPU_DEVICE
@@ -84,7 +90,6 @@ erf_init_yvel(
   // Note that this is called on a box of y-faces
 
   // Set the y-velocity
-  //TODO: Read it through input into ProbParm:: suitable_variable
   y_vel(i, j, k) = 0.0;
 }
 
@@ -101,7 +106,6 @@ erf_init_zvel(
   // Note that this is called on a box of z-faces
 
   // Set the z-velocity
-  //TODO: Read it through input into ProbParm:: suitable_variable
   z_vel(i, j, k) = 0.0;
 }
 
