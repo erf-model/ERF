@@ -74,6 +74,7 @@ endfunction(add_test_u)
 #=============================================================================
 add_test_r(IsentropicVortexStationary "IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(IsentropicVortexAdvecting "IsentropicVortex/erf_isentropic_vortex" "plt00010")
+add_test_r(CouetteFlow "CouetteFlow/erf_couette_flow" "plt00200")
 
 #=============================================================================
 # Performance tests
