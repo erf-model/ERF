@@ -11,8 +11,7 @@ set(FCOMPARE_GOLD_FILES_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ERF-WindGoldFiles)
 macro(setup_test)
     set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${TEST_NAME})
     set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
-    set(PLOT_GOLD ${FCOMPARE_GOLD_FILES_DIRECTORY}/${TEST_NAME}/plt00010)
-    set(PLOT_TEST ${CURRENT_TEST_BINARY_DIR}/plt00010)
+    set(PLOT_GOLD ${FCOMPARE_GOLD_FILES_DIRECTORY}/${TEST_NAME})
 
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
     file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
@@ -33,13 +32,13 @@ macro(setup_test)
 endmacro(setup_test)
 
 # Standard regression test
-function(add_test_r TEST_NAME TEST_EXE)
+function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     setup_test()
 
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
     set(FCOMPARE_TOLERANCE "-r 1e-10 --abs_tol 1.0e-12")
     set(FCOMPARE_FLAGS "-a ${FCOMPARE_TOLERANCE}")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${PLOT_TEST}")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
@@ -73,8 +72,8 @@ endfunction(add_test_u)
 #=============================================================================
 # Regression tests
 #=============================================================================
-add_test_r(IsentropicVortexStationary "IsentropicVortex/erf_isentropic_vortex" )
-add_test_r(IsentropicVortexAdvecting "IsentropicVortex/erf_isentropic_vortex" )
+add_test_r(IsentropicVortexStationary "IsentropicVortex/erf_isentropic_vortex" "plt00010")
+add_test_r(IsentropicVortexAdvecting "IsentropicVortex/erf_isentropic_vortex" "plt00010")
 
 #=============================================================================
 # Performance tests

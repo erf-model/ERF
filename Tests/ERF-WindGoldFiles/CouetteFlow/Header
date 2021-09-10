@@ -1,0 +1,23 @@
+HyperCLaw-V1.1
+4
+density
+x_velocity
+y_velocity
+z_velocity
+3
+20
+0
+0 0 0 
+32 16 4 
+
+((0,0,0) (31,15,3) (0,0,0)) 
+200 
+1 1 1 
+0
+0
+0 1 20
+200
+0 32
+0 16
+0 4
+Level_0/Cell
