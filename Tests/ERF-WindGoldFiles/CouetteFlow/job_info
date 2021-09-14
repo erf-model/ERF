@@ -1,0 +1,110 @@
+===============================================================================
+ ERF Job Information
+===============================================================================
+job name: 
+
+inputs file: inputs_ex
+
+number of MPI processes: 1
+
+CPU time used since start of simulation (CPU-hours): 0.000307302
+
+===============================================================================
+ Plotfile Information
+===============================================================================
+output data / time: Thu Sep  9 19:45:29 2021
+output dir:         /lustre/eaglefs/scratch/equon/erf/CouetteFlow
+
+
+===============================================================================
+ Build Information
+===============================================================================
+build date:    Sep  9 2021 13:47:37
+build machine: Linux ed3 3.10.0-1062.9.1.el7.x86_64 #1 SMP Fri Dec 6 15:49:49 UTC 2019 x86_64
+build dir:     /lustre/eaglefs/projects/erf/ERF/MyBuild_with_testing/Exec/CouetteFlow
+AMReX dir:     /lustre/eaglefs/projects/erf/ERF/Submodules/AMReX
+
+COMP:          GNU
+COMP version:  8.4.0
+FCOMP:         GNU
+FCOMP version: 8.4.0
+
+
+ERF       git hash: 5b90a21f477f-dirty
+AMReX       git hash: 21.03-61-gf9216a341e51
+
+
+===============================================================================
+ Grid Information
+===============================================================================
+ level: 0
+   number of boxes = 1
+   maximum zones   = 32 16 4 
+
+ Boundary conditions
+   -x: Interior
+   +x: Interior
+   -y: NoSlipWall
+   +y: Dirichlet
+   -z: Interior
+   +z: Interior
+
+
+===============================================================================
+ Species Information
+===============================================================================
+ index                         name              A              Z
+--------------------------------------------------------------------------------
+
+
+===============================================================================
+ Inputs File Parameters
+===============================================================================
+stop_time = 1280.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.is_periodic = 1 0 1
+geometry.coord_sys = 0
+geometry.prob_lo = 0 0 0
+geometry.prob_hi = 32 16 4
+amr.n_cell = 32 16 4
+erf.lo_bc = Interior NoSlipWall Interior
+erf.hi_bc = Interior Dirichlet Interior
+yhi.velocity = 2.0 0.0 0.0
+erf.do_hydro(nvals = 1)  :: [1]
+erf.fixed_dt = 0.1
+erf.init_shrink = 1.0
+erf.change_max = 1.05
+erf.dt_cutoff = 5.e-20
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+amr.data_log = datlog
+amr.max_level = 0
+amr.ref_ratio(nvals = 4)  :: [2, 2, 2, 2]
+amr.regrid_int(nvals = 4)  :: [2, 2, 2, 2]
+amr.blocking_factor = 4
+amr.max_grid_size = 64
+amr.n_error_buf = 2 2 2 2
+amr.checkpoint_files_output = 0
+amr.check_file = chk
+amr.check_int = 1000
+amr.plot_files_output = 1
+amr.plot_file = plt
+amr.plot_int = 100
+amr.plot_vars = density
+amr.derive_plot_vars = x_velocity y_velocity z_velocity
+erf.use_state_advection = true
+erf.use_momentum_advection = true
+erf.use_thermal_diffusion = false
+erf.alpha_T = 0.0
+erf.use_scalar_diffusion = false
+erf.alpha_S = 1.0
+erf.use_momentum_diffusion = true
+erf.dynamicViscosity = 0.1
+erf.use_smagorinsky = false
+erf.use_pressure = false
+erf.use_gravity = false
+erf.spatial_order = 2
+prob.rho_0 = 1.0
+prob.T_0 = 300.0

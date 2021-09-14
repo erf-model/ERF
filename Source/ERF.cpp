@@ -56,6 +56,12 @@ ERF::variableCleanUp()
   clear_prob();
 }
 
+amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
+
+template<int IDIR, math_bcs::BCBound Bound> std::string getBCName() {
+    return BCNames[IDIR + 3*Bound];
+}
+
 template<int DIM, math_bcs::BCBound Bound>
 void
 ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
@@ -68,6 +74,15 @@ ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
     *bc_rec = new phys_bcs::BCDummy();
   } else if (!bc_char.compare("Symmetry")) {
     *bc_rec = new phys_bcs::BCDummy();
+  } else if (!bc_char.compare("Dirichlet")) {
+    amrex::ParmParse bcinp(getBCName<DIM, Bound>());
+    amrex::Vector<amrex::Real> uvec;
+    bcinp.getarr("velocity", uvec, 0, AMREX_SPACEDIM);
+    amrex::Print() << "Dirichlet selected for DIM=" << DIM
+        << " lower/upper=" << Bound
+        << " fixedvalue=" << uvec[0] << " " << uvec[1] << " " << uvec[2]
+        << std::endl;
+    *bc_rec = new phys_bcs::BCDirichlet<DIM, Bound>(uvec);
   } else if (!bc_char.compare("SlipWall")) {
     *bc_rec = new phys_bcs::BCSlipWall<DIM, Bound>();
   } else if (!bc_char.compare("NoSlipWall")) {
@@ -76,7 +91,7 @@ ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
     *bc_rec = new phys_bcs::BCSimSlipWall<DIM, Bound>();
   } else {
     amrex::Abort("Wrong boundary condition word, please use: "
-                 "Interior, SimSlipWall, Symmetry, SlipWall, NoSlipWall");
+                 "Interior, Dirichlet, SimSlipWall, Symmetry, SlipWall, NoSlipWall");
   }
 }
 

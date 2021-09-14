@@ -20,6 +20,7 @@
 #include "BC/BCBase.H"
 #include "BC/BCDummy.H"
 #include "BC/BCInterior.H"
+#include "BC/BCDirichlet.H"
 #include "BC/BCSlipWall.H"
 #include "BC/BCNoSlipWall.H"
 #include "BC/BCSimSlipWall.H"
