@@ -1,0 +1,111 @@
+===============================================================================
+ ERF Job Information
+===============================================================================
+job name: 
+
+inputs file: ../../Tests/test_files/TaylorGreenAdvectingDiffusing/TaylorGreenAdvectingDiffusing.i
+
+number of MPI processes: 1
+
+CPU time used since start of simulation (CPU-hours): 4.34836e-05
+
+===============================================================================
+ Plotfile Information
+===============================================================================
+output data / time: Tue Sep 21 05:51:38 2021
+output dir:         /home/pkjha/LLNL_Codes/ERF/Build/Exec/TaylorGreenVortex
+
+
+===============================================================================
+ Build Information
+===============================================================================
+build date:    Sep 21 2021 05:51:20
+build machine: Linux pkjha-XPS-13-9380 4.15.0-154-generic #161-Ubuntu SMP Fri Jul 30 13:04:17 UTC 2021 x86_64
+build dir:     /home/pkjha/LLNL_Codes/ERF/Build/Exec/TaylorGreenVortex
+AMReX dir:     /home/pkjha/LLNL_Codes/ERF/Submodules/AMReX
+
+COMP:          GNU
+COMP version:  7.5.0
+FCOMP:         GNU
+FCOMP version: 7.5.0
+
+
+ERF       git hash: 46d880820793-dirty
+AMReX       git hash: 21.03-61-gf9216a341e51-dirty
+
+
+===============================================================================
+ Grid Information
+===============================================================================
+ level: 0
+   number of boxes = 1
+   maximum zones   = 16 16 16 
+
+ Boundary conditions
+   -x: Interior
+   +x: Interior
+   -y: Interior
+   +y: Interior
+   -z: Interior
+   +z: Interior
+
+
+===============================================================================
+ Species Information
+===============================================================================
+ index                         name              A              Z
+--------------------------------------------------------------------------------
+
+
+===============================================================================
+ Inputs File Parameters
+===============================================================================
+max_step = 10
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.is_periodic = 1 1 1
+geometry.coord_sys = 0
+geometry.prob_lo = 0 0 0
+geometry.prob_hi = 6.283185307179586476925 6.283185307179586476925 6.283185307179586476925
+amr.n_cell = 16 16 16
+erf.lo_bc = Interior Interior Interior
+erf.hi_bc = Interior Interior Interior
+erf.do_hydro(nvals = 1)  :: [1]
+erf.fixed_dt = 1e-2
+erf.init_shrink = 1.0
+erf.change_max = 1.05
+erf.dt_cutoff = 5.e-20
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+amr.data_log = datlog
+amr.max_level = 0
+amr.ref_ratio(nvals = 4)  :: [2, 2, 2, 2]
+amr.regrid_int(nvals = 4)  :: [2, 2, 2, 2]
+amr.blocking_factor = 4
+amr.max_grid_size = 64
+amr.n_error_buf = 2 2 2 2
+amr.checkpoint_files_output = 0
+amr.check_file = chk
+amr.check_int = 100
+amr.plot_files_output = 1
+amr.plot_file = plt
+amr.plot_int = 10
+amr.plot_vars = density
+amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
+erf.use_state_advection = true
+erf.use_momentum_advection = true
+erf.use_thermal_diffusion = false
+erf.alpha_T = 1.0
+erf.use_scalar_diffusion = false
+erf.alpha_S = 2.0
+erf.use_momentum_diffusion = true
+erf.dynamicViscosity = 6.25e-4
+erf.use_smagorinsky = false
+erf.use_pressure = true
+erf.use_gravity = false
+erf.spatial_order = 2
+prob.rho_0 = 1.0
+prob.rhoe_0(nvals = 1)  :: [1.0]
+prob.A_0(nvals = 1)  :: [1.0]
+prob.V_0 = 1.0

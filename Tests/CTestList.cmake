@@ -38,6 +38,7 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
     set(FCOMPARE_TOLERANCE "-r 1e-10 --abs_tol 1.0e-12")
     set(FCOMPARE_FLAGS "-a ${FCOMPARE_TOLERANCE}")
+    # TODO: Check if we need MPI_COMMANDS for running FCOMPARE_EXE
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 
     add_test(${TEST_NAME} ${test_command})
@@ -75,6 +76,8 @@ endfunction(add_test_u)
 add_test_r(IsentropicVortexStationary "IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(IsentropicVortexAdvecting "IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(CouetteFlow "CouetteFlow/erf_couette_flow" "plt00200")
+add_test_r(TaylorGreenAdvecting "TaylorGreenVortex/taylor_green" "plt00010")
+add_test_r(TaylorGreenAdvectingDiffusing "TaylorGreenVortex/taylor_green" "plt00010")
 
 #=============================================================================
 # Performance tests

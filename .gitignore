@@ -27,4 +27,6 @@ extern_parameters.cpp
 extern_parameters_F.H
 cmake-build*
 cmake_build*
+cmake*ser*
+cmake*par*
 .idea
