@@ -61,8 +61,8 @@ jobs:
     - name: Configure CMake
       run: |
         cmake \
-          -B${{runner.workspace}}/build-${{matrix.os}} \
-          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/install \
+          -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
           -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
@@ -77,16 +77,16 @@ jobs:
 
     - name: Build
       run: |
-        cmake --build ${{runner.workspace}}/build-${{matrix.os}} --target erf_isentropic_vortex --parallel ${{env.NPROCS}};
+        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --target erf_isentropic_vortex --parallel ${{env.NPROCS}};
+        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --target fcompare --parallel ${{env.NPROCS}};
 
     - name: Regression Tests
       run: |
         ctest -R IsentropicVortexStationary -VV
-      working-directory:
-        ${{runner.workspace}}/build-${{matrix.os}}
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Generate coverage report
-      working-directory: ${{runner.workspace}}/build-${{matrix.os}}
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
       run: |
         find . -type f -name '*.gcno' -not -path "**Tests**" -exec gcov -pb {} +
         cd ..
@@ -102,7 +102,7 @@ jobs:
         # name: codecov-umbrella # optional
         fail_ci_if_error: true # optional (default = false)
         verbose: true # optional (default = false)
-        directory: ${{runner.workspace}}
+        directory: ${{runner.workspace}}/ERF
 
     - name: Success artifacts
       uses: actions/upload-artifact@v2
@@ -110,10 +110,10 @@ jobs:
       with:
         name: regression-tests-debug
         path: |
-          ${{runner.workspace}}/regressioncov.xml
+          ${{runner.workspace}}/ERF/regressioncov.xml
     - name: Debug Fail
       if: failure()
-      working-directory: ${{runner.workspace}}/build-${{matrix.os}}
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
       run: |
         echo "** pwd **"
         pwd
@@ -130,4 +130,4 @@ jobs:
       with:
         name: regression-tests-debug
         path: |
-          ${{runner.workspace}}/regressioncov.xml
+          ${{runner.workspace}}/ERF/regressioncov.xml
