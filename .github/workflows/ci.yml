@@ -77,11 +77,11 @@ jobs:
 
     - name: Build
       run: |
-        cmake --build ${{runner.workspace}}/build-${{matrix.os}} --parallel ${{env.NPROCS}};
+        cmake --build ${{runner.workspace}}/build-${{matrix.os}} --target erf_isentropic_vortex --parallel ${{env.NPROCS}};
 
     - name: Regression Tests
       run: |
-        ctest -L regression -VV
+        ctest -R IsentropicVortexStationary -VV
       working-directory:
         ${{runner.workspace}}/build-${{matrix.os}}
 
