@@ -94,7 +94,7 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
       with:
-        dry_run: true
+        dry_run: false
         # token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
         files: ./regressioncov.xml # optional
         flags: regtests # optional
