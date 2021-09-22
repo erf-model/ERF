@@ -5,6 +5,7 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_Random.H>
 
 #include "IndexDefines.H"
 #include "Constants.H"
@@ -67,7 +68,8 @@ erf_init_xvel(
   // Note that this is called on a box of x-faces
 
   // Set the x-velocity
-  amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
+  //amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
+  amrex::Real rand_double = amrex::Random(); // Between 0.0 and 1.0
   amrex::Real x_vel_prime = (rand_double*2.0 - 1.0)*ProbParm::U0_Pert_Mag;
 //  if (i < 2 && j < 2 && k <2)
 //      amrex::Print() << "random number in erf_init_xvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
@@ -88,7 +90,8 @@ erf_init_yvel(
   // Note that this is called on a box of y-faces
 
   // Set the y-velocity
-  amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
+  //amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
+  amrex::Real rand_double = amrex::Random(); // Between 0.0 and 1.0
   amrex::Real y_vel_prime = (rand_double*2.0 - 1.0)*ProbParm::V0_Pert_Mag;
 //  if (i < 2 && j < 2 && k <2)
 //      amrex::Print() << "random number in erf_init_yvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
@@ -109,7 +112,8 @@ erf_init_zvel(
   // Note that this is called on a box of z-faces
 
   // Set the z-velocity
-  amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
+  //amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
+  amrex::Real rand_double = amrex::Random(); // Between 0.0 and 1.0
   amrex::Real z_vel_prime = (rand_double*2.0 - 1.0)*ProbParm::W0_Pert_Mag;
 //  if (i < 2 && j < 2 && k <2)
 //      amrex::Print() << "random number in erf_init_zvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
