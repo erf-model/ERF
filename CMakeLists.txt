@@ -94,6 +94,20 @@ if(ERF_ENABLE_TESTS)
   add_subdirectory(Tests)
 endif()
 
+# Configure measuring code coverage in tests
+if(CODECOV)
+  # Only supports GNU
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES GNU)
+    message(WARNING "CODECOV is only support with GNU Compilers. The current C++ compiler is ${CMAKE_CXX_COMPILER_ID}")
+  endif()
+  if(NOT CMAKE_C_COMPILER_ID MATCHES GNU)
+    message(WARNING "CODECOV is only support with GNU Compilers. The current C compiler is ${CMAKE_C_COMPILER_ID}")
+  endif()
+
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
+endif()
+
 if(ERF_ENABLE_DOCUMENTATION)
    add_subdirectory(Docs)
 endif()

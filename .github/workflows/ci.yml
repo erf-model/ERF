@@ -17,7 +17,7 @@ jobs:
         os: [ubuntu-latest]
         include:
         - os: ubuntu-latest
-          install_deps: sudo apt-get install mpich libmpich-dev
+          install_deps: sudo apt-get install mpich libmpich-dev gcovr
           comp: gnu
           procs: $(nproc)
 
@@ -63,7 +63,7 @@ jobs:
         cmake \
           -B${{runner.workspace}}/build-${{matrix.os}} \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/install \
-          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_TESTS:BOOL=ON \
@@ -71,6 +71,7 @@ jobs:
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_AMREX_EB:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          -DCODECOV:BOOL=ON \
           ${{github.workspace}};
         # ${{matrix.mpipreflags}} \
 
@@ -83,3 +84,50 @@ jobs:
         ctest -L regression -VV
       working-directory:
         ${{runner.workspace}}/build-${{matrix.os}}
+
+    - name: Generate coverage report
+      working-directory: ${{runner.workspace}}/build-${{matrix.os}}
+      run: |
+        find . -type f -name '*.gcno' -not -path "**Tests**" -exec gcov -pb {} +
+        cd ..
+        gcovr -g -k -r . --xml regressioncov.xml  # --html --html-details -o regressioncov.html # -v
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
+      with:
+        dry_run: true
+        # token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+        files: ./regressioncov.xml # optional
+        flags: regtests # optional
+        # name: codecov-umbrella # optional
+        fail_ci_if_error: true # optional (default = false)
+        verbose: true # optional (default = false)
+        directory: ${{runner.workspace}}
+
+    - name: Success artifacts
+      uses: actions/upload-artifact@v2
+      if: success()
+      with:
+        name: regression-tests-debug
+        path: |
+          ${{runner.workspace}}/regressioncov.xml
+    - name: Debug Fail
+      if: failure()
+      working-directory: ${{runner.workspace}}/build-${{matrix.os}}
+      run: |
+        echo "** pwd **"
+        pwd
+        echo "** ls cwd **"
+        ls
+        echo "** echo ${{runner.workspace}} **"
+        echo ${{runner.workspace}}
+        echo "** ls ${{runner.workspace}} **"
+        ls ${{runner.workspace}}
+
+    - name: Failing test artifacts
+      uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: regression-tests-debug
+        path: |
+          ${{runner.workspace}}/regressioncov.xml
