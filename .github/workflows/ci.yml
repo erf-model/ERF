@@ -77,12 +77,11 @@ jobs:
 
     - name: Build
       run: |
-        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --target erf_isentropic_vortex --parallel ${{env.NPROCS}};
-        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --target fcompare --parallel ${{env.NPROCS}};
+        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}};
 
     - name: Regression Tests
       run: |
-        ctest -R IsentropicVortexStationary -VV
+        ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Generate coverage report
@@ -108,26 +107,13 @@ jobs:
       uses: actions/upload-artifact@v2
       if: success()
       with:
-        name: regression-tests-debug
+        name: build-and-test
         path: |
           ${{runner.workspace}}/ERF/regressioncov.xml
-    - name: Debug Fail
-      if: failure()
-      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
-      run: |
-        echo "** pwd **"
-        pwd
-        echo "** ls cwd **"
-        ls
-        echo "** echo ${{runner.workspace}} **"
-        echo ${{runner.workspace}}
-        echo "** ls ${{runner.workspace}} **"
-        ls ${{runner.workspace}}
-
     - name: Failing test artifacts
       uses: actions/upload-artifact@v2
       if: failure()
       with:
-        name: regression-tests-debug
+        name: build-and-test
         path: |
           ${{runner.workspace}}/ERF/regressioncov.xml
