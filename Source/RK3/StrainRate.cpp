@@ -3,17 +3,17 @@
 
 using namespace amrex;
 
+AMREX_GPU_DEVICE
 Real
 ComputeStrainRate(const int &i, const int &j, const int &k,
                   const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                   const enum NextOrPrev &nextOrPrev,
                   const enum MomentumEqn &momentumEqn,
                   const enum DiffusionDir &diffDir,
-                  const Geometry &geom) {
-  //auto cellSize = geom.CellSize();
-  Real dx = geom.CellSize()[0];
-  Real dy = geom.CellSize()[1];
-  Real dz = geom.CellSize()[2];
+                  const GpuArray<Real, AMREX_SPACEDIM>& cellSize) {
+  Real dx = cellSize[0];
+  Real dy = cellSize[1];
+  Real dz = cellSize[2];
 
   Real strainRate = 0;
 

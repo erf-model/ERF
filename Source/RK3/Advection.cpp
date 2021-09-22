@@ -3,6 +3,7 @@
 
 using namespace amrex;
 
+AMREX_GPU_DEVICE
 Real
 ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
                               const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
@@ -137,15 +138,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
   return advectingQty * advectedQty;
 }
 
+AMREX_GPU_DEVICE
 Real
 AdvectionContributionForMom(const int &i, const int &j, const int &k,
                             const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                             const enum MomentumEqn &momentumEqn,
-                            const amrex::Geometry &geom,
+                            const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                             const SolverChoice &solverChoice) {
 
-    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
     Real advectionContribution = 0.0;
 
@@ -196,6 +197,7 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
     return advectionContribution;
 }
 
+AMREX_GPU_DEVICE
 Real
 ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                                 const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
@@ -301,14 +303,14 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
   return advectingQty * advectedQty;
 }
 
+AMREX_GPU_DEVICE
 Real
 AdvectionContributionForState(const int &i, const int &j, const int &k,
                               const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                               const Array4<Real>& cell_data, const int &qty_index,
-                              const amrex::Geometry &geom,
+                              const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                               const int &spatial_order) {
 
-    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
     Real xFaceFluxNext = 0.0, xFaceFluxPrev = 0.0, yFaceFluxNext = 0.0, yFaceFluxPrev = 0.0, zFaceFluxNext = 0.0, zFaceFluxPrev = 0.0;
     Real advectionContribution = 0.0;

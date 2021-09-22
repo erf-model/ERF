@@ -4,12 +4,13 @@
 using namespace amrex;
 
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
+AMREX_GPU_DEVICE
 Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                         const enum NextOrPrev &nextOrPrev,
                         const enum MomentumEqn &momentumEqn,
                         const enum DiffusionDir &diffDir,
-                        const Geometry &geom,
+                        const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                         const Array4<Real>& nut,
                         const SolverChoice &solverChoice) {
     Real stressTerm = 0.0;
@@ -17,7 +18,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
 
     // Here, we have computed strain rate on the fly.
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
-    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom);
+    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
     // TODO: Consider passing turbModel to this function instead of computing it here from SolverChoice
     enum TurbulenceModel turbModel;
@@ -33,7 +34,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
             stressTerm = 2.0 * solverChoice.dynamicViscosity * strainRate; // 2*mu*Sij(m+1/2) or 2*mu*Sij(m-1/2)
             break;
         case TurbulenceModel::Smagorinsky:
-            turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, geom, nut);
+            turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize, nut);
             stressTerm = turbViscInterpolated * strainRate; // // K_interp*Sij(m+1/2) or K_interp*Sij(m-1/2)
             break;
         default:
@@ -43,27 +44,27 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     return stressTerm;
 }
 
+AMREX_GPU_DEVICE
 Real
 DiffusionContributionForMom(const int &i, const int &j, const int &k,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                             const enum MomentumEqn &momentumEqn,
-                            const amrex::Geometry &geom,
+                            const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                             const Array4<Real>& nut,
                             const SolverChoice &solverChoice) {
 
-    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
     Real diffusionContribution = 0.0;
 
     switch (momentumEqn) {
         case MomentumEqn::x:
             Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
-            tau11Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn,DiffusionDir::x, geom, nut, solverChoice);
-            tau11Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn,DiffusionDir::x, geom, nut, solverChoice);
-            tau12Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn,DiffusionDir::y, geom, nut, solverChoice);
-            tau12Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn,DiffusionDir::y, geom, nut, solverChoice);
-            tau13Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn,DiffusionDir::z, geom, nut, solverChoice);
-            tau13Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn,DiffusionDir::z, geom, nut, solverChoice);
+            tau11Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn,DiffusionDir::x, cellSize, nut, solverChoice);
+            tau11Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn,DiffusionDir::x, cellSize, nut, solverChoice);
+            tau12Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn,DiffusionDir::y, cellSize, nut, solverChoice);
+            tau12Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn,DiffusionDir::y, cellSize, nut, solverChoice);
+            tau13Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn,DiffusionDir::z, cellSize, nut, solverChoice);
+            tau13Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn,DiffusionDir::z, cellSize, nut, solverChoice);
 
             diffusionContribution = (tau11Next - tau11Prev) / dx  // Contribution to x-mom eqn from diffusive flux in x-dir
                                   + (tau12Next - tau12Prev) / dy  // Contribution to x-mom eqn from diffusive flux in y-dir
@@ -71,12 +72,12 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
             break;
         case MomentumEqn::y:
             Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
-            tau21Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, geom, nut, solverChoice);
-            tau21Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, geom, nut, solverChoice);
-            tau22Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, geom, nut, solverChoice);
-            tau22Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, geom, nut, solverChoice);
-            tau23Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, geom, nut, solverChoice);
-            tau23Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, geom, nut, solverChoice);
+            tau21Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
+            tau21Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
+            tau22Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
+            tau22Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
+            tau23Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
+            tau23Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
 
             diffusionContribution = (tau21Next - tau21Prev) / dx  // Contribution to y-mom eqn from diffusive flux in x-dir
                                   + (tau22Next - tau22Prev) / dy  // Contribution to y-mom eqn from diffusive flux in y-dir
@@ -84,12 +85,12 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
             break;
         case MomentumEqn::z:
             Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev;
-            tau31Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, geom, nut, solverChoice);
-            tau31Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, geom, nut, solverChoice);
-            tau32Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, geom, nut, solverChoice);
-            tau32Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, geom, nut, solverChoice);
-            tau33Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, geom, nut, solverChoice);
-            tau33Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, geom, nut, solverChoice);
+            tau31Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
+            tau31Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
+            tau32Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
+            tau32Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
+            tau33Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
+            tau33Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
 
             diffusionContribution = (tau31Next - tau31Prev) / dx  // Contribution to z-mom eqn from diffusive flux in x-dir
                                   + (tau32Next - tau32Prev) / dy  // Contribution to z-mom eqn from diffusive flux in y-dir
@@ -102,6 +103,7 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
     return diffusionContribution;
 }
 
+AMREX_GPU_DEVICE
 Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
                                   const Array4<Real>& cell_data, const int & qty_index,
                                   const enum Coord& coordDir) {
@@ -124,13 +126,13 @@ Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
     return diffusionTerm;
 }
 
+AMREX_GPU_DEVICE
 Real
 DiffusionContributionForState(const int &i, const int &j, const int &k,
                               const Array4<Real>& cell_data, const int & qty_index,
-                              const amrex::Geometry &geom,
+                              const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                               const SolverChoice &solverChoice) {
 
-    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
     Real xDiffFlux = 0.0, yDiffFlux = 0.0, zDiffFlux = 0.0, diffCoeff = 0.0;
 

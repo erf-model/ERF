@@ -3,6 +3,10 @@
 
 struct SolverChoice {
 public:
+    enum class abl_driver {
+      None, PressureGradient, GeostrophicWind
+    };
+
     //SolverChoice() {}; //Default
     SolverChoice(const bool use_state_advection_in, const bool use_momentum_advection_in,
                  bool  use_thermal_diffusion_in, const amrex::Real alpha_T_in,
@@ -19,8 +23,12 @@ public:
             use_momentum_diffusion(use_momentum_diffusion_in), dynamicViscosity(dynamicViscosity_in),
             use_smagorinsky(use_smagorinsky_in), Cs(Cs_in),
             use_pressure(use_pressure_in), use_gravity(use_gravity_in), spatial_order(spatial_order_in),
-            abl_driver_type(abl_driver_type_in), abl_pressure_grad(abl_pressure_grad_in),
-            abl_geo_wind(abl_geo_wind_in){
+            abl_driver_type((!abl_driver_type_in.compare("PressureGradient")) ? abl_driver::PressureGradient 
+                     : (!abl_driver_type_in.compare("GeostrophicWind"))  ? abl_driver::GeostrophicWind 
+                     : abl_driver::None),
+
+            abl_pressure_grad(get_gpu_array(abl_pressure_grad_in)),
+            abl_geo_wind(get_gpu_array(abl_geo_wind_in)){
         // All members are constant and are initialized at construction
     }
     void display() {
@@ -38,22 +46,25 @@ public:
         amrex::Print() << "use_pressure: " << use_pressure << std::endl;
         amrex::Print() << "use_gravity: " << use_gravity << std::endl;
         amrex::Print() << "spatial_order: " << spatial_order << std::endl;
-        amrex::Print() << "abl_driver_type: " << abl_driver_type << std::endl;
-        if (!abl_driver_type.compare("None"))
+        if (abl_driver_type == abl_driver::None)
+            amrex::Print() << "abl_driver_type: " << "None" << std::endl;
             amrex::Print() << "No ABL driver selected " << std::endl;
-        if (!abl_driver_type.compare("PressureGradient")) {
+        if (abl_driver_type == abl_driver::PressureGradient) {
+            amrex::Print() << "abl_driver_type: " << "PressureGradient" << std::endl;
             amrex::Print() << "Driving abl_pressure_grad: (";
-            for (auto &x: abl_pressure_grad)
-                amrex::Print() << x << " ";
+            for (int i = 0; i < AMREX_SPACEDIM; ++i)
+                amrex::Print() << abl_pressure_grad[i] << " ";
             amrex::Print() << ")" << std::endl;
         }
-        if (!abl_driver_type.compare("GeostrophicWind")) {
+        if (abl_driver_type == abl_driver::GeostrophicWind) {
+            amrex::Print() << "abl_driver_type: " << "GeostrophicWind" << std::endl;
             amrex::Print() << "Driving abl_geo_wind: (";
-            for (auto &x: abl_geo_wind)
-                amrex::Print() << x << " ";
+            for (int i = 0; i < AMREX_SPACEDIM; ++i)
+                amrex::Print() << abl_geo_wind[i] << " ";
             amrex::Print() << ")" << std::endl;
         }
     }
+
     // Members
     const bool        use_state_advection;
     const bool        use_momentum_advection;
@@ -68,9 +79,17 @@ public:
     const bool        use_pressure;
     const bool        use_gravity;
     const int         spatial_order;
-    const std::string abl_driver_type;
-    const std::vector<amrex::Real> abl_pressure_grad;
-    const std::vector<amrex::Real> abl_geo_wind;
+    const abl_driver  abl_driver_type;
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_wind;
+
+private:
+    amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> get_gpu_array(const std::vector<amrex::Real> & vec) {
+      amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> arr {0.0, 0.0, 0.0};
+      for(int i = 0; i < AMREX_SPACEDIM; ++i) arr[i] = vec[i];
+      return arr;
+    }
+
 };
 
 enum class Coord {

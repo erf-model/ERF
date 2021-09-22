@@ -28,7 +28,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 {
     BL_PROFILE_VAR("RK3_stage()",RK3_stage);
 
-    const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray(); // TODO: Remove this once all the flux computations are modularized
+    const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
 
     // ************************************************************************************
     // Fill the ghost cells/faces of the MultiFabs we will need
@@ -80,7 +80,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     MultiFab eddyViscosity(cons_old.boxArray(),cons_old.DistributionMap(),1,1);
     if (solverChoice.use_smagorinsky)
-        ComputeTurbulentViscosity(xvel, yvel, zvel, cons_old, eddyViscosity, geom, solverChoice);
+        ComputeTurbulentViscosity(xvel, yvel, zvel, cons_old, eddyViscosity, dx, solverChoice);
 
     // **************************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
@@ -150,13 +150,13 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add advection terms.
             if (solverChoice.use_state_advection)
-                cell_data_upd(i, j, k, n) += (-dt) * AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, n, geom, solverChoice.spatial_order);
+                cell_data_upd(i, j, k, n) += (-dt) * AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data_old, n, dx, solverChoice.spatial_order);
 
             // Add diffusive terms.
             if (solverChoice.use_thermal_diffusion && n == RhoTheta_comp)
-                cell_data_upd(i, j, k, n) += dt * DiffusionContributionForState(i, j, k,cell_data_old, RhoTheta_comp, geom, solverChoice);
+                cell_data_upd(i, j, k, n) += dt * DiffusionContributionForState(i, j, k,cell_data_old, RhoTheta_comp, dx, solverChoice);
             if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
-                cell_data_upd(i, j, k, n) += dt * DiffusionContributionForState(i, j, k,cell_data_old, RhoScalar_comp, geom, solverChoice);
+                cell_data_upd(i, j, k, n) += dt * DiffusionContributionForState(i, j, k,cell_data_old, RhoScalar_comp, dx, solverChoice);
 
             // Add source terms. TODO: Put this under a if condition when we implement source term
             cell_data_upd(i, j, k, n) += dt * source_fab(i, j, k, n);
@@ -166,7 +166,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         // TODO: Fine-tune dealing with kinematic and eddy viscosity
  //       Array4<Real> nut;
 //        if (solverChoice.use_smagorinsky) // Compute nut, otherwise remains whatever it's initialized to
-//            ComputeTurbulentViscosity(u, v, w, geom,nut);
+//            ComputeTurbulentViscosity(u, v, w, dx,nut);
 
         // **************************************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
@@ -183,11 +183,11 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_u_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, geom, solverChoice);
+                rho_u_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dx, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_u_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, geom, nut, solverChoice);
+                rho_u_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dx, nut, solverChoice);
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
@@ -197,7 +197,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_u_upd(i, j, k) += dt * grav_gpu[0] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::x, solverChoice.spatial_order);
 
             // Add driving pressure gradient
-            if (!solverChoice.abl_driver_type.compare("PressureGradient"))
+            if (solverChoice.abl_driver_type == SolverChoice::abl_driver::PressureGradient)
                 rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[0];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
@@ -211,11 +211,11 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_v_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, geom, solverChoice);
+                rho_v_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, dx, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_v_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, geom, nut, solverChoice);
+                rho_v_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dx, nut, solverChoice);
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
@@ -225,7 +225,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_v_upd(i, j, k) += dt * grav_gpu[1] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::y, solverChoice.spatial_order);
 
             // Add driving pressure gradient
-            if (!solverChoice.abl_driver_type.compare("PressureGradient"))
+            if (solverChoice.abl_driver_type == SolverChoice::abl_driver::PressureGradient)
                 rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[1];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
@@ -239,11 +239,11 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_w_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, geom, solverChoice);
+                rho_w_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dx, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_w_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, geom, nut, solverChoice);
+                rho_w_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dx, nut, solverChoice);
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
@@ -253,7 +253,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             rho_w_upd(i, j, k) += dt * grav_gpu[2] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::z, solverChoice.spatial_order);
 
             // Add driving pressure gradient
-            if (!solverChoice.abl_driver_type.compare("PressureGradient"))
+            if (solverChoice.abl_driver_type == SolverChoice::abl_driver::PressureGradient)
                 rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[2];
         });
     }
