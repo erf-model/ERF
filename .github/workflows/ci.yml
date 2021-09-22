@@ -91,7 +91,7 @@ jobs:
     - name: Generate coverage report
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
       run: |
-        find . -type f -name '*.gcno' -not -path "**Tests**" -exec gcov -pb {} +
+        find . -type f -name '*.gcno' -not -ipath "**Tests**" -not -ipath "**build**" -exec gcov -pb {} +
         cd ..
         gcovr -g -k -r . --xml regressioncov.xml  # --html --html-details -o regressioncov.html # -v
 
