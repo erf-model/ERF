@@ -63,7 +63,7 @@ jobs:
         cmake \
           -B${{runner.workspace}}/build-${{matrix.os}} \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/install \
-          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_TESTS:BOOL=ON \
