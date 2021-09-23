@@ -395,15 +395,6 @@ ERF::initData()
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-  #include <cstdlib>
-  #include "ctime"
-
-  // TODO: Deal with seed properly for parallel runs
-  srand(time(0));
-//  std::cout << "random numbers in ERF.cpp: " << std::endl;
-//  for(int i = 0; i<10; i++)
-//      std::cout << rand() << "\t";
-//  std::cout << std::endl;
 
   for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
   {
