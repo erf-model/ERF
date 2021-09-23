@@ -40,6 +40,20 @@ if(NOT ERF_DIM EQUAL 3)
   message(FATAL_ERROR "ERF is only supported in 3D.")
 endif()
 
+# Configure measuring code coverage in tests
+if(CODECOV)
+  # Only supports GNU
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES GNU)
+    message(WARNING "CODECOV is only support with GNU Compilers. The current C++ compiler is ${CMAKE_CXX_COMPILER_ID}")
+  endif()
+  if(NOT CMAKE_C_COMPILER_ID MATCHES GNU)
+    message(WARNING "CODECOV is only support with GNU Compilers. The current C compiler is ${CMAKE_C_COMPILER_ID}")
+  endif()
+
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
+endif()
+
 ########################### AMReX #####################################
 
 set(AMREX_SUBMOD_LOCATION "${CMAKE_SOURCE_DIR}/Submodules/AMReX")

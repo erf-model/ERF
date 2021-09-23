@@ -7,11 +7,13 @@ for massively parallel block-structured applications.
 Test Status
 ~~~~~~~~~~~
 
-=================  =============
-Regression Tests    |regtests|
-=================  =============
+=================  =============  ====================
+Regression Tests    |regtests|     |regtest-coverage|
+=================  =============  ====================
 
 .. |regtests| image:: https://github.com/rafmudaf/ERF/actions/workflows/ci.yml/badge.svg?branch=add_testing
+.. |regtest-coverage| image:: https://codecov.io/gh/rafmudaf/ERF/branch/codecov/graph/badge.svg?token=JLTrZVMPto
+    :target: https://codecov.io/gh/rafmudaf/ERF
 .. |unittests| image:: https://github.com/rafmudaf/ERF/actions/workflows/ci.yml/badge.svg?branch=add_testing
 
 
