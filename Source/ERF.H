@@ -420,7 +420,7 @@ protected:
   static void read_tagging_params();
 
   template<int DIM, math_bcs::BCBound Bound>
-  static void initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec);
+  static void initialize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec);
 
   ERF& getLevel(int lev);
 

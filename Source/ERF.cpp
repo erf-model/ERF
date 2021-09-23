@@ -64,7 +64,7 @@ template<int IDIR, math_bcs::BCBound Bound> std::string getBCName() {
 
 template<int DIM, math_bcs::BCBound Bound>
 void
-ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
+ERF::initialize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
   if (!bc_char.compare("Interior")) {
     *bc_rec = new phys_bcs::BCInterior();
     std::cout << "DIR IS INTERIOR " << DIM << std::endl;
@@ -122,16 +122,16 @@ ERF::read_params()
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     switch (dir) {
       case 0:
-        ERF::initalize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0], &bc_recs[0]);
-        ERF::initalize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0], &bc_recs[1]);
+        ERF::initialize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0], &bc_recs[0]);
+        ERF::initialize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0], &bc_recs[1]);
         break;
       case 1:
-        ERF::initalize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1], &bc_recs[2]);
-        ERF::initalize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1], &bc_recs[3]);
+        ERF::initialize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1], &bc_recs[2]);
+        ERF::initialize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1], &bc_recs[3]);
         break;
       case 2:
-        ERF::initalize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2], &bc_recs[4]);
-        ERF::initalize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2], &bc_recs[5]);
+        ERF::initialize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2], &bc_recs[4]);
+        ERF::initialize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2], &bc_recs[5]);
         break;
     }
   }
