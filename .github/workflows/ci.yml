@@ -67,7 +67,7 @@ jobs:
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
-          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_TESTS:BOOL=ON \
