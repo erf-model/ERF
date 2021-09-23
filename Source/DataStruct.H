@@ -3,7 +3,7 @@
 
 struct SolverChoice {
 public:
-    enum class abl_driver {
+    enum class ABLDriverType {
       None, PressureGradient, GeostrophicWind
     };
 
@@ -23,9 +23,9 @@ public:
             use_momentum_diffusion(use_momentum_diffusion_in), dynamicViscosity(dynamicViscosity_in),
             use_smagorinsky(use_smagorinsky_in), Cs(Cs_in),
             use_pressure(use_pressure_in), use_gravity(use_gravity_in), spatial_order(spatial_order_in),
-            abl_driver_type((!abl_driver_type_in.compare("PressureGradient")) ? abl_driver::PressureGradient 
-                     : (!abl_driver_type_in.compare("GeostrophicWind"))  ? abl_driver::GeostrophicWind 
-                     : abl_driver::None),
+            abl_driver_type((!abl_driver_type_in.compare("PressureGradient")) ? ABLDriverType::PressureGradient
+                     : (!abl_driver_type_in.compare("GeostrophicWind"))  ? ABLDriverType::GeostrophicWind
+                     : ABLDriverType::None),
 
             abl_pressure_grad(get_gpu_array(abl_pressure_grad_in)),
             abl_geo_wind(get_gpu_array(abl_geo_wind_in)){
@@ -46,18 +46,18 @@ public:
         amrex::Print() << "use_pressure: " << use_pressure << std::endl;
         amrex::Print() << "use_gravity: " << use_gravity << std::endl;
         amrex::Print() << "spatial_order: " << spatial_order << std::endl;
-        if (abl_driver_type == abl_driver::None)
+        if (abl_driver_type == ABLDriverType::None)
             amrex::Print() << "abl_driver_type: " << "None" << std::endl;
             amrex::Print() << "No ABL driver selected " << std::endl;
-        if (abl_driver_type == abl_driver::PressureGradient) {
-            amrex::Print() << "abl_driver_type: " << "PressureGradient" << std::endl;
+        if (abl_driver_type == ABLDriverType::PressureGradient) {
+            amrex::Print() << "ABL Driver Type: " << "PressureGradient" << std::endl;
             amrex::Print() << "Driving abl_pressure_grad: (";
             for (int i = 0; i < AMREX_SPACEDIM; ++i)
                 amrex::Print() << abl_pressure_grad[i] << " ";
             amrex::Print() << ")" << std::endl;
         }
-        if (abl_driver_type == abl_driver::GeostrophicWind) {
-            amrex::Print() << "abl_driver_type: " << "GeostrophicWind" << std::endl;
+        if (abl_driver_type == ABLDriverType::GeostrophicWind) {
+            amrex::Print() << "ABL Driver Type: " << "GeostrophicWind" << std::endl;
             amrex::Print() << "Driving abl_geo_wind: (";
             for (int i = 0; i < AMREX_SPACEDIM; ++i)
                 amrex::Print() << abl_geo_wind[i] << " ";
@@ -79,7 +79,7 @@ public:
     const bool        use_pressure;
     const bool        use_gravity;
     const int         spatial_order;
-    const abl_driver  abl_driver_type;
+    const ABLDriverType  abl_driver_type;
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_wind;
 
@@ -124,10 +124,6 @@ enum class MomentumEqn {
 
 enum class TurbulenceModel {
     DNS, Smagorinsky
-};
-
-enum class ABLDriverType {
-    None, GeostrophicWind, PressureGradient
 };
 
 #endif
