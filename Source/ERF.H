@@ -420,7 +420,7 @@ protected:
   static void read_tagging_params();
 
   template<int DIM, math_bcs::BCBound Bound>
-  static void initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec);
+  static std::unique_ptr<phys_bcs::BCBase> initialize_bcs(const std::string& bc_char);
 
   ERF& getLevel(int lev);
 
@@ -450,7 +450,7 @@ protected:
   static bool signalStopJob;
   static bool dump_old;
   static int verbose;
-  static phys_bcs::BCBase* bc_recs[AMREX_SPACEDIM*2];
+  static amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > bc_recs;
 
   /// for keeping track of mass changes from negative density resets
 //  static amrex::Real frac_change;
