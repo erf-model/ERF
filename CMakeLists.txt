@@ -41,6 +41,7 @@ if(NOT ERF_DIM EQUAL 3)
 endif()
 
 # Configure measuring code coverage in tests
+option(CODECOV "Enable code coverage profiling" OFF)
 if(CODECOV)
   # Only supports GNU
   if(NOT CMAKE_CXX_COMPILER_ID MATCHES GNU)

@@ -67,7 +67,7 @@ jobs:
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
-          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_TESTS:BOOL=ON \
@@ -91,9 +91,9 @@ jobs:
     - name: Generate coverage report
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
       run: |
-        find . -type f -name '*.gcno' -not -ipath "**Tests**" -not -ipath "**build**" -exec gcov -pb {} +
+        find . -type f -name '*.gcno' -path "**Source**" -exec gcov -pb {} +
         cd ..
-        gcovr -g -k -r . --xml regressioncov.xml  # --html --html-details -o regressioncov.html # -v
+        gcovr -g -k -r . --xml regressioncov.xml  # -v
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
