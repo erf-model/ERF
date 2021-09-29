@@ -681,7 +681,7 @@ namespace math_bcs {
       //amrex::Print() << "apply_face_based (hi=" << hi << ") "
       //               << bcval << " for BC " << IDIR << std::endl;
 
-      if(b.smallEnd(IDIR) >= hi+1) {
+      if(b.bigEnd(IDIR) >= hi+1) {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {

@@ -28,7 +28,7 @@ using namespace amrex;
 bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
-phys_bcs::BCBase* ERF::bc_recs[AMREX_SPACEDIM*2];
+amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2);
 //amrex::Real ERF::frac_change = 1.e200;
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
@@ -63,17 +63,21 @@ template<int IDIR, math_bcs::BCBound Bound> std::string getBCName() {
 }
 
 template<int DIM, math_bcs::BCBound Bound>
-void
-ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
+std::unique_ptr<phys_bcs::BCBase>
+ERF::initialize_bcs(const std::string& bc_char) {
   if (!bc_char.compare("Interior")) {
-    *bc_rec = new phys_bcs::BCInterior();
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCInterior());
     std::cout << "DIR IS INTERIOR " << DIM << std::endl;
+    return std::move(bc_rec);
   } else if (!bc_char.compare("Hard")) {
-    *bc_rec = new phys_bcs::BCDummy();
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
+    return std::move(bc_rec);
   } else if (!bc_char.compare("FOExtrap")) {
-    *bc_rec = new phys_bcs::BCDummy();
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
+    return std::move(bc_rec);
   } else if (!bc_char.compare("Symmetry")) {
-    *bc_rec = new phys_bcs::BCDummy();
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
+    return std::move(bc_rec);
   } else if (!bc_char.compare("Dirichlet")) {
     amrex::ParmParse bcinp(getBCName<DIM, Bound>());
     amrex::Vector<amrex::Real> uvec;
@@ -82,16 +86,21 @@ ERF::initalize_bcs(const std::string& bc_char, phys_bcs::BCBase** bc_rec) {
         << " lower/upper=" << Bound
         << " fixedvalue=" << uvec[0] << " " << uvec[1] << " " << uvec[2]
         << std::endl;
-    *bc_rec = new phys_bcs::BCDirichlet<DIM, Bound>(uvec);
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDirichlet<DIM, Bound>(uvec));
+    return std::move(bc_rec);
   } else if (!bc_char.compare("SlipWall")) {
-    *bc_rec = new phys_bcs::BCSlipWall<DIM, Bound>();
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
+    return std::move(bc_rec);
   } else if (!bc_char.compare("NoSlipWall")) {
-    *bc_rec = new phys_bcs::BCNoSlipWall<DIM, Bound>();
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCNoSlipWall<DIM, Bound>());
+    return std::move(bc_rec);
   } else if (!bc_char.compare("SimSlipWall")) {
-    *bc_rec = new phys_bcs::BCSimSlipWall<DIM, Bound>();
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSimSlipWall<DIM, Bound>());
+    return std::move(bc_rec);
   } else {
     amrex::Abort("Wrong boundary condition word, please use: "
                  "Interior, Dirichlet, SimSlipWall, Symmetry, SlipWall, NoSlipWall");
+    return NULL;
   }
 }
 
@@ -122,16 +131,16 @@ ERF::read_params()
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     switch (dir) {
       case 0:
-        ERF::initalize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0], &bc_recs[0]);
-        ERF::initalize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0], &bc_recs[1]);
+        bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0]);
+        bc_recs[1] = ERF::initialize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0]);
         break;
       case 1:
-        ERF::initalize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1], &bc_recs[2]);
-        ERF::initalize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1], &bc_recs[3]);
+        bc_recs[2] = ERF::initialize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1]);
+        bc_recs[3] = ERF::initialize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1]);
         break;
       case 2:
-        ERF::initalize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2], &bc_recs[4]);
-        ERF::initalize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2], &bc_recs[5]);
+        bc_recs[4] = ERF::initialize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2]);
+        bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2]);
         break;
     }
   }
