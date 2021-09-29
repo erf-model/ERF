@@ -404,48 +404,7 @@ ERF::initData()
     auto vfab  = V_new.array(mfi);
     auto wfab  = W_new.array(mfi);
     const auto geomdata = geom.data();
-
-    // Construct a box that is on x-faces
-    const amrex::Box& xbx = surroundingNodes(bx,0);
-
-    // Call for all (i,j,k) in the x-face-centered box
-    amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      erf_init_xvel(i, j, k, ufab, geomdata);
-    });
-
-    // Construct a box that is on y-faces
-    const amrex::Box& ybx = surroundingNodes(bx,1);
-
-    // Call for all (i,j,k) in the y-face-centered box
-    amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      erf_init_yvel(i, j, k, vfab, geomdata);
-    });
-
-    // Construct a box that is on z-faces
-    const amrex::Box& zbx = surroundingNodes(bx,2);
-
-    // Call for all (i,j,k) in the z-face-centered box
-    amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      erf_init_zvel(i, j, k, wfab, geomdata);
-    });
-  }
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
-  {
-    const amrex::Box& bx = mfi.tilebox();
-    auto sfab  = S_new.array(mfi);
-    auto ufab  = U_new.array(mfi);
-    auto vfab  = V_new.array(mfi);
-    auto wfab  = W_new.array(mfi);
-    const auto geomdata = geom.data();
-
-    // Call for all (i,j,k) in the cell-centered box
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      erf_initdata(i, j, k, sfab, ufab, vfab, wfab, geomdata);
-    });
+    erf_init_prob(bx, sfab, ufab, vfab, wfab, geomdata);
   }
 
   if (verbose) {

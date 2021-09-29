@@ -14,102 +14,77 @@
 #include "ProblemDerive.H"
 #include "prob_parm.H"
 
-AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-erf_initdata(
-  int i,
-  int j,
-  int k,
+erf_init_prob(
+  const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata)
 {
-  // Geometry
-  const amrex::Real* prob_lo = geomdata.ProbLo();
-  const amrex::Real* prob_hi = geomdata.ProbHi();
-  const amrex::Real* dx = geomdata.CellSize();
-  const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
-  const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
-  const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    // Geometry
+    const amrex::Real* prob_lo = geomdata.ProbLo();
+    const amrex::Real* prob_hi = geomdata.ProbHi();
+    const amrex::Real* dx = geomdata.CellSize();
+    const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
+    const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
+    const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-  // Define a point (xc,yc,zc) at the center of the domain 
-  const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-  const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-  const amrex::Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
+    // Define a point (xc,yc,zc) at the center of the domain 
+    const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
+    const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
+    const amrex::Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
 
-  const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
+    const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
-  // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
-  const amrex::Real r0 = 0.25 * (prob_hi[0] - prob_lo[0]);
+    // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
+    const amrex::Real r0 = 0.25 * (prob_hi[0] - prob_lo[0]);
 
-  // Set the density 
-  state(i, j, k, Rho_comp) = ProbParm::rho_0;
- 
-  // Initial potential temperature
-  state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
+    // Set the density 
+    state(i, j, k, Rho_comp) = ProbParm::rho_0;
+   
+    // Initial potential temperature
+    state(i, j, k, RhoTheta_comp) = ProbParm::rho_0 * ProbParm::T_0;
 
-  // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
-  if (r < r0) 
-     state(i, j, k, RhoScalar_comp) = ProbParm::A_0;
-  else
-     state(i, j, k, RhoScalar_comp) = 0.0;
-}
+    // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
+    if (r < r0) 
+       state(i, j, k, RhoScalar_comp) = ProbParm::A_0;
+    else
+       state(i, j, k, RhoScalar_comp) = 0.0;
+  });
 
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-void
-erf_init_xvel(
-  int i,
-  int j,
-  int k,
-  amrex::Array4<amrex::Real> const& x_vel,
-  amrex::GeometryData const& geomdata)
-{
-  // Note that this is called on a box of x-faces
-  const amrex::Real* prob_lo = geomdata.ProbLo();
-  const amrex::Real* dx = geomdata.CellSize();
-  // i and j indices determining x and y coordinates won't have any effect in computing z
-  const amrex::Real z = prob_lo[2] + k * dx[2];
-
+  // Construct a box that is on x-faces
+  const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
-  x_vel(i, j, k) = ProbParm::uRef *
-                   std::log((z + ProbParm::z0)/ProbParm::z0)/
-                   std::log((ProbParm::zRef +ProbParm::z0)/ProbParm::z0);
-}
+  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    // Note that this is called on a box of x-faces
+    const amrex::Real* prob_lo = geomdata.ProbLo();
+    const amrex::Real* dx = geomdata.CellSize();
+    // i and j indices determining x and y coordinates won't have any effect in computing z
+    const amrex::Real z = prob_lo[2] + k * dx[2];
 
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-void
-erf_init_yvel(
-  int i,
-  int j,
-  int k,
-  amrex::Array4<amrex::Real> const& y_vel,
-  amrex::GeometryData const& geomdata)
-{
-  // Note that this is called on a box of y-faces
+    // Set the x-velocity
+    x_vel(i, j, k) = ProbParm::uRef *
+                     std::log((z + ProbParm::z0)/ProbParm::z0)/
+                     std::log((ProbParm::zRef +ProbParm::z0)/ProbParm::z0);
+  });
 
+  // Construct a box that is on y-faces
+  const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   // Set the y-velocity
-  y_vel(i, j, k) = 0.0;
-}
+  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    y_vel(i, j, k) = 0.0;
+  });
 
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-void
-erf_init_zvel(
-  int i,
-  int j,
-  int k,
-  amrex::Array4<amrex::Real> const& z_vel,
-  amrex::GeometryData const& geomdata)
-{
-  // Note that this is called on a box of z-faces
-
+  // Construct a box that is on z-faces
+  const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
   // Set the z-velocity
-  z_vel(i, j, k) = 0.0;
+  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    z_vel(i, j, k) = 0.0;
+  });
 }
 
 AMREX_GPU_DEVICE
