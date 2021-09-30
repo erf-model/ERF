@@ -4,6 +4,7 @@
 using namespace amrex;
 
 // Compute Eddy Viscosity
+AMREX_GPU_DEVICE
 Real
 ComputeTurbulentViscosity(
   const int& i,
@@ -15,17 +16,18 @@ ComputeTurbulentViscosity(
   const NextOrPrev& nextOrPrev,
   const MomentumEqn& momentumEqn,
   const DiffusionDir& diffDir,
-  const Geometry& geom,
+  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
   Array4<Real>& nut)
 {
   return 0;
 }
 
+//AMREX_GPU_DEVICE
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                                MultiFab& cons_in, MultiFab& eddyViscosity,
-                               const Geometry &geom, const SolverChoice& solverChoice) {
+                               const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
+                               const SolverChoice& solverChoice) {
 
-    const GpuArray<Real, AMREX_SPACEDIM> cellSize = geom.CellSizeArray();
     const Real cellVol = cellSize[0] * cellSize[1] * cellSize[2];
     Real Cs = solverChoice.Cs;
     Real CsDeltaSqr = Cs*Cs * std::pow(cellVol, 2.0/3.0);
@@ -43,29 +45,29 @@ void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
 
         amrex::ParallelFor(bx, eddyViscosity.nComp(),[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real S11 = ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::x, geom);
-            Real S22 = ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::y, geom);
-            Real S33 = ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::z, DiffusionDir::z, geom);
+            Real S11 = ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::x, cellSize);
+            Real S22 = ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::y, cellSize);
+            Real S33 = ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::z, DiffusionDir::z, cellSize);
 
             Real S12 = 0.25* (
-                      ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::y, geom)
-                    + ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::y, geom)
-                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::y, geom)
-                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::y, geom)
+                      ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::y, cellSize)
+                    + ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::y, cellSize)
+                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::y, cellSize)
+                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::y, cellSize)
                     );
 
             Real S13 = 0.25* (
-                      ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::z, geom)
-                    + ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::z, geom)
-                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::z, geom)
-                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::z, geom)
+                      ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::z, cellSize)
+                    + ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::z, cellSize)
+                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::x, DiffusionDir::z, cellSize)
+                    + ComputeStrainRate(i+1, j, k, u, v, w, NextOrPrev::next, MomentumEqn::x, DiffusionDir::z, cellSize)
                     );
 
             Real S23 = 0.25* (
-                      ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::z, geom)
-                    + ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::z, geom)
-                    + ComputeStrainRate(i, j+1, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::z, geom)
-                    + ComputeStrainRate(i, j+1, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::z, geom)
+                      ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::z, cellSize)
+                    + ComputeStrainRate(i, j, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::z, cellSize)
+                    + ComputeStrainRate(i, j+1, k, u, v, w, NextOrPrev::prev, MomentumEqn::y, DiffusionDir::z, cellSize)
+                    + ComputeStrainRate(i, j+1, k, u, v, w, NextOrPrev::next, MomentumEqn::y, DiffusionDir::z, cellSize)
                     );
 
             Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
@@ -77,13 +79,14 @@ void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
 } // function call
 
 /// Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known
+AMREX_GPU_DEVICE
 Real
 InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                               const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                               const enum NextOrPrev &nextOrPrev,
                               const enum MomentumEqn &momentumEqn,
                               const enum DiffusionDir &diffDir,
-                              const Geometry &geom,
+                              const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                               const Array4<Real>& nut) {
   // Assuming we already have 'nut' computed for all (i, j, k)
 // TODO: Check exactly where we should compute 'nut'

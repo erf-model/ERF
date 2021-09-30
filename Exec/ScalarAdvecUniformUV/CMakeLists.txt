@@ -3,7 +3,6 @@ set(erf_exe_name scalar_advec_unif_uv)
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
    PRIVATE
-     prob_parm.H
      prob.H
      prob.cpp
 )

@@ -119,7 +119,7 @@ Real AdvectionContributionForMom(const int &i, const int &j, const int &k,
                                  const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                                  const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                                  const enum MomentumEqn &momentumEqn,
-                                 const amrex::Geometry &geom,
+                                 const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                  const SolverChoice &solverChoice);
 
 // Meant for the continuity, energy, and scalar equations
@@ -137,7 +137,7 @@ AMREX_GPU_DEVICE
 Real AdvectionContributionForState(const int &i, const int &j, const int &k,
                                    const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                                    const Array4<Real>& cell_data, const int &qty_index,
-                                   const amrex::Geometry &geom,
+                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                    const int &spatial_order);
 
 
@@ -148,7 +148,7 @@ Real ComputeStrainRate(const int &i, const int &j, const int &k,
                         const enum NextOrPrev &nextOrPrev,
                         const enum MomentumEqn &momentumEqn,
                         const enum DiffusionDir &diffDir,
-                        const Geometry &geom);
+                        const GpuArray<Real, AMREX_SPACEDIM>& cellSize);
 
 // Compute turbVisc, i.e., 'nut' or Kij at cell centres. Initialize it to 1.0
 //TODO: Check if it is better to  fill all Kij and use it or compute on the fly
@@ -158,14 +158,15 @@ Real ComputeTurbulentViscosity(const int &i, const int &j, const int &k,
                            const enum NextOrPrev &nextOrPrev,
                            const enum MomentumEqn &momentumEqn,
                            const enum DiffusionDir &diffDir,
-                           const Geometry &geom,
+                           const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                            Array4<Real>& nut);
 
 // Given a velocity field and a geometry, compute nut or K(i, j, k) are cell-centers
 //AMREX_GPU_DEVICE
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                                MultiFab& cons_in, MultiFab& eddyViscosity,
-                               const Geometry &geom, const SolverChoice& solverChoice);
+                               const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
+                               const SolverChoice& solverChoice);
 
 // Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known
 AMREX_GPU_DEVICE
@@ -174,7 +175,7 @@ Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const enum NextOrPrev &nextOrPrev,
                             const enum MomentumEqn &momentumEqn,
                             const enum DiffusionDir &diffDir,
-                            const Geometry &geom,
+                            const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                             const Array4<Real>& nut);
 
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
@@ -184,7 +185,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const enum NextOrPrev &nextOrPrev,
                         const enum MomentumEqn &momentumEqn,
                         const enum DiffusionDir &diffDir,
-                        const Geometry &geom,
+                        const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                         const Array4<Real>& nut,
                         const SolverChoice &solverChoice);
 
@@ -192,7 +193,7 @@ AMREX_GPU_DEVICE
 Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
                                  const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                                  const enum MomentumEqn &momentumEqn,
-                                 const amrex::Geometry &geom,
+                                 const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                  const Array4<Real>& nut,
                                  const SolverChoice &solverChoice);
 
@@ -204,7 +205,7 @@ Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real DiffusionContributionForState(const int &i, const int &j, const int &k,
                                    const Array4<Real>& cell_data, const int & qty_index,
-                                   const amrex::Geometry &geom,
+                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                    const SolverChoice &solverChoice);
 
 int ComputeGhostCells(const int &spatial_order);

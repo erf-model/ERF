@@ -3,6 +3,7 @@
 
 using namespace amrex;
 
+AMREX_GPU_DEVICE
 Real
 InterpolateDensityFromCellToFace(
   const int& i,
@@ -17,6 +18,7 @@ InterpolateDensityFromCellToFace(
     i, j, k, cons_in, Rho_comp, nextOrPrev, coordDir, spatial_order);
 }
 
+AMREX_GPU_DEVICE
 Real
 InterpolateRhoThetaFromCellToFace(
   const int& i,
@@ -30,6 +32,8 @@ InterpolateRhoThetaFromCellToFace(
   return InterpolateFromCellOrFace(
     i, j, k, cons_in, RhoTheta_comp, nextOrPrev, coordDir, spatial_order);
 }
+
+AMREX_GPU_DEVICE
 Real
 InterpolateRhoScalarFromCellToFace(
   const int& i,
@@ -44,6 +48,7 @@ InterpolateRhoScalarFromCellToFace(
     i, j, k, cons_in, RhoScalar_comp, nextOrPrev, coordDir, spatial_order);
 }
 
+AMREX_GPU_DEVICE
 Real
 InterpolateFromCellOrFace(
   // (i, j, k) is the reference cell index w.r.t. which a face is being considered
@@ -134,7 +139,7 @@ InterpolateFromCellOrFace(
       }
       break;
     default:
-      amrex::Abort("Error: Spatial order " + std::to_string(spatial_order) + " has not been implemented");
+      amrex::Abort("Error: Spatial order has not been implemented");
     }
   }
   else { // nextOrPrev == NextOrPrev::next
@@ -204,7 +209,7 @@ InterpolateFromCellOrFace(
       }
       break;
     default:
-      amrex::Abort("Error: Spatial order " + std::to_string(spatial_order) + " has not been implemented");
+      amrex::Abort("Error: Spatial order has not been implemented");
     }
   }
 
