@@ -1,0 +1,27 @@
+HyperCLaw-V1.1
+8
+density
+adv_0
+pressure
+temp
+theta
+x_velocity
+y_velocity
+z_velocity
+3
+0.628318530717958
+0
+0 0 0 
+1 1 1 
+
+((0,0,0) (15,15,3) (0,0,0)) 
+20 
+0.0625 0.0625 0.25 
+0
+0
+0 1 0.628318530717958
+20
+0 1
+0 1
+0 1
+Level_0/Cell
