@@ -5,11 +5,13 @@
 #include <AMReX_GpuQualifiers.H>
 #include "IndexDefines.H"
 
-namespace forcing_params {
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real u0;
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real v0;
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real w0;
-extern AMREX_GPU_DEVICE_MANAGED amrex::Real forcing;
-} // namespace forcing_params
+struct forcing_params {
+  amrex::Real u0 = 0.0;
+  amrex::Real v0 = 0.0;
+  amrex::Real w0 = 0.0;
+  amrex::Real forcing = 0.0;
+}; // namespace forcing_params
+
+extern forcing_params fparms;
 
 #endif

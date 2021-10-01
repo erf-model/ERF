@@ -20,7 +20,8 @@ get_transport_coeffs(
   amrex::Array4<const amrex::Real> const& Rho_in,
   amrex::Array4<amrex::Real> const& mu_out,
   amrex::Array4<amrex::Real> const& xi_out,
-  amrex::Array4<amrex::Real> const& lam_out)
+  amrex::Array4<amrex::Real> const& lam_out,
+  const transport_params::transport_param_values& trparms)
 {
 
   const auto lo = amrex::lbound(bx);
@@ -48,7 +49,7 @@ get_transport_coeffs(
 
         transport(
           wtr_get_xi, wtr_get_mu, wtr_get_lam,
-          T, rho, muloc, xiloc, lamloc);
+          T, rho, muloc, xiloc, lamloc, trparms);
 
         mu_out(i, j, k)  = muloc;
         xi_out(i, j, k)  = xiloc;

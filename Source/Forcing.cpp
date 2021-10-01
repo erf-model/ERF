@@ -1,12 +1,7 @@
 #include "ERF.H"
 #include "Forcing.H"
 
-namespace forcing_params {
-AMREX_GPU_DEVICE_MANAGED amrex::Real u0 = 0.0;
-AMREX_GPU_DEVICE_MANAGED amrex::Real v0 = 0.0;
-AMREX_GPU_DEVICE_MANAGED amrex::Real w0 = 0.0;
-AMREX_GPU_DEVICE_MANAGED amrex::Real forcing = 0.0;
-} // namespace forcing_params
+forcing_params fparms;
 
 void
 ERF::construct_old_forcing_source(amrex::Real time, amrex::Real dt)
@@ -67,12 +62,17 @@ ERF::fill_forcing_source(
 
     // Evaluate the linear forcing term
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//    src(i, j, k, UMX) = forcing_params::forcing * sarr(i, j, k, Rho_comp) *
-//                        (sarr(i, j, k, UMX) - forcing_params::u0);
-//    src(i, j, k, UMY) = forcing_params::forcing * sarr(i, j, k, Rho_comp) *
-//                        (sarr(i, j, k, UMY) - forcing_params::v0);
-//    src(i, j, k, UMZ) = forcing_params::forcing * sarr(i, j, k, Rho_comp) *
-//                        (sarr(i, j, k, UMZ) - forcing_params::w0);
+    //amrex::ParallelFor(bx, [=,
+    //                        forcing=fparms.forcing,
+    //                        u0 = fparms.u0,
+    //                        v0 = fparms.v0,
+    //                        w0 = fparms.w0] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//    src(i, j, k, UMX) = forcing * sarr(i, j, k, Rho_comp) *
+//                        (sarr(i, j, k, UMX) - u0);
+//    src(i, j, k, UMY) = forcing * sarr(i, j, k, Rho_comp) *
+//                        (sarr(i, j, k, UMY) - v0);
+//    src(i, j, k, UMZ) = forcing * sarr(i, j, k, Rho_comp) *
+//                        (sarr(i, j, k, UMZ) - w0);
     });
   }
 }

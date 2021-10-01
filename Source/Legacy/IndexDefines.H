@@ -58,25 +58,29 @@
 
 namespace indxmap {
 
-extern AMREX_GPU_DEVICE_MANAGED int qpassMap[NPASSIVE];
-extern AMREX_GPU_DEVICE_MANAGED int upassMap[NPASSIVE];
+struct indxmap_values {
+  int qpassMap[NPASSIVE];
+  int upassMap[NPASSIVE];
+};
+
+extern indxmap_values imap;
 
 void init();
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 int
-qpass_map(const int i)
+qpass_map(const indxmap::indxmap_values& imap, const int i)
 {
-  return qpassMap[i];
+  return imap.qpassMap[i];
 }
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 int
-upass_map(const int i)
+upass_map(const indxmap::indxmap_values& imap, const int i)
 {
-  return upassMap[i];
+  return imap.upassMap[i];
 }
 } // namespace indxmap
 
