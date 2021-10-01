@@ -21,7 +21,8 @@ void get_transport_coeffs(
   amrex::Array4<const amrex::Real> const& Rho_in,
   amrex::Array4<amrex::Real> const& mu_out,
   amrex::Array4<amrex::Real> const& xi_out,
-  amrex::Array4<amrex::Real> const& lam_out);
+  amrex::Array4<amrex::Real> const& lam_out,
+  const transport_params::transport_param_values& trparms);
 
 using namespace transport_params;
 
@@ -36,19 +37,20 @@ transport(
   amrex::Real& Rloc,
   amrex::Real& mu,
   amrex::Real& xi,
-  amrex::Real& lam)
+  amrex::Real& lam,
+  const transport_params::transport_param_values& trparms)
 
 {
   if (wtr_get_lam) {
-    lam = const_conductivity;
+    lam = trparms.const_conductivity;
   }
 
   if (wtr_get_mu) {
-    mu = const_viscosity;
+    mu = trparms.const_viscosity;
   }
 
   if (wtr_get_xi) {
-    xi = const_bulk_viscosity;
+    xi = trparms.const_bulk_viscosity;
   }
 }
 
