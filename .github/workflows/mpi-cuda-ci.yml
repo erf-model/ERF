@@ -1,4 +1,4 @@
-name: ERF CUDA CI
+name: ERF MPI+CUDA CI
 
 on:
   push:
