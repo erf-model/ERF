@@ -23,6 +23,7 @@ ComputeTurbulentViscosity(
 }
 
 //AMREX_GPU_DEVICE
+// TODO: should the input xvel,yvel,zvel,cons_in be const?
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                                MultiFab& cons_in, MultiFab& eddyViscosity,
                                const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
@@ -79,6 +80,7 @@ void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
 } // function call
 
 /// Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known
+// Note: This should be at edges for momEqnDir != diffDir, cell centers otherwise
 AMREX_GPU_DEVICE
 Real
 InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
@@ -89,7 +91,6 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                               const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                               const Array4<Real>& nut) {
   // Assuming we already have 'nut' computed for all (i, j, k)
-// TODO: Check exactly where we should compute 'nut'
   Real turbViscInterpolated = 1.0;
 
   switch (momentumEqn) {
