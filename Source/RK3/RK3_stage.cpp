@@ -32,7 +32,6 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     // ************************************************************************************
     // Fill the ghost cells/faces of the MultiFabs we will need
-    // Apply BC on state data at cells
     // ************************************************************************************ 
     cons_old.FillBoundary(geom.periodicity());
 
@@ -40,15 +39,9 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     ymom_old.FillBoundary(geom.periodicity());
     zmom_old.FillBoundary(geom.periodicity());
 
-    // Apply BC on velocity data on faces
-    // Note that in RK3_advance, the BC was applied on momentum
     xvel.FillBoundary(geom.periodicity());
     yvel.FillBoundary(geom.periodicity());
     zvel.FillBoundary(geom.periodicity());
-
-    amrex::Vector<MultiFab*> vars{&cons_old, &xmom_old, &ymom_old, &zmom_old, &xvel, &yvel, &zvel};
-
-    ERF::applyBCs(geom, vars);
 
     // **************************************************************************************
     // Deal with gravity
@@ -84,6 +77,14 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         ComputeTurbulentViscosity(xvel, yvel, zvel, cons_old, eddyViscosity, dx, solverChoice);
         eddyViscosity.FillBoundary(geom.periodicity());
     }
+
+    // **************************************************************************************
+    // Apply BC on state data at cells
+    // Apply BC on velocity data on faces
+    // Note that in RK3_advance, the BC was applied on momentum
+    amrex::Vector<MultiFab*> vars{&cons_old, &xmom_old, &ymom_old, &zmom_old, &xvel, &yvel, &zvel, &eddyViscosity};
+
+    ERF::applyBCs(geom, vars);
 
     // **************************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
