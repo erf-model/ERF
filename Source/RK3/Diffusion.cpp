@@ -59,12 +59,12 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
     switch (momentumEqn) {
         case MomentumEqn::x:
             Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
-            tau11Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn,DiffusionDir::x, cellSize, nut, solverChoice);
-            tau11Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn,DiffusionDir::x, cellSize, nut, solverChoice);
-            tau12Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn,DiffusionDir::y, cellSize, nut, solverChoice);
-            tau12Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn,DiffusionDir::y, cellSize, nut, solverChoice);
-            tau13Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn,DiffusionDir::z, cellSize, nut, solverChoice);
-            tau13Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn,DiffusionDir::z, cellSize, nut, solverChoice);
+            tau11Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
+            tau11Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
+            tau12Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
+            tau12Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
+            tau13Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
+            tau13Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
 
             diffusionContribution = (tau11Next - tau11Prev) / dx  // Contribution to x-mom eqn from diffusive flux in x-dir
                                   + (tau12Next - tau12Prev) / dy  // Contribution to x-mom eqn from diffusive flux in y-dir
