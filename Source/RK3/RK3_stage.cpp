@@ -30,9 +30,9 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
 
-    // ************************************************************************************
+    // *************************************************************************
     // Fill the ghost cells/faces of the MultiFabs we will need
-    // ************************************************************************************ 
+    // *************************************************************************
     cons_old.FillBoundary(geom.periodicity());
 
     xmom_old.FillBoundary(geom.periodicity());
@@ -58,10 +58,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
-    // **************************************************************************************
+    // *************************************************************************
     // Calculate face-based fluxes to update cell-centered quantities, and 
     //           edge-based and cell-based fluxes to update face-centered quantities
-    // **************************************************************************************
+    // *************************************************************************
     // TODO: No need for 'CalcAdvFlux'. Remove/clean this
 //    CalcAdvFlux(cons_old, xmom_old, ymom_old, zmom_old,
 //                xvel    , yvel    , zvel    ,
@@ -77,6 +77,15 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 //                 solverChoice);
 //#endif
 
+    // *************************************************************************
+    // Calculate cell-centered eddy viscosity
+    //
+    // Notes:
+    // 1. Need to apply BC on velocity field so that ComputeStrainRate works
+    //    properly
+    // 2. Need to call FillBoundary and applyBCs to set ghost values on all
+    //    boundaries so that InterpolateTurbulentViscosity works properly
+    // *************************************************************************
     MultiFab eddyViscosity(cons_old.boxArray(),cons_old.DistributionMap(),1,1);
     if (solverChoice.use_smagorinsky)
     {
@@ -87,12 +96,12 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};
     ERF::applyBCs(geom, eddyvisc_update);
 
-    // **************************************************************************************
+    // *************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
     //TODO: Benchmarking of performance. We are computing the fluxes on the fly.
     //If the performance slows, consider saving all the fluxes apriori and accessing them here.
 
-    // ************************************************************************************** 
+    // *************************************************************************
     for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         
         const Box& bx = mfi.tilebox();
@@ -146,9 +155,9 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 //                + dt*source_fab(i,j,k,n);
 //        });
 
-        // **************************************************************************************
+        // *********************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
-        // **************************************************************************************
+        // *********************************************************************
         amrex::ParallelFor(bx, cons_old.nComp(),
        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             cell_data_upd(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
@@ -173,9 +182,9 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 //        if (solverChoice.use_smagorinsky) // Compute nut, otherwise remains whatever it's initialized to
 //            ComputeTurbulentViscosity(u, v, w, dx,nut);
 
-        // **************************************************************************************
+        // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
-        // **************************************************************************************
+        // *********************************************************************
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // x-momentum equation
 //            rho_u_upd(i,j,k) =
