@@ -1,7 +1,7 @@
 
  .. role:: cpp(code)
     :language: c++
- 
+
 .. _Equations:
 
 Constants and Units

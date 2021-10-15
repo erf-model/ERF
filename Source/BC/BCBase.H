@@ -44,7 +44,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
@@ -75,7 +75,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -89,7 +89,7 @@ namespace math_bcs {
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
- 
+
       if(b.bigEnd(IDIR) > hi) {
         if (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -117,7 +117,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
@@ -148,7 +148,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -196,11 +196,11 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
- 
+
             // for face center variables, if mirrored with zone (lo), then lo-1 is the mirror of lo+1 (see below)
             //   |_______|_______|________|________|
             //  lo-2    lo-1    lo      lo+1     lo+2
@@ -238,7 +238,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -285,7 +285,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
@@ -327,7 +327,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -376,7 +376,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
@@ -418,7 +418,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -463,7 +463,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
@@ -504,7 +504,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -538,21 +538,21 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
              if (i < lo) {
-       	       data(i,j,k,n) = -data(lo,j,k,n) + 2*bcval;
+                  data(i,j,k,n) = -data(lo,j,k,n) + 2*bcval;
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j < lo) {
-       	       data(i,j,k,n) = -data(i,lo,k,n) + 2*bcval;
+                  data(i,j,k,n) = -data(i,lo,k,n) + 2*bcval;
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
-       	       data(i,j,k,n) = -data(i,j,lo,n) + 2*bcval;
+                  data(i,j,k,n) = -data(i,j,lo,n) + 2*bcval;
             }
           });
         }
@@ -606,14 +606,14 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1, Real bcval=0.0) {
       self::apply_face_based(geom, b, data, ncomp, bcval);
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1, Real bcval=0.0) {
       self::apply_cell_based(geom, b, data, ncomp, bcval);
@@ -644,21 +644,21 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
              if (i > hi) {
-       	       data(i,j,k,n) = -data(hi,j,k,n) + 2*bcval;
+                  data(i,j,k,n) = -data(hi,j,k,n) + 2*bcval;
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j > hi) {
-       	       data(i,j,k,n) = -data(i,hi,k,n) + 2*bcval;
+                  data(i,j,k,n) = -data(i,hi,k,n) + 2*bcval;
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k > hi) {
-       	       data(i,j,k,n) = -data(i,j,hi,n) + 2*bcval;
+                  data(i,j,k,n) = -data(i,j,hi,n) + 2*bcval;
             }
           });
         }
@@ -714,14 +714,14 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1, Real bcval=0.0) {
       self::apply_face_based(geom, b, data, ncomp, bcval);
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1, Real bcval=0.0) {
       self::apply_cell_based(geom, b, data, ncomp, bcval);
@@ -743,7 +743,7 @@ namespace math_bcs {
       const auto dxarray = geom.CellSizeArray();
       const auto zrough = 0.01;
              //
-             // For similarity BCs, the condition on the tangential velocities is found by 
+             // For similarity BCs, the condition on the tangential velocities is found by
              // setting the ghost point value to that which causes the shear stress at the lower boundary
              // (S_(-1/2)) equal to ustar / (2 * vonkarman * z) * ( (u,v) / (u * u + v * v) ^ 0.5 )
              //
@@ -756,25 +756,25 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
              if (i < lo) {
-	       // Assume distance between lo and lo-1 is dxarray(IDIR), and height of lo
-	       // above boundary is dxarray(IDIR) / 2.0
+           // Assume distance between lo and lo-1 is dxarray(IDIR), and height of lo
+           // above boundary is dxarray(IDIR) / 2.0
                // zrough is set to constant value 0.1 m here.  Should be passed in through input file.
 
-       	       data(i,j,k,n) = data(lo,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+                  data(i,j,k,n) = data(lo,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j < lo) {
-	      data(i,j,k,n) = data(i,lo,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+          data(i,j,k,n) = data(i,lo,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
-	      data(i,j,k,n) = data(i,j,lo,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+          data(i,j,k,n) = data(i,j,lo,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         }
@@ -782,11 +782,11 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
-            
+
       // For similarity BC, conditions on normal velocity are same as with no slip
 
             // for face center variables, if mirrored with zone (lo), then lo-1 is the mirror of lo+1 (see below)
@@ -826,7 +826,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -843,7 +843,7 @@ namespace math_bcs {
       const auto dxarray = geom.CellSizeArray();
       const auto zrough = 0.01;
              //
-             // For similarity BCs, the condition on the tangential velocities is found by 
+             // For similarity BCs, the condition on the tangential velocities is found by
              // setting the ghost point value to that which causes the shear stress at the upper boundary
              // (S_(hi+1/2)) equal to ustar / (2 * vonkarman * z) * ( (u,v) / (u * u + v * v) ^ 0.5 )
              //
@@ -860,25 +860,25 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i > hi) {
-	       // Assume distance between hi and hi+1 is dxarray(IDIR), and height of hi
-	       // below boundary is dxarray(IDIR) / 2.0
+           // Assume distance between hi and hi+1 is dxarray(IDIR), and height of hi
+           // below boundary is dxarray(IDIR) / 2.0
                // zrough is set to constant value 0.1 m here.  Should be passed in through input file.
 
-       	      data(i,j,k,n) = data(hi,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+                 data(i,j,k,n) = data(hi,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j > hi) {
-     	      data(i,j,k,n) = data(i,hi,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+               data(i,j,k,n) = data(i,hi,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k > hi) {
-     	      data(i,j,k,n) = data(i,j,hi,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+               data(i,j,k,n) = data(i,j,hi,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         }
@@ -886,7 +886,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
@@ -929,7 +929,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -982,11 +982,11 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
- 
+
       if(b.smallEnd(IDIR) < lo) {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -1017,7 +1017,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -1031,7 +1031,7 @@ namespace math_bcs {
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
- 
+
       if(b.bigEnd(IDIR) > hi) {
         if (IDIR == 0) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -1062,11 +1062,11 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
- 
+
       if(b.bigEnd(IDIR) > hi) {
         if (IDIR == 0) {
            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -1097,7 +1097,7 @@ namespace math_bcs {
     }
 
     template <bool val>
-    static inline 
+    static inline
     std::enable_if_t<!val>
     apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       self::apply_cell_based(geom, b, data, ncomp);
@@ -1112,7 +1112,7 @@ namespace math_bcs {
 
     static inline void apply(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
- 
+
       amrex::IntVect type = b.type();
       if (type == amrex::IntVect::Zero) {
 
@@ -1159,7 +1159,7 @@ namespace math_bcs {
                    /*  Real plo = getPgivenRTh(data(i,lo,k,n));
                    Real plom1 = (-grav[IDIR] * dxarray[IDIR] / 2.0) * (data(i,lo,k,Rho_comp) + data(i,j,k,Rho_comp)) + plo;
                    data(i,j,k,n) = getRhoThetagivenP(plom1);  */
-                   data(i,j,k,n) = data(i,lo,k,n); 
+                   data(i,j,k,n) = data(i,lo,k,n);
                  }
                  else {
                    data(i,j,k,n) = data(i,lo,k,n);
@@ -1198,7 +1198,7 @@ namespace math_bcs {
 
     static inline void apply(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
- 
+
       amrex::IntVect type = b.type();
       if (type == amrex::IntVect::Zero) {
 
@@ -1211,9 +1211,9 @@ namespace math_bcs {
 
         if(b.bigEnd(IDIR) > hi) {
           if (IDIR == 0) {
-            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
+            amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
-              if (i > hi) {  
+              if (i > hi) {
                 if (n == Rho_comp) {
                     //  Assume Neumann-type BCs for density (zero gradient, and extrapolation of value beyond first ghost point //
                     data(i,j,k,n) = data(hi,j,k,n);

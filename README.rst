@@ -17,10 +17,10 @@ Regression Tests    |regtests|     |regtest-coverage|
 .. |unittests| image:: https://github.com/rafmudaf/ERF/actions/workflows/ci.yml/badge.svg?branch=add_testing
 
 
-Getting Started 
+Getting Started
 ~~~~~~~~~~~~~~~
 
-* To compile and run the `ERF` suite of codes, one needs a C++ compiler that supports the C++14 standard.  A hierarchical strategy for parallelism is supported, based on MPI + OpenMP or MPI + CUDA.  The codes work with all major MPI and OpenMP implementations.  The codes should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 4.9.3 and above. 
+* To compile and run the `ERF` suite of codes, one needs a C++ compiler that supports the C++14 standard.  A hierarchical strategy for parallelism is supported, based on MPI + OpenMP or MPI + CUDA.  The codes work with all major MPI and OpenMP implementations.  The codes should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 4.9.3 and above.
 
 To clone the source code of `ERF`:
 
@@ -28,7 +28,7 @@ To clone the source code of `ERF`:
 
     export ERF_HOME=<location for ERF code>
     git clone --recursive git@github.com:ERF-model/ERF.git ${ERF_HOME}
-    
+
     export AMREX_HOME=${ERF_HOME}/Submodules/AMReX # w.r.t. ERF_HOME
 
 Note that the path ``AMREX_HOME`` is dependent on ``ERF_HOME``.
@@ -37,14 +37,14 @@ Alternatively, one can set environment variable ``AMREX_HOME`` to use ``AMReX`` 
 
 1. Set the environment variable ``AMREX_HOME`` and clone a copy of ``AMReX`` there: ::
 
-    export AMREX_HOME=<location for AMReX>  # Can be anywhere  
+    export AMREX_HOME=<location for AMReX>  # Can be anywhere
     git clone git@github.com:AMReX-Codes/amrex.git ${AMREX_HOME}
 
 2. Set the environment variable ``ERF_HOME`` and clone a copy of ``ERF`` there. You should be placed in the ``development`` branch: ::
 
     export ERF_HOME=<location for ERF code>
     git clone git@github.com:ERF-model/ERF.git ${ERF_HOME}
-    
+
 Note that cloning using the format ``git@github.com:ERF-model/ERF.git`` requires that your public rsa keys are set in your github profile. See `here <https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/adding-a-new-ssh-key-to-your-github-account>`_ how to do this.
 
 If one doesn't have the rsa keys setup in github profile, one can clone using ``https://github.com/erf-model/ERF.git`` format.
@@ -56,7 +56,7 @@ To build the code and run a sample problem:
     cd ${ERF_HOME}/Exec/ScalarAdvection
     make
     ./ERF3d.xxx.yyy.ex inputs_ex
-    
+
    In order to make on multiple processors use ``make -j N`` instead of ``make``, where ``N`` is the number of processors to use for building and is typically 8 or 16. The executable name is of the format ``ERF3d.xxx.yyy.ex``.
 
 * Notes:
@@ -68,13 +68,13 @@ To build the code and run a sample problem:
       2. With Amrvis, ``amrvis3d plt00030``, for example.
 
 
-Origin of ERF 
+Origin of ERF
 ~~~~~~~~~~~~~
 
 `ERF` was created as a renamed, stripped down version of `PeleC
 <https://github.com/AMReX-combustion/PeleC>`_,
-incorporates a modified RK3 compressible hydro integrator adapted from 
-the `FHDeX <https://github.com/AMReX-FHD/FHDeX>`_ code base, 
+incorporates a modified RK3 compressible hydro integrator adapted from
+the `FHDeX <https://github.com/AMReX-FHD/FHDeX>`_ code base,
 and is built on the `AMReX <https://github.com/AMReX-codes/AMReX>`_ library.
 
 Development model
@@ -87,7 +87,7 @@ To add a new feature to ERF, the procedure is:
     git checkout -b AmazingNewFeature
 
 2. Develop the feature, merging changes often from the development branch into your AmazingNewFeature branch: ::
-   
+
     git commit -m "Developed AmazingNewFeature"
     git checkout development
     git pull                     [fix any identified conflicts between local and remote branches of "development"]
@@ -119,7 +119,7 @@ Documentation - ***UPDATE THIS***
 ~~~~~~~~~~~~~
 
 The full documentation for ERF exists in the Docs directory; at present this is maintained inline using Doxygen
-and Sphinx  `Sphinx <http://www.sphinx-doc.org>`_. With 
+and Sphinx  `Sphinx <http://www.sphinx-doc.org>`_. With
 Sphinx, documentation is written in *Restructured Text*. reST is a markup language
 similar to Markdown, but with somewhat greater capabilities (and idiosyncrasies). There
 are several `primers <http://thomas-cokelaer.info/tutorials/sphinx/rest_syntax.html>`_
@@ -134,6 +134,6 @@ To build the documentation, run Doxygen in the Docs directory then build the sph
 Acknowledgment
 ~~~~~~~~~~~~~~
 
-The development of the Energy Research and Forecasting (ERF) code is funded by the Wind Energy Technologies Office (WETO), part of the U.S. Department of Energy (DOE)'s Office of Energy Efficiency & Renewable Energy (EERE).  
+The development of the Energy Research and Forecasting (ERF) code is funded by the Wind Energy Technologies Office (WETO), part of the U.S. Department of Energy (DOE)'s Office of Energy Efficiency & Renewable Energy (EERE).
 
 

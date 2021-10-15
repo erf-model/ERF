@@ -198,11 +198,11 @@ ERF::variableSetUp()
       amrex::StateDescriptor::BndryFunc(erf_nullfill));
   }
 
-  // 
+  //
   // Create face-based StateData for velocities on each face,
   //     and for all conserved quantities as well
   //     (unnecessary right now but convenient)
-  // 
+  //
   store_in_checkpoint = true;
   amrex::IndexType xface(amrex::IntVect(1,0,0));
   desc_lst.addDescriptor(X_Vel_Type, xface,

@@ -31,7 +31,7 @@ erf_init_prob(
 
     // Set the density
     state(i, j, k, Rho_comp) = parms.rho_0;
-   
+
     // Initial potential temperature
     state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 

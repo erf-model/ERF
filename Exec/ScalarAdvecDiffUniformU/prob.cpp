@@ -20,7 +20,7 @@ erf_init_prob(
     const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-    // Define a point (xc,yc,zc) at the center of the domain 
+    // Define a point (xc,yc,zc) at the center of the domain
     const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
     const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
     const amrex::Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
@@ -29,9 +29,9 @@ erf_init_prob(
 
     // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
 
-    // Set the density 
+    // Set the density
     state(i, j, k, Rho_comp) = parms.rho_0;
-   
+
     // Initial potential temperature
     state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 

@@ -8,7 +8,7 @@ ERF uses executables which are customized to the case in which the user intends 
 ::
    ./ERF --describe
 
-which will print out the build information (including git hashes, modules, EoS, some basic information from compiled chemistry network, etc). 
+which will print out the build information (including git hashes, modules, EoS, some basic information from compiled chemistry network, etc).
 
 ERF has the ability to use two build systems. First is the GNU Make build system. This build system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project. The second build system implemented is CMake. This is best used for developers of ERF and more generalized. CMake allows for building as well as easy testing and verification of ERF through the use of CTest which is included in CMake.
 
@@ -28,7 +28,7 @@ Then one edits the ``GNUMakefile`` in any of the examples in the ``Exec`` direct
 CMake
 ~~~~~
 
-Using CMake involves an additional configure step before using the ``make`` command. It is also expected that the user has cloned the ERF repo with the ``--recursive`` option or performed ``git submodule init; git submodule update`` in the ERF repo to populate its submodules. 
+Using CMake involves an additional configure step before using the ``make`` command. It is also expected that the user has cloned the ERF repo with the ``--recursive`` option or performed ``git submodule init; git submodule update`` in the ERF repo to populate its submodules.
 
 To build with CMake, a user typically creates a ``build`` directory in the project directory and in that directory the ``cmake <options> ..`` command is used to configure the project before building it. ERF provides an example build directory called ``Build`` with example scripts for performing the CMake configure. Once the CMake configure step is done, then the ``make`` command will build the executable.
 

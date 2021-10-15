@@ -40,7 +40,7 @@
   90  FORMAT(///' Error halt: ISTATE =',I3)
       STOP
       END
- 
+
       SUBROUTINE FEX (NEQ, T, Y, YDOT, RPAR, IPAR)
       DOUBLE PRECISION RPAR, T, Y, YDOT
       DIMENSION Y(NEQ), YDOT(NEQ)
@@ -49,7 +49,7 @@
       YDOT(2) = -YDOT(1) - YDOT(3)
       RETURN
       END
- 
+
       SUBROUTINE JEX (NEQ, T, Y, ML, MU, PD, NRPD, RPAR, IPAR)
       DOUBLE PRECISION PD, RPAR, T, Y
       DIMENSION Y(NEQ), PD(NRPD,NEQ)

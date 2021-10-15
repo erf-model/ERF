@@ -10,8 +10,8 @@
 using namespace amrex;
 
 void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
-                 MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old, 
-                 MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new, 
+                 MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
+                 MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
                  MultiFab& source,
                  MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
@@ -102,8 +102,8 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // **************************************************************************************
     // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
     RK3_stage(cons_old, cons_upd_1,
-              xmom_old, ymom_old, zmom_old, 
-              xmom_update_1, ymom_update_1, zmom_update_1, 
+              xmom_old, ymom_old, zmom_old,
+              xmom_update_1, ymom_update_1, zmom_update_1,
               xvel_old, yvel_old, zvel_old, primitive,  // These are used as temporary space
               source,
               eta, zeta, kappa,
@@ -117,9 +117,9 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
     // **************************************************************************************
     // RK3 stage 1: Define updates in the first RK stage
-    // ************************************************************************************** 
+    // **************************************************************************************
     for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        
+
         const Box& bx = mfi.tilebox();
         const Box& tbx = mfi.nodaltilebox(0);
         const Box& tby = mfi.nodaltilebox(1);
@@ -138,7 +138,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
         amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            // At this point, the update is stored in cu_up1 ... 
+            // At this point, the update is stored in cu_up1 ...
             cu_up1(i,j,k,n) += cu_old(i,j,k,n);
             // Now cu_up1 holds the first intermediate solution
         });
@@ -146,17 +146,17 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // At this point, the update is stored in momx_up1 ... 
+            // At this point, the update is stored in momx_up1 ...
             momx_up1(i,j,k) += momx_old(i,j,k);
             // Now momx_up1 holds the first intermediate solution
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // At this point, the update is stored in momy_up1 ... 
+            // At this point, the update is stored in momy_up1 ...
             momy_up1(i,j,k) += momy_old(i,j,k);
             // Now momy_up1 holds the first intermediate solution
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // At this point, the update is stored in momz_up1 ... 
+            // At this point, the update is stored in momz_up1 ...
             momz_up1(i,j,k) += momz_old(i,j,k);
             // Now momz_up1 holds the first intermediate solution
         });
@@ -179,14 +179,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // Convert updated momentum to updated velocity on faces after stage 1 and before stage 2
     // **************************************************************************************
     MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_upd_1, xmom_update_1, ymom_update_1, zmom_update_1, solverChoice);
- 
+
     // **************************************************************************************
     // RK3 stage 2: Return update in the cons_upd_2 and [x,y,z]mom_update_2 MultiFabs
     // **************************************************************************************
     // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
     RK3_stage(cons_upd_1, cons_upd_2,
-              xmom_update_1, ymom_update_1, zmom_update_1, 
-              xmom_update_2, ymom_update_2, zmom_update_2, 
+              xmom_update_1, ymom_update_1, zmom_update_1,
+              xmom_update_2, ymom_update_2, zmom_update_2,
               xvel_new, yvel_new, zvel_new, primitive,  // These are used as temporary space
               source,
               eta, zeta, kappa,
@@ -201,7 +201,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // **************************************************************************************
     // RK3 stage 2: Define updates in the second RK stage
     // **************************************************************************************
-    for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+    for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
         const Box& tbx = mfi.nodaltilebox(0);
@@ -226,7 +226,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
         amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            // At this point, the update is stored in cu_up2 ... 
+            // At this point, the update is stored in cu_up2 ...
             cu_up2(i,j,k,n) = 0.75*cu_old(i,j,k,n) + 0.25*(cu_up1(i,j,k,n) + cu_up2(i,j,k,n));
             // Now cu_up2 holds the second intermediate solution
         });
@@ -234,17 +234,17 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // At this point, the update is stored in momx_up2 ... 
+            // At this point, the update is stored in momx_up2 ...
             momx_up2(i,j,k) = 0.75*momx_old(i,j,k) + 0.25*(momx_up1(i,j,k) + momx_up2(i,j,k));
             // Now momx_up2 holds the second intermediate solution
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // At this point, the update is stored in momy_up2 ... 
+            // At this point, the update is stored in momy_up2 ...
             momy_up2(i,j,k) = 0.75*momy_old(i,j,k) + 0.25*(momy_up1(i,j,k) + momy_up2(i,j,k));
             // Now momy_up2 holds the second intermediate solution
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // At this point, the update is stored in momz_up2 ... 
+            // At this point, the update is stored in momz_up2 ...
             momz_up2(i,j,k) = 0.75*momz_old(i,j,k) + 0.25*(momz_up1(i,j,k) + momz_up2(i,j,k));
             // Now momz_up2 holds the second intermediate solution
         });
@@ -272,9 +272,9 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // RK3 stage 3: Return update in the cons_new and [x,y,z]mom_new MultiFabs
     // **************************************************************************************
     // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
-    RK3_stage(cons_upd_2, cons_new, 
-              xmom_update_2, ymom_update_2, zmom_update_2, 
-              xmom_new, ymom_new, zmom_new, 
+    RK3_stage(cons_upd_2, cons_new,
+              xmom_update_2, ymom_update_2, zmom_update_2,
+              xmom_new, ymom_new, zmom_new,
               xvel_new, yvel_new, zvel_new, primitive,  // These are used as temporary space
               source,
               eta, zeta, kappa,
@@ -289,7 +289,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // RK3 stage 3: Define updates in the third RK stage
     // **************************************************************************************
     for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        
+
         const Box& bx = mfi.tilebox();
         const Box& tbx = mfi.nodaltilebox(0);
         const Box& tby = mfi.nodaltilebox(1);
@@ -313,7 +313,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
 
         amrex::ParallelFor(bx, nvars, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            // At this point, the update is stored in cu_new ... 
+            // At this point, the update is stored in cu_new ...
             cu_new(i,j,k,n) = (1./3.)*cu_old(i,j,k,n) + (2./3.)*(cu_up2(i,j,k,n) + cu_new(i,j,k,n));
             // Now cu_new holds the final solution
         });
@@ -321,17 +321,17 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
         // momentum flux
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // At this point, the update is stored in momx_new ... 
+            // At this point, the update is stored in momx_new ...
             momx_new(i,j,k) = (1./3.)*momx_old(i,j,k) + (2./3.)*(momx_up2(i,j,k) + momx_new(i,j,k));
             // Now momx_new holds the final solution
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // At this point, the update is stored in momy_new ... 
+            // At this point, the update is stored in momy_new ...
             momy_new(i,j,k) = (1./3.)*momy_old(i,j,k) + (2./3.)*(momy_up2(i,j,k) + momy_new(i,j,k));
             // Now momy_new holds the final solution
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            // At this point, the update is stored in momz_new ... 
+            // At this point, the update is stored in momz_new ...
             momz_new(i,j,k) = (1./3.)*momz_old(i,j,k) + (2./3.)*(momz_up2(i,j,k) + momz_new(i,j,k));
             // Now momz_new holds the final solution
         });
@@ -356,7 +356,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     ERF::applyBCs(geom, vars_new);
 
     // Convert updated momentum to updated velocity on faces after stage 3 and before going to next time step
-    // ************************************************************************************** 
+    // **************************************************************************************
     MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_new, xmom_new, ymom_new, zmom_new, solverChoice);
 
     // One final application of non-periodic BCs after all RK3 stages have been called, this time on velocities
@@ -367,5 +367,5 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     amrex::Vector<MultiFab*> vars{&cons_new, &xvel_new, &yvel_new, &zvel_new};
 
     ERF::applyBCs(geom, vars);
-    
+
 }

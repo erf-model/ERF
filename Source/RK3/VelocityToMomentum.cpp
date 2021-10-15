@@ -4,15 +4,15 @@
 
 using namespace amrex;
 
-void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in, 
-                         MultiFab& cons_in, 
+void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in,
+                         MultiFab& cons_in,
                          MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
                          const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("VelocityToMomentum()",VelocityToMomentum);
 
     // Loop over boxes
-    for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+    for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& tbx = mfi.nodaltilebox(0);
         const Box& tby = mfi.nodaltilebox(1);

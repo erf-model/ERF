@@ -522,7 +522,7 @@ std::cout << "writePlotFile_00" << std::endl;
 
   for (std::list<amrex::DeriveRec>::const_iterator it = dlist.begin(),
                                                    end = dlist.end();
-       it != end; ++it) 
+       it != end; ++it)
   {
     if (erf.parent->isDerivePlotVar(it->name())) {
       {

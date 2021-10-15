@@ -23,7 +23,7 @@ In short, ERF will provide a modern, flexible, and efficient GPU-capable softwar
 ERF User Base
 =============
 
-The ERF model is being designed for use by moderately skilled to advanced practitioners of computational fluid dynamics (CFD) codes such as OpenFOAM and WRF, working within the wind energy industry, national laboratories and university research groups, in applications involving numerical simulations of atmospheric flows, and the interactions of those flows with wind turbines, wind plants, and multiple interacting plants in regions of dense development. Beyond its applications, an additional goal of ERF is to serve as a bridge for users and developers of existing CFD and NWP codes to transition away from older legacy codes into a modern software architecture and programming paradigm that efficiently utilizes the next generation of GPU-accelerated HPC hardware, while providing opportunities for expanded applicability to modern wind energy research challenges that require the implementation and integration of new computational capabilities. ERF also targets user-developers who seek to contribute new code back to the ERF code base to improve and expand it, as has occurred within other open-source codes such as WRF and OpenFOAM. 
+The ERF model is being designed for use by moderately skilled to advanced practitioners of computational fluid dynamics (CFD) codes such as OpenFOAM and WRF, working within the wind energy industry, national laboratories and university research groups, in applications involving numerical simulations of atmospheric flows, and the interactions of those flows with wind turbines, wind plants, and multiple interacting plants in regions of dense development. Beyond its applications, an additional goal of ERF is to serve as a bridge for users and developers of existing CFD and NWP codes to transition away from older legacy codes into a modern software architecture and programming paradigm that efficiently utilizes the next generation of GPU-accelerated HPC hardware, while providing opportunities for expanded applicability to modern wind energy research challenges that require the implementation and integration of new computational capabilities. ERF also targets user-developers who seek to contribute new code back to the ERF code base to improve and expand it, as has occurred within other open-source codes such as WRF and OpenFOAM.
 
 
 ERF Applications
@@ -33,21 +33,21 @@ ERF is being designed for wind energy applications requiring simulation of the a
 
 1. Resource Characterization
 ----------------------------
-A key application targeted by ERF is wind resource characterization, the assessment of the potential of a given site to produce power over time. Today’s commonly applied resource characterization approaches used in both mesoscale and microscale settings are necessarily of restricted fidelity due to the computational expense of higher-fidelity techniques exceeding industry resources in typical workflows. The computational burden of high fidelity will be significantly mitigated using ERF’s more efficient code architecture, algorithms, and ability to use GPU-accelerated HPC hardware, enabling improved resource characterization at all scales.  
+A key application targeted by ERF is wind resource characterization, the assessment of the potential of a given site to produce power over time. Today’s commonly applied resource characterization approaches used in both mesoscale and microscale settings are necessarily of restricted fidelity due to the computational expense of higher-fidelity techniques exceeding industry resources in typical workflows. The computational burden of high fidelity will be significantly mitigated using ERF’s more efficient code architecture, algorithms, and ability to use GPU-accelerated HPC hardware, enabling improved resource characterization at all scales.
 
 At the largest mesoscale applications envisioned for ERF (domains of hundreds to thousands of km on a side; grid spacings of one to ten km), increased throughput will enable several advantages. One is the ability to perform larger ensembles for more robust quantification of uncertainty. A second is the ability to use finer grid spacings over the same geographical footprint in areas requiring increased resolution of landscape or surface features. A third will be the ability to use higher-fidelity physical process models, including the three-dimensional planetary boundary layer (PBL) scheme and machine-learning-based surface layer flux models, each developed within the portfolio of projects supported by the Wind Energy Technologies Office (WETO). ERF will also support the implementation of more advanced offshore wave and sea-state models, including new capabilities developed under the WETO-supported Wind Forecast Improvement Project 3, which is focused on improving computational approaches for offshore environments. All of these new capabilities will enable much more accurate simulation and characterization of wind-energy-relevant flow phenomena within the atmospheric boundary layer (ABL) than is currently achievable within any existing code base.
 
 At the smallest microscale applications envisioned for ERF (involving domains of a few to tens of km on a side, with grid spacings of a few to tens of m), higher computational throughput will enable improved characterization of the turbulence environment, as well as the impacts of smaller-scale terrain or surface heterogeneities on flow quantities of interest. More accurate treatment of complex terrain effects via immersed boundary methods, as well as the ability to integrate resolved wave and sea-state forcing for offshore applications will significantly enhance microscale resource assessment in these settings.
 
-In addition to providing improved resource characterization in both mesoscale and microscale applications, ERF will enable much more efficient mesoscale-to-microscale coupling via efficient dynamic downscaling, interfacing the microscale turbulence field with the mesoscale forcing that drives it. Such multiscale coupling is especially critical in settings involving complex meteorology and landscape characteristics that supply forcing at scales larger than can be encompassed within even a very large single-domain microscale setup. 
+In addition to providing improved resource characterization in both mesoscale and microscale applications, ERF will enable much more efficient mesoscale-to-microscale coupling via efficient dynamic downscaling, interfacing the microscale turbulence field with the mesoscale forcing that drives it. Such multiscale coupling is especially critical in settings involving complex meteorology and landscape characteristics that supply forcing at scales larger than can be encompassed within even a very large single-domain microscale setup.
 
 2. Forensics
 ------------
-Another application ERF will support is the ability to simulate unique meteorological events of importance, such as those leading to damage or some other outcome for which improved understanding is desired. ERF will enable enhanced forensics abilities via higher-resolution, and higher-fidelity treatment of relevant physical processes impacting the flow, coupled with the flexibility to either ingest larger-scale forcing datasets from forecast models or analysis products, or to set up idealized process-level simulations with controlled forcing. 
+Another application ERF will support is the ability to simulate unique meteorological events of importance, such as those leading to damage or some other outcome for which improved understanding is desired. ERF will enable enhanced forensics abilities via higher-resolution, and higher-fidelity treatment of relevant physical processes impacting the flow, coupled with the flexibility to either ingest larger-scale forcing datasets from forecast models or analysis products, or to set up idealized process-level simulations with controlled forcing.
 
 3. Wind Plant Inflow
 --------------------
-A primary use case for ERF is the downscaling of mesoscale atmospheric flows to microscale grid spacing, for which all of the relevant scales of motion, including turbulence, are sufficiently resolved to specify turbine-airflow interactions. While this information can be used to estimate resulting power, fatigue loading, and other data, ERF is also being designed to couple directly with the ExaWind microscale wind plant simulation code, within which turbine performance, loading, and controls models of various fidelity can operate directly within the ERF-generated inflow. These coupled ERF-ExaWind simulations will provide unprecedented levels of full-spectrum fidelity, information required to understand and optimize wind plant performance in general, complicated operating conditions and environments.  
+A primary use case for ERF is the downscaling of mesoscale atmospheric flows to microscale grid spacing, for which all of the relevant scales of motion, including turbulence, are sufficiently resolved to specify turbine-airflow interactions. While this information can be used to estimate resulting power, fatigue loading, and other data, ERF is also being designed to couple directly with the ExaWind microscale wind plant simulation code, within which turbine performance, loading, and controls models of various fidelity can operate directly within the ERF-generated inflow. These coupled ERF-ExaWind simulations will provide unprecedented levels of full-spectrum fidelity, information required to understand and optimize wind plant performance in general, complicated operating conditions and environments.
 
 An additional aspect of wind plant inflow is the impact of entire wind plants on both their own inflow, via blockage effects, as well as on downstream plants via wind plant wakes, gravity waves, or other atmospheric disturbances that large wind plants generate. These issues are of particular importance in areas of dense development, and require a larger simulation footprint than is practical within even a very large single-resolution microscale domain. In addition, difficulties simulating gravity waves using the incompressible solvers that form the basis of many microscale wind plant simulation codes are ameliorated using a fully compressible solver such as ERF will employ. The multiple-resolution capability of ERF, coupled with the incorporation of wind plant wake models applicable at both mesoscale and microscale grid spacings, will provide a flexible framework to better understand wind plant interactions, regional wind power generation, and the regional integration of wind-generated power.
 
@@ -59,19 +59,19 @@ Improved parameterizations to represent these unique features of offshore enviro
 
 5. Impacts of Complex Terrain
 -----------------------------
-ERF will be designed to improve the representation of complex terrain and its impacts on the flow, including gravity flows, gravity waves, mountain-valley circulations, and coastal jets, in mesoscale simulations, relative to other mesoscale models. Improved complex terrain capabilities will be incorporated via the use of higher-order numerical stencils for the evaluation of horizontal derivatives over moderately steep terrain, and immersed boundary methods (IBMs) for very steep terrain. These approaches will reduce numerical errors while extending ERF to much steeper slopes than the standard WRF model and similar codes can simulate. IBMs will also permit use of higher resolution, less smoothed terrain than with WRF, which will improve simulation fidelity in complex terrain, and thus improve the local wind accuracy around turbines and plants. IBMs can also stabilize numerical solutions over steep terrain, even if not strictly required, allowing for larger model time steps and therefore accelerating execution. ERF’s use of a vertical coordinate with a fixed height will lead to much more efficient use of IBMs in ERF than in WRF, where the changing heights require new interpolations and projections at every time step. 
+ERF will be designed to improve the representation of complex terrain and its impacts on the flow, including gravity flows, gravity waves, mountain-valley circulations, and coastal jets, in mesoscale simulations, relative to other mesoscale models. Improved complex terrain capabilities will be incorporated via the use of higher-order numerical stencils for the evaluation of horizontal derivatives over moderately steep terrain, and immersed boundary methods (IBMs) for very steep terrain. These approaches will reduce numerical errors while extending ERF to much steeper slopes than the standard WRF model and similar codes can simulate. IBMs will also permit use of higher resolution, less smoothed terrain than with WRF, which will improve simulation fidelity in complex terrain, and thus improve the local wind accuracy around turbines and plants. IBMs can also stabilize numerical solutions over steep terrain, even if not strictly required, allowing for larger model time steps and therefore accelerating execution. ERF’s use of a vertical coordinate with a fixed height will lead to much more efficient use of IBMs in ERF than in WRF, where the changing heights require new interpolations and projections at every time step.
 
 6. Impacts of Low-Level Jets
 ----------------------------
-An important meteorological feature defining the energy resources in many geographic locations, including the US central great plains and offshore regions, is the low-level jet (LLJ), a narrow ribbon of fast moving air that occurs within the lowest several hundred meters above the surface. While LLJs provide a rich energy resource, LLJs characteristically contain strong sheer, veer and intermittent atmospheric wave and turbulence activity, all of which can increase fatigue loading. Moreover, details of their height and strength, as well as the timing of their onset and dissolution, which impact the integration of power produced, present numerous challenges to development within such regions. More efficient downscaling and higher-fidelity mesoscale and microscale turbulence models will provide enhanced understanding of LLJ impacts on wind power applications. 
+An important meteorological feature defining the energy resources in many geographic locations, including the US central great plains and offshore regions, is the low-level jet (LLJ), a narrow ribbon of fast moving air that occurs within the lowest several hundred meters above the surface. While LLJs provide a rich energy resource, LLJs characteristically contain strong sheer, veer and intermittent atmospheric wave and turbulence activity, all of which can increase fatigue loading. Moreover, details of their height and strength, as well as the timing of their onset and dissolution, which impact the integration of power produced, present numerous challenges to development within such regions. More efficient downscaling and higher-fidelity mesoscale and microscale turbulence models will provide enhanced understanding of LLJ impacts on wind power applications.
 
 7. Impact of Clouds and Precipitation
 -------------------------------------
-Clouds are important modulators of the atmospheric flow, impacting turbulence intensity via shading of the surface, which also influences boundary layer growth and the vertical transfer of momentum, leading to changes in mean wind speed, shear and veer across the turbine rotor swept area. In the offshore environment, radiative cooling from liquid water in the stratocumulus field that often surmounts the marine ABL can drive increased turbulence within the flow below the cloud deck. Clouds also produce various species of precipitation which impact turbine and plant performance, including glaze and rime ice that reduce aerodynamic performance, raindrops that can accelerate leading edge erosion, and graupel and hail which can be particularly damaging. The greater computational expense of cloud microphysics models that can accurately depict these processes, as well as running these schemes at the fine mesh scales required, have hindered understanding and predictive capabilities for the impacts of clouds and precipitation on wind power generation thus far. ERF’s more efficient solution framework will facilitate addressing these gaps. Higher-fidelity representation of cloud impacts on surface shading will also improve ERF’s applicability to solar and hybrid plant operation. 
+Clouds are important modulators of the atmospheric flow, impacting turbulence intensity via shading of the surface, which also influences boundary layer growth and the vertical transfer of momentum, leading to changes in mean wind speed, shear and veer across the turbine rotor swept area. In the offshore environment, radiative cooling from liquid water in the stratocumulus field that often surmounts the marine ABL can drive increased turbulence within the flow below the cloud deck. Clouds also produce various species of precipitation which impact turbine and plant performance, including glaze and rime ice that reduce aerodynamic performance, raindrops that can accelerate leading edge erosion, and graupel and hail which can be particularly damaging. The greater computational expense of cloud microphysics models that can accurately depict these processes, as well as running these schemes at the fine mesh scales required, have hindered understanding and predictive capabilities for the impacts of clouds and precipitation on wind power generation thus far. ERF’s more efficient solution framework will facilitate addressing these gaps. Higher-fidelity representation of cloud impacts on surface shading will also improve ERF’s applicability to solar and hybrid plant operation.
 
 8. Impacts of Thunderstorms and Tropical Disturbances
 -----------------------------------------------------
-Thunderstorms and tropical disturbances are multiscale phenomena with potentially high impacts on wind plant operation and reliability due to strong winds, high turbulence levels and thus gustiness, large raindrops and hail, and, in offshore environments, associated surface waves that can cause significant damage to turbine platforms. Current atmospheric simulation codes such as WRF provide some capability to investigate storm impacts on wind plants, but simulations are too expensive for routine application. ERF will provide a superior framework for investigating the impacts of strong storms on both onshore and especially offshore environments, where integration with high-fidelity wave and sea-state models will significantly extend predictive capabilities for ABL flow and potentially relevant sea-state characteristics. 
+Thunderstorms and tropical disturbances are multiscale phenomena with potentially high impacts on wind plant operation and reliability due to strong winds, high turbulence levels and thus gustiness, large raindrops and hail, and, in offshore environments, associated surface waves that can cause significant damage to turbine platforms. Current atmospheric simulation codes such as WRF provide some capability to investigate storm impacts on wind plants, but simulations are too expensive for routine application. ERF will provide a superior framework for investigating the impacts of strong storms on both onshore and especially offshore environments, where integration with high-fidelity wave and sea-state models will significantly extend predictive capabilities for ABL flow and potentially relevant sea-state characteristics.
 
 9. Regional Integration and Hybrid Plants
 -----------------------------------------
@@ -83,7 +83,7 @@ Machine learning (ML) and artificial intelligence (AI) approaches represent sign
 
 ERF's Role within the Spectrum of Geophysical and Wind Energy Applications
 --------------------------------------------------------------------------
-These above listed activities and phenomena define the key applications envisioned for the ERF model. However, there are two other flow simulation regimes of relevance to wind-energy that ERF is not intended to address. The first of these is weather forecasting. While ERF could, in principle, be extended to capture larger-scales of meteorological forcing, efforts are already underway elsewhere to create next-generation numerical weather NWP systems, operating at global scales, to capture the largest scales impacting weather system evolution, while also being designed to utilize GPUs for enhanced speed and efficiency. ERF will leverage these concurrent developments by interfacing with a data preprocessor to ingest forecast and analysis fields produced by these new larger-scale models. ERF will focus on the efficient downscaling of those solutions to footprints of relevance to wind energy applications, capturing the associated finer-scale mesoscale and turbulence features, as well as wind plant interactions, along the way. 
+These above listed activities and phenomena define the key applications envisioned for the ERF model. However, there are two other flow simulation regimes of relevance to wind-energy that ERF is not intended to address. The first of these is weather forecasting. While ERF could, in principle, be extended to capture larger-scales of meteorological forcing, efforts are already underway elsewhere to create next-generation numerical weather NWP systems, operating at global scales, to capture the largest scales impacting weather system evolution, while also being designed to utilize GPUs for enhanced speed and efficiency. ERF will leverage these concurrent developments by interfacing with a data preprocessor to ingest forecast and analysis fields produced by these new larger-scale models. ERF will focus on the efficient downscaling of those solutions to footprints of relevance to wind energy applications, capturing the associated finer-scale mesoscale and turbulence features, as well as wind plant interactions, along the way.
 
 The second application ERF will not address is very fine-scale microscale simulation and interaction with resolved turbine components. As is the case with NWP, other modeling tools, including the ExaWind code, are being developed to support those activities, with ERF functioning primarily as the provider of inflow and boundary information, downscaled from mesoscale or NWP scales, to those fine-scale application domains, through robust model coupling interfaces. ERF will also be designed to upscale information from finer-scale offline-coupled simulations back into its domain(s) for improved fidelity.
 
@@ -91,7 +91,7 @@ The second application ERF will not address is very fine-scale microscale simula
 ERF Features and Requirements
 =============================
 
-Below is a list of the features that the ERF code must provide, and requirements of the code to support those features, in order to satisfy the above described user base and applications. 
+Below is a list of the features that the ERF code must provide, and requirements of the code to support those features, in order to satisfy the above described user base and applications.
 
 1. Excellent Performance on Both CPU- and GPU-Based HPC Platforms
 -----------------------------------------------------------------
@@ -99,7 +99,7 @@ ERF must be able to run efficiently on both CPU- and GPU-based HPC platforms. Th
 
 2. C++ Base Code with Ability to Incorporate FORTRAN
 ----------------------------------------------------
-For optimal utilization of GPU-based hardware, the ERF source code must be written in C++. However, ERF should also be able to incorporate legacy Fortran source code from other models. While Fortran code incorporated into the C++ code base will not result in optimal performance, it will allow for the rapid expansion of ERF’s capabilities, while providing a pathway to facilitate adoption of ERF by users and developers familiar with Fortran programming and legacy codes. Future development of ERF, including potential community development, can target the rewriting of desired Fortran modules into C++ for enhanced performance. 
+For optimal utilization of GPU-based hardware, the ERF source code must be written in C++. However, ERF should also be able to incorporate legacy Fortran source code from other models. While Fortran code incorporated into the C++ code base will not result in optimal performance, it will allow for the rapid expansion of ERF’s capabilities, while providing a pathway to facilitate adoption of ERF by users and developers familiar with Fortran programming and legacy codes. Future development of ERF, including potential community development, can target the rewriting of desired Fortran modules into C++ for enhanced performance.
 
 3. Configurability for Mesoscale, Microscale and Multiscale Simulations
 -----------------------------------------------------------------------
@@ -107,7 +107,7 @@ ERF must provide flexible configurability that supports mesoscale or microscale 
 
 Atmospheric downscaling applications will focus primarily on increased resolution over particular geographical areas, rather than tracking flow features that move in time, and therefore static refinement over rectangular volumes is sufficient for the near term (although eventually adaptive refinement will be useful to track features such as storms or turbine wakes). One-way coupling at the refinement interfaces, for which the fine mesh only receives information from, but does not transmit information back to the parent mesh, is acceptable at the beginning. Two-way nesting, for which the fine mesh provides information back to the parent mesh, is eventually needed to improve simulation also on those coarser domains.
 
-The downscaling information exchange at mesh interfaces can follow procedures used in other codes, such as WRF, in which the parent mesh executes one time step, after which variables at the beginning and end of each parent time step are interpolated linearly in time to the refined-mesh time step to support integration of the finer mesh solution. For two-way coupling, the fine-mesh solution can be averaged to the coarse mesh after advancing to the coarse-mesh time step, where it can either replace the solution on that mesh, or provide a target for relaxation of the coarser-mesh solution. 
+The downscaling information exchange at mesh interfaces can follow procedures used in other codes, such as WRF, in which the parent mesh executes one time step, after which variables at the beginning and end of each parent time step are interpolated linearly in time to the refined-mesh time step to support integration of the finer mesh solution. For two-way coupling, the fine-mesh solution can be averaged to the coarse mesh after advancing to the coarse-mesh time step, where it can either replace the solution on that mesh, or provide a target for relaxation of the coarser-mesh solution.
 
 4. Initial and Boundary Condition Preprocessing for Real-Data Simulations
 -------------------------------------------------------------------------
@@ -127,22 +127,22 @@ The ERF equation set will require a discretization strategy and numerical soluti
 
 8. Fully Explicit and Mixed Implicit-Explicit Time Discretizations
 ------------------------------------------------------------------
-For time advancement, a fully explicit method is required for general applications, however the flexibility to implement options for implicit treatment in the vertical, or all three directions, should be included. Different meshes must be able to use different time steps (selectable by the user based upon the spatial refinement ratio). Substepping in time for acoustic mode propagation should be included for the advancement of the pressure or density field in mesoscale domains where a time step sufficient to resolve those modes would be untenable. 
+For time advancement, a fully explicit method is required for general applications, however the flexibility to implement options for implicit treatment in the vertical, or all three directions, should be included. Different meshes must be able to use different time steps (selectable by the user based upon the spatial refinement ratio). Substepping in time for acoustic mode propagation should be included for the advancement of the pressure or density field in mesoscale domains where a time step sufficient to resolve those modes would be untenable.
 
 9. Application-Relevant Physical Process Parameterizations
 ----------------------------------------------------------
 To support mesoscale, microscale and downscaling simulations, ERF must contain physical process parameterizations appropriate to all relevant scales and processes, including:
 
-*	Monin-Obukhov Similarity Theory (MOST) surface stress boundary condition
-*	Wave damping treatments for the upper domain
-*	Subgrid turbulence closure for large-eddy simulation 
-*	Subgrid turbulence closure for mesoscale simulation 
-*	Surface energy budget parameterization for surface energy and momentum fluxes
-*	Vegetation canopy model for improved flow over tall vegetation
-*	Shortwave and longwave radiative transfer to capture solar/diurnal forcing and cloud-induced radiation impacts
-*	Cloud microphysics to capture cloud-radiative forcing and precipitation
-*	Offshore wave, sea-state and ocean current models appropriate for various spatial scales
-*	Wind plant wake models for microscale and mesoscale applications
+*    Monin-Obukhov Similarity Theory (MOST) surface stress boundary condition
+*    Wave damping treatments for the upper domain
+*    Subgrid turbulence closure for large-eddy simulation
+*    Subgrid turbulence closure for mesoscale simulation
+*    Surface energy budget parameterization for surface energy and momentum fluxes
+*    Vegetation canopy model for improved flow over tall vegetation
+*    Shortwave and longwave radiative transfer to capture solar/diurnal forcing and cloud-induced radiation impacts
+*    Cloud microphysics to capture cloud-radiative forcing and precipitation
+*    Offshore wave, sea-state and ocean current models appropriate for various spatial scales
+*    Wind plant wake models for microscale and mesoscale applications
 
 Following the WRF model, the physical process parameterizations should be callable on user-adjustable time steps (for faster simulation execution), and if a Runge-Kutta time advancement scheme is chosen, computed on the first predictor step of the sequence.
 
@@ -152,13 +152,13 @@ Many of ERF’s required parameterizations and other capabilities can be taken f
 
 10. Robust and Efficient Interfacing of ERF with Other Code Bases
 -----------------------------------------------------------------
-ERF must robustly and efficiently interface with other codes, such as ExaWind, modules within the CPP, wave, sea-state, and wind turbine aerodynamics and load models to support ERF’s applications. The interfacing must allow for the efficient exchange of required variable values or forcing terms at the domain boundaries or overlap regions of the coupled codes. 
+ERF must robustly and efficiently interface with other codes, such as ExaWind, modules within the CPP, wave, sea-state, and wind turbine aerodynamics and load models to support ERF’s applications. The interfacing must allow for the efficient exchange of required variable values or forcing terms at the domain boundaries or overlap regions of the coupled codes.
 
 11. Efficient and Flexible Selection of Output and Internal Diagnostics
 -----------------------------------------------------------------------
 ERF should incorporate efficient parallel input/output (I/O) strategies to support runs over large processor counts, and frequent output, including options for asynchronous I/O to overlap I/O and computation. For variables on staggered grids, projection to cell-centered locations is desirable. For variables decomposed into perturbation and base states, reconstruction of the entire physical field before outputting is desirable to reduce file sizes.
 
-To further reduce output file sizes and time spent writing output fields, ERF must provide abilities to select output for specific variables over domain subvolumes and slices of arbitrary size and orientation, and to compute diagnostic quantities such as spectra and Reynolds stresses, either over time or arbitrary spatial directions and volumes, during code execution. 
+To further reduce output file sizes and time spent writing output fields, ERF must provide abilities to select output for specific variables over domain subvolumes and slices of arbitrary size and orientation, and to compute diagnostic quantities such as spectra and Reynolds stresses, either over time or arbitrary spatial directions and volumes, during code execution.
 
 ERF should adopt NetCDF climate and forecast (CF)-compliant metadata or a sufficiently close proximity thereof for output files to enable the use of common plotting and analysis software like xarray in Python, Ferret, NCL, etc.
 
@@ -168,7 +168,7 @@ For the ERF code to remain viable on evolving computational hardware while maint
 
 13. Detailed Documentation and Test Cases
 -----------------------------------------
-To attract new users and encourage development by the user community, ERF must contain detailed documentation and test cases describing configurability and pathways for extensibility. The documentation should take the form of a users’ guide for a high-level understanding of how to use the code for various applications, a detailed technical volume describing the equations, discretization strategy, solution methods, and data management, and extensive comments within the source code that describe the function of specific segments. The WRF model provides an excellent example of a documentation and code structure that facilitates adoption by new users, while encouraging community contributed extensions to its capabilities. 
+To attract new users and encourage development by the user community, ERF must contain detailed documentation and test cases describing configurability and pathways for extensibility. The documentation should take the form of a users’ guide for a high-level understanding of how to use the code for various applications, a detailed technical volume describing the equations, discretization strategy, solution methods, and data management, and extensive comments within the source code that describe the function of specific segments. The WRF model provides an excellent example of a documentation and code structure that facilitates adoption by new users, while encouraging community contributed extensions to its capabilities.
 
 14. Balance between Performance, Robustness and Usability
 ---------------------------------------------------------
@@ -184,46 +184,46 @@ Development of the ERF source code requires a detailed strategy for the implemen
 --------------------------------------------------------
 To ensure a robust record of code development history, ERF will be developed and managed within a GIT commit structure, with protocols for description and verification of implementations following the ExaWind project.
 
-Documentation will be required on three levels: 
+Documentation will be required on three levels:
 
-*	Unit-level information within the source code to aid future users and developers
-*	Higher-level design and implementation information in accompanying documentation on a readthedocs.org portal
-*	A users’ guide detailing code functionality and describing accompanying test cases to demonstrate that functionality to new users; to learn by going through examples.
-*	Shared analysis scripts to ensure consistency of results across the team
+*    Unit-level information within the source code to aid future users and developers
+*    Higher-level design and implementation information in accompanying documentation on a readthedocs.org portal
+*    A users’ guide detailing code functionality and describing accompanying test cases to demonstrate that functionality to new users; to learn by going through examples.
+*    Shared analysis scripts to ensure consistency of results across the team
 
 Development of the code will follow modern software project paradigms, including
 
-*	Configurability of software packages
+*    Configurability of software packages
 
   * Different combinations of components constituting different applications
-  
+
     - E.g., single- versus multi-resolution, real data versus idealized, microscale only versus mesoscale or multiscale (requiring physics packages), stand-alone versus coupled with other codes, …
-    
+
   * Assessment of compile-time versus run-time configurability to guide optimization
-  
+
 * Encapsulation
 
   * Related functionality and data that can be grouped as a single class are organized into encapsulated code units that can have multiple alternative implementations.
-  *	Code libraries to provide services such as discretization, data management, and orchestration of data movement for parallelization as well as I/O.
-  *	Physics solvers are largely ignorant of the details managed by the framework (dynamic core and I/O), and operate in “plug-and-play” mode within the framework to enable streamlining for specific applications, or to perform ensembles for which configuration, dynamics and physics options can be modified at compile or run time
+  *    Code libraries to provide services such as discretization, data management, and orchestration of data movement for parallelization as well as I/O.
+  *    Physics solvers are largely ignorant of the details managed by the framework (dynamic core and I/O), and operate in “plug-and-play” mode within the framework to enable streamlining for specific applications, or to perform ensembles for which configuration, dynamics and physics options can be modified at compile or run time
 
-*	Separation of concerns so that, e.g., infrastructure and physics solvers development do not intrude into each other’s space
+*    Separation of concerns so that, e.g., infrastructure and physics solvers development do not intrude into each other’s space
 
-*	Hierarchy of parallelism within and across code units 
+*    Hierarchy of parallelism within and across code units
 
 2. Development of Robust Testing Strategies
 -------------------------------------------
 Robust testing at multiple levels is required for verification, validation, and characterization of code performance and simulation accuracy.
 
-*	At the smallest unit level, test cases for unit-level commits will be provided by the originators of those code units and included in a master suite of unit tests which must exhibit acceptable performance during future code development. 
-*	At intermediate aggregation levels for which functional units group together to provide a moderately complex capability, those sub-model aggregations must exhibit acceptable performance against suitable test cases, under future code development.
-*	At the highest aggregation levels for which functional groups combine together to provide a complex capability, those whole-model aggregations must exhibit acceptable performance against suitable aggregate-level test cases under future development.
+*    At the smallest unit level, test cases for unit-level commits will be provided by the originators of those code units and included in a master suite of unit tests which must exhibit acceptable performance during future code development.
+*    At intermediate aggregation levels for which functional units group together to provide a moderately complex capability, those sub-model aggregations must exhibit acceptable performance against suitable test cases, under future code development.
+*    At the highest aggregation levels for which functional groups combine together to provide a complex capability, those whole-model aggregations must exhibit acceptable performance against suitable aggregate-level test cases under future development.
 
-Acceptable performance should consist of bit-for-bit agreement for the addition of unrelated code components, or components that operate on data management and movements, but are not expected to alter values. 
+Acceptable performance should consist of bit-for-bit agreement for the addition of unrelated code components, or components that operate on data management and movements, but are not expected to alter values.
 
-Higher-level tests should consist of performance against standards, such as analytical or manufactured solutions, as well as convergence under spatial or temporal refinement, depending on the sub-model component. The highest-level or “whole-model” tests should consist of evaluation against data from field campaigns or previous appropriate whole-model results, such as obtained from WRF or OpenFoam. 
+Higher-level tests should consist of performance against standards, such as analytical or manufactured solutions, as well as convergence under spatial or temporal refinement, depending on the sub-model component. The highest-level or “whole-model” tests should consist of evaluation against data from field campaigns or previous appropriate whole-model results, such as obtained from WRF or OpenFoam.
 
-These standards should be articulated at a sufficient level of detail to guide community contributors of requirements for code additions or improvements. 
+These standards should be articulated at a sufficient level of detail to guide community contributors of requirements for code additions or improvements.
 
 
 Implementation Details for Specific Code Components
@@ -235,16 +235,16 @@ This section provides detailed information on core elements of the ERF code that
 -------------------------
 Details of ERF’s governing equation set are currently still being formulated, however it will closely follow the formulation used by the COSMO model, with the following attributes:
 
-*	Fully compressible non-hydrostatic formulation
-*	Terrain-following computational mesh
-*	Fixed-height vertical coordinate
-*	Prognostic variables (three dimensional winds, a conserved temperature variable (potential or moist potential temperature, and pressure) cast in perturbation form, relative to hydrostatic base state.
+*    Fully compressible non-hydrostatic formulation
+*    Terrain-following computational mesh
+*    Fixed-height vertical coordinate
+*    Prognostic variables (three dimensional winds, a conserved temperature variable (potential or moist potential temperature, and pressure) cast in perturbation form, relative to hydrostatic base state.
 
 This formulation does not conserve mass, but errors are negligible over intended timescales of simulations (hours to days).
 
 2. Spatial Discretization
 -------------------------
-Spatial discretization of the ERF governing equation set will follow a second-order finite difference strategy, on an Arakawa C-grid. Horizontal grid spacing will be equal in each direction and constant within each mesh refinement level with respect to adjustments necessary for mapping factors. The vertical coordinate will support user specification of heights on each refinement level. Higher-order difference formulations, including upwinding schemes, will also be provided if needed and resources allow. A Lambert conformal map projection will be used. 
+Spatial discretization of the ERF governing equation set will follow a second-order finite difference strategy, on an Arakawa C-grid. Horizontal grid spacing will be equal in each direction and constant within each mesh refinement level with respect to adjustments necessary for mapping factors. The vertical coordinate will support user specification of heights on each refinement level. Higher-order difference formulations, including upwinding schemes, will also be provided if needed and resources allow. A Lambert conformal map projection will be used.
 
 Immersed boundary methods will also be implemented for a variety of applications, including reduced numerical errors over complex terrain, extension to very steep terrain up to and including vertical cliff walls, incorporation of embedded turbine and structure geometries, and potentially as a method to incorporate resolved wave impacts on atmospheric flows. Various methods developed within the WRF model can be straightforwardly extracted from that code and implemented into ERF, within which the ability to maintain constant heights of the model vertical coordinate will greatly enhance code performance when in use.
 
@@ -260,13 +260,13 @@ ERF should be formulated to support integration of a variety of numerical soluti
 ------------------
 ERF will utilize the AMReX adaptive mesh refinement framework for its computational mesh and refinement requirements. AMReX provides a flexible capability that can support all of ERF’s required mesh needs utilizing advanced data structures and memory management for robust and efficient data transfer and load balancing. Moreover, AMReX contains built-in abstractions to efficiently interface with a variety of CPU- and GPU-based HPC hardware. The continuing support of AMReX by the Exascale Computing Program makes AMReX an ideal choice for ERF.
 
-While ERF will most likely never utilize all of the adaptive mesh refinement capabilities available within AMReX, requiring principally only static regions of refinement, there is no penalty for not utilizing those additional capabilities, and those capabilities might prove valuable to future applications. 
+While ERF will most likely never utilize all of the adaptive mesh refinement capabilities available within AMReX, requiring principally only static regions of refinement, there is no penalty for not utilizing those additional capabilities, and those capabilities might prove valuable to future applications.
 
 6. Boundary Conditions
 ----------------------
-List of top, bottom and lateral boundary condition implementations provided here. 
+List of top, bottom and lateral boundary condition implementations provided here.
 
-The highest priority needed for initial code testing and to simplify additional development includes capability to support ABL flow, including free-slip boundaries at the top and bottom, with no flow normal to the domain top and surface, and no fluxes of energy or constituents, periodic lateral boundaries in each direction, and wave damping at the model top. 
+The highest priority needed for initial code testing and to simplify additional development includes capability to support ABL flow, including free-slip boundaries at the top and bottom, with no flow normal to the domain top and surface, and no fluxes of energy or constituents, periodic lateral boundaries in each direction, and wave damping at the model top.
 
 Once the basic code is functional, the ability to read time dependent boundary conditions from input files using modified WPS code will be implemented to enable real-world simulations.
 
@@ -274,10 +274,10 @@ Once the basic code is functional, the ability to read time dependent boundary c
 -------------------------------------
 List of physical process models described here. Priority development includes:
 
-*	MOST surface stress boundary condition for surface momentum fluxes
-*	Subgrid turbulence flux model for large-eddy simulation
-*	Subgrid turbulence flux model (PBL scheme) for mesoscale simulation
-*	Hooks to the CPP for radiation, cloud, surface, and boundary layer parameterizations
+*    MOST surface stress boundary condition for surface momentum fluxes
+*    Subgrid turbulence flux model for large-eddy simulation
+*    Subgrid turbulence flux model (PBL scheme) for mesoscale simulation
+*    Hooks to the CPP for radiation, cloud, surface, and boundary layer parameterizations
 
 8. Model Coupling
 -----------------
@@ -285,10 +285,10 @@ Explore pathways to interface both ERF and ExaWind within the same AMReX platfor
 
 9. Input/Output
 ---------------
-Short-term goal: Utilize native AMReX output which can be read by ParaView and VisIt. Add capability to write to NetCDF in a mostly-CF-compliant format, enabling integration with Xarray in Python, and potentially other plotting utilities. 
+Short-term goal: Utilize native AMReX output which can be read by ParaView and VisIt. Add capability to write to NetCDF in a mostly-CF-compliant format, enabling integration with Xarray in Python, and potentially other plotting utilities.
 
 Long-term goal: Implement capability to configure I/O at run time based, for example, on a YAML file that is separate from the configuration file used to run the code. The separate I/O file would support:
 
-*	Adding and removing specific variables from the output 
+*    Adding and removing specific variables from the output
 * Changing output frequency for different variables
-*	Use of multiple output files with different sets of variables and output frequencies      
+*    Use of multiple output files with different sets of variables and output frequencies

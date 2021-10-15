@@ -16,7 +16,7 @@ struct ProbParm {
   amrex::Real p_inf = p_0; //freestream pressure [Pa]
   amrex::Real T_inf = 300.0; //freestream temperature [K]
   amrex::Real M_inf = 0.2; //freestream Mach number [-]
-  amrex::Real alpha = 0.0; //inflow angle, 0 --> x-aligned [rad] 
+  amrex::Real alpha = 0.0; //inflow angle, 0 --> x-aligned [rad]
   amrex::Real gamma = Gamma; //specific heat ratio [-]
   amrex::Real beta = 0.01; //non-dimensional max perturbation strength [-]
   amrex::Real sigma = 1.0; //Gaussian standard deviation, i.e., spreading parameter [-]
