@@ -8,13 +8,13 @@ This file needs to be specified along with the executable as an ``argv`` option,
 
 ::
 
-	mpirun -np 64 ./ERF2d.xxx.yyy.ex inputs
+    mpirun -np 64 ./ERF2d.xxx.yyy.ex inputs
 
 Also, any entry that can be specified in the inputs file can also be specified on the command line; values specified on the command line override values in the inputs file, e.g.:
 
 ::
 
-	mpirun -np 64 ./ERF2d.gnu.DEBUG.MPI.ex inputs amr.restart=sod_x_chk0030 erf.riemann_solver=3
+    mpirun -np 64 ./ERF2d.gnu.DEBUG.MPI.ex inputs amr.restart=sod_x_chk0030 erf.riemann_solver=3
 
 The available options are divided into groups: those that control primarily AMReX are prefaced with ``amr.`` while those that are specific to ERF are prefaced with ``erf.``.
 

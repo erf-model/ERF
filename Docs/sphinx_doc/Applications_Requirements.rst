@@ -133,16 +133,16 @@ For time advancement, a fully explicit method is required for general applicatio
 ----------------------------------------------------------
 To support mesoscale, microscale and downscaling simulations, ERF must contain physical process parameterizations appropriate to all relevant scales and processes, including:
 
-*	Monin-Obukhov Similarity Theory (MOST) surface stress boundary condition
-*	Wave damping treatments for the upper domain
-*	Subgrid turbulence closure for large-eddy simulation
-*	Subgrid turbulence closure for mesoscale simulation
-*	Surface energy budget parameterization for surface energy and momentum fluxes
-*	Vegetation canopy model for improved flow over tall vegetation
-*	Shortwave and longwave radiative transfer to capture solar/diurnal forcing and cloud-induced radiation impacts
-*	Cloud microphysics to capture cloud-radiative forcing and precipitation
-*	Offshore wave, sea-state and ocean current models appropriate for various spatial scales
-*	Wind plant wake models for microscale and mesoscale applications
+*    Monin-Obukhov Similarity Theory (MOST) surface stress boundary condition
+*    Wave damping treatments for the upper domain
+*    Subgrid turbulence closure for large-eddy simulation
+*    Subgrid turbulence closure for mesoscale simulation
+*    Surface energy budget parameterization for surface energy and momentum fluxes
+*    Vegetation canopy model for improved flow over tall vegetation
+*    Shortwave and longwave radiative transfer to capture solar/diurnal forcing and cloud-induced radiation impacts
+*    Cloud microphysics to capture cloud-radiative forcing and precipitation
+*    Offshore wave, sea-state and ocean current models appropriate for various spatial scales
+*    Wind plant wake models for microscale and mesoscale applications
 
 Following the WRF model, the physical process parameterizations should be callable on user-adjustable time steps (for faster simulation execution), and if a Runge-Kutta time advancement scheme is chosen, computed on the first predictor step of the sequence.
 
@@ -186,14 +186,14 @@ To ensure a robust record of code development history, ERF will be developed and
 
 Documentation will be required on three levels:
 
-*	Unit-level information within the source code to aid future users and developers
-*	Higher-level design and implementation information in accompanying documentation on a readthedocs.org portal
-*	A users’ guide detailing code functionality and describing accompanying test cases to demonstrate that functionality to new users; to learn by going through examples.
-*	Shared analysis scripts to ensure consistency of results across the team
+*    Unit-level information within the source code to aid future users and developers
+*    Higher-level design and implementation information in accompanying documentation on a readthedocs.org portal
+*    A users’ guide detailing code functionality and describing accompanying test cases to demonstrate that functionality to new users; to learn by going through examples.
+*    Shared analysis scripts to ensure consistency of results across the team
 
 Development of the code will follow modern software project paradigms, including
 
-*	Configurability of software packages
+*    Configurability of software packages
 
   * Different combinations of components constituting different applications
 
@@ -204,20 +204,20 @@ Development of the code will follow modern software project paradigms, including
 * Encapsulation
 
   * Related functionality and data that can be grouped as a single class are organized into encapsulated code units that can have multiple alternative implementations.
-  *	Code libraries to provide services such as discretization, data management, and orchestration of data movement for parallelization as well as I/O.
-  *	Physics solvers are largely ignorant of the details managed by the framework (dynamic core and I/O), and operate in “plug-and-play” mode within the framework to enable streamlining for specific applications, or to perform ensembles for which configuration, dynamics and physics options can be modified at compile or run time
+  *    Code libraries to provide services such as discretization, data management, and orchestration of data movement for parallelization as well as I/O.
+  *    Physics solvers are largely ignorant of the details managed by the framework (dynamic core and I/O), and operate in “plug-and-play” mode within the framework to enable streamlining for specific applications, or to perform ensembles for which configuration, dynamics and physics options can be modified at compile or run time
 
-*	Separation of concerns so that, e.g., infrastructure and physics solvers development do not intrude into each other’s space
+*    Separation of concerns so that, e.g., infrastructure and physics solvers development do not intrude into each other’s space
 
-*	Hierarchy of parallelism within and across code units
+*    Hierarchy of parallelism within and across code units
 
 2. Development of Robust Testing Strategies
 -------------------------------------------
 Robust testing at multiple levels is required for verification, validation, and characterization of code performance and simulation accuracy.
 
-*	At the smallest unit level, test cases for unit-level commits will be provided by the originators of those code units and included in a master suite of unit tests which must exhibit acceptable performance during future code development.
-*	At intermediate aggregation levels for which functional units group together to provide a moderately complex capability, those sub-model aggregations must exhibit acceptable performance against suitable test cases, under future code development.
-*	At the highest aggregation levels for which functional groups combine together to provide a complex capability, those whole-model aggregations must exhibit acceptable performance against suitable aggregate-level test cases under future development.
+*    At the smallest unit level, test cases for unit-level commits will be provided by the originators of those code units and included in a master suite of unit tests which must exhibit acceptable performance during future code development.
+*    At intermediate aggregation levels for which functional units group together to provide a moderately complex capability, those sub-model aggregations must exhibit acceptable performance against suitable test cases, under future code development.
+*    At the highest aggregation levels for which functional groups combine together to provide a complex capability, those whole-model aggregations must exhibit acceptable performance against suitable aggregate-level test cases under future development.
 
 Acceptable performance should consist of bit-for-bit agreement for the addition of unrelated code components, or components that operate on data management and movements, but are not expected to alter values.
 
@@ -235,10 +235,10 @@ This section provides detailed information on core elements of the ERF code that
 -------------------------
 Details of ERF’s governing equation set are currently still being formulated, however it will closely follow the formulation used by the COSMO model, with the following attributes:
 
-*	Fully compressible non-hydrostatic formulation
-*	Terrain-following computational mesh
-*	Fixed-height vertical coordinate
-*	Prognostic variables (three dimensional winds, a conserved temperature variable (potential or moist potential temperature, and pressure) cast in perturbation form, relative to hydrostatic base state.
+*    Fully compressible non-hydrostatic formulation
+*    Terrain-following computational mesh
+*    Fixed-height vertical coordinate
+*    Prognostic variables (three dimensional winds, a conserved temperature variable (potential or moist potential temperature, and pressure) cast in perturbation form, relative to hydrostatic base state.
 
 This formulation does not conserve mass, but errors are negligible over intended timescales of simulations (hours to days).
 
@@ -274,10 +274,10 @@ Once the basic code is functional, the ability to read time dependent boundary c
 -------------------------------------
 List of physical process models described here. Priority development includes:
 
-*	MOST surface stress boundary condition for surface momentum fluxes
-*	Subgrid turbulence flux model for large-eddy simulation
-*	Subgrid turbulence flux model (PBL scheme) for mesoscale simulation
-*	Hooks to the CPP for radiation, cloud, surface, and boundary layer parameterizations
+*    MOST surface stress boundary condition for surface momentum fluxes
+*    Subgrid turbulence flux model for large-eddy simulation
+*    Subgrid turbulence flux model (PBL scheme) for mesoscale simulation
+*    Hooks to the CPP for radiation, cloud, surface, and boundary layer parameterizations
 
 8. Model Coupling
 -----------------
@@ -289,6 +289,6 @@ Short-term goal: Utilize native AMReX output which can be read by ParaView and V
 
 Long-term goal: Implement capability to configure I/O at run time based, for example, on a YAML file that is separate from the configuration file used to run the code. The separate I/O file would support:
 
-*	Adding and removing specific variables from the output
+*    Adding and removing specific variables from the output
 * Changing output frequency for different variables
-*	Use of multiple output files with different sets of variables and output frequencies
+*    Use of multiple output files with different sets of variables and output frequencies

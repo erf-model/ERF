@@ -538,21 +538,21 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
              if (i < lo) {
-       	       data(i,j,k,n) = -data(lo,j,k,n) + 2*bcval;
+                  data(i,j,k,n) = -data(lo,j,k,n) + 2*bcval;
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j < lo) {
-       	       data(i,j,k,n) = -data(i,lo,k,n) + 2*bcval;
+                  data(i,j,k,n) = -data(i,lo,k,n) + 2*bcval;
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
-       	       data(i,j,k,n) = -data(i,j,lo,n) + 2*bcval;
+                  data(i,j,k,n) = -data(i,j,lo,n) + 2*bcval;
             }
           });
         }
@@ -644,21 +644,21 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
              if (i > hi) {
-       	       data(i,j,k,n) = -data(hi,j,k,n) + 2*bcval;
+                  data(i,j,k,n) = -data(hi,j,k,n) + 2*bcval;
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j > hi) {
-       	       data(i,j,k,n) = -data(i,hi,k,n) + 2*bcval;
+                  data(i,j,k,n) = -data(i,hi,k,n) + 2*bcval;
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k > hi) {
-       	       data(i,j,k,n) = -data(i,j,hi,n) + 2*bcval;
+                  data(i,j,k,n) = -data(i,j,hi,n) + 2*bcval;
             }
           });
         }
@@ -756,25 +756,25 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
              if (i < lo) {
-	       // Assume distance between lo and lo-1 is dxarray(IDIR), and height of lo
-	       // above boundary is dxarray(IDIR) / 2.0
+           // Assume distance between lo and lo-1 is dxarray(IDIR), and height of lo
+           // above boundary is dxarray(IDIR) / 2.0
                // zrough is set to constant value 0.1 m here.  Should be passed in through input file.
 
-       	       data(i,j,k,n) = data(lo,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+                  data(i,j,k,n) = data(lo,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j < lo) {
-	      data(i,j,k,n) = data(i,lo,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+          data(i,j,k,n) = data(i,lo,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
-	      data(i,j,k,n) = data(i,j,lo,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+          data(i,j,k,n) = data(i,j,lo,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         }
@@ -860,25 +860,25 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (i > hi) {
-	       // Assume distance between hi and hi+1 is dxarray(IDIR), and height of hi
-	       // below boundary is dxarray(IDIR) / 2.0
+           // Assume distance between hi and hi+1 is dxarray(IDIR), and height of hi
+           // below boundary is dxarray(IDIR) / 2.0
                // zrough is set to constant value 0.1 m here.  Should be passed in through input file.
 
-       	      data(i,j,k,n) = data(hi,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+                 data(i,j,k,n) = data(hi,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         } else if (IDIR == 1) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (j > hi) {
-     	      data(i,j,k,n) = data(i,hi,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+               data(i,j,k,n) = data(i,hi,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         } else if (IDIR == 2) {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k > hi) {
-     	      data(i,j,k,n) = data(i,j,hi,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
+               data(i,j,k,n) = data(i,j,hi,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
           });
         }
