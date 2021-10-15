@@ -41,8 +41,6 @@ function(build_erf_exe erf_exe_name)
 #      ${SRC_DIR}/GradUtil.H
        ${SRC_DIR}/IndexDefines.H
 #      ${SRC_DIR}/IndexDefines.cpp
-       ${SRC_DIR}/Transport.H
-       ${SRC_DIR}/TransportParams.H
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/Problem.H
@@ -54,8 +52,6 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/Tagging.H
        ${SRC_DIR}/Tagging.cpp
        ${SRC_DIR}/Utilities.H
-       ${SRC_DIR}/Transport.cpp
-       ${SRC_DIR}/TransportParams.cpp
        ${SRC_DIR}/IO/IOManager.H
        ${SRC_DIR}/IO/PlotFile.H
        ${SRC_DIR}/IO/PlotFile.cpp

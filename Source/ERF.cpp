@@ -17,7 +17,6 @@ using namespace MASA;
 #include "ERF.H"
 #include "Derive.H"
 #include "prob.H"
-#include "Transport.H"
 #include "EOS.H"
 #include "Utilities.H"
 #include "Tagging.H"
@@ -50,8 +49,6 @@ void
 ERF::variableCleanUp()
 {
   desc_lst.clear();
-
-  transport_close();
 
   clear_prob();
 }
@@ -1109,12 +1106,6 @@ void
 ERF::clear_prob()
 {
   erf_prob_close();
-}
-
-void
-ERF::init_transport()
-{
-  transport_init();
 }
 
 #ifdef ERF_USE_MASA

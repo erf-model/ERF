@@ -107,8 +107,6 @@ ERF::variableSetUp()
   // Get options, set phys_bc
   read_params();
 
-  init_transport();
-
 #ifdef ERF_USE_MASA
   if (do_mms) {
     init_mms();
