@@ -53,12 +53,12 @@ we recommend configuring your clone to use ssh access so you won't have to enter
 password every time, which you can do using these commands:
 
 ```
-git clone --branch development git@github.com:<myGithubUsername>/erf.git
+git clone --branch development git@github.com:<myGithubUsername>/ERF.git
 
 # Then, navigate into your repo, add a new remote for the main ERF repo, and fetch it:
-cd erf
+cd ERF
 git remote add upstream https://github.com/erf-model/ERF
-git remote set-url --push upstream git@github.com:<myGithubUsername>/erf.git
+git remote set-url --push upstream git@github.com:<myGithubUsername>/ERF.git
 git fetch upstream
 
 # We recommend setting your development branch to track the upstream one instead of your fork:
@@ -70,12 +70,12 @@ For instructions on setting up SSH access to your Github account on a new machin
 If you instead prefer to use HTTPS authentication, configure your local clone as follows:
 
 ```
-git clone --branch development https://github.com/<myGithubUsername>/erf.git
+git clone --branch development https://github.com/<myGithubUsername>/ERF.git
 
 # Navigate into your repo, add a new remote for the main ERF repo, and fetch it
-cd erf
+cd ERF
 git remote add upstream https://github.com/erf-model/ERF
-git remote set-url --push upstream https://github.com/<myGithubUsername>/erf.git
+git remote set-url --push upstream https://github.com/<myGithubUsername>/ERF.git
 git fetch upstream
 
 # We recommend setting your development branch to track the upstream one instead of your fork:
@@ -97,7 +97,7 @@ Make sure you are on the `development` branch with
 ```
 git checkout development
 ```
-in the erf directory.
+in the ERF directory.
 
 Create a branch `<branch_name>` (the branch name should reflect the piece
 of code you want to add, like `add_new_physics`) with
