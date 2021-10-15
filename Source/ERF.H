@@ -404,8 +404,6 @@ protected:
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> old_sources;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> new_sources;
 
-  static void init_transport();
-
   //void init_les();
   //void init_filters();
 
