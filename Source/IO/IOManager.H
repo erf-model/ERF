@@ -31,7 +31,7 @@
  *  default fields and output a subset of those fields.
  */
 
-// forwarded class 
+// forwarded class
 class ERF;
 
 class IOManager {
@@ -48,10 +48,10 @@ public:
 
     // ! Write checkpoint file
     void checkPoint(const std::string& dir, std::ostream& os, amrex::VisMF::How how, bool dump_old_default);
-     
+
     //! restart using checkpoint file
     void restart(amrex::Amr& papa, std::istream& is, bool bReadSpecial);
-    
+
     //! set state in checkpoint
     void set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint);
 
@@ -61,13 +61,13 @@ public:
     //! write job information
     void writeJobInfo(const std::string& dir);
 
-    //! write build information 
+    //! write build information
     static void writeBuildInfo(std::ostream& os);
 
 #ifdef ERF_USE_NETCDF
     // ! Write all user-requested fields to disk
     void writeNCPlotFile(const std::string& dir, std::ostream& os);
-    
+
     //! Write all necessary fields for restart
     void NCWriteCheckpointFile (const std::string& dir, std::ostream& os, const bool& dump_old);
 

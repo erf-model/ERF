@@ -101,7 +101,7 @@ rmse = pd.DataFrame(
 )
 rmse.to_csv(outfile)
 print('wrote',outfile)
-    
+
 outfile = os.path.join(results_dir, 'mae.csv')
 mae = pd.DataFrame(
     {
@@ -116,7 +116,7 @@ mae = pd.DataFrame(
 )
 mae.to_csv(outfile)
 print('wrote',outfile)
-    
+
 # plot
 fig,ax = plt.subplots()
 ax.semilogy(rmse.index, rmse['density'], linestyle='none', marker='.', label='density')

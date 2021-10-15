@@ -7,10 +7,10 @@
 
 using namespace amrex;
 
-void CalcDiffFlux(const MultiFab& cons_in, 
-                       const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in, 
-                       const MultiFab& prim_in, 
-                       const MultiFab& xvel_in, const MultiFab& yvel_in, const MultiFab& zvel_in, 
+void CalcDiffFlux(const MultiFab& cons_in,
+                       const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,
+                       const MultiFab& prim_in,
+                       const MultiFab& xvel_in, const MultiFab& yvel_in, const MultiFab& zvel_in,
                        const MultiFab& eta_in, const MultiFab& zeta_in, const MultiFab& kappa_in,
                        std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
                        std::array< MultiFab, 2 >& edgeflux_x,
@@ -22,14 +22,14 @@ void CalcDiffFlux(const MultiFab& cons_in,
                        const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("CalcDiffFlux()",CalcDiffFlux);
-    
+
 //    int visc_type_gpu = 3;  // Include bulk viscosity
 
     GpuArray<Real,AMREX_SPACEDIM> dx_gpu;
     for (int n=0; n<AMREX_SPACEDIM; ++n) {
         dx_gpu[n] = dx[n];
     }
-    
+
     faceflux[0].setVal(0.0);
     faceflux[1].setVal(0.0);
     faceflux[2].setVal(0.0);
@@ -47,7 +47,7 @@ void CalcDiffFlux(const MultiFab& cons_in,
     cenflux[1].setVal(0.0);
     cenflux[2].setVal(0.0);
 
-    int ngc = 1; 
+    int ngc = 1;
 
     std::array< MultiFab, AMREX_SPACEDIM > tau_diag; // diagonal stress (defined at cell centers)
     tau_diag[0].define(cons_in.boxArray(),cons_in.DistributionMap(),1,ngc);
@@ -70,7 +70,7 @@ void CalcDiffFlux(const MultiFab& cons_in,
     ////////////////////
     // diffusive fluxes
     ////////////////////
-    
+
     /*
     // Loop over boxes
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
@@ -112,7 +112,7 @@ void CalcDiffFlux(const MultiFab& cons_in,
 
         const Array4<const Real> prim = prim_in.array(mfi);
         const Array4<const Real> cons = cons_in.array(mfi);
-        
+
         const Array4<const Real> eta   = eta_in.array(mfi);
         const Array4<const Real> zeta  = zeta_in.array(mfi);
         const Array4<const Real> kappa = kappa_in.array(mfi);
@@ -138,13 +138,13 @@ void CalcDiffFlux(const MultiFab& cons_in,
 
             Real div = u_x + v_y + w_z;
             if (amrex::Math::abs(visc_type_gpu) == 3) {
-              tauxx(i,j,k) = 2*eta(i,j,k)*u_x + (zeta(i,j,k) - 2*eta(i,j,k)/3.)*div; 
-              tauyy(i,j,k) = 2*eta(i,j,k)*v_y + (zeta(i,j,k) - 2*eta(i,j,k)/3.)*div; 
+              tauxx(i,j,k) = 2*eta(i,j,k)*u_x + (zeta(i,j,k) - 2*eta(i,j,k)/3.)*div;
+              tauyy(i,j,k) = 2*eta(i,j,k)*v_y + (zeta(i,j,k) - 2*eta(i,j,k)/3.)*div;
               tauzz(i,j,k) = 2*eta(i,j,k)*w_z + (zeta(i,j,k) - 2*eta(i,j,k)/3.)*div;
             }
             else {
-              tauxx(i,j,k) = 2*eta(i,j,k)*u_x + (0.0 - 2*eta(i,j,k)/3.)*div; 
-              tauyy(i,j,k) = 2*eta(i,j,k)*v_y + (0.0 - 2*eta(i,j,k)/3.)*div; 
+              tauxx(i,j,k) = 2*eta(i,j,k)*u_x + (0.0 - 2*eta(i,j,k)/3.)*div;
+              tauyy(i,j,k) = 2*eta(i,j,k)*v_y + (0.0 - 2*eta(i,j,k)/3.)*div;
               tauzz(i,j,k) = 2*eta(i,j,k)*w_z + (0.0 - 2*eta(i,j,k)/3.)*div;
             }
 
@@ -158,7 +158,7 @@ void CalcDiffFlux(const MultiFab& cons_in,
             u_y = (velx(i,j,k) - velx(i,j-1,k))/dx_gpu[1];
             v_x = (vely(i,j,k) - vely(i-1,j,k))/dx_gpu[0];
             tauxy(i,j,k) = 0.25*(eta(i-1,j-1,k)+eta(i-1,j,k)+eta(i,j-1,k)+eta(i,j,k))*(u_y+v_x);
-            
+
         },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -191,7 +191,7 @@ void CalcDiffFlux(const MultiFab& cons_in,
         },
 
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            
+
             yflux(i,j,k,4) -= 0.25*((velx(i+1,j,k)+velx(i+1,j-1,k))*tauxy(i+1,j,k) + (velx(i,j,k)+velx(i,j-1,k))*tauxy(i,j,k));
             yflux(i,j,k,4) -= 0.5*vely(i,j,k)*(tauyy(i,j-1,k)+tauyy(i,j,k));
             yflux(i,j,k,4) -= 0.25*((velz(i,j,k+1)+velz(i,j-1,k+1))*tauyz(i,j,k+1) + (velz(i,j,k)+velz(i,j-1,k))*tauyz(i,j,k));
@@ -224,7 +224,7 @@ void CalcDiffFlux(const MultiFab& cons_in,
             edgez_v(i,j,k) -= tauyz(i,j,k);
             edgey_w(i,j,k) -= tauyz(i,j,k);
         });
-        
+
         // Loop over the center cells and compute fluxes (diagonal momentum terms)
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             cenx_u(i,j,k) -= tauxx(i,j,k);

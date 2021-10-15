@@ -35,10 +35,10 @@ erf_init_prob(
     // Calculate perturbation temperature
     const amrex::Real Omg = erf_vortex_Gaussian(x,y,parms);
     const amrex::Real deltaT = -(parms.gamma - 1.0)/(2.0*parms.sigma*parms.sigma) * Omg*Omg;
-    // Set the density 
+    // Set the density
     const amrex::Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
     state(i, j, k, Rho_comp) = rho_norm * parms.rho_inf;
-   
+
     // Initial _potential_ temperature
     const amrex::Real T = (1.0 + deltaT) * parms.T_inf;
     const amrex::Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation

@@ -13,9 +13,9 @@
 using namespace amrex;
 
 void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
-                 MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old, 
-                 MultiFab& xmom_upd, MultiFab& ymom_upd, MultiFab& zmom_upd, 
-                 MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    ,  
+                 MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
+                 MultiFab& xmom_upd, MultiFab& ymom_upd, MultiFab& zmom_upd,
+                 MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    ,
                  MultiFab& prim    , MultiFab& source,
                  MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
@@ -59,7 +59,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *************************************************************************
-    // Calculate face-based fluxes to update cell-centered quantities, and 
+    // Calculate face-based fluxes to update cell-centered quantities, and
     //           edge-based and cell-based fluxes to update face-centered quantities
     // *************************************************************************
     // TODO: No need for 'CalcAdvFlux'. Remove/clean this
@@ -103,7 +103,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
     // *************************************************************************
     for ( MFIter mfi(cons_old,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        
+
         const Box& bx = mfi.tilebox();
         const Box& tbx = mfi.nodaltilebox(0);
         const Box& tby = mfi.nodaltilebox(1);

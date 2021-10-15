@@ -69,19 +69,19 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   int nvars = S_old.nComp();
 
   // Place-holder for source array -- for now just set to 0
-  MultiFab source(ba,dm,nvars,1); 
+  MultiFab source(ba,dm,nvars,1);
   source.setVal(0.0);
 
   // Place-holder for eta array -- shear viscosity -- for now just set to 0
-  MultiFab eta(ba,dm,1,1); 
+  MultiFab eta(ba,dm,1,1);
   eta.setVal(0.0);
 
   // Place-holder for zeta array -- bulk viscosity -- for now just set to 0
-  MultiFab zeta(ba,dm,1,1); 
+  MultiFab zeta(ba,dm,1,1);
   zeta.setVal(0.0);
 
   // Place-holder for kappa array -- thermal conducitivity --for now just set to 0
-  MultiFab kappa(ba,dm,1,1); 
+  MultiFab kappa(ba,dm,1,1);
   kappa.setVal(0.0);
 
   // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture. Remove them.
@@ -126,13 +126,13 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
 
   // *****************************************************************
   // Update the cell-centered state and face-based velocity using RK3
-  // Inputs:  
+  // Inputs:
   //          S_old    (state on cell centers)
   //          U_old    (x-velocity on x-faces)
   //          V_old    (y-velocity on y-faces)
   //          W_old    (z-velocity on z-faces)
   //          source   (source term on cell centers)
-  // Outputs:  
+  // Outputs:
   //          S_new    (state on cell centers)
   //          U_new    (x-velocity on x-faces)
   //          V_new    (y-velocity on y-faces)

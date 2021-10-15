@@ -78,7 +78,7 @@ rmse = pd.DataFrame(
 )
 rmse.to_csv(outfile)
 print('wrote',outfile)
-    
+
 # plot
 fig,ax = plt.subplots()
 ax.semilogy(rmse.index, rmse['density'], linestyle='none', marker='.', label='density')

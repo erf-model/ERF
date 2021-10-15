@@ -53,7 +53,7 @@ class IsentropicVortex(object):
         print('ref density:',self.rho_inf)
         self.a_inf = np.sqrt(gamma*R_d*T_inf)
         print('ref speed of sound:',self.a_inf)
-        
+
     def evaluate(self,
                  left_edge,right_edge,dims,
                  xc_norm=0.5,yc_norm=0.5):
@@ -71,21 +71,21 @@ class IsentropicVortex(object):
         xv = xc_norm * (right_edge[0]-left_edge[0])
         yv = yc_norm * (right_edge[1]-left_edge[1])
         print(f'vortex at ({xv:g},{yv:g})')
-        
+
         # mesh nodes
         x1n = np.linspace(left_edge[0],right_edge[0],Nx+1)
         y1n = np.linspace(left_edge[1],right_edge[1],Ny+1)
         xxn,yyn = np.meshgrid(x1n,y1n,indexing='ij')
-        
+
         # mesh cell centers
         x1 = (x1n[1:] + x1n[:-1]) / 2
         y1 = (y1n[1:] + y1n[:-1]) / 2
         xx,yy = np.meshgrid(x1,y1,indexing='ij')
-        
+
         # mesh x- and y-face centers
         xx_xf,yy_xf = np.meshgrid(x1n,y1,indexing='ij')
         xx_yf,yy_yf = np.meshgrid(x1,y1n,indexing='ij')
-        
+
         # calculate fields @ cell centers
         dx = (xx - xv) / self.R
         dy = (yy - yv) / self.R
@@ -95,7 +95,7 @@ class IsentropicVortex(object):
         inv_gm1 = 1.0 / (self.gamma - 1.0)
         rho = (1.0 + deltaT)**inv_gm1
         p = 1.0/self.gamma * rho**self.gamma
-        
+
         # calculate x-face velocities
         dx = (xx_xf - xv) / self.R
         dy = (yy_xf - yv) / self.R
@@ -103,7 +103,7 @@ class IsentropicVortex(object):
         Omg_xf = self.beta * np.exp(-r2/(2*self.sigma**2))
         u = self.M_inf*np.cos(self.alpha) - dy*Omg_xf
         u = (u[:-1,:] + u[1:,:]) / 2
-        
+
         # calculate y-face velocities
         dx = (xx_yf - xv) / self.R
         dy = (yy_yf - yv) / self.R
@@ -111,7 +111,7 @@ class IsentropicVortex(object):
         Omg_yf = self.beta * np.exp(-r2/(2*self.sigma**2))
         v = self.M_inf*np.sin(self.alpha) + dx*Omg_yf
         v = (v[:,:-1] + v[:,1:]) / 2
-        
+
         # dimensionalize w/ characteristic values
         rho *= self.rho_inf
         u *= self.a_inf
@@ -152,16 +152,16 @@ class IsentropicVortex(object):
         p += self.p_inf
         T += self.T_inf
         return xxn,yyn,rho,u,v,p,T
-        
+
     def evaluate_at_time(self,t,
                          left_edge,right_edge,dims,
                          xc_norm_init=0.5,yc_norm_init=0.5,
                          debug=False):
         """Evaluate on specified grid at specified time and initial
         vortex position. A periodic domain is assumed.
-        
+
         1. Calculate the instantaneous vortex position
-        2. Calculate the periodic position 
+        2. Calculate the periodic position
         3. Evaluate at new normalized position
         """
         Nx,Ny = dims[0],dims[1]
@@ -175,7 +175,7 @@ class IsentropicVortex(object):
         except AttributeError:
             pass
         Lx = right_edge[0] - left_edge[0]
-        Ly = right_edge[1] - left_edge[1] 
+        Ly = right_edge[1] - left_edge[1]
         xv_init = xc_norm_init * Lx
         yv_init = yc_norm_init * Ly
         # instantaneous vortex position
@@ -190,7 +190,7 @@ class IsentropicVortex(object):
         yv -= left_edge[1]
         Nxpass = np.floor(xv / Lx)
         Nypass = np.floor(yv / Ly)
-        xv = xv - Nxpass*Lx 
+        xv = xv - Nxpass*Lx
         yv = yv - Nypass*Ly
         if debug:
             print('Num passes:',Nxpass,Nypass)

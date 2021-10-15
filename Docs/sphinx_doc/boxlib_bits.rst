@@ -4,7 +4,7 @@ Development Reference
 Function Listing for ERF
 --------------------------
 
-When built, the full doxygen documentation for ERF can be found 
+When built, the full doxygen documentation for ERF can be found
 `here <../../../doxygen_output/html/index.html>`_.
 
 
@@ -12,9 +12,9 @@ When built, the full doxygen documentation for ERF can be found
 AMReX functions useful for ERF development
 -------------------------------------------
 
-ERF is built on AMReX (available at `https://github.com/AMReX-Codes/amrex <https://github.com/AMReX-Codes/amrex>`_), 
-an adaptive mesh refinement software framework, which provides the underlying software infrastructure for block structured AMR 
-operations. Below is a quick reference list with links to many of the AMReX tools used to build up ERF. The full AMReX documentation can be found `here <https://amrex-codes.github.io/AMReXUsersGuide.pdf>`_. 
+ERF is built on AMReX (available at `https://github.com/AMReX-Codes/amrex <https://github.com/AMReX-Codes/amrex>`_),
+an adaptive mesh refinement software framework, which provides the underlying software infrastructure for block structured AMR
+operations. Below is a quick reference list with links to many of the AMReX tools used to build up ERF. The full AMReX documentation can be found `here <https://amrex-codes.github.io/AMReXUsersGuide.pdf>`_.
 
 
 Solution environment
@@ -60,7 +60,7 @@ Data structures
    * amrex::MultiFab::Saxpy
    * amrex::RealBox
 
-ERF Implementation 
+ERF Implementation
 ~~~~~~~~~~~~~~~~~~~~
 
 * `amrex::AmrLevel <https://amrex-codes.github.io/amrex/docs_html/AmrLevel.html#amrlevel-class>`_
@@ -76,7 +76,7 @@ Multilevel tools
 * `FluxRegister <https://amrex-codes.github.io/amrex/docs_html/AmrCore.html?highlight=fluxregister#using-fluxregisters>`_
    * FluxRegister::FineAdd(const MultiFab&, int, int, int, int, Real)
    * FluxRegister::CrseInit(const MultiFab&, int, int, int, int, Real, FrOp)
- 
+
 
 
 Contributing to ERF
@@ -92,7 +92,7 @@ To add a new feature to ERF, the procedure is:
     git checkout -b AmazingNewFeature
 
 2. Develop the feature, merging changes often from the development branch into your AmazingNewFeature branch ::
-   
+
     git commit -m "Developed AmazingNewFeature"
     git checkout development
     git pull                     [fix any identified conflicts between local and remote branches of "development"]
@@ -121,7 +121,7 @@ It is possibly---and desirable---to create the regression testing framework loca
 1. Make scratch area ::
 
      mkdir ~/REG_TEST_AREA; cd ~/REG_TEST_AREA
-   
+
 2. Clone repositories (amrex, ERF, regression_testing (AMReX's driver scripts) and ERFRegressionTesting (ERF-specific stuff)) ::
 
      git clone git@github.com:erf-model/ERFRegressionTesting.git

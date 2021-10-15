@@ -21,4 +21,4 @@ Variables are located on Arakawa C-grid as pictured in the images below.
   :width: 400
 .. image:: figures/grid_discretization/Arakawa_5.png
   :width: 400
-  
+

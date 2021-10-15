@@ -405,7 +405,7 @@ ERF::initData()
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
 
-  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
   {
     const amrex::Box& bx = mfi.tilebox();
     auto sfab  = S_new.array(mfi);
@@ -1043,7 +1043,7 @@ ERF::errorEst(
 std::unique_ptr<amrex::MultiFab>
 ERF::derive(const std::string& name, amrex::Real time, int ngrow)
 {
-  if (name == "x_velocity") 
+  if (name == "x_velocity")
   {
       MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
       MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
@@ -1058,8 +1058,8 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       MultiFab::Copy(*derive_dat, ccvel, 0, 0, 1, 0);
 
       return std::move(derive_dat);
-  } 
-  else if (name == "y_velocity") 
+  }
+  else if (name == "y_velocity")
   {
       MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
       MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
@@ -1074,8 +1074,8 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       MultiFab::Copy(*derive_dat, ccvel, 1, 0, 1, 0);
 
       return std::move(derive_dat);
-  } 
-  else if (name == "z_velocity") 
+  }
+  else if (name == "z_velocity")
   {
       MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
       MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
@@ -1093,7 +1093,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
 
   } else {
      return AmrLevel::derive(name, time, ngrow);
-  } 
+  }
 }
 
 void
@@ -1225,7 +1225,7 @@ void ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 #ifdef ERF_USE_NETCDF
   io_mgr->ncrestart(papa, is, bReadSpecial);
 #else
-  AmrLevel::restart(papa, is, bReadSpecial); 
+  AmrLevel::restart(papa, is, bReadSpecial);
   io_mgr->restart(papa, is, bReadSpecial);
 #endif
 }
@@ -1247,7 +1247,7 @@ void ERF::checkPoint(const std::string& dir, std::ostream& os,
 }
 
 void ERF::setPlotVariables()
-{ 
+{
   amrex::AmrLevel::setPlotVariables();
   io_mgr->setPlotVariables();
 }

@@ -981,7 +981,7 @@ C  19920722  Minor revisions to prologue (ACH).
 C  19920831  Conversion to double precision done (ACH).
 C  19921106  Fixed minor bug: ETAQ,ETAQM1 in DVSTEP SAVE statement (ACH).
 C  19921118  Changed LUNSAV/MFLGSV to IXSAV (ACH).
-C  19941222  Removed MF overwrite; attached sign to H in estimated second 
+C  19941222  Removed MF overwrite; attached sign to H in estimated second
 C            deriv. in DVHIN; misc. comment changes throughout (ACH).
 C  19970515  Minor corrections to comments in prologue, DVJAC (ACH).
 C  19981111  Corrected Block B by adding final line, GO TO 200 (ACH).
@@ -1030,7 +1030,7 @@ C
       DOUBLE PRECISION ATOLI, BIG, EWTI, FOUR, H0, HMAX, HMX, HUN, ONE,
      1   PT2, RH, RTOLI, SIZE, TCRIT, TNEXT, TOLSF, TP, TWO, ZERO
       INTEGER I, IER, IFLAG, IMXER, JCO, KGO, LENIW, LENJ, LENP, LENRW,
-     1   LENWM, LF0, MBAND, MFA, ML, MORD, MU, MXHNL0, MXSTP0, NITER, 
+     1   LENWM, LF0, MBAND, MFA, ML, MORD, MU, MXHNL0, MXSTP0, NITER,
      2   NSLAST
       CHARACTER*80 MSG
 C

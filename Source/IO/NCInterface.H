@@ -104,7 +104,7 @@ struct NCVar
         const std::vector<ptrdiff_t>&) const;
 
     void put(const char**, const std::vector<size_t>&, const std::vector<size_t>&) const;
-    void 
+    void
     put(
     const char** dptr,
     const std::vector<size_t>& start,

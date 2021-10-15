@@ -8,9 +8,9 @@
 
 using namespace amrex;
 
-void CalcAdvFlux(const MultiFab& cons_in, 
-                 const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in, 
-                 const MultiFab& xvel_in, const MultiFab& yvel_in, const MultiFab& zvel_in, 
+void CalcAdvFlux(const MultiFab& cons_in,
+                 const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,
+                 const MultiFab& xvel_in, const MultiFab& yvel_in, const MultiFab& zvel_in,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
                  std::array< MultiFab, 2 >& edgeflux_x,
                  std::array< MultiFab, 2 >& edgeflux_y,
@@ -26,7 +26,7 @@ void CalcAdvFlux(const MultiFab& cons_in,
     for (int n=0; n<AMREX_SPACEDIM; ++n) {
         dx_gpu[n] = dx[n];
     }
-    
+
     faceflux[0].setVal(0.0);
     faceflux[1].setVal(0.0);
     faceflux[2].setVal(0.0);
@@ -45,7 +45,7 @@ void CalcAdvFlux(const MultiFab& cons_in,
     cenflux[2].setVal(0.0);
 
     // Loop over boxes
-    for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) 
+    for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi)
     {
         const Box & bx_xy = mfi.tilebox(IntVect(1,1,0));
         const Box & bx_xz = mfi.tilebox(IntVect(1,0,1));

@@ -57,7 +57,7 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
       }
       amrex::ParallelDescriptor::Bcast(
         &input_version, 1, amrex::ParallelDescriptor::IOProcessorNumber());
-    } 
+    }
 
     AMREX_ASSERT(input_version >= 0);
 
@@ -93,7 +93,7 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     std::vector<amrex::Real> cellsize(AMREX_SPACEDIM);
     ncf.var("Coord.Offset").get(offset.data(), {0}, {AMREX_SPACEDIM});
     ncf.var("Coord.CellSize").get(cellsize.data(), {0}, {AMREX_SPACEDIM});
-  
+
     erf.geom.SetOffset(offset.data());
     // TODO (this is important)
     // we need to setup the cellsize to coordinate here!!!
@@ -124,7 +124,7 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     erf.geom.setPeriodicity({{AMREX_D_DECL(periodic[0],periodic[1],periodic[2])}});
 
     // setup geom
-    erf.geom.define(bx, rb, coord, periodic); 
+    erf.geom.define(bx, rb, coord, periodic);
 
     erf.fine_ratio = amrex::IntVect::TheUnitVector(); erf.fine_ratio.scale(-1);
     erf.crse_ratio = amrex::IntVect::TheUnitVector(); erf.crse_ratio.scale(-1);
@@ -172,7 +172,7 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     erf.state.resize(ndesc);
 
     amrex::Vector<int> npts;
-    amrex::Vector<int> nsize; 
+    amrex::Vector<int> nsize;
     amrex::Vector<int> nblocks;
     amrex::Vector<std::string> lo_names;
     amrex::Vector<std::string> hi_names;
@@ -385,7 +385,7 @@ IOManager::writeNCPlotFile(const std::string& dir, ostream& os)
   // number of grid points at this block
   int num_pts;
   // number of cells in each block
-  std::vector<int> n_cells; 
+  std::vector<int> n_cells;
   // finest level
   int flev;
 
@@ -540,7 +540,7 @@ IOManager::writeNCPlotFile(const std::string& dir, ostream& os)
     for (i = 0; i < flev; i++)
       refRatio.push_back(erf.parent->refRatio(i)[0]);
     ncf.var("refRatio").put(refRatio.data(), {0}, {flev});
-   
+
     amrex::Vector<int> levelSteps;
     for (i = 0; i <= flev; i++)
       levelSteps.push_back(erf.parent->levelSteps(i));
@@ -641,7 +641,7 @@ IOManager::writeNCPlotFile(const std::string& dir, ostream& os)
     auto numpts = plotMF.get(fai).numPts();
     auto box = plotMF.get(fai).box();
     for (int k(0); k < ncomp; ++k) {
-       auto data = plotMF.get(fai).dataPtr(k);   
+       auto data = plotMF.get(fai).dataPtr(k);
        ncf.var(plot_var_names[k]).put(data, {nfai, 0}, {1, numpts});
     }
     nfai++;
@@ -715,7 +715,7 @@ IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, cons
            auto num_pts    = new_dataMF->get(0).numPts();
            auto box        = new_dataMF->get(0).box();
            int  nbox       = new_dataMF->size();
-        
+
            std::string typ_name = EnumToString(static_cast<StateType>(i));
            lo_names.push_back("lo_"+typ_name);
            hi_names.push_back("hi_"+typ_name);
@@ -747,7 +747,7 @@ IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, cons
         for (int k = 0; k < nsize.size(); ++k) {
           ns_names.push_back("nsize_"+std::to_string(k));
         }
-  
+
         amrex::Vector<std::string> nb_names;
         for (int k = 0; k < nblocks.size(); ++k) {
           nb_names.push_back("num_boxs_"+std::to_string(k));
@@ -772,7 +772,7 @@ IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, cons
           ncf_new.def_dim(nb_names[k] , nblocks[k]);
           ncf_new.def_var(lo_names[k] , NC_INT, {nb_names[k], ndim_name});
           ncf_new.def_var(hi_names[k] , NC_INT, {nb_names[k], ndim_name});
-          ncf_new.def_var(typ_names[k], NC_INT, {nb_names[k], ndim_name});        
+          ncf_new.def_var(typ_names[k], NC_INT, {nb_names[k], ndim_name});
         }
 
         ncf_new.def_var("Grids.SmallEnd", NC_INT, {ng_name, ndim_name});
@@ -797,9 +797,9 @@ IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, cons
 
         //
         // Output geometric data.
-        //      
+        //
 
-        amrex::Real prev_time = erf.state[State_Type].prevTime(); 
+        amrex::Real prev_time = erf.state[State_Type].prevTime();
         amrex::Real dt_new = erf.parent->dtLevel(erf.level);
         amrex::Real dt_old = erf.parent->cumTime()-prev_time;
 
@@ -835,7 +835,7 @@ IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, cons
         amrex::IntVect periodic = static_cast<amrex::IntVect>(erf.geom.isPeriodic());
         ncf_new.var("Geom.Periodic").put(periodic.begin(), {0}, {AMREX_SPACEDIM});
 
-        for(auto ilev=0; ilev<nflev; ++ilev) 
+        for(auto ilev=0; ilev<nflev; ++ilev)
            ncf_new.var("RefRatio").put(erf.parent->refRatio(erf.level).begin(), {ilev, 0}, {1, AMREX_SPACEDIM});
 
         std::vector<amrex::Real> dtlevel;
@@ -876,7 +876,7 @@ IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, cons
 
         //
         // output state data
-        // NOTE: only solver variables are outputed, the derived variables are not output in the 
+        // NOTE: only solver variables are outputed, the derived variables are not output in the
         //       checkpoint file, however, they are output in the plotfile.
         //
         for (int i = 0; i < ndesc; i++) {
@@ -1009,7 +1009,7 @@ IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, cons
 
         //
         // Output geometric data.
-        //      
+        //
 
         amrex::Real prev_time = erf.state[State_Type].prevTime();
         amrex::Real dt_new = erf.parent->dtLevel(erf.level);
@@ -1088,7 +1088,7 @@ IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, cons
 
         //
         // output state data
-        // NOTE: only solver variables are outputed, the derived variables are not output in the 
+        // NOTE: only solver variables are outputed, the derived variables are not output in the
         //       checkpoint file, however, they are output in the plotfile.
         //
         for (int i = 0; i < ndesc; i++) {
@@ -1124,4 +1124,4 @@ IOManager::NCWriteCheckpointFile (const std::string& dir, std::ostream& os, cons
     }
  }
 
- 
+

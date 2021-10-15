@@ -81,7 +81,7 @@ if(ERF_ENABLE_NETCDF)
   find_package (NetCDF REQUIRED)
   if(NETCDF_FOUND)
      message(STATUS "Found NetCDF, NETCDF_DIR = ${NETCDF_DIR}")
-  endif() 
+  endif()
 endif()
 
 ########################### ERF #####################################
