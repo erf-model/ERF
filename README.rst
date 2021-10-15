@@ -131,13 +131,9 @@ To build the documentation, run Doxygen in the Docs directory then build the sph
     make html # make sure sphinx is available
 
 
-Acknowledgment - ***UPDATE THIS***
+Acknowledgment
 ~~~~~~~~~~~~~~
 
-This research was supported by the Exascale Computing Project (ECP), Project
-Number: 17-SC-20-SC, a collaborative effort of two DOE organizations -- the
-Office of Science and the National Nuclear Security Administration --
-responsible for the planning and preparation of a capable exascale ecosystem --
-including software, applications, hardware, advanced system engineering, and
-early testbed platforms -- to support the nation's exascale computing
-imperative.
+The development of the Energy Research and Forecasting (ERF) code is funded by the Wind Energy Technologies Office (WETO), part of the U.S. Department of Energy (DOE)'s Office of Energy Efficiency & Renewable Energy (EERE).  
+
+
