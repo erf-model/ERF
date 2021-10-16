@@ -5,8 +5,6 @@ TOP := $(ERF_HOME)
 
 EBASE = ERF
 
-# EXTERN_CORE is simply a list of the directories we use in Eos, Reactions, Util
-# this list will be searched for runtime parameters
 EXTERN_CORE ?=
 
 # Ignore loops not vectorizing in amrex
