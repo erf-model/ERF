@@ -11,13 +11,7 @@ Navigation
 
 The ERF directory structure is as shown below:
 
-* **Source** - C++ source code
-
-* **Util** - third party utilities
-
-  * BLAS
-  * LAPACK
-  * VODE
+* **Source** - Source code
 
 * **Docs**   - ERF documentation
 
