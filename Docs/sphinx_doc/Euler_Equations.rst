@@ -25,7 +25,7 @@ ERF advances the following set of equations:
 
   \frac{\partial (\rho A)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} A),
 
-These can be re-written in perturbational form by replacing the z-momentum equation with 
+These can be re-written in perturbational form by replacing the z-momentum equation with
 
 .. math::
 
@@ -46,7 +46,7 @@ and
 and
 
 .. math::
-  
+
   \frac{d p}{d z} &=& - \overline{\rho} g
 
 with velocity :math:`\mathbf{u} = (u,v,w)` and gravity :math:`\mathbf{g} = (0,0,g)`.
