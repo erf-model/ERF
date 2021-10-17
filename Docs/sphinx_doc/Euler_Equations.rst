@@ -47,7 +47,7 @@ and
 
 .. math::
 
-  \frac{d \overline{p}{d z} = - \overline{\rho} g
+  \frac{d \overline{p}}{d z} = - \overline{\rho} g
 
 with velocity :math:`\mathbf{u} = (u,v,w)` and gravity :math:`\mathbf{g} = (0,0,-g)`.
 
