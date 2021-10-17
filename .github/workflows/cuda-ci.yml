@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [development]
 
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-cuda-ci
+  cancel-in-progress: true
+
 jobs:
   cuda-build:
     runs-on: ubuntu-18.04
