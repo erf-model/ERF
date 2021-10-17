@@ -29,7 +29,7 @@ These can be re-written in perturbational form by replacing the z-momentum equat
 
 .. math::
 
-  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w + p^\prime I) +\rho^prime g,
+  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w) - \nabla p^\prime - \rho^\prime g,
 
 where
 
@@ -47,9 +47,9 @@ and
 
 .. math::
 
-  \frac{d p}{d z} = - \overline{\rho} g
+  \frac{d \overline{p}{d z} = - \overline{\rho} g
 
-with velocity :math:`\mathbf{u} = (u,v,w)` and gravity :math:`\mathbf{g} = (0,0,g)`.
+with velocity :math:`\mathbf{u} = (u,v,w)` and gravity :math:`\mathbf{g} = (0,0,-g)`.
 
 The relationship between potential temperature and temperature is given by
 
