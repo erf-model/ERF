@@ -129,9 +129,9 @@ The development of the Energy Research and Forecasting (ERF) code is funded by t
 
 The developers of ERF acknowledge and thank the developers of the AMReX-based
 `PeleC <https://github.com/AMReX-combustion/PeleC>`_ ,
-`FHDeX <https://github.com/AMReX-FHD/FHDeX>`_ and 
+`FHDeX <https://github.com/AMReX-FHD/FHDeX>`_ and
 `AMR-Wind <https://github.com/Exawind/amr-wind>`_ codes.  In the spirit of open source code
 development, the ERF project has ported sections of code from each of these projects rather
-than writing them from scratch.  ERF 
-is built on the `AMReX <https://github.com/AMReX-codes/AMReX>`_ library.
+than writing them from scratch.
+ERF is built on the `AMReX <https://github.com/AMReX-codes/AMReX>`_ library.
 
