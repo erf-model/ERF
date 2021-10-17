@@ -25,6 +25,32 @@ ERF advances the following set of equations:
 
   \frac{\partial (\rho A)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} A),
 
+These can be re-written in perturbational form by replacing the z-momentum equation with
+
+.. math::
+
+  \frac{\partial (\rho w)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} w + p^\prime I) +\rho^prime g,
+
+where
+
+.. math::
+
+  p = \overline{p}(z) + p^\prime
+
+and
+
+.. math::
+
+  \rho = \overline{\rho}(z) + \rho^\prime
+
+and
+
+.. math::
+
+  \frac{d p}{d z} &=& - \overline{\rho} g
+
+with velocity :math:`\mathbf{u} = (u,v,w)` and gravity :math:`\mathbf{g} = (0,0,g)`.
+
 The relationship between potential temperature and temperature is given by
 
 .. math::
@@ -47,7 +73,7 @@ Here :math:`\rho, T, \theta`, and :math:`p` are the density, temperature, potent
 these variables are all defined at cell centers.
 :math:`A` is an advected quantity, i.e., a tracer, also defined at cell centers.
 :math:`\mathbf{u}` and :math:`(\rho \mathbf{u})` are the velocity and momentum, respectively,
-and are defined on faces.  The gravitational vector is denoted by :math:`\mathbf{g}`.
+and are defined on faces.
 
 :math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively,
 and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
