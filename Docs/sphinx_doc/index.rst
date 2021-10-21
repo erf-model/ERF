@@ -20,17 +20,25 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    /* front page: hide chapter titles
     * needed for consistent HTML-PDF-EPUB chapters
     */
+   div#userguide.section,
    div#theory.section,
    div#implementation.section,
    div#goals.section,
    </style>
 
-Contents:
-
 .. toctree::
-   :maxdepth: 2
+   :hidden:
 
-   Introduction.rst
+   coc
+
+User Guide
+----------
+.. toctree::
+   :caption: USER GUIDE
+   :maxdepth: 1
+   :hidden:
+
+   GettingStarted.rst
 
 Theory
 ------
@@ -42,7 +50,6 @@ Theory
    theory/Euler_Equations.rst
    theory/UnitsAndConstants.rst
    theory/Algorithms.rst
-   theory/ArakawaCGrid.rst
 
 Implementation
 --------------
@@ -51,8 +58,8 @@ Implementation
    :maxdepth: 1
    :hidden:
 
+   ArakawaCGrid.rst
    Euler_Discretization.rst
-   GettingStarted.rst
    BoundaryConditions.rst
    Visualization.rst
 
@@ -64,11 +71,3 @@ Goals
    :hidden:
 
    Applications_Requirements.rst
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`search`
-
-
