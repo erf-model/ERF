@@ -1,10 +1,18 @@
-.. ERF documentation master file, created by
-   sphinx-quickstart on Tue Nov 15 14:07:58 2016.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+:orphan:
 
-Welcome to ERF's documentation!
-=================================
+ERF
+---
+
+ERF solves the compressible Navier-Stokes on a Arakawa C-grid for large-scale weather modeling.
+
+ERF is built on `AMReX <https://github.com/AMReX-Codes/amrex>`_,
+an adaptive mesh refinement software framework, which provides the underlying software infrastructure for
+block structured AMR operations.
+The full AMReX documentation can be found `here <https://amrex-codes.github.io/amrex/docs_html/>`_ and the tutorials can be found `here <https://amrex-codes.github.io/amrex/tutorials_html/>`_.
+
+ERF is designed to run on machines from laptops to multicore CPU and hybrid CPU/GPU systems.
+
+For details on the equations that ERF solves, see the :ref:`theory section <theory>`.
 
 .. raw:: html
 
@@ -13,6 +21,8 @@ Welcome to ERF's documentation!
     * needed for consistent HTML-PDF-EPUB chapters
     */
    div#theory.section,
+   div#implementation.section,
+   div#goals.section,
    </style>
 
 Contents:
@@ -21,11 +31,6 @@ Contents:
    :maxdepth: 2
 
    Introduction.rst
-   Applications_Requirements.rst
-   Euler_Discretization.rst
-   GettingStarted.rst
-   BoundaryConditions.rst
-   Visualization.rst
 
 Theory
 ------
@@ -39,12 +44,26 @@ Theory
    theory/Algorithms.rst
    theory/ArakawaCGrid.rst
 
-README
-======
-.. _README:
+Implementation
+--------------
+.. toctree::
+   :caption: IMPLEMENTATION
+   :maxdepth: 1
+   :hidden:
 
-.. include:: ../../README.rst
+   Euler_Discretization.rst
+   GettingStarted.rst
+   BoundaryConditions.rst
+   Visualization.rst
 
+Goals
+-----
+.. toctree::
+   :caption: GOALS
+   :maxdepth: 1
+   :hidden:
+
+   Applications_Requirements.rst
 
 Indices and tables
 ==================
