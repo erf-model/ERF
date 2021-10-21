@@ -31,8 +31,6 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
 
    coc
 
-User Guide
-----------
 .. toctree::
    :caption: USER GUIDE
    :maxdepth: 1
@@ -40,8 +38,6 @@ User Guide
 
    GettingStarted.rst
 
-Theory
-------
 .. toctree::
    :caption: THEORY
    :maxdepth: 1
@@ -51,8 +47,6 @@ Theory
    theory/UnitsAndConstants.rst
    theory/Algorithms.rst
 
-Implementation
---------------
 .. toctree::
    :caption: IMPLEMENTATION
    :maxdepth: 1
@@ -63,8 +57,6 @@ Implementation
    BoundaryConditions.rst
    Visualization.rst
 
-Goals
------
 .. toctree::
    :caption: GOALS
    :maxdepth: 1
