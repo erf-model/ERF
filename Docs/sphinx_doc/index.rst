@@ -56,6 +56,7 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    Euler_Discretization.rst
    2ccb8f35e86d4b46825742edc2c4a26e.rst
    0465aee0440740448cb280d1476c56e4.rst
+   erf.rst
    BoundaryConditions.rst
    Visualization.rst
 
