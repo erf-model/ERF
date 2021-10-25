@@ -72,7 +72,7 @@ Momentum Conservation – W Momentum
    \left( \text{ρw} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρw} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{2\Delta x}\ \left\lbrack \left( \left( \text{ρu} \right)_{i + 1,j,k}^{n} + \left( \text{ρu} \right)_{i + 1,j,k - 1}^{n} \right)w_{i + \frac{1}{2},j,k}^{n} - \left( \left( \text{ρu} \right)_{i,j,k}^{n} + \left( \text{ρu} \right)_{i,j,k - 1}^{n} \right)w_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
     & & & & & + \frac{1}{2\Delta y}\left\lbrack \left( \left( \text{ρv} \right)_{i,j + 1,k}^{n} + \left( \text{ρv} \right)_{i,j + 1,k - 1}^{n} \right)w_{i,j + \frac{1}{2},k}^{n} - \left( \left( \text{ρv} \right)_{i,j,k}^{n} + \left( \text{ρv} \right)_{i,j,k - 1}^{n} \right)w_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
     & & & & & + \left. \ \frac{1}{2\Delta z}\left\lbrack \left( \left( \text{ρw} \right)_{i,j,k + 1}^{n} + \left( \text{ρw} \right)_{i,j,k}^{n} \right)w_{i,j,k + \frac{1}{2}}^{n} - \left( \left( \text{ρw} \right)_{i,j,k}^{n} + \left( \text{ρw} \right)_{i,j,k - 1}^{n} \right)w_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
-    & & & & & - \frac{\Delta t}{\Delta z}\left\lbrack p_{i,\ j,\ k}^{n} - p_{i,\ j,\ \ k - 1}^{n} \right\rbrack\  + \ \Delta\text{t\ }\left\lbrack \rho_{i,j,k - \ \frac{1}{2}}^{n} \right\rbrack\text{\ g} \\
+    & & & & & - \frac{\Delta t}{\Delta z}\left\lbrack p_{i,\ j,\ k}^{n} - p_{i,\ j,\ \ k - 1}^{n} \right\rbrack\  + \ \Delta\text{t }\left\lbrack \rho_{i,j,k - \ \frac{1}{2}}^{n} \right\rbrack\text{g} \\
    \end{matrix}
 
 +----------------------------------------------------------------------------------------+-------------+-------------+
@@ -87,9 +87,9 @@ Energy Conservation – Potential Temperature Advection
 .. math::
 
    \begin{matrix}
-   \left( \text{ρθ} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρθ} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n}\text{\ θ}_{i + \frac{1}{2},j,k}^{n} - \left( \text{ρu} \right)_{i,j,k}^{n}\text{\ θ}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
-    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n}\text{\ θ}_{i,j + \frac{1}{2},k}^{n} - \left( \text{ρv} \right)_{i,j,k\ }^{n}\theta_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-    & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}\theta_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{\ θ}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
+   \left( \text{ρθ} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρθ} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n}\text{ θ}_{i + \frac{1}{2},j,k}^{n} - \left( \text{ρu} \right)_{i,j,k}^{n}\text{ θ}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
+    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n}\text{ θ}_{i,j + \frac{1}{2},k}^{n} - \left( \text{ρv} \right)_{i,j,k\ }^{n}\theta_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
+    & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}\theta_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{ θ}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
 +------------------------------------------------------------------------------------------------------------+-------------+-------------+
@@ -104,9 +104,9 @@ Scalar Conservation – Scalar Advection
 .. math::
 
    \begin{matrix}
-   \left( \text{ρS} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρS} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n}\text{\ S}_{i + \frac{1}{2},j,k}^{n} - \left( \text{ρu} \right)_{i,j,k}^{n}\text{\ S}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
-    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n}\text{\ S}_{i,j + \frac{1}{2},k}^{n} - \left( \text{ρv} \right)_{i,j,k\ }^{n}S_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-    & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}S_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{\ S}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
+   \left( \text{ρS} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρS} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n}\text{ S}_{i + \frac{1}{2},j,k}^{n} - \left( \text{ρu} \right)_{i,j,k}^{n}\text{ S}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
+    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n}\text{ S}_{i,j + \frac{1}{2},k}^{n} - \left( \text{ρv} \right)_{i,j,k\ }^{n}S_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
+    & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}S_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{ S}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
 +----------------------------------------------------------------------------------------------------------+-------------+-------------+
@@ -122,9 +122,9 @@ Pressure Diagnostic
     variables solved for irrespective of whether the effect of advection
     or diffusion or both or none is considered.
 
-.. math:: \operatorname{}{\text{\ \ }p_{i,\ j,\ k}^{n}} = \rho_{i,\ j,\ k}^{n}R_{d}\theta_{i,\ j,\ k}^{n}\left( \frac{p_{i,\ j,\ k}^{n}}{p_{0}} \right)^{\frac{R_{d}}{c_{p}}}
+.. math:: \operatorname{}{\text{ }p_{i,\ j,\ k}^{n}} = \rho_{i,\ j,\ k}^{n}R_{d}\theta_{i,\ j,\ k}^{n}\left( \frac{p_{i,\ j,\ k}^{n}}{p_{0}} \right)^{\frac{R_{d}}{c_{p}}}
 
-.. math:: \operatorname{}{\text{\ \ }p_{i,\ j,\ k}^{n}} = \left\lbrack \rho_{i,\ j,\ k}^{n}R_{d}\theta_{i,\ j,\ k}^{n}\left( \frac{1}{p_{0}} \right)^{\frac{R_{d}}{c_{p}}} \right\rbrack^{\gamma}
+.. math:: \operatorname{}{\text{ }p_{i,\ j,\ k}^{n}} = \left\lbrack \rho_{i,\ j,\ k}^{n}R_{d}\theta_{i,\ j,\ k}^{n}\left( \frac{1}{p_{0}} \right)^{\frac{R_{d}}{c_{p}}} \right\rbrack^{\gamma}
 
 .. math:: q = \left\lbrack \rho,\ u,v,w,\theta \right\rbrack\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ m = i,j,k\ \ \ \ \ \ \ \ \ \ \ \ U_{d} = \left\lbrack u,v,w \right\rbrack\mathrm{\text{\ for\ }}\left\lbrack x,y,z \right\rbrack\ \mathrm{\text{differences}},\ \mathrm{\text{respecively}}\text{\ \ \ }
 
@@ -292,12 +292,9 @@ Strain Rate and Eddy Viscosity
    \begin{matrix}
    S_{23} = \frac{1}{4}\left\lbrack S_{23j,k - \frac{1}{2}} + S_{23j,k + \frac{1}{2}} + S_{23j + 1,k - \frac{1}{2}} + S_{23j + 1,k + \frac{1}{2}} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
    S_{32} = \frac{1}{4}\left\lbrack S_{32j - \frac{1}{2},k} + S_{32j + \frac{1}{2},k} + S_{32j - \frac{1}{2},k + 1} + S_{32j + \frac{1}{2},k + 1} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
-   \end{matrix} \\
-   \end{matrix} \\
-   \end{matrix} \\
-   \end{matrix} \\
    \end{matrix}
 
+    
     Note that:
 
 .. math:: S_{12} = S_{21}
@@ -355,18 +352,18 @@ Momentum Conservation – U Momentum - subfilter stress divergence
 .. math::
 
    \begin{matrix}
-   \left( \text{ρu} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρu} \right)_{i,j,k}^{n} & - & \Delta\text{t\ } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \text{ρu} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρu} \right)_{i,j,k}^{n} & - & \Delta\text{t } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
 
    \begin{matrix}
-   \tau_{11,i + \frac{1}{2}}{= K_{i,j,k}\text{\ S}}_{11,i + \frac{1}{2}} = K_{i,j,k}\frac{1}{\Delta x}\left( u_{i + 1,j,k} - u_{i,j,k} \right) \\
-   \tau_{11,i - \frac{1}{2}} = {K_{i - 1,j,k}\text{\ S}}_{11,i - \frac{1}{2}} = K_{i - 1,j,k}\frac{1}{\Delta x}\left( u_{i,j,k} - u_{i - 1,j,k} \right) \\
-   \tau_{12,j + \frac{1}{2}} = {K_{i - \frac{1}{2},j + \frac{1}{2},k}\text{\ S}}_{12,j + \frac{1}{2}} = K_{i - \frac{1}{2},j + \frac{1}{2},k}\frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j + 1,k} - u_{i,j,k} \right) + \frac{1}{\Delta x}\left( v_{i,j + 1,k} - v_{i - 1,j + 1,k} \right) \right\rbrack \\
+   \tau_{11,i + \frac{1}{2}}{= K_{i,j,k}\text{ S}}_{11,i + \frac{1}{2}} = K_{i,j,k}\frac{1}{\Delta x}\left( u_{i + 1,j,k} - u_{i,j,k} \right) \\
+   \tau_{11,i - \frac{1}{2}} = {K_{i - 1,j,k}\text{ S}}_{11,i - \frac{1}{2}} = K_{i - 1,j,k}\frac{1}{\Delta x}\left( u_{i,j,k} - u_{i - 1,j,k} \right) \\
+   \tau_{12,j + \frac{1}{2}} = {K_{i - \frac{1}{2},j + \frac{1}{2},k}\text{ S}}_{12,j + \frac{1}{2}} = K_{i - \frac{1}{2},j + \frac{1}{2},k}\frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j + 1,k} - u_{i,j,k} \right) + \frac{1}{\Delta x}\left( v_{i,j + 1,k} - v_{i - 1,j + 1,k} \right) \right\rbrack \\
    \tau_{12,j - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k}\ S_{12,j - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k}\frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j,k} - u_{i,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i,j,k} - v_{i - 1,j,k} \right) \right\rbrack \\
-   \tau_{13,k + \frac{1}{2}} = {K_{i - \frac{1}{2},j,k + \frac{1}{2}}\text{\ S}}_{13,k + \frac{1}{2}} = K_{i - \frac{1}{2},j,k + \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k + 1} - u_{i,j,k} \right) + \frac{1}{\Delta x}\left( w_{i,j,k + 1} - w_{i - 1,j,k + 1} \right) \right\rbrack \\
-   {\tau_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\text{\ S}}_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
+   \tau_{13,k + \frac{1}{2}} = {K_{i - \frac{1}{2},j,k + \frac{1}{2}}\text{ S}}_{13,k + \frac{1}{2}} = K_{i - \frac{1}{2},j,k + \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k + 1} - u_{i,j,k} \right) + \frac{1}{\Delta x}\left( w_{i,j,k + 1} - w_{i - 1,j,k + 1} \right) \right\rbrack \\
+   {\tau_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\text{ S}}_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
    \end{matrix}
 
 Momentum Conservation – V Momentum - subfilter stress divergence
@@ -375,18 +372,18 @@ Momentum Conservation – V Momentum - subfilter stress divergence
 .. math::
 
    \begin{matrix}
-   \left( \text{ρv} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρv} \right)_{i,j,k}^{n} & - & \Delta\text{t\ } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \text{ρv} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρv} \right)_{i,j,k}^{n} & - & \Delta\text{t } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
 
    \begin{matrix}
-   {{\tau_{21,i + \frac{1}{2}} = K}_{i + \frac{1}{2},j - \frac{1}{2},k}\text{\ S}}_{21,i + \frac{1}{2}} = K_{i + \frac{1}{2},j - \frac{1}{2},k}\frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i + 1,j,k} - u_{i + 1,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i + 1,j,k} - v_{i,j,k} \right) \right\rbrack \\
-   {{\tau_{21,i - \frac{1}{2}} = K}_{i - \frac{1}{2},j - \frac{1}{2},k}\text{\ S}}_{21,i - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k}\frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j,k} - u_{i,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i,j,k} - v_{i - 1,j,k} \right) \right\rbrack \\
+   {{\tau_{21,i + \frac{1}{2}} = K}_{i + \frac{1}{2},j - \frac{1}{2},k}\text{ S}}_{21,i + \frac{1}{2}} = K_{i + \frac{1}{2},j - \frac{1}{2},k}\frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i + 1,j,k} - u_{i + 1,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i + 1,j,k} - v_{i,j,k} \right) \right\rbrack \\
+   {{\tau_{21,i - \frac{1}{2}} = K}_{i - \frac{1}{2},j - \frac{1}{2},k}\text{ S}}_{21,i - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k}\frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j,k} - u_{i,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i,j,k} - v_{i - 1,j,k} \right) \right\rbrack \\
    {\tau_{22,j + \frac{1}{2}} = K}_{i,j,k}\ S_{22,j + \frac{1}{2}} = K_{i,j,k}\frac{1}{\Delta y}\left( v_{i,j + 1,k} - v_{i,j,k} \right) \\
    \tau_{22,j - \frac{1}{2}} = K_{i,j - 1,k}\ S_{22,j - \frac{1}{2}} = K_{i,j - 1,k}\frac{1}{\Delta y}\left( v_{i,j,k} - v_{i,j - 1,k} \right) \\
    \tau_{23,k + \frac{1}{2}} = K_{i,j - \frac{1}{2},k + \frac{1}{2}}\ S_{23,k + \frac{1}{2}} = K_{i,j - \frac{1}{2},k + \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k + 1} - v_{i,j,k} \right) + \frac{1}{\Delta y}\left( w_{i,j,k + 1} - w_{i,j - 1,k + 1} \right) \right\rbrack \\
-   \tau_{23,k - \frac{1}{2}} = K_{i,j - \frac{1}{2}k - \frac{1}{2}}\text{\ S}_{23,k - \frac{1}{2}} = K_{i,j - \frac{1}{2},k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
+   \tau_{23,k - \frac{1}{2}} = K_{i,j - \frac{1}{2}k - \frac{1}{2}}\text{ S}_{23,k - \frac{1}{2}} = K_{i,j - \frac{1}{2},k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
    \end{matrix}
 
 Momentum Conservation – W Momentum - subfilter stress divergence
@@ -395,13 +392,13 @@ Momentum Conservation – W Momentum - subfilter stress divergence
 .. math::
 
    \begin{matrix}
-   \left( \text{ρw} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρw} \right)_{i,j,k}^{n} & - & \Delta\text{t\ } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \text{ρw} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρw} \right)_{i,j,k}^{n} & - & \Delta\text{t } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
 
    \begin{matrix}
-   {K_{i + \frac{1}{2},j,k - \frac{1}{2}}\text{\ S}}_{31,i + \frac{1}{2}} = K_{i + \frac{1}{2},j,k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i + 1,j,k} - u_{i + 1,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i + 1,j,k} - w_{i,j,k} \right) \right\rbrack \\
+   {K_{i + \frac{1}{2},j,k - \frac{1}{2}}\text{ S}}_{31,i + \frac{1}{2}} = K_{i + \frac{1}{2},j,k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i + 1,j,k} - u_{i + 1,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i + 1,j,k} - w_{i,j,k} \right) \right\rbrack \\
    K_{i - \frac{1}{2},j,k - \frac{1}{2}}\ S_{31,i - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
    K_{i,j + \frac{1}{2},k - \frac{1}{2}}\ S_{32,j + \frac{1}{2}} = K_{i,j + \frac{1}{2},k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j + 1,k} - v_{i,j + 1,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j + 1,k} - w_{i,j,k} \right) \right\rbrack \\
    K_{i,j - \frac{1}{2},k - \frac{1}{2}}S_{32,j - \frac{1}{2}} = K_{i,j - \frac{1}{2},k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
@@ -420,11 +417,11 @@ Energy Conservation- Subgrid heat flux
     & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack {\vartheta_{3}}_{i,j,k + \frac{1}{2}}^{n} - {\ \vartheta_{3}}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
-.. math:: \vartheta_{1i,j,k} = K_{i,j,k}\frac{1}{2\Delta x}\ \left\lbrack \text{\ θ}_{i + 1,j,k}^{n} - \text{\ θ}_{i - 1,j,k}^{n} \right\rbrack
+.. math:: \vartheta_{1i,j,k} = K_{i,j,k}\frac{1}{2\Delta x}\ \left\lbrack \text{ θ}_{i + 1,j,k}^{n} - \text{ θ}_{i - 1,j,k}^{n} \right\rbrack
 
-.. math:: \vartheta_{2i,j,k} = K_{i,j,k}\frac{1}{2\Delta y}\ \left\lbrack \text{\ θ}_{i,j + 1,k}^{n} - \text{\ θ}_{i,j - 1,k}^{n} \right\rbrack
+.. math:: \vartheta_{2i,j,k} = K_{i,j,k}\frac{1}{2\Delta y}\ \left\lbrack \text{ θ}_{i,j + 1,k}^{n} - \text{ θ}_{i,j - 1,k}^{n} \right\rbrack
 
-.. math:: \vartheta_{3i,jk} = K_{i,j,k}\frac{1}{2\Delta z}\ \left\lbrack \text{\ θ}_{i,j,k + 1}^{n} - \text{\ θ}_{i,j,k - 1}^{n} \right\rbrack
+.. math:: \vartheta_{3i,jk} = K_{i,j,k}\frac{1}{2\Delta z}\ \left\lbrack \text{ θ}_{i,j,k + 1}^{n} - \text{ θ}_{i,j,k - 1}^{n} \right\rbrack
 
 .. math:: \vartheta_{1i + \frac{1}{2},j,k} = \frac{1}{2}\left( \vartheta_{1i + 1,j,k} + \vartheta_{1i,j,k} \right)
 
@@ -447,9 +444,9 @@ ii. .. rubric:: Prognostic Equation for Subgrid Kinetic Energy
 .. math::
 
    \begin{matrix}
-   \left( \text{ρe} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρe} \right)_{i,j,k}^{n} & - & \Delta t & \frac{1}{\Delta x}\ \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n}\text{\ e}_{i + \frac{1}{2},j,k}^{n} - \left( \text{ρu} \right)_{i,j,k}^{n}\text{\ e}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \\
-    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n}\text{\ e}_{i,j + \frac{1}{2},k}^{n} - \left( \text{ρv} \right)_{i,j,k\ }^{n}e_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-    & & & & & + \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}e_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{\ e}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \\
+   \left( \text{ρe} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρe} \right)_{i,j,k}^{n} & - & \Delta t & \frac{1}{\Delta x}\ \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n}\text{ e}_{i + \frac{1}{2},j,k}^{n} - \left( \text{ρu} \right)_{i,j,k}^{n}\text{ e}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \\
+    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n}\text{ e}_{i,j + \frac{1}{2},k}^{n} - \left( \text{ρv} \right)_{i,j,k\ }^{n}e_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
+    & & & & & + \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}e_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{ e}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \\
     & & & & & + \frac{g}{\Theta}\vartheta_{3} - \tau_{\text{mn}}\frac{\partial u_{m}}{\partial x_{n}} - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} - \epsilon \\
    \end{matrix}
 
@@ -461,18 +458,18 @@ ii. .. rubric:: Prognostic Equation for Subgrid Kinetic Energy
 
 .. math:: K_{Mi,j,k} = 0.1\mathcal{l}e_{i,j,k}^{\frac{1}{2}}
 
-:math:`\mathcal{l} = \Delta s = \sqrt[3]{\Delta\text{x\ }\Delta\text{y\ }\Delta\text{z\ }}`,
+:math:`\mathcal{l} = \Delta s = \sqrt[3]{\Delta\text{x }\Delta\text{y }\Delta\text{z }}`,
 convective case
 
-.. math:: \mathcal{l} = 0.76\ e^{\frac{1}{2}}\left( \frac{g}{\Theta}\frac{\partial\theta}{\partial z} \right) = 0.76e_{i,j,k}^{\frac{1}{2}}\left\lbrack \frac{g}{\Theta}\frac{1}{2\Delta z}\left( \text{\ θ}_{i,j,k + 1}^{n} - \text{\ θ}_{i,j,k - 1}^{n} \right) \right\rbrack
+.. math:: \mathcal{l} = 0.76\ e^{\frac{1}{2}}\left( \frac{g}{\Theta}\frac{\partial\theta}{\partial z} \right) = 0.76e_{i,j,k}^{\frac{1}{2}}\left\lbrack \frac{g}{\Theta}\frac{1}{2\Delta z}\left( \text{ θ}_{i,j,k + 1}^{n} - \text{ θ}_{i,j,k - 1}^{n} \right) \right\rbrack
 
-.. math:: \vartheta_{1} = {K_{H}}_{i,j,k}\frac{1}{2\Delta x}\ \left\lbrack \text{\ θ}_{i + 1,j,k}^{n} - \text{\ θ}_{i - 1,j,k}^{n} \right\rbrack
+.. math:: \vartheta_{1} = {K_{H}}_{i,j,k}\frac{1}{2\Delta x}\ \left\lbrack \text{ θ}_{i + 1,j,k}^{n} - \text{ θ}_{i - 1,j,k}^{n} \right\rbrack
 
-.. math:: \vartheta_{2} = {K_{H}}_{i,j,k}\frac{1}{2\Delta y}\ \left\lbrack \text{\ θ}_{i,j + 1,k}^{n} - \text{\ θ}_{i,j - 1,k}^{n} \right\rbrack
+.. math:: \vartheta_{2} = {K_{H}}_{i,j,k}\frac{1}{2\Delta y}\ \left\lbrack \text{ θ}_{i,j + 1,k}^{n} - \text{ θ}_{i,j - 1,k}^{n} \right\rbrack
 
-.. math:: \vartheta_{3} = {K_{H}}_{i,j,k}\frac{1}{2\Delta z}\ \left\lbrack \text{\ θ}_{i,j,k + 1}^{n} - \text{\ θ}_{i,j,k - 1}^{n} \right\rbrack
+.. math:: \vartheta_{3} = {K_{H}}_{i,j,k}\frac{1}{2\Delta z}\ \left\lbrack \text{ θ}_{i,j,k + 1}^{n} - \text{ θ}_{i,j,k - 1}^{n} \right\rbrack
 
-.. math:: \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} = K_{i,j,k}\left\{ \frac{1}{2\Delta x}\ \left\lbrack \text{\ e}_{i + 1,j,k}^{n} - \text{\ e}_{i - 1j,k}^{n} \right\rbrack + \right.\ \frac{1}{2\Delta y}\left\lbrack \text{\ e}_{i,j + 1,k}^{n} - e_{i,j - 1,k}^{n} \right\rbrack + \left. \ \frac{1}{2\Delta z}\left\lbrack e_{i,j,k + 1}^{n} - \text{\ e}_{i,j,k - 1}^{n} \right\rbrack \right\}
+.. math:: \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} = K_{i,j,k}\left\{ \frac{1}{2\Delta x}\ \left\lbrack \text{ e}_{i + 1,j,k}^{n} - \text{ e}_{i - 1j,k}^{n} \right\rbrack + \right.\ \frac{1}{2\Delta y}\left\lbrack \text{ e}_{i,j + 1,k}^{n} - e_{i,j - 1,k}^{n} \right\rbrack + \left. \ \frac{1}{2\Delta z}\left\lbrack e_{i,j,k + 1}^{n} - \text{ e}_{i,j,k - 1}^{n} \right\rbrack \right\}
 
 .. math:: \epsilon = C_{\epsilon}\rho_{i,j,k}\frac{\left( e_{i,j,k} \right)^{\frac{3}{2}}}{\mathcal{l}}
 
