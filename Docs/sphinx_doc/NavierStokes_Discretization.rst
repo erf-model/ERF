@@ -3,7 +3,7 @@ Finite Difference Discretization of Euler/Navier-Stokes Equations
 ##################################################################
 Last update: 2021-10-25
 
-NOTE: This section is a replacement for the discretization of Euler equations in earlier version.
+NOTE: For the sake of simplicity, the discretized equantions mention time level :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
 
 Staggered Grids
 ===============
@@ -360,6 +360,7 @@ The goal is to compute eddy viscosity at the *cell centers* and interpolated the
 
 .. math:: S_{33} = S_{33k + \frac{1}{2}}
 
+
    \begin{matrix}
    S_{12} = \frac{1}{4}\left\lbrack S_{12i,j - \frac{1}{2}} + S_{12i,j + \frac{1}{2}} + S_{12i + 1,j - \frac{1}{2}} + S_{12i + 1,j + \frac{1}{2}} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
    S_{21} = \frac{1}{4}\left\lbrack S_{21i - \frac{1}{2},j} + S_{21i + \frac{1}{2},j} + S_{21i - \frac{1}{2},j + 1} + S_{21i + \frac{1}{2},j + 1} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
@@ -427,7 +428,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \rho u \right)_{i,j,k}^{n + 1} & = & \left( \rho u \right)_{i,j,k}^{n} & - & \Delta t & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \rho u \right)_{i,j,k}^{n + 1} & = & \left( \rho u \right)_{i,j,k}^{n} & + & \Delta t & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
@@ -450,7 +451,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \rho v \right)_{i,j,k}^{n + 1} & = & \left( \rho v \right)_{i,j,k}^{n} & - & \Delta t & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \rho v \right)_{i,j,k}^{n + 1} & = & \left( \rho v \right)_{i,j,k}^{n} & + & \Delta t & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
@@ -473,7 +474,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \rho w \right)_{i,j,k}^{n + 1} & = & \left( \rho w \right)_{i,j,k}^{n} & - & \Delta t & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \rho w \right)_{i,j,k}^{n + 1} & = & \left( \rho w \right)_{i,j,k}^{n} & + & \Delta t & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
@@ -492,6 +493,7 @@ Energy Conservation- Subgrid heat flux
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
+This section is yet to be implemented in the code.
 
 .. math::
 
@@ -531,6 +533,7 @@ Prognostic Equation for Subgrid Kinetic Energy
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
+This section is yet to be implemented in the code.
 
 .. math::
 
