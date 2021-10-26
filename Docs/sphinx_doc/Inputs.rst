@@ -31,7 +31,7 @@ List of Parameters
 |                          | high corner of  |                 |             |
 |                          | the domain      |                 |             |
 +--------------------------+-----------------+-----------------+-------------+
-| **geometry.coord_sys**   | coord. system   | 0 = Cartesian  | must be set |
+| **geometry.coord_sys**   | coord. system   | 0 = Cartesian  | must be set  |
 +--------------------------+-----------------+-----------------+-------------+
 | **geometry.is_periodic** | is the domain   | 0 if false, 1   | 0 0 0       |
 |                          | periodic in     | if true         |             |
@@ -69,8 +69,6 @@ List of Parameters
 +---------------+---------------------------------+-------------------+-------------+
 | **erf.hi_bc** | boundary type of each high face | 0,1,2,3,4,5       | must be set |
 +---------------+---------------------------------+-------------------+-------------+
-
-[Table:BC]
 
 Notes
 -----
@@ -143,8 +141,6 @@ List of Parameters
 |                           | restarting      |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
 
-[Table:ResInputs]
-
 Note: if **amr.max_level** = 0 then you do not need to set
 **amr.ref_ratio** or **amr.regrid_int**.
 
@@ -156,9 +152,7 @@ Examples of Usage
 -  **amr.n_cell** = 32 64 64
 
    would define the domain to have 32 cells in the x-direction, 64 cells
-   in the y-direction, and 64 cells in the z-direction *at the coarsest
-   level*. (If this line appears in a 2D inputs file then the final
-   number will be ignored.)
+   in the y-direction, and 64 cells in the z-direction *at the coarsest level*.
 
 -  | **amr.max_level** = 2
    | would allow a maximum of 2 refined levels in addition to the coarse
@@ -171,7 +165,7 @@ Examples of Usage
 -  | **amr.ref_ratio** = 2 4
    | would set factor 2 refinement between levels 0 and 1, and factor 4
      refinement between levels 1 and 2. Note that you must have at least
-     **amr.>ax_level** values of **amr.ref_ratio** (Additional values
+     **amr.max_level** values of **amr.ref_ratio** (Additional values
      may appear in that line and they will be ignored).
 
 -  | **amr.regrid_int** = 2 2
@@ -185,13 +179,8 @@ Regridding
 Overview
 --------
 
-The details of the regridding strategy are described in Section
-`5.5 <#subsec:grid-generation>`__, but first we cover how the input
-parameters can control the gridding.
-
-As described later, the user defines Fortran subroutines which tag
-individual cells at a given level if they need refinement. This list of
-tagged cells is sent to a grid generation routine, which uses the
+The user defines how to tag individual cells at a given level for refinement.
+This list of tagged cells is sent to a grid generation routine, which uses the
 Berger–Rigoutsos algorithm to create rectangular grids that contain the
 tagged cells.
 
@@ -220,11 +209,11 @@ List of Parameters
 |                            | already tagged |                |                |
 |                            | cells          |                |                |
 +----------------------------+----------------+----------------+----------------+
-| **amr.max_grid_size**      | maximum size   | Integer > 0    | 128 in 2D, 32  |
-|                            | of a grid in   |                | in 3D          |
+| **amr.max_grid_size**      | maximum size   | Integer > 0    | 32             |
+|                            | of a grid in   |                |                |
 |                            | any direction  |                |                |
 +----------------------------+----------------+----------------+----------------+
-| **amr.max_grid_size**      | maximum size   | Integer        | 128 in 2D, 32  |
+| **amr.max_grid_size**      | maximum size   | Integer        | 32             |
 +----------------------------+----------------+----------------+----------------+
 | **amr.blocking_factor**    | grid size must | Integer > 0    | 2              |
 |                            | be a multiple  |                |                |
@@ -236,8 +225,6 @@ List of Parameters
 |                            | :math:`>` # of |                |                |
 |                            | grids          |                |                |
 +----------------------------+----------------+----------------+----------------+
-
-[Table:GriddingInputs]
 
 .. _notes-2:
 
@@ -300,40 +287,13 @@ Examples of Usage
 
 .. _subsec:grid-generation:
 
-How Grids are Created
----------------------
+Gridding and Load Balancing
+---------------------------
 
-The gridding algorithm proceeds in this order:
+The ERF gridding and load balancing strategy is based on that in AMReX.
+See the `Gridding`_ section of the AMReX documentation for details.
 
-#. If at level 0, the domain is initially defined by **n_cell** as
-   specified in the inputs file. If at level greater than 0, grids are
-   created using the Berger–Rigoutsis clustering algorithm applied to
-   the tagged cells, modified to ensure that the lengths of all new fine
-   grids are divisible by **blocking_factor**.
-
-#. Next, the grid list is chopped up if any grids have length longer
-   than **max_grid_size**. Note that because **max_grid_size** is a
-   multiple of **blocking_factor** (as long as **max_grid_size** is
-   greater than **blocking_factor**), the **blocking_factor** criterion
-   is still satisfied.
-
-#. Next, if **refine_grid_layout** = 1 and there are more processors
-   than grids at this level, then the grids at this level are further
-   divided in order to ensure that no processor has fewer than one grid
-   (at each level).
-
-   -  if **max_grid_size** / 2 in the **BL_SPACEDIM** direction is a
-      multiple of **blocking_factor**, then chop the grids in the
-      **BL_SPACEDIM** direction so that none of the grids are longer in
-      that direction than **max_grid_size / 2**
-
-   -  If there are still fewer grids than processes, repeat the
-      procedure in the **BL_SPACEDIM-1** direction, and again in the
-      **BL_SPACEDIM-2** direction if necessary
-
-   -  If after completing a sweep in all coordinate directions with
-      **max_grid_size / 2**, there are still fewer grids than processes,
-      repeat the steps above with **max_grid_size / 4**.
+.. _`Gridding`: https://amrex-codes.github.io/amrex/docs_html/ManagingGridHierarchy_Chapter.html
 
 Simulation Time
 ===============
@@ -353,8 +313,6 @@ List of Parameters
 | **stop_time**   | final simulation          | Real >= 0    | -1.0    |
 |                 | time                      |              |         |
 +-----------------+---------------------------+--------------+---------+
-
-[Table:TimeInputs]
 
 .. _notes-3:
 
@@ -426,8 +384,6 @@ List of Parameters
 |                     | calculation    |                |                |
 |                     | will abort     |                |                |
 +---------------------+----------------+----------------+----------------+
-
-[Table:TimeStepInputs]
 
 .. _examples-of-usage-5:
 
@@ -626,9 +582,6 @@ List of Parameters
 |                             | the plotfiles    |                  |         |
 +-----------------------------+------------------+------------------+---------+
 
-All the options for **amr.derive_plot_vars** are kept in ``derive_lst``
-in ``Nyx_setup.cpp``. Feel free to look at it and see what’s there.
-
 .. _notes-5:
 
 Notes
@@ -677,90 +630,6 @@ If instead you specify
    *plt_run00061*, etc, where :math:`t = 0.1` after 43 level-0 steps,
    :math:`t = 0.2` after 61 level-0 steps, etc.
 
-Plotfile Variables
-------------------
-
-Native variables
-^^^^^^^^^^^^^^^^
-
-These variables come directly from the ``StateData``, either the
-``State_Type`` (for the hydrodynamic variables), ``DiagEOS_Type``
-(for the nuclear energy generation quantities). ``PhiGrav_Type`` and
-``Gravity_Type`` (for the gravity quantities)
-
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| variable name                     | description                                       | units                                |
-+===================================+===================================================+======================================+
-| ``density``                       | Baryonic mass density, :math:`\rho`               | M\ :math:`_\odot` / Mpc\ :math:`^3`  |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``xmom``                          | x-momentum, :math:`(\rho u)`                      | :math:`{\rm g~km^{-2}~s^{-1}}`       |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``ymom``                          | y-momentum, :math:`(\rho v)`                      | :math:`{\rm g~km^{-2}~s^{-1}}`       |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``zmom``                          | z-momentum, :math:`(\rho w)`                      | :math:`{\rm g~km^{-2}~s^{-1}}`       |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``rho_E``                         | Total energy density                              | :math:`{\rm erg~km^{-3}}`            |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``rho_e``                         | Internal energy density                           | :math:`{\rm erg~km^{-3}}`            |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``Temp``                          | Temperature                                       | :math:`{\rm K}`                      |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``Ne``                            | Number density of electrons                       | dimensionless                        |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``rho_X``                         | Mass density of species X (only valid for non-    | dimensionless                        |
-| (where X is H or He, the species  | constant species)                                 |                                      |
-| defined in the network)           |                                                   |                                      |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``phiGrav``                       | Gravitational potential                           | :math:`{\rm erg~g^{-1}}`             |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-| ``grav_x``, ``grav_y``,           | Gravitational acceleration                        | :math:`{\rm km~s^{-2}}`              |
-| ``grav_z``                        |                                                   |                                      |
-+-----------------------------------+---------------------------------------------------+--------------------------------------+
-
-Derived variables
-^^^^^^^^^^^^^^^^^
-
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| variable name                     | description                                       | derive routine              | units                                   |
-+===================================+===================================================+=============================+=========================================+
-| ``divu``                          | :math:`\nabla \cdot \ub`                          | ``derdivu``                 | :math:`{\rm s^{-1}}`                    |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``eint_e``                        | Specific internal energy computed from the        | ``dereint2``                | :math:`{\rm erg~g^{-1}}`                |
-|                                   | conserved :math:`(\rho e)` state variable as      |                             |                                         |
-|                                   | :math:`e = (\rho e)/\rho`                         |                             |                                         |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``eint_E``                        | Specific internal energy computed from the        | ``dereint1``                | :math:`{\rm erg~g^{-1}}`                |
-|                                   | total energy and momentum conserved state as      |                             |                                         |
-|                                   | :math:`e=[(\rho E)-\frac{1}{2}(\rho \ub^2)]/\rho` |                             |                                         |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``kineng``                        | Kinetic energy density,                           | ``derkineng``               | :math:`{\rm erg~km^{-3}}`               |
-|                                   | :math:`K = \frac{1}{2} |(\rho \ub)|^2`            |                             |                                         |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``logden``                        | :math:`\log_{10} \rho`                            | ``derlogden``               | M\ :math:`_\odot` / Mpc\ :math:`^3`     |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``MachNumber``                    | Fluid Mach number, :math:`|\ub|/c_s`              | ``dermachnumber``           | --                                      |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``maggrav``                       | Gravitational acceleration magnitude              | ``dermaggrav``              | :math:`{\rm km~s^{-2}}`                 |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``magmom``                        | Momentum density magnitude,                       | ``dermagmom``               | :math:`{\rm g~km^{-2}~s^{-1}}`          |
-|                                   | :math:`|\rho \ub|`                                |                             |                                         |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``magvel``                        | Velocity magnitude, :math:`|\ub|`                 | ``dermagvel``               | :math:`\mathrm{km~s^{-1}}`              |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``magvort``                       | Vorticity magnitude, :math:`|\nabla\times\ub|`    | ``dermagvort``              | :math:`{\rm s^{-1}}`                    |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``pressure``                      | Total pressure, including ions and electrons      | ``derpres``                 | :math:`{\rm dyn~km^{-2}}`               |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``soundspeed``                    | Sound speed                                       | ``dersoundspeed``           | :math:`\mathrm{km~s^{-1}}`              |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``H`` or ``He``                   | Mass fraction of species H or He                  | ``derspec``                 | --                                      |
-|                                   |                                                   |                             |                                         |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-| ``x_velocity``,                   | Fluid velocity,                                   | ``dervel``                  | :math:`\mathrm{km~s^{-1}}`              |
-| ``y_velocity``,                   | :math:`\ub = (\rho \ub)/\rho`                     |                             |                                         |
-| ``z_velocity``                    |                                                   |                             |                                         |
-+-----------------------------------+---------------------------------------------------+-----------------------------+-----------------------------------------+
-
 Screen Output
 =============
 
@@ -801,7 +670,6 @@ List of Parameters
 |                            | how often (in    |                |                |
 |                            | level-0 time     |                |                |
 |                            | steps)           |                |                |
-+----------------------------+------------------+----------------+----------------+
 |                            | to compute and   | Integer        | -1             |
 |                            | print integral   |                |                |
 |                            | quantities       |                |                |
@@ -811,26 +679,6 @@ List of Parameters
 
 Examples of Usage
 -----------------
-
--  | **amr.grid_log** = *grdlog*
-   | Every time the code regrids it prints a list of grids at all
-     relevant levels. Here the code will write these grids lists into
-     the file *grdlog*.
-
--  | **amr.run_log** = *runlog*
-   | Every time step the code prints certain statements to the screen
-     (if **amr.v** = 1), such as
-   | STEP = 1 TIME = 1.91717746 DT = 1.91717746
-   | PLOTFILE: file = plt00001
-   | Here these statements will be written into *runlog* as well.
-
--  | **amr.run_log_terse** = *runlogterse*
-   | This file, *runlogterse*, differs from *runlog* in that it only
-     contains lines of the form
-   | 10 0.2 0.005
-   | in which “10” is the number of steps taken, “0.2” is the simulation
-     time, and “0.005” is the level-0 time step. This file can be
-     plotted very easily to monitor the time step.
 
 -  | **erf.sum_interval** = 2
    | if **erf.sum_interval** :math:`> 0` then the code computes and
@@ -851,43 +699,92 @@ Physics
 List of Parameters
 ------------------
 
-+----------------------------------+------------------+------------------+-------------+
-| Parameter                        | Definition       | Acceptable       | Default     |
-|                                  |                  | Values           |             |
-+==================================+==================+==================+=============+
-| **erf.use_state_advection**      |                  | true / false     | true        |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.use_momentum_advection**   |                  | true / false     | true        |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.use_thermal_diffusion**    |                  | true / false     | true        |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.alpha_T**                  | Diffusion coeff. | Real             | 1.0         |
-|                                  | for temperature  |                  |             |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.use_scalar_diffusion**     |                  | true / false     | true        |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.alpha_S**                  | Diffusion coeff. | Real             | 1.0         |
-|                                  | for scalar       |                  |             |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.use_momentum_diffusion**   |                  | true / false     | true        |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.dynamicViscosity**         |                  | Real             | 1.5e-5      |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.use_smagorinsky**          |                  | true / false     | true        |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.Cs**                       |                  | Real             | 0.1         |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.use_pressure**             |                  | true / false     | true        |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.use_gravity**              |                  | true / false     | true        |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.spatial_order**            |                  | 1 / 2 / 4        | 2           |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.abl_driver_type**          |                  | None,            | None        |
-|                                  |                  | PressureGradient |             |
-|                                  |                  | GeostrophicWind  |             |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.abl_pressure_grad**        |                  |                  |             |
-+----------------------------------+------------------+------------------+-------------+
-| **erf.abl_geo_wind**             |                  |                  |             |
-+----------------------------------+------------------+------------------+-------------+
++----------------------------------+--------------------+-------------------+-------------+
+| Parameter                        | Definition         | Acceptable        | Default     |
+|                                  |                    | Values            |             |
++==================================+====================+===================+=============+
+| **erf.alpha_T**                  | Diffusion coeff.   | Real              | 1.0         |
+|                                  | for temperature    |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.alpha_S**                  | Diffusion coeff.   | Real              | 1.0         |
+|                                  | for scalar         |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.use_smagorinsky**          | If true set        | true / false      | true        |
+|                                  | turbulence model   |                   |             |
+|                                  | to Smagorinsky;    |                   |             |
+|                                  | else to DNS        |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.dynamicViscosity**         | Viscous coeff. if  | Real              | 1.5e-5      |
+|                                  | DNS                |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.Cs**                       | Constant           | Real              | 0.1         |
+|                                  | Smagorinsky coeff. |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.spatial_order**            |                    | 1 / 2 / 4         | 2           |
++----------------------------------+--------------------+-------------------+-------------+
+
+Forcing Terms
+=============
+
+.. _list-of-parameters-13:
+
+List of Parameters
+------------------
+
++----------------------------------+-------------------+-------------------+-------------+
+| Parameter                        | Definition        | Acceptable        | Default     |
+|                                  |                   | Values            |             |
++==================================+===================+===================+=============+
+| **erf.abl_driver_type**          | Type of external  | None,             | None        |
+|                                  | forcing term      | PressureGradient  |             |
+|                                  |                   | GeostrophicWind   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.abl_pressure_grad**        | Pressure gradient | 3 Reals           | (0.,0.,0.)  |
+|                                  | forcing term      |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.abl_geo_wind**             | Geostrophic       | 3 Reals           | (10.,0.,0.) |
+|                                  | forcing term      |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+
+Unit Testing
+============
+
+.. _list-of-parameters-14:
+
+List of Parameters
+------------------
+
+We use these flags to turn off parts of the physics -- for use in unit testing and/or debugging.
+
++----------------------------------+-------------------+-------------------+-------------+
+| Parameter                        | Definition        | Acceptable        | Default     |
+|                                  |                   | Values            |             |
++==================================+===================+===================+=============+
+| **erf.use_state_advection**      | Include advective | true / false      | true        |
+|                                  | term in state     |                   |             |
+|                                  | update?           |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_momentum_advection**   | Include advective | true / false      | true        |
+|                                  | term in momentum  |                   |             |
+|                                  | update?           |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_momentum_diffusion**   | Include diffusive | true / false      | true        |
+|                                  | term in momentum  |                   |             |
+|                                  | update?           |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_thermal_diffusion**    | Include diffusive | true / false      | true        |
+|                                  | term in temp.     |                   |             |
+|                                  | update?           |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_scalar_diffusion**     | Include diffusive | true / false      | true        |
+|                                  | term in scalar    |                   |             |
+|                                  | update?           |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_pressure**             | Include gradp     | true / false      | true        |
+|                                  | in momentum       |                   |             |
+|                                  | update?           |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_gravity**              | Include gravity   | true / false      | true        |
+|                                  | in momentum       |                   |             |
+|                                  | update?           |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
