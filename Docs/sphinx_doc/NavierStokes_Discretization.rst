@@ -378,7 +378,7 @@ Note that:
 
 .. math:: S_{23} = S_{32}
 
-:math:`K_{i,j,k} = {- 2\left( C_{S} \right)^{2}\rho_{i,j,k}\left( {2S}_{mn}S_{mn} \right)}^{\frac{1}{2}}`,
+:math:`K_{i,j,k} = {2\left( C_{S} \right)^{2}\rho_{i,j,k}\left( {2S}_{mn}S_{mn} \right)}^{\frac{1}{2}}`,
 where
 
 .. math::
