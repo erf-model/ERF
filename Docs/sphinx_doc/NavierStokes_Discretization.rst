@@ -1,14 +1,29 @@
-Finite difference discretization of Euler/Navier-Stokes equations for the ERF model
-===================================================================================
+##################################################################
+Finite Difference Discretization of Euler/Navier-Stokes Equations
+##################################################################
+Last update: 2021-10-25
 
-+------------------------------------------------------------------------------------------------+------------+
-| |image0|                                                                                       | |image1|   |
-+================================================================================================+============+
-| Figure 1. X-Y (left) and Y-Z (right) staggered grids indicating where variables are located.   |
-+------------------------------------------------------------------------------------------------+------------+
+NOTE: This section is a replacement for the discretization of Euler equations in earlier version.
+
+Staggered Grids
+===============
+The staggered grids indicating where different variables are located.
+
+XY Plane
+--------
+.. image:: figures/grid_discretization/stagger_XY.PNG
+  :width: 400
+  
+YZ Plane
+--------
+.. image:: figures/grid_discretization/stagger_YZ.PNG
+  :width: 400
 
 Mass Conservation
 =================
+
+Difference Equation
+-------------------
 
 .. math::
 
@@ -18,17 +33,24 @@ Mass Conservation
     & & & & & + \frac{1}{\Delta z} & \left\lbrack \left( \text{ρw} \right)_{i,j,k + 1}^{n} \right.\  & - & \left. \ \left. \ \left( \text{ρw} \right)_{i,j,k}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
-+---------------------------------------------------------------------------------------------------+------------+------------+
-| |image2|                                                                                          | |image3|   | |image4|   |
-+===================================================================================================+============+============+
-| Figure 2. Divergence components: x direction (left), y direction (center), z direction (right).   |
-+---------------------------------------------------------------------------------------------------+------------+------------+
+
+Contributions from different directions
+---------------------------------------
+.. image:: figures/grid_discretization/continuity_x.PNG
+  :width: 400
+.. image:: figures/grid_discretization/continuity_y.PNG
+  :width: 400
+.. image:: figures/grid_discretization/continuity_z.PNG
+  :width: 400
 
 Advection Contribution to DNS/LES
 =================================
 
 Momentum Conservation – U Momentum
 ----------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -39,14 +61,20 @@ Momentum Conservation – U Momentum
     & & & & & - \frac{\Delta t}{\Delta x}\left\lbrack p_{i,\ j,\ k}^{n} - p_{i - 1,\ j,\ k}^{n} \right\rbrack \\
    \end{matrix}
 
-+----------------------------------------------------------------------------------------+------------+------------+
-| |image5|                                                                               | |image6|   | |image7|   |
-+========================================================================================+============+============+
-| Figure 3. U momentum: x advection (left), y advection (center), z advection (right).   |
-+----------------------------------------------------------------------------------------+------------+------------+
+Contributions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/grid_discretization/x_mom_advec_x.PNG
+  :width: 400
+.. image:: figures/grid_discretization/x_mom_advec_y.PNG
+  :width: 400
+.. image:: figures/grid_discretization/x_mom_advec_z.PNG
+  :width: 400
 
 Momentum Conservation – V Momentum
 ----------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -57,14 +85,20 @@ Momentum Conservation – V Momentum
     & & & & & - \frac{\Delta t}{\Delta y}\left\lbrack p_{i,j,\ k}^{n} - p_{i,\ j - 1,\ k}^{n} \right\rbrack \\
    \end{matrix}
 
-+----------------------------------------------------------------------------------------+------------+-------------+
-| |image8|                                                                               | |image9|   | |image10|   |
-+========================================================================================+============+=============+
-| Figure 4. V momentum: x advection (left), y advection (center), z advection (right).   |
-+----------------------------------------------------------------------------------------+------------+-------------+
+Contributions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/grid_discretization/y_mom_advec_x.PNG
+  :width: 400
+.. image:: figures/grid_discretization/y_mom_advec_y.PNG
+  :width: 400
+.. image:: figures/grid_discretization/y_mom_advec_z.PNG
+  :width: 400
 
 Momentum Conservation – W Momentum
 ----------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -75,14 +109,21 @@ Momentum Conservation – W Momentum
     & & & & & - \frac{\Delta t}{\Delta z}\left\lbrack p_{i,\ j,\ k}^{n} - p_{i,\ j,\ \ k - 1}^{n} \right\rbrack\  + \ \Delta\text{t }\left\lbrack \rho_{i,j,k - \ \frac{1}{2}}^{n} \right\rbrack\text{g} \\
    \end{matrix}
 
-+----------------------------------------------------------------------------------------+-------------+-------------+
-| |image11|                                                                              | |image12|   | |image13|   |
-+========================================================================================+=============+=============+
-| Figure 5. W momentum: x advection (left), y advection (center), z advection (right).   |
-+----------------------------------------------------------------------------------------+-------------+-------------+
+Contributions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/grid_discretization/z_mom_advec_x.PNG
+  :width: 400
+.. image:: figures/grid_discretization/z_mom_advec_y.PNG
+  :width: 400
+.. image:: figures/grid_discretization/z_mom_advec_z.PNG
+  :width: 400
+
 
 Energy Conservation – Potential Temperature Advection 
 ------------------------------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -92,14 +133,20 @@ Energy Conservation – Potential Temperature Advection
     & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}\theta_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{ θ}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
-+------------------------------------------------------------------------------------------------------------+-------------+-------------+
-| |image14|                                                                                                  | |image15|   | |image16|   |
-+============================================================================================================+=============+=============+
-| Figure 6. Potential temperature equation: x advection (left), y advection (center), z advection (right).   |
-+------------------------------------------------------------------------------------------------------------+-------------+-------------+
+Contributions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/grid_discretization/temp_advec_x.PNG
+  :width: 400
+.. image:: figures/grid_discretization/temp_advec_y.PNG
+  :width: 400
+.. image:: figures/grid_discretization/temp_advec_z.PNG
+  :width: 400
 
 Scalar Conservation – Scalar Advection 
 ---------------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -109,24 +156,37 @@ Scalar Conservation – Scalar Advection
     & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}S_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{ S}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
-+----------------------------------------------------------------------------------------------------------+-------------+-------------+
-| |image17|                                                                                                | |image18|   | |image19|   |
-+==========================================================================================================+=============+=============+
-| Figure 7. Scalar conservation equation: x advection (left), y advection (center), z advection (right).   |
-+----------------------------------------------------------------------------------------------------------+-------------+-------------+
+Contrinutions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/grid_discretization/scalar_advec_x.PNG
+  :width: 400
+.. image:: figures/grid_discretization/scalar_advec_y.PNG
+  :width: 400
+.. image:: figures/grid_discretization/scalar_advec_z.PNG
+  :width: 400
 
-Pressure Diagnostic
--------------------
+Diagnostic Variables
+--------------------
 
-    This is included here but pressure can be diagnosed from other
-    variables solved for irrespective of whether the effect of advection
-    or diffusion or both or none is considered.
+.. math::
 
-.. math:: \operatorname{}{\text{ }p_{i,\ j,\ k}^{n}} = \rho_{i,\ j,\ k}^{n}R_{d}\theta_{i,\ j,\ k}^{n}\left( \frac{p_{i,\ j,\ k}^{n}}{p_{0}} \right)^{\frac{R_{d}}{c_{p}}}
+  p_{i, j, k}^n = (\rho_{i, j, k}^n R_d \theta_{i, j, k}^n / p_0^{R_d / c_p} )^\gamma
+  
+.. math::
 
-.. math:: \operatorname{}{\text{ }p_{i,\ j,\ k}^{n}} = \left\lbrack \rho_{i,\ j,\ k}^{n}R_{d}\theta_{i,\ j,\ k}^{n}\left( \frac{1}{p_{0}} \right)^{\frac{R_{d}}{c_{p}}} \right\rbrack^{\gamma}
+  T_{i, j, k}^n =  \frac{p_{i, j, k}^n}{  \rho_{i, j, k}^n R_d}
 
-.. math:: q = \left\lbrack \rho,\ u,v,w,\theta \right\rbrack\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ m = i,j,k\ \ \ \ \ \ \ \ \ \ \ \ U_{d} = \left\lbrack u,v,w \right\rbrack\mathrm{\text{\ for\ }}\left\lbrack x,y,z \right\rbrack\ \mathrm{\text{differences}},\ \mathrm{\text{respecively}}\text{\ \ \ }
+Here :math:`\rho_{i, j, k}^n, T_{i, j, k}^n, \theta_{i, j, k}^n`, and :math:`p_{i, j, k}^n` are the density, temperature, potential temperature and pressure, respectively; 
+these variables are all defined at cell centers of cell indexed by :math:`(i, j, k)` and at time level :math:`n`.
+
+:math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively, 
+and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
+
+
+Differencing of Different Orders
+================================
+
+:math:`[\rho, u, v, w, \theta]`,  :math:`m = i, j, k`,  and :math:`U_d = [u, v, w]` for :math:`[x, y, z]` directions respectively.
 
 .. math::
 
@@ -167,6 +227,9 @@ Strain Rate Tensor
 Momentum Conservation – U Momentum viscous stress divergence
 ------------------------------------------------------------
 
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
+
 .. math::
 
    \begin{matrix}
@@ -184,6 +247,9 @@ Momentum Conservation – U Momentum viscous stress divergence
    S_{13,k - \frac{1}{2}} = \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
    \end{matrix}
 
+Contrinutions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 +----------------------------------------------------+-------------+
 | |image21|                                          | |image22|   |
 +====================================================+=============+
@@ -192,6 +258,9 @@ Momentum Conservation – U Momentum viscous stress divergence
 
 Momentum Conservation – V Momentum viscous stress divergence
 ------------------------------------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -210,6 +279,8 @@ Momentum Conservation – V Momentum viscous stress divergence
    S_{23,k - \frac{1}{2}} = \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
    \end{matrix}
 
+Contrinutions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 +-----------------------------------------------------+-------------+
 | |image23|                                           | |image24|   |
 +=====================================================+=============+
@@ -218,6 +289,9 @@ Momentum Conservation – V Momentum viscous stress divergence
 
 Momentum Conservation – W Momentum viscous stress divergence
 ------------------------------------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -236,6 +310,9 @@ Momentum Conservation – W Momentum viscous stress divergence
    S_{33,k - \frac{1}{2}} = \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
    \end{matrix}
 
+Contrinutions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 +-----------------------------------------------------+-------------+
 | |image25|                                           | |image26|   |
 +=====================================================+=============+
@@ -245,6 +322,9 @@ Momentum Conservation – W Momentum viscous stress divergence
 Energy Conservation – Potential Temperature Diffusion 
 ------------------------------------------------------
 
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
+
 .. math::
 
    \begin{matrix}
@@ -253,8 +333,14 @@ Energy Conservation – Potential Temperature Diffusion
     & & & & & + \left. \ \frac{1}{{\Delta z}^{2}}\left\lbrack \theta_{i,j,k + 1}^{n} - \ {2\theta}_{i,j,k}^{n} + \ \theta_{i,j,k - 1}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
+Contrinutions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Scalar Conservation – Scalar Diffusion 
 ---------------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -263,6 +349,9 @@ Scalar Conservation – Scalar Diffusion
     & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack C_{i,j + 1,k}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j - 1,k}^{n} \right\rbrack \\
     & & & & & + \left. \ \frac{1}{{\Delta z}^{2}}\left\lbrack C_{i,j,k + 1}^{n} - \ {2C}_{i,j,k}^{n} + \ C_{i,j,k - 1}^{n} \right\rbrack \right\} \\
    \end{matrix}
+   
+Contrinutions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Momentum, Thermal, and Scalar Diffusion Contribution to LES
 ===========================================================
@@ -349,6 +438,9 @@ of the values at the centers of the 4 cells the edge is part of.
 Momentum Conservation – U Momentum - subfilter stress divergence
 ----------------------------------------------------------------
 
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
+
 .. math::
 
    \begin{matrix}
@@ -368,6 +460,9 @@ Momentum Conservation – U Momentum - subfilter stress divergence
 
 Momentum Conservation – V Momentum - subfilter stress divergence
 ----------------------------------------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -389,6 +484,9 @@ Momentum Conservation – V Momentum - subfilter stress divergence
 Momentum Conservation – W Momentum - subfilter stress divergence
 ----------------------------------------------------------------
 
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
+
 .. math::
 
    \begin{matrix}
@@ -408,6 +506,9 @@ Momentum Conservation – W Momentum - subfilter stress divergence
 
 Energy Conservation- Subgrid heat flux
 --------------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -435,11 +536,18 @@ Energy Conservation- Subgrid heat flux
 
 .. math:: \vartheta_{1i,j,k - \frac{1}{2}} = \frac{1}{2}\left( \vartheta_{1i,j,k} + \vartheta_{1i1,j,k - 1} \right)
 
-i.  .. rubric:: Scalar Conservation- Subgrid scalar flux
-       :name: scalar-conservation--subgrid-scalar-flux
+Scalar Conservation- Subgrid scalar flux
+----------------------------------------
 
-ii. .. rubric:: Prognostic Equation for Subgrid Kinetic Energy
-       :name: prognostic-equation-for-subgrid-kinetic-energy
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
+       
+
+Prognostic Equation for Subgrid Kinetic Energy
+----------------------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -477,106 +585,12 @@ convective case
 
 .. math:: \tau_{\text{mn}}\frac{\partial u_{m}}{\partial x_{n}} = KS_{\text{mn}}\frac{\partial u_{m}}{\partial x_{n}} = KS_{\text{mn}}S_{\text{mn}} = K(S_{11}^{2} + S_{22}^{2} + S_{33}^{2} + S_{12}^{2} + S_{13}^{2} + S_{23}^{2} + S_{21}^{2} + S_{31}^{2} + S_{32}^{2})
 
+Contrinutions from different directions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 +-------------+-------------+-------------+
 | |image29|   | |image30|   | |image31|   |
 +=============+=============+=============+
 +-------------+-------------+-------------+
 
 Figure 13. Subgrid kinetic energy.
-
-.. |image0| image:: media/image1.png
-   :width: 3.88814in
-   :height: 2.18708in
-.. |image1| image:: media/image2.png
-   :width: 3.84709in
-   :height: 2.16399in
-.. |image2| image:: media/image3.PNG
-   :width: 3.79259in
-   :height: 2.13333in
-.. |image3| image:: media/image4.PNG
-   :width: 3.81927in
-   :height: 2.14834in
-.. |image4| image:: media/image5.PNG
-   :width: 3.81889in
-   :height: 2.14813in
-.. |image5| image:: media/image6.png
-   :width: 3.29000in
-   :height: 2.18000in
-.. |image6| image:: media/image7.png
-   :width: 3.29000in
-   :height: 2.18000in
-.. |image7| image:: media/image8.png
-   :width: 3.29000in
-   :height: 2.18000in
-.. |image8| image:: media/image9.png
-   :width: 3.29000in
-   :height: 2.18000in
-.. |image9| image:: media/image10.png
-   :width: 3.29000in
-   :height: 2.18000in
-.. |image10| image:: media/image11.png
-   :width: 3.29000in
-   :height: 2.18000in
-.. |image11| image:: media/image12.png
-   :width: 3.29000in
-   :height: 2.18000in
-.. |image12| image:: media/image13.png
-   :width: 3.29000in
-   :height: 2.18000in
-.. |image13| image:: media/image14.png
-   :width: 3.29000in
-   :height: 2.18000in
-.. |image14| image:: media/image15.png
-   :width: 3.87552in
-   :height: 2.17998in
-.. |image15| image:: media/image16.png
-   :width: 3.85514in
-   :height: 2.16851in
-.. |image16| image:: media/image17.png
-   :width: 3.75371in
-   :height: 2.11146in
-.. |image17| image:: media/image18.png
-   :width: 3.87551in
-   :height: 2.17998in
-.. |image18| image:: media/image19.png
-   :width: 3.85514in
-   :height: 2.16851in
-.. |image19| image:: media/image20.png
-   :width: 3.75371in
-   :height: 2.11146in
-.. |image20| image:: media/image21.png
-   :width: 3.85000in
-   :height: 1.97000in
-.. |image21| image:: media/image22.png
-   :width: 3.46000in
-   :height: 2.18000in
-.. |image22| image:: media/image23.png
-   :width: 3.37000in
-   :height: 2.19000in
-.. |image23| image:: media/image24.png
-   :width: 3.46000in
-   :height: 2.18000in
-.. |image24| image:: media/image25.png
-   :width: 3.37000in
-   :height: 2.19000in
-.. |image25| image:: media/image26.png
-   :width: 3.37000in
-   :height: 2.19000in
-.. |image26| image:: media/image27.png
-   :width: 3.37000in
-   :height: 2.19000in
-.. |image27| image:: media/image21.png
-   :width: 3.85000in
-   :height: 1.97000in
-.. |image28| image:: media/image28.png
-   :width: 3.34000in
-   :height: 1.94000in
-.. |image29| image:: media/image29.png
-   :width: 3.08000in
-   :height: 2.04000in
-.. |image30| image:: media/image30.png
-   :width: 3.08000in
-   :height: 2.04000in
-.. |image31| image:: media/image31.png
-   :width: 3.08000in
-   :height: 2.05000in
