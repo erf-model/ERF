@@ -646,24 +646,7 @@ List of Parameters
 |                            | Amr.cpp          |                |                |
 +----------------------------+------------------+----------------+----------------+
 | **erf.v**                  | verbosity of     | 0 or 1         | 0              |
-|                            | Nyx.cpp          |                |                |
-+----------------------------+------------------+----------------+----------------+
-| **amr.grid_log**           | name of the      | String         | not used if    |
-|                            | file to which    |                | not set        |
-|                            | the grids are    |                |                |
-|                            | written          |                |                |
-+----------------------------+------------------+----------------+----------------+
-| **amr.run_log**            | name of the      | String         | not used if    |
-|                            | file to which    |                | not set        |
-|                            | certain output   |                |                |
-|                            | is written       |                |                |
-+----------------------------+------------------+----------------+----------------+
-| **amr.run_log_terse**      | name of the      | String         | not used if    |
-|                            | file to which    |                | not set        |
-|                            | certain          |                |                |
-|                            | (terser)         |                |                |
-|                            | output is        |                |                |
-|                            | written          |                |                |
+|                            | ERF.cpp          |                |                |
 +----------------------------+------------------+----------------+----------------+
 | **amr.sum_interval**       | if               |                |                |
 |                            | :math:`> 0,`     |                |                |

@@ -35,14 +35,15 @@ Constants
    +-----------------------+-----------------------+--------------------------+
    | Name                  | Value                 | Description              |
    +=======================+=======================+==========================+
-   | :math:`R_d`           | 287.06 J/kg/K         | gas constant for dry air |
+   | :math:`R_d`           | 287.0  J/kg/K         | gas constant for dry air |
    +-----------------------+-----------------------+--------------------------+
-   | :math:`c_p`           | 1000   J/kg/K         | specific heat capacity   |
+   | :math:`c_p`           | 1004.5 J/kg/K         | specific heat capacity   |
    +-----------------------+-----------------------+--------------------------+
-   | :math:`p_0`           | 1.0-e+5   Pa          | reference pressure       |
+   | :math:`p_0`           | 1.0e5  Pa             | reference pressure       |
    +-----------------------+-----------------------+--------------------------+
-   | :math:`\mathbf{g}`    | :math:`9.81 m/s^2`    | gravitational            |
-   |                       |                       | acceleration             |
+   | :math:`g`             | 9.81   m/s/s          | gravity                  |
+   +-----------------------+-----------------------+--------------------------+
+   | :math:`\gamma`        | 1.4                   | :math:`c_p /(c_p-R_d)`   |
    +-----------------------+-----------------------+--------------------------+
 
 These constants are defined in the file  :cpp:`Source/Constants.H`

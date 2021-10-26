@@ -156,7 +156,7 @@ Difference Equation
     & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \rho w \right)_{i,j,k + 1\ }^{n}]C_{i,j,k + \frac{1}{2}}^{n} - \left( \rho w \right)_{i,j,k}^{n}C_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/scalar_advec_x.PNG
   :width: 400
@@ -247,7 +247,7 @@ Difference Equation
    S_{13,k - \frac{1}{2}} = \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
    \end{matrix}
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/x_mom_diff_a.PNG
   :width: 400
@@ -277,7 +277,7 @@ Difference Equation
    S_{23,k - \frac{1}{2}} = \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
    \end{matrix}
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/y_mom_diff_a.PNG
   :width: 400
@@ -307,7 +307,7 @@ Difference Equation
    S_{33,k - \frac{1}{2}} = \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
    \end{matrix}
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/z_mom_diff_a.PNG
   :width: 400
@@ -569,7 +569,7 @@ convective case
 
 .. math:: \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}} = KS_{mn}\frac{\partial u_{m}}{\partial x_{n}} = KS_{mn}S_{mn} = K(S_{11}^{2} + S_{22}^{2} + S_{33}^{2} + S_{12}^{2} + S_{13}^{2} + S_{23}^{2} + S_{21}^{2} + S_{31}^{2} + S_{32}^{2})
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/TKE_x.PNG
   :width: 400
