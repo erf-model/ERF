@@ -119,7 +119,7 @@ Contributions from different directions
   :width: 400
 
 
-Energy Conservation – Potential Temperature Advection 
+Energy Conservation – Potential Temperature Advection
 -----------------------------------------------------
 
 Difference Equation

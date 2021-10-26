@@ -78,9 +78,9 @@ Notes
 Boundary types are:
 
 ======================= ================
-0 – Interior / Periodic 3 – Symmetry      
-1 – Inflow              4 – Slip Wall     
-2 – Outflow             5 – No Slip Wall  
+0 – Interior / Periodic 3 – Symmetry
+1 – Inflow              4 – Slip Wall
+2 – Outflow             5 – No Slip Wall
 ======================= ================
 
 Note – **erf.lo_bc** and **erf.hi_bc** must be consistent with
