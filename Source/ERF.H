@@ -387,8 +387,6 @@ protected:
   // io manager
   std::unique_ptr<IOManager> io_mgr;
 
-  amrex::iMultiFab level_mask;
-
   // Build a mask that ghost cells overlapping with interior cells in the same
   // multifab are set to 0, whereas others are set to 1.
   amrex::Vector<std::unique_ptr<amrex::iMultiFab>> ib_mask;

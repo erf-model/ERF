@@ -729,9 +729,6 @@ namespace math_bcs {
 
   };
 
-
-
-
   template<int IDIR, BCBound Bound> struct sim_bc;
 
   template<int IDIR>
@@ -758,7 +755,7 @@ namespace math_bcs {
              if (i < lo) {
            // Assume distance between lo and lo-1 is dxarray(IDIR), and height of lo
            // above boundary is dxarray(IDIR) / 2.0
-               // zrough is set to constant value 0.1 m here.  Should be passed in through input file.
+           // zrough is set to constant value 0.1 m here.  Should be passed in through input file.
 
                   data(i,j,k,n) = data(lo,j,k,n) * (1.0 - dxarray[IDIR] / (0.5 * dxarray[IDIR] * log(0.5 * dxarray[IDIR]/zrough)));
             }
