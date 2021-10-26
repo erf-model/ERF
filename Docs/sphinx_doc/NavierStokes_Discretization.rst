@@ -13,7 +13,7 @@ XY Plane
 --------
 .. image:: figures/grid_discretization/stagger_XY.PNG
   :width: 400
-  
+
 YZ Plane
 --------
 .. image:: figures/grid_discretization/stagger_YZ.PNG
@@ -120,7 +120,7 @@ Contributions from different directions
 
 
 Energy Conservation – Potential Temperature Advection 
-------------------------------------------------------
+-----------------------------------------------------
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
@@ -142,7 +142,7 @@ Contributions from different directions
 .. image:: figures/grid_discretization/temp_advec_z.PNG
   :width: 400
 
-Scalar Conservation – Scalar Advection 
+Scalar Conservation – Scalar Advection
 ---------------------------------------
 
 Difference Equation
@@ -171,15 +171,15 @@ Diagnostic Variables
 .. math::
 
   p_{i, j, k}^n = (\rho_{i, j, k}^n R_d \theta_{i, j, k}^n / p_0^{R_d / c_p} )^\gamma
-  
+
 .. math::
 
   T_{i, j, k}^n =  \frac{p_{i, j, k}^n}{  \rho_{i, j, k}^n R_d}
 
-Here :math:`\rho_{i, j, k}^n, T_{i, j, k}^n, \theta_{i, j, k}^n`, and :math:`p_{i, j, k}^n` are the density, temperature, potential temperature and pressure, respectively; 
+Here :math:`\rho_{i, j, k}^n, T_{i, j, k}^n, \theta_{i, j, k}^n`, and :math:`p_{i, j, k}^n` are the density, temperature, potential temperature and pressure, respectively;
 these variables are all defined at cell centers of cell indexed by :math:`(i, j, k)` and at time level :math:`n`.
 
-:math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively, 
+:math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively,
 and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
 
 
@@ -314,8 +314,8 @@ Contrinutions from different directions
 .. image:: figures/grid_discretization/z_mom_diff_b.PNG
   :width: 400
 
-Energy Conservation – Potential Temperature Diffusion 
-------------------------------------------------------
+Energy Conservation – Potential Temperature Diffusion
+-----------------------------------------------------
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
@@ -329,8 +329,8 @@ Difference Equation
    \end{matrix}
 
 
-Scalar Conservation – Scalar Diffusion 
----------------------------------------
+Scalar Conservation – Scalar Diffusion
+--------------------------------------
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
@@ -369,7 +369,6 @@ The goal is to compute eddy viscosity at the *cell centers* and interpolated the
    S_{32} = \frac{1}{4}\left\lbrack S_{32j - \frac{1}{2},k} + S_{32j + \frac{1}{2},k} + S_{32j - \frac{1}{2},k + 1} + S_{32j + \frac{1}{2},k + 1} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
    \end{matrix}
 
-    
 Note that:
 
 .. math:: S_{12} = S_{21}
@@ -524,7 +523,6 @@ Scalar Conservation- Subgrid scalar flux
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
-       
 
 Prognostic Equation for Subgrid Kinetic Energy
 ----------------------------------------------
