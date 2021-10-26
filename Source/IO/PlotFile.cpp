@@ -106,20 +106,6 @@ IOManager::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     amrex::Print() << "read CPU time: " << erf.previousCPUTimeUsed << "\n";
   }
 
-  if (erf.track_grid_losses && erf.level == 0) {
-
-    // get the current value of the diagnostic quantities
-    std::ifstream DiagFile;
-    std::string FullPathDiagFile = erf.parent->theRestartFile();
-    FullPathDiagFile += "/Diagnostics";
-    DiagFile.open(FullPathDiagFile.c_str(), std::ios::in);
-
-    for (int i = 0; i < erf.n_lost; i++)
-      DiagFile >> erf.material_lost_through_boundary_cumulative[i];
-
-    DiagFile.close();
-  }
-
   /*Not implemented for CUDA
       if (level == 0)
       {
@@ -190,21 +176,6 @@ IOManager::checkPoint(
 
       CPUFile << std::setprecision(15) << erf.getCPUTime();
       CPUFile.close();
-    }
-
-    if (erf.track_grid_losses) {
-
-      // store diagnostic quantities
-      std::ofstream DiagFile;
-      std::string FullPathDiagFile = dir;
-      FullPathDiagFile += "/Diagnostics";
-      DiagFile.open(FullPathDiagFile.c_str(), std::ios::out);
-
-      for (int i = 0; i < erf.n_lost; i++)
-        DiagFile << std::setprecision(15)
-                 << erf.material_lost_through_boundary_cumulative[i] << std::endl;
-
-      DiagFile.close();
     }
 
     /*Not implemented for CUDA{

@@ -127,12 +127,6 @@ ERF::variableSetUp()
     FirstAdv = RhoTheta_comp+1;
   }
 
-//  int dm = AMREX_SPACEDIM;
-
-  amrex::Vector<amrex::Real> center(AMREX_SPACEDIM, 0.0);
-  amrex::ParmParse ppc("erf");
-  ppc.queryarr("center", center, 0, AMREX_SPACEDIM);
-
   amrex::Interpolater* interp;
 
   if (state_interp_order == 0) {

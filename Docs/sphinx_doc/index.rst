@@ -37,6 +37,7 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    :hidden:
 
    GettingStarted.rst
+   Inputs.rst
 
 .. toctree::
    :caption: THEORY
