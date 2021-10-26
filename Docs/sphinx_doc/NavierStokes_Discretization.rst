@@ -28,9 +28,9 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \rho_{i,j,k}^{n + 1} & = & \rho_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x} \right.\  & \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n} \right.\  & - & \left. \ \left( \text{ρu} \right)_{i.j,k}^{n} \right\rbrack \\
-    & & & & & + \frac{1}{\Delta y} & \left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n} \right.\  & - & \left. \ \left( \text{ρv} \right)_{i.j,k}^{n} \right\rbrack \\
-    & & & & & + \frac{1}{\Delta z} & \left\lbrack \left( \text{ρw} \right)_{i,j,k + 1}^{n} \right.\  & - & \left. \ \left. \ \left( \text{ρw} \right)_{i,j,k}^{n} \right\rbrack \right\} \\
+   \rho_{i,j,k}^{n + 1} & = & \rho_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x} \right.\  & \left\lbrack \left( \text{\rho u} \right)_{i + 1,j,k}^{n} \right.\  & - & \left. \ \left( \text{\rho u} \right)_{i.j,k}^{n} \right\rbrack \\
+    & & & & & + \frac{1}{\Delta y} & \left\lbrack \left( \text{\rho v} \right)_{i,j + 1,k}^{n} \right.\  & - & \left. \ \left( \text{\rho v} \right)_{i.j,k}^{n} \right\rbrack \\
+    & & & & & + \frac{1}{\Delta z} & \left\lbrack \left( \text{\rho w} \right)_{i,j,k + 1}^{n} \right.\  & - & \left. \ \left. \ \left( \text{\rho w} \right)_{i,j,k}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
 
@@ -55,9 +55,9 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρu} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρu} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{2\Delta x}\ \left\lbrack \left( \left( \text{ρu} \right)_{i + 1,j,k}^{n} + \left( \text{ρu} \right)_{i,j,k}^{n} \right)u_{i + \frac{1}{2},j,k}^{n} - \left( \left( \text{ρu} \right)_{i,j,k}^{n} + \left( \text{ρu} \right)_{i - 1,j,k}^{n} \right)u_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
-    & & & & & + \frac{1}{2\Delta y}\left\lbrack \left( \left( \text{ρv} \right)_{i,j + 1,k}^{n} + \left( \text{ρv} \right)_{i - 1,j + 1,k}^{n} \right)u_{i,j + \frac{1}{2},k}^{n} - \left( \left( \text{ρv} \right)_{i,j,k}^{n} + \left( \text{ρv} \right)_{i - 1,j,k}^{n} \right)u_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-    & & & & & \  + \ \left. \ \frac{1}{2\Delta z}\left\lbrack \left( \left( \text{ρw} \right)_{i,j,k + 1}^{n} + \left( \text{ρw} \right)_{i - 1,j,k + 1}^{n} \right)u_{i,j,k + \frac{1}{2}}^{n} - \left( \left( \text{ρw} \right)_{i,j,k}^{n} + \left( \text{ρw} \right)_{i - 1,j,k}^{n} \right)u_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
+   \left( \text{\rho u} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho u} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{2\Delta x}\ \left\lbrack \left( \left( \text{\rho u} \right)_{i + 1,j,k}^{n} + \left( \text{\rho u} \right)_{i,j,k}^{n} \right)u_{i + \frac{1}{2},j,k}^{n} - \left( \left( \text{\rho u} \right)_{i,j,k}^{n} + \left( \text{\rho u} \right)_{i - 1,j,k}^{n} \right)u_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
+    & & & & & + \frac{1}{2\Delta y}\left\lbrack \left( \left( \text{\rho v} \right)_{i,j + 1,k}^{n} + \left( \text{\rho v} \right)_{i - 1,j + 1,k}^{n} \right)u_{i,j + \frac{1}{2},k}^{n} - \left( \left( \text{\rho v} \right)_{i,j,k}^{n} + \left( \text{\rho v} \right)_{i - 1,j,k}^{n} \right)u_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
+    & & & & & \  + \ \left. \ \frac{1}{2\Delta z}\left\lbrack \left( \left( \text{\rho w} \right)_{i,j,k + 1}^{n} + \left( \text{\rho w} \right)_{i - 1,j,k + 1}^{n} \right)u_{i,j,k + \frac{1}{2}}^{n} - \left( \left( \text{\rho w} \right)_{i,j,k}^{n} + \left( \text{\rho w} \right)_{i - 1,j,k}^{n} \right)u_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
     & & & & & - \frac{\Delta t}{\Delta x}\left\lbrack p_{i,\ j,\ k}^{n} - p_{i - 1,\ j,\ k}^{n} \right\rbrack \\
    \end{matrix}
 
@@ -79,9 +79,9 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρv} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρv} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{2\Delta x}\ \left\lbrack \left( \left( \text{ρu} \right)_{i + 1,j,k}^{n} + \left( \text{ρu} \right)_{i + 1,j - 1,k}^{n} \right)v_{i + \frac{1}{2},j,k}^{n} - \left( \left( \text{ρu} \right)_{i,j,k}^{n} + \left( \text{ρu} \right)_{i,j - 1,k}^{n} \right)v_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
-    & & & & & + \frac{1}{2\Delta y}\left\lbrack \left( \left( \text{ρv} \right)_{i,j + 1,k}^{n} + \left( \text{ρv} \right)_{i,j,k}^{n} \right)v_{i,j + \frac{1}{2},k}^{n} - \left( \left( \text{ρv} \right)_{i,j,k}^{n} + \left( \text{ρv} \right)_{i,j - 1,k}^{n} \right)v_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-    & & & & & + \left. \ \frac{1}{2\Delta z}\left\lbrack \left( \left( \text{ρw} \right)_{i,j,k + 1}^{n} + \left( \text{ρw} \right)_{i,j - 1,k + 1}^{n} \right)v_{i,j,k + \frac{1}{2}}^{n} - \left( \left( \text{ρw} \right)_{i,j,k}^{n} + \left( \text{ρw} \right)_{i,j - 1,k}^{n} \right)v_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
+   \left( \text{\rho v} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho v} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{2\Delta x}\ \left\lbrack \left( \left( \text{\rho u} \right)_{i + 1,j,k}^{n} + \left( \text{\rho u} \right)_{i + 1,j - 1,k}^{n} \right)v_{i + \frac{1}{2},j,k}^{n} - \left( \left( \text{\rho u} \right)_{i,j,k}^{n} + \left( \text{\rho u} \right)_{i,j - 1,k}^{n} \right)v_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
+    & & & & & + \frac{1}{2\Delta y}\left\lbrack \left( \left( \text{\rho v} \right)_{i,j + 1,k}^{n} + \left( \text{\rho v} \right)_{i,j,k}^{n} \right)v_{i,j + \frac{1}{2},k}^{n} - \left( \left( \text{\rho v} \right)_{i,j,k}^{n} + \left( \text{\rho v} \right)_{i,j - 1,k}^{n} \right)v_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
+    & & & & & + \left. \ \frac{1}{2\Delta z}\left\lbrack \left( \left( \text{\rho w} \right)_{i,j,k + 1}^{n} + \left( \text{\rho w} \right)_{i,j - 1,k + 1}^{n} \right)v_{i,j,k + \frac{1}{2}}^{n} - \left( \left( \text{\rho w} \right)_{i,j,k}^{n} + \left( \text{\rho w} \right)_{i,j - 1,k}^{n} \right)v_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
     & & & & & - \frac{\Delta t}{\Delta y}\left\lbrack p_{i,j,\ k}^{n} - p_{i,\ j - 1,\ k}^{n} \right\rbrack \\
    \end{matrix}
 
@@ -103,9 +103,9 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρw} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρw} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{2\Delta x}\ \left\lbrack \left( \left( \text{ρu} \right)_{i + 1,j,k}^{n} + \left( \text{ρu} \right)_{i + 1,j,k - 1}^{n} \right)w_{i + \frac{1}{2},j,k}^{n} - \left( \left( \text{ρu} \right)_{i,j,k}^{n} + \left( \text{ρu} \right)_{i,j,k - 1}^{n} \right)w_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
-    & & & & & + \frac{1}{2\Delta y}\left\lbrack \left( \left( \text{ρv} \right)_{i,j + 1,k}^{n} + \left( \text{ρv} \right)_{i,j + 1,k - 1}^{n} \right)w_{i,j + \frac{1}{2},k}^{n} - \left( \left( \text{ρv} \right)_{i,j,k}^{n} + \left( \text{ρv} \right)_{i,j,k - 1}^{n} \right)w_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-    & & & & & + \left. \ \frac{1}{2\Delta z}\left\lbrack \left( \left( \text{ρw} \right)_{i,j,k + 1}^{n} + \left( \text{ρw} \right)_{i,j,k}^{n} \right)w_{i,j,k + \frac{1}{2}}^{n} - \left( \left( \text{ρw} \right)_{i,j,k}^{n} + \left( \text{ρw} \right)_{i,j,k - 1}^{n} \right)w_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
+   \left( \text{\rho w} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho w} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{2\Delta x}\ \left\lbrack \left( \left( \text{\rho u} \right)_{i + 1,j,k}^{n} + \left( \text{\rho u} \right)_{i + 1,j,k - 1}^{n} \right)w_{i + \frac{1}{2},j,k}^{n} - \left( \left( \text{\rho u} \right)_{i,j,k}^{n} + \left( \text{\rho u} \right)_{i,j,k - 1}^{n} \right)w_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
+    & & & & & + \frac{1}{2\Delta y}\left\lbrack \left( \left( \text{\rho v} \right)_{i,j + 1,k}^{n} + \left( \text{\rho v} \right)_{i,j + 1,k - 1}^{n} \right)w_{i,j + \frac{1}{2},k}^{n} - \left( \left( \text{\rho v} \right)_{i,j,k}^{n} + \left( \text{\rho v} \right)_{i,j,k - 1}^{n} \right)w_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
+    & & & & & + \left. \ \frac{1}{2\Delta z}\left\lbrack \left( \left( \text{\rho w} \right)_{i,j,k + 1}^{n} + \left( \text{\rho w} \right)_{i,j,k}^{n} \right)w_{i,j,k + \frac{1}{2}}^{n} - \left( \left( \text{\rho w} \right)_{i,j,k}^{n} + \left( \text{\rho w} \right)_{i,j,k - 1}^{n} \right)w_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
     & & & & & - \frac{\Delta t}{\Delta z}\left\lbrack p_{i,\ j,\ k}^{n} - p_{i,\ j,\ \ k - 1}^{n} \right\rbrack\  + \ \Delta\text{t }\left\lbrack \rho_{i,j,k - \ \frac{1}{2}}^{n} \right\rbrack\text{g} \\
    \end{matrix}
 
@@ -128,9 +128,9 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρθ} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρθ} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n}\text{ θ}_{i + \frac{1}{2},j,k}^{n} - \left( \text{ρu} \right)_{i,j,k}^{n}\text{ θ}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
-    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n}\text{ θ}_{i,j + \frac{1}{2},k}^{n} - \left( \text{ρv} \right)_{i,j,k\ }^{n}\theta_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-    & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}\theta_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{ θ}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
+   \left( \text{\rho \theta } \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho \theta } \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack \left( \text{\rho u} \right)_{i + 1,j,k}^{n}\text{ \theta }_{i + \frac{1}{2},j,k}^{n} - \left( \text{\rho u} \right)_{i,j,k}^{n}\text{ \theta }_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
+    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{\rho v} \right)_{i,j + 1,k}^{n}\text{ \theta }_{i,j + \frac{1}{2},k}^{n} - \left( \text{\rho v} \right)_{i,j,k\ }^{n}\theta_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
+    & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{\rho w} \right)_{i,j,k + 1\ }^{n}\theta_{i,j,k + \frac{1}{2}}^{n} - \left( \text{\rho w} \right)_{i,j,k}^{n}\text{ \theta }_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
 Contributions from different directions
@@ -151,9 +151,9 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρS} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρS} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n}\text{ S}_{i + \frac{1}{2},j,k}^{n} - \left( \text{ρu} \right)_{i,j,k}^{n}\text{ S}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
-    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n}\text{ S}_{i,j + \frac{1}{2},k}^{n} - \left( \text{ρv} \right)_{i,j,k\ }^{n}S_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-    & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}S_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{ S}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
+   \left( \text{\rho S} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho S} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack \left( \text{\rho u} \right)_{i + 1,j,k}^{n}\text{ S}_{i + \frac{1}{2},j,k}^{n} - \left( \text{\rho u} \right)_{i,j,k}^{n}\text{ S}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
+    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{\rho v} \right)_{i,j + 1,k}^{n}\text{ S}_{i,j + \frac{1}{2},k}^{n} - \left( \text{\rho v} \right)_{i,j,k\ }^{n}S_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
+    & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack \left( \text{\rho w} \right)_{i,j,k + 1\ }^{n}S_{i,j,k + \frac{1}{2}}^{n} - \left( \text{\rho w} \right)_{i,j,k}^{n}\text{ S}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
 Contrinutions from different directions
@@ -233,7 +233,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρu} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρu} \right)_{i,j,k}^{n} & + & \Delta t\ 2\rho_{i,j,k}\nu & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack S_{11,i + \frac{1}{2}} - S_{11,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack S_{12,j + \frac{1}{2}} - S_{12,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack S_{13,k + \frac{1}{2}} - S_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \text{\rho u} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho u} \right)_{i,j,k}^{n} & + & \Delta t\ 2\rho_{i,j,k}\nu & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack S_{11,i + \frac{1}{2}} - S_{11,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack S_{12,j + \frac{1}{2}} - S_{12,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack S_{13,k + \frac{1}{2}} - S_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
@@ -265,7 +265,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρv} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρv} \right)_{i,j,k}^{n} & + & \Delta t\ 2\rho_{i,j,k}\nu & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack S_{21,i + \frac{1}{2}} - S_{21,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack S_{22,j + \frac{1}{2}} - S_{22,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack S_{23,k + \frac{1}{2}} - S_{23,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \text{\rho v} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho v} \right)_{i,j,k}^{n} & + & \Delta t\ 2\rho_{i,j,k}\nu & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack S_{21,i + \frac{1}{2}} - S_{21,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack S_{22,j + \frac{1}{2}} - S_{22,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack S_{23,k + \frac{1}{2}} - S_{23,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
@@ -296,7 +296,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρw} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρw} \right)_{i,j,k}^{n} & + & \Delta t\ 2\rho_{i,j,k}\nu & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack S_{31,i + \frac{1}{2}} - S_{31,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack S_{32,j + \frac{1}{2}} - S_{32,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack S_{33,k + \frac{1}{2}} - S_{33,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \text{\rho w} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho w} \right)_{i,j,k}^{n} & + & \Delta t\ 2\rho_{i,j,k}\nu & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack S_{31,i + \frac{1}{2}} - S_{31,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack S_{32,j + \frac{1}{2}} - S_{32,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack S_{33,k + \frac{1}{2}} - S_{33,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
@@ -328,7 +328,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρθ} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρθ} \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{T} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack \theta_{i + 1,j,k}^{n} - \ {2\theta}_{i,j,k}^{n} + \ \theta_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
+   \left( \text{\rho \theta } \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho \theta } \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{T} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack \theta_{i + 1,j,k}^{n} - \ {2\theta}_{i,j,k}^{n} + \ \theta_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
     & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack \theta_{i,j + 1,k}^{n} - \ 2\theta_{i,j,k}^{n} + \ \theta_{i,j - 1,k}^{n} \right\rbrack \\
     & & & & & + \left. \ \frac{1}{{\Delta z}^{2}}\left\lbrack \theta_{i,j,k + 1}^{n} - \ {2\theta}_{i,j,k}^{n} + \ \theta_{i,j,k - 1}^{n} \right\rbrack \right\} \\
    \end{matrix}
@@ -345,7 +345,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρC} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρC} \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{S} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack C_{i + 1,j,k}^{n} - \ {2C}_{i,j,k}^{n} + \ C_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
+   \left( \text{\rho C} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho C} \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{S} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack C_{i + 1,j,k}^{n} - \ {2C}_{i,j,k}^{n} + \ C_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
     & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack C_{i,j + 1,k}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j - 1,k}^{n} \right\rbrack \\
     & & & & & + \left. \ \frac{1}{{\Delta z}^{2}}\left\lbrack C_{i,j,k + 1}^{n} - \ {2C}_{i,j,k}^{n} + \ C_{i,j,k - 1}^{n} \right\rbrack \right\} \\
    \end{matrix}
@@ -370,15 +370,14 @@ Strain Rate and Eddy Viscosity
    \begin{matrix}
    S_{11} = S_{11i + \frac{1}{2}} \\
    S_{22} = S_{22j + \frac{1}{2}} \\
-   \begin{matrix}
    S_{33} = S_{33k + \frac{1}{2}} \\
+   \end{matrix}
+
+   \begin{matrix}
    S_{12} = \frac{1}{4}\left\lbrack S_{12i,j - \frac{1}{2}} + S_{12i,j + \frac{1}{2}} + S_{12i + 1,j - \frac{1}{2}} + S_{12i + 1,j + \frac{1}{2}} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
-   \begin{matrix}
    S_{21} = \frac{1}{4}\left\lbrack S_{21i - \frac{1}{2},j} + S_{21i + \frac{1}{2},j} + S_{21i - \frac{1}{2},j + 1} + S_{21i + \frac{1}{2},j + 1} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
-   \begin{matrix}
    S_{13} = \frac{1}{4}\left\lbrack S_{13i,k - \frac{1}{2}} + S_{13i,k + \frac{1}{2}} + S_{13i + 1,k - \frac{1}{2}} + S_{13i + 1,k + \frac{1}{2}} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
    S_{31} = \frac{1}{4}\left\lbrack S_{31i - \frac{1}{2},k} + S_{31i + \frac{1}{2},k} + S_{31i - \frac{1}{2},k + 1} + S_{31i + \frac{1}{2},k + 1} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
-   \begin{matrix}
    S_{23} = \frac{1}{4}\left\lbrack S_{23j,k - \frac{1}{2}} + S_{23j,k + \frac{1}{2}} + S_{23j + 1,k - \frac{1}{2}} + S_{23j + 1,k + \frac{1}{2}} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
    S_{32} = \frac{1}{4}\left\lbrack S_{32j - \frac{1}{2},k} + S_{32j + \frac{1}{2},k} + S_{32j - \frac{1}{2},k + 1} + S_{32j + \frac{1}{2},k + 1} \right\rbrack = Average\ of\ the\ 4\ edges\ surrouding\ the\ cell \\
    \end{matrix}
@@ -444,7 +443,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρu} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρu} \right)_{i,j,k}^{n} & - & \Delta\text{t } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \text{\rho u} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho u} \right)_{i,j,k}^{n} & - & \Delta\text{t } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
@@ -467,7 +466,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρv} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρv} \right)_{i,j,k}^{n} & - & \Delta\text{t } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \text{\rho v} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho v} \right)_{i,j,k}^{n} & - & \Delta\text{t } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
@@ -490,7 +489,7 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρw} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρw} \right)_{i,j,k}^{n} & - & \Delta\text{t } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \text{\rho w} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho w} \right)_{i,j,k}^{n} & - & \Delta\text{t } & \left. \ \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.\  + \frac{1}{\Delta y}\ \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack + \frac{1}{\Delta z}\ \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{matrix}
 
 .. math::
@@ -513,16 +512,16 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρθ} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρθ} \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack {\vartheta_{1}}_{i + \frac{1}{2},j,k}^{n} - {\ \vartheta_{1}}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
+   \left( \text{\rho \theta } \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho \theta } \right)_{i,j,k}^{n} & - & \Delta t & \left\{ \frac{1}{\Delta x}\ \left\lbrack {\vartheta_{1}}_{i + \frac{1}{2},j,k}^{n} - {\ \vartheta_{1}}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.\  \\
     & & & & & + \frac{1}{\Delta y}\left\lbrack {\ \vartheta_{2}}_{i,j + \frac{1}{2},k}^{n} - {\vartheta_{2}}_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
     & & & & & + \left. \ \frac{1}{\Delta z}\left\lbrack {\vartheta_{3}}_{i,j,k + \frac{1}{2}}^{n} - {\ \vartheta_{3}}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
-.. math:: \vartheta_{1i,j,k} = K_{i,j,k}\frac{1}{2\Delta x}\ \left\lbrack \text{ θ}_{i + 1,j,k}^{n} - \text{ θ}_{i - 1,j,k}^{n} \right\rbrack
+.. math:: \vartheta_{1i,j,k} = K_{i,j,k}\frac{1}{2\Delta x}\ \left\lbrack \text{ \theta }_{i + 1,j,k}^{n} - \text{ \theta }_{i - 1,j,k}^{n} \right\rbrack
 
-.. math:: \vartheta_{2i,j,k} = K_{i,j,k}\frac{1}{2\Delta y}\ \left\lbrack \text{ θ}_{i,j + 1,k}^{n} - \text{ θ}_{i,j - 1,k}^{n} \right\rbrack
+.. math:: \vartheta_{2i,j,k} = K_{i,j,k}\frac{1}{2\Delta y}\ \left\lbrack \text{ \theta }_{i,j + 1,k}^{n} - \text{ \theta }_{i,j - 1,k}^{n} \right\rbrack
 
-.. math:: \vartheta_{3i,jk} = K_{i,j,k}\frac{1}{2\Delta z}\ \left\lbrack \text{ θ}_{i,j,k + 1}^{n} - \text{ θ}_{i,j,k - 1}^{n} \right\rbrack
+.. math:: \vartheta_{3i,jk} = K_{i,j,k}\frac{1}{2\Delta z}\ \left\lbrack \text{ \theta }_{i,j,k + 1}^{n} - \text{ \theta }_{i,j,k - 1}^{n} \right\rbrack
 
 .. math:: \vartheta_{1i + \frac{1}{2},j,k} = \frac{1}{2}\left( \vartheta_{1i + 1,j,k} + \vartheta_{1i,j,k} \right)
 
@@ -552,9 +551,9 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \text{ρe} \right)_{i,j,k}^{n + 1} & = & \left( \text{ρe} \right)_{i,j,k}^{n} & - & \Delta t & \frac{1}{\Delta x}\ \left\lbrack \left( \text{ρu} \right)_{i + 1,j,k}^{n}\text{ e}_{i + \frac{1}{2},j,k}^{n} - \left( \text{ρu} \right)_{i,j,k}^{n}\text{ e}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \\
-    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{ρv} \right)_{i,j + 1,k}^{n}\text{ e}_{i,j + \frac{1}{2},k}^{n} - \left( \text{ρv} \right)_{i,j,k\ }^{n}e_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-    & & & & & + \frac{1}{\Delta z}\left\lbrack \left( \text{ρw} \right)_{i,j,k + 1\ }^{n}e_{i,j,k + \frac{1}{2}}^{n} - \left( \text{ρw} \right)_{i,j,k}^{n}\text{ e}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \\
+   \left( \text{\rho e} \right)_{i,j,k}^{n + 1} & = & \left( \text{\rho e} \right)_{i,j,k}^{n} & - & \Delta t & \frac{1}{\Delta x}\ \left\lbrack \left( \text{\rho u} \right)_{i + 1,j,k}^{n}\text{ e}_{i + \frac{1}{2},j,k}^{n} - \left( \text{\rho u} \right)_{i,j,k}^{n}\text{ e}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \\
+    & & & & & + \frac{1}{\Delta y}\left\lbrack \left( \text{\rho v} \right)_{i,j + 1,k}^{n}\text{ e}_{i,j + \frac{1}{2},k}^{n} - \left( \text{\rho v} \right)_{i,j,k\ }^{n}e_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
+    & & & & & + \frac{1}{\Delta z}\left\lbrack \left( \text{\rho w} \right)_{i,j,k + 1\ }^{n}e_{i,j,k + \frac{1}{2}}^{n} - \left( \text{\rho w} \right)_{i,j,k}^{n}\text{ e}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \\
     & & & & & + \frac{g}{\Theta}\vartheta_{3} - \tau_{\text{mn}}\frac{\partial u_{m}}{\partial x_{n}} - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} - \epsilon \\
    \end{matrix}
 
@@ -569,13 +568,13 @@ Difference Equation
 :math:`\mathcal{l} = \Delta s = \sqrt[3]{\Delta\text{x }\Delta\text{y }\Delta\text{z }}`,
 convective case
 
-.. math:: \mathcal{l} = 0.76\ e^{\frac{1}{2}}\left( \frac{g}{\Theta}\frac{\partial\theta}{\partial z} \right) = 0.76e_{i,j,k}^{\frac{1}{2}}\left\lbrack \frac{g}{\Theta}\frac{1}{2\Delta z}\left( \text{ θ}_{i,j,k + 1}^{n} - \text{ θ}_{i,j,k - 1}^{n} \right) \right\rbrack
+.. math:: \mathcal{l} = 0.76\ e^{\frac{1}{2}}\left( \frac{g}{\Theta}\frac{\partial\theta}{\partial z} \right) = 0.76e_{i,j,k}^{\frac{1}{2}}\left\lbrack \frac{g}{\Theta}\frac{1}{2\Delta z}\left( \text{ \theta }_{i,j,k + 1}^{n} - \text{ \theta }_{i,j,k - 1}^{n} \right) \right\rbrack
 
-.. math:: \vartheta_{1} = {K_{H}}_{i,j,k}\frac{1}{2\Delta x}\ \left\lbrack \text{ θ}_{i + 1,j,k}^{n} - \text{ θ}_{i - 1,j,k}^{n} \right\rbrack
+.. math:: \vartheta_{1} = {K_{H}}_{i,j,k}\frac{1}{2\Delta x}\ \left\lbrack \text{ \theta }_{i + 1,j,k}^{n} - \text{ \theta }_{i - 1,j,k}^{n} \right\rbrack
 
-.. math:: \vartheta_{2} = {K_{H}}_{i,j,k}\frac{1}{2\Delta y}\ \left\lbrack \text{ θ}_{i,j + 1,k}^{n} - \text{ θ}_{i,j - 1,k}^{n} \right\rbrack
+.. math:: \vartheta_{2} = {K_{H}}_{i,j,k}\frac{1}{2\Delta y}\ \left\lbrack \text{ \theta }_{i,j + 1,k}^{n} - \text{ \theta }_{i,j - 1,k}^{n} \right\rbrack
 
-.. math:: \vartheta_{3} = {K_{H}}_{i,j,k}\frac{1}{2\Delta z}\ \left\lbrack \text{ θ}_{i,j,k + 1}^{n} - \text{ θ}_{i,j,k - 1}^{n} \right\rbrack
+.. math:: \vartheta_{3} = {K_{H}}_{i,j,k}\frac{1}{2\Delta z}\ \left\lbrack \text{ \theta }_{i,j,k + 1}^{n} - \text{ \theta }_{i,j,k - 1}^{n} \right\rbrack
 
 .. math:: \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} = K_{i,j,k}\left\{ \frac{1}{2\Delta x}\ \left\lbrack \text{ e}_{i + 1,j,k}^{n} - \text{ e}_{i - 1j,k}^{n} \right\rbrack + \right.\ \frac{1}{2\Delta y}\left\lbrack \text{ e}_{i,j + 1,k}^{n} - e_{i,j - 1,k}^{n} \right\rbrack + \left. \ \frac{1}{2\Delta z}\left\lbrack e_{i,j,k + 1}^{n} - \text{ e}_{i,j,k - 1}^{n} \right\rbrack \right\}
 
