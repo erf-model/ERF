@@ -273,6 +273,36 @@ not when simply calling the function). For example:
 These guidelines should be adhered to in new contributions to ERF, but
 please refrain from making stylistic changes to unrelated sections of code in your PRs.
 
+### Fixing Style Issues
+
+On any pull request, or any new commits to an open pull request that trigger
+the ERF CI tests, ERF will run style checks. These checks ensure the developer
+is using spaces instead of tabs and has not inserted any whitespace at the end
+of source lines.
+
+We require pull requests to pass these style checks before merging. If failures
+arise, there is an easy way to automatically fix style issues like this by
+running the following shell commands from the main ERF repository.
+
+For removing whitespace at the end of lines:
+
+```
+$ .github/workflows/style/check_trailing_whitespaces.sh
+```
+
+For replacing tabs with 4 spaces:
+
+```
+$ .github/workflows/style/check_tabs.sh
+```
+
+These commands will modify your local source files, so it is best to run these
+commands after committing your local changes and then add and commit the style
+changes that result.
+
+These commands will also output a git diff that shows the changes made by the
+style scripts.
+
 ### API Documentation Using Doxygen
 
 The Doxygen documentation is designed for advanced user-developers. It aims
