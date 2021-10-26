@@ -221,12 +221,8 @@ Momentum, Thermal, and Scalar Diffusion Contribution to DNS
 
 Strain Rate Tensor
 ------------------
-
-+-------------------------------------------+
-| |image20|                                 |
-+===========================================+
-| Figure 8. Strain rate tensor schematic.   |
-+-------------------------------------------+
+.. image:: figures/grid_discretization/StrainRate.PNG
+  :width: 400
 
 Momentum Conservation – U Momentum viscous stress divergence
 ------------------------------------------------------------
@@ -253,12 +249,10 @@ Difference Equation
 
 Contrinutions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-+----------------------------------------------------+-------------+
-| |image21|                                          | |image22|   |
-+====================================================+=============+
-| Figure 9. Viscous stress divergence – U momentum   |
-+----------------------------------------------------+-------------+
+.. image:: figures/grid_discretization/x_mom_diff_a.PNG
+  :width: 400
+.. image:: figures/grid_discretization/x_mom_diff_b.PNG
+  :width: 400
 
 Momentum Conservation – V Momentum viscous stress divergence
 ------------------------------------------------------------
@@ -285,11 +279,10 @@ Difference Equation
 
 Contrinutions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-+-----------------------------------------------------+-------------+
-| |image23|                                           | |image24|   |
-+=====================================================+=============+
-| Figure 10. Viscous stress divergence – V momentum   |
-+-----------------------------------------------------+-------------+
+.. image:: figures/grid_discretization/y_mom_diff_a.PNG
+  :width: 400
+.. image:: figures/grid_discretization/y_mom_diff_b.PNG
+  :width: 400
 
 Momentum Conservation – W Momentum viscous stress divergence
 ------------------------------------------------------------
@@ -316,12 +309,10 @@ Difference Equation
 
 Contrinutions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-+-----------------------------------------------------+-------------+
-| |image25|                                           | |image26|   |
-+=====================================================+=============+
-| Figure 11. Viscous stress divergence – W momentum   |
-+-----------------------------------------------------+-------------+
+.. image:: figures/grid_discretization/z_mom_diff_a.PNG
+  :width: 400
+.. image:: figures/grid_discretization/z_mom_diff_b.PNG
+  :width: 400
 
 Energy Conservation – Potential Temperature Diffusion 
 ------------------------------------------------------
@@ -337,8 +328,6 @@ Difference Equation
     & & & & & + \left. \ \frac{1}{{\Delta z}^{2}}\left\lbrack \theta_{i,j,k + 1}^{n} - \ {2\theta}_{i,j,k}^{n} + \ \theta_{i,j,k - 1}^{n} \right\rbrack \right\} \\
    \end{matrix}
 
-Contrinutions from different directions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Scalar Conservation – Scalar Diffusion 
 ---------------------------------------
@@ -353,9 +342,6 @@ Difference Equation
     & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack C_{i,j + 1,k}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j - 1,k}^{n} \right\rbrack \\
     & & & & & + \left. \ \frac{1}{{\Delta z}^{2}}\left\lbrack C_{i,j,k + 1}^{n} - \ {2C}_{i,j,k}^{n} + \ C_{i,j,k - 1}^{n} \right\rbrack \right\} \\
    \end{matrix}
-   
-Contrinutions from different directions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Momentum, Thermal, and Scalar Diffusion Contribution to LES
 ===========================================================
@@ -363,11 +349,10 @@ Momentum, Thermal, and Scalar Diffusion Contribution to LES
 Strain Rate and Eddy Viscosity
 ------------------------------
 
-    The goal is to compute eddy viscosity at the *cell centers* and
-    interpolated them to the edges. Refer again to the strain rate
-    tensor schematic.
+The goal is to compute eddy viscosity at the *cell centers* and interpolated them to the edges. Refer again to the strain rate tensor schematic.
 
-    |image27|
+.. image:: figures/grid_discretization/StrainRate.PNG
+  :width: 400
 
 .. math:: S_{11} = S_{11i + \frac{1}{2}}
 
@@ -404,11 +389,8 @@ where
 
 Owing to symmetry we need to compute 6 of the 9 tensor components.
 
-+------------------------------+
-| |image28|                    |
-+==============================+
-| Figure 12. Eddy viscosity.   |
-+------------------------------+
+.. image:: figures/grid_discretization/EddyViscosity.PNG
+  :width: 400
 
 The interpolated values of eddy-viscosity at the edges are the average
 of the values at the centers of the 4 cells the edge is part of.
@@ -588,10 +570,9 @@ convective case
 
 Contrinutions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-+-------------+-------------+-------------+
-| |image29|   | |image30|   | |image31|   |
-+=============+=============+=============+
-+-------------+-------------+-------------+
-
-Figure 13. Subgrid kinetic energy.
+.. image:: figures/grid_discretization/TKE_x.PNG
+  :width: 400
+.. image:: figures/grid_discretization/TKE_y.PNG
+  :width: 400
+.. image:: figures/grid_discretization/TKE_z.PNG
+  :width: 400
