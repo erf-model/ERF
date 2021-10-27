@@ -61,7 +61,10 @@ AMReX_buildInfo.cpp:
 	$(AMREX_HOME)/Tools/C_scripts/makebuildinfo_C.py \
           --amrex_home "$(AMREX_HOME)" \
           --COMP "$(COMP)" --COMP_VERSION "$(COMP_VERSION)" \
-          --FCOMP "$(FCOMP)" --FCOMP_VERSION "$(FCOMP_VERSION)" \
+          --CXX_comp_name "$(CXX)" \
+          --CXX_flags "$(CXXFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(includes)" \
+          --link_flags "$(LINKFLAGS) $(CPPFLAGS) $(includes) $(LDFLAGS)" \
+          --libraries "$(FINAL_LIBS)" \
           --MODULES "$(MNAMES)" \
           --GIT "$(TOP) $(AMREX_HOME)"
 
