@@ -3,30 +3,122 @@
 Building
 --------
 
-ERF uses executables which are customized to the case in which the user intends to run. As listed earlier, specific source code files are considered input to the program and compiled into the executable itself. Therefore, ERF has both ``compile-time`` and ``run-time`` inputs that the user must set for their case. The compile time inputs can be verified by running:
+ERF uses executables which are customized to the case in which the user intends to run.
+ERF has both ``compile-time`` and ``run-time`` inputs that the user must set for their case.
 
-::
-   ./ERF --describe
-
-which will print out the build information (including git hashes, modules, EoS, some basic information from compiled chemistry network, etc).
-
-ERF has the ability to use two build systems. First is the GNU Make build system. This build system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project. The second build system implemented is CMake. This is best used for developers of ERF and more generalized. CMake allows for building as well as easy testing and verification of ERF through the use of CTest which is included in CMake.
+ERF has the ability to use two build systems, GNU Make and CMake.
 
 GNU Make
 ~~~~~~~~
 
+The GNU Make system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project.
+
 Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF which is the repository of AMReX. AMReX is provided as a git submodule in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
+
+#.
 
 ::
 
    export ERF_HOME=${HOME}/ERF
    export AMREX_HOME=${ERF_HOME}/Submodules/AMReX
 
+Note that one could also use an external version of AMReX, downloaded by typing
 
-Then one edits the ``GNUMakefile`` in any of the examples in the ``Exec`` directory and uses the ``make`` command to build the executable.
+   .. code:: shell
+
+             git clone https://github.com/amrex-codes/amrex.git
+
+and then
+
+::
+
+   export AMREX_HOME=${path-to-external-amrex}/amrex
+
+#. ``cd`` to the desired build directory, e.g.
+
+   * ``ERF/Exec/IsentropicVortex/``
+
+#. Edit the ``GNUmakefile``:
+
+   Set AMREX_HOME to be the path to the directory where you have put amrex. NOTE: when setting ``AMREX_HOME`` in the ``GNUmakefile``, be aware that ``~`` does not expand, so ``AMREX_HOME=~/amrex/`` will yield an error.
+
+   Alternatively, the path to AMReX can be set up as an environment variable, ``AMREX_HOME``, on your machine to point to the path name where you have put AMReX. For example, if you are using the bash shell, you can add this to your ``.bashrc`` as:
+
+   .. highlight:: bash
+
+   ::
+
+      export AMREX_HOME=/path/to/amrex
+
+   alternatively, in tcsh one can set
+
+   .. highlight:: tcsh
+
+   ::
+
+      setenv AMREX_HOME /path/to/amrex
+
+
+   Other options that you can set in the GNUMakefile include
+
+   +-----------------+------------------------------+------------------+-------------+
+   | Option name     | Description                  | Possible values  | Default     |
+   |                 |                              |                  | value       |
+   +=================+==============================+==================+=============+
+   | COMP            | Compiler (gnu or intel)      | gnu / intel      | None        |
+   +-----------------+------------------------------+------------------+-------------+
+   | USE_MPI         | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | USE_OMP         | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | USE_CUDA        | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | DEBUG           | Whether to use DEBUG mode    | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | PROFILE         | Include profiling info       | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | TINY_PROFILE    | Include tiny profiling info  | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | COMM_PROFILE    | Include comm profiling info  | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | TRACE_PROFILE   | Include trace profiling info | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+
+   .. note::
+      **Do not set both USE_OMP and USE_CUDA to true.**
+
+   Information on using other compilers can be found in the AMReX documentation at
+   https://amrex-codes.github.io/amrex/docs_html/BuildingAMReX.html .
+
+#. Make the executable:
+
+   Now type
+
+   .. code:: shell
+
+      make
+
+   The name of the resulting executable (generated by the GNUmake system) encodes several of the build characteristics, including dimensionality of the problem, compiler name, and whether MPI and/or OpenMP were linked with the executable.
+   Thus, several different build configurations may coexist simultaneously in a problem folder.
+   For example, the default build in ``ERF/Exec/Isntropic`` will look
+   like ``ERF3d.gnu.MPI.ex``, indicating that this is a 3-d version of the code, made with
+   ``COMP=gnu``, and ``USE_MPI=TRUE``.
+
+Job info
+~~~~~~~~
+
+The build information can be accessed by typing
+
+::
+   ./ERF*ex --describe
+
+in the directory where the executable has been built.
+
 
 CMake
 ~~~~~
+
+CMake is often preferred by developers of ERF; CMake allows for building as well as easy testing and verification of ERF through the use of CTest which is included in CMake.
 
 Using CMake involves an additional configure step before using the ``make`` command. It is also expected that the user has cloned the ERF repo with the ``--recursive`` option or performed ``git submodule init; git submodule update`` in the ERF repo to populate its submodules.
 
