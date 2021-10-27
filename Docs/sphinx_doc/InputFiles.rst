@@ -16,6 +16,6 @@ Also, any entry that can be specified in the inputs file can also be specified o
 
     mpirun -np 64 ./ERF3d.gnu.DEBUG.MPI.ex inputs amr.restart=chk0030 erf.use_gravity=true
 
-See the 
+See the
 
 See :ref:`sec:Inputs` for details on run-time options that can be specified.

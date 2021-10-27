@@ -29,7 +29,7 @@ and then, if using bash shell,
 
    export AMREX_HOME=/path/to/external/amrex
 
-or if using tcsh, 
+or if using tcsh,
 
 ::
 
