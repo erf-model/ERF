@@ -11,24 +11,24 @@ ERF has the ability to use two build systems, GNU Make and CMake.
 GNU Make
 ~~~~~~~~
 
-The GNU Make system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project. 
+The GNU Make system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project.
 
 Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF which is the repository of AMReX. AMReX is provided as a git submodule in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
 
-#. 
+#.
 
 ::
 
    export ERF_HOME=${HOME}/ERF
    export AMREX_HOME=${ERF_HOME}/Submodules/AMReX
 
-Note that one could also use an external version of AMReX, downloaded by typing 
+Note that one could also use an external version of AMReX, downloaded by typing
 
    .. code:: shell
 
              git clone https://github.com/amrex-codes/amrex.git
 
-and then 
+and then
 
 ::
 
@@ -39,7 +39,7 @@ and then
    * ``ERF/Exec/IsentropicVortex/``
 
 #. Edit the ``GNUmakefile``:
-   
+
    Set AMREX_HOME to be the path to the directory where you have put amrex. NOTE: when setting ``AMREX_HOME`` in the ``GNUmakefile``, be aware that ``~`` does not expand, so ``AMREX_HOME=~/amrex/`` will yield an error.
 
    Alternatively, the path to AMReX can be set up as an environment variable, ``AMREX_HOME``, on your machine to point to the path name where you have put AMReX. For example, if you are using the bash shell, you can add this to your ``.bashrc`` as:
@@ -53,9 +53,9 @@ and then
    alternatively, in tcsh one can set
 
    .. highlight:: tcsh
-		  
+
    ::
-      
+
       setenv AMREX_HOME /path/to/amrex
 
 
