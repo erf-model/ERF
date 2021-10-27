@@ -11,10 +11,10 @@ Test Status
 Regression Tests    |regtests|     |regtest-coverage|
 =================  =============  ====================
 
-.. |regtests| image:: https://github.com/rafmudaf/ERF/actions/workflows/ci.yml/badge.svg?branch=add_testing
+.. |regtests| image:: https://github.com/erf-model/ERF/actions/workflows/ci.yml/badge.svg?branch=development
 .. |regtest-coverage| image:: https://codecov.io/gh/erf-model/ERF/branch/development/graph/badge.svg?token=74S5Q66M1M
     :target: https://codecov.io/gh/erf-model/ERF
-.. |unittests| image:: https://github.com/rafmudaf/ERF/actions/workflows/ci.yml/badge.svg?branch=add_testing
+.. |unittests| image:: https://github.com/erf-model/ERF/actions/workflows/ci.yml/badge.svg?branch=development
 
 
 Getting Started
