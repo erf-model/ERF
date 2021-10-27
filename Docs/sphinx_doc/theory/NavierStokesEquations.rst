@@ -23,7 +23,7 @@ ERF advances the following set of equations in DNS mode:
 
   \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)),
 
-  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C + \nabla \cdot (\alpha_{S}\ \nabla (\rho C)),
+  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\alpha_{S}\ \nabla (\rho C)),
 
 where :math:`\tau` is the stress tensor.
 
