@@ -64,6 +64,7 @@ jobs:
           -DERF_ENABLE_AMREX_EB:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
           -DCODECOV:BOOL=ON \
+          -DAMReX_FORTRAN=OFF                             \
           -DAMReX_GPU_BACKEND=HIP                       \
           -DAMReX_AMD_ARCH=gfx908                       \
           -DCMAKE_C_COMPILER=$(which clang)             \
