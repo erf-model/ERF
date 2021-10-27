@@ -21,11 +21,11 @@ ERF advances the following set of equations in DNS mode:
 
   \frac{\partial (\rho \mathbf{u})}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + pI) +\rho \mathbf{g} + \nabla \cdot \tau,
 
-  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta),
+  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)),
 
-  \frac{\partial (\rho A)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} A),
+  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\alpha_{S}\ \nabla (\rho C)),
 
-where $\tau$ is the stress tensor.
+where :math:`\tau` is the stress tensor.
 
 These can be re-written in perturbational form by replacing the z-momentum equation with
 
