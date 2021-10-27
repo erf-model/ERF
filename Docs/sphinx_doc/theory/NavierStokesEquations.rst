@@ -10,26 +10,28 @@
 
 
 
-Compressible Euler Equations
-============================
+Compressible Navier-Stokes Equations
+====================================
 
-ERF advances the following set of equations:
+ERF advances the following set of equations in DNS mode:
 
 .. math::
 
   \frac{\partial \rho}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u}),
 
-  \frac{\partial (\rho \mathbf{u})}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + pI) +\rho \mathbf{g},
+  \frac{\partial (\rho \mathbf{u})}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + pI) +\rho \mathbf{g} + \nabla \cdot \tau,
 
   \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta),
 
   \frac{\partial (\rho A)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} A),
 
+where $\tau$ is the stress tensor.
+
 These can be re-written in perturbational form by replacing the z-momentum equation with
 
 .. math::
 
-  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w) - \nabla p^\prime - \rho^\prime g,
+  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w) - \nabla p^\prime - \rho^\prime g + (\nabla \cdot \tau)_z,
 
 where
 

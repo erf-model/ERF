@@ -44,7 +44,7 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    :maxdepth: 1
    :hidden:
 
-   theory/Euler_Equations.rst
+   theory/NavierStokesEquations.rst
    theory/UnitsAndConstants.rst
    theory/Algorithms.rst
 

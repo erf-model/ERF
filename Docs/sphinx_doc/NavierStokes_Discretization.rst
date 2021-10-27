@@ -1,6 +1,6 @@
-##################################################################
-Finite Difference Discretization of Euler/Navier-Stokes Equations
-##################################################################
+#########################################
+Discretization of Navier-Stokes Equations
+#########################################
 Last update: 2021-10-25
 
 NOTE: For the sake of simplicity, the discretized equantions mention time level :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
