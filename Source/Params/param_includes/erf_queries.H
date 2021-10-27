@@ -3,33 +3,13 @@
 // or add runtime parameters, please edit _cpp_parameters and then run
 // mk_params.sh
 
-pp.query("levmsk_interior", levmsk_interior);
-pp.query("levmsk_covered", levmsk_covered);
-pp.query("levmsk_notcovered", levmsk_notcovered);
-pp.query("levmsk_physbnd", levmsk_physbnd);
 pp.query("state_interp_order", state_interp_order);
 pp.query("lin_limit_state_interp", lin_limit_state_interp);
 pp.query("do_reflux", do_reflux);
 pp.query("do_avg_down", do_avg_down);
 pp.query("load_balance_verbosity", load_balance_verbosity);
-pp.query("difmag", difmag);
-pp.query("small_dens", small_dens);
-pp.query("small_temp", small_temp);
-pp.query("small_pres", small_pres);
-pp.query("small_ener", small_ener);
 pp.query("add_ext_src", add_ext_src);
 pp.query("add_forcing_src", add_forcing_src);
-pp.query("source_term_predictor", source_term_predictor);
-pp.query("first_order_hydro", first_order_hydro);
-pp.query("xl_ext_bc_type", xl_ext_bc_type);
-pp.query("xr_ext_bc_type", xr_ext_bc_type);
-pp.query("yl_ext_bc_type", yl_ext_bc_type);
-pp.query("yr_ext_bc_type", yr_ext_bc_type);
-pp.query("zl_ext_bc_type", zl_ext_bc_type);
-pp.query("zr_ext_bc_type", zr_ext_bc_type);
-pp.query("do_les", do_les);
-pp.query("use_explicit_filter", use_explicit_filter);
-//pp.query("Cs", Cs);
 pp.query("CI", CI);
 pp.query("PrT", PrT);
 pp.query("fixed_dt", fixed_dt);
@@ -40,10 +20,8 @@ pp.query("cfl", cfl);
 pp.query("init_shrink", init_shrink);
 pp.query("change_max", change_max);
 pp.query("bndry_func_thread_safe", bndry_func_thread_safe);
-pp.query("track_grid_losses", track_grid_losses);
 pp.query("sum_interval", sum_interval);
 pp.query("sum_per", sum_per);
-pp.query("hard_cfl_limit", hard_cfl_limit);
 pp.query("job_name", job_name);
 
 pp.query("use_state_advection", use_state_advection);

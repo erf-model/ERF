@@ -37,13 +37,14 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    :hidden:
 
    GettingStarted.rst
+   Inputs.rst
 
 .. toctree::
    :caption: THEORY
    :maxdepth: 1
    :hidden:
 
-   theory/Euler_Equations.rst
+   theory/NavierStokesEquations.rst
    theory/UnitsAndConstants.rst
    theory/Algorithms.rst
 

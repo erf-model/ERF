@@ -288,82 +288,12 @@ ERF::buildMetrics()
       amrex::FArrayBoxFactory());
     geom.GetFaceArea(area[dir], dir);
   }
-
-  level_mask.clear();
-  level_mask.define(grids, dmap, 1, 1);
-  level_mask.BuildMask(
-    geom.Domain(), geom.periodicity(), levmsk_covered, levmsk_notcovered,
-    levmsk_physbnd, levmsk_interior);
-
-  if (level == 0)
-    setGridInfo();
 }
 
 void
 ERF::setTimeLevel(amrex::Real time, amrex::Real dt_old, amrex::Real dt_new)
 {
   AmrLevel::setTimeLevel(time, dt_old, dt_new);
-}
-
-void
-ERF::setGridInfo()
-{
-  /** Send refinement data to Fortran. We do it here
-    because now the grids have been initialized and
-    we need this data for setting up the problem.
-    Note that this routine will always get called
-    on level 0, even if we are doing a restart,
-    so it is safe to put this here.
-    */
-
-  if (level == 0) {
-    int max_level = parent->maxLevel();
-    int nlevs = max_level + 1;
-
-    amrex::Real dx_level[3 * nlevs];
-    int domlo_level[3 * nlevs];
-    int domhi_level[3 * nlevs];
-
-    const amrex::Real* dx_coarse = geom.CellSize();
-
-    const int* domlo_coarse = geom.Domain().loVect();
-    const int* domhi_coarse = geom.Domain().hiVect();
-
-    for (int dir = 0; dir < 3; dir++) {
-      dx_level[dir] = (ZFILL(dx_coarse))[dir];
-
-      domlo_level[dir] = (ARLIM_3D(domlo_coarse))[dir];
-      domhi_level[dir] = (ARLIM_3D(domhi_coarse))[dir];
-    }
-
-    for (int lev = 1; lev <= max_level; lev++) {
-      amrex::IntVect ref_ratio = parent->refRatio(lev - 1);
-
-      // Note that we are explicitly calculating here what the
-      // data would be on refined levels rather than getting the
-      // data directly from those levels, because some potential
-      // refined levels may not exist at the beginning of the simulation.
-
-      for (int dir = 0; dir < 3; dir++) {
-        if (dir < AMREX_SPACEDIM) {
-          dx_level[3 * lev + dir] =
-            dx_level[3 * (lev - 1) + dir] / ref_ratio[dir];
-          int ncell = (domhi_level[3 * (lev - 1) + dir] -
-                       domlo_level[3 * (lev - 1) + dir] + 1) *
-                      ref_ratio[dir];
-          domlo_level[3 * lev + dir] = domlo_level[dir];
-          domhi_level[3 * lev + dir] = domlo_level[3 * lev + dir] + ncell - 1;
-        } else {
-          dx_level[3 * lev + dir] = 0.0;
-          domlo_level[3 * lev + dir] = 0;
-          domhi_level[3 * lev + dir] = 0;
-        }
-      }
-    }
-
-    // Don't need this in pure C++?
-    // set_grid_info(max_level, dx_level, domlo_level, domhi_level);
-  }
 }
 
 /*
@@ -1031,8 +961,6 @@ ERF::errorEst(
 
       // Now update the tags in the TagBox.
       // tag_arr.tags(itags, tilebox);
-      // rho_eli.clear();
-      // temp_eli.clear();
     }
   }
 }

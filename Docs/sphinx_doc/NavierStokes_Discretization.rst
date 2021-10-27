@@ -1,9 +1,9 @@
-##################################################################
-Finite Difference Discretization of Euler/Navier-Stokes Equations
-##################################################################
+#########################################
+Discretization of Navier-Stokes Equations
+#########################################
 Last update: 2021-10-25
 
-NOTE: This section is a replacement for the discretization of Euler equations in earlier version.
+NOTE: For the sake of simplicity, the discretized equantions mention time level :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
 
 Staggered Grids
 ===============
@@ -123,7 +123,7 @@ Contributions from different directions
 
 
 Energy Conservation – Potential Temperature Advection
-------------------------------------------------------
+-----------------------------------------------------
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
@@ -164,7 +164,7 @@ Difference Equation
 .. HACK -- removed the extra square bracket, line 3 first pw coeffecient
 
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/scalar_advec_x.PNG
   :width: 400
@@ -262,7 +262,7 @@ Difference Equation
    S_{13,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
    \end{array}
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/x_mom_diff_a.PNG
   :width: 400
@@ -297,7 +297,7 @@ Difference Equation
    S_{23,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
    \end{array}
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/y_mom_diff_a.PNG
   :width: 400
@@ -332,7 +332,7 @@ Difference Equation
    S_{33,k - \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
    \end{array}
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/z_mom_diff_a.PNG
   :width: 400
@@ -340,7 +340,7 @@ Contrinutions from different directions
   :width: 400
 
 Energy Conservation – Potential Temperature Diffusion
-------------------------------------------------------
+-----------------------------------------------------
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
@@ -355,7 +355,7 @@ Difference Equation
 
 
 Scalar Conservation – Scalar Diffusion
----------------------------------------
+--------------------------------------
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
@@ -387,9 +387,9 @@ The goal is to compute eddy viscosity at the *cell centers* and interpolated the
    S_{33} = & S_{33k + \frac{1}{2}}
    \end{array}
 
-|
 
 .. math::
+
 
    \begin{matrix}
    S_{12} = & \frac{1}{4}\left\lbrack S_{12i,j - \frac{1}{2}} + S_{12i,j + \frac{1}{2}} + S_{12i + 1,j - \frac{1}{2}} + S_{12i + 1,j + \frac{1}{2}} \right\rbrack = \begin{smallmatrix} \text{Average of the 4 edges} \\ \text{surrouding the cell}\end{smallmatrix} \\
@@ -399,7 +399,6 @@ The goal is to compute eddy viscosity at the *cell centers* and interpolated the
    S_{23} = & \frac{1}{4}\left\lbrack S_{23j,k - \frac{1}{2}} + S_{23j,k + \frac{1}{2}} + S_{23j + 1,k - \frac{1}{2}} + S_{23j + 1,k + \frac{1}{2}} \right\rbrack = \begin{smallmatrix} \text{Average of the 4 edges} \\ \text{surrouding the cell}\end{smallmatrix} \\
    S_{32} = & \frac{1}{4}\left\lbrack S_{32j - \frac{1}{2},k} + S_{32j + \frac{1}{2},k} + S_{32j - \frac{1}{2},k + 1} + S_{32j + \frac{1}{2},k + 1} \right\rbrack = \begin{smallmatrix} \text{Average of the 4 edges} \\ \text{surrouding the cell}\end{smallmatrix}
    \end{matrix}
-
 
 Note that:
 
@@ -411,7 +410,7 @@ Note that:
    S_{23} = & S_{32}
    \end{array}
 
-:math:`K_{i,j,k} = {- 2\left( C_{S} \right)^{2}\rho_{i,j,k}\left( {2S}_{mn}S_{mn} \right)}^{\frac{1}{2}}`,
+:math:`K_{i,j,k} = {2\left( C_{S} \right)^{2}\rho_{i,j,k}\left( {2S}_{mn}S_{mn} \right)}^{\frac{1}{2}}`,
 where
 
 .. math::
@@ -446,13 +445,11 @@ Difference Equation
 .. math::
 
    \begin{align}
-   \left( \rho u \right)_{i,j,k}^{n + 1} = \left( \rho u \right)_{i,j,k}^{n} - \\
+   \left( \rho u \right)_{i,j,k}^{n + 1} = \left( \rho u \right)_{i,j,k}^{n} + & \\
      \Delta t &  \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  \\
               &        + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack           \\
               & + \left. \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{align}
-
-|
 
 .. math::
 
@@ -474,13 +471,11 @@ Difference Equation
 .. math::
 
    \begin{align}
-   \left( \rho v \right)_{i,j,k}^{n + 1} = \left( \rho v \right)_{i,j,k}^{n} - & \\
+   \left( \rho v \right)_{i,j,k}^{n + 1} = \left( \rho v \right)_{i,j,k}^{n} + & \\
      \Delta t & \left\{  \frac{1}{\Delta x} \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.  \\
               &        + \frac{1}{\Delta y} \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack          \\
               & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
-
-|
 
 .. math::
 
@@ -502,13 +497,11 @@ Difference Equation
 .. math::
 
    \begin{align}
-   \left( \rho w \right)_{i,j,k}^{n + 1} = \left( \rho w \right)_{i,j,k}^{n} - & \\
+   \left( \rho w \right)_{i,j,k}^{n + 1} = \left( \rho w \right)_{i,j,k}^{n} + & \\
     \Delta t &  \left\{ \frac{1}{\Delta x} \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.  \\
              &        + \frac{1}{\Delta y} \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack            \\
              & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
-
-|
 
 .. math::
 
@@ -526,6 +519,7 @@ Energy Conservation- Subgrid heat flux
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
+This section is yet to be implemented in the code.
 
 .. math::
 
@@ -535,8 +529,6 @@ Difference Equation
               &         + \frac{1}{\Delta y} \left\lbrack {\vartheta_{2}}_{i,j + \frac{1}{2},k}^{n} - {\vartheta_{2}}_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
               & + \left.  \frac{1}{\Delta z} \left\lbrack {\vartheta_{3}}_{i,j,k + \frac{1}{2}}^{n} - {\vartheta_{3}}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\}
    \end{align}
-
-|
 
 .. math::
 
@@ -558,12 +550,12 @@ Scalar Conservation- Subgrid scalar flux
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
 
-
 Prognostic Equation for Subgrid Kinetic Energy
 ----------------------------------------------
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
+This section is yet to be implemented in the code.
 
 .. math::
 
@@ -575,10 +567,6 @@ Difference Equation
               & + \frac{g}{\Theta}\vartheta_{3} - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}} - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} - \epsilon
    \end{align}
 
-.. HACK -- I added the curly brackets around the x,y,z terms.
-
-|
-
 .. math::
 
    \begin{array}{l}
@@ -588,10 +576,9 @@ Difference Equation
     K_{{M}_{i,j,k}} = 0.1\mathcal{l}e_{i,j,k}^{\frac{1}{2}}
     \end{array}
 
-.. HACK -- I changed the i,j,k to subscripts on M
-
 :math:`\mathcal{l} = \Delta s = \sqrt[3]{\Delta x \Delta y \Delta z}`,
-convective case
+
+Convective case:
 
 .. math::
 
@@ -600,8 +587,6 @@ convective case
                & = 0.76e_{i,j,k}^{\frac{1}{2}}\left\lbrack \frac{g}{\Theta}\frac{1}{2\Delta z}\left( \theta_{i,j,k + 1}^{n} - \theta_{i,j,k - 1}^{n} \right) \right\rbrack
    \end{align}
 
-|
-
 .. math::
 
    \begin{align}
@@ -609,8 +594,6 @@ convective case
    \vartheta_{2} = {K_{H}}_{i,j,k}\frac{1}{2\Delta y} \left\lbrack \theta_{i,j + 1,k}^{n} - \theta_{i,j - 1,k}^{n} \right\rbrack \\
    \vartheta_{3} = {K_{H}}_{i,j,k}\frac{1}{2\Delta z} \left\lbrack \theta_{i,j,k + 1}^{n} - \theta_{i,j,k - 1}^{n} \right\rbrack
    \end{align}
-
-|
 
 .. math::
 
@@ -621,19 +604,13 @@ convective case
                     & + \left. \frac{1}{2\Delta z}\left\lbrack e_{i,j,k + 1}^{n} - e_{i,j,k - 1}^{n} \right\rbrack \right\}
    \end{align}
 
-|
-
 .. math::
 
    \epsilon = C_{\epsilon}\rho_{i,j,k}\frac{\left( e_{i,j,k} \right)^{\frac{3}{2}}}{\mathcal{l}}
 
-|
-
 .. math::
 
    C_{\epsilon} = 0.19 + 0.51\frac{\mathcal{l}}{\Delta s}
-
-|
 
 .. math::
 
@@ -646,7 +623,7 @@ convective case
 
 
 
-Contrinutions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/TKE_x.PNG
   :width: 400

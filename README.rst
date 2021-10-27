@@ -71,56 +71,11 @@ To build the code and run a sample problem:
 Development model
 ~~~~~~~~~~~~~~~~~
 
-To add a new feature to ERF, the procedure is:
-
-1. Create a branch for the new feature (locally): ::
-
-    git checkout -b AmazingNewFeature
-
-2. Develop the feature, merging changes often from the development branch into your AmazingNewFeature branch: ::
-
-    git commit -m "Developed AmazingNewFeature"
-    git checkout development
-    git pull                     [fix any identified conflicts between local and remote branches of "development"]
-    git checkout AmazingNewFeature
-    git merge development        [fix any identified conflicts between "development" and "AmazingNewFeature"]
-
-3. Push feature branch to ERF repository: ::
-
-    git push -u origin AmazingNewFeature [Note: -u option required only for the first push of new branch]
-
-4. Raise a pull request on github ERF `respository <https://github.com/erf-model/ERF>`_, and make sure you are requesting a merge of ``AmazingNewFeature`` branch into the ``development`` branch
-
-5. Check the CI status on Github and make sure the tests passed for pull request
+See CONTRIBUTING.md for how to contribute to ERF development.
 
 .. note::
 
    Github CI uses the ``CMake`` build system and ``CTest`` to test the core source files of ERF. If you are adding source files, you will need to add them to the list of source files in the ``CMake`` directory for the tests to pass. Make sure to add them to the GNU make makefiles as well.
-
-
-Test Status - ***UPDATE THIS***
-~~~~~~~~~~~
-
-Nightly test results for ERF against multiple compilers and machines can be seen on its CDash page `here <https://my.cdash.org/index.php?project=ERF>`_. Static analysis results for ERF can be seen in the notes of the newest GCC compiler on CDash. ERF is also tested using the Clang address sanitizer to detect memory leaks.
-
-Test results for the GNU Make implementation of ERF can be seen `here <https://amrex-combustion.github.io/ERFRegressionTestResults>`_.
-
-
-Documentation - ***UPDATE THIS***
-~~~~~~~~~~~~~
-
-The full documentation for ERF exists in the Docs directory; at present this is maintained inline using Doxygen
-and Sphinx  `Sphinx <http://www.sphinx-doc.org>`_. With
-Sphinx, documentation is written in *Restructured Text*. reST is a markup language
-similar to Markdown, but with somewhat greater capabilities (and idiosyncrasies). There
-are several `primers <http://thomas-cokelaer.info/tutorials/sphinx/rest_syntax.html>`_
-available to get started. One gotcha is that indentation matters.
-To build the documentation, run Doxygen in the Docs directory then build the sphinx ::
-    cd ${ERF_HOME}/Docs
-    doxygen Doxyfile # a variant of Doxyfile.in in the repository
-    cd sphinx_doc
-    make html # make sure sphinx is available
-
 
 Acknowledgment
 ~~~~~~~~~~~~~~
