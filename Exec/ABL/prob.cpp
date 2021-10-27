@@ -27,8 +27,6 @@ erf_init_prob(
 
     const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
-    // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
-
     // Set the density
     state(i, j, k, Rho_comp) = parms.rho_0;
 
@@ -52,12 +50,8 @@ erf_init_prob(
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
-    //amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
     amrex::Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U0_Pert_Mag;
-  //  if (i < 2 && j < 2 && k <2)
-  //      amrex::Print() << "random number in erf_init_xvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
-  //                     << rand_double << ", U' = " << x_vel_prime  << std::endl;
 
     x_vel(i, j, k) = parms.U0;
     if(z <= 100.0) {
@@ -78,12 +72,8 @@ erf_init_prob(
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the y-velocity
-    //amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
     amrex::Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V0_Pert_Mag;
-  //  if (i < 2 && j < 2 && k <2)
-  //      amrex::Print() << "random number in erf_init_yvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
-  //                     << rand_double << ", V' = " << y_vel_prime << std::endl;
 
     y_vel(i, j, k) = parms.V0;
     if(z <= 100.) {
@@ -104,12 +94,8 @@ erf_init_prob(
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the z-velocity
-    //amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
     amrex::Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W0_Pert_Mag;
-  //  if (i < 2 && j < 2 && k <2)
-  //      amrex::Print() << "random number in erf_init_zvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
-  //                     << rand_double << ", W' = " << z_vel_prime << std::endl;
 
     z_vel(i, j, k) = parms.W0 + z_vel_prime;
   });
