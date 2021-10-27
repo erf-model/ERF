@@ -373,8 +373,6 @@ IOManager::writeJobInfo(const std::string& dir)
 void
 IOManager::writeBuildInfo(std::ostream& os)
 {
-std::cout << "writeBuildInfo_00" << std::endl;
-
   std::string PrettyLine = std::string(78, '=') + "\n";
   std::string OtherLine = std::string(78, '-') + "\n";
   std::string SkipSpace = std::string(8, ' ');
@@ -394,18 +392,13 @@ std::cout << "writeBuildInfo_00" << std::endl;
   os << "COMP:          " << amrex::buildInfoGetComp() << "\n";
   os << "COMP version:  " << amrex::buildInfoGetCompVersion() << "\n";
 
-  amrex::Print() << "C++ compiler:  " << amrex::buildInfoGetCXXName() << "\n";
-  amrex::Print() << "C++ flags:     " << amrex::buildInfoGetCXXFlags() << "\n";
+  os << "C++ compiler:  " << amrex::buildInfoGetCXXName() << "\n";
+  os << "C++ flags:     " << amrex::buildInfoGetCXXFlags() << "\n";
 
   os << "\n";
 
-  os << "FCOMP:         " << amrex::buildInfoGetFcomp() << "\n";
-  os << "FCOMP version: " << amrex::buildInfoGetFcompVersion() << "\n";
-
-  os << "\n";
-
-  amrex::Print() << "Link flags:    " << amrex::buildInfoGetLinkFlags() << "\n";
-  amrex::Print() << "Libraries:     " << amrex::buildInfoGetLibraries() << "\n";
+  os << "Link flags:    " << amrex::buildInfoGetLinkFlags() << "\n";
+  os << "Libraries:     " << amrex::buildInfoGetLibraries() << "\n";
 
   os << "\n";
 
