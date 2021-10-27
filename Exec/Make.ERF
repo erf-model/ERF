@@ -1,16 +1,11 @@
 ERF_HOME        ?= ../
-AMREX_HOME        ?= $(ERF_HOME)/Submodules/AMReX
+AMREX_HOME      ?= $(ERF_HOME)/Submodules/AMReX
 
 TOP := $(ERF_HOME)
 
 EBASE = ERF
 
 EXTERN_CORE ?=
-
-# Ignore loops not vectorizing in amrex
-ifeq ($(COMP), llvm)
-  DEFINES += -Wno-pass-failed
-endif
 
 #Turn off all fortran in amrex
 ifneq ($(USE_MASA), TRUE)
@@ -33,10 +28,7 @@ endif
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 
-# ERF uses a coarse grained OMP approach
-DEFINES += -DCRSEGRNDOMP
-
-#trun on NetCDF macro define
+#turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
 endif
@@ -69,7 +61,10 @@ AMReX_buildInfo.cpp:
 	$(AMREX_HOME)/Tools/C_scripts/makebuildinfo_C.py \
           --amrex_home "$(AMREX_HOME)" \
           --COMP "$(COMP)" --COMP_VERSION "$(COMP_VERSION)" \
-          --FCOMP "$(FCOMP)" --FCOMP_VERSION "$(FCOMP_VERSION)" \
+          --CXX_comp_name "$(CXX)" \
+          --CXX_flags "$(CXXFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(includes)" \
+          --link_flags "$(LINKFLAGS) $(CPPFLAGS) $(includes) $(LDFLAGS)" \
+          --libraries "$(FINAL_LIBS)" \
           --MODULES "$(MNAMES)" \
           --GIT "$(TOP) $(AMREX_HOME)"
 
