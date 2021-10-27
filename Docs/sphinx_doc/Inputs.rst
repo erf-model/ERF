@@ -1,13 +1,13 @@
 .. role:: cpp(code)
   :language: c++
 
+.. _sec:Inputs:
+
 ******
 Inputs
 ******
 .. toctree::
    :maxdepth: 1
-
-.. _sec:Inputs:
 
 The ERF executable reads run-time information from an “inputs” file which you put on the command line.
 This section describes the inputs which can be specified either in the inputs file or on the command line.
