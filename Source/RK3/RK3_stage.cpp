@@ -2,7 +2,6 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-//#include <AMReX_VisMF.H>
 
 #include <Constants.H>
 
@@ -59,25 +58,6 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *************************************************************************
-    // Calculate face-based fluxes to update cell-centered quantities, and
-    //           edge-based and cell-based fluxes to update face-centered quantities
-    // *************************************************************************
-    // TODO: No need for 'CalcAdvFlux'. Remove/clean this
-//    CalcAdvFlux(cons_old, xmom_old, ymom_old, zmom_old,
-//                xvel    , yvel    , zvel    ,
-//                faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux,
-//                geom, dxp, dt,
-//                solverChoice);
-//#if 0
-//    CalcDiffFlux(cons_old, xmom_old, ymom_old, zmom_old,
-//                 xvel    , yvel    , zvel    ,
-//                 eta, zeta, kappa,
-//                 faceflux, edgeflux_x, edgeflux_y, edgeflux_z, cenflux,
-//                 geom, dxp, dt,
-//                 solverChoice);
-//#endif
-
-    // *************************************************************************
     // Calculate cell-centered eddy viscosity
     //
     // Notes:
@@ -127,37 +107,9 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
         const Array4<Real>& nut = eddyViscosity.array(mfi);
 
-        // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture.Remove them. Fluxes are computed here itself.
-//        Array4<Real const> const& xflux = faceflux[0].array(mfi);
-//        Array4<Real const> const& yflux = faceflux[1].array(mfi);
-//        Array4<Real const> const& zflux = faceflux[2].array(mfi);
-
-//        Array4<Real const> const& edgex_v = edgeflux_x[0].array(mfi);
-//        Array4<Real const> const& edgex_w = edgeflux_x[1].array(mfi);
-//
-//        Array4<Real const> const& edgey_u = edgeflux_y[0].array(mfi);
-//        Array4<Real const> const& edgey_w = edgeflux_y[1].array(mfi);
-//
-//        Array4<Real const> const& edgez_u = edgeflux_z[0].array(mfi);
-//        Array4<Real const> const& edgez_v = edgeflux_z[1].array(mfi);
-//
-//        Array4<Real const> const& cenx_u = cenflux[0].array(mfi);
-//        Array4<Real const> const& ceny_v = cenflux[1].array(mfi);
-//        Array4<Real const> const& cenz_w = cenflux[2].array(mfi);
-
-//        amrex::ParallelFor(bx, cons_old.nComp(), [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-//        {
-//            cell_data_upd(i,j,k,n) = - dt *
-//                ( AMREX_D_TERM(  (xflux(i+1,j,k,n) - xflux(i,j,k,n)) / dx[0],
-//                               + (yflux(i,j+1,k,n) - yflux(i,j,k,n)) / dx[1],
-//                               + (zflux(i,j,k+1,n) - zflux(i,j,k,n)) / dx[2])
-//                                                                                       )
-//                + dt*source_fab(i,j,k,n);
-//        });
-
-        // *********************************************************************
+        // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
-        // *********************************************************************
+        // **************************************************************************
         amrex::ParallelFor(bx, cons_old.nComp(),
        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             cell_data_upd(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
@@ -176,22 +128,11 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             cell_data_upd(i, j, k, n) += dt * source_fab(i, j, k, n);
         }
         );
-
-        // TODO: Fine-tune dealing with kinematic and eddy viscosity
- //       Array4<Real> nut;
-//        if (solverChoice.use_smagorinsky) // Compute nut, otherwise remains whatever it's initialized to
-//            ComputeTurbulentViscosity(u, v, w, dx,nut);
-
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // x-momentum equation
-//            rho_u_upd(i,j,k) =
-//                    -dt*(cenx_u(i,j,k) - cenx_u(i-1,j,k))/dx[0]
-//                    -dt*(edgey_u(i,j+1,k) - edgey_u(i,j,k))/dx[1]
-//                    -dt*(edgez_u(i,j,k+1) - edgez_u(i,j,k))/dx[2]
-//                    +0.5*dt*grav_gpu[0]*(cell_data_old(i-1,j,k,0)+cell_data_old(i,j,k,0));
 
             rho_u_upd(i, j, k) = 0.0; // Initialize the updated x-mom eqn term to zero
 
@@ -215,11 +156,6 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                 rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[0];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
-//            rho_v_upd(i,j,k) =
-//                    -dt*(edgex_v(i+1,j,k) - edgex_v(i,j,k))/dx[0]
-//                    -dt*(ceny_v(i,j,k) - ceny_v(i,j-1,k))/dx[1]
-//                    -dt*(edgez_v(i,j,k+1) - edgez_v(i,j,k))/dx[2]
-//                    +0.5*dt*grav_gpu[1]*(cell_data_old(i,j-1,k,0)+cell_data_old(i,j,k,0));
 
             rho_v_upd(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
 
@@ -240,14 +176,9 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
-                rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[1];
+                rho_v_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[1];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
-//            rho_w_upd(i,j,k) =
-//                    -dt*(edgex_w(i+1,j,k) - edgex_w(i,j,k))/dx[0]
-//                    -dt*(edgey_w(i,j+1,k) - edgey_w(i,j,k))/dx[1]
-//                    -dt*(cenz_w(i,j,k) - cenz_w(i,j,k-1))/dx[2]
-//                    +0.5*dt*grav_gpu[2]*(cell_data_old(i,j,k-1,0)+cell_data_old(i,j,k,0));
 
             rho_w_upd(i, j, k) = 0.0; // Initialize the updated z-mom eqn term to zero
 
@@ -268,7 +199,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
-                rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[2];
+                rho_w_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[2];
         });
     }
 }

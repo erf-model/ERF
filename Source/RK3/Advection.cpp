@@ -151,7 +151,7 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
     Real advectionContribution = 0.0;
 
     switch (momentumEqn) {
-        case MomentumEqn::x:
+        case MomentumEqn::x: //x-momentum, reference face index is (i, j, k)
             Real centFluxXXNext, centFluxXXPrev, edgeFluxXYNext, edgeFluxXYPrev, edgeFluxXZNext, edgeFluxXZPrev;
             centFluxXXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
             centFluxXXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
@@ -164,7 +164,7 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
                                   + (edgeFluxXYNext - edgeFluxXYPrev) / dy   // Contribution to x-mom eqn from advective flux in y-dir
                                   + (edgeFluxXZNext - edgeFluxXZPrev) / dz;  // Contribution to x-mom eqn from advective flux in z-dir
             break;
-        case MomentumEqn::y:
+        case MomentumEqn::y: //y-momentum, reference face index is (i, j, k)
             Real centFluxYYNext, centFluxYYPrev, edgeFluxYXNext, edgeFluxYXPrev, edgeFluxYZNext, edgeFluxYZPrev;
             edgeFluxYXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
             edgeFluxYXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
@@ -177,7 +177,7 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
                                   + (centFluxYYNext - centFluxYYPrev) / dy   // Contribution to y-mom eqn from advective flux in y-dir
                                   + (edgeFluxYZNext - edgeFluxYZPrev) / dz;  // Contribution to y-mom eqn from advective flux in z-dir
             break;
-        case MomentumEqn::z:
+        case MomentumEqn::z: //z-momentum, reference face index is (i, j, k)
             Real centFluxZZNext, centFluxZZPrev, edgeFluxZXNext, edgeFluxZXPrev, edgeFluxZYNext, edgeFluxZYPrev;
             edgeFluxZXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
             edgeFluxZXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
@@ -209,7 +209,7 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
   Real advectingQty = 0.0;
   Real advectedQty = 1.0;
 
-  /* For the all three types of state equations (continuity, energy, scalar),
+  /* NOTE: For the all three types of state equations (continuity, energy, scalar),
    * the advecting quantities are the same */
   if (nextOrPrev == NextOrPrev::next) {
     switch (advectingQuantity) { // reference cell is (i, j, k)
