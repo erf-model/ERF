@@ -17,6 +17,8 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
 
   Real strainRate = 0;
 
+  //TODO: Account for extra terms in the diagonal elements. See the issue: https://github.com/erf-model/ERF/issues/61
+
   switch (momentumEqn) {
   case MomentumEqn::x:
     switch (diffDir) {
