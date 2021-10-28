@@ -52,6 +52,8 @@ AMREX_GPU_DEVICE
 Real
 InterpolateFromCellOrFace(
   // (i, j, k) is the reference cell index w.r.t. which a face is being considered
+  // The same interpolation routine also works for face-based data and should work for
+  // edge-based data
   const int& i, const int& j, const int& k,
   const Array4<Real>& qty,
   const int& qty_index,
@@ -59,17 +61,24 @@ InterpolateFromCellOrFace(
   const Coord& coordDir,
   const int& spatial_order)
 {
-  /*
-   If the interpolation is to be done on face (i, j, k) which is previous to cell (i,j,k)
+   /*
+   If the interpolation of cell_data is to be done on face (i, j, k) which is previous to cell (i,j,k)
    in the coordinate direction,
-   call as InterpolateFromCellOrFace(i, j, k, qty, qty_index, NextOrPrev::prev, ...)
+   call as InterpolateFromCellOrFace(i, j, k, cell_data, qty_index, NextOrPrev::prev, ...)
    */
-  /*
-   If the interpolation is to be done on face (i+1, j, k), (i, j+1, k) or (i, j, k+1)
+   /*
+   If the interpolation of cell_data is to be done on face (i+1, j, k), (i, j+1, k) or (i, j, k+1)
    which are next to cell (i,j,k) in the coordinate direction,
-   call as InterpolateFromCellOrFace(i, j, k, qty, qty_index, NextOrPrev::next, ...)
+   call as InterpolateFromCellOrFace(i, j, k, cell_data, qty_index, NextOrPrev::next, ...)
    */
-  //TODO: Update the description. This interpolation is applicable to cell- or face-centered quantities
+   /*
+    Likewise, if the interpolation of face_data is to be done in any direction use as follows:
+    face_data(i+1/2,    j, k, qty_index) =
+                InterpolateFromCellOrFace(i, j, k, face_data, qty_index, NextOrPrev::next, Coord::x, spatial_order);
+    face_data(i   , j-1/2, k, qty_index) =
+                InterpolateFromCellOrFace(i, j, k, face_data, qty_index, NextOrPrev::prev, Coord::y, spatial_order);
+   */
+
 
   Real interpolatedVal = 0.0;
   if (nextOrPrev == NextOrPrev::prev) {
@@ -79,6 +88,9 @@ InterpolateFromCellOrFace(
      Coordinates of face (i, j, k) = Coordinates of cell (i-1/2, j    , k    ) for x-dir. Face is previous to the cell.
      Coordinates of face (i, j, k) = Coordinates of cell (i    , j-1/2, k    ) for y-dir. Face is previous to the cell.
      Coordinates of face (i, j, k) = Coordinates of cell (i    , j    , k-1/2) for z-dir. Face is previous to the cell.
+    */
+    /*
+     The above explanation is for cell- and face-index relation. However, the interpolation is applicable to any multifab data.
     */
     switch (spatial_order) {
     case 2:
@@ -149,6 +161,9 @@ InterpolateFromCellOrFace(
      Coordinates of face (i+1, j  , k  ) = Coordinates of cell (i+1/2, j    , k    ) for x-dir. Face is next to the cell.
      Coordinates of face (i  , j+1, k  ) = Coordinates of cell (i    , j+1/2, k    ) for y-dir. Face is next to the cell.
      Coordinates of face (i  , j  , k+1) = Coordinates of cell (i    , j    , k+1/2) for z-dir. Face is next to the cell.
+    */
+    /*
+     The above explanation is for cell- and face-index relation. However, the interpolation is applicable to any multifab data.
     */
     switch (spatial_order) {
     case 2:
