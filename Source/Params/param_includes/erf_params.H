@@ -8,12 +8,8 @@ static int lin_limit_state_interp;
 static int do_reflux;
 static int do_avg_down;
 static int load_balance_verbosity;
-static int add_ext_src;
-static int add_forcing_src;
 static amrex::Real CI;
 static amrex::Real PrT;
-static amrex::Real dt_cutoff;
-static amrex::Real max_dt;
 static int bndry_func_thread_safe;
 static std::string job_name;
 

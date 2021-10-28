@@ -13,7 +13,6 @@
 #include "Derive.H"
 #include "prob.H"
 #include "EOS.H"
-#include "Utilities.H"
 #include "Tagging.H"
 #include "IndexDefines.H"
 
@@ -28,6 +27,8 @@ amrex::Real ERF::init_shrink = 1.0;
 amrex::Real ERF::change_max  = 1.1;
 amrex::Real ERF::initial_dt  = -1.0;
 amrex::Real ERF::fixed_dt    = -1.0;
+amrex::Real ERF::max_dt      =  1.e20;
+amrex::Real ERF::dt_cutoff   =  0.0;
 
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
@@ -126,6 +127,8 @@ ERF::read_params()
   pp.query("change_max", change_max);
   pp.query("initial_dt", initial_dt);
   pp.query("fixed_dt", fixed_dt);
+  pp.query("max_dt", max_dt);
+  pp.query("dt_cutoff", dt_cutoff);
 
   // Get boundary conditions
   amrex::Vector<std::string> lo_bc_char(AMREX_SPACEDIM);
