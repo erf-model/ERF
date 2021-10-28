@@ -1,5 +1,3 @@
-CEXE_sources += CalcAdvFlux.cpp
-CEXE_sources += CalcDiffFlux.cpp
 CEXE_sources += MomentumToVelocity.cpp
 CEXE_sources += VelocityToMomentum.cpp
 CEXE_sources += RK3_driver.cpp
