@@ -9,11 +9,6 @@
 #include <AMReX_TagBox.H>
 #include <AMReX_ParmParse.H>
 
-#ifdef ERF_USE_MASA
-#include <masa.h>
-using namespace MASA;
-#endif
-
 #include "ERF.H"
 #include "Derive.H"
 #include "prob.H"
@@ -27,16 +22,22 @@ using namespace amrex;
 bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
+
+amrex::Real ERF::cfl         = 0.8;
+amrex::Real ERF::init_shrink = 1.0;
+amrex::Real ERF::change_max  = 1.1;
+amrex::Real ERF::initial_dt  = -1.0;
+amrex::Real ERF::fixed_dt    = -1.0;
+
+int         ERF::sum_interval  = -1;
+amrex::Real ERF::sum_per       = -1.0;
+
 amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2);
 //amrex::Real ERF::frac_change = 1.e200;
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
 
 #include "erf_defaults.H"
-
-int ERF::nGrowTr = 4;
-
-bool ERF::do_mol_load_balance = false;
 
 amrex::Vector<int> ERF::src_list;
 
@@ -118,6 +119,13 @@ ERF::read_params()
   pp.query("v", verbose);
   pp.query("sum_interval", sum_interval);
   pp.query("dump_old", dump_old);
+
+  // Time step controls
+  pp.query("cfl", cfl);
+  pp.query("init_shrink", init_shrink);
+  pp.query("change_max", change_max);
+  pp.query("initial_dt", initial_dt);
+  pp.query("fixed_dt", fixed_dt);
 
   // Get boundary conditions
   amrex::Vector<std::string> lo_bc_char(AMREX_SPACEDIM);
@@ -207,23 +215,10 @@ ERF::read_params()
 
   // TODO: What is this?
   amrex::StateDescriptor::setBndryFuncThreadSafety(bndry_func_thread_safe);
-
-  // Get some useful amr inputs
-  amrex::ParmParse ppa("amr");
-
-  // This turns on the lb stuff inside Amr, but we use our own flag to signal
-  // whether to gather data
-  ppa.query("loadbalance_with_workestimates", do_mol_load_balance);
 }
 
 ERF::ERF()
-  : old_sources(num_src),
-    new_sources(num_src),
-    io_mgr(new IOManager(*this))
-#ifdef ERF_USE_MASA
-    ,
-    mms_src_evaluated(false)
-#endif
+  : io_mgr(new IOManager(*this))
 {
 }
 
@@ -235,28 +230,11 @@ ERF::ERF(
   const amrex::DistributionMapping& dm,
   amrex::Real time)
   : AmrLevel(papa, lev, level_geom, bl, dm, time),
-    old_sources(num_src),
-    new_sources(num_src),
     io_mgr(new IOManager(*this))
-#ifdef ERF_USE_MASA
-    ,
-    mms_src_evaluated(false)
-#endif
 {
   buildMetrics();
 
   amrex::MultiFab& S_new = get_new_data(State_Type);
-
-  for (int n = 0; n < src_list.size(); ++n) {
-    int oldGrow = NUM_GROW;
-    int newGrow = S_new.nGrow();
-    old_sources[src_list[n]] =
-      std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
-        grids, dmap, NVAR, oldGrow, amrex::MFInfo(), Factory()));
-    new_sources[src_list[n]] =
-      std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
-        grids, dmap, NVAR, newGrow, amrex::MFInfo(), Factory()));
-  }
 
   Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
 
@@ -367,13 +345,6 @@ ERF::init(AmrLevel& old)
 
   amrex::MultiFab& S_new = get_new_data(State_Type);
   FillPatch(old, S_new, 0, cur_time, State_Type, 0, NVAR);
-
-  if (do_mol_load_balance) {
-    amrex::MultiFab& work_estimate_new = get_new_data(Work_Estimate_Type);
-    FillPatch(
-      old, work_estimate_new, 0, cur_time, Work_Estimate_Type, 0,
-      work_estimate_new.nComp());
-  }
 }
 
 void
@@ -395,13 +366,6 @@ ERF::init()
   setTimeLevel(cur_time, dt_old, dt);
   amrex::MultiFab& S_new = get_new_data(State_Type);
   FillCoarsePatch(S_new, 0, cur_time, State_Type, 0, NVAR);
-
-  if (do_mol_load_balance) {
-    amrex::MultiFab& work_estimate_new = get_new_data(Work_Estimate_Type);
-    int ncomp = work_estimate_new.nComp();
-    FillCoarsePatch(
-      work_estimate_new, 0, cur_time, Work_Estimate_Type, 0, ncomp);
-  }
 }
 
 amrex::Real
@@ -864,16 +828,54 @@ ERF::errorEst(
   int ngrow)
 {
   BL_PROFILE("ERF::errorEst()");
+  const char tagval = amrex::TagBox::SET;
 
   amrex::MultiFab S_data(
     get_new_data(State_Type).boxArray(),
     get_new_data(State_Type).DistributionMap(), NVAR, 1);
+
+  // Static refinement of a specified region 
+  if (tparm.tag_region)
+  {
+      Real xlo = tparm.region_lo[0];
+      Real ylo = tparm.region_lo[1];
+      Real xhi = tparm.region_hi[0];
+      Real yhi = tparm.region_hi[1];
+      Real zlo = tparm.region_lo[2];
+      Real zhi = tparm.region_hi[2];
+
+      const Real l_dx = geom.CellSize(0);
+      const Real l_dy = geom.CellSize(1);
+      const Real l_dz = geom.CellSize(2);
+
+      for (amrex::MFIter mfi(S_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+      {
+         const amrex::Box& bx = mfi.tilebox();
+         auto tag_arr = tags.array(mfi);
+
+         amrex::ParallelFor(bx,
+         [xlo, xhi, ylo, yhi, zlo, zhi, l_dx, l_dy, l_dz,tagval, tag_arr]
+         AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+         {
+              Real x = (i+0.5)*l_dx;
+              Real y = (j+0.5)*l_dy;
+              Real z = (k+0.5)*l_dz;
+   
+              // Tag if we are inside the specified box
+              if (x >= xlo && x <= xhi && y >= ylo && y <= yhi && z >= zlo && z <= zhi)
+              {
+                 tag_arr(i,j,k) = tagval;
+              }
+         });
+      }
+
+  } else {
+
   const amrex::Real cur_time = state[State_Type].curTime();
   FillPatch(
     *this, S_data, S_data.nGrow(), cur_time, State_Type, Rho_comp, NVAR, 0);
 
   amrex::Vector<amrex::BCRec> bcs(NVAR);
-  const char tagval = amrex::TagBox::SET;
 //  const char clearval = amrex::TagBox::CLEAR;
 
 #ifdef _OPENMP
@@ -963,6 +965,7 @@ ERF::errorEst(
       // tag_arr.tags(itags, tilebox);
     }
   }
+  } // end of !tag_region
 }
 
 std::unique_ptr<amrex::MultiFab>
@@ -1035,25 +1038,6 @@ ERF::clear_prob()
 {
   erf_prob_close();
 }
-
-#ifdef ERF_USE_MASA
-void
-ERF::init_mms()
-{
-  if (!mms_initialized) {
-    if (verbose && amrex::ParallelDescriptor::IOProcessor()) {
-      amrex::Print() << "Initializing MMS" << std::endl;
-    }
-#ifdef ERF_USE_MASA
-    masa_init("mms", masa_solution_name.c_str());
-    masa_set_param("Cs", ERF::Cs);
-    masa_set_param("CI", ERF::CI);
-    masa_set_param("PrT", ERF::PrT);
-#endif
-    mms_initialized = true;
-  }
-}
-#endif
 
 amrex::Real
 ERF::getCPUTime()

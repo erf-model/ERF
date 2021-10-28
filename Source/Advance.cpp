@@ -32,10 +32,6 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
 
   BL_PROFILE("ERF::do_rk3_advance()");
 
-  // Check that we are not asking to advance stuff we don't know to
-  // if (src_list.size() > 0) amrex::Abort("Have not integrated other sources
-  // into MOL advance yet");
-
   for (int i = 0; i < num_state_type; ++i) {
     bool skip = false;
     if (!skip) {

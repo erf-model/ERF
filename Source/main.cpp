@@ -48,36 +48,13 @@ main(int argc, char* argv[])
   amrex::Real dRunTime1 = amrex::ParallelDescriptor::second();
 
   amrex::Print() << std::setprecision(10);
-/*
-  int max_step;
-  amrex::Real strt_time;
-  amrex::Real stop_time;
-  amrex::ParmParse pp; */
-
-  bool pause_for_debug = false;
-  amrex::ParmParse pp;
-  pp.query("pause_for_debug", pause_for_debug);
-  if (pause_for_debug) {
-    if (amrex::ParallelDescriptor::IOProcessor()) {
-      amrex::Print() << "Enter any string to continue" << std::endl;
-      std::string text;
-      std::cin >> text;
-    }
-    amrex::ParallelDescriptor::Barrier();
-  }
 
   int max_step = -1;
-  amrex::Real strt_time = 0.0;
   amrex::Real stop_time = -1.0;
 
-
+  amrex::ParmParse pp;
   pp.query("max_step", max_step);
-  pp.query("strt_time", strt_time);
   pp.query("stop_time", stop_time);
-
-  if (strt_time < 0.0) {
-    amrex::Abort("MUST SPECIFY a non-negative strt_time");
-  }
 
   if (max_step < 0 && stop_time < 0.0) {
     amrex::Abort(
@@ -102,6 +79,7 @@ main(int argc, char* argv[])
   // Initialize random seed after we're running in parallel.
   amrex::Amr* amrptr = new amrex::Amr(getLevelBld());
 
+  amrex::Real strt_time = 0.0;
   amrptr->init(strt_time, stop_time);
 
   // If we set the regrid_on_restart flag and if we are *not* going to take

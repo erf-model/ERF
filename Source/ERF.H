@@ -57,29 +57,6 @@ ENUM_BUILDER(StateType,
              Z_Vel_Type,
              Work_Estimate_Type)
 
-// Create storage for all source terms.
-
-enum sources {
-  ext_src = 0,
-  forcing_src,
-  diff_src,
-#ifdef ERF_USE_MASA
-  mms_src,
-#endif
-  num_src
-};
-
-static amrex::Box
-the_same_box(const amrex::Box& b)
-{
-  return b;
-}
-static amrex::Box
-grow_box_by_one(const amrex::Box& b)
-{
-  return amrex::grow(b, 1);
-}
-
 // AmrLevel-derived class for solving equations for atmospheric flows
 class ERF : public amrex::AmrLevel
 {
@@ -167,61 +144,6 @@ public:
   virtual amrex::Real
   advance(amrex::Real time, amrex::Real dt, int iteration, int ncycle) override;
 
-  void construct_old_source(
-    int src,
-    amrex::Real time,
-    amrex::Real dt,
-    int amr_iteration,
-    int amr_ncycle,
-    int sub_iteration,
-    int sub_ncycle);
-
-  void construct_new_source(
-    int src,
-    amrex::Real time,
-    amrex::Real dt,
-    int amr_iteration,
-    int amr_ncycle,
-    int sub_iteration,
-    int sub_ncycle);
-
-  void sum_of_sources(amrex::MultiFab& source);
-
-  void construct_old_ext_source(amrex::Real time, amrex::Real dt);
-
-  void construct_new_ext_source(amrex::Real time, amrex::Real dt);
-
-  void fill_ext_source(
-    amrex::Real time,
-    amrex::Real dt,
-    const amrex::MultiFab& S_old,
-    const amrex::MultiFab& S_new,
-    amrex::MultiFab& ext_src,
-    int ng);
-
-  void construct_old_forcing_source(amrex::Real time, amrex::Real dt);
-
-  void construct_new_forcing_source(amrex::Real time, amrex::Real dt);
-
-  void fill_forcing_source(
-    amrex::Real time,
-    amrex::Real dt,
-    const amrex::MultiFab& S_old,
-    const amrex::MultiFab& S_new,
-    amrex::MultiFab& forcing_src,
-    int ng);
-
-#ifdef ERF_USE_MASA
-  void construct_old_mms_source(amrex::Real time);
-
-  void construct_new_mms_source(amrex::Real time);
-
-  void fill_mms_source(
-    amrex::Real time,
-    const amrex::MultiFab& S,
-    amrex::MultiFab& mms_src,
-    int ng);
-#endif
 ///*
 //  void getLESTerm(
 //    amrex::Real time,
@@ -241,7 +163,6 @@ public:
 //    amrex::MultiFab& LESTerm,
 //    amrex::Real flux_factor);
 //*/
-  static void set_active_sources();
 
   // Estimate time step.
   amrex::Real estTimeStep(amrex::Real dt_old);
@@ -395,20 +316,6 @@ protected:
   /// A state array with ghost zones.
   amrex::MultiFab Sborder;
 
-  /// Source terms to the hydrodynamics solve.
-  amrex::MultiFab sources_for_hydro;
-
-  /// Non-hydro source terms.
-  amrex::Vector<std::unique_ptr<amrex::MultiFab>> old_sources;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab>> new_sources;
-
-  //void init_les();
-  //void init_filters();
-
-#ifdef ERF_USE_MASA
-  static void init_mms();
-#endif
-
   static void clear_prob();
 
   static void read_params();
@@ -446,6 +353,15 @@ protected:
   static bool signalStopJob;
   static bool dump_old;
   static int verbose;
+
+  static int sum_interval;
+  static amrex::Real sum_per;
+
+  static amrex::Real initial_dt;
+  static amrex::Real fixed_dt;
+  static amrex::Real init_shrink;
+  static amrex::Real change_max;
+  static amrex::Real cfl;
   static amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > bc_recs;
 
   /// for keeping track of mass changes from negative density resets
@@ -464,18 +380,6 @@ protected:
 
   static amrex::Real getCPUTime();
 
-//  static int diffuse_temp;
-//  static int diffuse_enth;
-//  static int diffuse_vel;
-//  static amrex::Real diffuse_cutoff_density;
-//  static bool do_diffuse;
-
-#ifdef ERF_USE_MASA
-  static bool mms_initialized;
-  bool mms_src_evaluated;
-  amrex::MultiFab mms_source;
-#endif
-
   bool FillPatchedOldState_ok;
 
   // There can be only one Diffusion object, it covers all levels:
@@ -488,9 +392,6 @@ protected:
 /* problem-specific includes */
 #include <Problem.H>
 
-  static int nGrowTr;
-
-  static bool do_mol_load_balance;
 };
 
 void erf_bcfill_hyp(

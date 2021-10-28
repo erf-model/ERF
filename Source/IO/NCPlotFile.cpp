@@ -306,17 +306,6 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
   amrex::MultiFab& S_new = erf.get_new_data(State_Type);
 
-  for (int n = 0; n < erf.src_list.size(); ++n) {
-    int oldGrow = NUM_GROW;
-    int newGrow = S_new.nGrow();
-    erf.old_sources[erf.src_list[n]] =
-      std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
-        erf.grids, erf.dmap, NVAR, oldGrow, amrex::MFInfo(), erf.Factory()));
-    erf.new_sources[erf.src_list[n]] =
-      std::unique_ptr<amrex::MultiFab>(new amrex::MultiFab(
-        erf.grids, erf.dmap, NVAR, newGrow, amrex::MFInfo(), erf.Factory()));
-  }
-
   erf.Sborder.define(erf.grids, erf.dmap, NVAR, NUM_GROW, amrex::MFInfo(), erf.Factory());
 
   // get the elapsed CPU time to now;

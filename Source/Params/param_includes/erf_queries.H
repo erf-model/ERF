@@ -12,16 +12,9 @@ pp.query("add_ext_src", add_ext_src);
 pp.query("add_forcing_src", add_forcing_src);
 pp.query("CI", CI);
 pp.query("PrT", PrT);
-pp.query("fixed_dt", fixed_dt);
-pp.query("initial_dt", initial_dt);
 pp.query("dt_cutoff", dt_cutoff);
 pp.query("max_dt", max_dt);
-pp.query("cfl", cfl);
-pp.query("init_shrink", init_shrink);
-pp.query("change_max", change_max);
 pp.query("bndry_func_thread_safe", bndry_func_thread_safe);
-pp.query("sum_interval", sum_interval);
-pp.query("sum_per", sum_per);
 pp.query("job_name", job_name);
 
 pp.query("use_state_advection", use_state_advection);

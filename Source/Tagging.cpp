@@ -40,4 +40,13 @@ ERF::read_tagging_params()
 
   pp.query("vfracerr", tparm.vfracerr);
   pp.query("max_vfracerr_lev", tparm.max_vfracerr_lev);
+
+  pp.query("tag_region", tparm.tag_region);
+  if (tparm.tag_region)
+  {
+      tparm.region_lo.resize(3);
+      tparm.region_hi.resize(3);
+      pp.queryarr("region_lo", tparm.region_lo);
+      pp.queryarr("region_hi", tparm.region_hi);
+  }
 }
