@@ -110,7 +110,7 @@ Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
                                   const Array4<Real>& cell_data, const int & qty_index,
                                   const enum Coord& coordDir) {
     Real diffusionTerm = 0.0;
-    //TODO: Discuss about the implementation changes needed (if any). The current implemenation is based on a previous
+    //TODO: Discuss about the implementation changes needed (if any). The current implementation is based on a previous
     // version of documentation.
     switch (coordDir) {
         case Coord::x:

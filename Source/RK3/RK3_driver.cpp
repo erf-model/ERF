@@ -22,6 +22,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
                  const SolverChoice& solverChoice)
 {
+    //TODO: Define a function for each stage stage instead of defining and calling each stage sequentially
     BL_PROFILE_VAR("RK3stepStag()",RK3stepStag);
 
     int nvars = cons_old.nComp();
