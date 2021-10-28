@@ -31,6 +31,8 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
 
     switch (turbModel) {
         case TurbulenceModel::DNS:
+            //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
+            // Future implementations may account for mu = mu(T) computed at the coordinate of interest.
             stressTerm = 2.0 * solverChoice.dynamicViscosity * strainRate; // 2*mu*Sij(m+1/2) or 2*mu*Sij(m-1/2)
             break;
         case TurbulenceModel::Smagorinsky:
@@ -108,7 +110,8 @@ Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
                                   const Array4<Real>& cell_data, const int & qty_index,
                                   const enum Coord& coordDir) {
     Real diffusionTerm = 0.0;
-
+    //TODO: Discuss about the implementation changes needed (if any). The current implemenation is based on a previous
+    // version of documentation.
     switch (coordDir) {
         case Coord::x:
             diffusionTerm = cell_data(i+1, j, k, qty_index) -2.0*cell_data(i, j, k, qty_index) + cell_data(i-1, j, k, qty_index);
@@ -140,6 +143,7 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
     yDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::y);
     zDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::z);
 
+    //TODO: Discuss about the implementation changes needed (if any). Diffusion coefficients are assumed to be constant.
     switch(qty_index) {
         case RhoTheta_comp: // Temperature
             diffCoeff = solverChoice.alpha_T;
