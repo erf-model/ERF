@@ -834,7 +834,7 @@ ERF::errorEst(
     get_new_data(State_Type).boxArray(),
     get_new_data(State_Type).DistributionMap(), NVAR, 1);
 
-  // Static refinement of a specified region 
+  // Static refinement of a specified region
   if (tparm.tag_region)
   {
       Real xlo = tparm.region_lo[0];
@@ -848,7 +848,7 @@ ERF::errorEst(
       const Real l_dy = geom.CellSize(1);
       const Real l_dz = geom.CellSize(2);
 
-      for (amrex::MFIter mfi(S_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+      for (amrex::MFIter mfi(S_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
          const amrex::Box& bx = mfi.tilebox();
          auto tag_arr = tags.array(mfi);
@@ -860,7 +860,7 @@ ERF::errorEst(
               Real x = (i+0.5)*l_dx;
               Real y = (j+0.5)*l_dy;
               Real z = (k+0.5)*l_dz;
-   
+
               // Tag if we are inside the specified box
               if (x >= xlo && x <= xhi && y >= ylo && y <= yhi && z >= zlo && z <= zhi)
               {
