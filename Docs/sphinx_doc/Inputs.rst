@@ -381,6 +381,11 @@ List of Parameters
 |                     | regardless of  |                |                |
 |                     | other settings |                |                |
 +---------------------+----------------+----------------+----------------+
+| **erf.max_dt**      | time step      | Real > 0       | 1.e20          |
+|                     | above which    |                |                |
+|                     | calculation    |                |                |
+|                     | will abort     |                |                |
++---------------------+----------------+----------------+----------------+
 | **erf.dt_cutoff**   | time step      | Real > 0       | 0.0            |
 |                     | below which    |                |                |
 |                     | calculation    |                |                |

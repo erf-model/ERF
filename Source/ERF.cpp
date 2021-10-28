@@ -27,7 +27,7 @@ amrex::Real ERF::init_shrink = 1.0;
 amrex::Real ERF::change_max  = 1.1;
 amrex::Real ERF::initial_dt  = -1.0;
 amrex::Real ERF::fixed_dt    = -1.0;
-amrex::Real ERF::max_dt      = -1.0;
+amrex::Real ERF::max_dt      =  1.e20;
 amrex::Real ERF::dt_cutoff   =  0.0;
 
 int         ERF::sum_interval  = -1;
