@@ -125,18 +125,7 @@ Real ComputeStrainRate(const int &i, const int &j, const int &k,
                         const enum DiffusionDir &diffDir,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize);
 
-// Compute turbVisc, i.e., 'nut' or Kij at cell centres. Initialize it to 1.0
-//TODO: Check if it is better to  fill all Kij and use it or compute on the fly
-AMREX_GPU_DEVICE
-Real ComputeTurbulentViscosity(const int &i, const int &j, const int &k,
-                           const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                           const enum NextOrPrev &nextOrPrev,
-                           const enum MomentumEqn &momentumEqn,
-                           const enum DiffusionDir &diffDir,
-                           const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                           Array4<Real>& nut);
-
-// Given a velocity field and a geometry, compute nut or K(i, j, k) are cell-centers
+// Given a velocity field and a geometry, compute nut or K(i, j, k) at cell-centers
 //AMREX_GPU_DEVICE
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                                MultiFab& cons_in, MultiFab& eddyViscosity,
