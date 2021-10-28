@@ -28,16 +28,6 @@ do_avg_down                  int           1
 load_balance_verbosity       int           0
 
 #-----------------------------------------------------------------------------
-# category: hydrodynamics
-#-----------------------------------------------------------------------------
-
-# if true, define an additional source term
-add_ext_src                  int           0
-
-# if true, define an additional forcing term
-add_forcing_src              int           0
-
-#-----------------------------------------------------------------------------
 # category: large eddy simulation
 #-----------------------------------------------------------------------------
 
@@ -49,19 +39,6 @@ CI                           Real          0.0
 
 # Constant Smagorinsky PrT coefficient
 PrT                          Real          1.0
-
-#-----------------------------------------------------------------------------
-# category: timestep control
-#-----------------------------------------------------------------------------
-
-# a fixed timestep to use for all steps (negative turns it off)
-fixed_dt                     Real         -1.0
-
-# the smallest valid timestep---if we go below this, we abort
-dt_cutoff                    Real          0.0
-
-# the largest valid timestep---limit all timesteps to be no larger than this
-max_dt                       Real          1.e200
 
 #-----------------------------------------------------------------------------
 # category: parallelization

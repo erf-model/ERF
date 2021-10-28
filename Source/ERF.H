@@ -359,6 +359,8 @@ protected:
 
   static amrex::Real initial_dt;
   static amrex::Real fixed_dt;
+  static amrex::Real max_dt;
+  static amrex::Real dt_cutoff;
   static amrex::Real init_shrink;
   static amrex::Real change_max;
   static amrex::Real cfl;

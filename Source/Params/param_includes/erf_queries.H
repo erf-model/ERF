@@ -8,12 +8,8 @@ pp.query("lin_limit_state_interp", lin_limit_state_interp);
 pp.query("do_reflux", do_reflux);
 pp.query("do_avg_down", do_avg_down);
 pp.query("load_balance_verbosity", load_balance_verbosity);
-pp.query("add_ext_src", add_ext_src);
-pp.query("add_forcing_src", add_forcing_src);
 pp.query("CI", CI);
 pp.query("PrT", PrT);
-pp.query("dt_cutoff", dt_cutoff);
-pp.query("max_dt", max_dt);
 pp.query("bndry_func_thread_safe", bndry_func_thread_safe);
 pp.query("job_name", job_name);
 
