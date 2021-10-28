@@ -28,10 +28,6 @@ do_avg_down                  int           1
 load_balance_verbosity       int           0
 
 #-----------------------------------------------------------------------------
-# category: Processor Type
-#-----------------------------------------------------------------------------
-
-#-----------------------------------------------------------------------------
 # category: hydrodynamics
 #-----------------------------------------------------------------------------
 
@@ -61,27 +57,11 @@ PrT                          Real          1.0
 # a fixed timestep to use for all steps (negative turns it off)
 fixed_dt                     Real         -1.0
 
-# the initial timestep (negative uses the step returned from the timestep
-# constraints)
-initial_dt                   Real         -1.0
-
 # the smallest valid timestep---if we go below this, we abort
 dt_cutoff                    Real          0.0
 
 # the largest valid timestep---limit all timesteps to be no larger than this
 max_dt                       Real          1.e200
-
-# the effective Courant number to use---we will not allow the hydrodynamic
-# waves to cross more than this fraction of a zone over a single timestep
-cfl                          Real          0.8
-
-# a factor by which to reduce the first timestep from that requested by
-# the timestep estimators
-init_shrink                  Real          1.0
-
-# the maximum factor by which the timestep can increase from one step to
-# the next.
-change_max                   Real          1.1
 
 #-----------------------------------------------------------------------------
 # category: parallelization
@@ -92,12 +72,6 @@ bndry_func_thread_safe       int           1
 #-----------------------------------------------------------------------------
 # category: diagnostics
 #-----------------------------------------------------------------------------
-
-# how often (number of coarse timesteps) to compute integral sums (for runtime diagnostics)
-sum_interval                 int           -1
-
-# how often (simulation time) to compute integral sums (for runtime diagnostics)
-sum_per                      Real          -1.0e0
 
 # a string describing the simulation that will be copied into the
 # plotfile's {\tt job\_info} file

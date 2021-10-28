@@ -12,16 +12,9 @@ int         ERF::add_ext_src = 0;
 int         ERF::add_forcing_src = 0;
 amrex::Real ERF::CI = 0.0;
 amrex::Real ERF::PrT = 1.0;
-amrex::Real ERF::fixed_dt = -1.0;
-amrex::Real ERF::initial_dt = -1.0;
 amrex::Real ERF::dt_cutoff = 0.0;
 amrex::Real ERF::max_dt = 1.e200;
-amrex::Real ERF::cfl = 0.8;
-amrex::Real ERF::init_shrink = 1.0;
-amrex::Real ERF::change_max = 1.1;
 int         ERF::bndry_func_thread_safe = 1;
-int         ERF::sum_interval = -1;
-amrex::Real ERF::sum_per = -1.0e0;
 std::string ERF::job_name = "";
 
 bool        ERF::use_state_advection = true;

@@ -4,15 +4,21 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_buildInfo.H>
 
-#ifdef ERF_USE_MASA
-#include <masa.h>
-using namespace MASA;
-#endif
-
 #include "ERF.H"
 #include "Derive.H"
 #include "IndexDefines.H"
 #include "prob.H"
+
+static amrex::Box
+the_same_box(const amrex::Box& b)
+{
+  return b;
+}
+static amrex::Box
+grow_box_by_one(const amrex::Box& b)
+{
+  return amrex::grow(b, 1);
+}
 
 //
 // Components are:
@@ -107,12 +113,6 @@ ERF::variableSetUp()
   // Get options, set phys_bc
   read_params();
 
-#ifdef ERF_USE_MASA
-  if (do_mms) {
-    init_mms();
-  }
-#endif
-
   //
   // Set number of state variables and pointers to components
   //
@@ -180,17 +180,6 @@ ERF::variableSetUp()
   bndryfunc1.setRunOnGPU(true);
 
   desc_lst.setComponent(State_Type, Rho_comp, name, bcs, bndryfunc1);
-
-  if (do_mol_load_balance) {
-    desc_lst.addDescriptor(
-      Work_Estimate_Type, amrex::IndexType::TheCellType(),
-      amrex::StateDescriptor::Point, 0, 1, &amrex::pc_interp);
-    // Because we use piecewise constant interpolation, we do not use bc and
-    // BndryFunc.
-    desc_lst.setComponent(
-      Work_Estimate_Type, 0, "WorkEstimate", bc,
-      amrex::StateDescriptor::BndryFunc(erf_nullfill));
-  }
 
   //
   // Create face-based StateData for velocities on each face,
@@ -261,21 +250,4 @@ ERF::variableSetUp()
 
   // Problem-specific derives
   add_problem_derives<ProblemDerives>(derive_lst, desc_lst);
-
-  // Set list of active sources
-  set_active_sources();
-}
-
-void
-ERF::set_active_sources()
-{
-  // optional external source
-  if (add_ext_src == 1) {
-    src_list.push_back(ext_src);
-  }
-
-  // optional forcing source
-  if (add_forcing_src == 1) {
-    src_list.push_back(forcing_src);
-  }
 }

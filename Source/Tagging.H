@@ -37,6 +37,10 @@ struct TaggingParm {
 
   amrex::Real vfracerr = 1.0e10;
   int max_vfracerr_lev = 10;
+
+  bool tag_region = false;
+  amrex::Vector<amrex::Real> region_lo;
+  amrex::Vector<amrex::Real> region_hi;
 }; // namespace TaggingParm
 
 extern TaggingParm tparm;

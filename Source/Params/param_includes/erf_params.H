@@ -12,16 +12,9 @@ static int add_ext_src;
 static int add_forcing_src;
 static amrex::Real CI;
 static amrex::Real PrT;
-static amrex::Real fixed_dt;
-static amrex::Real initial_dt;
 static amrex::Real dt_cutoff;
 static amrex::Real max_dt;
-static amrex::Real cfl;
-static amrex::Real init_shrink;
-static amrex::Real change_max;
 static int bndry_func_thread_safe;
-static int sum_interval;
-static amrex::Real sum_per;
 static std::string job_name;
 
 static bool        use_state_advection;

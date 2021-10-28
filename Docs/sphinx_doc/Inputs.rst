@@ -474,6 +474,10 @@ List of Parameters
 |                                 | after          |                |                |
 |                                 | restarting     |                |                |
 +---------------------------------+----------------+----------------+----------------+
+| **erf.dump_old**                | do we store    | true / false   | false          |
+|                                 | old data in    |                |                |
+|                                 | checkpoints?   |                |                |
++---------------------------------+----------------+----------------+----------------+
 
 .. _notes-4:
 
@@ -650,7 +654,7 @@ List of Parameters
 | **erf.v**                  | verbosity of     | 0 or 1         | 0              |
 |                            | ERF.cpp          |                |                |
 +----------------------------+------------------+----------------+----------------+
-| **amr.sum_interval**       | if               |                |                |
+| **erf.sum_interval**       | if               |                |                |
 |                            | :math:`> 0,`     |                |                |
 |                            | how often (in    |                |                |
 |                            | level-0 time     |                |                |
