@@ -35,7 +35,6 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/Constants.H
        ${SRC_DIR}/Derive.H
        ${SRC_DIR}/Derive.cpp
-       ${SRC_DIR}/External.cpp
 #      ${SRC_DIR}/GradUtil.H
        ${SRC_DIR}/IndexDefines.H
 #      ${SRC_DIR}/IndexDefines.cpp
