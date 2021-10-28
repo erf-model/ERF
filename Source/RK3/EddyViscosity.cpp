@@ -4,24 +4,6 @@
 using namespace amrex;
 
 // Compute Eddy Viscosity
-AMREX_GPU_DEVICE
-Real
-ComputeTurbulentViscosity(
-  const int& i,
-  const int& j,
-  const int& k,
-  const Array4<Real>& u,
-  const Array4<Real>& v,
-  const Array4<Real>& w,
-  const NextOrPrev& nextOrPrev,
-  const MomentumEqn& momentumEqn,
-  const DiffusionDir& diffDir,
-  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-  Array4<Real>& nut)
-{
-  return 0;
-}
-
 //AMREX_GPU_DEVICE
 // TODO: should the input xvel,yvel,zvel,cons_in be const?
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,

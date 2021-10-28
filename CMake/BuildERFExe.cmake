@@ -53,8 +53,6 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/IO/PlotFile.cpp
        ${SRC_DIR}/IO/IOManager.cpp
        ${SRC_DIR}/RK3/RK3.H
-       ${SRC_DIR}/RK3/CalcAdvFlux.cpp
-       ${SRC_DIR}/RK3/CalcDiffFlux.cpp
        ${SRC_DIR}/RK3/MomentumToVelocity.cpp
        ${SRC_DIR}/RK3/VelocityToMomentum.cpp
        ${SRC_DIR}/RK3/RK3_driver.cpp

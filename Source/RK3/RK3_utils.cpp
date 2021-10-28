@@ -8,6 +8,7 @@ ComputeGhostCells(const int& spatial_order) {
   int nGhostCells;
 
   //TODO: Make sure we have correct number of ghost cells for different spatial orders.
+  // As of Oct. 27, 2021 we haven't played around with number of ghost cells as a function of spatial order
   switch (spatial_order) {
     case 1:
       nGhostCells = 1;

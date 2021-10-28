@@ -50,31 +50,6 @@ void RK3_stage  (MultiFab& cons_old, MultiFab& cons_new,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
                  const SolverChoice& solverChoice);
 
-void CalcAdvFlux (const MultiFab& cons_in,
-                  const MultiFab& cons_x, const MultiFab& cons_y, const MultiFab& cons_z,
-                  const MultiFab& u_x, const MultiFab& v_y, const MultiFab& w_z,
-                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux_in,
-                  std::array< MultiFab, 2 >& edgeflux_x_in,
-                  std::array< MultiFab, 2 >& edgeflux_y_in,
-                  std::array< MultiFab, 2 >& edgeflux_z_in,
-                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux_in,
-                  const amrex::Geometry geom,
-                  const amrex::Real* dx, const amrex::Real dt,
-                  const SolverChoice& solverChoice);
-
-void CalcDiffFlux(const MultiFab& cons_in,
-                  const MultiFab& cons_x, const MultiFab& cons_y, const MultiFab& cons_z,
-                  const MultiFab& u_x, const MultiFab& v_y, const MultiFab& w_z,
-                  const MultiFab& eta_in, const MultiFab& zeta_in, const MultiFab& kappa_in,
-                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux_in,
-                  std::array< MultiFab, 2 >& edgeflux_x_in,
-                  std::array< MultiFab, 2 >& edgeflux_y_in,
-                  std::array< MultiFab, 2 >& edgeflux_z_in,
-                  std::array< MultiFab, AMREX_SPACEDIM>& cenflux_in,
-                  const amrex::Geometry geom,
-                  const amrex::Real* dx, const amrex::Real dt,
-                  const SolverChoice& solverChoice);
-
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
                            const Array4<Real>& qty, const int & qty_index,
@@ -150,18 +125,7 @@ Real ComputeStrainRate(const int &i, const int &j, const int &k,
                         const enum DiffusionDir &diffDir,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize);
 
-// Compute turbVisc, i.e., 'nut' or Kij at cell centres. Initialize it to 1.0
-//TODO: Check if it is better to  fill all Kij and use it or compute on the fly
-AMREX_GPU_DEVICE
-Real ComputeTurbulentViscosity(const int &i, const int &j, const int &k,
-                           const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                           const enum NextOrPrev &nextOrPrev,
-                           const enum MomentumEqn &momentumEqn,
-                           const enum DiffusionDir &diffDir,
-                           const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                           Array4<Real>& nut);
-
-// Given a velocity field and a geometry, compute nut or K(i, j, k) are cell-centers
+// Given a velocity field and a geometry, compute nut or K(i, j, k) at cell-centers
 //AMREX_GPU_DEVICE
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                                MultiFab& cons_in, MultiFab& eddyViscosity,
