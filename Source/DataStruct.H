@@ -47,7 +47,7 @@ struct SolverChoice {
                  const bool use_momentum_diffusion_in, const amrex::Real dynamicViscosity_in,
                  const bool use_smagorinsky_in, const amrex::Real Cs_in,
                  const bool use_pressure_in, const bool use_gravity_in,  const bool use_coriolis_in,
-                 const amrex::Real coriolis_factor_in, const amrex::Real sinphi_in, 
+                 const amrex::Real coriolis_factor_in, const amrex::Real sinphi_in,
                  const amrex::Real cosphi_in, const int spatial_order_in,
                  const std::string &abl_driver_type_in,
                  const amrex::Vector<amrex::Real> &abl_pressure_grad_in,

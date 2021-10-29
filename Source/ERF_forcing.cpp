@@ -24,7 +24,7 @@ ERF::build_coriolis_forcings()
     pp.query("latitude", latitude);
     AMREX_ALWAYS_ASSERT(amrex::Math::abs(latitude - 90.0) < 1.e-12);
 
-    // Convert to radians 
+    // Convert to radians
     latitude *= (M_PI/180.);
     sinphi = std::sin(latitude);
     cosphi = std::cos(latitude);
