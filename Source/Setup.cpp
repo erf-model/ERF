@@ -132,11 +132,7 @@ ERF::variableSetUp()
   if (state_interp_order == 0) {
     interp = &amrex::pc_interp;
   } else {
-    if (lin_limit_state_interp == 1) {
-      interp = &amrex::lincc_interp;
-    } else {
-      interp = &amrex::cell_cons_interp;
-    }
+    interp = &amrex::cell_cons_interp;
   }
 
   // Note that the default is state_data_extrap = false,

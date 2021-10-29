@@ -4,9 +4,6 @@
 // mk_params.sh
 
 pp.query("state_interp_order", state_interp_order);
-pp.query("lin_limit_state_interp", lin_limit_state_interp);
-pp.query("do_reflux", do_reflux);
-pp.query("do_avg_down", do_avg_down);
 pp.query("CI", CI);
 pp.query("PrT", PrT);
 pp.query("job_name", job_name);

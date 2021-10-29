@@ -13,17 +13,6 @@
 # highest order used in interpolation
 state_interp_order           int           1
 
-# how to do limiting of the state data when interpolating
-# 0: only prevent new extrema
-# 1: preserve linear combinations of state variables
-lin_limit_state_interp       int           0
-
-# do we do the hyperbolic reflux at coarse-fine interfaces?
-do_reflux                    int           1
-
-# do we average down the fine data onto the coarse?
-do_avg_down                  int           1
-
 #-----------------------------------------------------------------------------
 # category: large eddy simulation
 #-----------------------------------------------------------------------------
