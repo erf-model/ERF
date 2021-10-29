@@ -165,7 +165,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             {
                 Real rho_v_loc = 0.25 * (rho_u(i,j+1,k) + rho_u(i,j,k) + rho_u(i-1,j+1,k) + rho_u(i-1,j,k));
                 Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                rho_u_upd(i, j, k) += (-dt) * solverChoice.coriolis_factor *
+                rho_u_upd(i, j, k) += dt * solverChoice.coriolis_factor *
                         (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
             }
 
