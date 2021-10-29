@@ -5,6 +5,7 @@
  .. role:: f(code)
     :language: fortran
 
+_sec:forcings:
 
 .. _Forcings:
 
@@ -22,11 +23,11 @@ If
 
       use_gravity == true
 
-then buoyancy is included in the momentum equations, i.e. :
+then buoyancy is included in the momentum equations in the form
 
 .. math::
 
-  \mathbf{F} = (0, 0, \rho^\prime g)
+  (0, 0, \rho^\prime g)
 
 
 Pressure Gradient
