@@ -6,12 +6,12 @@
 
 using namespace amrex;
 
-void 
+void
 ERF::build_geostrophic_forcing()
 {
     amrex::ParmParse pp("erf");
 
-    // Read in the geostrophic wind -- we only use this to construct 
+    // Read in the geostrophic wind -- we only use this to construct
     //     the forcing term so no need to keep it
     amrex::Vector<amrex::Real> abl_geo_wind(3);
     pp.queryarr("abl_geo_wind",abl_geo_wind);
@@ -28,6 +28,6 @@ ERF::build_geostrophic_forcing()
     pp.query("latitude", latitude);
     AMREX_ALWAYS_ASSERT(amrex::Math::abs(latitude - 90.0) < 1.e-12);
 
-    abl_geo_forcing =  
+    abl_geo_forcing =
        {-coriolis_factor * abl_geo_wind[1], coriolis_factor * abl_geo_wind[0], 0.0};
 }

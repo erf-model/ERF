@@ -46,7 +46,7 @@ struct SolverChoice {
                  const bool use_scalar_diffusion_in, const amrex::Real alpha_S_in,
                  const bool use_momentum_diffusion_in, const amrex::Real dynamicViscosity_in,
                  const bool use_smagorinsky_in, const amrex::Real Cs_in,
-                 const bool use_pressure_in, const bool use_gravity_in,  const bool use_coriolis_in, 
+                 const bool use_pressure_in, const bool use_gravity_in,  const bool use_coriolis_in,
                  const int spatial_order_in,
                  const std::string &abl_driver_type_in,
                  const amrex::Vector<amrex::Real> &abl_pressure_grad_in,
@@ -56,7 +56,7 @@ struct SolverChoice {
             use_scalar_diffusion(use_scalar_diffusion_in), alpha_S(alpha_S_in),
             use_momentum_diffusion(use_momentum_diffusion_in), dynamicViscosity(dynamicViscosity_in),
             use_smagorinsky(use_smagorinsky_in), Cs(Cs_in),
-            use_pressure(use_pressure_in), use_gravity(use_gravity_in),  use_coriolis(use_coriolis_in), 
+            use_pressure(use_pressure_in), use_gravity(use_gravity_in),  use_coriolis(use_coriolis_in),
             spatial_order(spatial_order_in),
             abl_driver_type((!abl_driver_type_in.compare("PressureGradient")) ? ABLDriverType::PressureGradient
                      : (!abl_driver_type_in.compare("GeostrophicWind"))  ? ABLDriverType::GeostrophicWind
