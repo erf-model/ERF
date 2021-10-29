@@ -735,9 +735,23 @@ List of Parameters
 +----------------------------------+-------------------+-------------------+-------------+
 | **erf.abl_pressure_grad**        | Pressure gradient | 3 Reals           | (0.,0.,0.)  |
 |                                  | forcing term      |                   |             |
+|                                  | (only if          |                   |             |
+|                                  | abl.driver_type = |                   |             |
+|                                  | PressureGradient) |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 | **erf.abl_geo_wind**             | Geostrophic       | 3 Reals           | (10.,0.,0.) |
 |                                  | forcing term      |                   |             |
+|                                  | (only if          |                   |             |
+|                                  | abl.driver_type = |                   |             |
+|                                  | GeostrophicWind)  |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_gravity**              | Include gravity   | true / false      | true        |
+|                                  | in momentum       |                   |             |
+|                                  | update?  If true, |                   |             |
+|                                  | there is buoyancy |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_coriolis**             | Include Coriolis  | true / false      | false       |
+|                                  | forcing           |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 
 Unit Testing
@@ -775,10 +789,6 @@ We use these flags to turn off parts of the physics -- for use in unit testing a
 |                                  | update?           |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 | **erf.use_pressure**             | Include gradp     | true / false      | true        |
-|                                  | in momentum       |                   |             |
-|                                  | update?           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_gravity**              | Include gravity   | true / false      | true        |
 |                                  | in momentum       |                   |             |
 |                                  | update?           |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+

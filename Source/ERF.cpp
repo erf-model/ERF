@@ -42,7 +42,7 @@ bool ERF::use_scalar_diffusion = true;
 bool ERF::use_momentum_diffusion = true;
 bool ERF::use_pressure = true;
 bool ERF::use_gravity = true;
-bool ERF::use_coriolis = true;
+bool ERF::use_coriolis = false;
 
 bool ERF::use_smagorinsky = true;
 
