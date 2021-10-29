@@ -229,6 +229,7 @@ Momentum, Thermal, and Scalar Diffusion Contribution to DNS
 Strain Rate Tensor
 ------------------
 The schematic below shows the definition of strain-rate components 
+
 .. image:: figures/grid_discretization/StrainRate.PNG
   :width: 400
 
@@ -254,7 +255,7 @@ The schematic below shows the definition of strain-rate components
    S_{22,j - \frac{1}{2}} = & \frac{1}{\Delta y}\left( v_{i,j,k} - v_{i,j - 1,k} \right) \\
    S_{23,k + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k + 1} - v_{i,j,k} \right) + \frac{1}{\Delta y}\left( w_{i,j,k + 1} - w_{i,j - 1,k + 1} \right) \right\rbrack \\
    S_{23,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
-   \end{array
+   \end{array}
 
 
 .. math::
