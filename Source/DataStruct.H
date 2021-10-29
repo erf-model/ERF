@@ -47,7 +47,8 @@ struct SolverChoice {
                  const bool use_momentum_diffusion_in, const amrex::Real dynamicViscosity_in,
                  const bool use_smagorinsky_in, const amrex::Real Cs_in,
                  const bool use_pressure_in, const bool use_gravity_in,  const bool use_coriolis_in,
-                 const int spatial_order_in,
+                 const amrex::Real coriolis_factor_in, const amrex::Real sinphi_in,
+                 const amrex::Real cosphi_in, const int spatial_order_in,
                  const std::string &abl_driver_type_in,
                  const amrex::Vector<amrex::Real> &abl_pressure_grad_in,
                  const amrex::Vector<amrex::Real> &abl_geo_forcing_in):
@@ -57,7 +58,8 @@ struct SolverChoice {
             use_momentum_diffusion(use_momentum_diffusion_in), dynamicViscosity(dynamicViscosity_in),
             use_smagorinsky(use_smagorinsky_in), Cs(Cs_in),
             use_pressure(use_pressure_in), use_gravity(use_gravity_in),  use_coriolis(use_coriolis_in),
-            spatial_order(spatial_order_in),
+            coriolis_factor(coriolis_factor_in), cosphi(cosphi_in),
+            sinphi(sinphi_in), spatial_order(spatial_order_in),
             abl_driver_type((!abl_driver_type_in.compare("PressureGradient")) ? ABLDriverType::PressureGradient
                      : (!abl_driver_type_in.compare("GeostrophicWind"))  ? ABLDriverType::GeostrophicWind
                      : ABLDriverType::None),
@@ -121,6 +123,10 @@ struct SolverChoice {
     const ABLDriverType  abl_driver_type;
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
+
+    const amrex::Real coriolis_factor;
+    const amrex::Real cosphi;
+    const amrex::Real sinphi;
 
   private:
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> get_gpu_array(const std::vector<amrex::Real> & vec) {

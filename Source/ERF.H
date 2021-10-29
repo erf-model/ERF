@@ -320,7 +320,7 @@ protected:
 
   static void read_tagging_params();
 
-  static void build_geostrophic_forcing();
+  static void build_coriolis_forcings();
 
   template<int DIM, math_bcs::BCBound Bound>
   static std::unique_ptr<phys_bcs::BCBase> initialize_bcs(const std::string& bc_char);
@@ -370,6 +370,9 @@ protected:
   static amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > bc_recs;
 
   static std::string abl_driver_type;
+  static amrex::Real coriolis_factor;
+  static amrex::Real sinphi;
+  static amrex::Real cosphi;
   static amrex::Vector<amrex::Real> abl_geo_forcing;
   static amrex::Vector<amrex::Real> abl_pressure_grad;
 

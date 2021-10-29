@@ -44,6 +44,10 @@ bool ERF::use_pressure = true;
 bool ERF::use_gravity = true;
 bool ERF::use_coriolis = false;
 
+amrex::Real ERF::coriolis_factor =  0.0;
+amrex::Real ERF::sinphi =  0.0;
+amrex::Real ERF::cosphi =  0.0;
+
 bool ERF::use_smagorinsky = true;
 
 amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2);
@@ -246,8 +250,9 @@ ERF::read_params()
   // Read tagging parameters
   read_tagging_params();
 
-  // Define the geostrophic forcing term from the inputs
-  build_geostrophic_forcing();
+  // Define the Coriolis and geostrophic forcing terms from the inputs
+  if (use_coriolis)
+      build_coriolis_forcings();
 }
 
 ERF::ERF()
