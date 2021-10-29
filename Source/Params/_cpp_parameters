@@ -13,20 +13,6 @@
 # highest order used in interpolation
 state_interp_order           int           1
 
-# how to do limiting of the state data when interpolating
-# 0: only prevent new extrema
-# 1: preserve linear combinations of state variables
-lin_limit_state_interp       int           0
-
-# do we do the hyperbolic reflux at coarse-fine interfaces?
-do_reflux                    int           1
-
-# do we average down the fine data onto the coarse?
-do_avg_down                  int           1
-
-# dump level for lb stats
-load_balance_verbosity       int           0
-
 #-----------------------------------------------------------------------------
 # category: large eddy simulation
 #-----------------------------------------------------------------------------
@@ -39,12 +25,6 @@ CI                           Real          0.0
 
 # Constant Smagorinsky PrT coefficient
 PrT                          Real          1.0
-
-#-----------------------------------------------------------------------------
-# category: parallelization
-#-----------------------------------------------------------------------------
-
-bndry_func_thread_safe       int           1
 
 #-----------------------------------------------------------------------------
 # category: diagnostics

@@ -38,6 +38,7 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/IndexDefines.H
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_forcing.cpp
        ${SRC_DIR}/Problem.H
        ${SRC_DIR}/ProblemDerive.H
        ${SRC_DIR}/Setup.cpp

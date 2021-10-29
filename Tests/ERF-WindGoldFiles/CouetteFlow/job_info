@@ -64,7 +64,6 @@ stop_time = 1280.0
 amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.is_periodic = 1 0 1
-geometry.coord_sys = 0
 geometry.prob_lo = 0 0 0
 geometry.prob_hi = 32 16 4
 amr.n_cell = 32 16 4

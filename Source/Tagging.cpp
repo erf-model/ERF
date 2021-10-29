@@ -46,7 +46,7 @@ ERF::read_tagging_params()
   {
       tparm.region_lo.resize(3);
       tparm.region_hi.resize(3);
-      pp.queryarr("region_lo", tparm.region_lo);
-      pp.queryarr("region_hi", tparm.region_hi);
+      pp.getarr("region_lo", tparm.region_lo);
+      pp.getarr("region_hi", tparm.region_hi);
   }
 }

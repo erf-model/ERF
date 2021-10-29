@@ -138,22 +138,40 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_u_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dx, solverChoice);
+                rho_u_upd(i, j, k) += (-dt) *
+                  AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dx, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_u_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dx, nut, solverChoice);
+                rho_u_upd(i, j, k) += dt *
+                  DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dx, nut, solverChoice);
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
-                rho_u_upd(i, j, k) += (-dt / dx[0]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i - 1, j, k, RhoTheta_comp)));
+                rho_u_upd(i, j, k) += (-dt / dx[0]) *
+                  (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i - 1, j, k, RhoTheta_comp)));
 
             // Add gravity term
-            rho_u_upd(i, j, k) += dt * grav_gpu[0] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::x, solverChoice.spatial_order);
+            if (solverChoice.use_gravity)
+                rho_u_upd(i, j, k) += dt * grav_gpu[0] *
+                  InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::x, solverChoice.spatial_order);
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
                 rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[0];
+
+            // Add Coriolis forcing (that assumes east is +x, north is +y)
+            if (solverChoice.use_coriolis)
+            {
+                Real rho_v_loc = 0.25 * (rho_u(i,j+1,k) + rho_u(i,j,k) + rho_u(i-1,j+1,k) + rho_u(i-1,j,k));
+                Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                rho_u_upd(i, j, k) += dt * solverChoice.coriolis_factor *
+                        (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
+            }
+
+            // Add geostrophic forcing
+            if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
+                rho_u_upd(i, j, k) += dt * solverChoice.abl_geo_forcing[0];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
 
@@ -165,18 +183,33 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_v_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dx, nut, solverChoice);
+                rho_v_upd(i, j, k) += dt *
+                  DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dx, nut, solverChoice);
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
-                rho_v_upd(i, j, k) += (-dt / dx[1]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j - 1, k, RhoTheta_comp)));
+                rho_v_upd(i, j, k) += (-dt / dx[1]) *
+                  (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j - 1, k, RhoTheta_comp)));
 
             // Add gravity term
-            rho_v_upd(i, j, k) += dt * grav_gpu[1] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::y, solverChoice.spatial_order);
+            if (solverChoice.use_gravity)
+               rho_v_upd(i, j, k) += dt * grav_gpu[1] *
+                  InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::y, solverChoice.spatial_order);
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
                 rho_v_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[1];
+
+            // Add Coriolis forcing (that assumes east is +x, north is +y)
+            if (solverChoice.use_coriolis)
+            {
+                Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                rho_v_upd(i, j, k) += (-dt) * solverChoice.coriolis_factor * rho_u_loc * solverChoice.sinphi;
+            }
+
+            // Add geostrophic forcing
+            if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
+                rho_v_upd(i, j, k) += dt * solverChoice.abl_geo_forcing[1];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
@@ -184,22 +217,34 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_w_upd(i, j, k) += (-dt) * AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dx, solverChoice);
+                rho_w_upd(i, j, k) += (-dt) *
+                    AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dx, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_w_upd(i, j, k) += dt * DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dx, nut, solverChoice);
+                rho_w_upd(i, j, k) += dt *
+                    DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dx, nut, solverChoice);
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
-                rho_w_upd(i, j, k) += (-dt / dx[2]) * (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j, k - 1, RhoTheta_comp)));
+                rho_w_upd(i, j, k) += (-dt / dx[2]) *
+                    (getPgivenRTh(cell_data_old(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data_old(i, j, k - 1, RhoTheta_comp)));
 
             // Add gravity term
-            rho_w_upd(i, j, k) += dt * grav_gpu[2] * InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::z, solverChoice.spatial_order);
+            if (solverChoice.use_gravity)
+               rho_w_upd(i, j, k) += dt * grav_gpu[2] *
+                   InterpolateDensityFromCellToFace(i, j, k, cell_data_old, NextOrPrev::prev, Coord::z, solverChoice.spatial_order);
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
                 rho_w_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[2];
+
+            // Add Coriolis forcing (that assumes east is +x, north is +y)
+            if (solverChoice.use_coriolis)
+            {
+                Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
+                rho_w_upd(i, j, k) += dt * solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
+            }
         });
     }
 }

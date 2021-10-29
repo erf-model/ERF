@@ -1,5 +1,6 @@
 #C++ files
 CEXE_sources += ERF.cpp
+CEXE_sources += ERF_forcing.cpp
 CEXE_sources += Advance.cpp
 CEXE_sources += Derive.cpp
 CEXE_sources += Bld.cpp

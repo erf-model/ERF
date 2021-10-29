@@ -33,8 +33,6 @@ List of Parameters
 |                          | high corner of  |                 |             |
 |                          | the domain      |                 |             |
 +--------------------------+-----------------+-----------------+-------------+
-| **geometry.coord_sys**   | coord. system   | 0 = Cartesian  | must be set  |
-+--------------------------+-----------------+-----------------+-------------+
 | **geometry.is_periodic** | is the domain   | 0 if false, 1   | 0 0 0       |
 |                          | periodic in     | if true         |             |
 |                          | this direction  |                 |             |
@@ -49,9 +47,6 @@ Examples of Usage
 -  **geometry.prob_hi** = 1.e8 2.e8 2.e8
    defines the high corner of the domain at (1.e8,2.e8,2.e8) in
    physical space.
-
--  **geometry.coord_sys** = 0
-   defines the coordinate system as Cartesian
 
 -  **geometry.is_periodic** = 0 1 0
    says the domain is periodic in the y-direction only.
@@ -185,6 +180,9 @@ The user defines how to tag individual cells at a given level for refinement.
 This list of tagged cells is sent to a grid generation routine, which uses the
 Berger–Rigoutsos algorithm to create rectangular grids that contain the
 tagged cells.
+
+See :ref:`MeshRefinement`: for more details on how to specify regions for
+refinement.
 
 .. _list-of-parameters-4:
 
@@ -735,9 +733,23 @@ List of Parameters
 +----------------------------------+-------------------+-------------------+-------------+
 | **erf.abl_pressure_grad**        | Pressure gradient | 3 Reals           | (0.,0.,0.)  |
 |                                  | forcing term      |                   |             |
+|                                  | (only if          |                   |             |
+|                                  | abl.driver_type = |                   |             |
+|                                  | PressureGradient) |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 | **erf.abl_geo_wind**             | Geostrophic       | 3 Reals           | (10.,0.,0.) |
 |                                  | forcing term      |                   |             |
+|                                  | (only if          |                   |             |
+|                                  | abl.driver_type = |                   |             |
+|                                  | GeostrophicWind)  |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_gravity**              | Include gravity   | true / false      | true        |
+|                                  | in momentum       |                   |             |
+|                                  | update?  If true, |                   |             |
+|                                  | there is buoyancy |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_coriolis**             | Include Coriolis  | true / false      | false       |
+|                                  | forcing           |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 
 Unit Testing
@@ -775,10 +787,6 @@ We use these flags to turn off parts of the physics -- for use in unit testing a
 |                                  | update?           |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 | **erf.use_pressure**             | Include gradp     | true / false      | true        |
-|                                  | in momentum       |                   |             |
-|                                  | update?           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_gravity**              | Include gravity   | true / false      | true        |
 |                                  | in momentum       |                   |             |
 |                                  | update?           |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+

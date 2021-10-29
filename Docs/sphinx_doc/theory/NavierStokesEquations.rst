@@ -19,20 +19,21 @@ ERF advances the following set of equations in DNS mode:
 
   \frac{\partial \rho}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u}),
 
-  \frac{\partial (\rho \mathbf{u})}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + pI) +\rho \mathbf{g} + \nabla \cdot \tau,
+  \frac{\partial (\rho \mathbf{u})}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + pI) +\rho \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
 
   \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)),
 
   \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\alpha_{C}\ \nabla (\rho C)),
 
-where :math:`\tau` is the stress tensor.
+where :math:`\tau` is the stress tensor and :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`:
+
 Note that :math:`\alpha_{T}` and :math:`\alpha_{C}` are in general variable for a general compressible flow. However, for low Mach number atmospheric flows they are assumed to be constant.
 
 These can be re-written in perturbational form by replacing the z-momentum equation with
 
 .. math::
 
-  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w) - \nabla p^\prime - \rho^\prime g + (\nabla \cdot \tau)_z,
+  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w) - \nabla p^\prime - \rho^\prime g + (\nabla \cdot \tau)_z + F^z,
 
 where
 
