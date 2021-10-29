@@ -25,13 +25,13 @@ ERF advances the following set of equations in DNS mode:
 
   \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\alpha_{S}\ \nabla (\rho C)),
 
-where :math:`\tau` is the stress tensor and $\mathbf{F}$ are the forcing terms described in :ref:`Forcings`:
+where :math:`\tau` is the stress tensor and :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`:
 
 These can be re-written in perturbational form by replacing the z-momentum equation with
 
 .. math::
 
-  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w) - \nabla p^\prime - \rho^\prime g + (\nabla \cdot \tau)_z,
+  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w) - \nabla p^\prime - \rho^\prime g + (\nabla \cdot \tau)_z + F^z,
 
 where
 
