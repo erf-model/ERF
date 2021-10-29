@@ -232,6 +232,7 @@ The schematic below shows the definition of strain-rate components
 .. image:: figures/grid_discretization/StrainRate.PNG
   :width: 400
 
+
 .. math::
 
    \begin{array}{ll}
@@ -266,6 +267,7 @@ The schematic below shows the definition of strain-rate components
    S_{33,k + \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \\
    S_{33,k - \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
    \end{array}
+   
 
 Momentum Conservation – U Momentum viscous stress divergence
 ------------------------------------------------------------
@@ -282,7 +284,7 @@ Difference Equation
               & + \left. \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{align}
 
-Note that LES equation has a similar format except how :math:`\tau_{11,i + \frac{1}{2}}`, :math:`\tau_{11,i - \frac{1}{2}}`, :math:`\tau_{12,j + \frac{1}{2}}`, :math:`\tau_{12,j - \frac{1}{2}}`, :math:`\tau_{13,k + \frac{1}{2}}`, and :math:`\tau_{13,k - \frac{1}{2}}`are defined.
+Note that LES equation has a similar format except how :math:`\tau_{11,i + \frac{1}{2}}`, :math:`\tau_{11,i - \frac{1}{2}}`, :math:`\tau_{12,j + \frac{1}{2}}`, :math:`\tau_{12,j - \frac{1}{2}}`, :math:`\tau_{13,k + \frac{1}{2}}`, and :math:`\tau_{13,k - \frac{1}{2}}` are defined.
 
 Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -306,7 +308,7 @@ Difference Equation
               & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
 
-Note that LES equation has a similar format except how :math:`\tau_{21,i + \frac{1}{2}}`, :math:`\tau_{21,i - \frac{1}{2}}`, :math:`\tau_{22,j + \frac{1}{2}}`, :math:`\tau_{22,j - \frac{1}{2}}`, :math:`\tau_{23,k + \frac{1}{2}}`, and :math:`\tau_{23,k - \frac{1}{2}}`are defined.
+Note that LES equation has a similar format except how :math:`\tau_{21,i + \frac{1}{2}}`, :math:`\tau_{21,i - \frac{1}{2}}`, :math:`\tau_{22,j + \frac{1}{2}}`, :math:`\tau_{22,j - \frac{1}{2}}`, :math:`\tau_{23,k + \frac{1}{2}}`, and :math:`\tau_{23,k - \frac{1}{2}}` are defined.
 
 Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -330,7 +332,7 @@ Difference Equation
              & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
 
-Note that LES equation has a similar format except how :math:`\tau_{31,i + \frac{1}{2}}`, :math:`\tau_{31,i - \frac{1}{2}}`, :math:`\tau_{32,j + \frac{1}{2}}`, :math:`\tau_{32,j - \frac{1}{2}}`, :math:`\tau_{33,k + \frac{1}{2}}`, and :math:`\tau_{33,k - \frac{1}{2}}`are defined.
+Note that LES equation has a similar format except how :math:`\tau_{31,i + \frac{1}{2}}`, :math:`\tau_{31,i - \frac{1}{2}}`, :math:`\tau_{32,j + \frac{1}{2}}`, :math:`\tau_{32,j - \frac{1}{2}}`, :math:`\tau_{33,k + \frac{1}{2}}`, and :math:`\tau_{33,k - \frac{1}{2}}` are defined.
 
 Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
