@@ -204,7 +204,6 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             if (solverChoice.use_coriolis)
             {
                 Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
                 rho_v_upd(i, j, k) += (-dt) * solverChoice.coriolis_factor * rho_u_loc * solverChoice.sinphi;
             }
 
@@ -244,7 +243,6 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             if (solverChoice.use_coriolis)
             {
                 Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i,j+1,k-1) + rho_v(i,j,k-1));
                 rho_w_upd(i, j, k) += dt * solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
             }
         });

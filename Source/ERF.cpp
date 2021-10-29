@@ -232,13 +232,6 @@ ERF::read_params()
   }
 
   // Sanity check
-  if (amrex::DefaultGeometry().IsRZ()) {
-    amrex::Abort("We don't support cylindrical coordinate systems in 3D");
-  } else if (amrex::DefaultGeometry().IsSPHERICAL()) {
-    amrex::Abort("We don't support spherical coordinate systems in 3D");
-  }
-
-  // Sanity check
   if (cfl <= 0.0 || cfl > 1.0) {
     amrex::Error("Invalid CFL factor; must be between zero and one.");
   }

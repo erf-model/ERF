@@ -33,8 +33,6 @@ List of Parameters
 |                          | high corner of  |                 |             |
 |                          | the domain      |                 |             |
 +--------------------------+-----------------+-----------------+-------------+
-| **geometry.coord_sys**   | coord. system   | 0 = Cartesian  | must be set  |
-+--------------------------+-----------------+-----------------+-------------+
 | **geometry.is_periodic** | is the domain   | 0 if false, 1   | 0 0 0       |
 |                          | periodic in     | if true         |             |
 |                          | this direction  |                 |             |
@@ -49,9 +47,6 @@ Examples of Usage
 -  **geometry.prob_hi** = 1.e8 2.e8 2.e8
    defines the high corner of the domain at (1.e8,2.e8,2.e8) in
    physical space.
-
--  **geometry.coord_sys** = 0
-   defines the coordinate system as Cartesian
 
 -  **geometry.is_periodic** = 0 1 0
    says the domain is periodic in the y-direction only.
