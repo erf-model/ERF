@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 10
+max_step = 1000
 
 amrex.fpe_trap_invalid = 1
 
@@ -7,9 +7,9 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 1
-geometry.prob_lo     = -12  -12  -1
-geometry.prob_hi     =  12   12   1
-amr.n_cell           =  48   48   4
+geometry.prob_lo     =  0    0    0
+geometry.prob_hi     = 128   128    8
+amr.n_cell           = 128   128    8
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
@@ -25,13 +25,13 @@ erf.do_hydro = 1
 #erf.init_shrink    = 1.0     # scale back initial timestep
 #erf.change_max     = 1.05    # scale back initial timestep
 #erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
-erf.fixed_dt        = 0.0005
+erf.fixed_dt       = 0.001
 
 # DIAGNOSTICS & VERBOSITY
-erf.sum_interval    = 1       # timesteps between computing mass
-erf.v               = 1       # verbosity in ERF.cpp
-amr.v               = 1       # verbosity in Amr.cpp
-amr.data_log        = datlog
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v                = 1       # verbosity in Amr.cpp
+amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -61,7 +61,7 @@ erf.alpha_T = 0.0
 erf.use_scalar_diffusion = false
 erf.alpha_S = 0.0
 erf.use_momentum_diffusion = false
-erf.kinematicViscosity = 0.0
+erf.dynamicViscosity = 0.0
 erf.use_smagorinsky   = false
 erf.use_pressure = true
 erf.use_gravity = false
@@ -74,3 +74,4 @@ prob.M_inf = 0.0  # freestream Mach number [-]
 prob.alpha = 0.0  # inflow angle, 0 --> x-aligned [rad]
 prob.gamma = 1.4  # specific heat ratio [-]
 prob.beta = 0.05  # non-dimensional max perturbation strength [-]
+

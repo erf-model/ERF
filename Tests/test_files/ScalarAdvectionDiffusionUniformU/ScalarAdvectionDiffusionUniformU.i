@@ -7,7 +7,6 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 1
-geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
 geometry.prob_lo     =  0     0     0
 geometry.prob_hi     =  1     1     1    
 amr.n_cell           = 16     16     16 #TODO: Need to play around with resolution to get rid of ringing
