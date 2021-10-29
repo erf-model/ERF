@@ -7,10 +7,8 @@ int         ERF::state_interp_order = 1;
 int         ERF::lin_limit_state_interp = 0;
 int         ERF::do_reflux = 1;
 int         ERF::do_avg_down = 1;
-int         ERF::load_balance_verbosity = 0;
 amrex::Real ERF::CI = 0.0;
 amrex::Real ERF::PrT = 1.0;
-int         ERF::bndry_func_thread_safe = 1;
 std::string ERF::job_name = "";
 
 amrex::Real ERF::alpha_T = 1.0;

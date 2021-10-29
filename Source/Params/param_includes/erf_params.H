@@ -7,10 +7,8 @@ static int state_interp_order;
 static int lin_limit_state_interp;
 static int do_reflux;
 static int do_avg_down;
-static int load_balance_verbosity;
 static amrex::Real CI;
 static amrex::Real PrT;
-static int bndry_func_thread_safe;
 static std::string job_name;
 
 static amrex::Real alpha_T;

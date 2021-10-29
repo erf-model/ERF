@@ -241,9 +241,6 @@ ERF::read_params()
   // Read tagging parameters
   read_tagging_params();
 
-  // TODO: What is this?
-  amrex::StateDescriptor::setBndryFuncThreadSafety(bndry_func_thread_safe);
-
   // Define the geostrophic forcing term from the inputs
   build_geostrophic_forcing();
 }
