@@ -354,6 +354,9 @@ protected:
   static bool dump_old;
   static int verbose;
 
+  static int do_reflux;
+  static int do_avg_down;
+
   static int sum_interval;
   static amrex::Real sum_per;
 

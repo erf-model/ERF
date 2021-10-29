@@ -30,6 +30,8 @@ amrex::Real ERF::fixed_dt    = -1.0;
 amrex::Real ERF::max_dt      =  1.e20;
 amrex::Real ERF::dt_cutoff   =  0.0;
 
+int         ERF::do_reflux     = 0;
+int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
@@ -135,6 +137,9 @@ ERF::read_params()
   pp.query("v", verbose);
   pp.query("sum_interval", sum_interval);
   pp.query("dump_old", dump_old);
+
+  pp.query("do_reflux"  , do_reflux);
+  pp.query("do_avg_down", do_avg_down);
 
   // Time step controls
   pp.query("cfl", cfl);

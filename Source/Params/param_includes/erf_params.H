@@ -4,9 +4,6 @@
 // mk_params.sh
 
 static int state_interp_order;
-static int lin_limit_state_interp;
-static int do_reflux;
-static int do_avg_down;
 static amrex::Real CI;
 static amrex::Real PrT;
 static std::string job_name;
