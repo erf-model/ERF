@@ -192,7 +192,7 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Differencing of Different Orders
 ================================
 
-:math:`[\rho, u, v, w, \theta]`,  :math:`m = i, j, k`,  and :math:`U_d = [u, v, w]` for :math:`[x, y, z]` directions respectively.
+:math:`[\rho, u, v, w, \rho\theta]`,  :math:`m = i, j, k`,  and :math:`U_d = [u, v, w]` for :math:`[x, y, z]` directions respectively.
 
 .. math::
 
@@ -246,6 +246,7 @@ The schematic below shows the definition of strain-rate components
    \end{array}
 
 
+
 .. math::
 
    \begin{array}{ll}
@@ -256,6 +257,7 @@ The schematic below shows the definition of strain-rate components
    S_{23,k + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k + 1} - v_{i,j,k} \right) + \frac{1}{\Delta y}\left( w_{i,j,k + 1} - w_{i,j - 1,k + 1} \right) \right\rbrack \\
    S_{23,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
    \end{array}
+
 
 
 .. math::
@@ -286,6 +288,10 @@ Difference Equation
    \end{align}
 
 Note that LES equation has a similar format except how :math:`\tau_{11,i + \frac{1}{2}}`, :math:`\tau_{11,i - \frac{1}{2}}`, :math:`\tau_{12,j + \frac{1}{2}}`, :math:`\tau_{12,j - \frac{1}{2}}`, :math:`\tau_{13,k + \frac{1}{2}}`, and :math:`\tau_{13,k - \frac{1}{2}}` are defined.
+
+:math:`\tau_{ij,m + \frac{1}{2}} = 2\mu\ S_{ij,m + \frac{1}{2}}` and :math:`\tau_{ij,m - \frac{1}{2}} = 2\mu\ S_{ij,m - \frac{1}{2}}`, where :math:`m = i, j, k`.
+
+The nomenclature is similar for other two momentum equations. Note that :math:`\mu` is constant in the current implementation and its variation with temperature for low-Mach atmospheric flows has been ignored. 
 
 Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
