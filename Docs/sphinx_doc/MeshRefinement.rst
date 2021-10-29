@@ -13,7 +13,7 @@ Mesh Refinement
 Note: Mesh refinement is a WIP -- for now the documentation is aspirational.
 
 ERF allows both static and dynamic mesh refinement.  For the static refinement, we currently control
-the placement of grids using 
+the placement of grids using
 
 +--------------------------+------------------+-----------------+-------------+
 | Parameter                | Definition       | Acceptable      | Default     |
@@ -38,7 +38,7 @@ the placement of grids using
 +--------------------------+------------------+-----------------+-------------+
 
 Note that the tagged region will be covered by one or more boxes.  The user may
-specify the region to be covered but not the decompostion of the region into 
+specify the region to be covered but not the decompostion of the region into
 individual grids.
 
 See the `Gridding`_ section of the AMReX documentation for details of how individual grids are created.
