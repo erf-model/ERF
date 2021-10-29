@@ -24,9 +24,6 @@ do_reflux                    int           1
 # do we average down the fine data onto the coarse?
 do_avg_down                  int           1
 
-# dump level for lb stats
-load_balance_verbosity       int           0
-
 #-----------------------------------------------------------------------------
 # category: large eddy simulation
 #-----------------------------------------------------------------------------
@@ -39,12 +36,6 @@ CI                           Real          0.0
 
 # Constant Smagorinsky PrT coefficient
 PrT                          Real          1.0
-
-#-----------------------------------------------------------------------------
-# category: parallelization
-#-----------------------------------------------------------------------------
-
-bndry_func_thread_safe       int           1
 
 #-----------------------------------------------------------------------------
 # category: diagnostics

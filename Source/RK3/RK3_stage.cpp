@@ -154,6 +154,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
                 rho_u_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[0];
+
+            // Add geostrophic forcing
+            if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
+                rho_u_upd(i, j, k) += dt * solverChoice.abl_geo_forcing[0];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
 
@@ -177,6 +181,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
                 rho_v_upd(i, j, k) += (-dt) * solverChoice.abl_pressure_grad[1];
+
+            // Add geostrophic forcing
+            if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
+                rho_v_upd(i, j, k) += dt * solverChoice.abl_geo_forcing[1];
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
