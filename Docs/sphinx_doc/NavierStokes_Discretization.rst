@@ -412,7 +412,7 @@ Note that:
    S_{23} = & S_{32}
    \end{array}
 
-:math:`K_{i,j,k} = {2\left( C_{S} \right)^{2}\rho_{i,j,k}\left( {2S}_{mn}S_{mn} \right)}^{\frac{1}{2}}`,
+:math:`K_{i,j,k} = {2\left( C_{S}\ \Delta \right)^{2}\left( {2S}_{mn}S_{mn} \right)}^{\frac{1}{2}} \ \rho_{i,j,k}`,
 where
 
 .. math::
