@@ -33,6 +33,17 @@ amrex::Real ERF::dt_cutoff   =  0.0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
+bool ERF::use_state_advection = true;
+bool ERF::use_momentum_advection = true;
+bool ERF::use_thermal_diffusion = true;
+bool ERF::use_scalar_diffusion = true;
+bool ERF::use_momentum_diffusion = true;
+bool ERF::use_pressure = true;
+bool ERF::use_gravity = true;
+bool ERF::use_coriolis = true;
+
+bool ERF::use_smagorinsky = true;
+
 amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2);
 //amrex::Real ERF::frac_change = 1.e200;
 int ERF::NumAdv = 0;
@@ -54,6 +65,10 @@ ERF::variableCleanUp()
 
   clear_prob();
 }
+
+std::string ERF::abl_driver_type = "None";
+amrex::Vector<amrex::Real> ERF::abl_geo_forcing   = {0.0, 0.0, 0.0};
+amrex::Vector<amrex::Real> ERF::abl_pressure_grad = {0.0, 0.0, 0.0};
 
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
@@ -130,6 +145,22 @@ ERF::read_params()
   pp.query("max_dt", max_dt);
   pp.query("dt_cutoff", dt_cutoff);
 
+  pp.query("abl_driver_type",abl_driver_type);
+  pp.queryarr("abl_pressure_grad",abl_pressure_grad);
+
+  // These default to true but are used for unit testing
+  pp.query("use_state_advection" ,use_state_advection);
+  pp.query("use_state_advection", use_state_advection);
+  pp.query("use_momentum_advection", use_momentum_advection);
+  pp.query("use_thermal_diffusion", use_thermal_diffusion);
+  pp.query("use_scalar_diffusion", use_scalar_diffusion);
+  pp.query("use_momentum_diffusion", use_momentum_diffusion);
+  pp.query("use_pressure", use_pressure);
+  pp.query("use_gravity", use_gravity);
+
+  // Which LES closure
+  pp.query("use_smagorinsky", use_smagorinsky);
+
   // Get boundary conditions
   amrex::Vector<std::string> lo_bc_char(AMREX_SPACEDIM);
   amrex::Vector<std::string> hi_bc_char(AMREX_SPACEDIM);
@@ -191,20 +222,14 @@ ERF::read_params()
     }
   }
 
-  // TODO: Uncomment this when we implement RZ coordinates
-  //if (amrex::DefaultGeometry().IsRZ() && (lo_bc[0] != Symmetry)) {
-  //  amrex::Error("ERF::read_params: must set r=0 boundary condition to "
-  //               "Symmetry for r-z");
-  //}
-
-  // TODO: Any reason to support spherical in ERF?
+  // Sanity check
   if (amrex::DefaultGeometry().IsRZ()) {
     amrex::Abort("We don't support cylindrical coordinate systems in 3D");
   } else if (amrex::DefaultGeometry().IsSPHERICAL()) {
     amrex::Abort("We don't support spherical coordinate systems in 3D");
   }
 
-  // sanity checks
+  // Sanity check
   if (cfl <= 0.0 || cfl > 1.0) {
     amrex::Error("Invalid CFL factor; must be between zero and one.");
   }
@@ -218,6 +243,9 @@ ERF::read_params()
 
   // TODO: What is this?
   amrex::StateDescriptor::setBndryFuncThreadSafety(bndry_func_thread_safe);
+
+  // Define the geostrophic forcing term from the inputs
+  build_geostrophic_forcing();
 }
 
 ERF::ERF()

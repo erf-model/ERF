@@ -275,9 +275,7 @@ public:
   amrex::Real
   maxDerive(const std::string& name, amrex::Real time, bool local = false);
 
-  // static int NVAR;
   static int FirstAdv, NumAdv;
-//  static int FirstAux;
 
   /// Index locations into particle state
   static int pstateVel, pstateT, pstateDia, pstateRho, pstateY, pstateNum;
@@ -322,6 +320,8 @@ protected:
 
   static void read_tagging_params();
 
+  static void build_geostrophic_forcing();
+
   template<int DIM, math_bcs::BCBound Bound>
   static std::unique_ptr<phys_bcs::BCBase> initialize_bcs(const std::string& bc_char);
 
@@ -365,6 +365,20 @@ protected:
   static amrex::Real change_max;
   static amrex::Real cfl;
   static amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > bc_recs;
+
+  static std::string abl_driver_type;
+  static amrex::Vector<amrex::Real> abl_geo_forcing;
+  static amrex::Vector<amrex::Real> abl_pressure_grad;
+
+  static bool use_state_advection;
+  static bool use_momentum_advection;
+  static bool use_thermal_diffusion;
+  static bool use_scalar_diffusion;
+  static bool use_momentum_diffusion;
+  static bool use_smagorinsky;
+  static bool use_pressure;
+  static bool use_gravity;
+  static bool use_coriolis;
 
   /// for keeping track of mass changes from negative density resets
 //  static amrex::Real frac_change;
