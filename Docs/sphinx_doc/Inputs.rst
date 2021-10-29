@@ -181,7 +181,7 @@ This list of tagged cells is sent to a grid generation routine, which uses the
 Berger–Rigoutsos algorithm to create rectangular grids that contain the
 tagged cells.
 
-See :ref:`MeshRefinement`: for more details on how to specify regions for
+See :ref:`MeshRefinement` for more details on how to specify regions for
 refinement.
 
 .. _list-of-parameters-4:
