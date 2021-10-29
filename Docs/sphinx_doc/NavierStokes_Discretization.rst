@@ -228,7 +228,7 @@ Momentum, Thermal, and Scalar Diffusion Contribution to DNS
 
 Strain Rate Tensor
 ------------------
-The schematic below shows the definition of strain-rate components 
+The schematic below shows the definition of strain-rate components.
 
 .. image:: figures/grid_discretization/StrainRate.PNG
   :width: 400
@@ -270,7 +270,7 @@ The schematic below shows the definition of strain-rate components
    S_{33,k + \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \\
    S_{33,k - \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
    \end{array}
-   
+
 
 Momentum Conservation – U Momentum viscous stress divergence
 ------------------------------------------------------------
@@ -291,7 +291,7 @@ Note that LES equation has a similar format except how :math:`\tau_{11,i + \frac
 
 :math:`\tau_{ij,m + \frac{1}{2}} = 2\mu\ S_{ij,m + \frac{1}{2}}` and :math:`\tau_{ij,m - \frac{1}{2}} = 2\mu\ S_{ij,m - \frac{1}{2}}`, where :math:`m = i, j, k`.
 
-The nomenclature is similar for other two momentum equations. Note that :math:`\mu` is constant in the current implementation and its variation with temperature for low-Mach atmospheric flows has been ignored. 
+The nomenclature is similar for other two momentum equations. Note that :math:`\mu` is constant in the current implementation and its variation with temperature for low-Mach atmospheric flows has been ignored.
 
 Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
