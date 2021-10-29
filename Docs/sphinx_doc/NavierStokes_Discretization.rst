@@ -419,6 +419,9 @@ where
 
    S_{mn}S_{mn} = S_{11}^{2} + S_{22}^{2} + S_{33}^{2} + S_{12}^{2} + S_{13}^{2} + S_{23}^{2} + S_{21}^{2} + S_{31}^{2} + S_{32}^{2} \\
 
+
+Note that :math:`K_{i,j,k}` used in LES is analogous to :math:`2\mu_{i, j, k}` = :math:`2\mu` used in DNS.
+
 Owing to symmetry we need to compute 6 of the 9 tensor components.
 
 .. image:: figures/grid_discretization/EddyViscosity.PNG
