@@ -1,9 +1,9 @@
 #########################################
 Discretization of Navier-Stokes Equations
 #########################################
-Last update: 2021-10-25
+Last update: 2021-10-29
 
-NOTE: For the sake of simplicity, the discretized equations mention time level :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
+NOTE: For the sake of simplicity, the discretized equations mention time levels :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
 
 Staggered Grids
 ===============
@@ -137,7 +137,7 @@ Difference Equation
              & + \left.  \frac{1}{\Delta z}  \left\lbrack \left( \rho w \right)_{i,j,k + 1}^{n} \theta_{i,j,k + \frac{1}{2}}^{n} - \left( \rho w \right)_{i,j,k}^{n} \theta_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{align}
 
-contributions from different directions
+Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. image:: figures/grid_discretization/temp_advec_x.PNG
   :width: 400
@@ -147,7 +147,7 @@ contributions from different directions
   :width: 400
 
 Scalar Conservation – Scalar Advection
----------------------------------------
+--------------------------------------
 
 Difference Equation
 ~~~~~~~~~~~~~~~~~~~
@@ -160,8 +160,6 @@ Difference Equation
             & +        \frac{1}{\Delta y}  \left\lbrack \left( \rho v \right)_{i,j + 1,k}^{n} C_{i,j + \frac{1}{2},k}^{n} - \left( \rho v \right)_{i,j,k}^{n} C_{i,j - \frac{1}{2},k}^{n} \right\rbrack          \\
             & + \left. \frac{1}{\Delta z}  \left\lbrack \left( \rho w \right)_{i,j,k + 1}^{n} C_{i,j,k + \frac{1}{2}}^{n} - \left( \rho w \right)_{i,j,k}^{n} C_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
    \end{align}
-
-.. HACK -- removed the extra square bracket, line 3 first pw coeffecient
 
 
 Contributions from different directions
@@ -194,7 +192,7 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Differencing of Different Orders
 ================================
 
-:math:`[\rho, u, v, w, \theta]`,  :math:`m = i, j, k`,  and :math:`U_d = [u, v, w]` for :math:`[x, y, z]` directions respectively.
+:math:`[\rho, u, v, w, \rho\theta]`,  :math:`m = i, j, k`,  and :math:`U_d = [u, v, w]` for :math:`[x, y, z]` directions respectively.
 
 .. math::
 
@@ -208,7 +206,6 @@ Differencing of Different Orders
    \left. q_{m + \frac{1}{2}} \right|^{5th} = \left. q_{m + \frac{1}{2}} \right|^{6th}      & \hspace{-5pt} - \frac{U_{d}}{\left| U_{d} \right|}\frac{1}{60}\left\lbrack \left( q_{m + 3} + q_{m - 2} \right) \right. & \hspace{-5pt}- 5\left( q_{m + 2} + q_{m - 1} \right)                     + 10\left. \left( q_{m + 1} + q_{m} \right) \right\rbrack \\
    \end{array}
 
-|
 
 .. math::
 
@@ -231,25 +228,11 @@ Momentum, Thermal, and Scalar Diffusion Contribution to DNS
 
 Strain Rate Tensor
 ------------------
+The schematic below shows the definition of strain-rate components.
+
 .. image:: figures/grid_discretization/StrainRate.PNG
   :width: 400
 
-Momentum Conservation – U Momentum viscous stress divergence
-------------------------------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
-
-.. math::
-
-   \begin{align}
-   \left( \rho u \right)_{i,j,k}^{n + 1} = \left( \rho u \right)_{i,j,k}^{n} + & \\
-             \Delta t\ 2\rho_{i,j,k}\nu &  \left\{ \frac{1}{\Delta x} \ \left\lbrack S_{11,i + \frac{1}{2}} - S_{11,i - \frac{1}{2}} \right\rbrack \right. \\
-                                      &   +        \frac{1}{\Delta y}   \left\lbrack S_{12,j + \frac{1}{2}} - S_{12,j - \frac{1}{2}} \right\rbrack \\
-                                      &   + \left. \frac{1}{\Delta z}   \left\lbrack S_{13,k + \frac{1}{2}} - S_{13,k - \frac{1}{2}} \right\rbrack \right\}
-   \end{align}
-
-|
 
 .. math::
 
@@ -261,6 +244,54 @@ Difference Equation
    S_{13,k + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k + 1} - u_{i,j,k} \right) + \frac{1}{\Delta x}\left( w_{i,j,k + 1} - w_{i - 1,j,k + 1} \right) \right\rbrack \\
    S_{13,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
    \end{array}
+
+
+
+.. math::
+
+   \begin{array}{ll}
+   S_{21,i + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i + 1,j,k} - u_{i + 1,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i + 1,j,k} - v_{i,j,k} \right) \right\rbrack \\
+   S_{21,i - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j,k} - u_{i,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i,j,k} - v_{i - 1,j,k} \right) \right\rbrack \\
+   S_{22,j + \frac{1}{2}} = & \frac{1}{\Delta y}\left( v_{i,j + 1,k} - v_{i,j,k} \right) \\
+   S_{22,j - \frac{1}{2}} = & \frac{1}{\Delta y}\left( v_{i,j,k} - v_{i,j - 1,k} \right) \\
+   S_{23,k + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k + 1} - v_{i,j,k} \right) + \frac{1}{\Delta y}\left( w_{i,j,k + 1} - w_{i,j - 1,k + 1} \right) \right\rbrack \\
+   S_{23,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
+   \end{array}
+
+
+
+.. math::
+
+   \begin{array}{ll}
+   S_{31,i + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i + 1,j,k} - u_{i + 1,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i + 1,j,k} - w_{i,j,k} \right) \right\rbrack \\
+   S_{31,i - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k}     - u_{i,j,k - 1}     \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
+   S_{32,j + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j + 1,k} - v_{i,j + 1,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j + 1,k} - w_{i,j,k} \right) \right\rbrack \\
+   S_{32,j - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k}     - v_{i,j,k - 1}     \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
+   S_{33,k + \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \\
+   S_{33,k - \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
+   \end{array}
+
+
+Momentum Conservation – U Momentum viscous stress divergence
+------------------------------------------------------------
+
+Difference Equation
+~~~~~~~~~~~~~~~~~~~
+
+.. math::
+
+   \begin{align}
+   \left( \rho u \right)_{i,j,k}^{n + 1} = \left( \rho u \right)_{i,j,k}^{n} + & \\
+     \Delta t &  \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  \\
+              &        + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack           \\
+              & + \left. \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \end{align}
+
+Note that LES equation has a similar format except how :math:`\tau_{11,i + \frac{1}{2}}`, :math:`\tau_{11,i - \frac{1}{2}}`, :math:`\tau_{12,j + \frac{1}{2}}`, :math:`\tau_{12,j - \frac{1}{2}}`, :math:`\tau_{13,k + \frac{1}{2}}`, and :math:`\tau_{13,k - \frac{1}{2}}` are defined.
+
+:math:`\tau_{ij,m + \frac{1}{2}} = 2\mu\ S_{ij,m + \frac{1}{2}}` and :math:`\tau_{ij,m - \frac{1}{2}} = 2\mu\ S_{ij,m - \frac{1}{2}}`, where :math:`m = i, j, k`.
+
+The nomenclature is similar for other two momentum equations. Note that :math:`\mu` is constant in the current implementation and its variation with temperature for low-Mach atmospheric flows has been ignored.
 
 Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -279,23 +310,12 @@ Difference Equation
 
    \begin{align}
    \left( \rho v \right)_{i,j,k}^{n + 1} = \left( \rho v \right)_{i,j,k}^{n} + & \\
-   \Delta t\ 2\rho_{i,j,k}\nu &   \left\{ \frac{1}{\Delta x} \ \left\lbrack S_{21,i + \frac{1}{2}} - S_{21,i - \frac{1}{2}} \right\rbrack \right. \\
-                              &         + \frac{1}{\Delta y}  \left\lbrack S_{22,j + \frac{1}{2}} - S_{22,j - \frac{1}{2}} \right\rbrack         \\
-                              &  + \left. \frac{1}{\Delta z}  \left\lbrack S_{23,k + \frac{1}{2}} - S_{23,k - \frac{1}{2}} \right\rbrack \right\} \\
+     \Delta t & \left\{  \frac{1}{\Delta x} \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.  \\
+              &        + \frac{1}{\Delta y} \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack          \\
+              & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
 
-|
-
-.. math::
-
-   \begin{array}{ll}
-   S_{21,i + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i + 1,j,k} - u_{i + 1,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i + 1,j,k} - v_{i,j,k} \right) \right\rbrack \\
-   S_{21,i - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j,k} - u_{i,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i,j,k} - v_{i - 1,j,k} \right) \right\rbrack \\
-   S_{22,j + \frac{1}{2}} = & \frac{1}{\Delta y}\left( v_{i,j + 1,k} - v_{i,j,k} \right) \\
-   S_{22,j - \frac{1}{2}} = & \frac{1}{\Delta y}\left( v_{i,j,k} - v_{i,j - 1,k} \right) \\
-   S_{23,k + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k + 1} - v_{i,j,k} \right) + \frac{1}{\Delta y}\left( w_{i,j,k + 1} - w_{i,j - 1,k + 1} \right) \right\rbrack \\
-   S_{23,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
-   \end{array}
+Note that LES equation has a similar format except how :math:`\tau_{21,i + \frac{1}{2}}`, :math:`\tau_{21,i - \frac{1}{2}}`, :math:`\tau_{22,j + \frac{1}{2}}`, :math:`\tau_{22,j - \frac{1}{2}}`, :math:`\tau_{23,k + \frac{1}{2}}`, and :math:`\tau_{23,k - \frac{1}{2}}` are defined.
 
 Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -313,24 +333,13 @@ Difference Equation
 .. math::
 
    \begin{align}
-   \left( \rho w \right)_{i,j,k}^{n + 1}  = \left( \rho w \right)_{i,j,k}^{n} + & \\
-   \Delta t\ 2\rho_{i,j,k}\nu &  \left\{ \frac{1}{\Delta x}\ \left\lbrack S_{31,i + \frac{1}{2}} - S_{31,i - \frac{1}{2}} \right\rbrack \right.\ \\
-                              &        + \frac{1}{\Delta y}\ \left\lbrack S_{32,j + \frac{1}{2}} - S_{32,j - \frac{1}{2}} \right\rbrack          \\
-                              & + \left. \frac{1}{\Delta z}\ \left\lbrack S_{33,k + \frac{1}{2}} - S_{33,k - \frac{1}{2}} \right\rbrack \right\} \\
+   \left( \rho w \right)_{i,j,k}^{n + 1} = \left( \rho w \right)_{i,j,k}^{n} + & \\
+    \Delta t &  \left\{ \frac{1}{\Delta x} \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.  \\
+             &        + \frac{1}{\Delta y} \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack            \\
+             & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
 
-|
-
-.. math::
-
-   \begin{array}{ll}
-   S_{31,i + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i + 1,j,k} - u_{i + 1,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i + 1,j,k} - w_{i,j,k} \right) \right\rbrack \\
-   S_{31,i - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k}     - u_{i,j,k - 1}     \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
-   S_{32,j + \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j + 1,k} - v_{i,j + 1,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j + 1,k} - w_{i,j,k} \right) \right\rbrack \\
-   S_{32,j - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k}     - v_{i,j,k - 1}     \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
-   S_{33,k + \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \\
-   S_{33,k - \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
-   \end{array}
+Note that LES equation has a similar format except how :math:`\tau_{31,i + \frac{1}{2}}`, :math:`\tau_{31,i - \frac{1}{2}}`, :math:`\tau_{32,j + \frac{1}{2}}`, :math:`\tau_{32,j - \frac{1}{2}}`, :math:`\tau_{33,k + \frac{1}{2}}`, and :math:`\tau_{33,k - \frac{1}{2}}` are defined.
 
 Contributions from different directions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -390,7 +399,6 @@ The goal is to compute eddy viscosity at the *cell centers* and interpolated the
 
 .. math::
 
-
    \begin{matrix}
    S_{12} = & \frac{1}{4}\left\lbrack S_{12i,j - \frac{1}{2}} + S_{12i,j + \frac{1}{2}} + S_{12i + 1,j - \frac{1}{2}} + S_{12i + 1,j + \frac{1}{2}} \right\rbrack = \begin{smallmatrix} \text{Average of the 4 edges} \\ \text{surrouding the cell}\end{smallmatrix} \\
    S_{21} = & \frac{1}{4}\left\lbrack S_{21i - \frac{1}{2},j} + S_{21i + \frac{1}{2},j} + S_{21i - \frac{1}{2},j + 1} + S_{21i + \frac{1}{2},j + 1} \right\rbrack = \begin{smallmatrix} \text{Average of the 4 edges} \\ \text{surrouding the cell}\end{smallmatrix} \\
@@ -410,12 +418,15 @@ Note that:
    S_{23} = & S_{32}
    \end{array}
 
-:math:`K_{i,j,k} = {2\left( C_{S} \right)^{2}\rho_{i,j,k}\left( {2S}_{mn}S_{mn} \right)}^{\frac{1}{2}}`,
+:math:`K_{i,j,k} = {2\left( C_{S}\ \Delta \right)^{2}\left( {2S}_{mn}S_{mn} \right)}^{\frac{1}{2}} \ \rho_{i,j,k}`,
 where
 
 .. math::
 
    S_{mn}S_{mn} = S_{11}^{2} + S_{22}^{2} + S_{33}^{2} + S_{12}^{2} + S_{13}^{2} + S_{23}^{2} + S_{21}^{2} + S_{31}^{2} + S_{32}^{2} \\
+
+
+Note that :math:`K_{i,j,k}` used in LES is analogous to :math:`2\mu_{i, j, k}` = :math:`2\mu` used in DNS.
 
 Owing to symmetry we need to compute 6 of the 9 tensor components.
 
