@@ -698,7 +698,7 @@ List of Parameters
 | **erf.alpha_T**                  | Diffusion coeff.   | Real              | 1.0         |
 |                                  | for temperature    |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
-| **erf.alpha_S**                  | Diffusion coeff.   | Real              | 1.0         |
+| **erf.alpha_C**                  | Diffusion coeff.   | Real              | 1.0         |
 |                                  | for scalar         |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
 | **erf.use_smagorinsky**          | If true set        | true / false      | true        |
