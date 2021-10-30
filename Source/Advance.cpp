@@ -113,7 +113,7 @@ ERF::advance(Real time, Real dt, int amr_iteration, int amr_ncycle)
   // TODO: Better make it a member of the ERF class. Need to deal with static stuff.
    SolverChoice solverChoice(use_state_advection, use_momentum_advection,
                              use_thermal_diffusion, alpha_T,
-                             use_scalar_diffusion, alpha_S,
+                             use_scalar_diffusion, alpha_C,
                              use_momentum_diffusion, dynamicViscosity,
                              use_smagorinsky, Cs,
                              use_pressure, use_gravity, use_coriolis,

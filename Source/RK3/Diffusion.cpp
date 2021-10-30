@@ -149,7 +149,7 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
             diffCoeff = solverChoice.alpha_T;
             break;
         case RhoScalar_comp: // Scalar
-            diffCoeff = solverChoice.alpha_S;
+            diffCoeff = solverChoice.alpha_C;
             break;
         default:
             amrex::Abort("Error: Diffusion term for the data index isn't implemented");

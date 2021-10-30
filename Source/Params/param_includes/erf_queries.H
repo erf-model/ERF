@@ -9,7 +9,7 @@ pp.query("PrT", PrT);
 pp.query("job_name", job_name);
 
 pp.query("alpha_T", alpha_T);
-pp.query("alpha_S", alpha_S);
+pp.query("alpha_C", alpha_C);
 pp.query("dynamicViscosity", dynamicViscosity);
 pp.query("Cs", Cs);
 pp.query("spatial_order", spatial_order);
