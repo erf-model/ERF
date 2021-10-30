@@ -43,7 +43,7 @@ struct SolverChoice {
   public:
     SolverChoice(const bool use_state_advection_in, const bool use_momentum_advection_in,
                  bool  use_thermal_diffusion_in, const amrex::Real alpha_T_in,
-                 const bool use_scalar_diffusion_in, const amrex::Real alpha_S_in,
+                 const bool use_scalar_diffusion_in, const amrex::Real alpha_C_in,
                  const bool use_momentum_diffusion_in, const amrex::Real dynamicViscosity_in,
                  const bool use_smagorinsky_in, const amrex::Real Cs_in,
                  const bool use_pressure_in, const bool use_gravity_in,  const bool use_coriolis_in,
@@ -54,7 +54,7 @@ struct SolverChoice {
                  const amrex::Vector<amrex::Real> &abl_geo_forcing_in):
             use_state_advection(use_state_advection_in), use_momentum_advection(use_momentum_advection_in),
             use_thermal_diffusion(use_thermal_diffusion_in), alpha_T(alpha_T_in),
-            use_scalar_diffusion(use_scalar_diffusion_in), alpha_S(alpha_S_in),
+            use_scalar_diffusion(use_scalar_diffusion_in), alpha_C(alpha_C_in),
             use_momentum_diffusion(use_momentum_diffusion_in), dynamicViscosity(dynamicViscosity_in),
             use_smagorinsky(use_smagorinsky_in), Cs(Cs_in),
             use_pressure(use_pressure_in), use_gravity(use_gravity_in),  use_coriolis(use_coriolis_in),
@@ -76,7 +76,7 @@ struct SolverChoice {
         amrex::Print() << "use_thermal_diffusion: " << use_thermal_diffusion << std::endl;
         amrex::Print() << "alpha_T: " << alpha_T << std::endl;
         amrex::Print() << "use_scalar_diffusion: " << use_scalar_diffusion << std::endl;
-        amrex::Print() << "alpha_S: " << alpha_S << std::endl;
+        amrex::Print() << "alpha_C: " << alpha_C << std::endl;
         amrex::Print() << "use_momentum_diffusion: " << use_momentum_diffusion << std::endl;
         amrex::Print() << "dynamicViscosity: " << dynamicViscosity << std::endl;
         amrex::Print() << "use_smagorinsky: " << use_smagorinsky << std::endl;
@@ -111,7 +111,7 @@ struct SolverChoice {
     const bool        use_thermal_diffusion;
     const amrex::Real alpha_T;
     const bool        use_scalar_diffusion;
-    const amrex::Real alpha_S;
+    const amrex::Real alpha_C;
     const bool        use_momentum_diffusion;
     const amrex::Real dynamicViscosity;
     const bool        use_smagorinsky;

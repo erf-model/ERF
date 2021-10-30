@@ -9,7 +9,7 @@ static amrex::Real PrT;
 static std::string job_name;
 
 static amrex::Real alpha_T;
-static amrex::Real alpha_S;
+static amrex::Real alpha_C;
 static amrex::Real dynamicViscosity;
 static amrex::Real Cs;
 static int         spatial_order;

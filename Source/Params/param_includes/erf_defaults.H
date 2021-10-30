@@ -9,7 +9,7 @@ amrex::Real ERF::PrT = 1.0;
 std::string ERF::job_name = "";
 
 amrex::Real ERF::alpha_T = 1.0;
-amrex::Real ERF::alpha_S = 1.0;
+amrex::Real ERF::alpha_C = 1.0;
 amrex::Real ERF::dynamicViscosity = 1.7e-5;
 amrex::Real ERF::Cs = 0.1;
 int         ERF::spatial_order = 2;

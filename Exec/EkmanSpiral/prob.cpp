@@ -38,10 +38,10 @@ erf_init_prob(
   pp.get("rotational_time_period", rot_time_period);
   amrex::Real coriolis_factor = 4.0 * M_PI / rot_time_period;
 
-  amrex::Real alpha_S;
-  pp.get("alpha_S", alpha_S);
+  amrex::Real alpha_C;
+  pp.get("alpha_C", alpha_C);
 
-  const amrex::Real m_DE = std::sqrt(2.0 * alpha_S / coriolis_factor);
+  const amrex::Real m_DE = std::sqrt(2.0 * alpha_C / coriolis_factor);
   const amrex::Real a = 1.0 / m_DE;
   const amrex::Real u_0 = parms.V_0;
 
