@@ -17,6 +17,7 @@ using namespace amrex;
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         MultiFab& cons_in,
                         MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in,
+                        int ngrow,
                         const SolverChoice& solverChoice);
 
 void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in,
@@ -31,8 +32,9 @@ void RK3_advance(int level,
                  MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
-                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
-                 //InterpFaceRegister* ifr,
+                 const amrex::Geometry geom,
+                 const amrex::IntVect ref_ratio, 
+                 const amrex::Real* dxp, const amrex::Real dt, // InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
 
 void RK3_stage  (int level,
@@ -43,7 +45,7 @@ void RK3_stage  (int level,
                  MultiFab& source,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
-                 //InterpFaceRegister* ifr,
+                 // InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
 
 AMREX_GPU_DEVICE

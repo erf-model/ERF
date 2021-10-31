@@ -7,6 +7,7 @@ using namespace amrex;
 void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                          MultiFab& cons_in,
                          MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in,
+                         int ng,
                          const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
@@ -14,9 +15,9 @@ void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
     // Loop over boxes
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& tbx = mfi.nodaltilebox(0);
-        const Box& tby = mfi.nodaltilebox(1);
-        const Box& tbz = mfi.nodaltilebox(2);
+        const Box& tbx = amrex::grow(mfi.nodaltilebox(0),IntVect(0,ng,ng));
+        const Box& tby = amrex::grow(mfi.nodaltilebox(1),IntVect(ng,0,ng));
+        const Box& tbz = amrex::grow(mfi.nodaltilebox(2),IntVect(ng,ng,0));
 
         // Conserved variables on cell centers -- we use this for density
         const Array4<Real>& cons = cons_in.array(mfi);

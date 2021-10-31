@@ -110,12 +110,21 @@ void RK3_stage  (int level,
         int vlo_z = valid_bx.smallEnd(2);
         int vhi_z = valid_bx.bigEnd(2);
 
+#if 1
+        auto mlo_x = Array4<const int>{};
+        auto mhi_x = Array4<const int>{};
+        auto mlo_y = Array4<const int>{};
+        auto mhi_y = Array4<const int>{};
+        auto mlo_z = Array4<const int>{};
+        auto mhi_z = Array4<const int>{};
+#else
         auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
         auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
-        auto mlo_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
+        auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
         auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
         auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
+#endif
 
         const Array4<Real> & cell_data_old     = cons_old.array(mfi);
         const Array4<Real> & cell_data_upd     = cons_upd.array(mfi);
