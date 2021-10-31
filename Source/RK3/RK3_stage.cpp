@@ -2,10 +2,10 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
+//#include <AMReX_InterpFaceRegister.H>
 
 #include <Constants.H>
 
-#include <ERF.H>
 #include <RK3.H>
 #include <EOS.H>
 
@@ -15,14 +15,10 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                  MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
                  MultiFab& xmom_upd, MultiFab& ymom_upd, MultiFab& zmom_upd,
                  MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    ,
-                 MultiFab& prim    , MultiFab& source,
-                 MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
+                 MultiFab& source,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
-                 std::array< MultiFab, 2 >& edgeflux_x,
-                 std::array< MultiFab, 2 >& edgeflux_y,
-                 std::array< MultiFab, 2 >& edgeflux_z,
-                 std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 //InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("RK3_stage()",RK3_stage);
