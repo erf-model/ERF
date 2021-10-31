@@ -334,6 +334,7 @@ protected:
   static bool dump_old;
   static int verbose;
 
+  static std::string coupling_type;
   static int do_reflux;
   static int do_avg_down;
 

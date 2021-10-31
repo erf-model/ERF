@@ -30,6 +30,7 @@ amrex::Real ERF::fixed_dt    = -1.0;
 amrex::Real ERF::max_dt      =  1.e20;
 amrex::Real ERF::dt_cutoff   =  0.0;
 
+std::string ERF::coupling_type = "OneWay";
 int         ERF::do_reflux     = 0;
 int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
@@ -142,8 +143,19 @@ ERF::read_params()
   pp.query("sum_interval", sum_interval);
   pp.query("dump_old", dump_old);
 
-  pp.query("do_reflux"  , do_reflux);
-  pp.query("do_avg_down", do_avg_down);
+  pp.query("coupling_type",coupling_type);
+  if (coupling_type == "OneWay")
+  {
+      do_reflux = 0;
+      do_avg_down = 0;
+  } 
+  else if (coupling_type == "TwoWay") 
+  {
+      do_reflux = 1;
+      do_avg_down = 1;
+  } else {
+      amrex::Error("Unknown coupling type");
+  }
 
   // Time step controls
   pp.query("cfl", cfl);
