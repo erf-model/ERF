@@ -121,7 +121,7 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   //          V_new    (y-velocity on y-faces)
   //          W_new    (z-velocity on z-faces)
   // *****************************************************************
-  RK3_advance(level, 
+  RK3_advance(level,
               S_old, S_new,
               U_old, V_old, W_old,
               U_new, V_new, W_new,
