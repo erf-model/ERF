@@ -87,11 +87,11 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   V_old.FillBoundary(geom.periodicity());
   W_old.FillBoundary(geom.periodicity());
 
+  const auto& ref_ratio = (level > 0) ? parent->refRatio(level-1) : IntVect(1,1,1);
 #if 0
   InterpFaceRegister ifr;
   if (level > 0)
   {
-      const auto& ref_ratio = parent->refRatio(level-1);
       ifr.define(S_old.boxArray(), S_old.DistributionMap(), geom, ref_ratio);
   }
 #endif
@@ -115,6 +115,10 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   //faceflux[2] is of size (ncells_x    , ncells_y    , ncells_z + 1)
   faceflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
 
+  // Make sure to fill the ghost cells
+  MultiFab state_mf(grids,dmap,nvars,S_old.nGrow());
+  FillPatch(*this,state_mf,S_old.nGrow(),time,0,0,nvars);
+
   // *****************************************************************
   // Update the cell-centered state and face-based velocity using RK3
   // Inputs:
@@ -130,14 +134,15 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   //          W_new    (z-velocity on z-faces)
   // *****************************************************************
   RK3_advance(level,
-              S_old, S_new,
+              state_mf, S_new,
               U_old, V_old, W_old,
               U_new, V_new, W_new,
               rU_crse, rV_crse, rW_crse,
               source,
               faceflux,
-              geom, dx, dt,
-              //&ifr,
+              geom,
+              ref_ratio,
+              dx, dt, // &ifr,
               solverChoice);
 
   return dt;
