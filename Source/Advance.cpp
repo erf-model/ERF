@@ -62,17 +62,23 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   MultiFab& V_new = get_new_data(Y_Vel_Type);
   MultiFab& W_new = get_new_data(Z_Vel_Type);
 
-  MultiFab& U_crse = getLevel(level-1).get_old_data(X_Vel_Type);
-  MultiFab& V_crse = getLevel(level-1).get_old_data(Y_Vel_Type);
-  MultiFab& W_crse = getLevel(level-1).get_old_data(Z_Vel_Type);
+  MultiFab* S_crse;
+  MultiFab rU_crse, rV_crse, rW_crse;
 
-  MultiFab& S_crse = getLevel(level-1).get_old_data(State_Type);
+  if (level > 0)
+  {
+      S_crse = &getLevel(level-1).get_old_data(State_Type);
 
-  MultiFab rU_crse(U_crse.boxArray(), U_crse.DistributionMap(), 1, 1);
-  MultiFab rV_crse(V_crse.boxArray(), V_crse.DistributionMap(), 1, 1);
-  MultiFab rW_crse(W_crse.boxArray(), W_crse.DistributionMap(), 1, 1);
+      MultiFab& U_crse = getLevel(level-1).get_old_data(X_Vel_Type);
+      MultiFab& V_crse = getLevel(level-1).get_old_data(Y_Vel_Type);
+      MultiFab& W_crse = getLevel(level-1).get_old_data(Z_Vel_Type);
 
-  VelocityToMomentum(U_crse,V_crse,W_crse,S_crse,rU_crse,rV_crse,rW_crse,solverChoice);
+      rU_crse.define(U_crse.boxArray(), U_crse.DistributionMap(), 1, 1);
+      rV_crse.define(V_crse.boxArray(), V_crse.DistributionMap(), 1, 1);
+      rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, 1);
+
+      VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,solverChoice);
+  }
 
   // Fill level 0 ghost cells (including at periodic boundaries)
   //TODO: Check if we should consider the number of ghost cells as a function of spatial order here itself
@@ -81,12 +87,14 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   V_old.FillBoundary(geom.periodicity());
   W_old.FillBoundary(geom.periodicity());
 
-  //InterpFaceRegister ifr;
-  //if (level > 0)
-  //{
-  //    const auto& ref_ratio = parent->refRatio(level-1);
-  //    ifr.define(S_old.boxArray(), S_old.DistributionMap(), geom, ref_ratio);
-  //}
+#if 0
+  InterpFaceRegister ifr;
+  if (level > 0)
+  {
+      const auto& ref_ratio = parent->refRatio(level-1);
+      ifr.define(S_old.boxArray(), S_old.DistributionMap(), geom, ref_ratio);
+  }
+#endif
 
   const Real* dx = geom.CellSize();
   const BoxArray&            ba = S_old.boxArray();

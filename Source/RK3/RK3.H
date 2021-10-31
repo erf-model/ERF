@@ -35,7 +35,8 @@ void RK3_advance(int level,
                  //InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
 
-void RK3_stage  (MultiFab& cons_old, MultiFab& cons_new,
+void RK3_stage  (int level,
+                 MultiFab& cons_old, MultiFab& cons_new,
                  MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
                  MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
                  MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    ,

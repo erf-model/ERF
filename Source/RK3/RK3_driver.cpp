@@ -3,7 +3,6 @@
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
 
-#include <ERF.H>
 #include <RK3.H>
 
 using namespace amrex;
@@ -77,13 +76,15 @@ void RK3_advance(int level,
     ymom_old.FillBoundary(geom.periodicity());
     zmom_old.FillBoundary(geom.periodicity());
 
+#if 0
     // Interpolate from coarse faces to fine faces *only* on the coarse-fine boundary
-    //if (level > 0)
-    //{
-    //    amrex::Array<const MultiFab*,3> cmf{&xmom_crse, &ymom_crse, &zmom_crse};
-    //    amrex::Array<      MultiFab*,3> fmf{&xmom_old , &ymom_old , &zmom_old};
-    //    ifr->interp(fmf,cmf,0,1);
-    //}
+    if (level > 0)
+    {
+        amrex::Array<const MultiFab*,3> cmf{&xmom_crse, &ymom_crse, &zmom_crse};
+        amrex::Array<      MultiFab*,3> fmf{&xmom_old , &ymom_old , &zmom_old};
+        ifr->interp(fmf,cmf,0,1);
+    }
+#endif
 
     amrex::Vector<MultiFab*> vars_old{&cons_old, &xmom_old, &ymom_old, &zmom_old};
 
@@ -92,7 +93,7 @@ void RK3_advance(int level,
     // **************************************************************************************
     // RK3 stage 1: Return update in the cons_upd_1 and [x,y,z]mom_update_1 MultiFabs
     // **************************************************************************************
-    RK3_stage(cons_old, cons_upd_1,
+    RK3_stage(level, cons_old, cons_upd_1,
               xmom_old, ymom_old, zmom_old,
               xmom_update_1, ymom_update_1, zmom_update_1,
               xvel_old, yvel_old, zvel_old,
@@ -171,7 +172,7 @@ void RK3_advance(int level,
     // RK3 stage 2: Return update in the cons_upd_2 and [x,y,z]mom_update_2 MultiFabs
     // **************************************************************************************
     // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
-    RK3_stage(cons_upd_1, cons_upd_2,
+    RK3_stage(level, cons_upd_1, cons_upd_2,
               xmom_update_1, ymom_update_1, zmom_update_1,
               xmom_update_2, ymom_update_2, zmom_update_2,
               xvel_new, yvel_new, zvel_new,
@@ -255,7 +256,7 @@ void RK3_advance(int level,
     // RK3 stage 3: Return update in the cons_new and [x,y,z]mom_new MultiFabs
     // **************************************************************************************
     // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
-    RK3_stage(cons_upd_2, cons_new,
+    RK3_stage(level, cons_upd_2, cons_new,
               xmom_update_2, ymom_update_2, zmom_update_2,
               xmom_new, ymom_new, zmom_new,
               xvel_new, yvel_new, zvel_new,

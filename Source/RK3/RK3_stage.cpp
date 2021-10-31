@@ -11,7 +11,8 @@
 
 using namespace amrex;
 
-void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
+void RK3_stage  (int level,
+                 MultiFab& cons_old,  MultiFab& cons_upd,
                  MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
                  MultiFab& xmom_upd, MultiFab& ymom_upd, MultiFab& zmom_upd,
                  MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    ,
@@ -72,6 +73,22 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
     amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};
     ERF::applyBCs(geom, eddyvisc_update);
 
+    const iMultiFab *mlo_mf_x, *mhi_mf_x;
+    const iMultiFab *mlo_mf_y, *mhi_mf_y;
+    const iMultiFab *mlo_mf_z, *mhi_mf_z;
+
+#if 0
+    if (level > 0)
+    {
+        mlo_mf_x = &(ifr->mask(Orientation(0,Orientation::low)));
+        mhi_mf_x = &(ifr->mask(Orientation(0,Orientation::high)));
+        mlo_mf_y = &(ifr->mask(Orientation(1,Orientation::low)));
+        mhi_mf_y = &(ifr->mask(Orientation(1,Orientation::high)));
+        mlo_mf_z = &(ifr->mask(Orientation(2,Orientation::low)));
+        mhi_mf_z = &(ifr->mask(Orientation(2,Orientation::high)));
+    }
+#endif
+
     // *************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
     //TODO: Benchmarking of performance. We are computing the fluxes on the fly.
@@ -84,6 +101,21 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
         const Box& tbx = mfi.nodaltilebox(0);
         const Box& tby = mfi.nodaltilebox(1);
         const Box& tbz = mfi.nodaltilebox(2);
+
+        Box const& valid_bx = mfi.validbox();
+        int vlo_x = valid_bx.smallEnd(0);
+        int vhi_x = valid_bx.bigEnd(0);
+        int vlo_y = valid_bx.smallEnd(2);
+        int vhi_y = valid_bx.bigEnd(1);
+        int vlo_z = valid_bx.smallEnd(2);
+        int vhi_z = valid_bx.bigEnd(2);
+
+        auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
+        auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
+        auto mlo_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
+        auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
+        auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
+        auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
         const Array4<Real> & cell_data_old     = cons_old.array(mfi);
         const Array4<Real> & cell_data_upd     = cons_upd.array(mfi);
@@ -132,6 +164,16 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
 
             rho_u_upd(i, j, k) = 0.0; // Initialize the updated x-mom eqn term to zero
 
+            bool on_coarse_fine_boundary = false;
+            if (level > 0)
+            {
+               on_coarse_fine_boundary =
+                 ( (i == vlo_x && mlo_x(i,j,k)) || (i == vhi_x+1 && mhi_x(i,j,k)) );
+            }
+
+            if (!on_coarse_fine_boundary)
+            {
+
             // Add advective terms
             if (solverChoice.use_momentum_advection)
                 rho_u_upd(i, j, k) += (-dt) *
@@ -168,10 +210,22 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             // Add geostrophic forcing
             if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
                 rho_u_upd(i, j, k) += dt * solverChoice.abl_geo_forcing[0];
+
+            } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
 
             rho_v_upd(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
+
+            bool on_coarse_fine_boundary = false;
+            if (level > 0)
+            {
+               on_coarse_fine_boundary =
+                 ( (j == vlo_y && mlo_y(i,j,k)) || (j == vhi_y+1 && mhi_y(i,j,k)) );
+            }
+
+            if (!on_coarse_fine_boundary)
+            {
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
@@ -206,10 +260,22 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
             // Add geostrophic forcing
             if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
                 rho_v_upd(i, j, k) += dt * solverChoice.abl_geo_forcing[1];
+
+            } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
             rho_w_upd(i, j, k) = 0.0; // Initialize the updated z-mom eqn term to zero
+
+            bool on_coarse_fine_boundary = false;
+            if (level > 0)
+            {
+               on_coarse_fine_boundary =
+                 ( (k == vlo_z && mlo_z(i,j,k)) || (k == vhi_z+1 && mhi_z(i,j,k)) );
+            }
+
+            if (!on_coarse_fine_boundary)
+            {
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
@@ -241,6 +307,7 @@ void RK3_stage  (MultiFab& cons_old,  MultiFab& cons_upd,
                 Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
                 rho_w_upd(i, j, k) += dt * solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
             }
+            } // not on coarse-fine boundary
         });
     }
 }
