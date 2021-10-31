@@ -148,8 +148,8 @@ ERF::read_params()
   {
       do_reflux = 0;
       do_avg_down = 0;
-  } 
-  else if (coupling_type == "TwoWay") 
+  }
+  else if (coupling_type == "TwoWay")
   {
       do_reflux = 1;
       do_avg_down = 1;
