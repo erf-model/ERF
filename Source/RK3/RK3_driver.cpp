@@ -15,7 +15,7 @@ void RK3_advance(int level,
                  MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
-                 const amrex::Geometry geom, 
+                 const amrex::Geometry geom,
                  const amrex::IntVect ref_ratio,
                  const amrex::Real* dxp, const amrex::Real dt,
                  //InterpFaceRegister* ifr,
@@ -75,7 +75,7 @@ void RK3_advance(int level,
     VelocityToMomentum(xvel_old, yvel_old, zvel_old, cons_old, xmom_old, ymom_old, zmom_old, solverChoice);
 
     // **************************************************************************************
-    // HACK HACK HACK -- We copy all of S_old into 
+    // HACK HACK HACK -- We copy all of S_old into
     //     cons_upd_1 and cons_upd_2 just so that we can
     //     have values defined in the ghost cells.
     // TODO:  we need to fix this so that cons_upd_1 and cons_upd_2

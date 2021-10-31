@@ -33,7 +33,7 @@ void RK3_advance(int level,
                  MultiFab& source,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
                  const amrex::Geometry geom,
-                 const amrex::IntVect ref_ratio, 
+                 const amrex::IntVect ref_ratio,
                  const amrex::Real* dxp, const amrex::Real dt, // InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
 

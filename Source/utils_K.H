@@ -16,7 +16,7 @@
 //
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
 face_interp_x (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
-	       amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
+           amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
 {
     int rmod = i%ratio[0];
 
@@ -31,7 +31,7 @@ face_interp_x (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fin
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
 face_interp_y (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
-	       amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
+           amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
 {
     int rmod = j%ratio[1];
 
@@ -46,7 +46,7 @@ face_interp_y (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fin
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
 face_interp_z (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
-	       amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
+           amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
 {
     int rmod = k%ratio[2];
 

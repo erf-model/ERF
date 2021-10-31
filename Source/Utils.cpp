@@ -77,13 +77,13 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
             const MultiFab& u_macLL = *u_mac_crse[idim];
             crse_src.ParallelCopy(u_macLL,0,0,1,u_macLL.nGrow(),0);
 
-	    const amrex::GpuArray<int,AMREX_SPACEDIM> c_ratio = {AMREX_D_DECL(crse_ratio[0],crse_ratio[1],crse_ratio[2])};
+        const amrex::GpuArray<int,AMREX_SPACEDIM> c_ratio = {AMREX_D_DECL(crse_ratio[0],crse_ratio[1],crse_ratio[2])};
 
-	    //
-	    // Fill fine values with piecewise-constant interp of coarse data.
-	    // Operate only on faces that overlap--ie, only fill the fine faces that make up each
-	    // coarse face, leave the in-between faces alone.
-	    //
+        //
+        // Fill fine values with piecewise-constant interp of coarse data.
+        // Operate only on faces that overlap--ie, only fill the fine faces that make up each
+        // coarse face, leave the in-between faces alone.
+        //
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -96,7 +96,7 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
                 ParallelFor(box,[crs_arr,fine_arr,idim,c_ratio]
                 AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-		   int idx[3] = {AMREX_D_DECL(i*c_ratio[0],j*c_ratio[1],k*c_ratio[2])};
+           int idx[3] = {AMREX_D_DECL(i*c_ratio[0],j*c_ratio[1],k*c_ratio[2])};
 #if ( AMREX_SPACEDIM == 2 )
                    // dim1 are the complement of idim
                    int dim1 = ( idim == 0 ) ? 1 : 0;
@@ -141,28 +141,28 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
                 const Box& fbox  = fine_src[mfi].box();
                 auto const& fine_arr = fine_src.array(mfi);
 
-		if (fbox.type(0) == IndexType::NODE)
-	        {
-		  AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
-		  {
-		    face_interp_x(i,j,k,n,fine_arr,c_ratio);
-		  });
-		}
-		else if (fbox.type(1) == IndexType::NODE)
-		{
-		  AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
-		  {
-		    face_interp_y(i,j,k,n,fine_arr,c_ratio);
-		  });
-		}
+        if (fbox.type(0) == IndexType::NODE)
+            {
+          AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
+          {
+            face_interp_x(i,j,k,n,fine_arr,c_ratio);
+          });
+        }
+        else if (fbox.type(1) == IndexType::NODE)
+        {
+          AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
+          {
+            face_interp_y(i,j,k,n,fine_arr,c_ratio);
+          });
+        }
 #if (AMREX_SPACEDIM == 3)
-		else
-		{
-		  AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
+        else
+        {
+          AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
                   {
-		    face_interp_z(i,j,k,n,fine_arr,c_ratio);
-		  });
-		}
+            face_interp_z(i,j,k,n,fine_arr,c_ratio);
+          });
+        }
 #endif
             }
 
@@ -176,7 +176,7 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
 
     for (int n = 0; n < BL_SPACEDIM; ++n)
     {
-	u_mac_fine[n]->FillBoundary(fine_geom.periodicity());
+    u_mac_fine[n]->FillBoundary(fine_geom.periodicity());
     }
 }
 

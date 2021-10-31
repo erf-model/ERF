@@ -38,12 +38,12 @@ struct FCFillExtDirDummy
        const int bcomp,
        const int /*orig_comp*/) const
     {
-        // Abort if an calling this function was supposed to fill an ext_dir BC. 
+        // Abort if an calling this function was supposed to fill an ext_dir BC.
         for (int n = bcomp; n < bcomp+numcomp; ++n) {
             const amrex::BCRec& bc = bcr[n];
             if ( AMREX_D_TERM(   bc.lo(0) == amrex::BCType::ext_dir || bc.hi(0) == amrex::BCType::ext_dir,
                               || bc.lo(1) == amrex::BCType::ext_dir || bc.hi(1) == amrex::BCType::ext_dir,
-                              || bc.lo(2) == amrex::BCType::ext_dir || bc.hi(2) == amrex::BCType::ext_dir ) ) { 
+                              || bc.lo(2) == amrex::BCType::ext_dir || bc.hi(2) == amrex::BCType::ext_dir ) ) {
                amrex::Abort("FCFillExtDirDummy is a dummy placeholder and should not be used in combination with BCType::ext_dir");
             }
         }
