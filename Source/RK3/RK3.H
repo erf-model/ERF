@@ -4,6 +4,7 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
+//#include <AMReX_InterpFaceRegister.H>
 #include <ERF.H>
 #include "IndexDefines.H"
 
@@ -23,31 +24,26 @@ void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in
                         MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out,
                         const SolverChoice& solverChoice);
 
-void RK3_advance(MultiFab& cons_old, MultiFab& cons_new,
+void RK3_advance(int level,
+                 MultiFab& cons_old, MultiFab& cons_new,
                  MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
                  MultiFab& U_new, MultiFab& V_new, MultiFab& W_new,
+                 MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
-                 MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
-                 std::array< MultiFab, 2 >& edgeflux_x,
-                 std::array< MultiFab, 2 >& edgeflux_y,
-                 std::array< MultiFab, 2 >& edgeflux_z,
-                 std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 //InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
 
-void RK3_stage  (MultiFab& cons_old, MultiFab& cons_new,
+void RK3_stage  (int level,
+                 MultiFab& cons_old, MultiFab& cons_new,
                  MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
                  MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
                  MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    ,
-                 MultiFab& prim    , MultiFab& source,
-                 MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
+                 MultiFab& source,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
-                 std::array< MultiFab, 2 >& edgeflux_x,
-                 std::array< MultiFab, 2 >& edgeflux_y,
-                 std::array< MultiFab, 2 >& edgeflux_z,
-                 std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 //InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
 
 AMREX_GPU_DEVICE

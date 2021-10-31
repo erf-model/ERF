@@ -144,26 +144,6 @@ public:
   virtual amrex::Real
   advance(amrex::Real time, amrex::Real dt, int iteration, int ncycle) override;
 
-///*
-//  void getLESTerm(
-//    amrex::Real time,
-//    amrex::Real dt,
-//    amrex::MultiFab& LESTerm,
-//    amrex::Real flux_factor);
-//
-//  void getSmagorinskyLESTerm(
-//    amrex::Real time,
-//    amrex::Real dt,
-//    amrex::MultiFab& LESTerm,
-//    amrex::Real flux_factor);
-//
-//  void getDynamicSmagorinskyLESTerm(
-//    amrex::Real time,
-//    amrex::Real dt,
-//    amrex::MultiFab& LESTerm,
-//    amrex::Real flux_factor);
-//*/
-
   // Estimate time step.
   amrex::Real estTimeStep(amrex::Real dt_old);
 

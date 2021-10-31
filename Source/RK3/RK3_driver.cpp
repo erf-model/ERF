@@ -2,24 +2,20 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-//#include <AMReX_VisMF.H>
 
-#include <ERF.H>
 #include <RK3.H>
 
 using namespace amrex;
 
-void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
+void RK3_advance(int level,
+                 MultiFab& cons_old,  MultiFab& cons_new,
                  MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
                  MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
+                 MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
-                 MultiFab& eta, MultiFab& zeta, MultiFab& kappa,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
-                 std::array< MultiFab, 2 >& edgeflux_x,
-                 std::array< MultiFab, 2 >& edgeflux_y,
-                 std::array< MultiFab, 2 >& edgeflux_z,
-                 std::array< MultiFab, AMREX_SPACEDIM>& cenflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                 //InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("RK3stepStag()",RK3stepStag);
@@ -31,11 +27,6 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     //TODO: Also explore how 'ngrow' should be related to the spatial_order
     int ngc = ComputeGhostCells(solverChoice.spatial_order);
 
-    // Allocate temporary MultiFab to hold the primitive variables
-    // **************************************************************************************
-    // TODO: Check if we need this. This is passed to RK3_stage, but nothing is done on it.
-    MultiFab primitive(cons_old.boxArray(),cons_old.DistributionMap(),nvars,2);
-
     // Allocate temporary MultiFabs to hold the intermediate updates
     // **************************************************************************************
     const BoxArray& ba            = cons_old.boxArray();
@@ -44,6 +35,7 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // Intermediate solutions (state) -- At cell centers
     MultiFab cons_upd_1(ba,dm,nvars,ngc);
     MultiFab cons_upd_2(ba,dm,nvars,ngc);
+
     cons_upd_1.setVal(0.0,Rho_comp,nvars,ngc);
     cons_upd_2.setVal(0.0,Rho_comp,nvars,ngc);
 
@@ -84,35 +76,31 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     ymom_old.FillBoundary(geom.periodicity());
     zmom_old.FillBoundary(geom.periodicity());
 
+#if 0
+    // Interpolate from coarse faces to fine faces *only* on the coarse-fine boundary
+    if (level > 0)
+    {
+        amrex::Array<const MultiFab*,3> cmf{&xmom_crse, &ymom_crse, &zmom_crse};
+        amrex::Array<      MultiFab*,3> fmf{&xmom_old , &ymom_old , &zmom_old};
+        ifr->interp(fmf,cmf,0,1);
+    }
+#endif
+
     amrex::Vector<MultiFab*> vars_old{&cons_old, &xmom_old, &ymom_old, &zmom_old};
 
     ERF::applyBCs(geom, vars_old);
 
     // **************************************************************************************
-    Real rho0 = 1.0;
-    //TODO: Do we really need to use setVal again when we have done earlier with values of 0
-    cons_upd_1.setVal(rho0,Rho_comp,1,ngc);
-    cons_upd_2.setVal(rho0,Rho_comp,1,ngc);
-//    const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
-//    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, 0.0};
-//    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
-
-    // **************************************************************************************
     // RK3 stage 1: Return update in the cons_upd_1 and [x,y,z]mom_update_1 MultiFabs
     // **************************************************************************************
-    // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
-    RK3_stage(cons_old, cons_upd_1,
+    RK3_stage(level, cons_old, cons_upd_1,
               xmom_old, ymom_old, zmom_old,
               xmom_update_1, ymom_update_1, zmom_update_1,
-              xvel_old, yvel_old, zvel_old, primitive,  // These are used as temporary space
+              xvel_old, yvel_old, zvel_old,
               source,
-              eta, zeta, kappa,
               faceflux,
-              edgeflux_x,
-              edgeflux_y,
-              edgeflux_z,
-              cenflux,
               geom, dxp, dt,
+              //ifr,
               solverChoice);
 
     // **************************************************************************************
@@ -184,18 +172,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // RK3 stage 2: Return update in the cons_upd_2 and [x,y,z]mom_update_2 MultiFabs
     // **************************************************************************************
     // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
-    RK3_stage(cons_upd_1, cons_upd_2,
+    RK3_stage(level, cons_upd_1, cons_upd_2,
               xmom_update_1, ymom_update_1, zmom_update_1,
               xmom_update_2, ymom_update_2, zmom_update_2,
-              xvel_new, yvel_new, zvel_new, primitive,  // These are used as temporary space
+              xvel_new, yvel_new, zvel_new,
               source,
-              eta, zeta, kappa,
               faceflux,
-              edgeflux_x,
-              edgeflux_y,
-              edgeflux_z,
-              cenflux,
               geom, dxp, dt,
+              //ifr,
               solverChoice);
 
     // **************************************************************************************
@@ -272,18 +256,14 @@ void RK3_advance(MultiFab& cons_old,  MultiFab& cons_new,
     // RK3 stage 3: Return update in the cons_new and [x,y,z]mom_new MultiFabs
     // **************************************************************************************
     // TODO: We won't need faceflux, edgeflux, and centflux when using the new code architecture
-    RK3_stage(cons_upd_2, cons_new,
+    RK3_stage(level, cons_upd_2, cons_new,
               xmom_update_2, ymom_update_2, zmom_update_2,
               xmom_new, ymom_new, zmom_new,
-              xvel_new, yvel_new, zvel_new, primitive,  // These are used as temporary space
+              xvel_new, yvel_new, zvel_new,
               source,
-              eta, zeta, kappa,
-              faceflux,   // These are just temporary space
-              edgeflux_x, // These are just temporary space
-              edgeflux_y, // These are just temporary space
-              edgeflux_z, // These are just temporary space
-              cenflux,    // These are just temporary space
+              faceflux,
               geom, dxp, dt,
+              //ifr,
               solverChoice);
     // **************************************************************************************
     // RK3 stage 3: Define updates in the third RK stage
