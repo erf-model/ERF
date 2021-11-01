@@ -17,9 +17,6 @@ amr.n_cell           =    64      64     64   # TODO: Enhance the resolution in 
 erf.lo_bc       = "Interior"   "Interior"   "NoSlipWall"
 erf.hi_bc       = "Interior"   "Interior"   "SlipWall"
 
-# WHICH PHYSICS
-erf.do_hydro = 1
-
 # TIME STEP CONTROL
 #TODO: Need to play around with time step to get rid of ringing
 erf.fixed_dt       = 5.0e-3    # dx = 1024/64 = 16m => dt = CFL*dx/U # fixed time step depending on grid resolution

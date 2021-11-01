@@ -70,7 +70,6 @@ amr.n_cell = 32 16 4
 erf.lo_bc = Interior NoSlipWall Interior
 erf.hi_bc = Interior Dirichlet Interior
 yhi.velocity = 2.0 0.0 0.0
-erf.do_hydro(nvals = 1)  :: [1]
 erf.fixed_dt = 0.1
 erf.init_shrink = 1.0
 erf.change_max = 1.05

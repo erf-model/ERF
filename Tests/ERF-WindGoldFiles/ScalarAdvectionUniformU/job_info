@@ -69,7 +69,6 @@ geometry.prob_hi = 1 1 1
 amr.n_cell = 16 16 16
 erf.lo_bc = Interior Interior Interior
 erf.hi_bc = Interior Interior Interior
-erf.do_hydro(nvals = 1)  :: [1]
 erf.cfl = 0.9
 erf.init_shrink = 1.0
 erf.change_max = 1.05

@@ -19,9 +19,6 @@ erf.hi_bc       = "Interior"   "Dirichlet"   "Interior"
 
 yhi.velocity    = 2.0 0.0 0.0  # for Dirichlet BC
 
-# WHICH PHYSICS
-erf.do_hydro = 1
-
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.1     # fixed time step
 #erf.cfl            = 0.9    # cfl number for hyperbolic system
