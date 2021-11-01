@@ -18,9 +18,6 @@ amr.n_cell           = 4 4 400
 erf.lo_bc       = "Interior"   "Interior"   "NoSlipWall"
 erf.hi_bc       = "Interior"   "Interior"   "SlipWall"
 
-# WHICH PHYSICS
-erf.do_hydro = 1
-
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.5     # fixed time step
 erf.init_shrink    = 1.0     # scale back initial timestep

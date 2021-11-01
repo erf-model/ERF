@@ -17,9 +17,6 @@ amr.n_cell           = 64     64     4 #TODO: Need to play around with resolutio
 erf.lo_bc       = "Interior"   "NoSlipWall"   "Interior"
 erf.hi_bc       = "Interior"   "NoSlipWall"   "Interior"
 
-# WHICH PHYSICS
-erf.do_hydro = 1
-
 # TIME STEP CONTROL
 erf.fixed_dt       = 5e-5    # fixed time step #TODO: Need to play around with time step to get rid of ringing
 #erf.cfl            = 0.9     # cfl number for hyperbolic system

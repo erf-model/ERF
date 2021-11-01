@@ -17,9 +17,6 @@ amr.n_cell           = 64     64     64
 erf.lo_bc       = "Interior"   "Interior"   "Interior"
 erf.hi_bc       = "Interior"   "Interior"   "Interior"
 
-# WHICH PHYSICS
-erf.do_hydro = 1
-
 # TIME STEP CONTROL
 erf.fixed_dt       = 1e-2    # fixed time step
 #erf.cfl            = 0.9     # cfl number for hyperbolic system
