@@ -22,3 +22,9 @@ sudo apt-get install -y --no-install-recommends \
     g++ gfortran    \
     libopenmpi-dev  \
     openmpi-bin
+
+# cmake-easyinstall
+#
+sudo curl -L -o /usr/local/bin/cmake-easyinstall https://git.io/JvLxY
+sudo chmod a+x /usr/local/bin/cmake-easyinstall
+export CEI_SUDO="sudo"
