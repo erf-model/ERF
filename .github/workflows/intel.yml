@@ -1,0 +1,187 @@
+name: ERF CI (intel)
+
+on:
+  push:
+    # branches: [development]
+    paths-ignore:
+      - Docs
+      - README.rst
+      - license.txt
+
+  pull_request:
+    branches: [development]
+
+concurrency:
+  group: ${{ github.head_ref }}-intel
+  cancel-in-progress: true
+
+jobs:
+  tests-dpcpp:
+    name: DPCPP GFortran@7.5 C++17 [tests]
+    runs-on: ubuntu-20.04
+    # mkl/rng/device/detail/mrg32k3a_impl.hpp has a number of sign-compare error
+    # Since 2021.4.0, AMReX_GpuUtility.H: error: comparison with NaN always evaluates to false in fast floating point modes
+    env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual -Wextra-semi -Wunreachable-code -Wno-sign-compare -Wno-tautological-constant-compare"}
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Dependencies
+      run: .github/workflows/dependencies/dependencies_dpcpp.sh
+
+    - name: Build & Install
+      run: |
+        set +e
+        source /opt/intel/oneapi/setvars.sh
+        set -e
+
+        cmake \
+          -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
+          -DCMAKE_VERBOSE_MAKEFILE=ON                   \
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_DPCPP:BOOL=ON \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_MASA:BOOL=OFF \
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
+          -DERF_ENABLE_AMREX_EB:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          -DCODECOV:BOOL=ON \
+          -DCMAKE_C_COMPILER=$(which clang)             \
+          -DCMAKE_CXX_COMPILER=$(which dpcpp)         \
+          -DCMAKE_CXX_STANDARD=17 \
+          ${{github.workspace}};
+
+        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}};
+
+    - name: Regression Tests
+      run: |
+        set +e
+        source /opt/intel/oneapi/setvars.sh
+        set -e
+        ctest -L regression -VV
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+
+    - name: Generate coverage report
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+      run: |
+        find . -type f -name '*.gcno' -path "**Source**" -exec gcov -pb {} +
+        cd ..
+        gcovr -g -k -r . --xml regressioncov.xml  # -v
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
+      with:
+        dry_run: false
+        # token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+        files: ./regressioncov.xml # optional
+        flags: regtests # optional
+        # name: codecov-umbrella # optional
+        fail_ci_if_error: true # optional (default = false)
+        verbose: true # optional (default = false)
+        directory: ${{runner.workspace}}/ERF
+
+    - name: Success artifacts
+      uses: actions/upload-artifact@v2
+      if: success()
+      with:
+        name: build-and-test
+        path: |
+          ${{runner.workspace}}/ERF/regressioncov.xml
+    - name: Failing test artifacts
+      uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: build-and-test
+        path: |
+          ${{runner.workspace}}/ERF/regressioncov.xml
+
+
+# "Classic" EDG Intel Compiler
+# Ref.: https://github.com/rscohn2/oneapi-ci
+# intel-basekit intel-hpckit are too large in size
+  tests-icc:
+    name: ICC [tests]
+    runs-on: ubuntu-20.04
+    env: {CXXFLAGS: "-Werror"}
+    steps:
+    - uses: actions/checkout@v2
+    - name: install dependencies
+      run: |
+        export DEBIAN_FRONTEND=noninteractive
+        sudo apt-get -qqq update
+        sudo apt-get install -y wget build-essential pkg-config cmake ca-certificates gnupg
+        sudo wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
+        sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
+        echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+        sudo apt-get update
+        sudo apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-compiler-fortran intel-oneapi-mpi-devel
+
+    - name: build
+      run: |
+        set +e
+        source /opt/intel/oneapi/setvars.sh
+        set -e
+
+        cmake \
+          -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
+          -DCMAKE_VERBOSE_MAKEFILE=ON                   \
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_MASA:BOOL=OFF \
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
+          -DERF_ENABLE_AMREX_EB:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          -DCODECOV:BOOL=ON \
+          -DCMAKE_C_COMPILER=$(which icc)             \
+          -DCMAKE_CXX_COMPILER=$(which icpc)         \
+          -DCMAKE_CXX_STANDARD=17 \
+          ${{github.workspace}};
+
+        cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}};
+
+    - name: Regression Tests
+      run: |
+        set +e
+        source /opt/intel/oneapi/setvars.sh
+        set -e
+        ctest -L regression -VV
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+
+    - name: Generate coverage report
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+      run: |
+        find . -type f -name '*.gcno' -path "**Source**" -exec gcov -pb {} +
+        cd ..
+        gcovr -g -k -r . --xml regressioncov.xml  # -v
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
+      with:
+        dry_run: false
+        # token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+        files: ./regressioncov.xml # optional
+        flags: regtests # optional
+        # name: codecov-umbrella # optional
+        fail_ci_if_error: true # optional (default = false)
+        verbose: true # optional (default = false)
+        directory: ${{runner.workspace}}/ERF
+
+    - name: Success artifacts
+      uses: actions/upload-artifact@v2
+      if: success()
+      with:
+        name: build-and-test
+        path: |
+          ${{runner.workspace}}/ERF/regressioncov.xml
+    - name: Failing test artifacts
+      uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: build-and-test
+        path: |
+          ${{runner.workspace}}/ERF/regressioncov.xml
