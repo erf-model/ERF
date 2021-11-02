@@ -36,7 +36,7 @@ jobs:
         source /opt/intel/oneapi/setvars.sh
         set -e
 
-        cmake \
+        cmake -S . \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_VERBOSE_MAKEFILE=ON                   \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
@@ -129,7 +129,7 @@ jobs:
         source /opt/intel/oneapi/setvars.sh
         set -e
 
-        cmake \
+        cmake -S . \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_VERBOSE_MAKEFILE=ON                   \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
