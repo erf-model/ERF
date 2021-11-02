@@ -66,15 +66,16 @@ jobs:
           -DERF_ENABLE_AMREX_EB:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
           -DCODECOV:BOOL=ON \
-          -DAMReX_GPU_BACKEND=HIP                       \
-          -DAMReX_AMD_ARCH=gfx908                       \
           -DCMAKE_C_COMPILER=$(which clang)             \
           -DCMAKE_CXX_COMPILER=$(which clang++)         \
           -DCMAKE_CXX_STANDARD=17 \
           ${{github.workspace}};
         # ${{matrix.mpipreflags}} \
 
-          # cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}};
+        # for some reason this cmake command fails to build the code,
+        # and we need to use the make command that follows instead ...
+        # cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}};
+
         pushd ${{runner.workspace}}/ERF/build-${{matrix.os}};
         make -j ${{env.NPROCS}};
 
