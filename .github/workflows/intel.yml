@@ -24,6 +24,8 @@ jobs:
     env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual -Wextra-semi -Wunreachable-code -Wno-sign-compare -Wno-tautological-constant-compare"}
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: true
 
     - name: Dependencies
       run: .github/workflows/dependencies/dependencies_dpcpp.sh
@@ -107,6 +109,9 @@ jobs:
     env: {CXXFLAGS: "-Werror"}
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: true
+
     - name: install dependencies
       run: |
         export DEBIAN_FRONTEND=noninteractive
