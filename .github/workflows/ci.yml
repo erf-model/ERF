@@ -79,9 +79,9 @@ jobs:
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_AMREX_EB:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
-          # -DCODECOVERAGE:BOOL=ON \
           ${{github.workspace}};
         # ${{matrix.mpipreflags}} \
+        # -DCODECOVERAGE:BOOL=ON \
 
     - name: Build
       run: |

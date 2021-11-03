@@ -8,7 +8,7 @@ Test Status
 ~~~~~~~~~~~
 
 =================  =============
-Regression Tests    |regtests|  
+Regression Tests    |regtests|
 =================  =============
 
 .. |regtests| image:: https://github.com/erf-model/ERF/actions/workflows/ci.yml/badge.svg?branch=development
