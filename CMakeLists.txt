@@ -41,14 +41,14 @@ if(NOT ERF_DIM EQUAL 3)
 endif()
 
 # Configure measuring code coverage in tests
-option(CODECOV "Enable code coverage profiling" OFF)
-if(CODECOV)
+option(CODECOVERAGE "Enable code coverage profiling" OFF)
+if(CODECOVERAGE)
   # Only supports GNU
   if(NOT CMAKE_CXX_COMPILER_ID MATCHES GNU)
-    message(WARNING "CODECOV is only support with GNU Compilers. The current C++ compiler is ${CMAKE_CXX_COMPILER_ID}")
+    message(WARNING "CODECOVERAGE is only support with GNU Compilers. The current C++ compiler is ${CMAKE_CXX_COMPILER_ID}")
   endif()
   if(NOT CMAKE_C_COMPILER_ID MATCHES GNU)
-    message(WARNING "CODECOV is only support with GNU Compilers. The current C compiler is ${CMAKE_C_COMPILER_ID}")
+    message(WARNING "CODECOVERAGE is only support with GNU Compilers. The current C compiler is ${CMAKE_C_COMPILER_ID}")
   endif()
 
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
