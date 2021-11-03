@@ -35,7 +35,7 @@ void RK3_advance(int level,
                  const amrex::Geometry crse_geom,
                  const amrex::Geometry fine_geom,
                  const amrex::IntVect ref_ratio,
-                 const amrex::Real* dxp, const amrex::Real dt, 
+                 const amrex::Real* dxp, const amrex::Real dt,
                        amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
 
