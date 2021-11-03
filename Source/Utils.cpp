@@ -13,6 +13,7 @@ using namespace amrex;
 
 void
 create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
+                   const Geometry& crse_geom,
                    const Geometry& fine_geom,
                    const Array<MultiFab*,AMREX_SPACEDIM> u_mac_crse,
                    const Array<MultiFab*,AMREX_SPACEDIM> u_mac_fine,
@@ -34,6 +35,11 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
 
         for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)
         {
+            // We must make sure the coarse data has the periodic
+            //    boundaries filled or we will be operating below
+            //    on uninitialized data
+            u_mac_crse[idim]->FillBoundary(crse_geom.periodicity());
+
             //
             // crse_src & fine_src must have same parallel distribution.
             // We'll use the KnapSack distribution for the fine_src_ba.
@@ -77,13 +83,13 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
             const MultiFab& u_macLL = *u_mac_crse[idim];
             crse_src.ParallelCopy(u_macLL,0,0,1,u_macLL.nGrow(),0);
 
-        const amrex::GpuArray<int,AMREX_SPACEDIM> c_ratio = {AMREX_D_DECL(crse_ratio[0],crse_ratio[1],crse_ratio[2])};
+            const amrex::GpuArray<int,AMREX_SPACEDIM> c_ratio = {crse_ratio[0],crse_ratio[1],crse_ratio[2]};
 
-        //
-        // Fill fine values with piecewise-constant interp of coarse data.
-        // Operate only on faces that overlap--ie, only fill the fine faces that make up each
-        // coarse face, leave the in-between faces alone.
-        //
+            //
+            // Fill fine values with piecewise-constant interp of coarse data.
+            // Operate only on faces that overlap--ie, only fill the fine faces that make up each
+            // coarse face, leave the in-between faces alone.
+            //
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -96,16 +102,7 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
                 ParallelFor(box,[crs_arr,fine_arr,idim,c_ratio]
                 AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-           int idx[3] = {AMREX_D_DECL(i*c_ratio[0],j*c_ratio[1],k*c_ratio[2])};
-#if ( AMREX_SPACEDIM == 2 )
-                   // dim1 are the complement of idim
-                   int dim1 = ( idim == 0 ) ? 1 : 0;
-                   for (int n1 = 0; n1 < c_ratio[dim1]; n1++) {
-                      int id[3] = {idx[0],idx[1]};
-                      id[dim1] += n1;
-                      fine_arr(id[0],id[1],0) = crs_arr(i,j,k);
-                   }
-#elif ( AMREX_SPACEDIM == 3 )
+                   int idx[3] = {i*c_ratio[0],j*c_ratio[1],k*c_ratio[2]};
                    // dim1 and dim2 are the complements of idim
                    int dim1 = ( idim != 0 ) ? 0 : 1 ;
                    int dim2 = ( idim != 0 ) ? ( ( idim == 2 ) ? 1 : 2 ) : 2 ;
@@ -117,7 +114,6 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
                          fine_arr(id[0],id[1],id[2]) = crs_arr(i,j,k);
                       }
                    }
-#endif
                 });
             }
             crse_src.clear();
@@ -127,6 +123,7 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
             // region - this op will not fill grow region.
             //
             fine_src.ParallelCopy(*u_mac_fine[idim]);
+
             //
             // Interpolate unfilled grow cells using best data from
             // surrounding faces of valid region, and pc-interpd data
@@ -141,42 +138,41 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
                 const Box& fbox  = fine_src[mfi].box();
                 auto const& fine_arr = fine_src.array(mfi);
 
-        if (fbox.type(0) == IndexType::NODE)
-            {
-          AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
-          {
-            face_interp_x(i,j,k,n,fine_arr,c_ratio);
-          });
-        }
-        else if (fbox.type(1) == IndexType::NODE)
-        {
-          AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
-          {
-            face_interp_y(i,j,k,n,fine_arr,c_ratio);
-          });
-        }
-#if (AMREX_SPACEDIM == 3)
-        else
-        {
-          AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
+                if (fbox.type(0) == IndexType::NODE)
+                {
+                  AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
                   {
-            face_interp_z(i,j,k,n,fine_arr,c_ratio);
-          });
-        }
-#endif
-            }
+                    face_interp_x(i,j,k,n,fine_arr,c_ratio);
+                  });
+                }
+                else if (fbox.type(1) == IndexType::NODE)
+                {
+                  AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
+                  {
+                    face_interp_y(i,j,k,n,fine_arr,c_ratio);
+                  });
+                }
+                else
+                {
+                  AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
+                          {
+                    face_interp_z(i,j,k,n,fine_arr,c_ratio);
+                  });
+                }
+            } // mfi
 
             MultiFab u_mac_save(u_mac_fine[idim]->boxArray(),u_mac_fine[idim]->DistributionMap(),1,0,MFInfo(),
                                 u_mac_fine[idim]->Factory());
             u_mac_save.ParallelCopy(*u_mac_fine[idim]);
             u_mac_fine[idim]->ParallelCopy(fine_src,0,0,1,0,nGrow);
             u_mac_fine[idim]->ParallelCopy(u_mac_save);
-        }
-    }
 
-    for (int n = 0; n < BL_SPACEDIM; ++n)
+        } // idim
+    } // lev > 0
+
+    for (int n = 0; n < AMREX_SPACEDIM; ++n)
     {
-    u_mac_fine[n]->FillBoundary(fine_geom.periodicity());
+        u_mac_fine[n]->FillBoundary(fine_geom.periodicity());
     }
 }
 

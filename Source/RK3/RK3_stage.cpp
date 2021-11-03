@@ -19,7 +19,7 @@ void RK3_stage  (int level,
                  MultiFab& source,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
-                 //InterpFaceRegister* ifr,
+                       amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("RK3_stage()",RK3_stage);
@@ -77,7 +77,6 @@ void RK3_stage  (int level,
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
     const iMultiFab *mlo_mf_z, *mhi_mf_z;
 
-#if 0
     if (level > 0)
     {
         mlo_mf_x = &(ifr->mask(Orientation(0,Orientation::low)));
@@ -87,7 +86,6 @@ void RK3_stage  (int level,
         mlo_mf_z = &(ifr->mask(Orientation(2,Orientation::low)));
         mhi_mf_z = &(ifr->mask(Orientation(2,Orientation::high)));
     }
-#endif
 
     // *************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
@@ -105,26 +103,17 @@ void RK3_stage  (int level,
         Box const& valid_bx = mfi.validbox();
         int vlo_x = valid_bx.smallEnd(0);
         int vhi_x = valid_bx.bigEnd(0);
-        int vlo_y = valid_bx.smallEnd(2);
+        int vlo_y = valid_bx.smallEnd(1);
         int vhi_y = valid_bx.bigEnd(1);
         int vlo_z = valid_bx.smallEnd(2);
         int vhi_z = valid_bx.bigEnd(2);
 
-#if 1
-        auto mlo_x = Array4<const int>{};
-        auto mhi_x = Array4<const int>{};
-        auto mlo_y = Array4<const int>{};
-        auto mhi_y = Array4<const int>{};
-        auto mlo_z = Array4<const int>{};
-        auto mhi_z = Array4<const int>{};
-#else
         auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
         auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
         auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
         auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
         auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
-#endif
 
         const Array4<Real> & cell_data_old     = cons_old.array(mfi);
         const Array4<Real> & cell_data_upd     = cons_upd.array(mfi);

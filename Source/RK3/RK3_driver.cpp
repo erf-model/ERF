@@ -15,10 +15,11 @@ void RK3_advance(int level,
                  MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
                  std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
-                 const amrex::Geometry geom,
+                 const amrex::Geometry crse_geom,
+                 const amrex::Geometry fine_geom,
                  const amrex::IntVect ref_ratio,
                  const amrex::Real* dxp, const amrex::Real dt,
-                 //InterpFaceRegister* ifr,
+                       amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("RK3stepStag()",RK3stepStag);
@@ -67,7 +68,7 @@ void RK3_advance(int level,
 
     // Apply BC on old state data at cells before stage 1
     // **************************************************************************************
-    cons_old.FillBoundary(geom.periodicity());
+    cons_old.FillBoundary(fine_geom.periodicity());
 
     // **************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
@@ -90,11 +91,10 @@ void RK3_advance(int level,
 
     // Apply BC on old momentum data on faces before stage 1
     // **************************************************************************************
-    xmom_old.FillBoundary(geom.periodicity());
-    ymom_old.FillBoundary(geom.periodicity());
-    zmom_old.FillBoundary(geom.periodicity());
+    xmom_old.FillBoundary(fine_geom.periodicity());
+    ymom_old.FillBoundary(fine_geom.periodicity());
+    zmom_old.FillBoundary(fine_geom.periodicity());
 
-#if 0
     if (level > 0)
     {
         amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
@@ -109,13 +109,12 @@ void RK3_advance(int level,
         BoxArray fine_grids(cons_old.boxArray());
 
         // Interpolate from coarse faces on fine faces outside the fine region
-        create_umac_grown(level, nGrow, fine_grids, geom, cmf, fmf, ref_ratio);
+        create_umac_grown(level, nGrow, fine_grids, crse_geom, fine_geom, cmf, fmf, ref_ratio);
     }
-#endif
 
     amrex::Vector<MultiFab*> vars_old{&cons_old, &xmom_old, &ymom_old, &zmom_old};
 
-    ERF::applyBCs(geom, vars_old);
+    ERF::applyBCs(fine_geom, vars_old);
 
     // **************************************************************************************
     // RK3 stage 1: Return update in the cons_upd_1 and [x,y,z]mom_update_1 MultiFabs
@@ -126,8 +125,8 @@ void RK3_advance(int level,
               xvel_old, yvel_old, zvel_old,
               source,
               faceflux,
-              geom, dxp, dt,
-              //ifr,
+              fine_geom, dxp, dt,
+              ifr,
               solverChoice);
 
     // **************************************************************************************
@@ -178,19 +177,18 @@ void RK3_advance(int level,
     }
     // Apply BC on updated momentum data on faces after stage 1 and before stage 2
     // **************************************************************************************
-    xmom_update_1.FillBoundary(geom.periodicity());
-    ymom_update_1.FillBoundary(geom.periodicity());
-    zmom_update_1.FillBoundary(geom.periodicity());
+    xmom_update_1.FillBoundary(fine_geom.periodicity());
+    ymom_update_1.FillBoundary(fine_geom.periodicity());
+    zmom_update_1.FillBoundary(fine_geom.periodicity());
 
     // Apply BC on updated state data at cells after stage 1 and before stage 2
     // **************************************************************************************
-    cons_upd_1.FillBoundary(geom.periodicity());
+    cons_upd_1.FillBoundary(fine_geom.periodicity());
 
     amrex::Vector<MultiFab*> vars1{&cons_upd_1, &xmom_update_1, &ymom_update_1, &zmom_update_1};
 
-    ERF::applyBCs(geom, vars1);
+    ERF::applyBCs(fine_geom, vars1);
 
-#if 0
     if (level > 0)
     {
         amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
@@ -205,9 +203,8 @@ void RK3_advance(int level,
         BoxArray fine_grids(cons_old.boxArray());
 
         // Interpolate from coarse faces on fine faces outside the fine region
-        create_umac_grown(level, nGrow, fine_grids, geom, cmf, fmf, ref_ratio);
+        create_umac_grown(level, nGrow, fine_grids, crse_geom, fine_geom, cmf, fmf, ref_ratio);
     }
-#endif
 
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after stage 1 and before stage 2
@@ -225,8 +222,8 @@ void RK3_advance(int level,
               xvel_new, yvel_new, zvel_new,
               source,
               faceflux,
-              geom, dxp, dt,
-              //ifr,
+              fine_geom, dxp, dt,
+              ifr,
               solverChoice);
 
     // **************************************************************************************
@@ -283,19 +280,18 @@ void RK3_advance(int level,
     // TODO: Check if the order of applying BC on cell-centered state or face-centered mom makes any difference
     // Apply BC on updated momentum data on faces after stage 2 and before stage 3
     // **************************************************************************************
-    xmom_update_2.FillBoundary(geom.periodicity());
-    ymom_update_2.FillBoundary(geom.periodicity());
-    zmom_update_2.FillBoundary(geom.periodicity());
+    xmom_update_2.FillBoundary(fine_geom.periodicity());
+    ymom_update_2.FillBoundary(fine_geom.periodicity());
+    zmom_update_2.FillBoundary(fine_geom.periodicity());
 
     // Apply BC on updated state data at cells after stage 2 and before stage 3
     // **************************************************************************************
-    cons_upd_2.FillBoundary(geom.periodicity());
+    cons_upd_2.FillBoundary(fine_geom.periodicity());
 
     amrex::Vector<MultiFab*> vars2{&cons_upd_2, &xmom_update_2, &ymom_update_2, &zmom_update_2};
 
-    ERF::applyBCs(geom, vars2);
+    ERF::applyBCs(fine_geom, vars2);
 
-#if 0
     if (level > 0)
     {
         amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
@@ -310,9 +306,8 @@ void RK3_advance(int level,
         BoxArray fine_grids(cons_old.boxArray());
 
         // Interpolate from coarse faces on fine faces outside the fine region
-        create_umac_grown(level, nGrow, fine_grids, geom, cmf, fmf, ref_ratio);
+        create_umac_grown(level, nGrow, fine_grids, crse_geom, fine_geom, cmf, fmf, ref_ratio);
     }
-#endif
 
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after stage 2 and before stage 3
@@ -330,8 +325,8 @@ void RK3_advance(int level,
               xvel_new, yvel_new, zvel_new,
               source,
               faceflux,
-              geom, dxp, dt,
-              //ifr,
+              fine_geom, dxp, dt,
+              ifr,
               solverChoice);
     // **************************************************************************************
     // RK3 stage 3: Define updates in the third RK stage
@@ -390,18 +385,18 @@ void RK3_advance(int level,
     // Apply BC on updated momentum data on faces after stage 3 and before going to next time step
     // **************************************************************************************
     ///*
-    xmom_new.FillBoundary(geom.periodicity());
-    ymom_new.FillBoundary(geom.periodicity());
-    zmom_new.FillBoundary(geom.periodicity());
+    xmom_new.FillBoundary(fine_geom.periodicity());
+    ymom_new.FillBoundary(fine_geom.periodicity());
+    zmom_new.FillBoundary(fine_geom.periodicity());
     //*/
 
     // Apply BC on updated state data at cells after stage 3 and before going to next time step
     // **************************************************************************************
-    cons_new.FillBoundary(geom.periodicity());
+    cons_new.FillBoundary(fine_geom.periodicity());
 
     amrex::Vector<MultiFab*> vars_new{&cons_new, &xmom_new, &ymom_new, &zmom_new};
 
-    ERF::applyBCs(geom, vars_new);
+    ERF::applyBCs(fine_geom, vars_new);
 
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after stage 3 and before going to next time step
@@ -411,11 +406,11 @@ void RK3_advance(int level,
 
     // One final application of non-periodic BCs after all RK3 stages have been called, this time on velocities
 
-    xvel_new.FillBoundary(geom.periodicity());
-    yvel_new.FillBoundary(geom.periodicity());
-    zvel_new.FillBoundary(geom.periodicity());
+    xvel_new.FillBoundary(fine_geom.periodicity());
+    yvel_new.FillBoundary(fine_geom.periodicity());
+    zvel_new.FillBoundary(fine_geom.periodicity());
     amrex::Vector<MultiFab*> vars{&cons_new, &xvel_new, &yvel_new, &zvel_new};
 
-    ERF::applyBCs(geom, vars);
+    ERF::applyBCs(fine_geom, vars);
 
 }

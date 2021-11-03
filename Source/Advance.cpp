@@ -4,7 +4,7 @@
 #include "RK3.H"
 #include "IndexDefines.H"
 
-//#include "AMReX_InterpFaceRegister.H"
+#include "AMReX_InterpFaceRegister.H"
 
 using namespace amrex;
 
@@ -88,13 +88,12 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   W_old.FillBoundary(geom.periodicity());
 
   const auto& ref_ratio = (level > 0) ? parent->refRatio(level-1) : IntVect(1,1,1);
-#if 0
+
   InterpFaceRegister ifr;
   if (level > 0)
   {
       ifr.define(S_old.boxArray(), S_old.DistributionMap(), geom, ref_ratio);
   }
-#endif
 
   const Real* dx = geom.CellSize();
   const BoxArray&            ba = S_old.boxArray();
@@ -140,9 +139,10 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               rU_crse, rV_crse, rW_crse,
               source,
               faceflux,
+              (level > 0) ? parent->Geom(level-1) : geom,
               geom,
               ref_ratio,
-              dx, dt, // &ifr,
+              dx, dt, &ifr,
               solverChoice);
 
   return dt;
