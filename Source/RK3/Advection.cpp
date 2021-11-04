@@ -345,8 +345,8 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
     }
     // Assemble advection contribution
     advectionContribution = (xFaceFluxNext - xFaceFluxPrev)/ dx  // Advective flux in x-dir
-                          + (yFaceFluxNext - yFaceFluxPrev)/ dy  // Advective flux in y-dir
-                          + (zFaceFluxNext - zFaceFluxPrev)/ dz; // Advective flux in z-dir
+                               + (yFaceFluxNext - yFaceFluxPrev)/ dy  // Advective flux in y-dir
+                               + (zFaceFluxNext - zFaceFluxPrev)/ dz; // Advective flux in z-dir
 
     return advectionContribution;
 }
