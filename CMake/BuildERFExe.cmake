@@ -82,7 +82,7 @@ function(build_erf_exe erf_exe_name)
   endif()
 
   include(AMReXBuildInfo)
-  generate_buildinfo(${erf_lib_name} ${CMAKE_SOURCE_DIR})
+  generate_buildinfo(${erf_exe_name} ${CMAKE_SOURCE_DIR})
   target_include_directories(${erf_lib_name} PUBLIC ${AMREX_SUBMOD_LOCATION}/Tools/C_scripts)
 
   if(ERF_ENABLE_MASA)
