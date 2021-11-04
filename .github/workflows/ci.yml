@@ -79,9 +79,9 @@ jobs:
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_AMREX_EB:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
-          -DCODECOV:BOOL=ON \
           ${{github.workspace}};
         # ${{matrix.mpipreflags}} \
+        # -DCODECOVERAGE:BOOL=ON \
 
     - name: Build
       run: |
@@ -92,36 +92,27 @@ jobs:
         ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
-    - name: Generate coverage report
-      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
-      run: |
-        find . -type f -name '*.gcno' -path "**Source**" -exec gcov -pb {} +
-        cd ..
-        gcovr -g -k -r . --xml regressioncov.xml  # -v
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v2
-      with:
-        dry_run: false
-        # token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-        files: ./regressioncov.xml # optional
-        flags: regtests # optional
-        # name: codecov-umbrella # optional
-        fail_ci_if_error: true # optional (default = false)
-        verbose: true # optional (default = false)
-        directory: ${{runner.workspace}}/ERF
-
-    - name: Success artifacts
-      uses: actions/upload-artifact@v2
-      if: success()
-      with:
-        name: build-and-test
-        path: |
-          ${{runner.workspace}}/ERF/regressioncov.xml
-    - name: Failing test artifacts
-      uses: actions/upload-artifact@v2
-      if: failure()
-      with:
-        name: build-and-test
-        path: |
-          ${{runner.workspace}}/ERF/regressioncov.xml
+    # Raf: disabled Codecov since the dashboard and GitHub comments were buggy,
+    # but it may be useful to post the gcov coverage reports to GitHub Actions
+    # artifacts.
+    # Note: if reenabling Codecov, the reports must be in xml format not html.
+    # - name: Generate coverage report
+    #   working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+    #   run: |
+    #     find . -type f -name '*.gcno' -path "**Source**" -exec gcov -pb {} +
+    #     cd ..
+    #     gcovr -g -k -r . --xml regressioncov.html  # -v
+    # - name: Success artifacts
+    #   uses: actions/upload-artifact@v2
+    #   if: success()
+    #   with:
+    #     name: build-and-test
+    #     path: |
+    #       ${{runner.workspace}}/ERF/regressioncov.html
+    # - name: Failing test artifacts
+    #   uses: actions/upload-artifact@v2
+    #   if: failure()
+    #   with:
+    #     name: build-and-test
+    #     path: |
+    #       ${{runner.workspace}}/ERF/regressioncov.html
