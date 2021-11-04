@@ -17,26 +17,26 @@ function(build_erf_exe erf_exe_name)
   add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/${erf_exe_name})
 
   set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/Source")
-  target_sources(${erf_exe_name} PRIVATE
+  target_sources(${erf_lib_name} PRIVATE
                  ${ERF_EOS_DIR}/EOS.H)
-  target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${ERF_EOS_DIR})
-  target_include_directories(${erf_exe_name}_exe SYSTEM PRIVATE ${ERF_EOS_DIR})
+  target_include_directories(${erf_lib_name} SYSTEM PRIVATE ${ERF_EOS_DIR})
+  target_include_directories(${erf_exe_name}  SYSTEM PRIVATE ${ERF_EOS_DIR})
 
   if(ERF_ENABLE_MASA)
-    target_sources(${erf_exe_name} PRIVATE
+    target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/MMS.cpp)
-    target_compile_definitions(${erf_exe_name} PRIVATE ERF_USE_MASA)
+    target_compile_definitions(${erf_lib_name} PRIVATE ERF_USE_MASA)
   endif()
  
   if(ERF_ENABLE_NETCDF)
-    target_sources(${erf_exe_name} PRIVATE
+    target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/NCInterface.H
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp)
-    target_compile_definitions(${erf_exe_name} PRIVATE ERF_USE_NETCDF)
+    target_compile_definitions(${erf_lib_name} PRIVATE ERF_USE_NETCDF)
   endif()
  
-  target_sources(${erf_exe_name}
+  target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/Advance.cpp
        ${SRC_DIR}/BCfill.cpp
@@ -76,22 +76,24 @@ function(build_erf_exe erf_exe_name)
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
-    target_sources(${erf_exe_name}
+    target_sources(${erf_lib_name}
        PRIVATE
          ${SRC_DIR}/main.cpp
     )
   endif()
-  message(STATUS "source dir: ${CMAKE_SOURCE_DIR}")
 
   include(AMReXBuildInfo)
-  generate_buildinfo(${erf_exe_name} ${CMAKE_SOURCE_DIR})
-  target_include_directories(${erf_exe_name} PUBLIC ${AMREX_SUBMOD_LOCATION}/Tools/C_scripts)
+  generate_buildinfo(${erf_lib_name} ${CMAKE_SOURCE_DIR})
+  target_include_directories(${erf_lib_name} PUBLIC ${AMREX_SUBMOD_LOCATION}/Tools/C_scripts)
 
   if(ERF_ENABLE_MASA)
     if(MASA_FOUND)
       #Link our executable to the MASA libraries, etc
-      target_link_libraries(${erf_exe_name} PRIVATE ${MASA_LIBRARY})
-      target_compile_definitions(${erf_exe_name} PRIVATE USE_MASA DO_PROBLEM_POST_TIMESTEP DO_PROBLEM_POST_INIT)
+      target_link_libraries(${erf_lib_name} PRIVATE ${MASA_LIBRARY})
+      target_compile_definitions(${erf_lib_name} PRIVATE USE_MASA DO_PROBLEM_POST_TIMESTEP DO_PROBLEM_POST_INIT)
+      target_include_directories(${erf_lib_name} SYSTEM PRIVATE ${MASA_INCLUDE_DIRS})
+      target_include_directories(${erf_lib_name} SYSTEM PRIVATE ${MASA_MOD_DIRS})
+
       target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${MASA_INCLUDE_DIRS})
       target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${MASA_MOD_DIRS})
     endif()
@@ -100,29 +102,31 @@ function(build_erf_exe erf_exe_name)
   if(ERF_ENABLE_NETCDF)
     if(NETCDF_FOUND)
       #Link our executable to the NETCDF libraries, etc
-      target_link_libraries(${erf_exe_name} PUBLIC ${NETCDF_LIBRARIES_C})
+      target_link_libraries(${erf_lib_name} PUBLIC ${NETCDF_LIBRARIES_C})
+      target_include_directories(${erf_lib_name} PUBLIC ${NETCDF_INCLUDES})
+
       target_include_directories(${erf_exe_name} PUBLIC ${NETCDF_INCLUDES})
     endif()
   endif()
 
   if(ERF_ENABLE_MPI)
-    target_link_libraries(${erf_exe_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
+    target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
   endif()
 
   #ERF include directories
-  target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR})
-  target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR}/RK3)
-  target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR}/IO)
-  target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_BINARY_DIR})
+  target_include_directories(${erf_lib_name} PRIVATE ${SRC_DIR})
+  target_include_directories(${erf_lib_name} PRIVATE ${SRC_DIR}/RK3)
+  target_include_directories(${erf_lib_name} PRIVATE ${SRC_DIR}/IO)
+  target_include_directories(${erf_lib_name} PRIVATE ${CMAKE_BINARY_DIR})
 
-  target_include_directories(${erf_exe_name}_exe PRIVATE ${SRC_DIR})
-  target_include_directories(${erf_exe_name}_exe PRIVATE ${SRC_DIR}/RK3)
-  target_include_directories(${erf_exe_name}_exe PRIVATE ${SRC_DIR}/IO)
-  target_include_directories(${erf_exe_name}_exe PRIVATE ${CMAKE_BINARY_DIR})
+  target_include_directories(${erf_exe_name}  PRIVATE ${SRC_DIR})
+  target_include_directories(${erf_exe_name}  PRIVATE ${SRC_DIR}/RK3)
+  target_include_directories(${erf_exe_name}  PRIVATE ${SRC_DIR}/IO)
+  target_include_directories(${erf_exe_name}  PRIVATE ${CMAKE_BINARY_DIR})
   
   #Link to amrex library
-  target_link_libraries_system(${erf_exe_name} PUBLIC amrex)
-  target_link_libraries(${erf_exe_name}_exe PRIVATE ${erf_exe_name})
+  target_link_libraries_system(${erf_lib_name} PUBLIC amrex)
+  target_link_libraries(${erf_exe_name}  PRIVATE ${erf_lib_name})
 
   if(ERF_ENABLE_CUDA)
     set(pctargets "${erf_exe_name}")
@@ -134,12 +138,12 @@ function(build_erf_exe erf_exe_name)
   endif()
  
   #Define what we want to be installed during a make install 
-  install(TARGETS ${erf_exe_name}
+  install(TARGETS ${erf_lib_name}
           RUNTIME DESTINATION bin
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)
 
-  install(TARGETS ${erf_exe_name}_exe
+  install(TARGETS ${erf_exe_name} 
           RUNTIME DESTINATION bin
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)
