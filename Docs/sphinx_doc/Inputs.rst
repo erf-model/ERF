@@ -124,7 +124,7 @@ List of Parameters
 +---------------------------+-----------------+-----------------+-------------+
 | **amr.ref_ratio**         | ratio of coarse | 2 / 3 / 4       | 2 for all   |
 |                           | to fine grid    | (one per level) | levels      |
-|                           | spacing between |                 |             | 
+|                           | spacing between |                 |             |
 |                           | subsequent      |                 |             |
 |                           | levels          |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
