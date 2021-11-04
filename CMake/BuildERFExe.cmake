@@ -1,3 +1,12 @@
+function(target_link_libraries_system target visibility)
+  set(libs ${ARGN})
+  foreach(lib ${libs})
+    get_target_property(lib_include_dirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
+    target_include_directories(${target} SYSTEM ${visibility} ${lib_include_dirs})
+    target_link_libraries(${target} ${visibility} ${lib})
+  endforeach(lib)
+endfunction(target_link_libraries_system)
+
 function(build_erf_exe erf_exe_name)
 
   set(SRC_DIR ${CMAKE_SOURCE_DIR}/Source)
@@ -11,6 +20,7 @@ function(build_erf_exe erf_exe_name)
   target_sources(${erf_exe_name} PRIVATE
                  ${ERF_EOS_DIR}/EOS.H)
   target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${ERF_EOS_DIR})
+  target_include_directories(${erf_exe_name}_exe SYSTEM PRIVATE ${ERF_EOS_DIR})
 
   if(ERF_ENABLE_MASA)
     target_sources(${erf_exe_name} PRIVATE
@@ -71,7 +81,8 @@ function(build_erf_exe erf_exe_name)
          ${SRC_DIR}/main.cpp
     )
   endif()
-  
+  message(STATUS "source dir: ${CMAKE_SOURCE_DIR}")
+
   include(AMReXBuildInfo)
   generate_buildinfo(${erf_exe_name} ${CMAKE_SOURCE_DIR})
   target_include_directories(${erf_exe_name} PUBLIC ${AMREX_SUBMOD_LOCATION}/Tools/C_scripts)
@@ -103,9 +114,15 @@ function(build_erf_exe erf_exe_name)
   target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR}/RK3)
   target_include_directories(${erf_exe_name} PRIVATE ${SRC_DIR}/IO)
   target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_BINARY_DIR})
+
+  target_include_directories(${erf_exe_name}_exe PRIVATE ${SRC_DIR})
+  target_include_directories(${erf_exe_name}_exe PRIVATE ${SRC_DIR}/RK3)
+  target_include_directories(${erf_exe_name}_exe PRIVATE ${SRC_DIR}/IO)
+  target_include_directories(${erf_exe_name}_exe PRIVATE ${CMAKE_BINARY_DIR})
   
   #Link to amrex library
-  target_link_libraries(${erf_exe_name} PRIVATE amrex)
+  target_link_libraries_system(${erf_exe_name} PUBLIC amrex)
+  target_link_libraries(${erf_exe_name}_exe PRIVATE ${erf_exe_name})
 
   if(ERF_ENABLE_CUDA)
     set(pctargets "${erf_exe_name}")
@@ -118,6 +135,11 @@ function(build_erf_exe erf_exe_name)
  
   #Define what we want to be installed during a make install 
   install(TARGETS ${erf_exe_name}
+          RUNTIME DESTINATION bin
+          ARCHIVE DESTINATION lib
+          LIBRARY DESTINATION lib)
+
+  install(TARGETS ${erf_exe_name}_exe
           RUNTIME DESTINATION bin
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)
