@@ -17,27 +17,26 @@ function(build_erf_exe erf_exe_name)
   add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/${erf_exe_name})
 
   set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/Source")
-  target_sources(${erf_lib_name} PRIVATE
+  target_sources(${erf_lib_name} PUBLIC
                  ${ERF_EOS_DIR}/EOS.H)
-  target_include_directories(${erf_lib_name} SYSTEM PRIVATE ${ERF_EOS_DIR})
-  target_include_directories(${erf_exe_name}  SYSTEM PRIVATE ${ERF_EOS_DIR})
+  target_include_directories(${erf_lib_name} SYSTEM PUBLIC ${ERF_EOS_DIR})
 
   if(ERF_ENABLE_MASA)
-    target_sources(${erf_lib_name} PRIVATE
+    target_sources(${erf_lib_name} PUBLIC
                    ${SRC_DIR}/MMS.cpp)
-    target_compile_definitions(${erf_lib_name} PRIVATE ERF_USE_MASA)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MASA)
   endif()
  
   if(ERF_ENABLE_NETCDF)
-    target_sources(${erf_lib_name} PRIVATE
+    target_sources(${erf_lib_name} PUBLIC
                    ${SRC_DIR}/IO/NCInterface.H
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp)
-    target_compile_definitions(${erf_lib_name} PRIVATE ERF_USE_NETCDF)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
  
   target_sources(${erf_lib_name}
-     PRIVATE
+     PUBLIC
        ${SRC_DIR}/Advance.cpp
        ${SRC_DIR}/BCfill.cpp
        ${SRC_DIR}/Bld.cpp
@@ -77,7 +76,7 @@ function(build_erf_exe erf_exe_name)
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
     target_sources(${erf_lib_name}
-       PRIVATE
+       PUBLIC
          ${SRC_DIR}/main.cpp
     )
   endif()
@@ -89,13 +88,10 @@ function(build_erf_exe erf_exe_name)
   if(ERF_ENABLE_MASA)
     if(MASA_FOUND)
       #Link our executable to the MASA libraries, etc
-      target_link_libraries(${erf_lib_name} PRIVATE ${MASA_LIBRARY})
-      target_compile_definitions(${erf_lib_name} PRIVATE USE_MASA DO_PROBLEM_POST_TIMESTEP DO_PROBLEM_POST_INIT)
-      target_include_directories(${erf_lib_name} SYSTEM PRIVATE ${MASA_INCLUDE_DIRS})
-      target_include_directories(${erf_lib_name} SYSTEM PRIVATE ${MASA_MOD_DIRS})
-
-      target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${MASA_INCLUDE_DIRS})
-      target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${MASA_MOD_DIRS})
+      target_link_libraries(${erf_lib_name} PUBLIC ${MASA_LIBRARY})
+      target_compile_definitions(${erf_lib_name} PUBLIC USE_MASA DO_PROBLEM_POST_TIMESTEP DO_PROBLEM_POST_INIT)
+      target_include_directories(${erf_lib_name} SYSTEM PUBLIC ${MASA_INCLUDE_DIRS})
+      target_include_directories(${erf_lib_name} SYSTEM PUBLIC ${MASA_MOD_DIRS})
     endif()
   endif()
 
@@ -104,8 +100,6 @@ function(build_erf_exe erf_exe_name)
       #Link our executable to the NETCDF libraries, etc
       target_link_libraries(${erf_lib_name} PUBLIC ${NETCDF_LIBRARIES_C})
       target_include_directories(${erf_lib_name} PUBLIC ${NETCDF_INCLUDES})
-
-      target_include_directories(${erf_exe_name} PUBLIC ${NETCDF_INCLUDES})
     endif()
   endif()
 
@@ -114,19 +108,14 @@ function(build_erf_exe erf_exe_name)
   endif()
 
   #ERF include directories
-  target_include_directories(${erf_lib_name} PRIVATE ${SRC_DIR})
-  target_include_directories(${erf_lib_name} PRIVATE ${SRC_DIR}/RK3)
-  target_include_directories(${erf_lib_name} PRIVATE ${SRC_DIR}/IO)
-  target_include_directories(${erf_lib_name} PRIVATE ${CMAKE_BINARY_DIR})
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR})
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/RK3)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
+  target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})
 
-  target_include_directories(${erf_exe_name}  PRIVATE ${SRC_DIR})
-  target_include_directories(${erf_exe_name}  PRIVATE ${SRC_DIR}/RK3)
-  target_include_directories(${erf_exe_name}  PRIVATE ${SRC_DIR}/IO)
-  target_include_directories(${erf_exe_name}  PRIVATE ${CMAKE_BINARY_DIR})
-  
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC amrex)
-  target_link_libraries(${erf_exe_name}  PRIVATE ${erf_lib_name})
+  target_link_libraries(${erf_exe_name}  PUBLIC ${erf_lib_name})
 
   if(ERF_ENABLE_CUDA)
     set(pctargets "${erf_exe_name}")
