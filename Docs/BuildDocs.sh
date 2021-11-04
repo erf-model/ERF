@@ -10,9 +10,9 @@ NC='\033[0m'
 
 
 # Build doxygen documents -- configuration parameters contained in Doxyfile.in
+# Errors can be viewed in the file: doxy.log
 doxygen Doxyfile.in
 
-# After build, doxygen html files can be found in `doxygen_output/html/`
 
 
 # Build sphinx documents
@@ -20,7 +20,6 @@ cd sphinx_doc/
 make clean          # fixes occasional unexpected behavior
 make html 
 
-# After build, sphinx html files can be found in `sphinx_doc/_build/html/`
 
 echo "" 
 echo -e "-- ${GRN}Building Docs Complete${NC} --"
