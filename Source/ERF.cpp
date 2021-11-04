@@ -880,12 +880,12 @@ ERF::errorEst(
   // Static refinement of a specified region
   if (tparm.tag_region)
   {
-      Real xlo = tparm.region_lo[0];
-      Real ylo = tparm.region_lo[1];
-      Real xhi = tparm.region_hi[0];
-      Real yhi = tparm.region_hi[1];
-      Real zlo = tparm.region_lo[2];
-      Real zhi = tparm.region_hi[2];
+      Real xlo = (tparm.region_lo[0] - geom.ProbLo()[0]);
+      Real ylo = (tparm.region_lo[1] - geom.ProbLo()[0]);
+      Real xhi = (tparm.region_hi[0] - geom.ProbLo()[1]);
+      Real yhi = (tparm.region_hi[1] - geom.ProbLo()[1]);
+      Real zlo = (tparm.region_lo[2] - geom.ProbLo()[2]);
+      Real zhi = (tparm.region_hi[2] - geom.ProbLo()[2]);
 
       const Real l_dx = geom.CellSize(0);
       const Real l_dy = geom.CellSize(1);
