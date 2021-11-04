@@ -4,7 +4,7 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
-//#include <AMReX_InterpFaceRegister.H>
+#include <AMReX_InterpFaceRegister.H>
 #include <ERF.H>
 #include "IndexDefines.H"
 
@@ -32,9 +32,11 @@ void RK3_advance(int level,
                  MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
-                 const amrex::Geometry geom,
+                 const amrex::Geometry crse_geom,
+                 const amrex::Geometry fine_geom,
                  const amrex::IntVect ref_ratio,
-                 const amrex::Real* dxp, const amrex::Real dt, // InterpFaceRegister* ifr,
+                 const amrex::Real* dxp, const amrex::Real dt,
+                       amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
 
 void RK3_stage  (int level,
@@ -45,7 +47,7 @@ void RK3_stage  (int level,
                  MultiFab& source,
                  std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
                  const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
-                 // InterpFaceRegister* ifr,
+                       amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
 
 AMREX_GPU_DEVICE

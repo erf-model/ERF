@@ -41,11 +41,13 @@ function(build_erf_exe erf_exe_name)
        ${SRC_DIR}/ERF_forcing.cpp
        ${SRC_DIR}/Problem.H
        ${SRC_DIR}/ProblemDerive.H
+       ${SRC_DIR}/utils.H
        ${SRC_DIR}/Setup.cpp
        ${SRC_DIR}/SumIQ.cpp
        ${SRC_DIR}/SumUtils.cpp
        ${SRC_DIR}/Tagging.H
        ${SRC_DIR}/Tagging.cpp
+       ${SRC_DIR}/Utils.cpp
        ${SRC_DIR}/IO/IOManager.H
        ${SRC_DIR}/IO/PlotFile.H
        ${SRC_DIR}/IO/PlotFile.cpp
