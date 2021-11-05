@@ -123,10 +123,11 @@ function(build_erf_lib erf_lib_name)
       set_source_files_properties(${ERF_SOURCES} PROPERTIES LANGUAGE CUDA)
       message(STATUS "setting cuda for ${ERF_SOURCES}")
     endforeach()
+    target_include_directories(${erf_lib_name} SYSTEM PUBLIC ${CUDA_HOME}/include)
     set_target_properties(
-    ${erf_lib_name} PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+     ${erf_lib_name} PROPERTIES
+     CUDA_SEPARABLE_COMPILATION ON
+     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
   endif()
  
   #Define what we want to be installed during a make install 
@@ -145,7 +146,7 @@ function(build_erf_exe erf_exe_name)
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_exe_name})
 
-  target_sources(${erf_lib_name}
+  target_sources(${erf_exe_name}
      PUBLIC
        ${SRC_DIR}/BCfill.cpp
        ${SRC_DIR}/Setup.cpp
@@ -161,7 +162,7 @@ function(build_erf_exe erf_exe_name)
       message(STATUS "setting cuda for ${ERF_SOURCES}")
     endforeach()
     set_target_properties(
-    ${erf_lib_name} PROPERTIES
+    ${erf_exe_name} PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
   endif()
