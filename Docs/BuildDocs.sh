@@ -18,10 +18,10 @@ doxygen Doxyfile.in
 # Build sphinx documents
 cd sphinx_doc/
 make clean          # fixes occasional unexpected behavior
-make html 
+make html
 
 
-echo "" 
+echo ""
 echo -e "-- ${GRN}Building Docs Complete${NC} --"
 echo -e "See ${YEL}doxygen_output/html/${NC} for doxygen html files"
 echo -e "See ${YEL}sphinx_doc/_build/html/${NC} for sphinx html files"
