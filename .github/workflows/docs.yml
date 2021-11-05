@@ -21,12 +21,13 @@ jobs:
           python3 -m pip install sphinx sphinx_rtd_theme # breathe -- not using this at the moment
           python3 -m pip install -I docutils==0.16  # Downgrade docutils so that bullet points render properly with Sphinx
 
-      - name: Install and Build
+      - name: Build Docs
         run: |
+          # ./Docs/BuildDocs #Use this once PR#171 goes through
           cd Docs
-          doxygen Doxygen.in
+          doxygen Doxyfile.in
 
-      - name: Deploy
+      - name: Deploy to Webpage
         # if: github.event_name == 'push' && github.repository == 'erf-model/ERF' && github.ref == 'refs/heads/development'
         uses: JamesIves/github-pages-deploy-action@4.1.5
         with:
