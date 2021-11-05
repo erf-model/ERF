@@ -1,3 +1,7 @@
+/**
+ * \file RK3.H
+ */
+
 #ifndef _RK3_H_
 #define _RK3_H_
 
@@ -25,6 +29,23 @@ void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in
                         MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out,
                         const SolverChoice& solverChoice);
 
+
+/**
+ * Update the cell-centered state and face-based velocity using RK3
+ * 
+ * \param[in]  S_old  state on cell centers
+ * \param[in]  S_old  state on cell centers
+ * \param[in]  U_old  x-velocity on x-faces
+ * \param[in]  V_old  y-velocity on y-faces
+ * \param[in]  W_old  z-velocity on z-faces
+ * \param[in]  source source term on cell centers
+ *          
+ * \param[out] S_new  state on cell centers
+ * \param[out] U_new  x-velocity on x-faces
+ * \param[out] V_new  y-velocity on y-faces
+ * \param[out] W_new  z-velocity on z-faces
+ *
+ */
 void RK3_advance(int level,
                  MultiFab& cons_old, MultiFab& cons_new,
                  MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
@@ -38,7 +59,9 @@ void RK3_advance(int level,
                  const amrex::Real* dxp, const amrex::Real dt,
                        amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
-
+/**
+ * Return update in the cons_new and [x,y,z]mom_new MultiFabs
+ */
 void RK3_stage  (int level,
                  MultiFab& cons_old, MultiFab& cons_new,
                  MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
@@ -78,7 +101,7 @@ Real InterpolateRhoScalarFromCellToFace(const int &i, const int &j, const int &k
                                       const enum Coord& coordDir,
                                       const int &spatial_order);
 
-// Meant for {x, y, z}- momentum equations
+/** Meant for {x, y, z}- momentum equations */
 AMREX_GPU_DEVICE
 Real ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
                                    const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
@@ -88,7 +111,7 @@ Real ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
                                    const enum AdvectingQuantity &advectingQuantity,
                                    const int &spatial_order);
 
-// Meant for {x, y, z}- momentum equations
+/** Meant for {x, y, z}- momentum equations */
 AMREX_GPU_DEVICE
 Real AdvectionContributionForMom(const int &i, const int &j, const int &k,
                                  const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
@@ -97,7 +120,7 @@ Real AdvectionContributionForMom(const int &i, const int &j, const int &k,
                                  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                  const SolverChoice &solverChoice);
 
-// Meant for the continuity, energy, and scalar equations
+/** Meant for the continuity, energy, and scalar equations */
 AMREX_GPU_DEVICE
 Real ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                              const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
@@ -107,7 +130,7 @@ Real ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                              const enum AdvectingQuantity &advectingQuantity,
                              const int &spatial_order);
 
-// Meant for the continuity, energy, and scalar equations
+/** Meant for the continuity, energy, and scalar equations */
 AMREX_GPU_DEVICE
 Real AdvectionContributionForState(const int &i, const int &j, const int &k,
                                    const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
@@ -116,7 +139,7 @@ Real AdvectionContributionForState(const int &i, const int &j, const int &k,
                                    const int &spatial_order);
 
 
-// Compute Sij
+/** Compute Sij */
 AMREX_GPU_DEVICE
 Real ComputeStrainRate(const int &i, const int &j, const int &k,
                         const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
@@ -125,14 +148,14 @@ Real ComputeStrainRate(const int &i, const int &j, const int &k,
                         const enum DiffusionDir &diffDir,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize);
 
-// Given a velocity field and a geometry, compute nut or K(i, j, k) at cell-centers
+/** Given a velocity field and a geometry, compute nut or K(i, j, k) at cell-centers */
 //AMREX_GPU_DEVICE
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                                MultiFab& cons_in, MultiFab& eddyViscosity,
                                const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                const SolverChoice& solverChoice);
 
-// Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known
+/** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known */
 AMREX_GPU_DEVICE
 Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
@@ -142,7 +165,7 @@ Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                             const Array4<Real>& nut);
 
-// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
+/** Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky */
 AMREX_GPU_DEVICE
 Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,

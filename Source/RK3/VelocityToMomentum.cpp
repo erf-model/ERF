@@ -1,9 +1,15 @@
+/**
+ * \file VelocityToMomentum.cpp
+ */
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include "RK3.H"
 
 using namespace amrex;
 
+/**
+ * Convert velocity to momentum.
+ */
 void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in,
                          MultiFab& cons_in,
                          MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
