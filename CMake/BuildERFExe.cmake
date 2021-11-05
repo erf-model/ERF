@@ -7,14 +7,16 @@ function(target_link_libraries_system target visibility)
   endforeach(lib)
 endfunction(target_link_libraries_system)
 
-function(build_erf_exe erf_exe_name)
+function(build_erf_lib erf_lib_name)
 
   set(SRC_DIR ${CMAKE_SOURCE_DIR}/Source)
-  set(BIN_DIR ${CMAKE_BINARY_DIR}/Source/${erf_exe_name})
+  set(BIN_DIR ${CMAKE_BINARY_DIR}/Source/${erf_lib_name})
 
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
+  set_erf_compile_flags(${erf_lib_name})
 
-  add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/${erf_exe_name})
+#  add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/${erf_exe_name})
+  add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/)
 
   set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/Source")
   target_sources(${erf_lib_name} PUBLIC
@@ -82,7 +84,7 @@ function(build_erf_exe erf_exe_name)
   endif()
 
   include(AMReXBuildInfo)
-  generate_buildinfo(${erf_exe_name} ${CMAKE_SOURCE_DIR})
+  generate_buildinfo(${erf_lib_name} ${CMAKE_SOURCE_DIR})
   target_include_directories(${erf_lib_name} PUBLIC ${AMREX_SUBMOD_LOCATION}/Tools/C_scripts)
 
   if(ERF_ENABLE_MASA)
@@ -115,15 +117,17 @@ function(build_erf_exe erf_exe_name)
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC amrex)
-  target_link_libraries(${erf_exe_name}  PUBLIC ${erf_lib_name})
-
   if(ERF_ENABLE_CUDA)
-    set(pctargets "${erf_exe_name}")
+    set(pctargets "${erf_lib_name}")
     foreach(tgt IN LISTS pctargets)
       get_target_property(ERF_SOURCES ${tgt} SOURCES)
       list(FILTER ERF_SOURCES INCLUDE REGEX "\\.cpp")
       set_source_files_properties(${ERF_SOURCES} PROPERTIES LANGUAGE CUDA)
+      message(STATUS "setting cuda for ${ERF_SOURCES}")
     endforeach()
+    set_target_properties(
+    ${erf_lib_name} PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON)
   endif()
  
   #Define what we want to be installed during a make install 
@@ -131,6 +135,24 @@ function(build_erf_exe erf_exe_name)
           RUNTIME DESTINATION bin
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)
+
+endfunction(build_erf_lib)
+
+function(build_erf_exe erf_exe_name)
+
+  target_link_libraries(${erf_exe_name}  PUBLIC ${erf_lib_name})
+  include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
+  set_erf_compile_flags(${erf_exe_name})
+
+  if(ERF_ENABLE_CUDA)
+    set(pctargets "${erf_exe_name}")
+    foreach(tgt IN LISTS pctargets)
+      get_target_property(ERF_SOURCES ${tgt} SOURCES)
+      list(FILTER ERF_SOURCES INCLUDE REGEX "\\.cpp")
+      set_source_files_properties(${ERF_SOURCES} PROPERTIES LANGUAGE CUDA)
+      message(STATUS "setting cuda for ${ERF_SOURCES}")
+    endforeach()
+  endif()
 
   install(TARGETS ${erf_exe_name} 
           RUNTIME DESTINATION bin

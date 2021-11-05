@@ -8,7 +8,6 @@ target_sources(${erf_exe_name}
 )
 
 target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(${erf_lib_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 include(${CMAKE_SOURCE_DIR}/CMake/BuildERFExe.cmake)
-build_erf_exe(${erf_exe_name} ${erf_lib_name})
+build_erf_exe(${erf_exe_name})
