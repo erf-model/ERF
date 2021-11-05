@@ -3,7 +3,6 @@ target_sources(${erf_lib_name}
      erf_defaults.H
      erf_params.H
      erf_queries.H
-     prob.H
    )
 
 target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
