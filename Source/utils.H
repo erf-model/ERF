@@ -2,6 +2,15 @@
  * @{
  */
 
+/**
+ * \file utils.H
+ *
+ * \brief Collection of utility functions
+ *
+ * A detailed description of this file can be included here.
+ *
+ */
+
 #ifndef UTILS_H
 #define UTILS_H
 
@@ -9,10 +18,11 @@
 #include <AMReX_BCRec.H>
 
 /**
- * Collection of utility functions
+ * \brief Brief descriptions show up in a few extra places.
  *
+ * A detailed description of this function can be included here. It will
+ * be disaplyed with the documentation for function.
  */
-
 void
 create_umac_grown (int lev, int nGrow, amrex::BoxArray& fine_grids,
                    const amrex::Geometry& crse_geom,
@@ -21,7 +31,9 @@ create_umac_grown (int lev, int nGrow, amrex::BoxArray& fine_grids,
                    const amrex::Array<amrex::MultiFab*,AMREX_SPACEDIM> u_mac_fine,
                    const amrex::IntVect& crse_ratio);
 
-// A placeholder for filling dirichlet boundary conditions on u_mac.
+/**
+ * A placeholder for filling dirichlet boundary conditions on u_mac.
+ */
 struct FCFillExtDirDummy
 {
     AMREX_GPU_HOST
