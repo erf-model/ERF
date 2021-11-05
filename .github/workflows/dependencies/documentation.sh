@@ -18,5 +18,5 @@ sudo apt-get install -y --no-install-recommends\
     texlive-lang-cjk \
     tex-gyre \
     latexmk \
-    graphviz 
+    graphviz
 

@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: DocHTML -- Build and Deploy
 
 on: [push, pull_request]
 
@@ -23,7 +23,6 @@ jobs:
 
       - name: Install and Build
         run: |
-          # ./Docs/BuildDocs.sh # Enable once PR#171 goes through
           cd Docs
           doxygen Doxygen.in
 
