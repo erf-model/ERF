@@ -104,12 +104,12 @@ Runge-Kutta steps.  Then the fully explicit acoustic substepping evolves the equ
             - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}} \frac{\Theta^{\prime \prime, t}}{\Theta^t}
             + g \rho^{\prime \prime, t} + R^t_W )
 
-  \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} &=& delta \tau (
+  \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} &=& \delta \tau (
           -\frac{\partial (U^{\prime \prime, \tau} \theta^t)}{\partial x} +
           -\frac{\partial (V^{\prime \prime, \tau} \theta^t)}{\partial y} +
           -\frac{\partial (W^{\prime \prime, \tau} \theta^t)}{\partial z} +  R^t_{\Theta} )
 
-  \rho^{\prime \prime, \tau + \delta \tau} -\rho^{\prime \prime, \tau} &=& delta \tau (
+  \rho^{\prime \prime, \tau + \delta \tau} -\rho^{\prime \prime, \tau} &=& \delta \tau (
           - \frac{\partial U^{\prime \prime, \tau}}{\partial x} - \frac{\partial V^{\prime \prime, \tau}}{\partial y}
           - \frac{\partial W^{\prime \prime, \tau}}{\partial z} +  R^t_{\rho} )
 
@@ -117,24 +117,30 @@ In the equations above the order of solution doesn't matter since the updates ar
 
 If we instead use the semi-implicit form below, then we must first update the horizontal momentum, then update the remaining coupled equations,
 which requires a tri-diagonal solve.  The semi-implicit form of the equations have the same horizontal momentum equations but the
-following for :math:`W, \Theta and \rho.`  We note that :math:`\beta = 1` below would correspond to fully explicit; :math:`\beta = 0` would be fully implicit for
-:math:``W^{\prime \prime}`.
+following for :math:`W^{\prime \prime}, \Theta^{\prime \prime}` and :math:`\rho^{\prime \prime}.`
+We note that :math:`\beta = 1` below would correspond to fully explicit; :math:`\beta = 0` would be fully implicit for :math:`W^{\prime \prime}`.
 
 .. math::
 
-  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} &=&  \delta \tau (
+  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} =  \delta \tau (
             -\gamma R_d \pi^t \frac{\partial ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} ) }{\partial z} \\
             - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
              \frac{ ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t}
             + g (\beta \rho^{\prime \prime, t} + (1 - \beta) \rho^{\prime \prime, t} ) + R^t_W )
 
-  \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} &=&  \delta \tau (
+  \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} =  \delta \tau (
           -\frac{\partial (U^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial x} +
           -\frac{\partial (V^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial y} +
           -\frac{\partial (( \beta W^{\prime \prime, \tau} + (1 - \beta) W^{\prime \prime, \tau + \delta \tau} ) \theta^t)}{\partial z} +  R^t_{\Theta} )
 
-  \rho^{\prime \prime, \tau + \delta \tau} - \rho^{\prime \prime, \tau} &=&  \delta \tau (
+  \rho^{\prime \prime, \tau + \delta \tau} - \rho^{\prime \prime, \tau} =  \delta \tau (
           - \frac{\partial U^{\prime \prime, \tau + \delta \tau }}{\partial x}
           - \frac{\partial V^{\prime \prime, \tau + \delta \tau }}{\partial y}
           - \frac{\partial (\beta W^{\prime \prime, \tau} + (1-\beta) W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho} )
 
+
+We note that the only approximation in this system so far is in the linearization of the ideal gas law to define 
+:math:`\pi^{\prime \prime} = R_d \pi^t \Theta^{\prime \prime} / (c_v \Theta^t).`
+
+Klemp et al note that with second-order differencing on a C grid, eliminating :math:`\rho^{\prime \prime}` and :math:`\Theta^{\prime \prime}`
+from the vertical momentum equation using the final two equations results in a tridiagonal equation that is easily inverted.
