@@ -139,7 +139,7 @@ We note that :math:`\beta = 1` below would correspond to fully explicit; :math:`
           - \frac{\partial (\beta W^{\prime \prime, \tau} + (1-\beta) W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho} )
 
 
-We note that the only approximation in this system so far is in the linearization of the ideal gas law to define 
+We note that the only approximation in this system so far is in the linearization of the ideal gas law to define
 :math:`\pi^{\prime \prime} = R_d \pi^t \Theta^{\prime \prime} / (c_v \Theta^t).`
 
 Klemp et al note that with second-order differencing on a C grid, eliminating :math:`\rho^{\prime \prime}` and :math:`\Theta^{\prime \prime}`
