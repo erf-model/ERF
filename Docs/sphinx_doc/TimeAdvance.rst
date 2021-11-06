@@ -29,11 +29,11 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 
 .. math::
 
-  \mathbf{S}^{(1)} = \mathbf{S}^n + \Delta t f(\mathbf{S}^n)
+  \mathbf{S}^{(1)} &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^n)
 
-  \mathbf{S}^{(2)} = \frac{3}{4} \mathbf{S}^n + \frac{1}{4} ( \mathbf{S}^{(1)} + \Delta t f(\mathbf{S}^{(1)}) )
+  \mathbf{S}^{(2)} &=& \frac{3}{4} \mathbf{S}^n + \frac{1}{4} ( \mathbf{S}^{(1)} + \Delta t f(\mathbf{S}^{(1)}) )
 
-  \mathbf{S}^{n+1} = \frac{1}{3} \mathbf{S}^n + \frac{2}{3} ( \mathbf{S}^{(2)} + \Delta t f(\mathbf{S}^{(2)}) )
+  \mathbf{S}^{n+1} &=& \frac{1}{3} \mathbf{S}^n + \frac{2}{3} ( \mathbf{S}^{(2)} + \Delta t f(\mathbf{S}^{(2)}) )
 
 In the code, the time-stepping is implemented in :cpp:`Source/RK3/RK3_driver.cpp`, while
 :math:`f` is computed in :cpp:`Source/RK3/RK3_stage.cpp`
@@ -42,11 +42,11 @@ We note this can also be written as
 
 .. math::
 
-  \mathbf{S}^{(1)} = \mathbf{S}^n + \Delta t f(\mathbf{S}^n)
+  \mathbf{S}^{(1)} &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^n)
 
-  \mathbf{S}^{(2)} = \mathbf{S}^n + \Delta t \; ( \frac{1}{4} f(\mathbf{S}^n) +  \frac{1}{4} f(\mathbf{S}^{(1)}) )
+  \mathbf{S}^{(2)} &=& \mathbf{S}^n + \Delta t \; ( \frac{1}{4} f(\mathbf{S}^n) +  \frac{1}{4} f(\mathbf{S}^{(1)}) )
 
-  \mathbf{S}^{n+1} = \mathbf{S}^n + \Delta t \; ( \frac{2}{3} f(\mathbf{S}^{(2)}) + \frac{1}{6} f(\mathbf{S}^{(1)}) +  \frac{1}{6} f(\mathbf{S}^{n}) )
+  \mathbf{S}^{n+1} &=& \mathbf{S}^n + \Delta t \; ( \frac{2}{3} f(\mathbf{S}^{(2)}) + \frac{1}{6} f(\mathbf{S}^{(1)}) +  \frac{1}{6} f(\mathbf{S}^{n}) )
 
 which makes it clear that the boundary conditions for :math:`\mathbf{S}^{(1)}` live at time :math:`t^{n+1}`
 while the boundary conditions for :math:`\mathbf{S}^{(2)}` are at time :math:`t^{n+1/2}`.
