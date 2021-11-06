@@ -122,16 +122,20 @@ We note that :math:`\beta = 1` below would correspond to fully explicit; :math:`
 
 .. math::
 
-  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} =  \delta \tau (
+  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} &=&  \delta \tau (
             -\gamma R_d \pi^t \frac{\partial ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} ) }{\partial z} \\
-            - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
+            && - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
              \frac{ ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t}
             + g (\beta \rho^{\prime \prime, t} + (1 - \beta) \rho^{\prime \prime, t} ) + R^t_W )
 
+.. math::
+
   \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} =  \delta \tau (
-          -\frac{\partial (U^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial x} +
-          -\frac{\partial (V^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial y} +
+          -\frac{\partial (U^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial x}
+          -\frac{\partial (V^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial y}
           -\frac{\partial (( \beta W^{\prime \prime, \tau} + (1 - \beta) W^{\prime \prime, \tau + \delta \tau} ) \theta^t)}{\partial z} +  R^t_{\Theta} )
+
+.. math::
 
   \rho^{\prime \prime, \tau + \delta \tau} - \rho^{\prime \prime, \tau} =  \delta \tau (
           - \frac{\partial U^{\prime \prime, \tau + \delta \tau }}{\partial x}
