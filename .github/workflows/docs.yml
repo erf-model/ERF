@@ -34,7 +34,7 @@ jobs:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # ACCESS_TOKEN: ${{ secrets.DEPLOY_DOCS }}
           token: ${{ secrets.DEPLOY_DOCS_TOKEN }}
-          ssh-key: ${{ secrets.DEPLOY_DOC_SSHKEY }}
+          # ssh-key: ${{ secrets.DEPLOY_DOC_SSHKEY }}
           repository-name: erf-model/docs
           branch: main # The branch the action should deploy to.
           folder: Docs/doxygen_output/html # The folder the action should deploy.
