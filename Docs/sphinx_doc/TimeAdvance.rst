@@ -93,23 +93,23 @@ Runge-Kutta steps.  Then the fully explicit acoustic substepping evolves the equ
 
 .. math::
 
-  U^{\prime \prime, \tau + \delta \tau} &=& U^{\prime \prime, \tau} + \delta \tau (
+  U^{\prime \prime, \tau + \delta \tau} - U^{\prime \prime, \tau} &=&  \delta \tau (
               -\gamma R_d \pi^t \frac{\partial \Theta^{\prime \prime, \tau}}{\partial x} + R^t_U)
 
-  V^{\prime \prime, \tau + \delta \tau} &=& V^{\prime \prime, \tau} + \delta \tau (
+  V^{\prime \prime, \tau + \delta \tau} - V^{\prime \prime, \tau} &=&  \delta \tau (
               -\gamma R_d \pi^t \frac{\partial \Theta^{\prime \prime, \tau}}{\partial y} + R^t_V)
 
-  W^{\prime \prime, \tau + \delta \tau} &=& W^{\prime \prime, \tau} + \delta \tau (
+  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} &=&  \delta \tau (
             -\gamma R_d \pi^t \frac{\partial \Theta^{\prime \prime, \tau}}{\partial z}
             - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}} \frac{\Theta^{\prime \prime, t}}{\Theta^t}
             + g \rho^{\prime \prime, t} + R^t_W )
 
-  \Theta^{\prime \prime, \tau + \delta \tau} &=& \Theta^{\prime \prime, \tau} + \delta \tau (
+  \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} &=& delta \tau (
           -\frac{\partial (U^{\prime \prime, \tau} \theta^t)}{\partial x} +
           -\frac{\partial (V^{\prime \prime, \tau} \theta^t)}{\partial y} +
           -\frac{\partial (W^{\prime \prime, \tau} \theta^t)}{\partial z} +  R^t_{\Theta} )
 
-  \rho^{\prime \prime, \tau + \delta \tau} &=& \rho^{\prime \prime, \tau} + \delta \tau (
+  \rho^{\prime \prime, \tau + \delta \tau} -\rho^{\prime \prime, \tau} &=& delta \tau (
           - \frac{\partial U^{\prime \prime, \tau}}{\partial x} - \frac{\partial V^{\prime \prime, \tau}}{\partial y}
           - \frac{\partial W^{\prime \prime, \tau}}{\partial z} +  R^t_{\rho} )
 
@@ -122,18 +122,18 @@ following for :math:`W, \Theta and \rho.`  We note that :math:`\beta = 1` below 
 
 .. math::
 
-  W^{\prime \prime, \tau + \delta \tau} &=& W^{\prime \prime, \tau} + \delta \tau (
-            -\gamma R_d \pi^t \frac{\partial ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} ) }{\partial z}
+  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} &=&  \delta \tau (
+            -\gamma R_d \pi^t \frac{\partial ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} ) }{\partial z} \\
             - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
              \frac{ ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t}
             + g (\beta \rho^{\prime \prime, t} + (1 - \beta) \rho^{\prime \prime, t} ) + R^t_W )
 
-  \Theta^{\prime \prime, \tau + \delta \tau} &=& \Theta^{\prime \prime, \tau} + \delta \tau (
+  \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} &=&  \delta \tau (
           -\frac{\partial (U^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial x} +
           -\frac{\partial (V^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial y} +
           -\frac{\partial (( \beta W^{\prime \prime, \tau} + (1 - \beta) W^{\prime \prime, \tau + \delta \tau} ) \theta^t)}{\partial z} +  R^t_{\Theta} )
 
-  \rho^{\prime \prime, \tau + \delta \tau} &=& \rho^{\prime \prime, \tau} + \delta \tau (
+  \rho^{\prime \prime, \tau + \delta \tau} - \rho^{\prime \prime, \tau} &=&  \delta \tau (
           - \frac{\partial U^{\prime \prime, \tau + \delta \tau }}{\partial x}
           - \frac{\partial V^{\prime \prime, \tau + \delta \tau }}{\partial y}
           - \frac{\partial (\beta W^{\prime \prime, \tau} + (1-\beta) W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho} )
