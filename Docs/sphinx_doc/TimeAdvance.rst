@@ -71,7 +71,7 @@ We first recall the equations in the form, here defining :math:`\mathbf{R}` for 
 
   \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\alpha_{C}\ \nabla (\rho C)) = R_{\rho C},
 
-where we have defined :math:`\mathbf{U} = (U,V,W) = \rho \mathbf{u} = (\rho u, \rho v, \rho w),` , :math:`\Theta = \rho \theta,` and
+where we have defined :math:`\mathbf{U} = (U,V,W) = \rho \mathbf{u} = (\rho u, \rho v, \rho w)` , :math:`\Theta = \rho \theta` and
 :math:`\mathbf{F}_\mathbf{U} = (F_U, F_V, F_W) = \rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}`
 
 Using the relation :math:`\nabla p = \gamma R_d \pi \nabla \Theta,` where the Exner function :math:`\pi = (p/p_0)^\kappa` with :math:`\kappa = R_d / c_p,`
@@ -83,8 +83,8 @@ we can re-write the unapproximated momentum equations
 
   \frac{\partial V}{\partial t} &=& - \nabla \cdot (\mathbf{u} V) - \gamma R_d \pi \frac{\partial \Theta^\prime}{\partial y} + F_v
 
-  \frac{\partial W}{\partial t} &=& - \nabla \cdot (\mathbf{u} W) - \gamma R_d \pi \nabla \Theta \frac{\partial \Theta^\prime}{\partial z}
-                                                                              - g \overline{\rho} \frac{\pi^\prime}{\overline{\pi}} + F_w
+  \frac{\partial W}{\partial t} &=& - \nabla \cdot (\mathbf{u} W) - \gamma R_d \pi \frac{\partial \Theta^\prime}{\partial z}
+                                                                              - g (\overline{\rho} \frac{\pi^\prime}{\overline{\pi}} - \rho^\prime) + F_w
 
 
 We then define new perturbational quantities, e.g., :math:`\mathbf{U}^{\prime \prime} = \mathbf{U} - \mathbf{U}^t` where :math:`\mathbf{U}^t`
@@ -105,9 +105,9 @@ Runge-Kutta steps.  Then the fully explicit acoustic substepping evolves the equ
             + g \rho^{\prime \prime, t} + R^t_W )
 
   \Theta^{\prime \prime, \tau + \delta \tau} &=& \Theta^{\prime \prime, \tau} + \delta \tau (
-          -\frac{\partial {U^{\prime \prime, \tau} \theta^t}{\partial x} +
-          -\frac{\partial {V^{\prime \prime, \tau} \theta^t}{\partial y} +
-          -\frac{\partial (W^{\prime \prime, \tau} \theta^t){\partial z} +  R^t_{\Theta} )
+          -\frac{\partial (U^{\prime \prime, \tau} \theta^t)}{\partial x} +
+          -\frac{\partial (V^{\prime \prime, \tau} \theta^t)}{\partial y} +
+          -\frac{\partial (W^{\prime \prime, \tau} \theta^t)}{\partial z} +  R^t_{\Theta} )
 
   \rho^{\prime \prime, \tau + \delta \tau} &=& \rho^{\prime \prime, \tau} + \delta \tau (
           - \frac{\partial U^{\prime \prime, \tau}}{\partial x} - \frac{\partial V^{\prime \prime, \tau}}{\partial y}
@@ -129,11 +129,12 @@ following for :math:`W, \Theta and \rho.`  We note that :math:`\beta = 1` below 
             + g (\beta \rho^{\prime \prime, t} + (1 - \beta) \rho^{\prime \prime, t} ) + R^t_W )
 
   \Theta^{\prime \prime, \tau + \delta \tau} &=& \Theta^{\prime \prime, \tau} + \delta \tau (
-          -\frac{\partial {U^{\prime \prime, \tau + \delta \tau} \theta^t}{\partial x} +
-          -\frac{\partial {V^{\prime \prime, \tau + \delta \tau} \theta^t}{\partial y} +
-          -\frac{\partial ( \beta W^{\prime \prime, \tau} + (1 - \beta) W^{\prime \prime, \tau + \delta \tau} ) \theta^t){\partial z} +  R^t_{\Theta} )
+          -\frac{\partial (U^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial x} +
+          -\frac{\partial (V^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial y} +
+          -\frac{\partial (( \beta W^{\prime \prime, \tau} + (1 - \beta) W^{\prime \prime, \tau + \delta \tau} ) \theta^t)}{\partial z} +  R^t_{\Theta} )
 
   \rho^{\prime \prime, \tau + \delta \tau} &=& \rho^{\prime \prime, \tau} + \delta \tau (
-          - \frac{\partial U^{\prime \prime, \tau + \delta \tau }}{\partial x} - \frac{\partial V^{\prime \prime, \tau + \delta \tau }}{\partial y}
+          - \frac{\partial U^{\prime \prime, \tau + \delta \tau }}{\partial x}
+          - \frac{\partial V^{\prime \prime, \tau + \delta \tau }}{\partial y}
           - \frac{\partial (\beta W^{\prime \prime, \tau} + (1-\beta) W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho} )
 
