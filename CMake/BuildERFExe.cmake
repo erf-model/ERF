@@ -40,6 +40,7 @@ function(build_erf_lib erf_lib_name)
   target_sources(${erf_lib_name}
      PUBLIC
        ${SRC_DIR}/Advance.cpp
+       ${SRC_DIR}/BCfill.cpp
        ${SRC_DIR}/Bld.cpp
        ${SRC_DIR}/DataStruct.H
        ${SRC_DIR}/Constants.H
@@ -52,6 +53,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Problem.H
        ${SRC_DIR}/ProblemDerive.H
        ${SRC_DIR}/utils.H
+       ${SRC_DIR}/Setup.cpp
        ${SRC_DIR}/SumIQ.cpp
        ${SRC_DIR}/SumUtils.cpp
        ${SRC_DIR}/Tagging.H
@@ -125,8 +127,7 @@ function(build_erf_lib erf_lib_name)
     endforeach()
     set_target_properties(
     ${erf_lib_name} PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+    CUDA_SEPARABLE_COMPILATION ON)
   endif()
  
   #Define what we want to be installed during a make install 
@@ -139,19 +140,10 @@ endfunction(build_erf_lib)
 
 function(build_erf_exe erf_exe_name)
 
-  set(SRC_DIR ${CMAKE_SOURCE_DIR}/Source)
-
   target_link_libraries(${erf_exe_name}  PUBLIC ${erf_lib_name})
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_exe_name})
 
-  target_sources(${erf_lib_name}
-     PUBLIC
-       ${SRC_DIR}/BCfill.cpp
-       ${SRC_DIR}/Setup.cpp
-       ${SRC_DIR}/Cleanup.cpp
-
-  )
   if(ERF_ENABLE_CUDA)
     set(pctargets "${erf_exe_name}")
     foreach(tgt IN LISTS pctargets)
@@ -160,10 +152,6 @@ function(build_erf_exe erf_exe_name)
       set_source_files_properties(${ERF_SOURCES} PROPERTIES LANGUAGE CUDA)
       message(STATUS "setting cuda for ${ERF_SOURCES}")
     endforeach()
-    set_target_properties(
-    ${erf_lib_name} PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON)
   endif()
 
   install(TARGETS ${erf_exe_name} 
