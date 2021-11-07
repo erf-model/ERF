@@ -126,7 +126,7 @@ We note that :math:`\beta = 1` below would correspond to fully explicit; :math:`
             -\gamma R_d \pi^t \frac{\partial ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} ) }{\partial z} \\
             && - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
              \frac{ ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t}
-            + g (\beta \rho^{\prime \prime, t} + (1 - \beta) \rho^{\prime \prime, t} ) + R^t_W )
+            + g (\beta \rho^{\prime \prime, \tau} + (1 - \beta) \rho^{\prime \prime, \tau + \delta \tau } ) + R^t_W )
 
 .. math::
 
