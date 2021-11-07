@@ -29,7 +29,7 @@ if(ERF_ENABLE_CUDA)
     list(APPEND ERF_CUDA_FLAGS "--use_fast_math")
   endif()
   separate_arguments(ERF_CUDA_FLAGS)
-  target_compile_options(${target} PUBLIC $<$<COMPILE_LANGUAGE:CUDA>:${ERF_CUDA_FLAGS}>)
+  target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${ERF_CUDA_FLAGS}>)
   # Add arch flags to both compile and linker to avoid warnings about missing arch
   set(CMAKE_CUDA_FLAGS ${NVCC_ARCH_FLAGS})
 
@@ -38,12 +38,6 @@ if(ERF_ENABLE_CUDA)
       PROPERTIES
       CUDA_ARCHITECTURES "${AMREX_CUDA_ARCHS}"
       )
-# CUDA compiler is in the form CUDA_HOME/bin/compiler-name
-# Remove bin/compiler-name to get CUDA HOME
-get_filename_component(_cuda_home ${CMAKE_CUDA_COMPILER} DIRECTORY) # remove compiler from path
-get_filename_component(_cuda_home ${_cuda_home} DIRECTORY) # remove bin/ from path
-set( CUDA_HOME ${_cuda_home} CACHE INTERNAL "Path to CUDA library")
-unset(_cuda_home)
    target_include_directories(${target} SYSTEM PUBLIC ${CUDA_HOME}/include)
 set_target_properties(
     ${target} PROPERTIES
