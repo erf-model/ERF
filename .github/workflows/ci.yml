@@ -46,26 +46,6 @@ jobs:
         # Install MPI
         ${{matrix.install_deps}}
 
-        ## Install MetaPhysicL
-        #cd ${{runner.workspace}}/deps
-        #git clone --recursive https://github.com/roystgnr/MetaPhysicL.git ${{runner.workspace}}/deps/MetaPhysicL
-        #cd ${{runner.workspace}}/deps/MetaPhysicL
-        #./bootstrap
-        #./configure --prefix="${{runner.workspace}}/deps/install/MetaPhysicL"
-        #make -j ${{env.NPROCS}}
-        #make install
-
-        ## Install MASA
-        #cd ${{runner.workspace}}/deps
-        #git clone --recursive https://github.com/manufactured-solutions/MASA.git ${{runner.workspace}}/deps/MASA
-        #cd ${{runner.workspace}}/deps/MASA
-        #./bootstrap
-        #./configure CXX='mpicxx -std=c++11' CC=mpicc \
-        #  METAPHYSICL_DIR="${{runner.workspace}}/deps/install/MetaPhysicL" \
-        #  --prefix="${{runner.workspace}}/deps/install/MASA"
-        #make -j ${{env.NPROCS}}
-        #make install
-
     - name: Configure CMake
       run: |
         cmake \
@@ -75,7 +55,6 @@ jobs:
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_TESTS:BOOL=ON \
-          -DERF_ENABLE_MASA:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_AMREX_EB:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \

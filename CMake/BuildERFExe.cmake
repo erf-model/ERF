@@ -12,12 +12,6 @@ function(build_erf_exe erf_exe_name)
                  ${ERF_EOS_DIR}/EOS.H)
   target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${ERF_EOS_DIR})
 
-  if(ERF_ENABLE_MASA)
-    target_sources(${erf_exe_name} PRIVATE
-                   ${SRC_DIR}/MMS.cpp)
-    target_compile_definitions(${erf_exe_name} PRIVATE ERF_USE_MASA)
-  endif()
- 
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_exe_name} PRIVATE
                    ${SRC_DIR}/IO/NCInterface.H
@@ -75,16 +69,6 @@ function(build_erf_exe erf_exe_name)
   include(AMReXBuildInfo)
   generate_buildinfo(${erf_exe_name} ${CMAKE_SOURCE_DIR})
   target_include_directories(${erf_exe_name} PUBLIC ${AMREX_SUBMOD_LOCATION}/Tools/C_scripts)
-
-  if(ERF_ENABLE_MASA)
-    if(MASA_FOUND)
-      #Link our executable to the MASA libraries, etc
-      target_link_libraries(${erf_exe_name} PRIVATE ${MASA_LIBRARY})
-      target_compile_definitions(${erf_exe_name} PRIVATE USE_MASA DO_PROBLEM_POST_TIMESTEP DO_PROBLEM_POST_INIT)
-      target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${MASA_INCLUDE_DIRS})
-      target_include_directories(${erf_exe_name} SYSTEM PRIVATE ${MASA_MOD_DIRS})
-    endif()
-  endif()
 
   if(ERF_ENABLE_NETCDF)
     if(NETCDF_FOUND)
