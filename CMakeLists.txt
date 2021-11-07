@@ -13,7 +13,6 @@ option(ERF_ENABLE_DOCUMENTATION "Build documentation" OFF)
 option(ERF_ENABLE_AMREX_EB "Enable EB in AMReX library" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
-option(ERF_ENABLE_MASA "Enable tests that require MASA" OFF)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
@@ -62,16 +61,6 @@ include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexOptions.cmake)
 list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
 add_subdirectory(${AMREX_SUBMOD_LOCATION})
 include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexCompileFlags.cmake)
-
-########################### MASA #####################################
-
-if(ERF_ENABLE_MASA)
-  set(CMAKE_PREFIX_PATH ${MASA_DIR} ${CMAKE_PREFIX_PATH})
-  find_package(MASA QUIET REQUIRED)
-  if(MASA_FOUND)
-    message(STATUS "Found MASA = ${MASA_DIR}")
-  endif()
-endif()
 
 ########################## NETCDF ##################################
 
