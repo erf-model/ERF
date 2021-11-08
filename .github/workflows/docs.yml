@@ -23,7 +23,7 @@ jobs:
 
       - name: Build Docs
         run: |
-          ./Docs/BuildDocs #Use this once PR#171 goes through
+          # ./Docs/BuildDocs #Use this once PR#171 goes through
           cd Docs
           doxygen Doxyfile.in
 
