@@ -36,9 +36,9 @@ jobs:
           # token: ${{ secrets.DEPLOY_DOCS_TOKEN }}
           # git-config-name: etpalmer63
           # git-config-email: epalmer@lbl.gov
-          ssh-key: ${{ secrets.DEPLOY_KEY }}
+          # ssh-key: ${{ secrets.DEPLOY_KEY }}
           repository-name: erf-model/docs
           branch: main # The branch the action should deploy to.
           folder: Docs/doxygen_output/html # The folder the action should deploy.
-          commit-message: "Deployed from erf-model/ERF"
-          target-folder: Testing
+          # commit-message: "Deployed from erf-model/ERF"
+          # target-folder: Testing
