@@ -27,9 +27,14 @@ ERF advances the following set of equations in DNS mode:
 
 where :math:`\tau` is the stress tensor and :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`.
 
-Note that :math:`\alpha_{T}` and :math:`\alpha_{C}` are in general variable for a general compressible flow. However, for low Mach number atmospheric flows they are assumed to be constant.
+When run in DNS mode, :math:`\tau = 2 \mu S` where :math:`\mu` is the user-specified dynamic viscosity and
+:math:`S` is the strain-rate tensor.  When using the Smagorinsky model, the turbulent viscosity
+:math:`K = 2 (C_s \Delta)^2 (\sqrt(2 S S) \rho` is used in place of :math:`2 \mu,` where
+:math:`C_s` is the Smagorinsky constant and :math:`\Delta` is the mesh spacing.
 
-These can be re-written in perturbational form by replacing the z-momentum equation with
+Note that :math:`\alpha_{T}` is in general variable for a general compressible flow. However, for low Mach number atmospheric flows it are assumed to be constant.
+
+These equations can be re-written in perturbational form by replacing the z-momentum equation with
 
 .. math::
 
