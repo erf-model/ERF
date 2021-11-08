@@ -29,7 +29,7 @@ where :math:`\tau` is the stress tensor and :math:`\mathbf{F}` are the forcing t
 
 When run in DNS mode, :math:`\tau = 2 \mu S` where :math:`\mu` is the user-specified dynamic viscosity and
 :math:`S` is the strain-rate tensor.  When using the Smagorinsky model, the turbulent viscosity
-:math:`K = 2 (C_s \Delta)^2 (\sqrt(2 S S) \rho` is used in place of :math:`2 \mu,` where
+:math:`K = 2 (C_s \Delta)^2 (\sqrt{2 S S} \rho` is used in place of :math:`2 \mu,` where
 :math:`C_s` is the Smagorinsky constant and :math:`\Delta` is the mesh spacing.
 
 Note that :math:`\alpha_{T}` is in general variable for a general compressible flow. However, for low Mach number atmospheric flows it are assumed to be constant.
