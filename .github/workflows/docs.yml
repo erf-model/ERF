@@ -17,17 +17,15 @@ jobs:
 
       - name: Dependencies
         run: |
-          # .github/workflows/dependencies/documentation.sh
-          # python3 -m pip install sphinx sphinx_rtd_theme # breathe -- not using this at the moment
-          # python3 -m pip install -I docutils==0.16  # Downgrade docutils so that bullet points render properly with Sphinx
-          echo "skip"
+          .github/workflows/dependencies/documentation.sh
+          python3 -m pip install sphinx sphinx_rtd_theme # breathe -- not using this at the moment
+          python3 -m pip install -I docutils==0.16  # Downgrade docutils so that bullet points render properly with Sphinx
 
       - name: Build Docs
         run: |
-          # ./Docs/BuildDocs #Use this once PR#171 goes through
-          # cd Docs
-          # doxygen Doxyfile.in
-          echo "skip"
+          ./Docs/BuildDocs #Use this once PR#171 goes through
+          cd Docs
+          doxygen Doxyfile.in
 
       - name: Deploy to Webpage
         # if: github.event_name == 'push' && github.repository == 'erf-model/ERF' && github.ref == 'refs/heads/development'
