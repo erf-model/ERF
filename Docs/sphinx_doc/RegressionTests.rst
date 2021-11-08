@@ -33,7 +33,7 @@ Scalar Advection/Diffusion by Uniform Flow
 
 This tests scalar advection and diffusion with triply periodic boundaries.
 
-Scalar Diffusion 
+Scalar Diffusion
 ------------------------------------------------
 
 This tests scalar advection with triply periodic boundaries.
