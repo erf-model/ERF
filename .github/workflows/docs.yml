@@ -41,4 +41,4 @@ jobs:
           branch: main # The branch the action should deploy to.
           folder: Docs/doxygen_output/html # The folder the action should deploy.
           commit-message: "Deployed from erf-model/ERF"
-          target-folder: ./
+          target-folder: Testing
