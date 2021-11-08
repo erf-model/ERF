@@ -61,6 +61,13 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    Visualization.rst
 
 .. toctree::
+   :caption: TESTING
+   :maxdepth: 1
+   :hidden:
+
+   RegressionTesting.rst
+
+.. toctree::
    :caption: GOALS
    :maxdepth: 1
    :hidden:
