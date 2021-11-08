@@ -17,15 +17,17 @@ jobs:
 
       - name: Dependencies
         run: |
-          .github/workflows/dependencies/documentation.sh
-          python3 -m pip install sphinx sphinx_rtd_theme # breathe -- not using this at the moment
-          python3 -m pip install -I docutils==0.16  # Downgrade docutils so that bullet points render properly with Sphinx
+          # .github/workflows/dependencies/documentation.sh
+          # python3 -m pip install sphinx sphinx_rtd_theme # breathe -- not using this at the moment
+          # python3 -m pip install -I docutils==0.16  # Downgrade docutils so that bullet points render properly with Sphinx
+          echo "skip"
 
       - name: Build Docs
         run: |
           # ./Docs/BuildDocs #Use this once PR#171 goes through
-          cd Docs
-          doxygen Doxyfile.in
+          # cd Docs
+          # doxygen Doxyfile.in
+          echo "skip"
 
       - name: Deploy to Webpage
         # if: github.event_name == 'push' && github.repository == 'erf-model/ERF' && github.ref == 'refs/heads/development'
@@ -33,7 +35,7 @@ jobs:
         with:
           # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # ACCESS_TOKEN: ${{ secrets.DEPLOY_DOCS }}
-          #token: ${{ secrets.DEPLOY_DOCS_TOKEN }}
+          # token: ${{ secrets.DEPLOY_DOCS_TOKEN }}
           # git-config-name: etpalmer63
           # git-config-email: epalmer@lbl.gov
           ssh-key: ${{ secrets.DEPLOY_KEY }}
@@ -41,3 +43,4 @@ jobs:
           branch: main # The branch the action should deploy to.
           folder: Docs/doxygen_output/html # The folder the action should deploy.
           commit-message: "Deployed from erf-model/ERF"
+          target-folder: ./
