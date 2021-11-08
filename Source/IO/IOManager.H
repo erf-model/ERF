@@ -1,3 +1,8 @@
+/** \addtogroup Utilities
+ * @{
+ *
+ * \file IOManager.H
+ */
 
 #ifndef IOMANAGER_H
 #define IOMANAGER_H
@@ -18,8 +23,12 @@
 #include <AMReX_Vector.H>
 #include <AMReX_Amr.H>
 
-/** Input/Output manager
- *  \ingroup utilities
+
+// forwarded class
+class ERF;
+
+/**
+ * \brief Input/Output manager
  *
  *  This class contains infrastructure to output solution fields during the
  *  simulation as well as code that reads a checkpoint file during a restarted
@@ -30,10 +39,6 @@
  *  input file. The class also provides the ability to override output of the
  *  default fields and output a subset of those fields.
  */
-
-// forwarded class
-class ERF;
-
 class IOManager {
 public:
     explicit IOManager(ERF&);
@@ -46,7 +51,7 @@ public:
     //! write small plotfile
     void writeSmallPlotFile(const std::string& dir, std::ostream& os, amrex::VisMF::How how);
 
-    // ! Write checkpoint file
+    //! Write checkpoint file
     void checkPoint(const std::string& dir, std::ostream& os, amrex::VisMF::How how, bool dump_old_default);
 
     //! restart using checkpoint file
@@ -65,7 +70,7 @@ public:
     static void writeBuildInfo(std::ostream& os);
 
 #ifdef ERF_USE_NETCDF
-    // ! Write all user-requested fields to disk
+    //! Write all user-requested fields to disk
     void writeNCPlotFile(const std::string& dir, std::ostream& os);
 
     //! Write all necessary fields for restart
@@ -81,3 +86,4 @@ private:
 };
 
 #endif /* IOMANAGER_H */
+/** @}*/

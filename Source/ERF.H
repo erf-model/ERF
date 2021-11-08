@@ -1,3 +1,7 @@
+/**
+ * \file ERF.H
+ */
+
 #ifndef _ERF_H_
 #define _ERF_H_
 
@@ -57,14 +61,16 @@ ENUM_BUILDER(StateType,
              Z_Vel_Type,
              Work_Estimate_Type)
 
-// AmrLevel-derived class for solving equations for atmospheric flows
+/**
+ * AmrLevel-derived class for solving equations for atmospheric flows
+ */
 class ERF : public amrex::AmrLevel
 {
 public:
-  // Default constructor.  Builds invalid object.
+  //! Default constructor.  Builds invalid object.
   ERF();
 
-  // The basic constructor.
+  //! The basic constructor.
   ERF(
     amrex::Amr& papa,
     int lev,
@@ -73,18 +79,18 @@ public:
     const amrex::DistributionMapping& dm,
     amrex::Real time);
 
-  // The destructor.
+  //! The destructor.
   virtual ~ERF();
 
-  // Restart from a checkpoint file.
+  //! Restart from a checkpoint file.
   virtual void
   restart(amrex::Amr& papa, istream& is, bool bReadSpecial = false) override;
 
-  // This is called only when we restart from an old checkpoint.
+  //! This is called only when we restart from an old checkpoint.
   virtual void
   set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint) override;
 
-  // Call AmrLevel::checkPoint and then add radiation info
+  //! Call AmrLevel::checkPoint and then add radiation info
   virtual void checkPoint(
     const std::string& dir,
     std::ostream& os,
@@ -93,7 +99,7 @@ public:
 
   virtual void setPlotVariables() override;
 
-  // Write a plotfile to specified directory.
+  //! Write a plotfile to specified directory.
   virtual void writePlotFile(
     const std::string& dir, ostream& os, amrex::VisMF::How how) override;
   virtual void writeSmallPlotFile(
@@ -103,54 +109,55 @@ public:
   IOManager& get_io_manager() { return *io_mgr; }
   const IOManager& get_io_manager() const { return *io_mgr; }
 
-  // Define data descriptors.
+  //! Define data descriptors.
   static void variableSetUp();
 
-  // Cleanup data descriptors at end of run.
+  //! Cleanup data descriptors at end of run.
   static void variableCleanUp();
 
-  // Initialize grid data at problem start-up.
+  //! Initialize grid data at problem start-up.
   virtual void initData() override;
 
-  // Get problem metrics.
+  //! Get problem metrics.
   amrex::MultiFab* Area();
   amrex::MultiFab& Area(int dir);
 
-  // The volume of the multifab.
+  //! The volume of the multifab.
   amrex::MultiFab& Volume();
 
-  // Set time levels of state data.
+  //! Set time levels of state data.
   virtual void setTimeLevel(
     amrex::Real time, amrex::Real dt_old, amrex::Real dt_new) override;
 
-  // Initialize data on this level from another ERF (during regrid).
+  //! Initialize data on this level from another ERF (during regrid).
   virtual void init(amrex::AmrLevel& old) override;
 
-  // Initialize data on this level after regridding if old level did not
-  // previously exist
+  /** Initialize data on this level after regridding if old level did not
+   *  previously exist
+   */
   virtual void init() override;
 
-  /**
+  /*
    * Initialize EB geometry for finest_level and level grids for
    * other levels
    */
-  // for the Amr class to do timed load balances.
+  //! for the Amr class to do timed load balances.
   virtual int WorkEstType() override { return Work_Estimate_Type; }
 
-  // Proceed with next timestep?
+  //! Proceed with next timestep?
   virtual int okToContinue() override;
 
-  // Advance grids at this level in time.
+  //! Advance grids at this level in time.
   virtual amrex::Real
   advance(amrex::Real time, amrex::Real dt, int iteration, int ncycle) override;
 
-  // Estimate time step.
+  //! Estimate time step.
   amrex::Real estTimeStep(amrex::Real dt_old);
 
-  // Compute initial time step.
+  //! Compute initial time step.
   amrex::Real initialTimeStep();
 
-  // Compute initial `dt'.
+  //! Compute initial `dt'.
   virtual void computeInitialDt(
     int finest_level,
     int sub_cycle,
@@ -159,7 +166,7 @@ public:
     amrex::Vector<amrex::Real>& dt_level,
     amrex::Real stop_time) override;
 
-  // Compute new `dt'.
+  //! Compute new `dt'.
   virtual void computeNewDt(
     int finest_level,
     int sub_cycle,
@@ -170,34 +177,34 @@ public:
     amrex::Real stop_time,
     int post_regrid_flag) override;
 
-  // Allocate data at old time.
+  //! Allocate data at old time.
   virtual void allocOldData() override;
 
-  // Remove data at old time.
+  //! Remove data at old time.
   virtual void removeOldData() override;
 
-  // Passes some data about the grid to a Fortran module.
+  //! Passes some data about the grid to a Fortran module.
   void setGridInfo();
 
   // Print information about energy budget.
   //void do_energy_diagnostics();
 
-  // Do work after timestep().
+  //! Do work after timestep().
   virtual void post_timestep(int iteration) override;
 
-  // Contains operations to be done only after a full coarse timestep.
+  //! Contains operations to be done only after a full coarse timestep.
   virtual void postCoarseTimeStep(amrex::Real cumtime) override;
 
-  // Do work after regrid().
+  //! Do work after regrid().
   virtual void post_regrid(int lbase, int new_finest) override;
 
-  // Do work after a restart().
+  //! Do work after a restart().
   virtual void post_restart() override;
 
-  // Do work after init().
+  //! Do work after init().
   virtual void post_init(amrex::Real stop_time) override;
 
-  // Error estimation for regridding.
+  //! Error estimation for regridding.
   virtual void errorEst(
     amrex::TagBoxArray& tb,
     int clearval,
@@ -206,15 +213,17 @@ public:
     int n_error_buf = 0,
     int ngrow = 0) override;
 
-  // Returns a MultiFab containing the derived data for this level.
-  // The user is responsible for deleting this pointer when done
-  // with it.  If ngrow>0 the MultiFab is built on the appropriately
-  // grown BoxArray.
+  /** Returns a MultiFab containing the derived data for this level.
+   * The user is responsible for deleting this pointer when done
+   * with it.  If ngrow>0 the MultiFab is built on the appropriately
+   * grown BoxArray.
+   */
   virtual std::unique_ptr<amrex::MultiFab>
   derive(const std::string& name, amrex::Real time, int ngrow) override;
 
-  // This version of derive() fills the dcomp'th component of mf with the
-  // derived quantity.
+  /** This version of derive() fills the dcomp'th component of mf with the
+   * derived quantity.
+   */
   virtual void derive(
     const std::string& name,
     amrex::Real time,
@@ -367,17 +376,19 @@ protected:
   static bool use_gravity;
   static bool use_coriolis;
 
-  /// for keeping track of mass changes from negative density resets
+  // for keeping track of mass changes from negative density resets
 //  static amrex::Real frac_change;
 
-  /// For keeping track of fluid quantities lost at physical grid boundaries.
-  /// This should persist through restarts, but right now only on level 0.
+  /** For keeping track of fluid quantities lost at physical grid boundaries.
+   * This should persist through restarts, but right now only on level 0.
+   */
   static const int n_lost = 8;
   amrex::Real material_lost_through_boundary_cumulative[n_lost];
 //  amrex::Real material_lost_through_boundary_temp[n_lost];
 
-  /// for keeping track of the amount of CPU time used -- this will persist
-  /// after restarts
+  /** for keeping track of the amount of CPU time used -- this will persist
+   * after restarts
+   */
   static amrex::Real previousCPUTimeUsed;
   static amrex::Real startCPUTime;
 
@@ -385,7 +396,7 @@ protected:
 
   bool FillPatchedOldState_ok;
 
-  // There can be only one Diffusion object, it covers all levels:
+  /// There can be only one Diffusion object, it covers all levels.
   static class Diffusion* diffusion;
 
   static int num_state_type;

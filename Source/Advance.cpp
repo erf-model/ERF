@@ -8,19 +8,20 @@
 
 using namespace amrex;
 
+/** The main driver for a single level time advance.
+ *
+ *     @param time the current simulation time
+ *     @param dt the timestep to advance (e.g., go from time to time + dt)
+ *     @param amr_iteration where we are in the current AMR subcycle.  Each
+ *                     level will take a number of steps to reach the
+ *                     final time of the coarser level below it.  This
+ *                     counter starts at 1
+ *     @param amr_ncycle  the number of subcycles at this level
+ */
+
 Real
 ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
 {
-    /** the main driver for a single level time advance.
-
-         @param time the current simulation time
-         @param dt the timestep to advance (e.g., go from time to time + dt)
-         @param amr_iteration where we are in the current AMR subcycle.  Each
-                         level will take a number of steps to reach the
-                         final time of the coarser level below it.  This
-                         counter starts at 1
-         @param amr_ncycle  the number of subcycles at this level
-    */
 
     BL_PROFILE("ERF::advance()");
 
