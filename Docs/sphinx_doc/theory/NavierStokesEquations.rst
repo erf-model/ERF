@@ -59,7 +59,7 @@ The relationship between potential temperature and temperature is given by
 
 .. math::
 
-  \theta = T (\frac{p_0}{p})^{R_d / c_p}
+  \theta = T \left( \frac{p_0}{p} \right)^{R_d / c_p}
 
 and we use the following equation of state:
 
@@ -71,7 +71,7 @@ which can also be written in terms of :math:`\theta` as
 
 .. math::
 
-  p = (\rho R_d \theta / p_0^{R_d / c_p} )^\gamma
+  p = \left( \frac{\rho R_d \theta}{p_0^{R_d / c_p}} \right)^\gamma
 
 Here :math:`\rho, T, \theta`, and :math:`p` are the density, temperature, potential temperature and pressure, respectively;
 these variables are all defined at cell centers.
