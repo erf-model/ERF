@@ -38,7 +38,7 @@ function(build_erf_lib erf_lib_name)
   endif()
  
   target_sources(${erf_lib_name}
-     PUBLIC
+     PRIVATE
        ${SRC_DIR}/Advance.cpp
        ${SRC_DIR}/Bld.cpp
        ${SRC_DIR}/DataStruct.H
@@ -76,7 +76,7 @@ function(build_erf_lib erf_lib_name)
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
     target_sources(${erf_lib_name}
-       PUBLIC
+       PRIVATE
          ${SRC_DIR}/main.cpp
     )
   endif()
@@ -145,7 +145,7 @@ function(build_erf_exe erf_exe_name)
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_exe_name})
 
-  target_sources(${erf_lib_name}
+  target_sources(${erf_exe_name}
      PUBLIC
        ${SRC_DIR}/BCfill.cpp
        ${SRC_DIR}/Setup.cpp
