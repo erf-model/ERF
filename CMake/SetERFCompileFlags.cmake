@@ -1,19 +1,3 @@
-function(get_all_targets var)
-    set(targets)
-    get_all_targets_recursive(targets ${CMAKE_CURRENT_SOURCE_DIR})
-    set(${var} ${targets} PARENT_SCOPE)
-endfunction()
-
-macro(get_all_targets_recursive targets dir)
-    get_property(subdirectories DIRECTORY ${dir} PROPERTY SUBDIRECTORIES)
-    foreach(subdir ${subdirectories})
-        get_all_targets_recursive(${targets} ${subdir})
-    endforeach()
-
-    get_property(current_targets DIRECTORY ${dir} PROPERTY BUILDSYSTEM_TARGETS)
-    list(APPEND ${targets} ${current_targets})
-endmacro()
-
 function(set_erf_compile_flags target)
 # Logic for handling warnings
 if(ERF_ENABLE_ALL_WARNINGS)
@@ -34,7 +18,7 @@ endif()
 
 # Add our extra flags according to language
 separate_arguments(ERF_CXX_FLAGS)
-target_compile_options(${target} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:${ERF_CXX_FLAGS}>)
+target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${ERF_CXX_FLAGS}>)
 
 if(ERF_ENABLE_CUDA)
   list(APPEND ERF_CUDA_FLAGS "--expt-relaxed-constexpr")
@@ -45,7 +29,7 @@ if(ERF_ENABLE_CUDA)
     list(APPEND ERF_CUDA_FLAGS "--use_fast_math")
   endif()
   separate_arguments(ERF_CUDA_FLAGS)
-  target_compile_options(${target} PUBLIC $<$<COMPILE_LANGUAGE:CUDA>:${ERF_CUDA_FLAGS}>)
+  target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${ERF_CUDA_FLAGS}>)
   # Add arch flags to both compile and linker to avoid warnings about missing arch
   set(CMAKE_CUDA_FLAGS ${NVCC_ARCH_FLAGS})
   set_target_properties(
