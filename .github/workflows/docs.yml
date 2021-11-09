@@ -21,7 +21,7 @@ jobs:
 
       - name: Build Docs
         run: |
-          ./Docs/BuildDocs
+          ./Docs/BuildDocs.sh
 
       - name: Deploy to Webpage
         if: github.event_name == 'push' && github.repository == 'erf-model/ERF' && github.ref == 'refs/heads/development'
