@@ -34,7 +34,7 @@ endif()
 
 # Add our extra flags according to language
 separate_arguments(ERF_CXX_FLAGS)
-target_compile_options(${target} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:${ERF_CXX_FLAGS}>)
+target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${ERF_CXX_FLAGS}>)
 
 if(ERF_ENABLE_CUDA)
   list(APPEND ERF_CUDA_FLAGS "--expt-relaxed-constexpr")
@@ -45,7 +45,7 @@ if(ERF_ENABLE_CUDA)
     list(APPEND ERF_CUDA_FLAGS "--use_fast_math")
   endif()
   separate_arguments(ERF_CUDA_FLAGS)
-  target_compile_options(${target} PUBLIC $<$<COMPILE_LANGUAGE:CUDA>:${ERF_CUDA_FLAGS}>)
+  target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${ERF_CUDA_FLAGS}>)
   # Add arch flags to both compile and linker to avoid warnings about missing arch
   set(CMAKE_CUDA_FLAGS ${NVCC_ARCH_FLAGS})
   set_target_properties(

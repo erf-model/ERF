@@ -38,7 +38,7 @@ function(build_erf_lib erf_lib_name)
   endif()
  
   target_sources(${erf_lib_name}
-     PUBLIC
+     PRIVATE
        ${SRC_DIR}/Advance.cpp
        ${SRC_DIR}/Bld.cpp
        ${SRC_DIR}/DataStruct.H
@@ -52,6 +52,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Problem.H
        ${SRC_DIR}/ProblemDerive.H
        ${SRC_DIR}/utils.H
+       ${SRC_DIR}/Setup.cpp
        ${SRC_DIR}/SumIQ.cpp
        ${SRC_DIR}/SumUtils.cpp
        ${SRC_DIR}/Tagging.H
@@ -76,7 +77,7 @@ function(build_erf_lib erf_lib_name)
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
     target_sources(${erf_lib_name}
-       PUBLIC
+       PRIVATE
          ${SRC_DIR}/main.cpp
     )
   endif()
@@ -125,8 +126,7 @@ function(build_erf_lib erf_lib_name)
     endforeach()
     set_target_properties(
     ${erf_lib_name} PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+    CUDA_SEPARABLE_COMPILATION ON)
   endif()
  
   #Define what we want to be installed during a make install 
@@ -134,7 +134,11 @@ function(build_erf_lib erf_lib_name)
           RUNTIME DESTINATION bin
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)
-
+get_target_property(sources ${erf_lib_name} SOURCES)
+foreach(source ${sources})
+   get_source_file_property(prop ${source} LANGUAGE)
+   message(STATUS "${source} has language ${prop}")
+endforeach()
 endfunction(build_erf_lib)
 
 function(build_erf_exe erf_exe_name)
@@ -145,12 +149,9 @@ function(build_erf_exe erf_exe_name)
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_exe_name})
 
-  target_sources(${erf_lib_name}
+  target_sources(${erf_exe_name}
      PUBLIC
        ${SRC_DIR}/BCfill.cpp
-       ${SRC_DIR}/Setup.cpp
-       ${SRC_DIR}/Cleanup.cpp
-
   )
   if(ERF_ENABLE_CUDA)
     set(pctargets "${erf_exe_name}")
@@ -161,14 +162,23 @@ function(build_erf_exe erf_exe_name)
       message(STATUS "setting cuda for ${ERF_SOURCES}")
     endforeach()
     set_target_properties(
-    ${erf_lib_name} PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON
-    CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+    ${erf_exe_name} PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON)
   endif()
 
   install(TARGETS ${erf_exe_name} 
           RUNTIME DESTINATION bin
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)
+
+   get_all_targets(all_targets)
+   message("All targets: ${all_targets}")
+get_target_property(sources ${erf_exe_name} SOURCES)
+   set_property(TARGET ${erf_exe_name} 
+             PROPERTY LANGUAGE CUDA)
+foreach(source ${sources})
+   get_source_file_property(prop ${source} LANGUAGE)
+   message(STATUS "${source} has language ${prop}")
+endforeach()
 
 endfunction()
