@@ -12,33 +12,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2.4.0
-          # with:
-          #  persist-credentials: false
 
       - name: Dependencies
         run: |
           .github/workflows/dependencies/documentation.sh
-          python3 -m pip install sphinx sphinx_rtd_theme # breathe -- not using this at the moment
+          python3 -m pip install sphinx sphinx_rtd_theme # breathe -- not using breathe at the moment
           python3 -m pip install -I docutils==0.16  # Downgrade docutils so that bullet points render properly with Sphinx
 
       - name: Build Docs
         run: |
-          # ./Docs/BuildDocs #Use this once PR#171 goes through
-          cd Docs
-          doxygen Doxyfile.in
+          ./Docs/BuildDocs.sh
 
       - name: Deploy to Webpage
-        # if: github.event_name == 'push' && github.repository == 'erf-model/ERF' && github.ref == 'refs/heads/development'
+        if: github.event_name == 'push' && github.repository == 'erf-model/ERF' && github.ref == 'refs/heads/development'
         uses: JamesIves/github-pages-deploy-action@4.1.5
         with:
-          # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # ACCESS_TOKEN: ${{ secrets.DEPLOY_DOCS }}
-          # token: ${{ secrets.DEPLOY_DOCS_TOKEN }}
-          # git-config-name: etpalmer63
-          # git-config-email: epalmer@lbl.gov
           ssh-key: ${{ secrets.DEPLOY_KEY }}
           repository-name: erf-model/docs
           branch: main # The branch the action should deploy to.
           folder: Docs/doxygen_output/html # The folder the action should deploy.
           commit-message: "Deployed from erf-model/ERF"
-          # target-folder: Testing
