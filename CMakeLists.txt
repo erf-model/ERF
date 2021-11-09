@@ -89,20 +89,7 @@ message(STATUS "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 # Turn on rpath stuff
 include(${CMAKE_SOURCE_DIR}/CMake/SetRpath.cmake)
 
-#Build erf executables and link to amrex library
-# set(erf_exe_name taylor_green)
-
-# add_executable(${erf_exe_name} "")
-# target_sources(${erf_exe_name}
-#    PRIVATE
-#      Exec/TaylorGreenVortex/prob.H
-#      Exec/TaylorGreenVortex/prob.cpp
-# )
-
-# target_include_directories(${erf_exe_name} PRIVATE Exec/TaylorGreenVortex)
-
-# include(${CMAKE_SOURCE_DIR}/CMake/BuildERFExe.cmake)
-# build_erf_exe(${erf_exe_name})
+#Build erf executables and intermediate object library and link to amrex library
 add_subdirectory(Exec)
 
 if(ERF_ENABLE_TESTS)

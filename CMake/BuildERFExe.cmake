@@ -19,12 +19,12 @@ function(build_erf_lib erf_lib_name)
   add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/)
 
   set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/Source")
-  target_sources(${erf_lib_name} PUBLIC
+  target_sources(${erf_lib_name} PRIVATE
                  ${ERF_EOS_DIR}/EOS.H)
   target_include_directories(${erf_lib_name} SYSTEM PUBLIC ${ERF_EOS_DIR})
 
   if(ERF_ENABLE_NETCDF)
-    target_sources(${erf_lib_name} PUBLIC
+    target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/NCInterface.H
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp)
@@ -131,7 +131,7 @@ function(build_erf_exe erf_exe_name)
   set_erf_compile_flags(${erf_exe_name})
 
   target_sources(${erf_exe_name}
-     PUBLIC
+     PRIVATE
        ${SRC_DIR}/BCfill.cpp
        ${SRC_DIR}/Setup.cpp
        ${SRC_DIR}/Cleanup.cpp
