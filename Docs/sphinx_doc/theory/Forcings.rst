@@ -7,8 +7,8 @@
 
 .. _Forcings:
 
-Forcings
-========
+Physical Forcings
+=================
 
 ERF includes the following forcing terms as options:
 
@@ -45,6 +45,14 @@ then Coriolis forcing is included in the momentum equations, i.e. :
 where :math:`C_f = 4 \pi / P_{rot}` is the Coriolis factor with :math:`P_{rot}` the rotational
 period (measured in seconds), and :math:`\phi` the latitude.
 
+There is no dependence on the radial distance from the center of the earth, thus the curvature of the earth is neglected. 
+
+
+Problem-Specific Forcing
+========================
+
+There are two ways to specify background conditions to drive the simulation:
+
 Pressure Gradient
 -----------------
 
@@ -58,9 +66,9 @@ then
 
 .. math::
 
-  \mathbf{F} = (gpx_{ext}, gpy_{ext}, gpz_{ext})
+  \mathbf{F} = (\nabla p_{x,ext}, \nabla p_{y,ext}, \nabla p_{z,ext})
 
-where :math:`(gpx_{ext}, gpy_{ext}, gpz_{ext})` are user-specified.
+where :math:`(\nabla p_{x,ext}, \nabla p_{y,ext}, \nabla p_{z,ext})` are user-specified through ``erf.abl_pressure_grad``.
 
 Geostrophic Forcing
 -------------------
@@ -78,7 +86,7 @@ then geostrophic forcing is included in the forcing terms, i.e.
   \mathbf{F} = (-C_f \; v_{geo}, C_f \; u_{geo}, 0)
 
 where :math:`C_f = 4 \pi / P_{rot}` is the Coriolis factor with :math:`P_{rot}` the rotational
-period (measured in seconds), and :math:`(u_{geo}, v_{geo}, 0)` is the
-user-specified geostrophic wind.  Note that if geostrophic forcing is enabled,
+period (measured in seconds), and the geostrophic wind :math:`(u_{geo}, v_{geo}, 0)` is
+user-specified through ``erf.abl_geo_wind``.  Note that if geostrophic forcing is enabled,
 Coriolis forcing must also be included.
 
