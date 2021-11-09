@@ -45,7 +45,7 @@ then Coriolis forcing is included in the momentum equations, i.e. :
 where :math:`C_f = 4 \pi / P_{rot}` is the Coriolis factor with :math:`P_{rot}` the rotational
 period (measured in seconds), and :math:`\phi` the latitude.
 
-There is no dependence on the radial distance from the center of the earth, thus the curvature of the earth is neglected. 
+There is no dependence on the radial distance from the center of the earth, thus the curvature of the earth is neglected.
 
 
 Problem-Specific Forcing
