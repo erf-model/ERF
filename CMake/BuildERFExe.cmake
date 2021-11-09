@@ -125,6 +125,7 @@ function(build_erf_lib erf_lib_name)
     endforeach()
     set_target_properties(
     ${erf_lib_name} PROPERTIES
+    LANGUAGE CUDA
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
   endif()
@@ -161,7 +162,8 @@ function(build_erf_exe erf_exe_name)
       message(STATUS "setting cuda for ${ERF_SOURCES}")
     endforeach()
     set_target_properties(
-    ${erf_lib_name} PROPERTIES
+    ${erf_exe_name} PROPERTIES
+    LANGUAGE CUDA
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
   endif()

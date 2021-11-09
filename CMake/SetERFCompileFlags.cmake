@@ -32,8 +32,14 @@ if(ERF_ENABLE_CUDA)
   target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${ERF_CUDA_FLAGS}>)
   # Add arch flags to both compile and linker to avoid warnings about missing arch
   set(CMAKE_CUDA_FLAGS ${NVCC_ARCH_FLAGS})
+  set_cuda_architectures(AMReX_CUDA_ARCH)
+  set_target_properties( ${target}
+     PROPERTIES
+     CUDA_ARCHITECTURES "${AMREX_CUDA_ARCHS}"
+     )
   set_target_properties(
     ${target} PROPERTIES
+    LANGUAGE CUDA
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 endif()
