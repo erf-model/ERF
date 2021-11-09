@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# exit immediately on error
+set -e
+
+# To avoid issues when calling the script from different directories
+# sets the directory to the location of the script
+cd $(dirname $0)
 
 # This short script builds both the doxygen and sphinx documentation
 
