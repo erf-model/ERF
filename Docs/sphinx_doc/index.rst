@@ -47,7 +47,6 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    theory/NavierStokesEquations.rst
    theory/Forcings.rst
    theory/UnitsAndConstants.rst
-   theory/Algorithms.rst
 
 .. toctree::
    :caption: IMPLEMENTATION
@@ -55,10 +54,18 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    :hidden:
 
    ArakawaCGrid.rst
+   TimeAdvance.rst
    NavierStokes_Discretization.rst
    MeshRefinement.rst
    BoundaryConditions.rst
    Visualization.rst
+
+.. toctree::
+   :caption: TESTING
+   :maxdepth: 1
+   :hidden:
+
+   RegressionTests.rst
 
 .. toctree::
    :caption: GOALS

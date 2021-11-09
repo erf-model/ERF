@@ -18,8 +18,6 @@ An example ``cmake`` configure command performed in the ``Build`` directory in E
         -DENABLE_FCOMPARE:BOOL=ON \
         -DENABLE_TESTS:BOOL=ON \
         -DENABLE_FCOMPARE_FOR_TESTS:BOOL=OFF \
-        -DERF_ENABLE_MASA:BOOL=ON \
-        -DMASA_DIR:STRING=/path/to/masa/dir \
         -DERF_USE_CPP:BOOL=ON \
         ..
 
@@ -30,10 +28,6 @@ While performing a ``cmake -LAH ..`` command will give descriptions of every opt
 **ENABLE_TESTS** -- enables the base level regression test suite that will check whether each test will run its executable to completion successfully
 
 **ENABLE_FCOMPARE_FOR_TESTS** -- enables an additional step in the regression tests where the ``fcompare`` program from AMReX will also test for differences in the plots generated from the tests against "gold" files which contain previously verified results to machine precision
-
-**ENABLE_MASA** -- enables the verification suite which checks that ERF is second order accurate using several additional tests, but note that the verification tests can take a significant amount of time to run and certain Python modules are expected to exist on the user's system to generate PNG plot files
-
-**ERF_ENABLE_MASA** and **MASA_DIR** -- are required when the verification suite is enabled to perform the method of manufactured solutions
 
 
 Building the Tests

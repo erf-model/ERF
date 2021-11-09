@@ -122,9 +122,15 @@ List of Parameters
 |                           | above the       |                 |             |
 |                           | coarsest level  |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
-| **amr.ref_ratio**         | ratio of coarse | 2 or 4          | must be set |
-|                           | to fine grid    |                 |             |
+| **amr.ref_ratio**         | ratio of coarse | 2 / 3 / 4       | 2 for all   |
+|                           | to fine grid    | (one per level) | levels      |
 |                           | spacing between |                 |             |
+|                           | subsequent      |                 |             |
+|                           | levels          |                 |             |
++---------------------------+-----------------+-----------------+-------------+
+| **amr.ref_ratio_vect**    | ratio of coarse | 3 integers      | 2 for all   |
+|                           | to fine grid    | (one per dir)   | directions  |
+|                           | spacing between | 2 / 3 / 4       |             |
 |                           | subsequent      |                 |             |
 |                           | levels          |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
@@ -159,11 +165,16 @@ Examples of Usage
      :math:`\leq` **amr.max_level**, but can change in time and need not
      always be equal to **amr.max_level**.
 
--  | **amr.ref_ratio** = 2 4
-   | would set factor 2 refinement between levels 0 and 1, and factor 4
+-  | **amr.ref_ratio** = 2 3
+   | would set factor 2 refinement between levels 0 and 1, and factor 3
      refinement between levels 1 and 2. Note that you must have at least
      **amr.max_level** values of **amr.ref_ratio** (Additional values
      may appear in that line and they will be ignored).
+
+-  | **amr.ref_ratio_vect** = 2 4 3
+   | would set factor {2 in x-dir, 4 in y-dir, 3 in z-dir} refinement between
+     all adjacent levels.    Note that you must specify 3 values, one for
+     each coordinate direction.
 
 -  | **amr.regrid_int** = 2 2
    | tells the code to regrid every 2 steps. Thus in this example, new

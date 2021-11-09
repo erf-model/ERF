@@ -1,0 +1,34 @@
+name: DocHTML -- Build and Deploy
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-docs
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.4.0
+
+      - name: Dependencies
+        run: |
+          .github/workflows/dependencies/documentation.sh
+          python3 -m pip install sphinx sphinx_rtd_theme # breathe -- not using breathe at the moment
+          python3 -m pip install -I docutils==0.16  # Downgrade docutils so that bullet points render properly with Sphinx
+
+      - name: Build Docs
+        run: |
+          ./Docs/BuildDocs.sh
+
+      - name: Deploy to Webpage
+        if: github.event_name == 'push' && github.repository == 'erf-model/ERF' && github.ref == 'refs/heads/development'
+        uses: JamesIves/github-pages-deploy-action@4.1.5
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+          repository-name: erf-model/docs
+          branch: main # The branch the action should deploy to.
+          folder: Docs/doxygen_output/html # The folder the action should deploy.
+          commit-message: "Deployed from erf-model/ERF"

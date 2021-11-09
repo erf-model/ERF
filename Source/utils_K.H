@@ -1,5 +1,7 @@
 /** \addtogroup Utilities
  * @{
+ *
+ * \file utils_K.H
  */
 
 #ifndef HYDRO_UTILS_K_H_
@@ -9,11 +11,11 @@
 #include <AMReX_FArrayBox.H>
 #include <cmath>
 
-//
-// Do linear in dir, pc transverse to dir, leave alone the fine values
-// lining up with coarse edges--assume these have been set to hold the
-// values you want to interpolate to the rest.
-//
+/**
+ * Do linear in dir, pc transverse to dir, leave alone the fine values
+ * lining up with coarse edges--assume these have been set to hold the
+ * values you want to interpolate to the rest.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
 face_interp_x (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
            amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
@@ -28,6 +30,12 @@ face_interp_x (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fin
       fine(i,j,k,n) = (amrex::Real(1.)-w) * fine(i-rmod,j,k,n) + w * fine(ii,j,k,n);
     }
 }
+
+//Doxygen Comment Example
+/**
+ * The first sentence of a comment will be considered the brief description,
+ * unless otherwise specified.
+ */
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
 face_interp_y (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,

@@ -1,0 +1,55 @@
+// Main landing page for Doxygen Documentation
+
+/**
+\mainpage Energy Research and Forecasting: An Atmospheric Modeling Code
+
+  \tableofcontents
+
+  \section Introduction
+
+  ERF solves the compressible Navier-Stokes equations on an Arakawa C-grid for
+  large-scale weather modeling. It is designed to run on a wide range
+  of machines, from laptops to multicore CPU and hybrid CPU-GPU systems.
+
+  \section amr Adaptive Mesh Refinement
+
+  ERF is built on
+  <a href="https://github.com/AMReX-Codes/amrex">AMReX</a> an adaptive
+  mesh refinement software framework, which provides the underlying
+  software infrastructure for block structured adaptive mesh refinement
+  operations. Full AMReX documentation can be found in the
+  <a href="https://amrex-codes.github.io/amrex/docs_html/">user guide</a>
+  and in the
+  <a href="https://amrex-codes.github.io/amrex/tutorials_html/">
+  guided tutorials and example codes</a>
+
+  \section getting_started Getting Started
+
+  To get started, please see the
+  <a href="https://github.com/erf-model/ERF/blob/development/README.rst">
+  README</a> at GitHub.
+
+  \section dev_model Development Model
+
+  Please see the
+  <a href="https://github.com/erf-model/ERF/blob/development/CONTRIBUTING.md">
+  CONTRIBUTING</a> document on GitHub for details on how to contribute to
+  this project.
+
+  \section Acknowledgement
+
+  The development of the Energy Research and Forecasting (ERF) code is funded by
+  the Wind Energy Technologies Office (WETO), part of the U.S. Department of
+  Energy (DOE)'s Office of Energy Efficiency & Renewable Energy (EERE).
+
+  The developers of ERF acknowledge and thank the developers of the AMReX-based
+  <a href="https://github.com/AMReX-combustion/PeleC">PeleC</a>,
+  <a href="https://github.com/AMReX-FHD/FHDeX">FHDeX</a> and
+  <a href="https://github.com/Exawind/amr-wind">AMR-Wind</a> codes.  In the spirit
+  of open source code development, the ERF project has ported sections of code
+  from each of these projects rather than writing them from scratch.
+  ERF is built on the <a href="https://github.com/AMReX-codes/AMReX">AMReX</a>
+  library.
+
+*/
+

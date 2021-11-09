@@ -1,3 +1,7 @@
+/**
+ * \file ERF.cpp
+ */
+
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -344,13 +348,13 @@ ERF::init(AmrLevel& old)
   FillPatch(old, S_new, 0, cur_time, State_Type, 0, NVAR);
 }
 
+/**
+ * This version inits the data on a new level that did not
+ * exist before regridding.
+ */
 void
 ERF::init()
 {
-  /**
-     This version inits the data on a new level that did not
-     exist before regridding.
-  */
   BL_PROFILE("ERF::init()");
 
   amrex::Real dt = parent->dtLevel(level);
@@ -552,7 +556,7 @@ ERF::computeInitialDt(
 
   amrex::Real dt_0 = 1.0e+100;
   int n_factor = 1;
-  /// TODO/DEBUG: This will need to change for optimal subcycling.
+  // TODO/DEBUG: This will need to change for optimal subcycling.
   for (int i = 0; i <= finest_level; i++) {
     dt_level[i] = getLevel(i).initialTimeStep();
     n_factor *= n_cycle[i];

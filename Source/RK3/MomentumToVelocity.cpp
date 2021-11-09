@@ -1,9 +1,16 @@
+/**
+ * \file MomentumToVelocity.cpp
+ */
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include "RK3.H"
 
 using namespace amrex;
 
+
+/**
+ * Convert updated momentum to updated velocity
+ */
 void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                          MultiFab& cons_in,
                          MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in,

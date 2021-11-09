@@ -7,10 +7,8 @@ EBASE = ERF
 
 EXTERN_CORE ?=
 
-#Turn off all fortran in amrex
-ifneq ($(USE_MASA), TRUE)
-  BL_NO_FORT = TRUE
-endif
+#Turn off all Fortran in AMReX
+BL_NO_FORT = TRUE
 
 ifeq ($(USE_NETCDF), TRUE)
  LDFLAGS += -L${NETCDF_DIR}/lib
