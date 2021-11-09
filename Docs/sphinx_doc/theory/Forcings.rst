@@ -60,9 +60,9 @@ then
 
 .. math::
 
-  \mathbf{F} = (gpx_{ext}, gpy_{ext}, gpz_{ext})
+  \mathbf{F} = (\nabla p_{x,ext}, \nabla p_{y,ext}, \nabla p_{z,ext})
 
-where :math:`(gpx_{ext}, gpy_{ext}, gpz_{ext})` are user-specified.
+where :math:`(\nabla p_{x,ext}, \nabla p_{y,ext}, \nabla p_{z,ext})` are user-specified.
 
 Geostrophic Forcing
 -------------------
