@@ -1,5 +1,5 @@
 set(erf_lib_name erf_srclib)
-add_library(${erf_lib_name} "")
+add_library(${erf_lib_name} OBJECT)
 include(${CMAKE_SOURCE_DIR}/CMake/BuildERFExe.cmake)
 build_erf_lib(${erf_lib_name})
 add_subdirectory(ScalarAdvecUniformU)
