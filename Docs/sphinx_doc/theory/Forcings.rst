@@ -7,8 +7,8 @@
 
 .. _Forcings:
 
-Forcings
-========
+Physical Forcings
+=================
 
 ERF includes the following forcing terms as options:
 
@@ -46,6 +46,12 @@ where :math:`C_f = 4 \pi / P_{rot}` is the Coriolis factor with :math:`P_{rot}` 
 period (measured in seconds), and :math:`\phi` the latitude.
 
 There is no dependence on the radial distance from the center of the earth, thus the curvature of the earth is neglected. 
+
+
+Problem-Specific Forcing
+========================
+
+There are two ways to specify background conditions to drive the simulation:
 
 Pressure Gradient
 -----------------
