@@ -111,7 +111,10 @@ public:
 
   // Initialize grid data at problem start-up.
   virtual void initData() override;
-  static void initDataProb();
+  void initDataProb(amrex::MultiFab& S_new,
+                    amrex::MultiFab& U_new,
+                    amrex::MultiFab& V_new,
+                    amrex::MultiFab& W_new);
 
   // Get problem metrics.
   amrex::MultiFab* Area();

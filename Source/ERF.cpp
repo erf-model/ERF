@@ -316,7 +316,12 @@ ERF::initData()
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
 //  amrex::Real cur_time = state[State_Type].curTime();
 
-  initDataProb();
+  amrex::MultiFab& S_new = get_new_data(State_Type);
+  amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
+  amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
+  amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
+
+  initDataProb(S_new, U_new, V_new, W_new);
 }
 
 void
