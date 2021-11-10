@@ -15,7 +15,6 @@
 
 #include "ERF.H"
 #include "Derive.H"
-#include "prob.H"
 #include "EOS.H"
 #include "Tagging.H"
 #include "IndexDefines.H"
@@ -68,14 +67,6 @@ amrex::Vector<int> ERF::src_list;
 amrex::Real ERF::previousCPUTimeUsed = 0.0;
 amrex::Real ERF::startCPUTime = 0.0;
 int ERF::num_state_type = 0;
-
-void
-ERF::variableCleanUp()
-{
-  desc_lst.clear();
-
-  clear_prob();
-}
 
 std::string ERF::abl_driver_type = "None";
 amrex::Vector<amrex::Real> ERF::abl_geo_forcing   = {0.0, 0.0, 0.0};
@@ -321,15 +312,6 @@ ERF::setTimeLevel(amrex::Real time, amrex::Real dt_old, amrex::Real dt_new)
   AmrLevel::setTimeLevel(time, dt_old, dt_new);
 }
 
-/*
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-void
-erf_prob_close()
-{
-}
-*/
-
 void
 ERF::initData()
 {
@@ -343,35 +325,7 @@ ERF::initData()
   amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
 
-  // Initialize to zero (though we sholdn't actually need to do this)
-  S_new.setVal(0.0);
-  U_new.setVal(0.0);
-  V_new.setVal(0.0);
-  W_new.setVal(0.0);
-
-  if (verbose) {
-    amrex::Print() << "Initializing the data at level " << level << std::endl;
-  }
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-
-  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-  {
-    const amrex::Box& bx = mfi.tilebox();
-    auto sfab  = S_new.array(mfi);
-    auto ufab  = U_new.array(mfi);
-    auto vfab  = V_new.array(mfi);
-    auto wfab  = W_new.array(mfi);
-    const auto geomdata = geom.data();
-    erf_init_prob(bx, sfab, ufab, vfab, wfab, geomdata);
-  }
-
-  if (verbose) {
-    amrex::Print() << "Done initializing level " << level << " data "
-                   << std::endl;
-  }
+  initDataProb(S_new, U_new, V_new, W_new);
 }
 
 void
@@ -996,18 +950,6 @@ ERF::errorEst(
           });
       }
 
-      // Problem specific tagging
-      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx =
-        geom.CellSizeArray();
-      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_lo =
-        geom.ProbLoArray();
-      const auto captured_level = level;
-      amrex::ParallelFor(
-        tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-          set_problem_tags<ProblemTags>(
-            i, j, k, tag_arr, Sfab, tagval, dx, prob_lo, time, captured_level);
-        });
-
       // Now update the tags in the TagBox.
       // tag_arr.tags(itags, tilebox);
     }
@@ -1078,12 +1020,6 @@ ERF::derive(
   {
     AmrLevel::derive(name, time, mf, dcomp);
   }
-}
-
-void
-ERF::clear_prob()
-{
-  erf_prob_close();
 }
 
 amrex::Real

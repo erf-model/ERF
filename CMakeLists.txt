@@ -89,7 +89,7 @@ message(STATUS "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 # Turn on rpath stuff
 include(${CMAKE_SOURCE_DIR}/CMake/SetRpath.cmake)
 
-#Build erf executables and link to amrex library
+#Build erf executables and intermediate object library and link to amrex library
 add_subdirectory(Exec)
 
 if(ERF_ENABLE_TESTS)
