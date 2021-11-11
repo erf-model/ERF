@@ -247,3 +247,42 @@ ERF::variableSetUp()
   // Problem-specific derives
   add_problem_derives<ProblemDerives>(derive_lst, desc_lst);
 }
+
+void
+ERF::initDataProb (amrex::MultiFab& S_new,
+                   amrex::MultiFab& U_new,
+                   amrex::MultiFab& V_new,
+                   amrex::MultiFab& W_new)
+{
+
+  // Initialize to zero (though we sholdn't actually need to do this)
+  S_new.setVal(0.0);
+  U_new.setVal(0.0);
+  V_new.setVal(0.0);
+  W_new.setVal(0.0);
+
+  if (verbose) {
+    amrex::Print() << "Initializing the data at level " << level << std::endl;
+  }
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+
+  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+  {
+    const amrex::Box& bx = mfi.tilebox();
+    auto sfab  = S_new.array(mfi);
+    auto ufab  = U_new.array(mfi);
+    auto vfab  = V_new.array(mfi);
+    auto wfab  = W_new.array(mfi);
+    const auto geomdata = geom.data();
+    erf_init_prob(bx, sfab, ufab, vfab, wfab, geomdata);
+  }
+
+  if (verbose) {
+    amrex::Print() << "Done initializing level " << level << " data "
+                   << std::endl;
+  }
+
+}

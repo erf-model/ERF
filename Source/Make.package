@@ -6,6 +6,7 @@ CEXE_sources += Derive.cpp
 CEXE_sources += Bld.cpp
 CEXE_sources += BCfill.cpp
 CEXE_sources += Setup.cpp
+CEXE_sources += Cleanup.cpp
 CEXE_sources += main.cpp
 CEXE_sources += SumIQ.cpp
 CEXE_sources += SumUtils.cpp
