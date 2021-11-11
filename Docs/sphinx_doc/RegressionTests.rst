@@ -24,6 +24,7 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Flow-field at times {0, 0.0264788} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -40,6 +41,7 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Flow-field at times {0, 0.6937161} s
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -56,13 +58,25 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Flow-field at times {0, 0.9819669} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Scalar Advection: Rigid Rotation
 ----------------------------------
+Problem Definition
+~~~~~~~~~~~~~~~~~~
+Test Location:
 
+Full Problem Location:
+
+Sample Solution/ Flow-field
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Flow-field at times {0, 6.283185} s.
+
+V&V for the Reference Solution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Scalar Diffusion: Sphere of Scalar
 ------------------------------------------------
@@ -76,6 +90,7 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Flow-field at times {0, 0.01} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -92,6 +107,7 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Flow-field at times {0, 0.2} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -109,6 +125,7 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Flow-field at times {0, 0.01} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -173,6 +190,7 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Flow-field at times {0, 1.6} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -221,6 +239,7 @@ V&V for the Reference Solution
 
 Ekman Spiral
 ---------------------------
+
 This tests the Coriolis and geostrophic forcing.
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
