@@ -9,9 +9,9 @@ of a nightly regression suite.  The CI tests use cmake and are based on the vers
 of AMReX in the ERF submodule; the nightly tests use GNUMake and use the current
 development branch of AMReX.
 
-Results from the nightly CPU tests can be found here: `CPU tests`_ 
+Results from the nightly CPU tests can be found here: `CPU tests`_
 
-Results from the nightly GPU tests can be found here: `GPU tests`_ 
+Results from the nightly GPU tests can be found here: `GPU tests`_
 
 .. _`CPU tests`: https://ccse.lbl.gov/pub/RegressionTesting1/ERF
 
@@ -181,7 +181,7 @@ Sample Solution/ Flow-field
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Isentropic Vortex: Advecting 
+Isentropic Vortex: Advecting
 ---------------------------
 This tests advection of an isentropic vortex tith triply periodic boundaries.
 
