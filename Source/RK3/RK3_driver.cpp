@@ -73,6 +73,13 @@ void RK3_advance(int level,
     // **************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // **************************************************************************************
+
+    amrex::Vector<MultiFab*> vars_orig{&cons_old};
+
+    // We need to apply the boundary conditions here because we are converting from velocity to momentum
+    //    which requires having set boundary conditions on density
+    ERF::applyBCs(fine_geom, vars_orig);
+
     VelocityToMomentum(xvel_old, yvel_old, zvel_old, cons_old, xmom_old, ymom_old, zmom_old, solverChoice);
 
     // **************************************************************************************
@@ -328,6 +335,7 @@ void RK3_advance(int level,
               fine_geom, dxp, dt,
               ifr,
               solverChoice);
+
     // **************************************************************************************
     // RK3 stage 3: Define updates in the third RK stage
     // **************************************************************************************
@@ -401,7 +409,6 @@ void RK3_advance(int level,
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after stage 3 and before going to next time step
     // **************************************************************************************
-    if (level == 1) print_state(xmom_new,IntVect(8,8,8));
     MomentumToVelocity(xvel_new, yvel_new, zvel_new, cons_new, xmom_new, ymom_new, zmom_new, 0, solverChoice);
 
     // One final application of non-periodic BCs after all RK3 stages have been called, this time on velocities
