@@ -1,7 +1,7 @@
 #include <cmath>
 
 #include "ERF.H"
-#include "RK3.H"
+#include "Integration.H"
 #include "IndexDefines.H"
 
 #include "AMReX_InterpFaceRegister.H"
@@ -133,7 +133,7 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   //          V_new    (y-velocity on y-faces)
   //          W_new    (z-velocity on z-faces)
   // *****************************************************************
-  RK3_advance(level,
+  erf_advance(level,
               state_mf, S_new,
               U_old, V_old, W_old,
               U_new, V_new, W_new,
@@ -143,7 +143,7 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               (level > 0) ? parent->Geom(level-1) : geom,
               geom,
               ref_ratio,
-              dx, dt, &ifr,
+              dx, dt, time, &ifr,
               solverChoice);
 
   return dt;

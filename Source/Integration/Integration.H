@@ -1,15 +1,12 @@
-/**
- * \file RK3.H
- */
-
-#ifndef _RK3_H_
-#define _RK3_H_
+#ifndef _INTEGRATION_H_
+#define _INTEGRATION_H_
 
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_InterpFaceRegister.H>
 #include <ERF.H>
+#include <AMReX_TimeIntegrator.H>
 #include "IndexDefines.H"
 
 using namespace amrex;
@@ -17,6 +14,15 @@ using namespace amrex;
 // cons: cell-centered state
 // U,V,W: face-based velocity
 // source: cell-centered source term
+
+namespace IntVar {
+    enum {
+        cons = 0,
+        xmom,
+        ymom,
+        zmom
+    };
+}
 
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         MultiFab& cons_in,
@@ -46,7 +52,7 @@ void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in
  * \param[out] W_new  z-velocity on z-faces
  *
  */
-void RK3_advance(int level,
+void erf_advance(int level,
                  MultiFab& cons_old, MultiFab& cons_new,
                  MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
                  MultiFab& U_new, MultiFab& V_new, MultiFab& W_new,
@@ -57,21 +63,18 @@ void RK3_advance(int level,
                  const amrex::Geometry fine_geom,
                  const amrex::IntVect ref_ratio,
                  const amrex::Real* dxp, const amrex::Real dt,
+                 const amrex::Real time,
                        amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice);
-/**
- * Return update in the cons_new and [x,y,z]mom_new MultiFabs
- */
-void RK3_stage  (int level,
-                 MultiFab& cons_old, MultiFab& cons_new,
-                 MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
-                 MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
-                 MultiFab& xvel    , MultiFab& yvel    , MultiFab& zvel    ,
-                 MultiFab& source,
-                 std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
-                 const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
-                       amrex::InterpFaceRegister* ifr,
-                 const SolverChoice& solverChoice);
+
+void erf_rhs(int level,
+             Vector<std::unique_ptr<MultiFab> >& S_rhs,
+             const Vector<std::unique_ptr<MultiFab> >& S_data,
+             MultiFab& source,
+             std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
+             const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+                   amrex::InterpFaceRegister* ifr,
+             const SolverChoice& solverChoice);
 
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
