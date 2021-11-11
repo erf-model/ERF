@@ -24,6 +24,10 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/tests/scalar_advec_uniform_u_start.png
+  :width: 600
+.. image:: figures/tests/scalar_advec_uniform_u_end.png
+  :width: 600
 Flow-field at times {0, 0.0264788} s.
 
 V&V for the Reference Solution
@@ -41,6 +45,10 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/tests/scalar_advec_uniform_uv_start.png
+  :width: 600
+.. image:: figures/tests/scalar_advec_uniform_uv_end.png
+  :width: 600
 Flow-field at times {0, 0.6937161} s
 
 V&V for the Reference Solution
@@ -58,6 +66,10 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/tests/scalar_advec_sheared_u_start.png
+  :width: 600
+.. image:: figures/tests/scalar_advec_sheared_u_end.png
+  :width: 600
 Flow-field at times {0, 0.9819669} s.
 
 V&V for the Reference Solution
@@ -73,6 +85,10 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/tests/scalar_advec_rigid_rot_start.png
+  :width: 600
+.. image:: figures/tests/scalar_advec_rigid_rot_end.png
+  :width: 600
 Flow-field at times {0, 6.283185} s.
 
 V&V for the Reference Solution
@@ -90,6 +106,10 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/tests/scalar_diff_start.png
+  :width: 600
+.. image:: figures/tests/scalar_diff_end.png
+  :width: 600
 Flow-field at times {0, 0.01} s.
 
 V&V for the Reference Solution
@@ -107,6 +127,10 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/tests/scalar_diff_sine_start.png
+  :width: 600
+.. image:: figures/tests/scalar_diff_sine_end.png
+  :width: 600
 Flow-field at times {0, 0.2} s.
 
 V&V for the Reference Solution
@@ -125,6 +149,10 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/tests/scalar_advec_diff_start.png
+  :width: 600
+.. image:: figures/tests/scalar_advec_diff_end.png
+  :width: 600
 Flow-field at times {0, 0.01} s.
 
 V&V for the Reference Solution
@@ -243,8 +271,8 @@ V&V for the Reference Solution
 
 Ekman Spiral
 ---------------------------
-
 This tests the Coriolis and geostrophic forcing.
+
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
