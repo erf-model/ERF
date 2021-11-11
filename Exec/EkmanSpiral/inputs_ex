@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 10
-stop_time = 200.0
+stop_time = 1000.0
 
 amrex.fpe_trap_invalid = 1
 
@@ -43,8 +43,8 @@ amr.check_int       = 100        # number of timesteps between checkpoints
 amr.plot_files_output = 1
 amr.plot_file       = plt        # root name of plotfile
 amr.plot_int        = 100      # number of timesteps between plotfiles
-amr.plot_vars        =  density adv_0
-amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
+amr.plot_vars        =  density
+amr.derive_plot_vars = pressure theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
 erf.use_state_advection = true
@@ -57,7 +57,7 @@ erf.use_momentum_diffusion = true
 erf.dynamicViscosity = 5.0
 erf.use_smagorinsky   = false
 erf.use_pressure = true
-erf.use_gravity = true
+erf.use_gravity = false
 erf.spatial_order = 2
 
 erf.use_coriolis = true
@@ -68,6 +68,4 @@ erf.rotational_time_period = 86164.0900027328
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.rhoe_0 = 1.0
-prob.A_0 = 1.0
 prob.V_0 = 15.0

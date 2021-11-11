@@ -23,11 +23,7 @@ erf_init_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial potential temperature (Actually rho*theta)
-    const amrex::Real p = parms.rho_0 * parms.V_0*parms.V_0*
-                          (
-                             1.0 / (Gamma * parms.M_0 * parms.M_0)
-                          );
-    state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p);
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
@@ -115,7 +111,6 @@ amrex_probinit(
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.T_0);
-  pp.query("M_0", parms.M_0);
   pp.query("V_0", parms.V_0);
 }
 }
