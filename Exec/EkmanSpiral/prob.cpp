@@ -38,11 +38,15 @@ erf_init_prob(
   pp.get("rotational_time_period", rot_time_period);
   amrex::Real coriolis_factor = 4.0 * M_PI / rot_time_period;
 
-  amrex::Real alpha_C;
-  pp.get("alpha_C", alpha_C);
+  amrex::Real Az;
+  pp.get("dynamicViscosity", Az);
+  Az = Az / parms.rho_0; // kinematic viscosity [m^2/s]
 
-  const amrex::Real m_DE = std::sqrt(2.0 * alpha_C / coriolis_factor);
-  const amrex::Real a = 1.0 / m_DE;
+  const amrex::Real DE = std::sqrt(2.0 * Az / coriolis_factor);
+  //amrex::Print() << "Ekman depth = " << DE << " m" << std::endl;
+
+  const amrex::Real a = 1.0 / DE;
+  // TODO: get this from geostrophic wind vector
   const amrex::Real u_0 = parms.V_0;
 
   // Construct a box that is on x-faces
@@ -66,7 +70,7 @@ erf_init_prob(
     const amrex::Real z = (k + 0.5) * dx[2];
 
     // Set the y-velocity
-    y_vel(i, j, k) = u_0 * (1.0 - std::exp(-a * z) * std::cos(-a * z));
+    y_vel(i, j, k) = -u_0 * std::exp(-a * z) * std::sin(-a * z);
   });
 
   // Construct a box that is on z-faces
