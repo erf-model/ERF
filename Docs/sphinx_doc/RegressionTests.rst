@@ -9,8 +9,15 @@ of a nightly regression suite.  The CI tests use cmake and are based on the vers
 of AMReX in the ERF submodule; the nightly tests use GNUMake and use the current
 development branch of AMReX.
 
-The following problems are currently tested:
+Results from the nightly CPU tests can be found here: `CPU tests`_ 
 
+Results from the nightly GPU tests can be found here: `GPU tests`_ 
+
+.. _`CPU tests`: https://ccse.lbl.gov/pub/RegressionTesting1/ERF
+
+.. _`GPU tests`: https://ccse.lbl.gov/pub/GpuRegressionTesting/ERF
+
+The following problems are currently tested:
 
 Scalar Advection by Uniform Flow in X Direction
 ------------------------------------------------
