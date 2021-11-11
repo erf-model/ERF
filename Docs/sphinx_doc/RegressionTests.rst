@@ -190,6 +190,10 @@ Full Problem Location:
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: figures/tests/TGV_start.png
+  :width: 600
+.. image:: figures/tests/TGV_end.png
+  :width: 600
 Flow-field at times {0, 1.6} s.
 
 V&V for the Reference Solution
