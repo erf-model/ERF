@@ -1,5 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 1000
+max_step = 100
 
 amrex.fpe_trap_invalid = 1
 
@@ -73,8 +74,14 @@ prob.gamma = 1.4  # specific heat ratio [-]
 prob.beta = 0.05  # non-dimensional max perturbation strength [-]
 
 amr.max_level       = 1       # maximum level number allowed
-tagging.tag_region = true
-tagging.region_lo = 16. 16. 16.
-tagging.region_hi = 48. 48. 48.
 amr.n_error_buf   = 0 0 0 0
 amr.regrid_int    = -1
+
+tagging.tag_region = true
+
+tagging.region_lo = 16. 16. 16. 
+tagging.region_hi = 48. 48. 48.
+
+tagging.region_lo = 16. 16.  0. 
+tagging.region_hi = 48. 48. 64.
+
