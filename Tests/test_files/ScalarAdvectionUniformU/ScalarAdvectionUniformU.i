@@ -67,3 +67,6 @@ erf.spatial_order = 2
 prob.rho_0 = 1.0
 prob.rhoe_0 = 1.0
 prob.A_0 = 1.0
+prob.u_0   = 100.0
+prob.v_0   = 0.0
+prob.rad_0 = 0.05
