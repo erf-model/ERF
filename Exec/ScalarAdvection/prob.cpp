@@ -47,7 +47,7 @@ erf_init_prob(
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     x_vel(i, j, k) = parms.u_0;
-    
+
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real*      dx = geomdata.CellSize();
     const amrex::Real        z = prob_lo[2] + k * dx[2];
