@@ -72,7 +72,7 @@ with the porgnostic (transport) equation
 
   \frac{\partial (\rho \theta)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} \theta) + \rho \alpha_{T} \nabla^2 \theta,
 
-.. note:: When I tried to re-derive this equation from the temperature equation above, I arrived at :math:`\rho \alpha_{T} \left(\frac{p_0}{p}\right)^{R_d/c_p} \nabla^2 \theta` for the conduction term, and could not find a way to further simplify to the above form. How is that term obstained?  
+.. note:: When I tried to re-derive this equation from the temperature equation above, I arrived at :math:`\rho \alpha_{T} \left(\frac{p_0}{p}\right)^{R_d/c_p} \nabla^2 \theta` for the conduction term, and could not find a way to further simplify to the above form. How is that term obtained?  
   
 which results in a modified equation of state
 
