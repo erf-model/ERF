@@ -29,9 +29,9 @@ Test Location: `test_files/ScalarAdvecUniformU`_
 
 .. _`test_files/ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
-Problem Location: `ScalarAdvecUniformU`_
+Problem Location: `ScalarAdvecUniformUV`_
 
-.. _`ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecUniformU
+.. _`ScalarAdvecUniformUV`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecUniformUV
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
