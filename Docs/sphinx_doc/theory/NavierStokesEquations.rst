@@ -26,7 +26,7 @@ The following set of equations express conservation of mass, momentum, energy, a
 
   \frac{\partial (\rho C)}{\partial t}      &=& - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C} \nabla^2 C,
 
-.. note:: When I look in the source code, it seems like we are solving diffusion as :math:`\alpha_{C} \nabla^2 \rho C` (i.e., similar to what is in the documentation elsewhere: :ref:`AcousticSubstep`), not what is written above. Is there something I'm missing? I believe what is written here (consistent with the discretization section) is what we should be doing. Regarding the transport coefficients, the fundamental transport coefficients :math:`\mu, (\rho \alpha_T), (\rho \alpha_C)` are independent of density and pressure and scale with the square root of temperature, so in cases of interest should be roughly constant - but note this implies inverse dependence of :math:`\alpha_i` on density. In any event, constant (:math:`\rho \alpha_C`), etc. is consistent with the above equations. 
+.. note:: When I look in the source code, it seems like we are solving diffusion as :math:`\alpha_{C} \nabla^2 \rho C` (i.e., similar to what is in the documentation elsewhere: :ref:`AcousticSubstep`), not what is written above. Is there something I'm missing? I believe what is written here (and in the discretization section) is what we should be doing. Regarding the transport coefficients, the fundamental transport coefficients :math:`\mu, (\rho \alpha_T), (\rho \alpha_C)` are independent of density and pressure and scale with the square root of temperature, so in cases of interest should be roughly constant - but note this implies inverse dependence of :math:`\alpha_i` on density. In any event, constant (:math:`\rho \alpha_C`), etc. is consistent with the above equations. 
 
 where
 
@@ -138,8 +138,13 @@ The turbulent transport terms can be closed with eddy viscosity-based models:
    large-eddy simulations", Theoret. Comput. Fluid Dynamics (2000). Right now, we do not model the isotropic portion
    separately (:math:`\tau^{sfs}_{ij} = 2\overline{\rho} \nu_t \tilde{S}_{ij}`. However, the term is modelled in
    PeleC and some remnants of that seems to have made their way into ERF (:math:`C_I` exists as a parameter)
+
+We consider two types of LES models, Smagorinsky and Deardorff, which differ in how :math:`\nu_t` is computed.
+
+Smagorinsky
+~~~~~~~~~~~
    
-In Smagorinsky models, the turbulent viscosity is approximated as:
+In Smagorinsky models, the turbulent viscosity is approximated with an algebraic/diagnostic equation as:
 
 .. math:: \nu_t = (C_s \overline{\Delta})^2 (2 S_{ij} S_{ij})^{1/2}
 
@@ -147,6 +152,9 @@ The model coefficients :math:`C_s, C_I, Pr_t, Sc_t` have nominal values of 0.16,
 
 .. note:: Do we want to implement a dynamic procedure for computation of the model coefficients? It's standard practice in combustion LES, but I'm not not sure about atmospheric applications. If we're mainly planning to rely on the Deardorff model anyway, maybe it is not needed, or maybe it would also be useful for computing those model coefficients.
 
+Deardorff
+~~~~~~~~~
+	  
 In Deardorff (one-equation/TKE) models, the turbulent viscosity is computed as: 
 
 .. math::
