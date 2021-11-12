@@ -1,5 +1,3 @@
-AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
-
 # AMReX
 COMP = gnu
 PRECISION = DOUBLE

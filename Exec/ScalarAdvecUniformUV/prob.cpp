@@ -27,8 +27,7 @@ erf_init_prob(
 
     const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
-    // Arbitrarily choose the radius of the bubble to be 0.25 times the length of the domain
-    const amrex::Real r0 = 0.25 * (prob_hi[0] - prob_lo[0]);
+    const amrex::Real r0 = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
 
     // Set the density
     state(i, j, k, Rho_comp) = parms.rho_0;
@@ -47,14 +46,14 @@ erf_init_prob(
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    x_vel(i, j, k) = 10.0;
+    x_vel(i, j, k) = parms.u_0;
   });
 
   // Construct a box that is on y-faces
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    y_vel(i, j, k) = 5.0;
+    y_vel(i, j, k) = parms.v_0;
   });
 
   // Construct a box that is on z-faces
@@ -100,5 +99,8 @@ amrex_probinit(
     pp.query("rho_0", parms.rho_0);
     pp.query("T_0", parms.T_0);
     pp.query("A_0", parms.A_0);
+    pp.query("u_0", parms.u_0);
+    pp.query("v_0", parms.v_0);
+    pp.query("rad_0", parms.rad_0);
   }
 }
