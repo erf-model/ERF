@@ -25,9 +25,11 @@ This tests scalar advection with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: 
 
-Full Problem Location:
+Problem Location: `ScalarAdvecUniformU`_
+
+.. _`ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecUniformU
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -48,7 +50,10 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+
+Problem Location: `ScalarAdvecUniformUV`_
+
+.. _`ScalarAdvecUniformUV`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecUniformUV
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -69,7 +74,10 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+
+Problem Location: `ScalarAdvecShearedU`_
+
+.. _`ScalarAdvecShearedU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecShearedU
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -88,7 +96,10 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+
+Problem Location: `ScalarAdvecRigidRot`_
+
+.. _`ScalarAdvecRigidRot`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecRigidRot
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -109,7 +120,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `ScalarDiffusion`_
+
+.. _`ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusion
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -130,7 +143,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `ScalarDiffusionSine`_
+
+.. _`ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusionSine
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -152,7 +167,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `ScalarAdvecDiffUniformU`_
+
+.. _`ScalarAdvecDiffUniformU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecDiffUniformU
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -173,7 +190,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `IsentropicVortex`_
+
+.. _`IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -189,7 +208,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `IsentropicVortex`_
+
+.. _`IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -205,7 +226,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `TaylorGreenVortex`_
+
+.. _`TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -221,7 +244,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `TaylorGreenVortex`_
+
+.. _`TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -240,7 +265,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `ChannelDNS`_
+
+.. _`ChannelDNS`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelDNS
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -254,7 +281,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `ChannelLES`_
+
+.. _`ChannelLES`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelLES
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -268,7 +297,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `CouetteFlow`_
+
+.. _`CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Exec/CouetteFlow
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -284,7 +315,9 @@ Problem Definition
 ~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Full Problem Location:
+Problem Location: `EkmanSpiral`_
+
+.. _`EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/EkmanSpiral
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
