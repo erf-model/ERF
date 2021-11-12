@@ -25,24 +25,24 @@ File-based coupling
 +----------------------------+------------------+------------------+-------------+
 | Parameter                  | Definition       | Acceptable       | Default     |
 |                            |                  | Values           |             |
-+============================+==================+=================-+=============+
++============================+==================+==================+=============+
 | **erf.bdry_coupling_type** | type of output   | "File_1D" or     | "None"      |
 |                            | for coupling     | "None"           |             |
 |                            | to AMR-Wind      |                  |             |
 +----------------------------+------------------+------------------+-------------+
 | **erf.output_file**        | prefix for       | String           | “prof”      |
 |                            | output files     |                  |             |
-+----------------------------+------------------+---------------- -+-------------+
++----------------------------+------------------+------------------+-------------+
 | **erf.output_int*          | how often (by    | Integer          | -1          |
 |                            | level-0 time     | :math:`> 0`      |             |
 |                            | steps) to output |                  |             |
 |                            | plot files       |                  |             |
-+----------------------------+------------------+---------------- -+-------------+
++----------------------------+------------------+------------------+-------------+
 | **erf.output_per**         | how often (by    | Real :math:`> 0` | -1.0        |
 |                            | simulation time) |                  |             |
 |                            | to write output  |                  |             |
 |                            | files            |                  |             |
-+----------------------------+------------------+---------------- -+-------------+
++----------------------------+------------------+------------------+-------------+
 
 *  You should specify either **erf.output_int** or **erf.output_per**, but not both.
 
@@ -75,6 +75,6 @@ We convert the variables from conservative to primitive form before/after the ho
 What do we do about the fact that AMR-Wind currently uses Boussinesq model which assumes constant
 density.
 
-The format of the 1D output file is described in the AMR-Wind documetation here <Add link>
+The format of the 1D output file is described in the AMR-Wind documentation here <Add link>
 
 
