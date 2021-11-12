@@ -12,7 +12,7 @@ Coupling To AMRWind
 
 .. note::
 
-Everything below is a work in progress
+    Everything below is a work in progress
 
 The simplest form of coupling is one-way, file-based coupling. With this approach, an
 ERF simulation is run and outfile files are stored at regular time intervals. Once the
@@ -33,7 +33,7 @@ File-based coupling
 | **erf.output_file**        | prefix for       | String           | “prof”      |
 |                            | output files     |                  |             |
 +----------------------------+------------------+------------------+-------------+
-| **erf.output_int*          | how often (by    | Integer          | -1          |
+| **erf.output_int**         | how often (by    | Integer          | -1          |
 |                            | level-0 time     | :math:`> 0`      |             |
 |                            | steps) to output |                  |             |
 |                            | plot files       |                  |             |
@@ -72,8 +72,7 @@ We convert the variables from conservative to primitive form before/after the ho
 
 .. note::
 
-What do we do about the fact that AMR-Wind currently uses Boussinesq model which assumes constant
-density.
+    What do we do about the fact that AMR-Wind currently uses Boussinesq model which assumes constant density.
 
 The format of the 1D output file is described in the AMR-Wind documentation here <Add link>
 
