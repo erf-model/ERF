@@ -13,9 +13,9 @@ jobs:
   library:
     name: GNU@7.5 C++17 Release [lib]
     runs-on: ubuntu-18.04
-    env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
+    # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v2.4.0
       with: 
         submodules: true
 
