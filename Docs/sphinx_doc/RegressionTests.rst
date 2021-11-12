@@ -25,7 +25,7 @@ This tests scalar advection with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarAdvecUniformU`_
+Test Location:
 
 .. _`test_files/ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
@@ -334,9 +334,7 @@ This tests the Coriolis and geostrophic forcing.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarAdvecUniformU`_
-
-.. _`test_files/ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
+Test Location:
 
 Problem Location: `EkmanSpiral`_
 
