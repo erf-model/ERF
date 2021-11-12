@@ -25,7 +25,9 @@ This tests scalar advection with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location: 
+Test Location: `test_files/ScalarAdvecUniformU`_
+
+.. _`test_files/ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
 Problem Location: `ScalarAdvecUniformU`_
 
@@ -48,8 +50,9 @@ This tests scalar advection with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/ScalarAdvectionUniformUV`_
 
+.. _`test_files/ScalarAdvectionUniformUV`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformUV
 
 Problem Location: `ScalarAdvecUniformUV`_
 
@@ -72,8 +75,9 @@ This tests scalar advection with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/ScalarAdvectionShearedU`_
 
+.. _`test_files/ScalarAdvectionShearedU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionShearedU
 
 Problem Location: `ScalarAdvecShearedU`_
 
@@ -94,8 +98,9 @@ Scalar Advection: Rigid Rotation
 ----------------------------------
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/ScalarAdvectionRigidRotation`_
 
+.. _`test_files/ScalarAdvectionRigidRotation`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionRigidRotation
 
 Problem Location: `ScalarAdvecRigidRot`_
 
@@ -118,7 +123,9 @@ This tests scalar advection with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/ScalarDiffusion`_
+
+.. _`test_files/ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion
 
 Problem Location: `ScalarDiffusion`_
 
@@ -141,7 +148,9 @@ This tests scalar advection with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/ScalarDiffusionSine`_
+
+.. _`test_files/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionSine
 
 Problem Location: `ScalarDiffusionSine`_
 
@@ -165,7 +174,9 @@ This tests scalar advection and diffusion with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/ScalarAdvectionDiffusionUniformU`_
+
+.. _`test_files/ScalarAdvectionDiffusionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionDiffusionUniformU
 
 Problem Location: `ScalarAdvecDiffUniformU`_
 
@@ -188,7 +199,9 @@ This tests advection of an isentropic vortex tith triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/IsentropicVortexStationary`_
+
+.. _`test_files/IsentropicVortexStationary`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexStationary
 
 Problem Location: `IsentropicVortex`_
 
@@ -206,7 +219,9 @@ This tests advection of an isentropic vortex tith triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/IsentropicVortexAdvecting`_
+
+.. _`test_files/IsentropicVortexAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexAdvecting
 
 Problem Location: `IsentropicVortex`_
 
@@ -224,7 +239,9 @@ This tests advection and diffusion with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/TaylorGreenAdvecting`_
+
+.. _`test_files/TaylorGreenAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvecting
 
 Problem Location: `TaylorGreenVortex`_
 
@@ -242,7 +259,9 @@ This tests advection and diffusion with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/TaylorGreenAdvectingDiffusing`_
+
+.. _`test_files/TaylorGreenAdvectingDiffusing`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvectingDiffusing
 
 Problem Location: `TaylorGreenVortex`_
 
@@ -279,7 +298,7 @@ Channel Flow: LES
 ------------------------
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: 
 
 Problem Location: `ChannelLES`_
 
@@ -295,7 +314,9 @@ Couette Flow
 ------------
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/CouetteFlow`_
+
+.. _`test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow
 
 Problem Location: `CouetteFlow`_
 
@@ -313,7 +334,9 @@ This tests the Coriolis and geostrophic forcing.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/ScalarAdvecUniformU`_
+
+.. _`test_files/ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
 Problem Location: `EkmanSpiral`_
 
