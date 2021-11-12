@@ -21,15 +21,16 @@ ERF advances the following set of equations in DNS mode:
 
   \frac{\partial (\rho \mathbf{u})}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + pI) +\rho \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
 
-  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)),
+  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \rho \alpha_{T}\ \nabla^2 \theta,
 
-  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\alpha_{C}\ \nabla (\rho C)),
+  \frac{\partial (\rho C)}{\partial t}      &=& - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C}\ \nabla^2 C
 
 where :math:`\tau` is the stress tensor and :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`.
 
 When run in DNS mode, :math:`\tau = 2 \mu S` where :math:`\mu` is the user-specified dynamic viscosity and
 :math:`S` is the strain-rate tensor.  When using the Smagorinsky model, the turbulent viscosity
-:math:`K = 2 (C_s \Delta)^2 (\sqrt{2 S S} \rho` is used in place of :math:`2 \mu,` where
+:math:`K = 2 (C_s \Delta)^2 (\sqrt{2 S S} \rho)` is used in place of :math:`2 \mu,` where
+
 :math:`C_s` is the Smagorinsky constant and :math:`\Delta` is the mesh spacing.
 
 Note that :math:`\alpha_{T}` is in general variable for a general compressible flow. However, for low Mach number atmospheric flows it are assumed to be constant.
