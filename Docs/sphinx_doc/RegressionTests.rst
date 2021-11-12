@@ -298,7 +298,7 @@ Channel Flow: LES
 ------------------------
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location: 
+Test Location:
 
 Problem Location: `ChannelLES`_
 
