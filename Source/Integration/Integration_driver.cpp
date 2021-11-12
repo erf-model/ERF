@@ -56,10 +56,16 @@ void erf_advance(int level,
     // Prepare the old-time data for calling the integrator
     // **************************************************************************************
 
-    // Apply BC on old state data at cells before stage 1
+    // Apply BC on old state data at cells
     // **************************************************************************************
+    cons_old.FillBoundary(fine_geom.periodicity());
+
+    // We need to apply the boundary conditions here because we are converting from velocity to momentum
+    //    which requires having set boundary conditions on density
+    amrex::Vector<MultiFab*> vars_orig{&cons_old};
+    ERF::applyBCs(fine_geom, vars_orig);
+
     MultiFab::Copy(*state_old[IntVar::cons], cons_old, 0, 0, cons_old.nComp(), cons_old.nGrow());
-    state_old[IntVar::cons]->FillBoundary(fine_geom.periodicity());
 
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // **************************************************************************************
