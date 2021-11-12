@@ -13,10 +13,12 @@
 #include "ProblemDerive.H"
 
 struct ProbParm {
-  amrex::Real rho_0 = 0.0; // left density (g/cc)
-  amrex::Real rhoe_0;
-  amrex::Real T_0 = 1.0;
-  amrex::Real A_0 = 1.0;
+  amrex::Real rho_0 = 0.0;
+  amrex::Real T_0   = 1.0;
+  amrex::Real A_0   = 1.0;
+  amrex::Real u_0   = 0.0;
+  amrex::Real v_0   = 0.0;
+  amrex::Real rad_0 = 0.0;
 }; // namespace ProbParm
 
 extern ProbParm parms;
