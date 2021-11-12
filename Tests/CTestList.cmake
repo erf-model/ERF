@@ -72,9 +72,9 @@ endfunction(add_test_u)
 #=============================================================================
 # Regression tests
 #=============================================================================
-add_test_r(ScalarAdvectionUniformU  "ScalarAdvection/scalar_advec_unif_u"    "plt00020")
-add_test_r(ScalarAdvectionUniformUV "ScalarAdvection/scalar_advec_unif_uv"   "plt00020")
-add_test_r(ScalarAdvectionShearedU  "ScalarAdvection/scalar_advec_sheared_u" "plt00020")
+add_test_r(ScalarAdvectionUniformU  "ScalarAdvection/scalar_advection" "plt00020")
+add_test_r(ScalarAdvectionUniformUV "ScalarAdvection/scalar_advection" "plt00020")
+add_test_r(ScalarAdvectionShearedU  "ScalarAdvection/scalar_advection" "plt00020")
 add_test_r(ScalarAdvectionRigidRotation "ScalarAdvecRigidRot/scalar_advec_rigid_rot" "plt00020")
 add_test_r(ScalarDiffusion "ScalarDiffusion/scalar_diff" "plt00020")
 add_test_r(ScalarDiffusionSine "ScalarDiffusionSine/scalar_diff_sine" "plt00020")
