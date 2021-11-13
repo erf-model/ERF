@@ -152,9 +152,9 @@ Test Location: `test_files/ScalarDiffusionSine`_
 
 .. _`test_files/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionSine
 
-Problem Location: `ScalarDiffusionSine`_
+Problem Location: `ScalarDiffusion`_
 
-.. _`ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusionSine
+.. _`ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusion
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

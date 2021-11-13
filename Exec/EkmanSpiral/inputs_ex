@@ -68,7 +68,6 @@ erf.rotational_time_period = 86164.0900027328
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.rhoe_0 = 1.0
 prob.A_0 = 1.0
 prob.V_0 = 15.0
 

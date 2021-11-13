@@ -81,7 +81,7 @@ prob.uRef  = 8.0
 ## 1 = Explicit Runge Kutta
 integration.type = 1
 
-## Explicit Runge-Kuta parameters
+## Explicit Runge-Kutta parameters
 #
 ## integration.rk.type can take the following values:
 ### 0 = User-specified Butcher Tableau
