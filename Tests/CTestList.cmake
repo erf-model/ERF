@@ -19,7 +19,7 @@ macro(setup_test)
 
     if(ERF_ENABLE_MPI)
         set(NP 4)
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS} --oversubscribe")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
