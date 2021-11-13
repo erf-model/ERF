@@ -70,3 +70,4 @@ prob.A_0   = 1.0
 prob.u_0   = 10.0
 prob.v_0   = 5.0
 prob.rad_0 = 0.25
+prob.uRef  = 0.0

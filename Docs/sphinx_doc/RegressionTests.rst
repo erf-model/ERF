@@ -25,13 +25,13 @@ This tests scalar advection with triply periodic boundaries.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarAdvecUniformU`_
+Test Location: `test_files/ScalarAdvectionUniformU`_
 
-.. _`test_files/ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
+.. _`test_files/ScalarAdvectionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
-Problem Location: `ScalarAdvecUniformUV`_
+Problem Location: `ScalarAdvection`_
 
-.. _`ScalarAdvecUniformUV`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecUniformUV
+.. _`ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,7 +39,7 @@ Sample Solution/ Flow-field
   :width: 600
 .. image:: figures/tests/scalar_advec_uniform_u_end.png
   :width: 600
-Flow-field at times {0, 0.0264788} s.
+Scalar concentration at times {0, 0.0264788} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -54,9 +54,9 @@ Test Location: `test_files/ScalarAdvectionUniformUV`_
 
 .. _`test_files/ScalarAdvectionUniformUV`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformUV
 
-Problem Location: `ScalarAdvecUniformUV`_
+Problem Location: `ScalarAdvection`_
 
-.. _`ScalarAdvecUniformUV`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecUniformUV
+.. _`ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -64,7 +64,7 @@ Sample Solution/ Flow-field
   :width: 600
 .. image:: figures/tests/scalar_advec_uniform_uv_end.png
   :width: 600
-Flow-field at times {0, 0.6937161} s
+Scalar concentration at times {0, 0.6937161} s
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -79,9 +79,9 @@ Test Location: `test_files/ScalarAdvectionShearedU`_
 
 .. _`test_files/ScalarAdvectionShearedU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionShearedU
 
-Problem Location: `ScalarAdvecShearedU`_
+Problem Location: `ScalarAdvection`_
 
-.. _`ScalarAdvecShearedU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecShearedU
+.. _`ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,7 +89,7 @@ Sample Solution/ Flow-field
   :width: 600
 .. image:: figures/tests/scalar_advec_sheared_u_end.png
   :width: 600
-Flow-field at times {0, 0.9819669} s.
+Scalar concentration at times {0, 0.9819669} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

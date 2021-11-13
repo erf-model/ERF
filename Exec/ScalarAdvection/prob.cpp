@@ -47,6 +47,15 @@ erf_init_prob(
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     x_vel(i, j, k) = parms.u_0;
+
+    const amrex::Real* prob_lo = geomdata.ProbLo();
+    const amrex::Real*      dx = geomdata.CellSize();
+    const amrex::Real        z = prob_lo[2] + k * dx[2];
+
+    // Set the x-velocity
+    x_vel(i, j, k) = parms.u_0 + parms.uRef *
+                     std::log((z + parms.z0)/parms.z0)/
+                     std::log((parms.zRef +parms.z0)/parms.z0);
   });
 
   // Construct a box that is on y-faces
@@ -102,5 +111,8 @@ amrex_probinit(
     pp.query("u_0", parms.u_0);
     pp.query("v_0", parms.v_0);
     pp.query("rad_0", parms.rad_0);
+    pp.query("z0", parms.z0);
+    pp.query("zRef", parms.zRef);
+    pp.query("uRef", parms.uRef);
   }
 }

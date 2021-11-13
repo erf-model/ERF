@@ -65,9 +65,11 @@ erf.spatial_order = 2
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.T_0 = 1.0
-prob.A_0 = 1.0
-prob.z0 = 0.1
-prob.zRef = 80.0
-prob.uRef = 8.0
-
+prob.T_0   = 1.0
+prob.A_0   = 1.0
+prob.u_0   = 0.0
+prob.v_0   = 0.0
+prob.rad_0 = 0.25
+prob.z0    = 0.1
+prob.zRef  = 80.0
+prob.uRef  = 8.0
