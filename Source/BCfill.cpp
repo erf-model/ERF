@@ -45,7 +45,7 @@ struct ERFHypFillExtDir
         dest(iv, n) = s_ext[n];
       }
     } else if (
-      (bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) and
+      (bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) &&
       (iv[idir] > domhi[idir])) {
       amrex::IntVect loc(AMREX_D_DECL(domhi[idir], iv[1], iv[2]));
       for (int n = 0; n < NVAR; n++) {
@@ -68,7 +68,7 @@ struct ERFHypFillExtDir
         dest(iv, n) = s_ext[n];
       }
     } else if (
-      (bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) and
+      (bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) &&
       (iv[idir] > domhi[idir])) {
       amrex::IntVect loc(AMREX_D_DECL(iv[0], domhi[idir], iv[2]));
       for (int n = 0; n < NVAR; n++) {
@@ -90,7 +90,7 @@ struct ERFHypFillExtDir
         dest(iv, n) = s_ext[n];
       }
     } else if (
-      (bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) and
+      (bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) &&
       (iv[idir] > domhi[idir])) {
       for (int n = 0; n < NVAR; n++) {
         s_int[n] = dest(iv[0], iv[1], domhi[idir], n);
