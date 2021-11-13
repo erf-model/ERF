@@ -35,7 +35,7 @@ struct ERFHypFillExtDir
 
     // xlo and xhi
     int idir = 0;
-    if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
+    if ((bc[idir] == amrex::BCType::ext_dir) && (iv[idir] < domlo[idir])) {
       amrex::IntVect loc(AMREX_D_DECL(domlo[idir], iv[1], iv[2]));
       for (int n = 0; n < NVAR; n++) {
         s_int[n] = dest(loc, n);
@@ -58,7 +58,7 @@ struct ERFHypFillExtDir
     }
     // ylo and yhi
     idir = 1;
-    if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
+    if ((bc[idir] == amrex::BCType::ext_dir) && (iv[idir] < domlo[idir])) {
       amrex::IntVect loc(AMREX_D_DECL(iv[0], domlo[idir], iv[2]));
       for (int n = 0; n < NVAR; n++) {
         s_int[n] = dest(loc, n);
@@ -81,7 +81,7 @@ struct ERFHypFillExtDir
     }
     // zlo and zhi
     idir = 2;
-    if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
+    if ((bc[idir] == amrex::BCType::ext_dir) && (iv[idir] < domlo[idir])) {
       for (int n = 0; n < NVAR; n++) {
         s_int[n] = dest(iv[0], iv[1], domlo[idir], n);
       }
