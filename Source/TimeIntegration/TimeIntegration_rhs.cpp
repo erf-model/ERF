@@ -6,7 +6,7 @@
 
 #include <Constants.H>
 
-#include <Integration.H>
+#include <TimeIntegration.H>
 #include <EOS.H>
 
 using namespace amrex;

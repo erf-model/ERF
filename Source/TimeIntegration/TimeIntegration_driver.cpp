@@ -3,7 +3,7 @@
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
 
-#include <Integration.H>
+#include <TimeIntegration.H>
 #include <utils.H>
 
 using namespace amrex;

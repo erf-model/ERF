@@ -1,7 +1,7 @@
 #include <cmath>
 
 #include "ERF.H"
-#include "Integration.H"
+#include "TimeIntegration.H"
 #include "IndexDefines.H"
 
 #include "AMReX_InterpFaceRegister.H"
