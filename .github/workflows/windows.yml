@@ -10,8 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  WIN32-C17:
-    name: WIN32 C++17 [lib]
+  WIN32-MSVC10:
+    name: WIN32 MSVC19 [test]
     runs-on: windows-latest
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     steps:
@@ -25,6 +25,7 @@ jobs:
           -B${{runner.workspace}}/ERF/build `
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
           -DCMAKE_BUILD_TYPE:STRING=Debug `
+          # TODO: Turn off Fortran
           -DERF_DIM:STRING=3 `
           -DERF_ENABLE_MPI:BOOL=ON `
           -DERF_ENABLE_TESTS:BOOL=ON `
