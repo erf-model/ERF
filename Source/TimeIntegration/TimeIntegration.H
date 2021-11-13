@@ -37,7 +37,7 @@ void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in
 
 
 /**
- * Update the cell-centered state and face-based velocity using RK3
+ * Update the cell-centered state and face-based velocity using a time integrator
  *
  * \param[in]  S_old  state on cell centers
  * \param[in]  S_old  state on cell centers

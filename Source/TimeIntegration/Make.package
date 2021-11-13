@@ -1,12 +1,12 @@
 CEXE_sources += MomentumToVelocity.cpp
 CEXE_sources += VelocityToMomentum.cpp
-CEXE_sources += Integration_driver.cpp
-CEXE_sources += Integration_rhs.cpp
-CEXE_sources += Integration_utils.cpp
+CEXE_sources += TimeIntegration_driver.cpp
+CEXE_sources += TimeIntegration_rhs.cpp
+CEXE_sources += TimeIntegration_utils.cpp
 CEXE_sources += Interpolation.cpp
 CEXE_sources += Advection.cpp
 CEXE_sources += Diffusion.cpp
 CEXE_sources += StrainRate.cpp
 CEXE_sources += EddyViscosity.cpp
 
-CEXE_headers += Integration.H
+CEXE_headers += TimeIntegration.H

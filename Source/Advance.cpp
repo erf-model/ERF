@@ -120,7 +120,8 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   FillPatch(*this,state_mf,S_old.nGrow(),time,0,0,nvars);
 
   // *****************************************************************
-  // Update the cell-centered state and face-based velocity using RK3
+  // Update the cell-centered state and face-based velocity using
+  // a time integrator.
   // Inputs:
   //          S_old    (state on cell centers)
   //          U_old    (x-velocity on x-faces)
