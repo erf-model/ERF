@@ -36,7 +36,10 @@ ERF::build_coriolis_forcings()
         amrex::Vector<amrex::Real> abl_geo_wind(3);
         pp.queryarr("abl_geo_wind",abl_geo_wind);
 
-        abl_geo_forcing =
-           {-coriolis_factor * abl_geo_wind[1], coriolis_factor * abl_geo_wind[0], 0.0};
+        abl_geo_forcing = {
+            -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
+             coriolis_factor *  abl_geo_wind[0]*sinphi,
+            -coriolis_factor *  abl_geo_wind[0]*cosphi
+        };
     }
 }
