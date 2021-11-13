@@ -117,16 +117,15 @@ struct SolverChoice {
     const bool        use_smagorinsky;
     const amrex::Real Cs;
     const bool        use_pressure;
-    const bool        use_coriolis;
     const bool        use_gravity;
+    const bool        use_coriolis;
+    const amrex::Real coriolis_factor;
+    const amrex::Real cosphi;
+    const amrex::Real sinphi;
     const int         spatial_order;
     const ABLDriverType  abl_driver_type;
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
-
-    const amrex::Real coriolis_factor;
-    const amrex::Real cosphi;
-    const amrex::Real sinphi;
 
   private:
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> get_gpu_array(const std::vector<amrex::Real> & vec) {
