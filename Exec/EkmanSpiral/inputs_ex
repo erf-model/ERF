@@ -63,7 +63,7 @@ erf.spatial_order = 2
 erf.use_coriolis = true
 erf.abl_driver_type = "GeostrophicWind"
 erf.latitude = 90.
-erf.geostrophic_wind = 15.0 0.0 0.0
+erf.abl_geo_wind = 15.0 0.0 0.0
 erf.rotational_time_period = 86164.0900027328
 
 # PROBLEM PARAMETERS
