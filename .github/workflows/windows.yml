@@ -21,11 +21,9 @@ jobs:
 
     - name: Build & Install
       run: |
-        cmake `
-          -B${{runner.workspace}}/ERF/build `
+        cmake -S . -B build `
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
           -DCMAKE_BUILD_TYPE:STRING=Debug `
-          # TODO: Turn off Fortran
           -DERF_DIM:STRING=3 `
           -DERF_ENABLE_MPI:BOOL=ON `
           -DERF_ENABLE_TESTS:BOOL=ON `
@@ -36,9 +34,10 @@ jobs:
 
     - name: Build
       run: |
-        cmake --build ${{runner.workspace}}/ERF/build --parallel 2 
+        cmake --build build --parallel 2 
 
     - name: Regression Tests
       run: |
         ctest 
+        pwd
       working-directory: ${{runner.workspace}}/ERF/build
