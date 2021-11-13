@@ -15,7 +15,7 @@ Time Advance
 Runge-Kutta
 -----------
 
-ERF uses the three-stage low-storage TVD RK3 scheme of `Gottlieb and Shu`_ to advance the solution.
+By default ERF uses the three-stage low-storage TVD RK3 scheme of `Gottlieb and Shu`_ to advance the solution.
 
 .. _`Gottlieb and Shu`: https://www.ams.org/journals/mcom/1998-67-221/S0025-5718-98-00913-2/S0025-5718-98-00913-2.pdf
 
@@ -35,8 +35,8 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 
   \mathbf{S}^{n+1} &=& \frac{1}{3} \mathbf{S}^n + \frac{2}{3} ( \mathbf{S}^{(2)} + \Delta t f(\mathbf{S}^{(2)}) )
 
-In the code, the time-stepping is implemented in :cpp:`Source/RK3/RK3_driver.cpp`, while
-:math:`f` is computed in :cpp:`Source/RK3/RK3_stage.cpp`
+In the code, the time-stepping is implemented in :cpp:`Source/TimeIntegration/TimeIntegration_driver.cpp`, while
+:math:`f` is computed in :cpp:`Source/TimeIntegration/TimeIntegration_rhs.cpp`
 
 We note this can also be written as
 

@@ -3,7 +3,7 @@
  */
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-#include "RK3.H"
+#include <TimeIntegration.H>
 
 using namespace amrex;
 
