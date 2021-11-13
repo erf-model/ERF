@@ -73,3 +73,30 @@ prob.rad_0 = 0.25
 prob.z0    = 0.1
 prob.zRef  = 80.0
 prob.uRef  = 8.0
+
+
+# INTEGRATION
+## integration.type can take on the following values:
+## 0 = Forward Euler
+## 1 = Explicit Runge Kutta
+integration.type = 1
+
+## Explicit Runge-Kuta parameters
+#
+## integration.rk.type can take the following values:
+### 0 = User-specified Butcher Tableau
+### 1 = Forward Euler
+### 2 = Trapezoid Method
+### 3 = SSPRK3 Method
+### 4 = RK4 Method
+integration.rk.type = 3
+
+## If using a user-specified Butcher Tableau, then
+## set nodes, weights, and table entries here:
+#
+## The Butcher Tableau is read as a flattened,
+## lower triangular matrix (but including the diagonal)
+## in row major format.
+integration.rk.weights = 1
+integration.rk.nodes = 0
+integration.rk.tableau = 0.0

@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 16
+max_step = 200
 
 amrex.fpe_trap_invalid = 1
 
