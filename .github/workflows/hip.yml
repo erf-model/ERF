@@ -81,29 +81,29 @@ jobs:
         pushd ${{runner.workspace}}/ERF/build-${{matrix.os}};
         make -j ${{env.NPROCS}};
 
-    - name: Regression Tests
-      run: |
-        ctest -L regression -VV
-      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+    # - name: Regression Tests
+    #   run: |
+    #     ctest -L regression -VV
+    #   working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
-    - name: Generate coverage report
-      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
-      run: |
-        find . -type f -name '*.gcno' -path "**Source**" -exec gcov -pb {} +
-        cd ..
-        gcovr -g -k -r . --xml regressioncov.xml  # -v
+    # - name: Generate coverage report
+    #   working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+    #   run: |
+    #     find . -type f -name '*.gcno' -path "**Source**" -exec gcov -pb {} +
+    #     cd ..
+    #     gcovr -g -k -r . --xml regressioncov.xml  # -v
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v2
-      with:
-        dry_run: false
-        # token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-        files: ./regressioncov.xml # optional
-        flags: regtests # optional
-        # name: codecov-umbrella # optional
-        fail_ci_if_error: true # optional (default = false)
-        verbose: true # optional (default = false)
-        directory: ${{runner.workspace}}/ERF
+    # - name: Upload coverage to Codecov
+    #   uses: codecov/codecov-action@v2
+    #   with:
+    #     dry_run: false
+    #     # token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+    #     files: ./regressioncov.xml # optional
+    #     flags: regtests # optional
+    #     # name: codecov-umbrella # optional
+    #     fail_ci_if_error: true # optional (default = false)
+    #     verbose: true # optional (default = false)
+    #     directory: ${{runner.workspace}}/ERF
 
     - name: Success artifacts
       uses: actions/upload-artifact@v2
