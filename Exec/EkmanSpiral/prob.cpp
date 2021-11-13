@@ -38,12 +38,17 @@ erf_init_prob(
   pp.get("dynamicViscosity", Az); // dynamic viscosity [kg-m/s]
   Az = Az / parms.rho_0; // kinematic viscosity [m^2/s]
 
+  amrex::Vector<amrex::Real> abl_geo_wind(3);
+  pp.queryarr("abl_geo_wind",abl_geo_wind);
+  AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+    (amrex::Math::abs(abl_geo_wind[1]) < 1.0e-15) &&
+    (amrex::Math::abs(abl_geo_wind[2]) < 1.0e-15),
+    "Ekman Spiral uses geostrophic forcing of the form (V_0, 0, 0)");
+  const amrex::Real u_0 = abl_geo_wind[0];
+
   const amrex::Real DE = std::sqrt(2.0 * Az / coriolis_factor);
   //amrex::Print() << "Ekman depth = " << DE << " m" << std::endl;
-
   const amrex::Real a = 1.0 / DE;
-  // TODO: get this from geostrophic wind vector
-  const amrex::Real u_0 = parms.V_0;
 
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
@@ -111,6 +116,5 @@ amrex_probinit(
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.T_0);
-  pp.query("V_0", parms.V_0);
 }
 }
