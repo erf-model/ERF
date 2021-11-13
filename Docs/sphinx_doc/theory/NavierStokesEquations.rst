@@ -61,7 +61,7 @@ DNS
 In DNS mode, ERF advances the above equations with the exception that the temperature :math:`T` is replaced by the potential temperature :math:`\theta`:
 
 .. note:: Someone who understands atmospheric science better than I do should add a sentence here explaining why we use :math:`\theta`.
-	  
+      
 .. math::
 
    \theta = T \left( \frac{p_0}{p} \right)^{R_d / c_p},
@@ -98,7 +98,7 @@ Filtering the above equations results in the governing equations to be used in L
   \frac{\partial (\overline{\rho} \tilde{C})}{\partial t}      &=& - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{C})      + \overline{\rho} \alpha_{C} \nabla^2 \tilde{C}  &- \nabla \cdot (\overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} ) ,
 
 .. note:: The molecular transport terms are shown being retained here, but not in the present implementation. While they are likely to be small reative to the turbulent transport terms, I don't see a downside to keeping them around, or at least have the option to do so.
-	  
+      
 where 
 
 .. math::
@@ -154,7 +154,7 @@ The model coefficients :math:`C_s, C_I, Pr_t, Sc_t` have nominal values of 0.16,
 
 Deardorff
 ~~~~~~~~~
-	  
+      
 In Deardorff (one-equation/TKE) models, the turbulent viscosity is computed as: 
 
 .. math::
