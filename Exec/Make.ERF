@@ -15,13 +15,55 @@ ifeq ($(USE_NETCDF), TRUE)
  LIBRARIES += -lnetcdf
 endif
 
-#sundials stuff
-ifeq ($(USE_SUNDIALS_PP), TRUE)
-  USE_ARKODE_PP=TRUE
-  ifeq ($(USE_CUDA), TRUE)
-    USE_CUDA_SUNDIALS_PP = TRUE
-  endif
-  include $(TOP)/Submodules/ThirdParty/Make.ThirdParty
+ifeq ($(USE_SUNDIALS),TRUE)
+SUNDIALS_ROOT ?= $(TOP)/../sundials/instdir
+SUNDIALS_LIB_DIR ?= $(SUNDIALS_ROOT)/lib
+
+USE_CVODE_LIBS ?= TRUE
+USE_ARKODE_LIBS ?= TRUE
+
+CPPFLAGS += -DAMREX_USE_SUNDIALS
+INCLUDE_LOCATIONS += $(SUNDIALS_ROOT)/include
+LIBRARY_LOCATIONS += $(SUNDIALS_LIB_DIR)
+
+ifeq ($(USE_CVODE_LIBS),TRUE)
+  LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_cvode
+endif
+
+ifeq ($(USE_ARKODE_LIBS),TRUE)
+  LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_arkode
+endif
+
+LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_nvecserial
+LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_nvecmanyvector
+
+ifeq ($(USE_CUDA),TRUE)
+  LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_nveccuda
+endif
+
+ifeq ($(USE_HIP),TRUE)
+  LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_nvechip
+endif
+
+ifeq ($(USE_DPCPP),TRUE)
+  LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_nvecsycl
+endif
+
+ifeq ($(USE_OMP),TRUE)
+  LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_nvecopenmp
+endif
+
+ifeq ($(USE_FUSED),TRUE)
+ifeq ($(USE_CUDA),TRUE)
+     LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_cvode_fused_cuda
+else
+ifeq ($(USE_HIP),TRUE)
+     LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_cvode_fused_hip
+else
+     LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_cvode_fused_stubs
+endif
+endif
+endif
 endif
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs

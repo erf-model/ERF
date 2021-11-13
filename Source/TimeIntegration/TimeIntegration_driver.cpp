@@ -5,8 +5,17 @@
 
 #include <TimeIntegration.H>
 #include <utils.H>
+#include <arkode/arkode_erkstep.h>     /* prototypes for ARKStep fcts., consts */
+#include <nvector/nvector_manyvector.h>/* manyvector N_Vector types, fcts. etc */
+#include <NVector_Multifab.h>    /* Multifab N_Vector types, fcts., macros */
+#include <sunlinsol/sunlinsol_spgmr.h> /* access to SPGMR SUNLinearSolver      */
+#include <sundials/sundials_types.h>   /* defs. of realtype, sunindextype, etc */
 
 using namespace amrex;
+
+/* User-supplied Functions Called by the Solver */
+static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
+static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
 
 // TODO: Check if the order of applying BC on cell-centered state or face-centered mom makes any difference
 
@@ -121,6 +130,29 @@ void erf_advance(int level,
     // **************************************************************************************
     TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > integrator(state_old);
 
+    SUNLinearSolver LS = NULL;    /* empty linear solver object */
+    void *arkode_mem = NULL;      /* empty ARKode memory structure */
+    // Create an N_Vector wrapper for the solution MultiFab
+    sunindextype length = cons_old.nComp() * (cons_old.boxArray()).numPts();
+    // Testing data structures, this length may be different for "real" initial condition
+    N_Vector nv_S        = NULL;
+    int NVar             = 4;
+    //Arbitrary tolerances
+    Real reltol          = 1e-4;
+    Real abstol          = 1e-4;
+    Real t               = time;
+    Real tout            = time+dt;
+    Real hfixed          = dt/100;
+    N_Vector nv_cons     = N_VMake_Multifab(length, state_old[IntVar::cons].get());
+    N_Vector nv_xmom     = N_VMake_Multifab(length, state_old[IntVar::xmom].get());
+    N_Vector nv_ymom     = N_VMake_Multifab(length, state_old[IntVar::ymom].get());
+    N_Vector nv_zmom     = N_VMake_Multifab(length, state_old[IntVar::zmom].get());
+    N_Vector nv_many_arr[NVar];              /* vector array composed of cons, xmom, ymom, zmom component vectors */
+
+    /* Create manyvector for solution */
+    nv_many_arr[0] = nv_cons; nv_many_arr[1] = nv_xmom; nv_many_arr[2] = nv_ymom; nv_many_arr[3] = nv_zmom;
+    nv_S = N_VNew_ManyVector(NVar, nv_many_arr);
+
     auto rhs_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_rhs, const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data,
                 source,
@@ -149,11 +181,32 @@ void erf_advance(int level,
     integrator.set_rhs(rhs_fun);
     integrator.set_post_update(post_update_fun);
 
+    /* Call ERKStepCreate to initialize the ERK timestepper module and
+    specify the right-hand side function in y'=f(t,y), the inital time
+    T0, and the initial dependent variable vector y. */
+    arkode_mem = ERKStepCreate(f, time, nv_S);
+    ERKStepSetUserData(arkode_mem, (void *) &integrator);  /* Pass udata to user functions */
+    ERKStepSetPostprocessStageFn(arkode_mem, ProcessStage);
+    /* Specify tolerances */
+    ERKStepSStolerances(arkode_mem, reltol, abstol);
+    ERKStepSetFixedStep(arkode_mem, hfixed);
+    bool advance_erk=true;
+    if(advance_erk)
+    {
+    ERKStepEvolve(arkode_mem, tout, nv_S, &t, ARK_NORMAL);
+
+    for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
+    {
+	MultiFab::Copy(*state_new[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
+    }
+    }
+    else
+    {
     // **************************************************************************************
     // Integrate for a single timestep
     // **************************************************************************************
     integrator.advance(state_old, state_new, time, dt);
-
+    }
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after we have taken a timestep
     // **************************************************************************************
@@ -179,4 +232,35 @@ void erf_advance(int level,
 
     ERF::applyBCs(fine_geom, vars);
 
+}
+
+/* f routine to compute the ODE RHS function f(t,y). */
+static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
+{
+  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = (TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *) user_data;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_rhs;
+  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
+  {
+      S_data.emplace_back(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
+      S_rhs.emplace_back(NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
+  }
+
+  integrator->rhs(S_rhs, S_data, t);
+
+  return 0;
+}
+
+static int ProcessStage(realtype t, N_Vector y_data, void *user_data)
+{
+  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = (TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *) user_data;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
+  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
+  {
+      S_data.emplace_back(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
+  }
+
+  integrator->call_post_update(S_data, t);
+
+  return 0;
 }

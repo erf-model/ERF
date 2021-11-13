@@ -177,6 +177,11 @@ public:
         Fun(S_rhs, S_data, time);
     }
 
+    void call_post_update(T& S_data, const amrex::Real time)
+    {
+        post_update(S_data, time);
+    }
+
     virtual void time_interpolate(const T& S_new, const T& S_old, amrex::Real timestep_fraction, T& data) {}
 
     virtual void map_data(std::function<void(T&)> Map) {}

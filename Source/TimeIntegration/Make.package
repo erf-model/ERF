@@ -1,5 +1,6 @@
 CEXE_sources += MomentumToVelocity.cpp
 CEXE_sources += VelocityToMomentum.cpp
+CEXE_sources += NVector_Multifab.cpp
 CEXE_sources += TimeIntegration_driver.cpp
 CEXE_sources += TimeIntegration_rhs.cpp
 CEXE_sources += TimeIntegration_utils.cpp

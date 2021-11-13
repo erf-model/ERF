@@ -102,6 +102,16 @@ public:
         }
     }
 
+    void rhs(T& S_rhs, const T& S_data, const amrex::Real time)
+    {
+        integrator_ptr->rhs(S_rhs, S_data, time);
+    }
+
+    void call_post_update(T& S_data, const amrex::Real time)
+    {
+        integrator_ptr->call_post_update(S_data, time);
+    }
+
     void time_interpolate(const T& S_new, const T& S_old, amrex::Real timestep_fraction, T& data)
     {
         integrator_ptr->time_interpolate(S_new, S_old, timestep_fraction, data);
