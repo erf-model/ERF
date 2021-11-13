@@ -1,7 +1,7 @@
 # -Wextra-semi: GCC < 10 does not have this.
 # -Wunreachable-code: GCC no longer has this option.
 
-name: Windows
+name: MacOS
 
 on: [push, pull_request]
 
@@ -10,27 +10,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  WIN32-C17:
-    name: WIN32 C++17 [lib]
-    runs-on: windows-latest
+  MacOS-Clang:
+    name: AppleClang@11.0 
+    runs-on: macos-latest
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     steps:
     - uses: actions/checkout@v2.4.0
       with: 
         submodules: true
 
+    - name: Dependencies
+      run: .github/workflows/dependencies/dependencies_mac.sh
+
     - name: Build & Install
       run: |
-        cmake `
-          -B${{runner.workspace}}/ERF/build `
-          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
-          -DCMAKE_BUILD_TYPE:STRING=Debug `
-          -DERF_DIM:STRING=3 `
-          -DERF_ENABLE_MPI:BOOL=ON `
-          -DERF_ENABLE_TESTS:BOOL=ON `
-          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON `
-          -DERF_ENABLE_AMREX_EB:BOOL=ON `
-          -DERF_ENABLE_FCOMPARE:BOOL=ON `
+        cmake \
+          -B${{runner.workspace}}/ERF/build \
+          -DBUILD_SHARED_LIBS:BOOL=TRUE \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=$(which ccache) \
+          #-DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=TRUE \
+          -DERF_ENABLE_TESTS:BOOL=TRUE \
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=TRUE \
+          -DERF_ENABLE_AMREX_EB:BOOL=TRUE \
+          -DERF_ENABLE_FCOMPARE:BOOL=TRUE \
           ${{github.workspace}};
 
     - name: Build
