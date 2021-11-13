@@ -35,7 +35,7 @@ erf_init_prob(
   amrex::Real coriolis_factor = 4.0 * M_PI / rot_time_period;
 
   amrex::Real Az;
-  pp.get("dynamicViscosity", Az);
+  pp.get("dynamicViscosity", Az); // dynamic viscosity [kg-m/s]
   Az = Az / parms.rho_0; // kinematic viscosity [m^2/s]
 
   const amrex::Real DE = std::sqrt(2.0 * Az / coriolis_factor);
