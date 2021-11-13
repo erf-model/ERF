@@ -1,0 +1,43 @@
+# -Wextra-semi: GCC < 10 does not have this.
+# -Wunreachable-code: GCC no longer has this option.
+
+name: Windows
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-linux-gcc
+  cancel-in-progress: true
+
+jobs:
+  library:
+    name: WIN32 C++17 [lib]
+    runs-on: windows-latest
+    # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
+    steps:
+    - uses: actions/checkout@v2.4.0
+      with: 
+        submodules: true
+
+    - name: Build & Install
+      run: |
+        cmake `
+          -B${{runner.workspace}}/ERF/build `
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
+          -DCMAKE_BUILD_TYPE:STRING=Debug `
+          -DERF_DIM:STRING=3 `
+          -DERF_ENABLE_MPI:BOOL=ON `
+          -DERF_ENABLE_TESTS:BOOL=ON `
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON `
+          -DERF_ENABLE_AMREX_EB:BOOL=ON `
+          -DERF_ENABLE_FCOMPARE:BOOL=ON `
+          ${{github.workspace}};
+
+    - name: Build
+      run: |
+        cmake --build ${{runner.workspace}}/ERF/build --parallel 2 
+
+    - name: Regression Tests
+      run: |
+        ctest 
+      working-directory: ${{runner.workspace}}/ERF/build
