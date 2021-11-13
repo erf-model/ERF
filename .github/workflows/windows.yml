@@ -25,7 +25,7 @@ jobs:
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
           -DCMAKE_BUILD_TYPE:STRING=Debug `
           -DERF_DIM:STRING=3 `
-          -DERF_ENABLE_MPI:BOOL=ON `
+          -DERF_ENABLE_MPI:BOOL=OFF `
           -DERF_ENABLE_TESTS:BOOL=ON `
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON `
           -DERF_ENABLE_AMREX_EB:BOOL=ON `
