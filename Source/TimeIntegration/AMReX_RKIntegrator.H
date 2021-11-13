@@ -213,12 +213,12 @@ public:
         // data = S_old*(1-time_step_fraction) + S_new*(time_step_fraction)
         /*
         data.setVal(0);
-        
+
         IntegratorOps<T>::Saxpy(data, 1-timestep_fraction, S_old);
         IntegratorOps<T>::Saxpy(data, timestep_fraction, S_new);
         */
-        
-        
+
+
         // currently we only do this for 4th order RK
         AMREX_ASSERT(number_nodes == 4);
 
@@ -243,8 +243,8 @@ public:
         // data += (-1/2 * chi^2 + 2/3 * chi^3) * k4
         c = -0.5 * std::pow(timestep_fraction, 2) + 2./3. * std::pow(timestep_fraction, 3);
         IntegratorOps<T>::Saxpy(data, c*timestep, *F_nodes[3]);
-        
-    } 
+
+    }
 
     void map_data(std::function<void(T&)> Map)
     {

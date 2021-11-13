@@ -96,7 +96,7 @@ struct IntegratorOps<T, typename std::enable_if<std::is_same<amrex::Vector<std::
     static void Copy(T& Y, const T& Other, bool Grow = true)
     {
         // Copy the contents of Other into Y
-        const int size = Y.size(); 
+        const int size = Y.size();
         for (int i = 0; i < size; ++i) {
             int nGrow = Grow ? Other[i]->nGrow() : 0;
             amrex::MultiFab::Copy(*Y[i], *Other[i], 0, 0, Other[i]->nComp(), nGrow);
@@ -106,7 +106,7 @@ struct IntegratorOps<T, typename std::enable_if<std::is_same<amrex::Vector<std::
     static void Saxpy(T& Y, const amrex::Real a, const T& X, bool Grow = false)
     {
         // Calculate Y += a * X
-        const int size = Y.size(); 
+        const int size = Y.size();
         for (int i = 0; i < size; ++i) {
             int nGrow = Grow ? X[i]->nGrow() : 0;
             amrex::MultiFab::Saxpy(*Y[i], a, *X[i], 0, 0, X[i]->nComp(), nGrow);

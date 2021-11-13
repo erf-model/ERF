@@ -117,7 +117,7 @@ void erf_advance(int level,
     apply_bcs(state_old);
 
     // **************************************************************************************
-    // Setup the integrator 
+    // Setup the integrator
     // **************************************************************************************
     TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > integrator(state_old);
 
@@ -166,7 +166,7 @@ void erf_advance(int level,
 
     // **************************************************************************************
     // Get the final cell centered variables after the step
-    // (do this at the very end because its a swap not a copy) 
+    // (do this at the very end because its a swap not a copy)
     // **************************************************************************************
     std::swap(cons_new, *state_new[IntVar::cons]);
 
