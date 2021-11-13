@@ -72,7 +72,10 @@ prob.V_0 = 1.0
 # INTEGRATION
 ## integration.type can take on the following values:
 ## 0 = Forward Euler
-## 1 = Explicit Runge Kutta parameters
+## 1 = Explicit Runge Kutta
+integration.type = 1
+
+## Explicit Runge-Kutta parameters
 #
 ## integration.rk.type can take the following values:
 ### 0 = User-specified Butcher Tableau
