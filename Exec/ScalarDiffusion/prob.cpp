@@ -14,20 +14,12 @@ erf_init_prob(
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
     const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real* prob_hi = geomdata.ProbHi();
     const amrex::Real* dx = geomdata.CellSize();
     const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-    // Define a point (xc,yc,zc) at the center of the domain
-    const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-    const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-    const amrex::Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
-
     const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
-
-    // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
 
     // Set the density
     state(i, j, k, Rho_comp) = parms.rho_0;
@@ -35,8 +27,9 @@ erf_init_prob(
     // Initial potential temperature
     state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
-    // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
+    // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
+    //            + B_0*sin(x)  
+    state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r) + parms.B_0*sin(x);
   });
 
   // Construct a box that is on x-faces
@@ -96,5 +89,6 @@ amrex_probinit(
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.T_0);
   pp.query("A_0", parms.A_0);
+  pp.query("B_0", parms.B_0);
 }
 }

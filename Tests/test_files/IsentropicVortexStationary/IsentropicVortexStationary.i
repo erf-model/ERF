@@ -78,7 +78,7 @@ prob.beta = 0.05  # non-dimensional max perturbation strength [-]
 ## 1 = Explicit Runge Kutta
 integration.type = 1
 
-## Explicit Runge-Kuta parameters
+## Explicit Runge-Kutta parameters
 #
 ## integration.rk.type can take the following values:
 ### 0 = User-specified Butcher Tableau

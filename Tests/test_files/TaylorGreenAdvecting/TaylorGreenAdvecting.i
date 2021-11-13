@@ -66,17 +66,13 @@ erf.spatial_order = 2
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.rhoe_0 = 1.0
 prob.A_0 = 1.0
 prob.V_0 = 1.0
 
 # INTEGRATION
 ## integration.type can take on the following values:
 ## 0 = Forward Euler
-## 1 = Explicit Runge Kutta
-integration.type = 1
-
-## Explicit Runge-Kuta parameters
+## 1 = Explicit Runge Kutta parameters
 #
 ## integration.rk.type can take the following values:
 ### 0 = User-specified Butcher Tableau
