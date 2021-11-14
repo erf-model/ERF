@@ -34,7 +34,7 @@ The assumptions involved in deriving these equations from first principles are:
 - Viscous heating is negligible
 - Newtonian fluid
 - No chemical reactions, second order diffusive processes or radiative heat transfer
-- Constant transport coefficients:  :math:`\mu, 
+- Constant transport coefficients:  :math:`\mu,
 
 We further assume constant :math:`\alpha_C` and :math:`(\rho \alpha_T)`.
 This is a good approximation for flows of interest because all are independent of density (or pressure), and only weakly dependent on temperature (:math:`T^{1/2}`).  Thus for low Mach number atmospheric flows the energy and scalar equations reduce to:
@@ -54,7 +54,7 @@ Strain-rate tensor
 .. math::
    \sigma_{ij} = S_{ij} -D_{ij},
 
-where 
+where
 
 .. math::
    S_{ij} = \frac{1}{2} \left(  \frac{\partial u_i}{\partial x_j} + \frac{\partial u_j}{\partial x_i}   \right)
@@ -67,7 +67,7 @@ DNS
 When running in DNS mode, it is assumed that the mesh is fine enough to resolve the Kolmogorov scales of turbulence.
 The dynamic viscosity (molecular), :math:`\mu`, is assumed to be constant for low Mach number atmospheric flows.
 
-The stress tensor is thus given by 
+The stress tensor is thus given by
 
 .. math::
    \tau_{ij} = 2\mu \sigma_{ij}
@@ -77,8 +77,8 @@ The stress tensor is thus given by
 
 LES
 ~~~
-When running in LES mode, it is assumed that the Kolmogorov scales are not resolved.  
-LES models attempt to account for the effect of unresolved scales by replacing 
+When running in LES mode, it is assumed that the Kolmogorov scales are not resolved.
+LES models attempt to account for the effect of unresolved scales by replacing
 a constant :math:`\mu` by a turbulent viscosity, :math:`\mu_{t}`.
 
 ERF offers two LES options: Smagorinsky and Deardorff models.
