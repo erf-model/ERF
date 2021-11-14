@@ -13,30 +13,22 @@
 Compressible Navier-Stokes Equations
 ====================================
 
-
-The following set of equations express conservation of mass, momentum, energy, and scalars in compressible fluid flow:
-
-.. math::
-
-  \frac{\partial \rho}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u}),
-
-  \frac{\partial (\rho \mathbf{u})}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + pI) +\rho \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
-
-  \frac{\partial (\rho T)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} T) + \rho \alpha_{T} \nabla^2 T + \frac{1}{c_p}\frac{Dp}{Dt},
-
-  \frac{\partial (\rho C)}{\partial t}      &=& - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C} \nabla^2 C,
-
-.. note:: When I look in the source code, it seems like we are solving diffusion as :math:`\alpha_{C} \nabla^2 \rho C` (i.e., similar to what is in the documentation elsewhere: :ref:`AcousticSubstep`), not what is written above. Is there something I'm missing? I believe what is written here (and in the discretization section) is what we should be doing. Regarding the transport coefficients, the fundamental transport coefficients :math:`\mu, (\rho \alpha_T), (\rho \alpha_C)` are independent of density and pressure and scale with the square root of temperature, so in cases of interest should be roughly constant - but note this implies inverse dependence of :math:`\alpha_i` on density. In any event, constant (:math:`\rho \alpha_C`), etc. is consistent with the above equations.
-
-where
+The following partial differential equations (prognostic equations) express conservation of mass, momentum, energy, and scalars in compressible fluid flow:
 
 .. math::
+  \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
 
-   \tau_{ij} = 2\mu \left( S_{ij} - \frac{2}{3} S_{kk} \delta_{ij} \right), \hspace{24pt}  S_{ij} = \frac{1}{2} \left(  \frac{\partial u_i}{\partial x_j} + \frac{\partial u_j}{\partial x_i}   \right)
+  \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + pI) +\rho \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
 
-.. note:: ERF is missing the subtraction of the isotropic part of the strain rate. For full generality, we would want to add the bulk viscosity contribution to :math:`\tau_{ij}` as well (:math:`\kappa S_{kk} \delta_{ij}`), but it is likely negligible for our cases, so this is not essential.
+  \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)),
 
-.. \tau = \mu \left( \frac{\partial u_i}{\partial x_j} + \frac{\partial u_j}{\partial x_i}  - \frac{2}{3}\frac{\partial u_k}{\partial x_k} \delta_{ij} \right)
+  \frac{\partial (\rho C)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} C) +\nabla \cdot (\rho \alpha_{C}\ \nabla C)
+
+where :math:`\tau` is the viscous stress tensor and :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`, and the potential temperature :math:`\theta` is defined
+
+.. math::
+   
+  \theta = T \left( \frac{p_0}{p} \right)^{R_d / c_p}.
 
 The assumptions involved in deriving these equations from first principles are:
 
@@ -44,148 +36,57 @@ The assumptions involved in deriving these equations from first principles are:
 - Ideal gas behavior (:math:`p = \rho R_d T`) with constant specific heats (:math:`c_p,c_v`)
 - Constant mixture molecular weight (therefore constant :math:`R_d`)
 - Viscous heating is negligible
-- Newtonian fluid
-- No chemical reaction
-- No second order diffusive processes
-- No radiative heat transfer
-- Stress due to the bulk viscosity is negligible
-- Constant transport coefficients:  :math:`\mu, (\rho \alpha_T), (\rho \alpha_C)`. This is a good approximation for flows of
-  interest because all are independent of density (or pressure), and only weakly dependent on temperature (:math:`T^{1/2}`)
-- The body forces :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`
+- No chemical reactions, second order diffusive processes or radiative heat transfer
 
-.. note:: This list is meant to be exhaustive. What is missing?
-
-DNS
----
-
-In DNS mode, ERF advances the above equations with the exception that the temperature :math:`T` is replaced by the potential temperature :math:`\theta`:
-
-.. note:: Someone who understands atmospheric science better than I do should add a sentence here explaining why we use :math:`\theta`.
+We further assume constant transport coefficients :math:`\mu`, :math:`(\rho \alpha_C)`, and :math:`(\alpha_T)`.
+This is a good approximation for flows of interest because all are independent of density (or pressure),
+and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on kinetic theory).  Thus for
+low Mach number atmospheric flows the energy and scalar equations reduce to:
 
 .. math::
+  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \alpha_{T}\ \nabla^2 (\rho \theta)
 
-   \theta = T \left( \frac{p_0}{p} \right)^{R_d / c_p},
+  \frac{\partial (\rho C)}{\partial t}      &=& - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C}\ \nabla^2 C
 
-with the porgnostic (transport) equation
+Similarly, the viscous stress tensor can be expressed:
 
-.. math::
+.. math:: 
+   \tau_{ij} = 2\mu \sigma_{ij}
 
-  \frac{\partial (\rho \theta)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} \theta) + \rho \alpha_{T} \nabla^2 \theta,
-
-.. note:: When I tried to re-derive this equation from the temperature equation above, I arrived at :math:`\rho \alpha_{T} \left(\frac{p_0}{p}\right)^{R_d/c_p} \nabla^2 \theta` for the conduction term, and could not find a way to further simplify to the above form. How is that term obtained?
-
-which results in a modified equation of state
+where the anisotropic strain rate tensor :math:`\sigma_{ij} = S_{ij} -D_{ij}`,
 
 .. math::
+   S_{ij} = \frac{1}{2} \left(  \frac{\partial u_i}{\partial x_j} + \frac{\partial u_j}{\partial x_i}   \right), \hspace{24pt}
+   D_{ij} = \frac{1}{3}  S_{kk} \delta_{ij} = \frac{1}{3} (\nabla \cdot \mathbf{u}) \delta_{ij},
 
-     p = \left( \frac{\rho R_d \theta}{p_0^{R_d / c_p}} \right)^\gamma.
+and the  bulk viscosity contribution to :math:`\tau_{ij}`, i.e., :math:`\kappa S_{kk} \delta_{ij}` has been ignored
+in the current implementation.
 
+Diagnostic Relationships
+------------------------
 
-LES
----
-
-
-Filtering the above equations results in the governing equations to be used in LES:
-
-.. math::
-
-  \frac{\partial \overline{\rho}}{\partial t} &=& - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}}),
-
-  \frac{\partial (\overline{\rho} \mathbf{\tilde{u}})}{\partial t} &=& - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \mathbf{\tilde{u}} + \overline{p}I) +\overline{\rho} \mathbf{g} + \nabla \cdot \overline{\tau} + \mathbf{\overline{F}} &- \nabla \cdot (\overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}} ) ,
-
-  \frac{\partial (\overline{\rho} \tilde{\theta})}{\partial t} &=& - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{\theta}) + \overline{\rho} \alpha_{T} \nabla^2 \tilde{\theta}  &- \nabla \cdot (\overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} ) ,
-
-  \frac{\partial (\overline{\rho} \tilde{C})}{\partial t}      &=& - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{C})      + \overline{\rho} \alpha_{C} \nabla^2 \tilde{C}  &- \nabla \cdot (\overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} ) ,
-
-.. note:: The molecular transport terms are shown being retained here, but not in the present implementation. While they are likely to be small reative to the turbulent transport terms, I don't see a downside to keeping them around, or at least have the option to do so.
-
-where
+In order to close the above prognostic equations, a relationship between the pressure and the reesnported state variables
+must be specified. This is obtained by re-expressing the ideal gas equation of state in terms of :math:`\theta`:
 
 .. math::
+   p = \left( \frac{\rho R_d \theta}{p_0^{R_d / c_p}} \right)^\gamma
 
-   \overline{\tau}_{ij} = 2\mu \left( \overline{S}_{ij} - \frac{2}{3} \overline{S}_{kk} \delta_{ij} \right), \hspace{24pt}  \overline{S}_{ij} = \frac{1}{2} \left(  \frac{\partial \overline{u}_i}{\partial x_j} + \frac{\partial \overline{u}_j}{\partial x_i}   \right)
-
-.. math::
-
-   \overline{p} = \overline{ \left( \frac{\rho R_d \theta}{p_0^{R_d / c_p}} \right)^\gamma} .
-
-Any term that is a nonlinear function of the Favre-filtered state variables is in principal unclosed and requires some form of model. Additionally, for completeness, the viscous term depends on non-density-weighted filtered velocity (:math:`\mathbf{\overline{u}}`), while the equation is solved for density-weighted-filtered velocity (:math:`\mathbf{\tilde{u}}`). However, because the importance of this term is small, and extreme density variation over single grid cells is unlikely, computing this term using the density-weighted filtered velocity should not result in significant error relative to other models.  Based on the assumptions for this system, the terms that require modeling include the turbulent transport terms (final term in each of the momentum, potential temperature, and scalar equations) and the equation of state. For :math:`\gamma=1.4`, the equation of state is only weakly nonlinear, and neglecting the nonlinearity is likely yield satisfactory results:
-
-.. math::
-
-   \overline{p} \approx  \left( \frac{\overline{\rho} R_d \tilde{\theta}}{p_0^{R_d / c_p}} \right)^\gamma.
-
-The turbulent transport terms can be closed with eddy viscosity-based models:
-
-.. math::
-
-   \overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} &=& \tau^{sfs}_{\theta} &=& \overline{\rho} \frac{\nu_t}{Pr_t} \nabla \theta
-
-   \overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} &=&  \tau^{sfs}_{C}  &=&  \overline{\rho} \frac{\nu_t}{Sc_t} \nabla C
-
-   \overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}}  &=& \tau^{sfs}_{ij}
-
-.. math::
-
-   \tau^{sfs}_{ij} - \frac{\delta_{ij}}{3} \tau^{sfs}_{kk} = 2\overline{\rho} \nu_t \left( \tilde{S}_{ij} - \frac{2}{3} \tilde{S}_{kk} \delta_{ij} \right)
-
-   \tau^{sfs}_{kk} = 2 \overline{\rho} \nu_t \frac{C_I}{C_s^2} (2 S_{ij} S_{ij})^{1/2}
-
-.. note::
-   The last closure for the isotropic part of the subfilter stresses may be unnecessary, particularly for flows that
-   have low Mach numbers, i.e. :math:`C_I = 0`. See discussion in Moin et al., "A dynamic subgrid-scale model for
-   compressible turbulence and scalar transport", PoF (1991); Martin et al., Subgrid-scale models for compressible
-   large-eddy simulations", Theoret. Comput. Fluid Dynamics (2000). Right now, we do not model the isotropic portion
-   separately (:math:`\tau^{sfs}_{ij} = 2\overline{\rho} \nu_t \tilde{S}_{ij}`. However, the term is modelled in
-   PeleC and some remnants of that seems to have made their way into ERF (:math:`C_I` exists as a parameter)
-
-We consider two types of LES models, Smagorinsky and Deardorff, which differ in how :math:`\nu_t` is computed.
-
-Smagorinsky
-~~~~~~~~~~~
-
-In Smagorinsky models, the turbulent viscosity is approximated with an algebraic/diagnostic equation as:
-
-.. math:: \nu_t = (C_s \overline{\Delta})^2 (2 S_{ij} S_{ij})^{1/2}
-
-The model coefficients :math:`C_s, C_I, Pr_t, Sc_t` have nominal values of 0.16, 0.09, 0.7, amd 0.7, respectively (Martin et al., Theoret. Comput. Fluid Dynamics (2000)), but may also be determined by a dynamic procedure (Moin et al., PoF (1991)).
-
-.. note:: Do we want to implement a dynamic procedure for computation of the model coefficients? It's standard practice in combustion LES, but I'm not not sure about atmospheric applications. If we're mainly planning to rely on the Deardorff model anyway, maybe it is not needed, or maybe it would also be useful for computing those model coefficients.
-
-Deardorff
-~~~~~~~~~
-
-In Deardorff (one-equation/TKE) models, the turbulent viscosity is computed as:
-
-.. math::
-
-   \nu_t = C_k \Delta (k^{sfs})^{1/2}
-
-and a prognostic (transport) equation is solved for the subfitler turbulent kinetic energy (:math:`k^{sgs}`):
-
-.. math::
-
-   \frac{\partial \overline{\rho} k^{sfs}}{\partial t} = - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{k}^{sfs}) + \nabla \cdot \left( \overline{\rho} \frac{\nu_t}{\sigma_k} \nabla k ^{sfs}  \right) + ( \overline{\rho} \widetilde{\mathbf{uu}} - \overline{\rho} \tilde{\mathbf{u}} \tilde{\mathbf{u}})\nabla \cdot \mathbf{\tilde{u}} - \overline{\rho} C_\epsilon \frac{(k^{sfs})^{3/2}}{\overline{\Delta}}
-
-.. note:: Additional terms required for bouyancy?
-
-In this modeled form of the equation, viscous transport has been neglected, turbulent transport has been modeled with an eddy viscosity model, and dissipation is modeled based on dimensional arguments. The prevgiously definted model for :math:`\tau^{sfs}_{ij}` is necessary for closing the productiont term.
-
-.. note:: It's still not clear to me where ABL/PBL schemes fit in. It would be helpful if someone could point out where they would show up in the above equations (and/or their boundary conditions).
-
+Nomenclature
+------------
 Here :math:`\rho, T, \theta`, and :math:`p` are the density, temperature, potential temperature and pressure, respectively;
 these variables are all defined at cell centers.
 :math:`C` is an advected quantity, i.e., a tracer, also defined at cell centers.
 :math:`\mathbf{u}` and :math:`(\rho \mathbf{u})` are the velocity and momentum, respectively,
-and are defined on faces. :math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively,
-and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure. Overbars indicate filtering and tildes
-indicate density-weighted (Favre) filtering (e.g., :math:`\tilde{\theta} = \overline{\rho \theta} / \overline{\rho}`).
+and are defined on faces.
+
+:math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively,
+and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
 
 
-Other Considerations
---------------------
+Equations in Perturbation Form
+------------------------------
 
-The equations can be re-written in perturbational form by replacing the z-momentum equation with
+These equations can be re-written in perturbational form by replacing the z-momentum equation with
 
 .. math::
 
@@ -211,4 +112,105 @@ and
 
 with velocity :math:`\mathbf{u} = (u,v,w)` and gravity :math:`\mathbf{g} = (0,0,-g)`.
 
+Simulation Modes: DNS and LES
+=============================
+  
+DNS
+---
+
+When running in Direct Numerical Simulation (DNS) mode, it is assumed that the mesh is fine enough to resolve the Kolmogorov scales of turbulence.
+Therefore, in DNS mode the equations above are solved directly with no additional models being required.
+
+LES
+---
+When running in Large Eddy SImulation (LES) mode, it is assumed that the Kolmogorov scales are not resolved. As a result, the numerical
+discretization acts as a filter on the governing equations, resulting in the following set of filtered equations:
+
+.. math::
+
+  \frac{\partial \overline{\rho}}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}}),
+
+  \frac{\partial (\overline{\rho} \mathbf{\tilde{u}})}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \mathbf{\tilde{u}} + \overline{p}I) +\overline{\rho} \mathbf{g} + \nabla \cdot \overline{\tau} + \mathbf{\overline{F}} &- \nabla \cdot (\overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}} ) ,
+
+  \frac{\partial (\overline{\rho} \tilde{\theta})}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{\theta}) + \overline{\rho} \alpha_{T} \nabla^2 \tilde{\theta}  &- \nabla \cdot (\overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} ) ,
+
+  \frac{\partial (\overline{\rho} \tilde{C})}{\partial t}      &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{C})      + \overline{\rho} \alpha_{C} \nabla^2 \tilde{C}  &- \nabla \cdot (\overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} ) ,
+
+where overbars indicate filtering and tildes indicate density-weighted (Favre) filtering
+(e.g., :math:`\tilde{\theta} = \overline{\rho \theta} / \overline{\rho}`).
+When the code is run in LES mode, all variables correspond to their appropriate filtered version. 
+
+In the above equations, the final term in each of the momentum, potential temperature, and scalar equations is unclosed
+due to containing a filtered nonlinear function of the state quantities. These terms represent the effect of turbulent transport at unresolved scales. 
+LES models attempt to account for these terms by
+invoking a gradient transport hypothesis, which assumes that turbulent transport acts similarly to molecular transport
+in that quantities are transported down their resolved gradients:
+
+.. math::
+
+   \overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} &= \frac{\mu_t}{Pr_t} \nabla \tilde{\theta}
+
+   \overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} &= \frac{\mu_t}{Sc_t} \nabla \tilde{C}
+
+   \overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}}  &=  \tau^{sfs}
+
+.. math::
+
+   \tau^{sfs}_{ij} - \frac{\delta_{ij}}{3} \tau^{sfs}_{kk} = 2 \mu_t \tilde{\sigma}_{ij}
+
+   \tau^{sfs}_{kk} = 2 \mu_t \frac{C_I}{C_s^2} (2 \tilde{S}_{ij} \tilde{S}_{ij})^{1/2}.
+   
+The model coefficients :math:`C_s, C_I, Pr_t, Sc_t` have nominal values of 0.16, 0.09, 0.7, amd 0.7,
+respectively (Martin et al., Theoret. Comput. Fluid Dynamics (2000)).
+Note that the gradient transport LES models take exactly the same form as the molecular transport terms, but with the constant
+constant molecular transport coefficients replaced by turbulent requivalents (e.g. :math:`\mu` becomes the turbulent viscosity,
+:math:`\mu_{t}`). Molecular transport is omitted in the present implementation because the molecular
+transport coefficients are insignificant compared to turbulent transport for most LES grids.
+
+.. note:: The omission of molecular transport in LES mode will need to be revisisted if resolutions close to DNS become of interest.
+      Presently, we also assume :math:`C_I =0`. This term is similar to the bulk viscosity term for molecular transport and
+      should be added if the bulk viscosity term is added. It is beieved to be small for low-Mach number flows, but there
+      is some discussion in the literature about this topic. See Moin et al., "A dynamic subgrid-scale model for
+      compressible turbulence and scalar transport", PoF (1991); Martin et al., Subgrid-scale models for compressible
+      large-eddy simulations", Theoret. Comput. Fluid Dynamics (2000).
+
+.. note:: LES models for potential temperature and scalars have not yet been implemented, and the molecular transport coefficients
+      are retained in these equations. This will be updated soon.
+
+It should also be noted that filtering affects the computation of pressure from density and potential temperature, but the nonlinearity
+in the equation of state is weak for :math:`\gamma = 1.4`, so the subfilter contribution is neglected:
+
+.. math::
+   \overline{p} = \overline{ \left( \frac{\rho R_d \theta}{p_0^{R_d / c_p}} \right)^\gamma} \approx \left( \frac{\overline{\rho} R_d \tilde{\theta}}{p_0^{R_d / c_p}} \right)^\gamma.
+
+ERF offers two LES options: Smagorinsky and Deardorff models, which differ in how :math:`\mu_{t}` is computed.
+
+Smagorinsky Model
+~~~~~~~~~~~~~~~~~~
+.. math::
+   \mu_{t} = (C_s \Delta)^2 (\sqrt{2 \tilde{S} \tilde{S}}) \overline{\rho}
+:math:`C_s` is the Smagorinsky constant and :math:`\Delta` is the cube root of cell volume, the representative mesh spacing.
+
+.. math::
+   \tau_{ij} = 2\mu_{t} \tilde{\sigma}_{ij} = K \tilde{\sigma}_{ij}
+
+where :math:`K = 2\mu_{t}`
+
+In the Smagorinsky model, modeling of :math:`\mu_{t}` does not account for the turbulent kinetic energy (TKE) corresponding to
+unresolved scales and no extra equation for TKE is solved.
+
+Deardorff Model
+~~~~~~~~~~~~~~~
+Unlike the Smagorinsky model, the Deardorff model accounts for the contribution of TKE in modeling :math:`\mu_{t}` and a prognostic equation
+for TKE is solved.  The turbulent viscosity is computed as:
+
+.. math::
+
+   \mu_t = C_k \overline{\rho} \Delta (k^{sfs})^{1/2}.
+
+The equation solved to determine :math:`k^{sfs}`, the subfilter contribution to TKE, is:
+   
+.. math::
+
+   \frac{\partial \overline{\rho} k^{sfs}}{\partial t} = - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{k}^{sfs}) + \nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla k ^{sfs}  \right) + ( \overline{\rho} \widetilde{\mathbf{uu}} - \overline{\rho} \tilde{\mathbf{u}} \tilde{\mathbf{u}})\nabla \cdot \mathbf{\tilde{u}} - \overline{\rho} C_\epsilon \frac{(k^{sfs})^{3/2}}{\overline{\Delta}}.
 
