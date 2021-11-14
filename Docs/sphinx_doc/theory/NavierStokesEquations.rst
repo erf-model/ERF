@@ -19,12 +19,11 @@ express conservation of mass, momentum, energy, and scalars in compressible flui
 .. math::
   \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
 
-  \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u})
-- \nabla p^\prime +\rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
+  \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u}) - \nabla p^\prime +\rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
 
   \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)) + F_\theta,
 
-  \frac{\partial (\rho C)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} C) + \rho \nabla \cdot (\alpha_{C}\ \nabla C)
+  \frac{\partial (\rho C)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\rho \alpha_{C}\ \nabla C)
 
 where
 
@@ -32,6 +31,8 @@ where
 - :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`,
 - :math:`\mathbf{g} = (0,0,-g)` is the gravity vector,
 - the potential temperature :math:`\theta` is defined from temperature :math:`T` and pressure :math:`p` as
+
+.. math::
 
   \theta = T \left( \frac{p_0}{p} \right)^{R_d / c_p}.
 
