@@ -85,18 +85,6 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 
 
 Equations in Perturbation Form
-------------------------------
-
-In Smagorisnky model, modeling of :math:`\mu_{t}` doesn't account for the turbulent kinetic energy (TKE) corresponding to
-unresolved scales and no extra equation for TKE is solved.
-
-Deardorff Model
-~~~~~~~~~~~~~~~~~~
-Unlike Smagorinsky model, Deardorff model accounts for the contribution of TKE in modeling :math:`\mu_{t}` and equation
-for TKE is solved, i.e., TKE is prognosed.
-
-
-Equations in Perturbation Form
 -------------------------------
 These equations can be re-written in perturbational form by replacing the z-momentum equation with
 
