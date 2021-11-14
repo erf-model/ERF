@@ -101,9 +101,13 @@ Deardorff Model
 Unlike Smagorinsky model, Deardorff model accounts for the contribution of TKE in modeling :math:`\mu_{t}` and equation
 for TKE is solved, i.e., TKE is prognosed.
 
-
+Forcings
+------------
 :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`.
 
+
+Equations in Perturbation Form
+-------------------------------
 These equations can be re-written in perturbational form by replacing the z-momentum equation with
 
 .. math::
@@ -129,6 +133,9 @@ and
   \frac{d \overline{p}}{d z} = - \overline{\rho} g
 
 with velocity :math:`\mathbf{u} = (u,v,w)` and gravity :math:`\mathbf{g} = (0,0,-g)`.
+
+Diagnostic Relationships
+-------------------------
 
 The relationship between potential temperature and temperature is given by
 
