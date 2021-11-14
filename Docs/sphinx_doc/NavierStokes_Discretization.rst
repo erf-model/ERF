@@ -1,7 +1,7 @@
 #########################################
 Discretization of Navier-Stokes Equations
 #########################################
-Last update: 2021-10-29
+Last update: 2021-11-13
 
 NOTE: For the sake of simplicity, the discretized equations mention time levels :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
 
@@ -233,7 +233,8 @@ The schematic below shows the definition of strain-rate components.
 .. image:: figures/grid_discretization/StrainRate.PNG
   :width: 400
 
-
+Strain-Rate Components for X-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. math::
 
    \begin{array}{ll}
@@ -245,8 +246,8 @@ The schematic below shows the definition of strain-rate components.
    S_{13,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
    \end{array}
 
-
-
+Strain-Rate Components for Y-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. math::
 
    \begin{array}{ll}
@@ -258,8 +259,8 @@ The schematic below shows the definition of strain-rate components.
    S_{23,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
    \end{array}
 
-
-
+Strain-Rate Components for Z-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. math::
 
    \begin{array}{ll}
@@ -270,6 +271,20 @@ The schematic below shows the definition of strain-rate components.
    S_{33,k + \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \\
    S_{33,k - \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
    \end{array}
+
+Expansion-Rate Tensor
+------------------
+Place holder....
+... to be updated
+
+Expansion-Rate Components for X-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Expansion-Rate Components for Y-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Expansion-Rate Components for Z-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 Momentum Conservation – U Momentum viscous stress divergence
@@ -357,6 +372,16 @@ Difference Equation
 .. math::
 
    \begin{matrix}
+   \left( \rho \theta \right)_{i,j,k}^{n + 1} & = & \left( \rho \theta \right)_{i,j,k}^{n} & + & \Delta t \alpha_{T} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack (\rho \theta)_{i + 1,j,k}^{n} - \ 2 (\rho \theta)_{i,j,k}^{n} + \ (\rho \theta)_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
+    & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack (\rho \theta)_{i,j + 1,k}^{n} - \ 2 (\rho \theta)_{i,j,k}^{n} + \ (\rho \theta)_{i, j - 1,k}^{n} \right\rbrack \\
+    & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack (\rho \theta)_{i,j,k + 1}^{n} - \ 2 (\rho \theta)_{i,j,k}^{n} + \ (\rho \theta)_{i,j,k - 1}^{n} \right\rbrack \right\}
+   \end{matrix}
+
+.. note:: Other consideration discussed but not implemented is shown below:
+
+.. math::
+
+   \begin{matrix}
    \left( \rho \theta \right)_{i,j,k}^{n + 1} & = & \left( \rho \theta \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{T} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack \theta_{i + 1,j,k}^{n} - \ {2\theta}_{i,j,k}^{n} + \ \theta_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
     & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack \theta_{i,j + 1,k}^{n} - \ 2\theta_{i,j,k}^{n} + \ \theta_{i,j - 1,k}^{n} \right\rbrack \\
     & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack \theta_{i,j,k + 1}^{n} - \ {2\theta}_{i,j,k}^{n} + \ \theta_{i,j,k - 1}^{n} \right\rbrack \right\}
@@ -372,9 +397,19 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \rho C \right)_{i,j,k}^{n + 1} & = & \left( \rho C \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{S} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack C_{i + 1,j,k}^{n} - \ {2C}_{i,j,k}^{n} + \ C_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
+   \left( \rho C \right)_{i,j,k}^{n + 1} & = & \left( \rho C \right)_{i,j,k}^{n} & + & \Delta t \alpha_{C} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack (\rho C)_{i + 1,j,k}^{n} - \ 2 (\rho C)_{i,j,k}^{n} + \ (\rho C)_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
+    & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack (\rho C)_{i,j + 1,k}^{n} - \ 2 (\rho C)_{i,j,k}^{n} + \ (\rho C)_{i,j - 1,k}^{n} \right\rbrack \\
+    & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack (\rho C)_{i,j,k + 1}^{n} - \ 2 (\rho C)_{i,j,k}^{n} + \ (\rho C)_{i,j,k - 1}^{n} \right\rbrack \right\}
+   \end{matrix}
+
+.. note:: Other consideration discussed but not implemented is shown below:
+
+.. math::
+
+   \begin{matrix}
+   \left( \rho C \right)_{i,j,k}^{n + 1} & = & \left( \rho C \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{C} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack C_{i + 1,j,k}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
     & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack C_{i,j + 1,k}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j - 1,k}^{n} \right\rbrack \\
-    & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack C_{i,j,k + 1}^{n} - \ {2C}_{i,j,k}^{n} + \ C_{i,j,k - 1}^{n} \right\rbrack \right\}
+    & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack C_{i,j,k + 1}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j,k - 1}^{n} \right\rbrack \right\}
    \end{matrix}
 
 Momentum, Thermal, and Scalar Diffusion Contribution to LES
