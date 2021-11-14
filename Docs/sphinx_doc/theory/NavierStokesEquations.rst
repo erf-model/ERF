@@ -44,9 +44,10 @@ and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on kinet
 low Mach number atmospheric flows the energy and scalar equations reduce to:
 
 .. math::
-  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \alpha_{T}\ \nabla^2 (\rho \theta)
+  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)),
 
-  \frac{\partial (\rho C)}{\partial t}      &=& - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C}\ \nabla^2 C
+
+  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \rho \nabla \cdot (\alpha_{C}\ \nabla C)
 
 Similarly, the viscous stress tensor can be expressed:
 
@@ -86,6 +87,17 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Equations in Perturbation Form
 ------------------------------
 
+In Smagorisnky model, modeling of :math:`\mu_{t}` doesn't account for the turbulent kinetic energy (TKE) corresponding to
+unresolved scales and no extra equation for TKE is solved.
+
+Deardorff Model
+~~~~~~~~~~~~~~~~~~
+Unlike Smagorinsky model, Deardorff model accounts for the contribution of TKE in modeling :math:`\mu_{t}` and equation
+for TKE is solved, i.e., TKE is prognosed.
+
+
+Equations in Perturbation Form
+-------------------------------
 These equations can be re-written in perturbational form by replacing the z-momentum equation with
 
 .. math::

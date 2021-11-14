@@ -27,16 +27,15 @@ erf_init_prob(
 
     const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
-    // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
-
     // Set the density
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial potential temperature
     state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
-    // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
+     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
+     //            + B_0*sin(x)
+     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r) + parms.B_0*sin(x);
   });
 
   // Construct a box that is on x-faces
@@ -96,5 +95,6 @@ amrex_probinit(
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.T_0);
   pp.query("A_0", parms.A_0);
+  pp.query("B_0", parms.B_0);
 }
 }
