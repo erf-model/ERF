@@ -34,18 +34,15 @@ The assumptions involved in deriving these equations from first principles are:
 - Viscous heating is negligible
 - Newtonian fluid
 - No chemical reactions, second order diffusive processes or radiative heat transfer
-- Constant transport coefficients:  :math:`\mu, (\rho \alpha_T), (\rho \alpha_C)`. This is a good approximation for flows of
-  interest because all are independent of density (or pressure), and only weakly dependent on temperature (:math:`T^{1/2}`)
+- Constant transport coefficients:  :math:`\mu, 
 
-.. note:: The diffusion coefficients, :math:`\alpha_{T}` and :math:`\alpha_{C}` for energy and scalar equations respectively,
-   are in general variable for compressible flow. However, for low Mach number atmospheric flows they are assumed to be constant.
-
-For low Mach number atmospheric flows the energy and scalar equations reduce to:
+We further assume constant :math:`\alpha_C` and :math:`(\rho \alpha_T)`.
+This is a good approximation for flows of interest because all are independent of density (or pressure), and only weakly dependent on temperature (:math:`T^{1/2}`).  Thus for low Mach number atmospheric flows the energy and scalar equations reduce to:
 
 .. math::
   \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \alpha_{T}\ \nabla^2 (\rho \theta)
 
-  \frac{\partial (\rho C)}{\partial t}      &=& - \nabla \cdot (\rho \mathbf{u} C)      + \alpha_{C}\ \nabla^2 (\rho C)
+  \frac{\partial (\rho C)}{\partial t}      &=& - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C}\ \nabla^2 C
 
 DNS and LES
 ------------
@@ -104,10 +101,6 @@ Deardorff Model
 ~~~~~~~~~~~~~~~~~~
 Unlike Smagorinsky model, Deardorff model accounts for the contribution of TKE in modeling :math:`\mu_{t}` and equation
 for TKE is solved, i.e., TKE is prognosed.
-
-Forcings
-------------
-:math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`.
 
 
 Equations in Perturbation Form
