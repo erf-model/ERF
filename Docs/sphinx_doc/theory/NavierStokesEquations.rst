@@ -100,16 +100,6 @@ and are defined on faces.
 and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
 
 
-Equations in Perturbation Form
--------------------------------
-These equations can be re-written in perturbational form by replacing the z-momentum equation with
-
-.. math::
-
-  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w) - \nabla p^\prime - \rho^\prime g + (\nabla \cdot \tau)_z + F^z,
-
-where
-
 Simulation Modes: DNS and LES
 =============================
 
