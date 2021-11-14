@@ -397,16 +397,6 @@ Difference Equation
 .. math::
 
    \begin{matrix}
-   \left( \rho C \right)_{i,j,k}^{n + 1} & = & \left( \rho C \right)_{i,j,k}^{n} & + & \Delta t \alpha_{C} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack (\rho C)_{i + 1,j,k}^{n} - \ 2 (\rho C)_{i,j,k}^{n} + \ (\rho C)_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
-    & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack (\rho C)_{i,j + 1,k}^{n} - \ 2 (\rho C)_{i,j,k}^{n} + \ (\rho C)_{i,j - 1,k}^{n} \right\rbrack \\
-    & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack (\rho C)_{i,j,k + 1}^{n} - \ 2 (\rho C)_{i,j,k}^{n} + \ (\rho C)_{i,j,k - 1}^{n} \right\rbrack \right\}
-   \end{matrix}
-
-.. note:: Other consideration discussed but not implemented is shown below:
-
-.. math::
-
-   \begin{matrix}
    \left( \rho C \right)_{i,j,k}^{n + 1} & = & \left( \rho C \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{C} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack C_{i + 1,j,k}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
     & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack C_{i,j + 1,k}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j - 1,k}^{n} \right\rbrack \\
     & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack C_{i,j,k + 1}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j,k - 1}^{n} \right\rbrack \right\}
