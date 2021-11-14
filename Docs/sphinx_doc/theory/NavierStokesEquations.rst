@@ -13,7 +13,7 @@
 Compressible Navier-Stokes Equations
 ====================================
 
-ERF advances the following set of equations in DNS mode:
+The following equations express conservation of mass, momentum, energy, and scalars in compressible fluid flow:
 
 .. math::
   \frac{\partial \rho}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u}),
@@ -22,12 +22,26 @@ ERF advances the following set of equations in DNS mode:
 
   \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)),
 
-  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\alpha_{C}\ \nabla (\rho C))
+  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \rho \nabla \cdot (\alpha_{C}\ \nabla C)
 
 Here :math:`\tau_{ij}` is the stress tensor and is related to shear-rate tensor, :math:`\sigma_{ij}`,  by:
 
 .. math::
    \tau_{ij} = 2\mu\sigma_{ij}
+
+where :math:`\tau` is the stress tensor and :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`.
+
+The assumptions involved in deriving these equations from first principles are:
+
+- Continuum behavior
+- Ideal gas behavior (:math:`p = \rho R_d T`) with constant specific heats (:math:`c_p,c_v`)
+- Constant mixture molecular weight (therefore constant :math:`R_d`)
+- Viscous heating is negligible
+- Newtonian fluid
+- No chemical reactions, second order diffusive processes or radiative heat transfer
+- Stress due to the bulk viscosity is negligible
+- Constant transport coefficients:  :math:`\mu, (\rho \alpha_T), (\rho \alpha_C)`. This is a good approximation for flows of
+  interest because all are independent of density (or pressure), and only weakly dependent on temperature (:math:`T^{1/2}`)
 
 The shear-rate tensor, :math:`\sigma_{ij}`, is further expressed as:
 

@@ -51,6 +51,8 @@ We note this can also be written as
 which makes it clear that the boundary conditions for :math:`\mathbf{S}^{(1)}` live at time :math:`t^{n+1}`
 while the boundary conditions for :math:`\mathbf{S}^{(2)}` are at time :math:`t^{n+1/2}`.
 
+.. _AcousticSubstep:
+
 Acoustic Sub-stepping
 ---------------------
 
