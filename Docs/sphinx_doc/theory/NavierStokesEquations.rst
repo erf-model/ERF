@@ -44,10 +44,9 @@ and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on kinet
 low Mach number atmospheric flows the energy and scalar equations reduce to:
 
 .. math::
-  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)),
+  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \alpha_{T}\ \nabla^2 (\rho \theta)
 
-
-  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \rho \nabla \cdot (\alpha_{C}\ \nabla C)
+  \frac{\partial (\rho C)}{\partial t}      &=& - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C}\ \nabla^2 C
 
 Similarly, the viscous stress tensor can be expressed:
 
