@@ -24,11 +24,6 @@ The following equations express conservation of mass, momentum, energy, and scal
 
   \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \rho \nabla \cdot (\alpha_{C}\ \nabla C)
 
-Here :math:`\tau_{ij}` is the stress tensor and is related to shear-rate tensor, :math:`\sigma_{ij}`,  by:
-
-.. math::
-   \tau_{ij} = 2\mu\sigma_{ij}
-
 where :math:`\tau` is the stress tensor and :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`.
 
 The assumptions involved in deriving these equations from first principles are:
@@ -39,34 +34,8 @@ The assumptions involved in deriving these equations from first principles are:
 - Viscous heating is negligible
 - Newtonian fluid
 - No chemical reactions, second order diffusive processes or radiative heat transfer
-- Stress due to the bulk viscosity is negligible
 - Constant transport coefficients:  :math:`\mu, (\rho \alpha_T), (\rho \alpha_C)`. This is a good approximation for flows of
   interest because all are independent of density (or pressure), and only weakly dependent on temperature (:math:`T^{1/2}`)
-
-The shear-rate tensor, :math:`\sigma_{ij}`, is further expressed as:
-
-.. math::
-   \sigma_{ij} = S_{ij} -D_{ij},
-
-where :math:`S_{ij}` is the strain-rate tensor and :math:`D_{ij}` is the expansion-rate tensor.
-
-.. math::
-   S_{ij} = \frac{1}{2} \left(  \frac{\partial u_i}{\partial x_j} + \frac{\partial u_j}{\partial x_i}   \right)
-
-.. math::
-   D_{ij} = \frac{1}{3}  S_{kk} \delta_{ij} = \frac{1}{3} (\nabla \cdot \mathbf{u}) \delta_{ij}
-
-.. note:: For an incompressible flow :math:`\nabla \cdot \mathbf{u} = 0`,
-   where as for compressible flow :math:`\nabla \cdot \mathbf{u} \neq 0` in general,
-   thus leading to a non-negligible :math:`D_{ij}`.
-
-This leads to:
-
-.. math::
-   \tau_{ij} = 2\mu \left( S_{ij} - \frac{1}{3} S_{kk} \delta_{ij} \right), \hspace{24pt}
-
-.. note:: The bulk viscosity contribution to :math:`\tau_{ij}`, i.e., :math:`\kappa S_{kk} \delta_{ij}` has been ignored
-   in the current implementation.
 
 .. note:: The diffusion coefficients, :math:`\alpha_{T}` and :math:`\alpha_{C}` for energy and scalar equations respectively,
    are in general variable for compressible flow. However, for low Mach number atmospheric flows they are assumed to be constant.
@@ -81,20 +50,41 @@ For low Mach number atmospheric flows the energy and scalar equations reduce to:
 DNS and LES
 ------------
 
+Strain-rate tensor
+~~~~~~~~~~~~~~~~~~
+:math:`\sigma_{ij}`, is expressed as:
+
+.. math::
+   \sigma_{ij} = S_{ij} -D_{ij},
+
+where 
+
+.. math::
+   S_{ij} = \frac{1}{2} \left(  \frac{\partial u_i}{\partial x_j} + \frac{\partial u_j}{\partial x_i}   \right)
+
+.. math::
+   D_{ij} = \frac{1}{3}  S_{kk} \delta_{ij} = \frac{1}{3} (\nabla \cdot \mathbf{u}) \delta_{ij}
+
 DNS
 ~~~
-When run in DNS mode, it is assumed that the mesh is fine enough to resolve Kolmogorov scales of turbulence.
-The viscosity, :math:`\mu`, used in computing the stress term, :math:`\tau_{ij}`, is the dynamic viscosity (molecular).
-:math:`\mu` is assumed to be constant for low Mach number atmospheric flows and is provided by the user.
+When running in DNS mode, it is assumed that the mesh is fine enough to resolve the Kolmogorov scales of turbulence.
+The dynamic viscosity (molecular), :math:`\mu`, is assumed to be constant for low Mach number atmospheric flows.
+
+The stress tensor is thus given by 
+
+.. math::
+   \tau_{ij} = 2\mu \sigma_{ij}
+
+.. note:: The bulk viscosity contribution to :math:`\tau_{ij}`, i.e., :math:`\kappa S_{kk} \delta_{ij}` has been ignored
+   in the current implementation.
 
 LES
 ~~~
-When using the LES model, it is assumed that mesh is coarser than those used for DNS and Kolmogorov scales are not resolved.
-The scales that are resolved are represented by the filtered equations and the unresolved scales are modeled.
-The LES models essentially attempt to account for the effect of unresolved scales on the viscosity where
-:math:`\mu` is replaced by a modeled turbulent viscosity, :math:`\mu_{t}`.
+When running in LES mode, it is assumed that the Kolmogorov scales are not resolved.  
+LES models attempt to account for the effect of unresolved scales by replacing 
+a constant :math:`\mu` by a turbulent viscosity, :math:`\mu_{t}`.
 
-There are several approaches to model :math:`\mu_{t}`. Smagorinsky and Deardorff models are commonly used.
+ERF offers two LES options: Smagorinsky and Deardorff models.
 
 Smagorinsky Model
 ~~~~~~~~~~~~~~~~~~
