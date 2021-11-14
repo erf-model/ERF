@@ -1,7 +1,7 @@
 #########################################
 Discretization of Navier-Stokes Equations
 #########################################
-Last update: 2021-10-29
+Last update: 2021-11-13
 
 NOTE: For the sake of simplicity, the discretized equations mention time levels :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
 
@@ -233,7 +233,8 @@ The schematic below shows the definition of strain-rate components.
 .. image:: figures/grid_discretization/StrainRate.PNG
   :width: 400
 
-
+Strain-Rate Components for X-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. math::
 
    \begin{array}{ll}
@@ -245,8 +246,8 @@ The schematic below shows the definition of strain-rate components.
    S_{13,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
    \end{array}
 
-
-
+Strain-Rate Components for Y-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. math::
 
    \begin{array}{ll}
@@ -258,8 +259,8 @@ The schematic below shows the definition of strain-rate components.
    S_{23,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
    \end{array}
 
-
-
+Strain-Rate Components for Z-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. math::
 
    \begin{array}{ll}
@@ -270,6 +271,20 @@ The schematic below shows the definition of strain-rate components.
    S_{33,k + \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \\
    S_{33,k - \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
    \end{array}
+
+Expansion-Rate Tensor
+------------------
+Place holder....
+... to be updated
+
+Expansion-Rate Components for X-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Expansion-Rate Components for Y-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Expansion-Rate Components for Z-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 Momentum Conservation – U Momentum viscous stress divergence
