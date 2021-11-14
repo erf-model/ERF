@@ -27,7 +27,7 @@ The following partial differential equations (prognostic equations) express cons
 where :math:`\tau` is the viscous stress tensor and :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`, and the potential temperature :math:`\theta` is defined
 
 .. math::
-   
+
   \theta = T \left( \frac{p_0}{p} \right)^{R_d / c_p}.
 
 The assumptions involved in deriving these equations from first principles are:
@@ -50,7 +50,7 @@ low Mach number atmospheric flows the energy and scalar equations reduce to:
 
 Similarly, the viscous stress tensor can be expressed:
 
-.. math:: 
+.. math::
    \tau_{ij} = 2\mu \sigma_{ij}
 
 where the anisotropic strain rate tensor :math:`\sigma_{ij} = S_{ij} -D_{ij}`,
@@ -113,7 +113,7 @@ with velocity :math:`\mathbf{u} = (u,v,w)` and gravity :math:`\mathbf{g} = (0,0,
 
 Simulation Modes: DNS and LES
 =============================
-  
+
 DNS
 ---
 
@@ -137,10 +137,10 @@ discretization acts as a filter on the governing equations, resulting in the fol
 
 where overbars indicate filtering and tildes indicate density-weighted (Favre) filtering
 (e.g., :math:`\tilde{\theta} = \overline{\rho \theta} / \overline{\rho}`).
-When the code is run in LES mode, all variables correspond to their appropriate filtered version. 
+When the code is run in LES mode, all variables correspond to their appropriate filtered version.
 
 In the above equations, the final term in each of the momentum, potential temperature, and scalar equations is unclosed
-due to containing a filtered nonlinear function of the state quantities. These terms represent the effect of turbulent transport at unresolved scales. 
+due to containing a filtered nonlinear function of the state quantities. These terms represent the effect of turbulent transport at unresolved scales.
 LES models attempt to account for these terms by
 invoking a gradient transport hypothesis, which assumes that turbulent transport acts similarly to molecular transport
 in that quantities are transported down their resolved gradients:
@@ -158,7 +158,7 @@ in that quantities are transported down their resolved gradients:
    \tau^{sfs}_{ij} - \frac{\delta_{ij}}{3} \tau^{sfs}_{kk} = 2 \mu_t \tilde{\sigma}_{ij}
 
    \tau^{sfs}_{kk} = 2 \mu_t \frac{C_I}{C_s^2} (2 \tilde{S}_{ij} \tilde{S}_{ij})^{1/2}.
-   
+
 The model coefficients :math:`C_s, C_I, Pr_t, Sc_t` have nominal values of 0.16, 0.09, 0.7, amd 0.7,
 respectively (Martin et al., Theoret. Comput. Fluid Dynamics (2000)).
 Note that the gradient transport LES models take exactly the same form as the molecular transport terms, but with the constant
@@ -208,7 +208,7 @@ for TKE is solved.  The turbulent viscosity is computed as:
    \mu_t = C_k \overline{\rho} \Delta (k^{sfs})^{1/2}.
 
 The equation solved to determine :math:`k^{sfs}`, the subfilter contribution to TKE, is:
-   
+
 .. math::
 
    \frac{\partial \overline{\rho} k^{sfs}}{\partial t} = - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{k}^{sfs}) + \nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla k ^{sfs}  \right) + ( \overline{\rho} \widetilde{\mathbf{uu}} - \overline{\rho} \tilde{\mathbf{u}} \tilde{\mathbf{u}})\nabla \cdot \mathbf{\tilde{u}} - \overline{\rho} C_\epsilon \frac{(k^{sfs})^{3/2}}{\overline{\Delta}}.
