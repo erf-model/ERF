@@ -19,7 +19,7 @@ express conservation of mass, momentum, energy, and scalars in compressible flui
 .. math::
   \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
 
-  \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u}) - \nabla p^\prime +\rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
+  \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u}) - \nabla p^\prime +\rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}, 
 
   \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)) + F_\theta,
 
@@ -99,16 +99,6 @@ and are defined on faces.
 :math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively,
 and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
 
-
-Equations in Perturbation Form
--------------------------------
-These equations can be re-written in perturbational form by replacing the z-momentum equation with
-
-.. math::
-
-  \frac{\partial (\rho w)}{\partial t} = - \nabla \cdot (\rho \mathbf{u} w) - \nabla p^\prime - \rho^\prime g + (\nabla \cdot \tau)_z + F^z,
-
-where
 
 Simulation Modes: DNS and LES
 =============================
