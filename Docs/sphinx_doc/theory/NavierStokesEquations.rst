@@ -13,22 +13,38 @@
 Compressible Navier-Stokes Equations
 ====================================
 
-The following partial differential equations (prognostic equations) express conservation of mass, momentum, energy, and scalars in compressible fluid flow:
+The following partial differential equations (prognostic equations)
+express conservation of mass, momentum, energy, and scalars in compressible fluid flow:
 
 .. math::
   \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
 
-  \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + pI) +\rho \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
+  \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u})
+- \nabla p^\prime +\rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
 
-  \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)),
+  \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)) + F_\theta,
 
-  \frac{\partial (\rho C)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} C) +\nabla \cdot (\rho \alpha_{C}\ \nabla C)
+  \frac{\partial (\rho C)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} C) + \rho \nabla \cdot (\alpha_{C}\ \nabla C)
 
-where :math:`\tau` is the viscous stress tensor and :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`, and the potential temperature :math:`\theta` is defined
+where
+
+- :math:`\tau` is the viscous stress tensor,
+- :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`,
+- :math:`\mathbf{g} = (0,0,-g)` is the gravity vector,
+- the potential temperature :math:`\theta` is defined from temperature :math:`T` and pressure :math:`p` as
+
+  \theta = T \left( \frac{p_0}{p} \right)^{R_d / c_p}.
+
+- pressure and density are defined as perturbations from a hydrostatically stratified background state, i.e.
+.. math::
+
+  p = \overline{p}(z) + p^\prime  \hspace{24pt} \rho = \overline{\rho}(z) + \rho^\prime
+
+with
 
 .. math::
 
-  \theta = T \left( \frac{p_0}{p} \right)^{R_d / c_p}.
+  \frac{d \overline{p}}{d z} = - \overline{\rho} g
 
 The assumptions involved in deriving these equations from first principles are:
 
@@ -38,15 +54,15 @@ The assumptions involved in deriving these equations from first principles are:
 - Viscous heating is negligible
 - No chemical reactions, second order diffusive processes or radiative heat transfer
 
-We further assume constant transport coefficients :math:`\mu`, :math:`(\rho \alpha_C)`, and :math:`(\alpha_T)`.
+We further assume constant transport coefficients :math:`\mu`, :math:`\alpha_C`, and :math:`(\alpha_T)`.
 This is a good approximation for flows of interest because all are independent of density (or pressure),
 and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on kinetic theory).  Thus for
 low Mach number atmospheric flows the energy and scalar equations reduce to:
 
 .. math::
-  \frac{\partial (\rho \theta)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \theta) + \alpha_{T}\ \nabla^2 (\rho \theta)
+  \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \alpha_{T}\ \nabla^2 (\rho \theta)
 
-  \frac{\partial (\rho C)}{\partial t}      &=& - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C}\ \nabla^2 C
+  \frac{\partial (\rho C)}{\partial t}      &= - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C}\ \nabla^2 C
 
 Similarly, the viscous stress tensor can be expressed:
 
@@ -65,7 +81,7 @@ in the current implementation.
 Diagnostic Relationships
 ------------------------
 
-In order to close the above prognostic equations, a relationship between the pressure and the reesnported state variables
+In order to close the above prognostic equations, a relationship between the pressure and the other state variables
 must be specified. This is obtained by re-expressing the ideal gas equation of state in terms of :math:`\theta`:
 
 .. math::
@@ -93,24 +109,6 @@ These equations can be re-written in perturbational form by replacing the z-mome
 
 where
 
-.. math::
-
-  p = \overline{p}(z) + p^\prime
-
-and
-
-.. math::
-
-  \rho = \overline{\rho}(z) + \rho^\prime
-
-and
-
-.. math::
-
-  \frac{d \overline{p}}{d z} = - \overline{\rho} g
-
-with velocity :math:`\mathbf{u} = (u,v,w)` and gravity :math:`\mathbf{g} = (0,0,-g)`.
-
 Simulation Modes: DNS and LES
 =============================
 
@@ -122,14 +120,14 @@ Therefore, in DNS mode the equations above are solved directly with no additiona
 
 LES
 ---
-When running in Large Eddy SImulation (LES) mode, it is assumed that the Kolmogorov scales are not resolved. As a result, the numerical
+When running in Large Eddy Simulation (LES) mode, it is assumed that the Kolmogorov scales are not resolved. As a result, the numerical
 discretization acts as a filter on the governing equations, resulting in the following set of filtered equations:
 
 .. math::
 
   \frac{\partial \overline{\rho}}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}}),
 
-  \frac{\partial (\overline{\rho} \mathbf{\tilde{u}})}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \mathbf{\tilde{u}} + \overline{p}I) +\overline{\rho} \mathbf{g} + \nabla \cdot \overline{\tau} + \mathbf{\overline{F}} &- \nabla \cdot (\overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}} ) ,
+  \frac{\partial (\overline{\rho} \mathbf{\tilde{u}})}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \mathbf{\tilde{u}}) - \nabla \overline{p} + \overline{\rho} \mathbf{g} + \nabla \cdot \overline{\tau} + \mathbf{\overline{F}} &- \nabla \cdot (\overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}} ) ,
 
   \frac{\partial (\overline{\rho} \tilde{\theta})}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{\theta}) + \overline{\rho} \alpha_{T} \nabla^2 \tilde{\theta}  &- \nabla \cdot (\overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} ) ,
 
@@ -159,16 +157,16 @@ in that quantities are transported down their resolved gradients:
 
    \tau^{sfs}_{kk} = 2 \mu_t \frac{C_I}{C_s^2} (2 \tilde{S}_{ij} \tilde{S}_{ij})^{1/2}.
 
-The model coefficients :math:`C_s, C_I, Pr_t, Sc_t` have nominal values of 0.16, 0.09, 0.7, amd 0.7,
+The model coefficients :math:`C_s, C_I, Pr_t, Sc_t` have nominal values of 0.16, 0.09, 0.7, and 0.7,
 respectively (Martin et al., Theoret. Comput. Fluid Dynamics (2000)).
-Note that the gradient transport LES models take exactly the same form as the molecular transport terms, but with the constant
-constant molecular transport coefficients replaced by turbulent requivalents (e.g. :math:`\mu` becomes the turbulent viscosity,
+Note that the gradient transport LES models take exactly the same form as the molecular transport terms, but with the
+constant molecular transport coefficients replaced by turbulent equivalents (e.g. :math:`\mu` becomes the turbulent viscosity,
 :math:`\mu_{t}`). Molecular transport is omitted in the present implementation because the molecular
 transport coefficients are insignificant compared to turbulent transport for most LES grids.
 
-.. note:: The omission of molecular transport in LES mode will need to be revisisted if resolutions close to DNS become of interest.
+.. note:: The omission of molecular transport in LES mode will need to be revisited if resolutions close to DNS become of interest.
       Presently, we also assume :math:`C_I =0`. This term is similar to the bulk viscosity term for molecular transport and
-      should be added if the bulk viscosity term is added. It is beieved to be small for low-Mach number flows, but there
+      should be added if the bulk viscosity term is added. It is believed to be small for low-Mach number flows, but there
       is some discussion in the literature about this topic. See Moin et al., "A dynamic subgrid-scale model for
       compressible turbulence and scalar transport", PoF (1991); Martin et al., Subgrid-scale models for compressible
       large-eddy simulations", Theoret. Comput. Fluid Dynamics (2000).
