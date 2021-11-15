@@ -56,7 +56,7 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
 
             const int N = fine_src_ba.size();
 
-            std::vector<long> wgts(N);
+            std::vector<amrex::Long> wgts(N);
 
 #ifdef _OPENMP
 #pragma omp parallel for
