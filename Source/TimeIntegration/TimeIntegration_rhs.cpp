@@ -69,10 +69,9 @@ void erf_rhs (int level,
     {
         ComputeTurbulentViscosity(xvel, yvel, zvel, *S_data[IntVar::cons], eddyViscosity, dx, solverChoice);
         eddyViscosity.FillBoundary(geom.periodicity());
+        amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};
+        ERF::applyBCs(geom, eddyvisc_update);
     }
-
-    amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};
-    ERF::applyBCs(geom, eddyvisc_update);
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;

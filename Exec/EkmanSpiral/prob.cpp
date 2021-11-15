@@ -23,11 +23,7 @@ erf_init_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial potential temperature (Actually rho*theta)
-    const amrex::Real p = parms.rho_0 * parms.V_0*parms.V_0*
-                          (
-                             1.0 / (Gamma * parms.M_0 * parms.M_0)
-                          );
-    state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p);
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
@@ -38,12 +34,21 @@ erf_init_prob(
   pp.get("rotational_time_period", rot_time_period);
   amrex::Real coriolis_factor = 4.0 * M_PI / rot_time_period;
 
-  amrex::Real alpha_C;
-  pp.get("alpha_C", alpha_C);
+  amrex::Real Az;
+  pp.get("dynamicViscosity", Az); // dynamic viscosity [kg-m/s]
+  Az = Az / parms.rho_0; // kinematic viscosity [m^2/s]
 
-  const amrex::Real m_DE = std::sqrt(2.0 * alpha_C / coriolis_factor);
-  const amrex::Real a = 1.0 / m_DE;
-  const amrex::Real u_0 = parms.V_0;
+  amrex::Vector<amrex::Real> abl_geo_wind(3);
+  pp.queryarr("abl_geo_wind",abl_geo_wind);
+  AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+    (amrex::Math::abs(abl_geo_wind[1]) < 1.0e-15) &&
+    (amrex::Math::abs(abl_geo_wind[2]) < 1.0e-15),
+    "Ekman Spiral uses geostrophic forcing of the form (V_0, 0, 0)");
+  const amrex::Real u_0 = abl_geo_wind[0];
+
+  const amrex::Real DE = std::sqrt(2.0 * Az / coriolis_factor);
+  //amrex::Print() << "Ekman depth = " << DE << " m" << std::endl;
+  const amrex::Real a = 1.0 / DE;
 
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
@@ -66,7 +71,7 @@ erf_init_prob(
     const amrex::Real z = (k + 0.5) * dx[2];
 
     // Set the y-velocity
-    y_vel(i, j, k) = u_0 * (1.0 - std::exp(-a * z) * std::cos(-a * z));
+    y_vel(i, j, k) = -u_0 * std::exp(-a * z) * std::sin(-a * z);
   });
 
   // Construct a box that is on z-faces
@@ -111,7 +116,5 @@ amrex_probinit(
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.T_0);
-  pp.query("M_0", parms.M_0);
-  pp.query("V_0", parms.V_0);
 }
 }
