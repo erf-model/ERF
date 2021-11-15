@@ -34,7 +34,7 @@ jobs:
 
     - name: Build
       run: |
-        cmake --build build --parallel 2 
+        cmake --build build --parallel 2  --log-level=VERBOSE
 
     - name: Regression Tests
       run: |

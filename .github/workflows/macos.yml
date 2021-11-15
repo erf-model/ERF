@@ -28,7 +28,6 @@ jobs:
           -B${{runner.workspace}}/ERF/build \
           -DBUILD_SHARED_LIBS:BOOL=TRUE \
           -DCMAKE_CXX_COMPILER_LAUNCHER=$(which ccache) \
-          #-DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
           -DCMAKE_BUILD_TYPE:STRING=Debug \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=TRUE \
