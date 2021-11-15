@@ -69,9 +69,9 @@ We first recall the equations in the form, here defining :math:`\mathbf{R}` for 
 
   \frac{\partial (\rho \mathbf{u})}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + p^\prime I) + {\mathbf F}_\mathbf{u} = \mathbf{R}_\mathbf{u}
 
-  \frac{\partial (\Theta)}{\partial t} &=& - \nabla \cdot (\mathbf{u} \Theta) + \nabla \cdot (\alpha_{T}\ \nabla (\Theta)) = R_{\Theta},
+  \frac{\partial (\Theta)}{\partial t} &=& - \nabla \cdot (\mathbf{u} \Theta) + \rho \alpha_{T}\ \nabla^2 \theta = R_{\Theta},
 
-  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\alpha_{C}\ \nabla (\rho C)) = R_{\rho C},
+  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \rho \alpha_{C}\ \nabla^2 C = R_{\rho C},
 
 where we have defined :math:`\mathbf{U} = (U,V,W) = \rho \mathbf{u} = (\rho u, \rho v, \rho w)` , :math:`\Theta = \rho \theta` and
 :math:`\mathbf{F}_\mathbf{U} = (F_U, F_V, F_W) = \rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}`
