@@ -55,17 +55,17 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/PlotFile.H
        ${SRC_DIR}/IO/PlotFile.cpp
        ${SRC_DIR}/IO/IOManager.cpp
-       ${SRC_DIR}/RK3/RK3.H
-       ${SRC_DIR}/RK3/MomentumToVelocity.cpp
-       ${SRC_DIR}/RK3/VelocityToMomentum.cpp
-       ${SRC_DIR}/RK3/RK3_driver.cpp
-       ${SRC_DIR}/RK3/RK3_stage.cpp
-       ${SRC_DIR}/RK3/RK3_utils.cpp
-       ${SRC_DIR}/RK3/Interpolation.cpp
-       ${SRC_DIR}/RK3/Advection.cpp
-       ${SRC_DIR}/RK3/Diffusion.cpp
-       ${SRC_DIR}/RK3/StrainRate.cpp
-       ${SRC_DIR}/RK3/EddyViscosity.cpp
+       ${SRC_DIR}/TimeIntegration/TimeIntegration.H
+       ${SRC_DIR}/TimeIntegration/MomentumToVelocity.cpp
+       ${SRC_DIR}/TimeIntegration/VelocityToMomentum.cpp
+       ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
+       ${SRC_DIR}/TimeIntegration/TimeIntegration_rhs.cpp
+       ${SRC_DIR}/TimeIntegration/TimeIntegration_utils.cpp
+       ${SRC_DIR}/TimeIntegration/Interpolation.cpp
+       ${SRC_DIR}/TimeIntegration/Advection.cpp
+       ${SRC_DIR}/TimeIntegration/Diffusion.cpp
+       ${SRC_DIR}/TimeIntegration/StrainRate.cpp
+       ${SRC_DIR}/TimeIntegration/EddyViscosity.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
@@ -93,7 +93,7 @@ function(build_erf_lib erf_lib_name)
 
   #ERF include directories
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR})
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/RK3)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})
 

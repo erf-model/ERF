@@ -1,7 +1,7 @@
 ############################ BASE ######################################
 
 cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
-project(ERF CXX C Fortran)
+project(ERF CXX C)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 include(CMakePackageConfigHelpers)
 
@@ -21,6 +21,8 @@ set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUB
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
 option(ERF_ENABLE_OPENMP "Enable OpenMP" OFF)
 option(ERF_ENABLE_CUDA "Enable CUDA" OFF)
+option(ERF_ENABLE_HIP "Enable HIP" OFF)
+option(ERF_ENABLE_DPCPP "Enable DPCPP" OFF)
 
 #Options for C++
 set(CMAKE_CXX_STANDARD 14)
