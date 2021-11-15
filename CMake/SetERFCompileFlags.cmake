@@ -2,7 +2,7 @@ function(set_erf_compile_flags target)
 # Logic for handling warnings
 if(ERF_ENABLE_ALL_WARNINGS)
   # GCC, Clang, and Intel seem to accept these
-  #list(APPEND ERF_CXX_FLAGS "-Wall" "-Wextra" "-pedantic")
+  list(APPEND ERF_CXX_FLAGS "-Wall" "-Wextra" "-pedantic")
   if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
     # ifort doesn't like -Wall
     list(APPEND ERF_Fortran_FLAGS "-Wall")
