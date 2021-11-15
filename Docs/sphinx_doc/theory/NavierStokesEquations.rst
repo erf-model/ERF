@@ -21,7 +21,7 @@ express conservation of mass, momentum, energy, and scalars in compressible flui
 
   \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u}) - \nabla p^\prime +\rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
 
-  \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot (\alpha_{T}\ \nabla (\rho \theta)) + F_\theta,
+  \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot ( \rho \alpha_{T}\ \nabla \theta),
 
   \frac{\partial (\rho C)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\rho \alpha_{C}\ \nabla C)
 
@@ -55,13 +55,13 @@ The assumptions involved in deriving these equations from first principles are:
 - Viscous heating is negligible
 - No chemical reactions, second order diffusive processes or radiative heat transfer
 
-We further assume constant transport coefficients :math:`\mu`, :math:`\alpha_C`, and :math:`(\alpha_T)`.
+We further assume constant transport coefficients :math:`\mu`, :math:`\alpha_C`, and :math:`\alpha_T`.
 This is a good approximation for flows of interest because all are independent of density (or pressure),
 and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on kinetic theory).  Thus for
 low Mach number atmospheric flows the energy and scalar equations reduce to:
 
 .. math::
-  \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \alpha_{T}\ \nabla^2 (\rho \theta)
+  \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \rho \alpha_{T}\ \nabla^2 \theta
 
   \frac{\partial (\rho C)}{\partial t}      &= - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C}\ \nabla^2 C
 
