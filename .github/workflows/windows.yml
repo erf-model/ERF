@@ -1,6 +1,3 @@
-# -Wextra-semi: GCC < 10 does not have this.
-# -Wunreachable-code: GCC no longer has this option.
-
 name: Windows
 
 on: [push, pull_request]
@@ -11,15 +8,15 @@ concurrency:
 
 jobs:
   WIN32-MSVC10:
-    name: WIN32 MSVC19 [test]
+    name: WIN32 MSVC@19.29
     runs-on: windows-latest
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     steps:
     - uses: actions/checkout@v2.4.0
-      with: 
+      with:
         submodules: true
 
-    - name: Build & Install
+    - name: Configure Project and Generate Build System
       run: |
         cmake -S . -B build `
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
@@ -32,12 +29,11 @@ jobs:
           -DERF_ENABLE_FCOMPARE:BOOL=ON `
           ${{github.workspace}};
 
-    - name: Build
+    - name: Compile and Link
       run: |
-        cmake --build build --parallel 2  --log-level=VERBOSE
+        cmake --build build --parallel 2 --log-level=VERBOSE
 
-    - name: Regression Tests
-      run: |
-        ctest 
-        pwd
-      working-directory: ${{runner.workspace}}/ERF/build
+ #  - name: CMake Tests # see file ERF/Tests/CTestList.cmake
+ #    run: |
+ #      ctest
+ #    working-directory: ${{runner.workspace}}/ERF/build

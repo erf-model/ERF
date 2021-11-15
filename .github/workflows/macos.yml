@@ -1,6 +1,3 @@
-# -Wextra-semi: GCC < 10 does not have this.
-# -Wunreachable-code: GCC no longer has this option.
-
 name: MacOS
 
 on: [push, pull_request]
@@ -11,18 +8,18 @@ concurrency:
 
 jobs:
   MacOS-Clang:
-    name: AppleClang@11.0 
+    name: Apple Clang@11.0
     runs-on: macos-latest
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     steps:
     - uses: actions/checkout@v2.4.0
-      with: 
+      with:
         submodules: true
 
-    - name: Dependencies
+    - name: Install Dependencies
       run: .github/workflows/dependencies/dependencies_mac.sh
 
-    - name: Build & Install
+    - name: Configure Project and Generate Build System
       run: |
         cmake \
           -B${{runner.workspace}}/ERF/build \
@@ -37,11 +34,11 @@ jobs:
           -DERF_ENABLE_FCOMPARE:BOOL=TRUE \
           ${{github.workspace}};
 
-    - name: Build
+    - name: Compile and Link
       run: |
-        cmake --build ${{runner.workspace}}/ERF/build --parallel 2 
+        cmake --build ${{runner.workspace}}/ERF/build --parallel 2 --log-level=VERBOSE
 
-    - name: Regression Tests
-      run: |
-        ctest 
-      working-directory: ${{runner.workspace}}/ERF/build
+ #  - name: CMake Tests # see file ERF/Tests/CTestList.cmake
+ #    run: |
+ #      ctest
+ #    working-directory: ${{runner.workspace}}/ERF/build
