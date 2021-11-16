@@ -10,7 +10,6 @@ jobs:
   WIN32-MSVC10:
     name: WIN32 MSVC@19.29
     runs-on: windows-latest
-    # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     steps:
     - uses: actions/checkout@v2.4.0
       with:
@@ -24,7 +23,7 @@ jobs:
           -DERF_DIM:STRING=3 `
           -DERF_ENABLE_MPI:BOOL=OFF `
           -DERF_ENABLE_TESTS:BOOL=ON `
-          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON `
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
           -DERF_ENABLE_AMREX_EB:BOOL=ON `
           -DERF_ENABLE_FCOMPARE:BOOL=ON `
           ${{github.workspace}};
