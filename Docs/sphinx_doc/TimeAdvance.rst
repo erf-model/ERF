@@ -15,7 +15,7 @@ Time Advance
 Runge-Kutta
 -----------
 
-ERF uses the three-stage low-storage TVD RK3 scheme of `Gottlieb and Shu`_ to advance the solution.
+By default ERF uses the three-stage low-storage TVD RK3 scheme of `Gottlieb and Shu`_ to advance the solution.
 
 .. _`Gottlieb and Shu`: https://www.ams.org/journals/mcom/1998-67-221/S0025-5718-98-00913-2/S0025-5718-98-00913-2.pdf
 
@@ -35,8 +35,8 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 
   \mathbf{S}^{n+1} &=& \frac{1}{3} \mathbf{S}^n + \frac{2}{3} ( \mathbf{S}^{(2)} + \Delta t f(\mathbf{S}^{(2)}) )
 
-In the code, the time-stepping is implemented in :cpp:`Source/RK3/RK3_driver.cpp`, while
-:math:`f` is computed in :cpp:`Source/RK3/RK3_stage.cpp`
+In the code, the time-stepping is implemented in :cpp:`Source/TimeIntegration/TimeIntegration_driver.cpp`, while
+:math:`f` is computed in :cpp:`Source/TimeIntegration/TimeIntegration_rhs.cpp`
 
 We note this can also be written as
 
@@ -50,6 +50,8 @@ We note this can also be written as
 
 which makes it clear that the boundary conditions for :math:`\mathbf{S}^{(1)}` live at time :math:`t^{n+1}`
 while the boundary conditions for :math:`\mathbf{S}^{(2)}` are at time :math:`t^{n+1/2}`.
+
+.. _AcousticSubstep:
 
 Acoustic Sub-stepping
 ---------------------
@@ -67,9 +69,9 @@ We first recall the equations in the form, here defining :math:`\mathbf{R}` for 
 
   \frac{\partial (\rho \mathbf{u})}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} \mathbf{u} + p^\prime I) + {\mathbf F}_\mathbf{u} = \mathbf{R}_\mathbf{u}
 
-  \frac{\partial (\Theta)}{\partial t} &=& - \nabla \cdot (\mathbf{u} \Theta) + \nabla \cdot (\alpha_{T}\ \nabla (\Theta)) = R_{\Theta},
+  \frac{\partial (\Theta)}{\partial t} &=& - \nabla \cdot (\mathbf{u} \Theta) + \rho \alpha_{T}\ \nabla^2 \theta = R_{\Theta},
 
-  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \nabla \cdot (\alpha_{C}\ \nabla (\rho C)) = R_{\rho C},
+  \frac{\partial (\rho C)}{\partial t} &=& - \nabla \cdot (\rho \mathbf{u} C) + \rho \alpha_{C}\ \nabla^2 C = R_{\rho C},
 
 where we have defined :math:`\mathbf{U} = (U,V,W) = \rho \mathbf{u} = (\rho u, \rho v, \rho w)` , :math:`\Theta = \rho \theta` and
 :math:`\mathbf{F}_\mathbf{U} = (F_U, F_V, F_W) = \rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}`

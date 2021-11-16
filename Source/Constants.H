@@ -1,7 +1,7 @@
 #ifndef _CONSTANTS_H_
 #define _CONSTANTS_H_
 
-#define PI 3.14159265358979323846264338327950288
+constexpr amrex::Real PI = 3.14159265358979323846264338327950288;
 
 //TODO: Change these types of macros to 'const'
 #define R_d     287.0 // gas constant for dry air [J/(kg-K)]

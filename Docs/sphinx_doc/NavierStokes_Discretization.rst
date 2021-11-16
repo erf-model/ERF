@@ -1,7 +1,7 @@
 #########################################
 Discretization of Navier-Stokes Equations
 #########################################
-Last update: 2021-10-29
+Last update: 2021-11-13
 
 NOTE: For the sake of simplicity, the discretized equations mention time levels :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
 
@@ -21,9 +21,6 @@ YZ Plane
 
 Mass Conservation
 =================
-
-Difference Equation
--------------------
 
 .. math::
 
@@ -46,11 +43,8 @@ Contributions from different directions
 Advection Contribution to DNS/LES
 =================================
 
-Momentum Conservation – U Momentum
+U Momentum
 ----------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -71,11 +65,8 @@ Contributions from different directions
 .. image:: figures/grid_discretization/x_mom_advec_z.PNG
   :width: 400
 
-Momentum Conservation – V Momentum
+V Momentum
 ----------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -96,11 +87,8 @@ Contributions from different directions
 .. image:: figures/grid_discretization/y_mom_advec_z.PNG
   :width: 400
 
-Momentum Conservation – W Momentum
-----------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
+W Momentum
+----------
 
 .. math::
 
@@ -122,11 +110,8 @@ Contributions from different directions
   :width: 400
 
 
-Energy Conservation – Potential Temperature Advection
+Potential Temperature Advection
 -----------------------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -146,11 +131,8 @@ Contributions from different directions
 .. image:: figures/grid_discretization/temp_advec_z.PNG
   :width: 400
 
-Scalar Conservation – Scalar Advection
+ Scalar Advection
 --------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -233,7 +215,8 @@ The schematic below shows the definition of strain-rate components.
 .. image:: figures/grid_discretization/StrainRate.PNG
   :width: 400
 
-
+Strain-Rate Components for X-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. math::
 
    \begin{array}{ll}
@@ -245,8 +228,8 @@ The schematic below shows the definition of strain-rate components.
    S_{13,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
    \end{array}
 
-
-
+Strain-Rate Components for Y-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. math::
 
    \begin{array}{ll}
@@ -258,8 +241,8 @@ The schematic below shows the definition of strain-rate components.
    S_{23,k - \frac{1}{2}} = & \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
    \end{array}
 
-
-
+Strain-Rate Components for Z-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. math::
 
    \begin{array}{ll}
@@ -271,12 +254,23 @@ The schematic below shows the definition of strain-rate components.
    S_{33,k - \frac{1}{2}} = & \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right) \\
    \end{array}
 
+Expansion-Rate Tensor
+------------------
+Place holder....
+... to be updated
 
-Momentum Conservation – U Momentum viscous stress divergence
-------------------------------------------------------------
+Expansion-Rate Components for X-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
+Expansion-Rate Components for Y-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Expansion-Rate Components for Z-Momentum Equation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+U Momentum viscous stress divergence
+------------------------------------
 
 .. math::
 
@@ -300,11 +294,8 @@ Contributions from different directions
 .. image:: figures/grid_discretization/x_mom_diff_b.PNG
   :width: 400
 
-Momentum Conservation – V Momentum viscous stress divergence
-------------------------------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
+V Momentum viscous stress divergence
+------------------------------------
 
 .. math::
 
@@ -324,11 +315,8 @@ Contributions from different directions
 .. image:: figures/grid_discretization/y_mom_diff_b.PNG
   :width: 400
 
-Momentum Conservation – W Momentum viscous stress divergence
-------------------------------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
+W Momentum viscous stress divergence
+------------------------------------
 
 .. math::
 
@@ -348,11 +336,8 @@ Contributions from different directions
 .. image:: figures/grid_discretization/z_mom_diff_b.PNG
   :width: 400
 
-Energy Conservation – Potential Temperature Diffusion
------------------------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
+Potential Temperature Diffusion
+-------------------------------
 
 .. math::
 
@@ -363,18 +348,15 @@ Difference Equation
    \end{matrix}
 
 
-Scalar Conservation – Scalar Diffusion
---------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
+Scalar Diffusion
+----------------
 
 .. math::
 
    \begin{matrix}
-   \left( \rho C \right)_{i,j,k}^{n + 1} & = & \left( \rho C \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{S} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack C_{i + 1,j,k}^{n} - \ {2C}_{i,j,k}^{n} + \ C_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
+   \left( \rho C \right)_{i,j,k}^{n + 1} & = & \left( \rho C \right)_{i,j,k}^{n} & + & \Delta t\rho_{i,j,k}\alpha_{C} & \left\{ \frac{1}{{\Delta x}^{2}}\ \left\lbrack C_{i + 1,j,k}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i - 1,j,k}^{n} \right\rbrack \right.\  \\
     & & & & & + \frac{1}{{\Delta y}^{2}}\left\lbrack C_{i,j + 1,k}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j - 1,k}^{n} \right\rbrack \\
-    & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack C_{i,j,k + 1}^{n} - \ {2C}_{i,j,k}^{n} + \ C_{i,j,k - 1}^{n} \right\rbrack \right\}
+    & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack C_{i,j,k + 1}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j,k - 1}^{n} \right\rbrack \right\}
    \end{matrix}
 
 Momentum, Thermal, and Scalar Diffusion Contribution to LES
@@ -447,11 +429,8 @@ of the values at the centers of the 4 cells the edge is part of.
    K_{i,j + \frac{1}{2},k + \frac{1}{2}} = \frac{1}{4}\left\lbrack K_{i,j,k} + K_{i,j,k + 1} + K_{i,j + 1,k} + K_{i,j + 1,k + 1} \right\rbrack
    \end{array}
 
-Momentum Conservation – U Momentum - subfilter stress divergence
+U Momentum - subfilter stress divergence
 ----------------------------------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -473,11 +452,8 @@ Difference Equation
    \tau_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\ S_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack
    \end{array}
 
-Momentum Conservation – V Momentum - subfilter stress divergence
+V Momentum - subfilter stress divergence
 ----------------------------------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -499,11 +475,8 @@ Difference Equation
    \tau_{23,k - \frac{1}{2}} = K_{i,j - \frac{1}{2}k - \frac{1}{2}} \ S_{23,k - \frac{1}{2}} & \hspace{-5pt} = K_{i,j - \frac{1}{2},k - \frac{1}{2}} \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} -     v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k}         \right) \right\rbrack \\
    \end{array}
 
-Momentum Conservation – W Momentum - subfilter stress divergence
+W Momentum - subfilter stress divergence
 ----------------------------------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 
 .. math::
 
@@ -528,8 +501,6 @@ Difference Equation
 Energy Conservation- Subgrid heat flux
 --------------------------------------
 
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 This section is yet to be implemented in the code.
 
 .. math::
@@ -555,17 +526,11 @@ This section is yet to be implemented in the code.
    \vartheta_{1i,j,k - \frac{1}{2}} & = & \frac{1}{2}\left( \vartheta_{1i,j,k}     + \vartheta_{1i1,j,k - 1} \right)
    \end{array}
 
-Scalar Conservation- Subgrid scalar flux
+Subgrid scalar flux
 ----------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 
 Prognostic Equation for Subgrid Kinetic Energy
 ----------------------------------------------
-
-Difference Equation
-~~~~~~~~~~~~~~~~~~~
 This section is yet to be implemented in the code.
 
 .. math::

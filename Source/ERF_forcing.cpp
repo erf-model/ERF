@@ -1,8 +1,8 @@
 #include <AMReX_Vector.H>
-#include <AMReX_CONSTANTS.H>
 #include <AMReX_ParmParse.H>
 
 #include "ERF.H"
+#include "Constants.H"
 
 using namespace amrex;
 
@@ -17,7 +17,7 @@ ERF::build_coriolis_forcings()
     amrex::Real rot_time_period = 86400.0;
     pp.query("rotational_time_period", rot_time_period);
 
-    coriolis_factor = 2.0 * 2.0 * M_PI / rot_time_period;
+    coriolis_factor = 2.0 * 2.0 * PI / rot_time_period;
     amrex::Print() << "Coriolis factor = " << coriolis_factor << std::endl;
 
     amrex::Real latitude = 90.0;
@@ -25,7 +25,7 @@ ERF::build_coriolis_forcings()
     AMREX_ALWAYS_ASSERT(amrex::Math::abs(latitude - 90.0) < 1.e-12);
 
     // Convert to radians
-    latitude *= (M_PI/180.);
+    latitude *= (PI/180.);
     sinphi = std::sin(latitude);
     cosphi = std::cos(latitude);
 
@@ -36,7 +36,10 @@ ERF::build_coriolis_forcings()
         amrex::Vector<amrex::Real> abl_geo_wind(3);
         pp.queryarr("abl_geo_wind",abl_geo_wind);
 
-        abl_geo_forcing =
-           {-coriolis_factor * abl_geo_wind[1], coriolis_factor * abl_geo_wind[0], 0.0};
+        abl_geo_forcing = {
+            -coriolis_factor * (abl_geo_wind[1]*sinphi - abl_geo_wind[2]*cosphi),
+             coriolis_factor *  abl_geo_wind[0]*sinphi,
+            -coriolis_factor *  abl_geo_wind[0]*cosphi
+        };
     }
 }

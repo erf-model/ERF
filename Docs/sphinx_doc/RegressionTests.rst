@@ -17,21 +17,49 @@ Results from the nightly GPU tests can be found here: `GPU tests`_
 
 .. _`GPU tests`: https://ccse.lbl.gov/pub/GpuRegressionTesting/ERF
 
-The following problems are currently tested:
+The following problems are currently tested in the CI:
 
-Scalar Advection by Uniform Flow in X Direction
-------------------------------------------------
-This tests scalar advection with triply periodic boundaries.
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| Test                          | nx ny nz | xbc | ybc | zbc | Ext   | Other          |
++===============================+==========+=====+=====+=====+=======+================+
+| ScalarAdvectionUniformU       | 16 16 16 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| ScalarAdvectionUniformUV      | 16 16  4 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| ScalarAdvectionShearedU       | 16  4 16 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| ScalarAdvectionRigidRotation  | 16 16  4 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| ScalarAdvectionDiffusion      | 16 16 16 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| ScalarDiffusion               | 16 16 16 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| ScalarDiffusionSine           | 16 16  4 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| IsentropicVortexAdvecting     | 48 48  4 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| IsentropicVortexStationary    | 48 48  4 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| TaylorGreenAdvecting          | 16 16 16 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| TaylorGreenAdvectingDiffusing | 16 16 16 | per | per | per | None  |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| CouetteFlow                   | 32 16  4 | per | NSW | per | None  |                |
+|                               |          |     | Dir |     |       |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| EkmanSpiral                   |          |     |     |     | Geo   | +Coriolis      |
+|                               |          |     |     |     |       | +gravity       |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarAdvecUniformU`_
+Test Location: `test_files/ScalarAdvectionUniformU`_
 
-.. _`test_files/ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
+.. _`test_files/ScalarAdvectionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
-Problem Location: `ScalarAdvecUniformU`_
+Problem Location: `ScalarAdvection`_
 
-.. _`ScalarAdvecUniformU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecUniformU
+.. _`ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,7 +67,7 @@ Sample Solution/ Flow-field
   :width: 600
 .. image:: figures/tests/scalar_advec_uniform_u_end.png
   :width: 600
-Flow-field at times {0, 0.0264788} s.
+Scalar concentration at times {0, 0.0264788} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -54,9 +82,9 @@ Test Location: `test_files/ScalarAdvectionUniformUV`_
 
 .. _`test_files/ScalarAdvectionUniformUV`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformUV
 
-Problem Location: `ScalarAdvecUniformUV`_
+Problem Location: `ScalarAdvection`_
 
-.. _`ScalarAdvecUniformUV`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecUniformUV
+.. _`ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -64,7 +92,7 @@ Sample Solution/ Flow-field
   :width: 600
 .. image:: figures/tests/scalar_advec_uniform_uv_end.png
   :width: 600
-Flow-field at times {0, 0.6937161} s
+Scalar concentration at times {0, 0.6937161} s
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -79,9 +107,9 @@ Test Location: `test_files/ScalarAdvectionShearedU`_
 
 .. _`test_files/ScalarAdvectionShearedU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionShearedU
 
-Problem Location: `ScalarAdvecShearedU`_
+Problem Location: `ScalarAdvection`_
 
-.. _`ScalarAdvecShearedU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecShearedU
+.. _`ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,7 +117,7 @@ Sample Solution/ Flow-field
   :width: 600
 .. image:: figures/tests/scalar_advec_sheared_u_end.png
   :width: 600
-Flow-field at times {0, 0.9819669} s.
+Scalar concentration at times {0, 0.9819669} s.
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -152,9 +180,9 @@ Test Location: `test_files/ScalarDiffusionSine`_
 
 .. _`test_files/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionSine
 
-Problem Location: `ScalarDiffusionSine`_
+Problem Location: `ScalarDiffusion`_
 
-.. _`ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusionSine
+.. _`ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusion
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

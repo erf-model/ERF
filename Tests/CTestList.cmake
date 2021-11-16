@@ -72,20 +72,18 @@ endfunction(add_test_u)
 #=============================================================================
 # Regression tests
 #=============================================================================
-add_test_r(ScalarAdvectionUniformU "ScalarAdvecUniformU/scalar_advec_unif_u" "plt00020")
-add_test_r(ScalarAdvectionUniformUV "ScalarAdvecUniformUV/scalar_advec_unif_uv" "plt00020")
-add_test_r(ScalarAdvectionShearedU "ScalarAdvecShearedU/scalar_advec_sheared_u" "plt00020")
+add_test_r(ScalarAdvectionUniformU  "ScalarAdvection/scalar_advection" "plt00020")
+add_test_r(ScalarAdvectionUniformUV "ScalarAdvection/scalar_advection" "plt00020")
+add_test_r(ScalarAdvectionShearedU  "ScalarAdvection/scalar_advection" "plt00020")
 add_test_r(ScalarAdvectionRigidRotation "ScalarAdvecRigidRot/scalar_advec_rigid_rot" "plt00020")
+add_test_r(ScalarDiffusion     "ScalarDiffusion/scalar_diff" "plt00020")
+add_test_r(ScalarDiffusionSine "ScalarDiffusion/scalar_diff" "plt00020")
 add_test_r(ScalarAdvectionDiffusionUniformU "ScalarAdvecDiffUniformU/scalar_advec_diff_uni_u" "plt00020")
-
-add_test_r(ScalarDiffusion "ScalarDiffusion/scalar_diff" "plt00020")
-add_test_r(ScalarDiffusionSine "ScalarDiffusionSine/scalar_diff_sine" "plt00020")
-
-add_test_r(IsentropicVortexStationary "IsentropicVortex/erf_isentropic_vortex" "plt00010")
-add_test_r(IsentropicVortexAdvecting "IsentropicVortex/erf_isentropic_vortex" "plt00010")
-add_test_r(CouetteFlow "CouetteFlow/erf_couette_flow" "plt00200")
-add_test_r(TaylorGreenAdvecting "TaylorGreenVortex/taylor_green" "plt00010")
+add_test_r(IsentropicVortexStationary    "IsentropicVortex/erf_isentropic_vortex" "plt00010")
+add_test_r(IsentropicVortexAdvecting     "IsentropicVortex/erf_isentropic_vortex" "plt00010")
+add_test_r(TaylorGreenAdvecting          "TaylorGreenVortex/taylor_green" "plt00010")
 add_test_r(TaylorGreenAdvectingDiffusing "TaylorGreenVortex/taylor_green" "plt00010")
+add_test_r(CouetteFlow "CouetteFlow/erf_couette_flow" "plt00200")
 
 #=============================================================================
 # Performance tests
