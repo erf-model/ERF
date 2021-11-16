@@ -45,8 +45,6 @@ erf_init_prob(
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real* prob_hi = geomdata.ProbHi();
     const amrex::Real* dx = geomdata.CellSize();
-    const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
@@ -55,7 +53,7 @@ erf_init_prob(
 
     x_vel(i, j, k) = parms.U0;
     if(z <= 100.0) {
-    x_vel(i, j, k) += x_vel_prime;
+        x_vel(i, j, k) += x_vel_prime;
     }
   });
 
@@ -67,8 +65,6 @@ erf_init_prob(
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real* prob_hi = geomdata.ProbHi();
     const amrex::Real* dx = geomdata.CellSize();
-    const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the y-velocity
@@ -77,7 +73,7 @@ erf_init_prob(
 
     y_vel(i, j, k) = parms.V0;
     if(z <= 100.) {
-    y_vel(i, j, k) += y_vel_prime;
+        y_vel(i, j, k) += y_vel_prime;
     }
   });
 
@@ -89,15 +85,19 @@ erf_init_prob(
     const amrex::Real* dx = geomdata.CellSize();
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real* prob_hi = geomdata.ProbHi();
-    const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+    const int dom_lo_z = geomdata.Domain().smallEnd()[2];
+    const int dom_hi_z = geomdata.Domain().bigEnd()[2];
+    const amrex::Real z = prob_lo[2] + k * dx[2];
 
     // Set the z-velocity
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
     amrex::Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W0_Pert_Mag;
 
-    z_vel(i, j, k) = parms.W0 + z_vel_prime;
+    if (k == dom_lo_z || k == dom_hi_z+1) { 
+        z_vel(i, j, k) = 0.0;
+    } else {
+        z_vel(i, j, k) = parms.W0 + z_vel_prime;
+    }
   });
 }
 

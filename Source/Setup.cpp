@@ -280,6 +280,12 @@ ERF::initDataProb (amrex::MultiFab& S_new,
     erf_init_prob(bx, sfab, ufab, vfab, wfab, geomdata);
   }
 
+  // Ensure that the face-based data are the same on both sides of a periodic domain.
+  // The data associated with the lower grid ID is considered the correct value.
+  U_new.OverrideSync(geom.periodicity());
+  V_new.OverrideSync(geom.periodicity());
+  W_new.OverrideSync(geom.periodicity());
+
   if (verbose) {
     amrex::Print() << "Done initializing level " << level << " data "
                    << std::endl;
