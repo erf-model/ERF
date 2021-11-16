@@ -93,7 +93,7 @@ erf_init_prob(
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
     amrex::Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W0_Pert_Mag;
 
-    if (k == dom_lo_z || k == dom_hi_z+1) { 
+    if (k == dom_lo_z || k == dom_hi_z+1) {
         z_vel(i, j, k) = 0.0;
     } else {
         z_vel(i, j, k) = parms.W0 + z_vel_prime;
