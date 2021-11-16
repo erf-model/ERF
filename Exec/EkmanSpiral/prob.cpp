@@ -33,7 +33,7 @@ erf_init_prob(
   amrex::ParmParse pp("erf");
   amrex::Real rot_time_period;
   pp.get("rotational_time_period", rot_time_period);
-  amrex::Real coriolis_factor = 4.0 * M_PI / rot_time_period;
+  amrex::Real coriolis_factor = 4.0 * PI / rot_time_period;
 
   amrex::Real Az;
   pp.get("dynamicViscosity", Az); // dynamic viscosity [kg-m/s]
