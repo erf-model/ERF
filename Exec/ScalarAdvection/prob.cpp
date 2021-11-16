@@ -36,10 +36,12 @@ erf_init_prob(
     state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
     // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
-    if (r < r0)
+    if (r < r0) {
        state(i, j, k, RhoScalar_comp) = parms.A_0;
-    else
+    } else {
        state(i, j, k, RhoScalar_comp) = 0.0;
+    }
+
   });
 
   // Construct a box that is on x-faces
@@ -50,7 +52,7 @@ erf_init_prob(
 
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real*      dx = geomdata.CellSize();
-    const amrex::Real        z = prob_lo[2] + k * dx[2];
+    const amrex::Real        z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
     x_vel(i, j, k) = parms.u_0 + parms.uRef *
@@ -97,11 +99,11 @@ erf_prob_close()
 extern "C" {
 void
 amrex_probinit(
-  const int* init,
-  const int* name,
-  const int* namelen,
-  const amrex_real* problo,
-  const amrex_real* probhi)
+  const int* /*init*/,
+  const int* /*name*/,
+  const int* /*namelen*/,
+  const amrex_real* /*problo*/,
+  const amrex_real* /*probhi*/)
   {
     // Parse params
     amrex::ParmParse pp("prob");

@@ -3,35 +3,35 @@
 ===============================================================================
 job name: 
 
-inputs file: ../../Tests/test_files/ScalarAdvectionShearedU/ScalarAdvectionShearedU.i
+inputs file: /home/almgren/GitCode/ERF/Tests/test_files/ScalarAdvectionShearedU/ScalarAdvectionShearedU.i
 
 number of MPI processes: 1
 
-CPU time used since start of simulation (CPU-hours): 3.04729e-05
+CPU time used since start of simulation (CPU-hours): 1.63881e-05
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Tue Sep 21 08:30:47 2021
-output dir:         /home/pkjha/LLNL_Codes/ERF/Build/Exec/ScalarAdvecShearedU
+output data / time: Tue Nov 16 15:15:21 2021
+output dir:         /home/almgren/GitCode/ERF/Exec/ScalarAdvection
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    Sep 21 2021 08:28:14
-build machine: Linux pkjha-XPS-13-9380 4.15.0-154-generic #161-Ubuntu SMP Fri Jul 30 13:04:17 UTC 2021 x86_64
-build dir:     /home/pkjha/LLNL_Codes/ERF/Build/Exec/ScalarAdvecShearedU
-AMReX dir:     /home/pkjha/LLNL_Codes/ERF/Submodules/AMReX
+build date:    2021-11-16 15:14:08.067874
+build machine: Linux manda 5.8.0-53-generic #60~20.04.1-Ubuntu SMP Thu May 6 09:52:46 UTC 2021 x86_64 x86_64 x86_64 GNU/Linux
+build dir:     /home/almgren/GitCode/ERF/Exec/ScalarAdvection
+AMReX dir:     /home/almgren/GitCode/amrex
 
-COMP:          GNU
-COMP version:  7.5.0
-FCOMP:         GNU
-FCOMP version: 7.5.0
+COMP:          gnu
+COMP version:  9.3.0
+FCOMP:         
+FCOMP version: 
 
 
-ERF       git hash: 2cb9054edfc3-dirty
-AMReX       git hash: 21.03-61-gf9216a341e51-dirty
+ERF       git hash: d41a0c0-dirty
+AMReX       git hash: 21.11-17-g88b868099-dirty
 
 
 ===============================================================================
@@ -104,6 +104,14 @@ erf.spatial_order = 2
 prob.rho_0 = 1.0
 prob.T_0 = 1.0
 prob.A_0 = 1.0
+prob.u_0 = 0.0
+prob.v_0 = 0.0
+prob.rad_0 = 0.25
 prob.z0 = 0.1
 prob.zRef = 80.0
 prob.uRef = 8.0
+integration.type = 1
+integration.rk.type = 3
+integration.rk.weights(nvals = 1)  :: [1]
+integration.rk.nodes(nvals = 1)  :: [0]
+integration.rk.tableau(nvals = 1)  :: [0.0]

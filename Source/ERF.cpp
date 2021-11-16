@@ -83,7 +83,6 @@ std::unique_ptr<phys_bcs::BCBase>
 ERF::initialize_bcs(const std::string& bc_char) {
   if (!bc_char.compare("Interior")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCInterior());
-    std::cout << "DIR IS INTERIOR " << DIM << std::endl;
     return std::move(bc_rec);
   } else if (!bc_char.compare("Hard")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
