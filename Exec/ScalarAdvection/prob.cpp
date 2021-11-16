@@ -37,7 +37,7 @@ erf_init_prob(
 
     // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
     if (r < r0) {
-       state(i, j, k, RhoScalar_comp) = parms.A_0
+       state(i, j, k, RhoScalar_comp) = parms.A_0;
     } else {
        state(i, j, k, RhoScalar_comp) = 0.0;
     }

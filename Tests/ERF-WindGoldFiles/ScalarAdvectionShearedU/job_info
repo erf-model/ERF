@@ -7,19 +7,19 @@ inputs file: /home/almgren/GitCode/ERF/Tests/test_files/ScalarAdvectionShearedU/
 
 number of MPI processes: 1
 
-CPU time used since start of simulation (CPU-hours): 0.000147303
+CPU time used since start of simulation (CPU-hours): 1.63881e-05
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Tue Nov 16 14:41:13 2021
+output data / time: Tue Nov 16 15:15:21 2021
 output dir:         /home/almgren/GitCode/ERF/Exec/ScalarAdvection
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2021-11-16 14:39:21.766884
+build date:    2021-11-16 15:14:08.067874
 build machine: Linux manda 5.8.0-53-generic #60~20.04.1-Ubuntu SMP Thu May 6 09:52:46 UTC 2021 x86_64 x86_64 x86_64 GNU/Linux
 build dir:     /home/almgren/GitCode/ERF/Exec/ScalarAdvection
 AMReX dir:     /home/almgren/GitCode/amrex
@@ -30,7 +30,7 @@ FCOMP:
 FCOMP version: 
 
 
-ERF       git hash: f24b403-dirty
+ERF       git hash: d41a0c0-dirty
 AMReX       git hash: 21.11-17-g88b868099-dirty
 
 
