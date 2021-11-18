@@ -344,7 +344,14 @@ ERF::init(AmrLevel& old)
   setTimeLevel(cur_time, dt_old, dt_new);
 
   amrex::MultiFab& S_new = get_new_data(State_Type);
+  amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
+  amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
+  amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
+
   FillPatch(old, S_new, 0, cur_time, State_Type, 0, NVAR);
+  FillPatch(old, U_new, 0, cur_time, X_Vel_Type, 0, 1);
+  FillPatch(old, V_new, 0, cur_time, Y_Vel_Type, 0, 1);
+  FillPatch(old, W_new, 0, cur_time, Z_Vel_Type, 0, 1);
 }
 
 /**
