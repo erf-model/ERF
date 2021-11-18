@@ -4,12 +4,13 @@
 // mk_params.sh
 
 static int state_interp_order;
-static amrex::Real CI;
-static amrex::Real PrT;
-static std::string job_name;
-
+static int spatial_order;
 static amrex::Real alpha_T;
 static amrex::Real alpha_C;
+static amrex::Real rho_0_trans;
 static amrex::Real dynamicViscosity;
 static amrex::Real Cs;
-static int         spatial_order;
+static amrex::Real CI;
+static amrex::Real Pr_t;
+static amrex::Real Sc_t;
+static std::string job_name;

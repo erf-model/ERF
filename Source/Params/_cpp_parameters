@@ -14,6 +14,29 @@
 state_interp_order           int           1
 
 #-----------------------------------------------------------------------------
+# category: Numerics 
+#-----------------------------------------------------------------------------
+
+spatial_order                int           1
+
+#-----------------------------------------------------------------------------
+# category: Molecular Transport
+#-----------------------------------------------------------------------------
+
+# Thermal diffusion coefficient (units: m2/s)
+alpha_T                       Real          1.0
+
+# Scalar diffusion coefficient (units: m2/s)
+alpha_C                       Real          1.0
+
+# Reference density for molecular diffusion
+# (we assume rho*alpha_i is constant based on this rho_0)
+rho_0_trans                   Real          1.0
+
+# Dynamic Viscosity (units: kg/(m s))
+dynamicViscosity              Real          -1.0
+
+#-----------------------------------------------------------------------------
 # category: large eddy simulation
 #-----------------------------------------------------------------------------
 
@@ -23,8 +46,11 @@ Cs                           Real          0.0
 # Constant Smagorinsky CI coefficient
 CI                           Real          0.0
 
-# Constant Smagorinsky PrT coefficient
-PrT                          Real          1.0
+# Constant Smagorinsky Turbulent Prandtl Number
+Pr_t                         Real          1.0
+
+# Constant Smagorinsky Turbulent Schmidt Number 
+Sc_t                         Real          1.0
 
 #-----------------------------------------------------------------------------
 # category: diagnostics
