@@ -14,7 +14,7 @@ Compressible Navier-Stokes Equations
 ====================================
 
 The following partial differential equations (prognostic equations)
-express conservation of mass, momentum, energy, and scalars in compressible fluid flow:
+are solved in ERF for mass, momentum, potential temperature, and scalars:
 
 .. math::
   \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
@@ -28,6 +28,16 @@ express conservation of mass, momentum, energy, and scalars in compressible flui
 where
 
 - :math:`\tau` is the viscous stress tensor,
+
+  .. math::
+     \tau_{ij} = 2\mu \sigma_{ij},
+   
+with :math:`\sigma_{ij} = S_{ij} -D_{ij}` being the deviatoric part of the strain rate, and 
+
+.. math::
+   S_{ij} = \frac{1}{2} \left(  \frac{\partial u_i}{\partial x_j} + \frac{\partial u_j}{\partial x_i}   \right), \hspace{24pt}
+   D_{ij} = \frac{1}{3}  S_{kk} \delta_{ij} = \frac{1}{3} (\nabla \cdot \mathbf{u}) \delta_{ij},   
+  
 - :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`,
 - :math:`\mathbf{g} = (0,0,-g)` is the gravity vector,
 - the potential temperature :math:`\theta` is defined from temperature :math:`T` and pressure :math:`p` as
@@ -46,7 +56,7 @@ with
 .. math::
 
   \frac{d \overline{p}}{d z} = - \overline{\rho} g
-
+  
 The assumptions involved in deriving these equations from first principles are:
 
 - Continuum behavior
@@ -54,30 +64,11 @@ The assumptions involved in deriving these equations from first principles are:
 - Constant mixture molecular weight (therefore constant :math:`R_d`)
 - Viscous heating is negligible
 - No chemical reactions, second order diffusive processes or radiative heat transfer
-
-We further assume constant transport coefficients :math:`\mu`, :math:`\alpha_C`, and :math:`\alpha_T`.
-This is a good approximation for flows of interest because all are independent of density (or pressure),
-and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on kinetic theory).  Thus for
-low Mach number atmospheric flows the energy and scalar equations reduce to:
-
-.. math::
-  \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \rho \alpha_{T}\ \nabla^2 \theta
-
-  \frac{\partial (\rho C)}{\partial t}      &= - \nabla \cdot (\rho \mathbf{u} C)      + \rho \alpha_{C}\ \nabla^2 C
-
-Similarly, the viscous stress tensor can be expressed:
-
-.. math::
-   \tau_{ij} = 2\mu \sigma_{ij}
-
-where the anisotropic strain rate tensor :math:`\sigma_{ij} = S_{ij} -D_{ij}`,
-
-.. math::
-   S_{ij} = \frac{1}{2} \left(  \frac{\partial u_i}{\partial x_j} + \frac{\partial u_j}{\partial x_i}   \right), \hspace{24pt}
-   D_{ij} = \frac{1}{3}  S_{kk} \delta_{ij} = \frac{1}{3} (\nabla \cdot \mathbf{u}) \delta_{ij},
-
-and the  bulk viscosity contribution to :math:`\tau_{ij}`, i.e., :math:`\kappa S_{kk} \delta_{ij}` has been ignored
-in the current implementation.
+- Newtonian viscous stress with no bulk viscosity contribution (i.e., :math:`\kappa S_{kk} \delta_{ij}`)
+- Though not required in the above form of the equations, we further assume  constant transport
+  coefficients :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T`.
+  This is a good approximation for flows of interest because all are independent of density (or pressure),
+  and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on simple kinetic theory).  
 
 Diagnostic Relationships
 ------------------------
@@ -120,9 +111,9 @@ discretization acts as a filter on the governing equations, resulting in the fol
 
   \frac{\partial (\overline{\rho} \mathbf{\tilde{u}})}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \mathbf{\tilde{u}}) - \nabla \overline{p} + \overline{\rho} \mathbf{g} + \nabla \cdot \overline{\tau} + \mathbf{\overline{F}} &- \nabla \cdot (\overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}} ) ,
 
-  \frac{\partial (\overline{\rho} \tilde{\theta})}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{\theta}) + \overline{\rho} \alpha_{T} \nabla^2 \tilde{\theta}  &- \nabla \cdot (\overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} ) ,
+  \frac{\partial (\overline{\rho} \tilde{\theta})}{\partial t} &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{\theta}) + \nabla \cdot \left( \overline{\rho} \alpha_{T} \nabla \tilde{\theta} \right)  &- \nabla \cdot (\overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} ) ,
 
-  \frac{\partial (\overline{\rho} \tilde{C})}{\partial t}      &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{C})      + \overline{\rho} \alpha_{C} \nabla^2 \tilde{C}  &- \nabla \cdot (\overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} ) ,
+  \frac{\partial (\overline{\rho} \tilde{C})}{\partial t}      &= - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{C})      + \nabla \cdot \left( \overline{\rho} \alpha_{C} \nabla \tilde{C} \right)  &- \nabla \cdot (\overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} ) ,
 
 where overbars indicate filtering and tildes indicate density-weighted (Favre) filtering
 (e.g., :math:`\tilde{\theta} = \overline{\rho \theta} / \overline{\rho}`).
@@ -161,9 +152,6 @@ transport coefficients are insignificant compared to turbulent transport for mos
       is some discussion in the literature about this topic. See Moin et al., "A dynamic subgrid-scale model for
       compressible turbulence and scalar transport", PoF (1991); Martin et al., Subgrid-scale models for compressible
       large-eddy simulations", Theoret. Comput. Fluid Dynamics (2000).
-
-.. note:: LES models for potential temperature and scalars have not yet been implemented, and the molecular transport coefficients
-      are retained in these equations. This will be updated soon.
 
 It should also be noted that filtering affects the computation of pressure from density and potential temperature, but the nonlinearity
 in the equation of state is weak for :math:`\gamma = 1.4`, so the subfilter contribution is neglected:
