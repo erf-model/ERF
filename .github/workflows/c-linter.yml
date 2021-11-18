@@ -17,7 +17,7 @@ jobs:
       - name: Get cpp linter repo
         run: |
           cd Submodules
-          git clone https://github.com/AMReX-Astro/cpp-linter-action.git
+          git clone https://github.com/dwillcox/cpp-linter-action.git
           cd ..
 
       - name: Check header includes
