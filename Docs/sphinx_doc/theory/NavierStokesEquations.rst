@@ -31,13 +31,13 @@ where
 
   .. math::
      \tau_{ij} = 2\mu \sigma_{ij},
-   
-with :math:`\sigma_{ij} = S_{ij} -D_{ij}` being the deviatoric part of the strain rate, and 
+
+with :math:`\sigma_{ij} = S_{ij} -D_{ij}` being the deviatoric part of the strain rate, and
 
 .. math::
    S_{ij} = \frac{1}{2} \left(  \frac{\partial u_i}{\partial x_j} + \frac{\partial u_j}{\partial x_i}   \right), \hspace{24pt}
-   D_{ij} = \frac{1}{3}  S_{kk} \delta_{ij} = \frac{1}{3} (\nabla \cdot \mathbf{u}) \delta_{ij},   
-  
+   D_{ij} = \frac{1}{3}  S_{kk} \delta_{ij} = \frac{1}{3} (\nabla \cdot \mathbf{u}) \delta_{ij},
+
 - :math:`\mathbf{F}` are the forcing terms described in :ref:`Forcings`,
 - :math:`\mathbf{g} = (0,0,-g)` is the gravity vector,
 - the potential temperature :math:`\theta` is defined from temperature :math:`T` and pressure :math:`p` as
@@ -56,7 +56,7 @@ with
 .. math::
 
   \frac{d \overline{p}}{d z} = - \overline{\rho} g
-  
+
 The assumptions involved in deriving these equations from first principles are:
 
 - Continuum behavior
@@ -68,7 +68,7 @@ The assumptions involved in deriving these equations from first principles are:
 - Though not required in the above form of the equations, we further assume  constant transport
   coefficients :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T`.
   This is a good approximation for flows of interest because all are independent of density (or pressure),
-  and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on simple kinetic theory).  
+  and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on simple kinetic theory).
 
 Diagnostic Relationships
 ------------------------

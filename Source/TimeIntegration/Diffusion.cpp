@@ -107,12 +107,12 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
-					 const Array4<Real>& cell_data, const int & qty_index,
-					 const amrex::Real invCellWidth,
-					 const Array4<Real>& Ksmag,
-					 const SolverChoice &solverChoice,
-					 const enum NextOrPrev &nextOrPrev,
-					 const enum Coord& coordDir) {
+                     const Array4<Real>& cell_data, const int & qty_index,
+                     const amrex::Real invCellWidth,
+                     const Array4<Real>& Ksmag,
+                     const SolverChoice &solverChoice,
+                     const enum NextOrPrev &nextOrPrev,
+                     const enum Coord& coordDir) {
   //TODO: Discuss about the implementation changes needed (if any). The current implemenation is based on a previous
   // version of documentation.
 
@@ -163,7 +163,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   default:
     amrex::Abort("Error: Diffusion term for the data index isn't implemented");
   }
-  
+
   //TODO: Update this to account for other turbulence models in future. This would alo require update in SolverChoice
   enum TurbulenceModel turbModel;
   amrex::Real rhoAlpha_right, rhoAlpha_left;
@@ -190,10 +190,10 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 
   // Compute the flux
   amrex::Real diffusionFlux = rhoAlpha * (cell_data(iright, jright, kright, qty_index) /
-					  cell_data(iright, jright, kright, Rho_comp)
-					  - cell_data(ileft, jleft, kleft, qty_index) /
-					  cell_data(ileft, jleft, kleft, Rho_comp));
-  
+                      cell_data(iright, jright, kright, Rho_comp)
+                      - cell_data(ileft, jleft, kleft, qty_index) /
+                      cell_data(ileft, jleft, kleft, Rho_comp));
+
   return diffusionFlux;
 }
 
@@ -212,7 +212,7 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
     amrex::Real xDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::x);
     amrex::Real yDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::y);
     amrex::Real zDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::z);
-    
+
     amrex::Real xDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::x);
     amrex::Real yDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::y);
     amrex::Real zDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::z);
@@ -220,17 +220,17 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
     //TODO: Discuss about the implementation changes needed (if any). Diffusion coefficients are assumed to be constant.
     switch(qty_index) {
         case RhoTheta_comp: // Temperature
-	  //diffCoeff = solverChoice.alpha_T;
+      //diffCoeff = solverChoice.alpha_T;
             break;
         case RhoScalar_comp: // Scalar
-	  //diffCoeff = solverChoice.alpha_C;
+      //diffCoeff = solverChoice.alpha_C;
             break;
         default:
             amrex::Abort("Error: Diffusion term for the data index isn't implemented");
     }
 
     // Assemble diffusion contribution.
-    Real diffusionContribution = 
+    Real diffusionContribution =
       (xDiffFluxNext - xDiffFluxPrev) * dx_inv   // Diffusive flux in x-dir
       + (yDiffFluxNext - yDiffFluxPrev) * dy_inv   // Diffusive flux in y-dir
       + (zDiffFluxNext - zDiffFluxPrev) * dz_inv;  // Diffusive flux in z-dir

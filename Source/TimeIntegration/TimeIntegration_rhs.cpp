@@ -146,9 +146,9 @@ void erf_rhs (int level,
 
             // Add diffusive terms.
             if (solverChoice.use_thermal_diffusion && n == RhoTheta_comp)
-	      cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp, dx, Ksmag, solverChoice);
+          cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp, dx, Ksmag, solverChoice);
             if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
-	      cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp, dx, Ksmag, solverChoice);
+          cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp, dx, Ksmag, solverChoice);
 
             // Add source terms. TODO: Put this under a if condition when we implement source term
             cell_rhs(i, j, k, n) += source_fab(i, j, k, n);

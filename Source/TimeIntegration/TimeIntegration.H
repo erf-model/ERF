@@ -190,17 +190,17 @@ Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
                                   const Array4<Real>& cell_data, const int & qty_index,
-				  const amrex::Real invCellWidth,
-				  const Array4<Real>& Ksmag,
-				  const SolverChoice &solverChoice,
-				  const enum NextOrPrev &nextOrPrev,
+                  const amrex::Real invCellWidth,
+                  const Array4<Real>& Ksmag,
+                  const SolverChoice &solverChoice,
+                  const enum NextOrPrev &nextOrPrev,
                                   const enum Coord& coordDir);
 
 AMREX_GPU_DEVICE
 Real DiffusionContributionForState(const int &i, const int &j, const int &k,
                                    const Array4<Real>& cell_data, const int & qty_index,
                                    const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-				   const Array4<Real>& Ksmag,
+                   const Array4<Real>& Ksmag,
                                    const SolverChoice &solverChoice);
 
 int ComputeGhostCells(const int &spatial_order);
