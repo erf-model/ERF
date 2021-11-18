@@ -182,6 +182,12 @@ ERF::variableSetUp()
   //     and for all conserved quantities as well
   //     (unnecessary right now but convenient)
   //
+  amrex::StateDescriptor::BndryFunc bndryfunc_null(erf_nullfill);
+  bndryfunc_null.setRunOnGPU(true);
+  amrex::Vector<amrex::BCRec> vel_bcs(1);
+  amrex::Vector<std::string> vel_name(1);
+  vel_bcs[0] = bc;
+
   store_in_checkpoint = true;
   amrex::IndexType xface(amrex::IntVect(1,0,0));
   desc_lst.addDescriptor(X_Vel_Type, xface,
@@ -189,17 +195,26 @@ ERF::variableSetUp()
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
+  vel_name[0] = "x_velocity";
+  desc_lst.setComponent(X_Vel_Type, 0, vel_name, vel_bcs, bndryfunc_null);
+
   amrex::IndexType yface(amrex::IntVect(0,1,0));
   desc_lst.addDescriptor(Y_Vel_Type, yface,
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
+  vel_name[0] = "y_velocity";
+  desc_lst.setComponent(Y_Vel_Type, 0, vel_name, vel_bcs, bndryfunc_null);
+
   amrex::IndexType zface(amrex::IntVect(0,0,1));
   desc_lst.addDescriptor(Z_Vel_Type, zface,
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
+
+  vel_name[0] = "z_velocity";
+  desc_lst.setComponent(Z_Vel_Type, 0, vel_name, vel_bcs, bndryfunc_null);
 
   num_state_type = desc_lst.size();
 
