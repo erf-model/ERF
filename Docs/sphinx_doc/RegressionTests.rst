@@ -47,8 +47,8 @@ The following problems are currently tested in the CI:
 | CouetteFlow                   | 32 16  4 | per | NSW | per | None  |                |
 |                               |          |     | Dir |     |       |                |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
-| EkmanSpiral                   |          |     |     |     | Geo   | +Coriolis      |
-|                               |          |     |     |     |       | +gravity       |
+| EkmanSpiral                   | 4 4 400  | per | per | NSW | Geo   | +Coriolis      |
+|                               |          |     |     | SW  |       | +gravity       |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
 
 Problem Definition
@@ -362,7 +362,9 @@ This tests the Coriolis and geostrophic forcing.
 
 Problem Definition
 ~~~~~~~~~~~~~~~~~~
-Test Location:
+Test Location: `test_files/EkmanSpiral`_
+
+.. _`test_files/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/EkmanSpiral
 
 Problem Location: `EkmanSpiral`_
 
