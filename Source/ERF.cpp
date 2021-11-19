@@ -63,6 +63,9 @@ int ERF::FirstAdv = -1;
 
 amrex::Vector<int> ERF::src_list;
 
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::dens_hse(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::pres_hse(0);
+
 // this will be reset upon restart
 amrex::Real ERF::previousCPUTimeUsed = 0.0;
 amrex::Real ERF::startCPUTime = 0.0;
@@ -667,6 +670,21 @@ ERF::post_regrid(int lbase, int new_finest)
 {
   BL_PROFILE("ERF::post_regrid()");
   fine_mask.clear();
+
+  // if we have not yet initialized the base state, do so
+  if (dens_hse.empty()) {
+    dens_hse.resize(parent->maxLevel()+1, Vector<Real>(0));
+    pres_hse.resize(parent->maxLevel()+1, Vector<Real>(0));
+  }
+
+  if (dens_hse[level].empty()) {
+    const int zlen = geom.Domain().length(2);
+    dens_hse[level].resize(zlen, 0.0_rt);
+    pres_hse[level].resize(zlen, 0.0_rt);
+  }
+
+  // HOOK: initialize the base state at this level
+  // initialize_base_state();
 }
 
 void
@@ -690,6 +708,29 @@ ERF::post_init(amrex::Real stop_time)
       getLevel(k).avgDown();
     }
   }
+
+  //
+  // Setup Base State Arrays
+  //
+  const int max_level = parent->maxLevel();
+  const int finest_level = parent->finestLevel();
+  dens_hse.resize(max_level+1, Vector<Real>(0));
+  pres_hse.resize(max_level+1, Vector<Real>(0));
+
+  for (int lev(0); lev <= max_level; ++lev) {
+    dens_hse[lev].resize(0);
+    pres_hse[lev].resize(0);
+  }
+
+  // set the size for the base state at each valid level
+  for (int lev(0); lev <= finest_level; ++lev) {
+    const int zlen = geom.Domain().length(2);
+    dens_hse[lev].resize(zlen, 0.0_rt);
+    pres_hse[lev].resize(zlen, 0.0_rt);
+  }
+
+  // HOOK: initialize base state arrays
+  // initialize_base_state();
 
 #ifdef DO_PROBLEM_POST_INIT
   //
