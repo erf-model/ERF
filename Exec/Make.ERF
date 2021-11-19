@@ -16,7 +16,7 @@ ifeq ($(USE_NETCDF), TRUE)
 endif
 
 ifeq ($(USE_SUNDIALS),TRUE)
-SUNDIALS_ROOT ?= $(TOP)/../sundials/instdir
+SUNDIALS_ROOT ?= $(TOP)/Submodules/SUNDIALS/instdir
 SUNDIALS_LIB_DIR ?= $(SUNDIALS_ROOT)/lib
 
 USE_CVODE_LIBS ?= TRUE

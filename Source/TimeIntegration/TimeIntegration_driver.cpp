@@ -7,7 +7,8 @@
 #include <utils.H>
 #include <arkode/arkode_erkstep.h>     /* prototypes for ARKStep fcts., consts */
 #include <nvector/nvector_manyvector.h>/* manyvector N_Vector types, fcts. etc */
-#include <NVector_Multifab.h>    /* Multifab N_Vector types, fcts., macros */
+#include <AMReX_NVector_MultiFab.H>    /* MultiFab N_Vector types, fcts., macros */
+#include <AMReX_Sundials.H>    /* MultiFab N_Vector types, fcts., macros */
 #include <sunlinsol/sunlinsol_spgmr.h> /* access to SPGMR SUNLinearSolver      */
 #include <sundials/sundials_types.h>   /* defs. of realtype, sunindextype, etc */
 
@@ -135,7 +136,6 @@ void erf_advance(int level,
     // Create an N_Vector wrapper for the solution MultiFab
     sunindextype length = cons_old.nComp() * (cons_old.boxArray()).numPts();
     // Testing data structures, this length may be different for "real" initial condition
-    N_Vector nv_S        = NULL;
     int NVar             = 4;
     //Arbitrary tolerances
     Real reltol          = 1e-4;
@@ -143,15 +143,18 @@ void erf_advance(int level,
     Real t               = time;
     Real tout            = time+dt;
     Real hfixed          = dt/100;
-    N_Vector nv_cons     = N_VMake_Multifab(length, state_old[IntVar::cons].get());
-    N_Vector nv_xmom     = N_VMake_Multifab(length, state_old[IntVar::xmom].get());
-    N_Vector nv_ymom     = N_VMake_Multifab(length, state_old[IntVar::ymom].get());
-    N_Vector nv_zmom     = N_VMake_Multifab(length, state_old[IntVar::zmom].get());
+    N_Vector nv_cons     = N_VMake_MultiFab(length, state_old[IntVar::cons].get());
+    N_Vector nv_xmom     = N_VMake_MultiFab(length, state_old[IntVar::xmom].get());
+    N_Vector nv_ymom     = N_VMake_MultiFab(length, state_old[IntVar::ymom].get());
+    N_Vector nv_zmom     = N_VMake_MultiFab(length, state_old[IntVar::zmom].get());
     N_Vector nv_many_arr[NVar];              /* vector array composed of cons, xmom, ymom, zmom component vectors */
 
     /* Create manyvector for solution */
-    nv_many_arr[0] = nv_cons; nv_many_arr[1] = nv_xmom; nv_many_arr[2] = nv_ymom; nv_many_arr[3] = nv_zmom;
-    nv_S = N_VNew_ManyVector(NVar, nv_many_arr);
+    nv_many_arr[0] = nv_cons;
+    nv_many_arr[1] = nv_xmom;
+    nv_many_arr[2] = nv_ymom;
+    nv_many_arr[3] = nv_zmom;
+    N_Vector nv_S = N_VNew_ManyVector(NVar, nv_many_arr);
 
     auto rhs_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_rhs, const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data,
