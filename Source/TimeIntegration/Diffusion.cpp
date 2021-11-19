@@ -112,40 +112,15 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
                      const Array4<Real>& Ksmag,
                      const SolverChoice &solverChoice,
                      const enum NextOrPrev &nextOrPrev,
-                     const enum Coord& coordDir) {
-  //TODO: Discuss about the implementation changes needed (if any). The current implemenation is based on a previous
-  // version of documentation.
-
+                     const enum Coord& coordDir)
+{
   // Get indices of states to left and right of the face on which we want the flux
-  // TODO: Make a templated class that does  this automatically
-  int ileft = i; int iright = i;
-  int jleft = j; int jright = j;
-  int kleft = k; int kright = k;
-  switch (coordDir) {
-  case Coord::x:
-    if (nextOrPrev == NextOrPrev::next) {
-      iright = i+1;
-    } else {
-      ileft = i-1;
-    }
-    break;
-  case Coord::y:
-    if (nextOrPrev == NextOrPrev::next) {
-      jright = j+1;
-    } else {
-      jleft = j-1;
-    }
-    break;
-  case Coord::z:
-    if (nextOrPrev == NextOrPrev::next) {
-      kright = k+1;
-    } else {
-      kleft = k-1;
-    }
-    break;
-  default:
-    amrex::Abort("Error: Coord direction is unrecognized");
-  }
+  const int il = i - ((coordDir == Coord::x) && (nextOrPrev == NextOrPrev::prev));
+  const int ir = i + ((coordDir == Coord::x) && (nextOrPrev == NextOrPrev::next));
+  const int jl = j - ((coordDir == Coord::y) && (nextOrPrev == NextOrPrev::prev));
+  const int jr = j + ((coordDir == Coord::y) && (nextOrPrev == NextOrPrev::next));
+  const int kl = k - ((coordDir == Coord::z) && (nextOrPrev == NextOrPrev::prev));
+  const int kr = k + ((coordDir == Coord::z) && (nextOrPrev == NextOrPrev::next));
 
   // Get diffusion coefficients
   amrex::Real rhoAlpha = 0.0;
@@ -166,7 +141,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 
   //TODO: Update this to account for other turbulence models in future. This would alo require update in SolverChoice
   enum TurbulenceModel turbModel;
-  amrex::Real rhoAlpha_right, rhoAlpha_left;
+  amrex::Real rhoAlpha_r, rhoAlpha_l;
   if (solverChoice.use_smagorinsky)
     turbModel = TurbulenceModel::Smagorinsky;
   else
@@ -180,19 +155,19 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     break;
   case TurbulenceModel::Smagorinsky:
     // Ksmag = 2*mu_t
-    rhoAlpha_right = Ksmag(ileft, jleft, kleft) * 0.5 * Pr_or_Sc_turb_inv;
-    rhoAlpha_left = Ksmag(ileft, jleft, kleft) * 0.5 * Pr_or_Sc_turb_inv;
-    rhoAlpha = 0.5*(rhoAlpha_left + rhoAlpha_right);
+    rhoAlpha_r = Ksmag(ir, jr, kr) * 0.5 * Pr_or_Sc_turb_inv;
+    rhoAlpha_l = Ksmag(il, jl, kl) * 0.5 * Pr_or_Sc_turb_inv;
+    rhoAlpha = 0.5*(rhoAlpha_l + rhoAlpha_r);
     break;
   default:
     amrex::Abort("Error: Turbulence model is unrecognized");
   }
 
   // Compute the flux
-  amrex::Real diffusionFlux = rhoAlpha * (cell_data(iright, jright, kright, qty_index) /
-                      cell_data(iright, jright, kright, Rho_comp)
-                      - cell_data(ileft, jleft, kleft, qty_index) /
-                      cell_data(ileft, jleft, kleft, Rho_comp));
+  amrex::Real diffusionFlux = rhoAlpha *(cell_data(ir, jr, kr, qty_index) /
+                     cell_data(ir, jr, kr, Rho_comp)
+                     - cell_data(il, jl, kl, qty_index) /
+                     cell_data(il, jl, kl, Rho_comp));
 
   return diffusionFlux;
 }
@@ -209,31 +184,19 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
   const amrex::Real dy_inv = 1.0/cellSize[1];
   const amrex::Real dz_inv = 1.0/cellSize[2];
 
-    amrex::Real xDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::x);
-    amrex::Real yDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::y);
-    amrex::Real zDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::z);
+  amrex::Real xDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::x);
+  amrex::Real yDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::y);
+  amrex::Real zDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::z);
 
-    amrex::Real xDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::x);
-    amrex::Real yDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::y);
-    amrex::Real zDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::z);
+  amrex::Real xDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::x);
+  amrex::Real yDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::y);
+  amrex::Real zDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::z);
 
-    //TODO: Discuss about the implementation changes needed (if any). Diffusion coefficients are assumed to be constant.
-    switch(qty_index) {
-        case RhoTheta_comp: // Temperature
-      //diffCoeff = solverChoice.alpha_T;
-            break;
-        case RhoScalar_comp: // Scalar
-      //diffCoeff = solverChoice.alpha_C;
-            break;
-        default:
-            amrex::Abort("Error: Diffusion term for the data index isn't implemented");
-    }
+  // Assemble diffusion contribution.
+  Real diffusionContribution =
+    (xDiffFluxNext - xDiffFluxPrev) * dx_inv   // Diffusive flux in x-dir
+    + (yDiffFluxNext - yDiffFluxPrev) * dy_inv   // Diffusive flux in y-dir
+    + (zDiffFluxNext - zDiffFluxPrev) * dz_inv;  // Diffusive flux in z-dir
 
-    // Assemble diffusion contribution.
-    Real diffusionContribution =
-      (xDiffFluxNext - xDiffFluxPrev) * dx_inv   // Diffusive flux in x-dir
-      + (yDiffFluxNext - yDiffFluxPrev) * dy_inv   // Diffusive flux in y-dir
-      + (zDiffFluxNext - zDiffFluxPrev) * dz_inv;  // Diffusive flux in z-dir
-
-    return diffusionContribution;
+  return diffusionContribution;
 }
