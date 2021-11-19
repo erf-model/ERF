@@ -407,6 +407,10 @@ protected:
 
   static amrex::Vector<int> src_list;
 
+  // Base state quantities: density and pressure, 1 array per AMR level
+  static amrex::Vector<amrex::Vector<amrex::Real> > dens_hse;
+  static amrex::Vector<amrex::Vector<amrex::Real> > pres_hse;
+
 /* problem-specific includes */
 #include <Problem.H>
 
