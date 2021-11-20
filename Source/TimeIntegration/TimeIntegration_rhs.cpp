@@ -194,7 +194,7 @@ void erf_rhs (int level,
             // Add Coriolis forcing (that assumes east is +x, north is +y)
             if (solverChoice.use_coriolis)
             {
-                Real rho_v_loc = 0.25 * (rho_u(i,j+1,k) + rho_u(i,j,k) + rho_u(i-1,j+1,k) + rho_u(i-1,j,k));
+                Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                 Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
                 rho_u_rhs(i, j, k) += solverChoice.coriolis_factor *
                         (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
