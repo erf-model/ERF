@@ -22,6 +22,10 @@ struct ProbParm {
 extern ProbParm prams;
 
 void
+erf_init_hse(amrex::Vector<amrex::Real>& dens_hse,
+             amrex::GeometryData const& geomdata);
+
+void
 erf_init_prob(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
