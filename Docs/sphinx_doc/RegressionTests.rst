@@ -88,11 +88,22 @@ Problem Location: `ScalarAdvection`_
 
 Sample Solution/ Flow-field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/tests/scalar_advec_uniform_uv_start.png
-  :width: 600
-.. image:: figures/tests/scalar_advec_uniform_uv_end.png
-  :width: 600
-Scalar concentration at times {0, 0.6937161} s
+
+.. |a| image:: figures/tests/scalar_advec_uniform_uv_start.png
+       :width: 300
+
+.. |b| image:: figures/tests/scalar_advec_uniform_uv_end.png
+       :width: 300
+
+.. _fig:gpu:threads:
+
+.. table:: Scalar concentration with uniform flow in x- and y-directions.
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a|                          |                        |b|                           |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.6937161).  |
+   +-----------------------------------------------------+------------------------------------------------------+
 
 V&V for the Reference Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
