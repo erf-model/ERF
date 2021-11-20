@@ -288,6 +288,28 @@ ERF::initData()
   amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
 
+  if (level == 0) {
+    //
+    // Setup Base State Arrays
+    //
+    const int max_level = parent->maxLevel();
+    const int finest_level = parent->finestLevel();
+    dens_hse.resize(max_level+1, Vector<Real>(0));
+    pres_hse.resize(max_level+1, Vector<Real>(0));
+
+    for (int lev(0); lev <= max_level; ++lev) {
+      dens_hse[lev].resize(0);
+      pres_hse[lev].resize(0);
+    }
+
+    // set the size for the base state at each valid level
+    for (int lev(0); lev <= finest_level; ++lev) {
+      const int zlen = geom.Domain().length(2);
+      dens_hse[lev].resize(zlen, 0.0_rt);
+      pres_hse[lev].resize(zlen, 0.0_rt);
+    }
+  }
+
   initDataProb(S_new, U_new, V_new, W_new);
 }
 
@@ -526,7 +548,6 @@ ERF::computeInitialDt(
 
   amrex::Real dt_0 = 1.0e+100;
   int n_factor = 1;
-  // TODO/DEBUG: This will need to change for optimal subcycling.
   for (int i = 0; i <= finest_level; i++) {
     dt_level[i] = getLevel(i).initialTimeStep();
     n_factor *= n_cycle[i];
@@ -669,29 +690,6 @@ ERF::post_init(amrex::Real stop_time)
       getLevel(k).avgDown();
     }
   }
-
-  //
-  // Setup Base State Arrays
-  //
-  const int max_level = parent->maxLevel();
-  const int finest_level = parent->finestLevel();
-  dens_hse.resize(max_level+1, Vector<Real>(0));
-  pres_hse.resize(max_level+1, Vector<Real>(0));
-
-  for (int lev(0); lev <= max_level; ++lev) {
-    dens_hse[lev].resize(0);
-    pres_hse[lev].resize(0);
-  }
-
-  // set the size for the base state at each valid level
-  for (int lev(0); lev <= finest_level; ++lev) {
-    const int zlen = geom.Domain().length(2);
-    dens_hse[lev].resize(zlen, 0.0_rt);
-    pres_hse[lev].resize(zlen, 0.0_rt);
-  }
-
-  // HOOK: initialize base state arrays
-  // initialize_base_state();
 
 #ifdef DO_PROBLEM_POST_INIT
   //
