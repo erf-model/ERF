@@ -208,7 +208,7 @@ void erf_advance(int level,
 
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
-	MultiFab::Copy(*state_new[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
+    MultiFab::Copy(*state_new[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
     }
     }
     else
