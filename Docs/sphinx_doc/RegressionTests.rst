@@ -59,12 +59,18 @@ Problem Location: `Exec/ScalarAdvection`_
 
 .. _`Exec/ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
 
+.. |a1| image:: figures/tests/scalar_advec_uniform_u_start.png
+        :width: 300
+
+.. |b1| image:: figures/tests/scalar_advec_uniform_u_end.png
+        :width: 300
+
 .. _fig:scalar_advection_u
 
 .. table:: Scalar concentration with uniform flow in x- and y-directions.
 
    +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a|                          |                        |b|                           |
+   |                        |a1|                         |                       |b1|                           |
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.0264788).  |
    +-----------------------------------------------------+------------------------------------------------------+
@@ -81,25 +87,25 @@ Problem Location: `Exec/ScalarAdvection`_
 
 .. _`Exec/ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
 
-.. |a| image:: figures/tests/scalar_advec_uniform_uv_start.png
-       :width: 300
+.. |a2| image:: figures/tests/scalar_advec_uniform_uv_start.png
+        :width: 300
 
-.. |b| image:: figures/tests/scalar_advec_uniform_uv_end.png
-       :width: 300
+.. |b2| image:: figures/tests/scalar_advec_uniform_uv_end.png
+        :width: 300
 
 .. _fig:scalar_advection_uv
 
 .. table:: Scalar concentration with uniform flow in x- and y-directions.
 
    +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a|                          |                        |b|                           |
+   |                        |a2|                         |                        |b2|                          |
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.6937161).  |
    +-----------------------------------------------------+------------------------------------------------------+
 
 Scalar Advection by Sheared Flow
 ------------------------------------------------
-This tests scalar advection with triply periodic boundaries.
+This tests scalar advection in horizontal flow in the x-direction with triply periodic boundaries.
 
 Test Location: `Tests/test_files/ScalarAdvectionShearedU`_
 
@@ -109,24 +115,26 @@ Problem Location: `Exec/ScalarAdvection`_
 
 .. _`Exec/ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
 
-.. |a| image:: figures/tests/scalar_advec_sheared_u_start.png
-       :width: 300
+.. |a3| image:: figures/tests/scalar_advec_sheared_u_start.png
+        :width: 300
 
-.. |b| image:: figures/tests/scalar_advec_sheared_u_end.png
-       :width: 300
+.. |b3| image:: figures/tests/scalar_advec_sheared_u_end.png
+        :width: 300
 
 .. _fig:scalar_advection_sheared_u
 
-.. table:: Scalar concentration with uniform flow in x- and y-directions.
+.. table:: Scalar concentration in vertically sheared flow in x-direction.
 
    +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a|                          |                        |b|                           |
+   |                        |a3|                         |                        |b3|                          |
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.9819669.   |
    +-----------------------------------------------------+------------------------------------------------------+
 
 Scalar Advection: Rigid Rotation
 ----------------------------------
+This tests scalar advection in a flow field representing rigid body rotation.
+
 Test Location: `Tests/test_files/ScalarAdvectionRigidRotation`_
 
 .. _`Tests/test_files/ScalarAdvectionRigidRotation`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionRigidRotation
@@ -153,7 +161,7 @@ Problem Location: `Exec/ScalarAdvecRigidRot`_
 
 Scalar Diffusion: Sphere of Scalar
 ------------------------------------------------
-This tests scalar advection with triply periodic boundaries.
+This tests scalar diffusion with triply periodic boundaries.
 
 Test Location: `Tests/test_files/ScalarDiffusion`_
 
@@ -181,7 +189,7 @@ Problem Location: `Exec/ScalarDiffusion`_
 
 Scalar Diffusion: Sinusoidal Variation of Scalar
 ------------------------------------------------
-This tests scalar advection with triply periodic boundaries.
+This tests scalar diffusion with triply periodic boundaries.
 
 Test Location: `Tests/test_files/ScalarDiffusionSine`_
 
