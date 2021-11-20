@@ -129,6 +129,8 @@ ERF::variableSetUp()
 
   amrex::Interpolater* interp;
 
+  // At this cell_cons_interp is the default, but we might at some point use pc_interp for debugging
+  int state_interp_order = 1;
   if (state_interp_order == 0) {
     interp = &amrex::pc_interp;
   } else {
