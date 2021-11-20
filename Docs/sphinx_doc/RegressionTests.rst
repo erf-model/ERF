@@ -179,7 +179,7 @@ Problem Location: `Exec/ScalarDiffusion`_
 
 .. _fig:scalar_diffusion
 
-.. table:: Scalar concentration 
+.. table:: Scalar concentration
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a|                          |                        |b|                           |
@@ -207,7 +207,7 @@ Problem Location: `Exec/ScalarDiffusionSine`_
 
 .. _fig:scalar_diffusion_sine
 
-.. table:: Scalar concentration 
+.. table:: Scalar concentration
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a|                          |                        |b|                           |
@@ -236,7 +236,7 @@ Problem Location: `Exec/ScalarAdvecDiffUniformU`_
 
 .. _fig:scalar_diffusion_sine
 
-.. table:: Scalar concentration 
+.. table:: Scalar concentration
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a|                          |                        |b|                           |
@@ -300,7 +300,7 @@ Problem Location: `Exec/TaylorGreenVortex`_
 
 .. _fig:taylor_green_vortex
 
-.. table:: Scalar concentration 
+.. table:: Scalar concentration
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a|                          |                        |b|                           |
