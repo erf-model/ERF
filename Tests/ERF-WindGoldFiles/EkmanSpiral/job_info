@@ -1,25 +1,23 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-job name: 
-
 inputs file: inputs_ex
 
 number of MPI processes: 1
 
-CPU time used since start of simulation (CPU-hours): 0.0001271
+CPU time used since start of simulation (CPU-hours): 6.53645e-05
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Wed Nov 17 17:54:03 2021
+output data / time: Fri Nov 19 16:57:52 2021
 output dir:         /home/almgren/GitCode/ERF/Exec/EkmanSpiral
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2021-11-17 17:51:32.669195
+build date:    2021-11-19 16:57:10.302860
 build machine: Linux manda 5.8.0-53-generic #60~20.04.1-Ubuntu SMP Thu May 6 09:52:46 UTC 2021 x86_64 x86_64 x86_64 GNU/Linux
 build dir:     /home/almgren/GitCode/ERF/Exec/EkmanSpiral
 AMReX dir:     /home/almgren/GitCode/amrex
@@ -30,8 +28,8 @@ FCOMP:
 FCOMP version: 
 
 
-ERF       git hash: 9472763-dirty
-AMReX       git hash: 21.11-17-g88b868099-dirty
+ERF       git hash: b9a954e-dirty
+AMReX       git hash: 21.11-21-g96ba8b11b-dirty
 
 
 ===============================================================================
@@ -100,9 +98,9 @@ erf.use_smagorinsky = false
 erf.use_pressure = true
 erf.use_gravity = false
 erf.spatial_order = 2
-erf.use_coriolis(nvals = 1)  :: [true]
+erf.use_coriolis = true
 erf.abl_driver_type = GeostrophicWind
-erf.latitude(nvals = 1)  :: [90.]
+erf.latitude = 90.
 erf.abl_geo_wind = 15.0 0.0 0.0
 erf.rotational_time_period = 86164.0900027328
 prob.rho_0 = 1.0
