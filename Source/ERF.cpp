@@ -526,7 +526,6 @@ ERF::computeInitialDt(
 
   amrex::Real dt_0 = 1.0e+100;
   int n_factor = 1;
-  // TODO/DEBUG: This will need to change for optimal subcycling.
   for (int i = 0; i <= finest_level; i++) {
     dt_level[i] = getLevel(i).initialTimeStep();
     n_factor *= n_cycle[i];
