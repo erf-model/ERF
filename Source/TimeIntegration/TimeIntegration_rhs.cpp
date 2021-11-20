@@ -2,10 +2,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-//#include <AMReX_InterpFaceRegister.H>
-
-#include <Constants.H>
-
+#include <ERF_Constants.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 

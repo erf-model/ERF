@@ -18,12 +18,15 @@
 #include "EOS.H"
 #include "Tagging.H"
 #include "IndexDefines.H"
+#include "DataStruct.H"
 
 using namespace amrex;
 
 bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
+
+SolverChoice ERF::solverChoice;
 
 amrex::Real ERF::cfl         = 0.8;
 amrex::Real ERF::init_shrink = 1.0;
@@ -39,27 +42,9 @@ int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
-bool ERF::use_state_advection = true;
-bool ERF::use_momentum_advection = true;
-bool ERF::use_thermal_diffusion = true;
-bool ERF::use_scalar_diffusion = true;
-bool ERF::use_momentum_diffusion = true;
-bool ERF::use_pressure = true;
-bool ERF::use_gravity = true;
-bool ERF::use_coriolis = false;
-
-amrex::Real ERF::coriolis_factor =  0.0;
-amrex::Real ERF::sinphi =  0.0;
-amrex::Real ERF::cosphi =  0.0;
-
-bool ERF::use_smagorinsky = true;
-
 amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2);
-//amrex::Real ERF::frac_change = 1.e200;
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
-
-#include "erf_defaults.H"
 
 amrex::Vector<int> ERF::src_list;
 
@@ -67,10 +52,6 @@ amrex::Vector<int> ERF::src_list;
 amrex::Real ERF::previousCPUTimeUsed = 0.0;
 amrex::Real ERF::startCPUTime = 0.0;
 int ERF::num_state_type = 0;
-
-std::string ERF::abl_driver_type = "None";
-amrex::Vector<amrex::Real> ERF::abl_geo_forcing   = {0.0, 0.0, 0.0};
-amrex::Vector<amrex::Real> ERF::abl_pressure_grad = {0.0, 0.0, 0.0};
 
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
@@ -131,8 +112,6 @@ ERF::read_params()
 
   amrex::ParmParse pp("erf");
 
-#include <erf_queries.H>
-
   pp.query("v", verbose);
   pp.query("sum_interval", sum_interval);
   pp.query("dump_old", dump_old);
@@ -159,22 +138,6 @@ ERF::read_params()
   pp.query("fixed_dt", fixed_dt);
   pp.query("max_dt", max_dt);
   pp.query("dt_cutoff", dt_cutoff);
-
-  pp.query("abl_driver_type",abl_driver_type);
-  pp.queryarr("abl_pressure_grad",abl_pressure_grad);
-
-  // These default to true but are used for unit testing
-  pp.query("use_state_advection" ,use_state_advection);
-  pp.query("use_state_advection", use_state_advection);
-  pp.query("use_momentum_advection", use_momentum_advection);
-  pp.query("use_thermal_diffusion", use_thermal_diffusion);
-  pp.query("use_scalar_diffusion", use_scalar_diffusion);
-  pp.query("use_momentum_diffusion", use_momentum_diffusion);
-  pp.query("use_pressure", use_pressure);
-  pp.query("use_gravity", use_gravity);
-
-  // Which LES closure
-  pp.query("use_smagorinsky", use_smagorinsky);
 
   // Get boundary conditions
   amrex::Vector<std::string> lo_bc_char(AMREX_SPACEDIM);
@@ -249,9 +212,7 @@ ERF::read_params()
   // Read tagging parameters
   read_tagging_params();
 
-  // Define the Coriolis and geostrophic forcing terms from the inputs
-  if (use_coriolis)
-      build_coriolis_forcings();
+  solverChoice.init_params();
 }
 
 ERF::ERF()
