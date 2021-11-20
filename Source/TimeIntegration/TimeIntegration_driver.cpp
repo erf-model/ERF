@@ -150,7 +150,7 @@ void erf_advance(int level,
     Real abstol          = 1e-4;
     Real t               = time;
     Real tout            = time+dt;
-    Real hfixed          = dt/100;
+    Real hfixed          = dt;
     N_Vector nv_cons     = N_VMake_MultiFab(length, state_old[IntVar::cons].get());
     N_Vector nv_xmom     = N_VMake_MultiFab(length_mx, state_old[IntVar::xmom].get());
     N_Vector nv_ymom     = N_VMake_MultiFab(length_my, state_old[IntVar::ymom].get());
@@ -201,6 +201,26 @@ void erf_advance(int level,
     /* Specify tolerances */
     ERKStepSStolerances(arkode_mem, reltol, abstol);
     ERKStepSetFixedStep(arkode_mem, hfixed);
+
+    // Use SSP-RK3
+    ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNTRUE);
+    B->A[1][0] = 1.0;
+    B->A[2][0] = 0.25;
+    B->A[2][1] = 0.25;
+    B->b[0] = 1./6.;
+    B->b[1] = 1./6.;
+    B->b[2] = 2./3.;
+    B->c[1] = 1.0;
+    B->c[2] = 0.5;
+    B->q=3;
+    B->p=0;
+
+    //Set table
+    ERKStepSetTable(arkode_mem, B);
+
+    // Free the Butcher table
+    ARKodeButcherTable_Free(B);
+
     bool advance_erk=true;
     if(advance_erk)
     {
