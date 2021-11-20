@@ -297,6 +297,11 @@ void erf_rhs (int level,
                 Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
                 rho_w_rhs(i, j, k) += solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
             }
+
+            // Add geostrophic forcing
+            if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
+                rho_w_rhs(i, j, k) += solverChoice.abl_geo_forcing[2];
+
             } // not on coarse-fine boundary
         });
     }
