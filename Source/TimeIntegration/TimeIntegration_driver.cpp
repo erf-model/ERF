@@ -134,7 +134,15 @@ void erf_advance(int level,
     SUNLinearSolver LS = NULL;    /* empty linear solver object */
     void *arkode_mem = NULL;      /* empty ARKode memory structure */
     // Create an N_Vector wrapper for the solution MultiFab
-    sunindextype length = cons_old.nComp() * (cons_old.boxArray()).numPts();
+    auto get_length = [&](int index) -> sunindextype {
+        auto* p_mf = state_old[index].get();
+        return p_mf->nComp() * (p_mf->boxArray()).numPts();
+    };
+
+    sunindextype length = get_length(IntVar::cons);
+    sunindextype length_mx = get_length(IntVar::xmom);
+    sunindextype length_my = get_length(IntVar::ymom);
+    sunindextype length_mz = get_length(IntVar::zmom);
     // Testing data structures, this length may be different for "real" initial condition
     int NVar             = 4;
     //Arbitrary tolerances
@@ -144,9 +152,9 @@ void erf_advance(int level,
     Real tout            = time+dt;
     Real hfixed          = dt/100;
     N_Vector nv_cons     = N_VMake_MultiFab(length, state_old[IntVar::cons].get());
-    N_Vector nv_xmom     = N_VMake_MultiFab(length, state_old[IntVar::xmom].get());
-    N_Vector nv_ymom     = N_VMake_MultiFab(length, state_old[IntVar::ymom].get());
-    N_Vector nv_zmom     = N_VMake_MultiFab(length, state_old[IntVar::zmom].get());
+    N_Vector nv_xmom     = N_VMake_MultiFab(length_mx, state_old[IntVar::xmom].get());
+    N_Vector nv_ymom     = N_VMake_MultiFab(length_my, state_old[IntVar::ymom].get());
+    N_Vector nv_zmom     = N_VMake_MultiFab(length_mz, state_old[IntVar::zmom].get());
     N_Vector nv_many_arr[NVar];              /* vector array composed of cons, xmom, ymom, zmom component vectors */
 
     /* Create manyvector for solution */
@@ -243,13 +251,25 @@ static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = (TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *) user_data;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_rhs;
-  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
+
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_data.resize(num_vecs);
+  S_rhs.resize(num_vecs);
+
+  for(int i=0; i<num_vecs; i++)
   {
-      S_data.emplace_back(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
-      S_rhs.emplace_back(NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
+      S_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
+      S_rhs[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
   }
 
+  integrator->call_post_update(S_data, t);
   integrator->rhs(S_rhs, S_data, t);
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_data[i].release();
+      S_rhs[i].release();
+  }
 
   return 0;
 }
@@ -258,12 +278,21 @@ static int ProcessStage(realtype t, N_Vector y_data, void *user_data)
 {
   TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = (TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *) user_data;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
-  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
+
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_data.resize(num_vecs);
+
+  for(int i=0; i<num_vecs; i++)
   {
-      S_data.emplace_back(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
+      S_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
   }
 
   integrator->call_post_update(S_data, t);
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_data[i].release();
+  }
 
   return 0;
 }
