@@ -23,9 +23,9 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     // TODO: Consider passing turbModel to this function instead of computing it here from SolverChoice
     enum TurbulenceModel turbModel;
 
-    if (solverChoice.les_type == LES_Type::Smagorinsky)
+    if (solverChoice.les_type == LESType::Smagorinsky)
         turbModel = TurbulenceModel::Smagorinsky;
-    else if (solverChoice.les_type == LES_Type::Deardorff)
+    else if (solverChoice.les_type == LESType::Deardorff)
         turbModel = TurbulenceModel::Deardorff;
     else
         turbModel = TurbulenceModel::DNS;
