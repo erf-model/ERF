@@ -51,6 +51,9 @@ The following problems are currently tested in the CI:
 |                               |          |     |     | SW  |       | +gravity       |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
 
+Scalar Advection by Uniform Flow in X-Direction
+------------------------------------------------
+
 Test Location: `Tests/test_files/ScalarAdvectionUniformU`_
 
 .. _`Tests/test_files/ScalarAdvectionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
@@ -143,18 +146,18 @@ Problem Location: `Exec/ScalarAdvecRigidRot`_
 
 .. _`Exec/ScalarAdvecRigidRot`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecRigidRot
 
-.. |a| image:: figures/tests/scalar_advec_rigid_rot_start.png
-       :width: 300
+.. |a4| image:: figures/tests/scalar_advec_rigid_rot_start.png
+        :width: 300
 
-.. |b| image:: figures/tests/scalar_advec_rigid_rot_end.png
-       :width: 300
+.. |b4| image:: figures/tests/scalar_advec_rigid_rot_end.png
+        :width: 300
 
 .. _fig:scalar_advection_rigid_rot
 
 .. table:: Scalar concentration with rigid rotation
 
    +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a|                          |                        |b|                           |
+   |                        |a4|                         |                        |b4|                          |
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 6.283185).   |
    +-----------------------------------------------------+------------------------------------------------------+
@@ -171,18 +174,18 @@ Problem Location: `Exec/ScalarDiffusion`_
 
 .. _`Exec/ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusion
 
-.. |a| image:: figures/tests/scalar_diff_start.png
-       :width: 300
+.. |a5| image:: figures/tests/scalar_diff_start.png
+        :width: 300
 
-.. |b| image:: figures/tests/scalar_diff_end.png
-       :width: 300
+.. |b5| image:: figures/tests/scalar_diff_end.png
+        :width: 300
 
 .. _fig:scalar_diffusion
 
 .. table:: Scalar concentration
 
    +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a|                          |                        |b|                           |
+   |                        |a5|                         |                        |b5|                          |
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.01).       |
    +-----------------------------------------------------+------------------------------------------------------+
@@ -199,18 +202,18 @@ Problem Location: `Exec/ScalarDiffusionSine`_
 
 .. _`Exec/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusionSine
 
-.. |a| image:: figures/tests/scalar_diff_sine_start.png
-       :width: 300
+.. |a6| image:: figures/tests/scalar_diff_sine_start.png
+        :width: 300
 
-.. |b| image:: figures/tests/scalar_diff_sine_end.png
-       :width: 300
+.. |b6| image:: figures/tests/scalar_diff_sine_end.png
+        :width: 300
 
 .. _fig:scalar_diffusion_sine
 
 .. table:: Scalar concentration
 
    +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a|                          |                        |b|                           |
+   |                        |a6|                         |                        |b6|                          |
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.2).        |
    +-----------------------------------------------------+------------------------------------------------------+
@@ -228,25 +231,25 @@ Problem Location: `Exec/ScalarAdvecDiffUniformU`_
 
 .. _`Exec/ScalarAdvecDiffUniformU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecDiffUniformU
 
-.. |a| image:: figures/tests/scalar_advec_diff_start.png
-       :width: 300
+.. |a7| image:: figures/tests/scalar_advec_diff_start.png
+        :width: 300
 
-.. |b| image:: figures/tests/scalar_advec_diff_end.png
-       :width: 300
+.. |b7| image:: figures/tests/scalar_advec_diff_end.png
+        :width: 300
 
 .. _fig:scalar_diffusion_sine
 
 .. table:: Scalar concentration
 
    +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a|                          |                        |b|                           |
+   |                        |a7|                         |                        |b7|                          |
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.01).       |
    +-----------------------------------------------------+------------------------------------------------------+
 
 Isentropic Vortex: Stationary
 ---------------------------------
-This tests advection of an isentropic vortex tith triply periodic boundaries.
+This tests advection of an isentropic vortex with triply periodic boundaries.
 
 Test Location: `Tests/test_files/IsentropicVortexStationary`_
 
@@ -258,7 +261,7 @@ Problem Location: `Exec/IsentropicVortex`_
 
 Isentropic Vortex: Advecting
 ---------------------------
-This tests advection of an isentropic vortex tith triply periodic boundaries.
+This tests advection of an isentropic vortex with triply periodic boundaries.
 
 Test Location: `Tests/test_files/IsentropicVortexAdvecting`_
 
@@ -292,18 +295,18 @@ Problem Location: `Exec/TaylorGreenVortex`_
 
 .. _`Exec/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
 
-.. |a| image:: figures/tests/TGV_start.png
-       :width: 300
+.. |a8| image:: figures/tests/TGV_start.png
+        :width: 300
 
-.. |b| image:: figures/tests/TGV_end.png
-       :width: 300
+.. |b8| image:: figures/tests/TGV_end.png
+        :width: 300
 
 .. _fig:taylor_green_vortex
 
 .. table:: Scalar concentration
 
    +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a|                          |                        |b|                           |
+   |                        |a8|                         |                        |b8|                          |
    +-----------------------------------------------------+------------------------------------------------------+
    |   Flow field at t=0.                                |   Flow field at 10 steps (t = 1.6).                  |
    +-----------------------------------------------------+------------------------------------------------------+
