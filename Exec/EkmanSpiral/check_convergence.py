@@ -35,10 +35,15 @@ def load_soln(pltfile):
 #
 # read all test cases
 #
+#pltfile = 'plt00000'
+pltfile = 'plt00010'
 results = {
-    25.0: load_soln('convergence/dz25.0/plt00010'),
-    12.5: load_soln('convergence/dz12.5/plt00010'),
-    6.25: load_soln('convergence/dz6.25/plt00010'),
+    25.0: load_soln(f'convergence/dz25.0/{pltfile}'),
+    12.5: load_soln(f'convergence/dz12.5/{pltfile}'),
+    6.25: load_soln(f'convergence/dz6.25/{pltfile}'),
+    3.125: load_soln(f'convergence/dz3.125/{pltfile}'),
+    1.5625: load_soln(f'convergence/dz1.5625/{pltfile}'),
+    0.78125: load_soln(f'convergence/dz0.78125/{pltfile}'),
 }
 
 #
@@ -63,6 +68,8 @@ for axi in ax:
 
 fig.savefig('convergence/velocity_profiles.png',bbox_inches='tight')
 
+ax[0].set_ylim((0,50))
+fig.savefig('convergence/velocity_profiles_zoom.png',bbox_inches='tight')
 #
 # plot error profiles
 #
