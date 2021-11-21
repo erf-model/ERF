@@ -66,9 +66,9 @@ struct SolverChoice {
         pp.query("les_type",les_type_string);
         if (!les_type_string.compare("Smagorinsky")) {
             les_type = LESType::Smagorinsky;
-        } else if (!ebl_driver_type_string.compare("Deardorff")) {
+        } else if (!les_type_string.compare("Deardorff")) {
             les_type = LESType::Deardorff;
-        } else if (!abl_driver_type_string.compare("None")) {
+        } else if (!les_type_string.compare("None")) {
             les_type = LESType::None;
         } else {
             amrex::Error("Don't know this les_type");
