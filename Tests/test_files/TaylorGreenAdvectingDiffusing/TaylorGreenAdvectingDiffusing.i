@@ -58,10 +58,12 @@ erf.alpha_T = 1.0
 erf.use_scalar_diffusion = false
 erf.alpha_C = 2.0
 erf.use_momentum_diffusion = true
-erf.dynamicViscosity = 6.25e-4 # 1.5e-5
-erf.use_smagorinsky   = false
 erf.use_pressure = true
 erf.use_gravity = false
+
+erf.les_type         = "None"
+erf.dynamicViscosity = 6.25e-4 # 1.5e-5
+
 erf.spatial_order = 2
 
 # PROBLEM PARAMETERS

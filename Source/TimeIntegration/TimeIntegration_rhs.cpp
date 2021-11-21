@@ -62,7 +62,7 @@ void erf_rhs (int level,
     //    boundaries so that InterpolateTurbulentViscosity works properly
     // *************************************************************************
     MultiFab eddyViscosity(S_data[IntVar::cons]->boxArray(),S_data[IntVar::cons]->DistributionMap(),1,1);
-    if (solverChoice.use_smagorinsky)
+    if (solverChoice.les_type == LESType::Smagorinsky)
     {
         ComputeTurbulentViscosity(xvel, yvel, zvel, *S_data[IntVar::cons], eddyViscosity, dx, solverChoice);
         eddyViscosity.FillBoundary(geom.periodicity());

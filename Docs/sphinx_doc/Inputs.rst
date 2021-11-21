@@ -712,10 +712,9 @@ List of Parameters
 | **erf.alpha_C**                  | Diffusion coeff.   | Real              | 1.0         |
 |                                  | for scalar         |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
-| **erf.use_smagorinsky**          | If true set        | true / false      | true        |
-|                                  | turbulence model   |                   |             |
-|                                  | to Smagorinsky;    |                   |             |
-|                                  | else to DNS        |                   |             |
+| **erf.les_type**                 | Using an LES       | "None",           | "None"      | 
+|                                  | model, and if so,  | "Smagorinsky",    |             |
+|                                  | which type?        | "Deardorff"       |             |
 +----------------------------------+--------------------+-------------------+-------------+
 | **erf.dynamicViscosity**         | Viscous coeff. if  | Real              | 1.5e-5      |
 |                                  | DNS                |                   |             |

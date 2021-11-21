@@ -38,8 +38,12 @@ enum class MomentumEqn {
     x, y, z
 };
 
+enum class LESType {
+    None, Smagorinsky, Deardorff
+};
+
 enum class TurbulenceModel {
-    DNS, Smagorinsky
+    DNS, Smagorinsky, Deardorff
 };
 
 struct SolverChoice {
@@ -58,7 +62,22 @@ struct SolverChoice {
         pp.query("use_gravity", use_gravity);
 
         // Which LES closure?
-        pp.query("use_smagorinsky", use_smagorinsky);
+        static std::string les_type_string = "None";
+        pp.query("les_type",les_type_string);
+        if (!les_type_string.compare("Smagorinsky")) {
+            les_type = LESType::Smagorinsky;
+        } else if (!ebl_driver_type_string.compare("Deardorff")) {
+            les_type = LESType::Deardorff;
+        } else if (!abl_driver_type_string.compare("None")) {
+            les_type = LESType::None;
+        } else {
+            amrex::Error("Don't know this les_type");
+        }
+
+        if (les_type == LESType::Deardorff)
+        {
+            amrex::Error("Deardorff LES model not yet implemented");
+        }
 
         // Diffusive/viscous/LES constants...
         pp.query("alpha_T", alpha_T);
@@ -77,8 +96,7 @@ struct SolverChoice {
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
         pp.query("abl_driver_type",abl_driver_type_string);
-        if (!abl_driver_type_string.compare("PressureGradient"))
-        {
+        if (!abl_driver_type_string.compare("PressureGradient")) {
             abl_driver_type = ABLDriverType::PressureGradient;
         } else if (!abl_driver_type_string.compare("GeostrophicWind")) {
             abl_driver_type = ABLDriverType::GeostrophicWind;
@@ -108,7 +126,6 @@ struct SolverChoice {
         amrex::Print() << "use_thermal_diffusion : " << use_thermal_diffusion << std::endl;
         amrex::Print() << "use_scalar_diffusion  : " << use_scalar_diffusion << std::endl;
         amrex::Print() << "use_momentum_diffusion: " << use_momentum_diffusion << std::endl;
-        amrex::Print() << "use_smagorinsky       : " << use_smagorinsky << std::endl;
         amrex::Print() << "use_pressure          : " << use_pressure << std::endl;
         amrex::Print() << "use_coriolis          : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity           : " << use_gravity << std::endl;
@@ -119,23 +136,30 @@ struct SolverChoice {
         amrex::Print() << "CI                    : " << CI << std::endl;
         amrex::Print() << "PrT                   : " << PrT << std::endl;
         amrex::Print() << "spatial_order         : " << spatial_order << std::endl;
+
         if (abl_driver_type == ABLDriverType::None) {
             amrex::Print() << "ABL Driver Type: " << "None" << std::endl;
             amrex::Print() << "No ABL driver selected " << std::endl;
-        }
-        if (abl_driver_type == ABLDriverType::PressureGradient) {
+        } else if (abl_driver_type == ABLDriverType::PressureGradient) {
             amrex::Print() << "ABL Driver Type: " << "PressureGradient" << std::endl;
             amrex::Print() << "Driving abl_pressure_grad: (";
             for (int i = 0; i < AMREX_SPACEDIM; ++i)
                 amrex::Print() << abl_pressure_grad[i] << " ";
             amrex::Print() << ")" << std::endl;
-        }
-        if (abl_driver_type == ABLDriverType::GeostrophicWind) {
+        } else if (abl_driver_type == ABLDriverType::GeostrophicWind) {
             amrex::Print() << "ABL Driver Type: " << "GeostrophicWind" << std::endl;
             amrex::Print() << "Driving abl_geo_forcing: (";
             for (int i = 0; i < AMREX_SPACEDIM; ++i)
                 amrex::Print() << abl_geo_forcing[i] << " ";
             amrex::Print() << ")" << std::endl;
+        }
+
+        if (les_type == LESType::None) {
+            amrex::Print() << "Using DNS model " << std::Endl;
+        } else if  (les_type == LESType::Smagorinsky) {
+            amrex::Print() << "Using Smagorinsky model " << std::endl;
+        } else if  (les_type == LESType::Deardorff) {
+            amrex::Print() << "Using Deardorff model " << std::endl;
         }
     }
 
@@ -192,7 +216,7 @@ struct SolverChoice {
     amrex::Real dynamicViscosity = 0.0;
 
     // LES model
-    bool        use_smagorinsky = false;
+    LESType les_type;
     // Smagorinsky Cs coefficient
     amrex::Real Cs = 0.0;
     // Smagorinsky CI coefficient

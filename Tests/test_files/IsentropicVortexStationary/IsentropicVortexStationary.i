@@ -58,11 +58,12 @@ erf.alpha_T = 0.0
 erf.use_scalar_diffusion = false
 erf.alpha_C = 0.0
 erf.use_momentum_diffusion = false
-erf.kinematicViscosity = 0.0
-erf.use_smagorinsky   = false
 erf.use_pressure = true
 erf.use_gravity = false
 erf.spatial_order = 2
+
+erf.les_type         = "None"
+erf.dynamicViscosity = 0.0
 
 # PROBLEM PARAMETERS
 prob.p_inf = 1e5  # reference pressure [Pa]
