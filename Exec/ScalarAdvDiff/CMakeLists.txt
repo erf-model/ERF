@@ -1,4 +1,4 @@
-set(erf_exe_name scalar_advection)
+set(erf_exe_name erf_scalar_advdiff)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
