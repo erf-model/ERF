@@ -61,6 +61,8 @@ struct SolverChoice {
         pp.query("use_pressure", use_pressure);
         pp.query("use_gravity", use_gravity);
 
+        gravity = use_gravity? CONST_GRAV: 0.0;
+
         // Which LES closure?
         static std::string les_type_string = "None";
         pp.query("les_type",les_type_string);
@@ -214,6 +216,9 @@ struct SolverChoice {
     amrex::Real alpha_T = 0.0;
     amrex::Real alpha_C= 0.0;
     amrex::Real dynamicViscosity = 0.0;
+
+    // This will be set to 0 or CONST_GRAV, depending on the use_gravity flag
+    amrex::Real gravity;
 
     // LES model
     LESType les_type;

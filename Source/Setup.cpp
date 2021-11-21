@@ -269,14 +269,15 @@ ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
     int nz = dens.size();
     
     // We start by assuming pressure on the ground is p_0 (in ERF_Constants.H)
-    // Note that CONST_GRAV is positive
+    // Note that gravity is positive
 
     int l_spatial_order = solverChoice.spatial_order;
+    int l_gravity       = solverChoice.gravity;
 
     Real dens_interp;
 
     // We integrate to the first cell by using rho in this cell
-    pres[0] = p_0 - (0.5*dz) * dens[0] * CONST_GRAV;
+    pres[0] = p_0 - (0.5*dz) * dens[0] * l_gravity;
 
     for (int k = 1; k < nz; k++)
     {
@@ -301,6 +302,6 @@ ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
                                 +( 1./60.)*(dens[k+2]+dens[k-3]) ;
                break;
         }
-        pres[k] = pres[k-1] - (0.5*dz) * dens_interp * CONST_GRAV;
+        pres[k] = pres[k-1] - (0.5*dz) * dens_interp * l_gravity;
     }
 }
