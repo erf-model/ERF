@@ -62,7 +62,8 @@ erf.use_momentum_diffusion = true
 erf.use_pressure = true
 erf.use_gravity = false
 
-erf.les_type   = "None"
+erf.les_type = "Smagorinsky"
+erf.Cs       = 0.1
 
 erf.spatial_order = 2
 

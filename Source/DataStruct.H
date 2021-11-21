@@ -155,7 +155,7 @@ struct SolverChoice {
         }
 
         if (les_type == LESType::None) {
-            amrex::Print() << "Using DNS model " << std::Endl;
+            amrex::Print() << "Using DNS model " << std::endl;
         } else if  (les_type == LESType::Smagorinsky) {
             amrex::Print() << "Using Smagorinsky model " << std::endl;
         } else if  (les_type == LESType::Deardorff) {
