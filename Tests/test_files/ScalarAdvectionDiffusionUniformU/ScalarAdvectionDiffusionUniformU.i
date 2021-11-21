@@ -67,6 +67,11 @@ erf.spatial_order = 2
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
+prob.u_0 = 100.0
+prob.v_0 = 0.0
+prob.uRef  = 0.0
+
+prob.prob_type = 10
 
 # INTEGRATION
 ## integration.type can take on the following values:

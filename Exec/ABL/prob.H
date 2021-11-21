@@ -15,7 +15,6 @@
 
 struct ProbParm {
   amrex::Real rho_0 = 0.0; // left density (g/cc)
-  amrex::Real rhoe_0;
   amrex::Real Theta_0 = 300.0;
   amrex::Real A_0 = 1.0;
 

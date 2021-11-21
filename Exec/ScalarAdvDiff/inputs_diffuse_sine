@@ -8,8 +8,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 1
 geometry.prob_lo     =  0     0     0
-geometry.prob_hi     =  1     1     1    
-amr.n_cell           = 32     32     32 #TODO: Need to play around with resolution to get rid of ringing
+geometry.prob_hi     = 6.2831853071795864    6.2831853071795864    6.2831853071795864    
+amr.n_cell           = 64     64     4
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
@@ -18,7 +18,7 @@ erf.lo_bc       = "Interior"   "Interior"   "Interior"
 erf.hi_bc       = "Interior"   "Interior"   "Interior"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 5e-5    # fixed time step #TODO: Need to play around with time step to get rid of ringing
+erf.fixed_dt       = 1e-3    # fixed time step
 #erf.cfl            = 0.9     # cfl number for hyperbolic system
 erf.init_shrink    = 1.0     # scale back initial timestep
 erf.change_max     = 1.05    # scale back initial timestep
@@ -51,8 +51,8 @@ amr.plot_vars        =  density adv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.use_state_advection = true
-erf.use_momentum_advection = true
+erf.use_state_advection = false
+erf.use_momentum_advection = false
 erf.use_thermal_diffusion = false
 erf.alpha_T = 0.0
 erf.use_scalar_diffusion = true
@@ -60,13 +60,18 @@ erf.alpha_C = 1.0
 erf.use_momentum_diffusion = false
 erf.dynamicViscosity = 0.0
 erf.use_smagorinsky   = false
-erf.use_pressure = true
+erf.use_pressure = false
 erf.use_gravity = false
 erf.spatial_order = 2
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.A_0 = 1.0
+prob.A_0 = 0.0
+prob.B_0 = 1.0
+prob.u_0 = 0.0
+prob.v_0 = 0.0
+prob.uRef = 0.0
+prob.prob_type = 10
 
 # INTEGRATION
 ## integration.type can take on the following values:
@@ -93,4 +98,3 @@ integration.rk.type = 3
 integration.rk.weights = 1
 integration.rk.nodes = 0
 integration.rk.tableau = 0.0
-
