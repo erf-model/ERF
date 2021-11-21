@@ -267,7 +267,7 @@ ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
     const auto geomdata = geom.data();
     const Real dz = geomdata.CellSize(2);
     int nz = dens.size();
-    
+
     // We start by assuming pressure on the ground is p_0 (in ERF_Constants.H)
     // Note that gravity is positive
 
@@ -296,8 +296,8 @@ ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
                    dens_interp =  0.5*(dens[k] + dens[k-1]);
                else if (k == 2)
                    dens_interp = (7./12.)*(dens[k] + dens[k-1]) - 1./12.*(dens[k+1]+dens[k-2]);
-               else 
-                   dens_interp = (37./60.)*(dens[k  ]+dens[k-1]) 
+               else
+                   dens_interp = (37./60.)*(dens[k  ]+dens[k-1])
                                - ( 8./60.)*(dens[k+1]+dens[k-2])
                                 +( 1./60.)*(dens[k+2]+dens[k-3]) ;
                break;

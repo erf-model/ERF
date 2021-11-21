@@ -16,8 +16,8 @@ void erf_rhs (int level,
               const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
                     amrex::InterpFaceRegister* ifr,
               const SolverChoice& solverChoice,
-              const amrex::Vector<amrex::Real>& dens_hse, 
-              const amrex::Vector<amrex::Real>& pres_hse) 
+              const amrex::Vector<amrex::Real>& dens_hse,
+              const amrex::Vector<amrex::Real>& pres_hse)
 {
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
 
@@ -178,7 +178,7 @@ void erf_rhs (int level,
             // Add pressure gradient
             if (solverChoice.use_pressure)
                 rho_u_rhs(i, j, k) += (-1.0_rt / dx[0]) *
-                  (getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),pres_hse[k]) - 
+                  (getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),pres_hse[k]) -
                    getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),pres_hse[k]));
 
             // Add gravity term
@@ -231,7 +231,7 @@ void erf_rhs (int level,
             // Add pressure gradient
             if (solverChoice.use_pressure)
                 rho_v_rhs(i, j, k) += (-1.0_rt / dx[1]) *
-                  (getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),pres_hse[k]) - 
+                  (getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),pres_hse[k]) -
                    getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),pres_hse[k]));
 
             // Add gravity term
@@ -282,7 +282,7 @@ void erf_rhs (int level,
             // Add pressure gradient
             if (solverChoice.use_pressure)
                 rho_w_rhs(i, j, k) += (-1.0_rt / dx[2]) *
-                    (getPprimegivenRTh(cell_data(i, j, k    , RhoTheta_comp),pres_hse[k  ]) - 
+                    (getPprimegivenRTh(cell_data(i, j, k    , RhoTheta_comp),pres_hse[k  ]) -
                      getPprimegivenRTh(cell_data(i, j, k - 1, RhoTheta_comp),pres_hse[k-1]));
 
             // Add gravity term
