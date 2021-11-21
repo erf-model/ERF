@@ -302,11 +302,13 @@ ERF::initData()
       pres_hse[lev].resize(0);
     }
 
-    // set the size for the base state at each valid level
+    // Initialize the base state arrays at all levels,
+    //     and set from problem-dependent input
     for (int lev(0); lev <= finest_level; ++lev) {
-      const int zlen = geom.Domain().length(2);
+      const int zlen = parent->Geom(lev).Domain().length(2);
       dens_hse[lev].resize(zlen, 0.0_rt);
       pres_hse[lev].resize(zlen, 0.0_rt);
+      getLevel(lev).initHSE();
     }
   }
 

@@ -227,7 +227,6 @@ ERF::initDataProb (amrex::MultiFab& S_new,
 #endif
 
   const auto geomdata = geom.data();
-  erf_init_hse(dens_hse[level],geomdata);
 
   for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
   {
@@ -250,4 +249,58 @@ ERF::initDataProb (amrex::MultiFab& S_new,
                    << std::endl;
   }
 
+}
+
+void
+ERF::initHSE()
+{
+    erf_init_dens_hse(dens_hse[level]);
+    erf_enforce_hse(dens_hse[level],pres_hse[level]);
+}
+
+void
+ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
+                     amrex::Vector<amrex::Real>& pres)
+{
+    AMREX_ALWAYS_ASSERT(dens.size() == pres.size());
+
+    const auto geomdata = geom.data();
+    const Real dz = geomdata.CellSize(2);
+    int nz = dens.size();
+    
+    // We start by assuming pressure on the ground is p_0 (in ERF_Constants.H)
+    // Note that CONST_GRAV is positive
+
+    int l_spatial_order = solverChoice.spatial_order;
+
+    Real dens_interp;
+
+    // We integrate to the first cell by using rho in this cell
+    pres[0] = p_0 - (0.5*dz) * dens[0] * CONST_GRAV;
+
+    for (int k = 1; k < nz; k++)
+    {
+        switch (l_spatial_order) {
+            case 2:
+               dens_interp = 0.5*(dens[k] + dens[k-1]);
+               break;
+            case 4:
+               if (k == 1)
+                   dens_interp =  0.5*(dens[k] + dens[k-1]);
+               else
+                   dens_interp = (7./12.)*(dens[k] + dens[k-1]) - 1./12.*(dens[k+1]+dens[k-2]);
+               break;
+            case 6:
+               if (k == 1)
+                   dens_interp =  0.5*(dens[k] + dens[k-1]);
+               else if (k == 2)
+                   dens_interp = (7./12.)*(dens[k] + dens[k-1]) - 1./12.*(dens[k+1]+dens[k-2]);
+               else 
+                   dens_interp = (37./60.)*(dens[k  ]+dens[k-1]) 
+                               - ( 8./60.)*(dens[k+1]+dens[k-2])
+                                +( 1./60.)*(dens[k+2]+dens[k-3]) ;
+               break;
+        }
+        pres[k] = pres[k-1] - (0.5*dz) * dens_interp * CONST_GRAV;
+    }
 }

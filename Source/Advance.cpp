@@ -134,7 +134,9 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               geom,
               ref_ratio,
               dx, dt, time, &ifr,
-              solverChoice);
+              solverChoice,
+              dens_hse[level],
+              pres_hse[level]);
 
   return dt;
 }

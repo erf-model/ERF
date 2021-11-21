@@ -117,6 +117,11 @@ public:
   //! Cleanup data descriptors at end of run.
   static void variableCleanUp();
 
+  //! Initialize HSE
+  void initHSE();
+  void erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
+                       amrex::Vector<amrex::Real>& pres);
+
   //! Initialize grid data at problem start-up.
   virtual void initData() override;
   void initDataProb(amrex::MultiFab& S_new,

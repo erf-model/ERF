@@ -65,7 +65,9 @@ void erf_advance(int level,
                  const amrex::Real* dxp, const amrex::Real dt,
                  const amrex::Real time,
                        amrex::InterpFaceRegister* ifr,
-                 const SolverChoice& solverChoice);
+                 const SolverChoice& solverChoice,
+                 const amrex::Vector<amrex::Real>& dens_hse,
+                 const amrex::Vector<amrex::Real>& pres_hse);
 
 void erf_rhs(int level,
              Vector<std::unique_ptr<MultiFab> >& S_rhs,
@@ -74,7 +76,9 @@ void erf_rhs(int level,
              std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
              const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
                    amrex::InterpFaceRegister* ifr,
-             const SolverChoice& solverChoice);
+             const SolverChoice& solverChoice,
+             const amrex::Vector<amrex::Real>& dens_hse,
+             const amrex::Vector<amrex::Real>& pres_hse);
 
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
@@ -84,11 +88,27 @@ Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
                            const int &spatial_order);
 
 AMREX_GPU_DEVICE
+Real InterpolatePertFromCell(const int &i, const int &j, const int &k,
+                           const Array4<Real>& qty, const int & qty_index,
+                           const enum NextOrPrev &nextOrPrev,
+                           const enum Coord& coordDir,
+                           const int &spatial_order,
+                           const amrex::Vector<amrex::Real>& hse_vec);
+
+AMREX_GPU_DEVICE
 Real InterpolateDensityFromCellToFace(const int &i, const int &j, const int &k,
                                const Array4<Real>& cons_in,
                                const enum NextOrPrev &nextOrPrev,
                                const enum Coord& coordDir,
                                const int &spatial_order);
+
+AMREX_GPU_DEVICE
+Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int &k,
+                               const Array4<Real>& cons_in,
+                               const enum NextOrPrev &nextOrPrev,
+                               const enum Coord& coordDir,
+                               const int &spatial_order,
+                               const amrex::Vector<amrex::Real>& hse_vec);
 
 AMREX_GPU_DEVICE
 Real InterpolateRhoThetaFromCellToFace(const int &i, const int &j, const int &k,

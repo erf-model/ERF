@@ -39,8 +39,7 @@ erf_vortex_Gaussian(
   const ProbParm& parms);
 
 void
-erf_init_hse(amrex::Vector<amrex::Real>& dens_hse,
-             amrex::GeometryData const& geomdata);
+erf_init_dens_hse(amrex::Vector<amrex::Real>& dens_hse);
 
 void
 erf_init_prob(
