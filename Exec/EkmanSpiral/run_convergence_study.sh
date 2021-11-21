@@ -26,6 +26,9 @@ rm -rf $studydir
 run_case 200 'dz25.0'
 run_case 400 'dz12.5'
 run_case 800 'dz6.25'
+run_case 1600 'dz3.125'
+run_case 3200 'dz1.5625'
+run_case 6400 'dz0.78125'
 
 python check_convergence.py
 
