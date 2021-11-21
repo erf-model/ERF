@@ -51,7 +51,7 @@ To build the code and run a sample problem:
 
 1. Move to an example build folder, build an executable, and run a test case: ::
 
-    cd ${ERF_HOME}/Exec/ScalarAdvection
+    cd ${ERF_HOME}/Exec/ScalarAdvDiff
     make
     ./ERF3d.xxx.yyy.ex inputs_ex
 

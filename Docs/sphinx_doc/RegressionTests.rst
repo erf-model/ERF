@@ -32,7 +32,7 @@ The following problems are currently tested in the CI:
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
 | ScalarAdvectionDiffusion      | 16 16 16 | per | per | per | None  |                |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
-| ScalarDiffusion               | 16 16 16 | per | per | per | None  |                |
+| ScalarDiffusionGaussian       | 16 16 16 | per | per | per | None  |                |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
 | ScalarDiffusionSine           | 16 16  4 | per | per | per | None  |                |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
@@ -58,9 +58,9 @@ Test Location: `Tests/test_files/ScalarAdvectionUniformU`_
 
 .. _`Tests/test_files/ScalarAdvectionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
-Problem Location: `Exec/ScalarAdvection`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
+.. _`Exec/ScalarDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
 .. |a1| image:: figures/tests/scalar_advec_uniform_u_start.png
         :width: 300
@@ -86,9 +86,9 @@ Test Location: `Tests/test_files/ScalarAdvectionUniformUV`_
 
 .. _`Tests/test_files/ScalarAdvectionUniformUV`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformUV
 
-Problem Location: `Exec/ScalarAdvection`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
 .. |a2| image:: figures/tests/scalar_advec_uniform_uv_start.png
         :width: 300
@@ -114,9 +114,9 @@ Test Location: `Tests/test_files/ScalarAdvectionShearedU`_
 
 .. _`Tests/test_files/ScalarAdvectionShearedU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionShearedU
 
-Problem Location: `Exec/ScalarAdvection`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
 .. |a3| image:: figures/tests/scalar_advec_sheared_u_start.png
         :width: 300
@@ -166,13 +166,13 @@ Scalar Diffusion: Sphere of Scalar
 ------------------------------------------------
 This tests scalar diffusion with triply periodic boundaries.
 
-Test Location: `Tests/test_files/ScalarDiffusion`_
+Test Location: `Tests/test_files/ScalarDiffusionGaussian`_
 
-.. _`Tests/test_files/ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion
+.. _`Tests/test_files/ScalarDiffusionGaussian`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionGaussian
 
-Problem Location: `Exec/ScalarDiffusion`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`Exec/ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusion
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
 .. |a5| image:: figures/tests/scalar_diff_start.png
         :width: 300
@@ -180,7 +180,7 @@ Problem Location: `Exec/ScalarDiffusion`_
 .. |b5| image:: figures/tests/scalar_diff_end.png
         :width: 300
 
-.. _fig:scalar_diffusion
+.. _fig:scalar_diffusion_gaussian
 
 .. table:: Scalar concentration
 
@@ -198,9 +198,9 @@ Test Location: `Tests/test_files/ScalarDiffusionSine`_
 
 .. _`Tests/test_files/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionSine
 
-Problem Location: `Exec/ScalarDiffusionSine`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`Exec/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusionSine
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
 .. |a6| image:: figures/tests/scalar_diff_sine_start.png
         :width: 300
@@ -227,9 +227,9 @@ Test Location: `Tests/test_files/ScalarAdvectionDiffusionUniformU`_
 
 .. _`Tests/test_files/ScalarAdvectionDiffusionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionDiffusionUniformU
 
-Problem Location: `Exec/ScalarAdvecDiffUniformU`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvecDiffUniformU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecDiffUniformU
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
 .. |a7| image:: figures/tests/scalar_advec_diff_start.png
         :width: 300

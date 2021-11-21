@@ -45,11 +45,20 @@ erf_init_prob(
     // Initial potential temperature
     state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
-    // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
-    if (r < r0) {
-       state(i, j, k, RhoScalar_comp) = parms.A_0;
+    if (parms.prob_type == 10)
+    {
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r) + parms.B_0*sin(x);
+        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
+        //            + B_0*sin(x)
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r) + parms.B_0 * sin(x);
+
     } else {
-       state(i, j, k, RhoScalar_comp) = 0.0;
+        // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
+        if (r < r0) {
+           state(i, j, k, RhoScalar_comp) = parms.A_0;
+        } else {
+           state(i, j, k, RhoScalar_comp) = 0.0;
+        }
     }
 
   });
@@ -120,11 +129,14 @@ amrex_probinit(
     pp.query("rho_0", parms.rho_0);
     pp.query("T_0", parms.T_0);
     pp.query("A_0", parms.A_0);
+    pp.query("B_0", parms.B_0);
     pp.query("u_0", parms.u_0);
     pp.query("v_0", parms.v_0);
     pp.query("rad_0", parms.rad_0);
     pp.query("z0", parms.z0);
     pp.query("zRef", parms.zRef);
     pp.query("uRef", parms.uRef);
+
+    pp.query("prob_type", parms.prob_type);
   }
 }
