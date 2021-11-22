@@ -163,7 +163,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 6.283185).   |
    +-----------------------------------------------------+------------------------------------------------------+
 
-See http://ammar-hakim.org/sj/je/je16/je16-ldg.html#rigid-body-rotating-flow 
+See http://ammar-hakim.org/sj/je/je16/je16-ldg.html#rigid-body-rotating-flow
 
 Scalar Diffusion: Sphere of Scalar
 ------------------------------------------------
