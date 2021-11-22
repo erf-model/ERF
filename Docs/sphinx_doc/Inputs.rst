@@ -694,8 +694,8 @@ Examples of Usage
      and print these quanitities.
 
 
-Physics
-=======
+Diffusive Physics
+=================
 
 .. _list-of-parameters-12:
 
@@ -706,24 +706,39 @@ List of Parameters
 | Parameter                        | Definition         | Acceptable        | Default     |
 |                                  |                    | Values            |             |
 +==================================+====================+===================+=============+
-| **erf.alpha_T**                  | Diffusion coeff.   | Real              | 1.0         |
+| **erf.alpha_T**                  | Diffusion coeff.   | Real              | 0.0         |
 |                                  | for temperature    |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
-| **erf.alpha_C**                  | Diffusion coeff.   | Real              | 1.0         |
+| **erf.alpha_C**                  | Diffusion coeff.   | Real              | 0.0         |
 |                                  | for scalar         |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.rho0_trans**               | Reference density  | Real              | 1.0         |
+|                                  | to compute const.  |                   |             |
+|                                  | rho*Alpha          |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
 | **erf.les_type**                 | Using an LES       | "None",           | "None"      |
 |                                  | model, and if so,  | "Smagorinsky",    |             |
 |                                  | which type?        | "Deardorff"       |             |
 +----------------------------------+--------------------+-------------------+-------------+
-| **erf.dynamicViscosity**         | Viscous coeff. if  | Real              | 1.5e-5      |
+| **erf.molec_diff_type**          | Using molecular    | "None",           | "Constant", |
+|                                  | viscosity and      | "Constant"        | but "None"  |
+|                                  | diffusivity?       |                   | for LES     |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.dynamicViscosity**         | Viscous coeff. if  | Real              | 0.0         |
 |                                  | DNS                |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
-| **erf.Cs**                       | Constant           | Real              | 0.1         |
+| **erf.Cs**                       | Constant           | Real              | 0.0         |
 |                                  | Smagorinsky coeff. |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.Pr_t**                     | Turbulent Prandtl  | Real              | 1.0         |
+|                                  | Number             |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.Sc_t**                     | Turbulent Schmidt  | Real              | 1.0         |
+|                                  | Number             |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
 | **erf.spatial_order**            |                    | 1 / 2 / 4         | 2           |
 +----------------------------------+--------------------+-------------------+-------------+
+
 
 Forcing Terms
 =============

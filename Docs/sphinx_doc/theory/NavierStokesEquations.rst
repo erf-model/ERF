@@ -146,7 +146,7 @@ Note that the gradient transport LES models take exactly the same form as the mo
 constant molecular transport coefficients replaced by turbulent equivalents (e.g. :math:`\mu` becomes the turbulent viscosity,
 :math:`\mu_{t}`). Molecular transport is omitted by default in the present implementation because the molecular
 transport coefficients are insignificant compared to turbulent transport for most LES grids. However, for fine LES grids, molecular transport and LES models may both be activated.
-	  
+
 .. note:: Presently, we assume :math:`C_I =0`. This term is similar to the bulk viscosity term for molecular transport and
       should be added if the bulk viscosity term is added. It is believed to be small for low-Mach number flows, but there
       is some discussion in the literature about this topic. See Moin et al., "A dynamic subgrid-scale model for
