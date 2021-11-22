@@ -13,7 +13,7 @@ using namespace amrex;
 void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in,
                          MultiFab& cons_in,
                          MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
-                         const int l_spatial_order)
+                         const SolverChoice& solverChoice)
 {
     BL_PROFILE_VAR("VelocityToMomentum()",VelocityToMomentum);
 
@@ -41,17 +41,17 @@ void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             momx(i,j,k) = velx(i,j,k)* InterpolateDensityFromCellToFace(
                                 i, j, k, cons, NextOrPrev::prev, Coord::x,
-                                l_spatial_order);
+                                solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             momy(i,j,k) = vely(i,j,k)* InterpolateDensityFromCellToFace(
                                 i, j, k, cons, NextOrPrev::prev, Coord::y,
-                                l_spatial_order);
+                                solverChoice.spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             momz(i,j,k) = velz(i,j,k)* InterpolateDensityFromCellToFace(
                                 i, j, k, cons, NextOrPrev::prev, Coord::z,
-                                l_spatial_order);
+                                solverChoice.spatial_order);
         });
     } // end MFIter
 }

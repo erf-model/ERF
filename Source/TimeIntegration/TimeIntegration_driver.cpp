@@ -74,7 +74,7 @@ void erf_advance(int level,
                        *state_old[IntVar::xmom],
                        *state_old[IntVar::ymom],
                        *state_old[IntVar::zmom],
-                       solverChoice.spatial_order);
+                       solverChoice);
 
     // Apply BC on old momentum data on faces before integration
     // **************************************************************************************
@@ -162,7 +162,7 @@ void erf_advance(int level,
                        *state_new[IntVar::xmom],
                        *state_new[IntVar::ymom],
                        *state_new[IntVar::zmom],
-                       0, solverChoice.spatial_order);
+                       0, solverChoice);
 
     // **************************************************************************************
     // Get the final cell centered variables after the step
