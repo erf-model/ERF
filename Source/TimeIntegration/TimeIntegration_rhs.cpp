@@ -185,7 +185,7 @@ void erf_rhs (int level,
             // Add gravity term
             if (solverChoice.use_gravity)
                 rho_u_rhs(i, j, k) += grav_gpu[0] *
-                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, NextOrPrev::prev, 
+                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, NextOrPrev::prev,
                                                        Coord::x, solverChoice.spatial_order, dptr_dens_hse);
 
             // Add driving pressure gradient

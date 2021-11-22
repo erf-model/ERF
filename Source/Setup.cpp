@@ -259,9 +259,9 @@ ERF::initHSE()
 
     // Copy from host version to device version
 #if 0
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_dens_hse[level].begin(), h_dens_hse[level].end(), 
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_dens_hse[level].begin(), h_dens_hse[level].end(),
                      d_dens_hse[level]);
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_pres_hse[level].begin(), h_pres_hse[level].end(), 
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_pres_hse[level].begin(), h_pres_hse[level].end(),
                      d_dens_hse[level]);
 #endif
 }
@@ -305,7 +305,7 @@ ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
                if (k == 1)
                    dens_interp =  0.5*(hptr_dens[k] + hptr_dens[k-1]);
                else
-                   dens_interp = (7./12.)*(hptr_dens[k] + hptr_dens[k-1]) 
+                   dens_interp = (7./12.)*(hptr_dens[k] + hptr_dens[k-1])
                                 -(1./12.)*(hptr_dens[k+1]+hptr_dens[k-2]);
                break;
             case 6:
