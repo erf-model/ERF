@@ -41,17 +41,6 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
       }
     }
 
-    // TODO: Better make it a member of the ERF class. Need to deal with static stuff.
-    SolverChoice solverChoice(use_state_advection, use_momentum_advection,
-                              use_thermal_diffusion, alpha_T,
-                              use_scalar_diffusion, alpha_C,
-                              use_momentum_diffusion, dynamicViscosity,
-                              use_smagorinsky, Cs, Pr_t, Sc_t, rho_0_trans,
-                              use_pressure, use_gravity, use_coriolis,
-                              coriolis_factor, sinphi, cosphi, spatial_order,
-                              abl_driver_type, abl_pressure_grad, abl_geo_forcing);
-    //solverChoice.display();
-
   MultiFab& S_old = get_old_data(State_Type);
   MultiFab& S_new = get_new_data(State_Type);
 
@@ -78,7 +67,8 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
       rV_crse.define(V_crse.boxArray(), V_crse.DistributionMap(), 1, 1);
       rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, 1);
 
-      VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,solverChoice);
+      VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,
+                        solverChoice.spatial_order);
   }
 
   // Fill level 0 ghost cells (including at periodic boundaries)

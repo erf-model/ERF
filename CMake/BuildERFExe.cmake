@@ -15,9 +15,6 @@ function(build_erf_lib erf_lib_name)
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_lib_name})
 
-#  add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/${erf_exe_name})
-  add_subdirectory(${SRC_DIR}/Params ${BIN_DIR}/Params/)
-
   set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/Source")
   target_sources(${erf_lib_name} PRIVATE
                  ${ERF_EOS_DIR}/EOS.H)
@@ -36,13 +33,12 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Advance.cpp
        ${SRC_DIR}/Bld.cpp
        ${SRC_DIR}/DataStruct.H
-       ${SRC_DIR}/Constants.H
+       ${SRC_DIR}/ERF_Constants.H
        ${SRC_DIR}/Derive.H
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/IndexDefines.H
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
-       ${SRC_DIR}/ERF_forcing.cpp
        ${SRC_DIR}/Problem.H
        ${SRC_DIR}/ProblemDerive.H
        ${SRC_DIR}/utils.H

@@ -7,7 +7,7 @@
 #include <AMReX_FArrayBox.H>
 
 #include "IndexDefines.H"
-#include "Constants.H"
+#include "ERF_Constants.H"
 #include "EOS.H"
 #include "Tagging.H"
 #include "ProblemDerive.H"
@@ -37,6 +37,10 @@ erf_vortex_Gaussian(
   amrex::Real x,
   amrex::Real y,
   const ProbParm& parms);
+
+void
+erf_init_hse(amrex::Vector<amrex::Real>& dens_hse,
+             amrex::GeometryData const& geomdata);
 
 void
 erf_init_prob(

@@ -32,7 +32,7 @@ The following problems are currently tested in the CI:
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
 | ScalarAdvectionDiffusion      | 16 16 16 | per | per | per | None  |                |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
-| ScalarDiffusion               | 16 16 16 | per | per | per | None  |                |
+| ScalarDiffusionGaussian       | 16 16 16 | per | per | per | None  |                |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
 | ScalarDiffusionSine           | 16 16  4 | per | per | per | None  |                |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
@@ -51,327 +51,300 @@ The following problems are currently tested in the CI:
 |                               |          |     |     | SW  |       | +gravity       |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarAdvectionUniformU`_
+Scalar Advection by Uniform Flow in X-Direction
+------------------------------------------------
 
-.. _`test_files/ScalarAdvectionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
+Test Location: `Tests/test_files/ScalarAdvectionUniformU`_
 
-Problem Location: `ScalarAdvection`_
+.. _`Tests/test_files/ScalarAdvectionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
-.. _`ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
+Problem Location: `Exec/ScalarAdvDiff`_
 
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/tests/scalar_advec_uniform_u_start.png
-  :width: 600
-.. image:: figures/tests/scalar_advec_uniform_u_end.png
-  :width: 600
-Scalar concentration at times {0, 0.0264788} s.
+.. _`Exec/ScalarDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. |a1| image:: figures/tests/scalar_advec_uniform_u_start.png
+        :width: 300
+
+.. |b1| image:: figures/tests/scalar_advec_uniform_u_end.png
+        :width: 300
+
+.. _fig:scalar_advection_u
+
+.. table:: Scalar concentration with uniform flow in x- and y-directions.
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a1|                         |                       |b1|                           |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.0264788).  |
+   +-----------------------------------------------------+------------------------------------------------------+
 
 Scalar Advection by Uniform Flow in XY Plane
 ------------------------------------------------
 This tests scalar advection with triply periodic boundaries.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarAdvectionUniformUV`_
+Test Location: `Tests/test_files/ScalarAdvectionUniformUV`_
 
-.. _`test_files/ScalarAdvectionUniformUV`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformUV
+.. _`Tests/test_files/ScalarAdvectionUniformUV`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformUV
 
-Problem Location: `ScalarAdvection`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/tests/scalar_advec_uniform_uv_start.png
-  :width: 600
-.. image:: figures/tests/scalar_advec_uniform_uv_end.png
-  :width: 600
-Scalar concentration at times {0, 0.6937161} s
+.. |a2| image:: figures/tests/scalar_advec_uniform_uv_start.png
+        :width: 300
 
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. |b2| image:: figures/tests/scalar_advec_uniform_uv_end.png
+        :width: 300
+
+.. _fig:scalar_advection_uv
+
+.. table:: Scalar concentration with uniform flow in x- and y-directions.
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a2|                         |                        |b2|                          |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.6937161).  |
+   +-----------------------------------------------------+------------------------------------------------------+
 
 Scalar Advection by Sheared Flow
 ------------------------------------------------
-This tests scalar advection with triply periodic boundaries.
+This tests scalar advection in horizontal flow in the x-direction with triply periodic boundaries.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarAdvectionShearedU`_
+Test Location: `Tests/test_files/ScalarAdvectionShearedU`_
 
-.. _`test_files/ScalarAdvectionShearedU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionShearedU
+.. _`Tests/test_files/ScalarAdvectionShearedU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionShearedU
 
-Problem Location: `ScalarAdvection`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`ScalarAdvection`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvection
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/tests/scalar_advec_sheared_u_start.png
-  :width: 600
-.. image:: figures/tests/scalar_advec_sheared_u_end.png
-  :width: 600
-Scalar concentration at times {0, 0.9819669} s.
+.. |a3| image:: figures/tests/scalar_advec_sheared_u_start.png
+        :width: 300
 
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. |b3| image:: figures/tests/scalar_advec_sheared_u_end.png
+        :width: 300
+
+.. _fig:scalar_advection_sheared_u
+
+.. table:: Scalar concentration in vertically sheared flow in x-direction.
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a3|                         |                        |b3|                          |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.9819669.   |
+   +-----------------------------------------------------+------------------------------------------------------+
 
 Scalar Advection: Rigid Rotation
 ----------------------------------
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarAdvectionRigidRotation`_
+This tests scalar advection in a flow field representing rigid body rotation.
 
-.. _`test_files/ScalarAdvectionRigidRotation`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionRigidRotation
+Test Location: `Tests/test_files/ScalarAdvectionRigidRotation`_
 
-Problem Location: `ScalarAdvecRigidRot`_
+.. _`Tests/test_files/ScalarAdvectionRigidRotation`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionRigidRotation
 
-.. _`ScalarAdvecRigidRot`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecRigidRot
+Problem Location: `Exec/ScalarAdvecRigidRot`_
 
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/tests/scalar_advec_rigid_rot_start.png
-  :width: 600
-.. image:: figures/tests/scalar_advec_rigid_rot_end.png
-  :width: 600
-Flow-field at times {0, 6.283185} s.
+.. _`Exec/ScalarAdvecRigidRot`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecRigidRot
 
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. |a4| image:: figures/tests/scalar_advec_rigid_rot_start.png
+        :width: 300
+
+.. |b4| image:: figures/tests/scalar_advec_rigid_rot_end.png
+        :width: 300
+
+.. _fig:scalar_advection_rigid_rot
+
+.. table:: Scalar concentration with rigid rotation
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a4|                         |                        |b4|                          |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 6.283185).   |
+   +-----------------------------------------------------+------------------------------------------------------+
 
 Scalar Diffusion: Sphere of Scalar
 ------------------------------------------------
-This tests scalar advection with triply periodic boundaries.
+This tests scalar diffusion with triply periodic boundaries.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarDiffusion`_
+Test Location: `Tests/test_files/ScalarDiffusionGaussian`_
 
-.. _`test_files/ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion
+.. _`Tests/test_files/ScalarDiffusionGaussian`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionGaussian
 
-Problem Location: `ScalarDiffusion`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusion
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/tests/scalar_diff_start.png
-  :width: 600
-.. image:: figures/tests/scalar_diff_end.png
-  :width: 600
-Flow-field at times {0, 0.01} s.
+.. |a5| image:: figures/tests/scalar_diff_start.png
+        :width: 300
 
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. |b5| image:: figures/tests/scalar_diff_end.png
+        :width: 300
+
+.. _fig:scalar_diffusion_gaussian
+
+.. table:: Scalar concentration
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a5|                         |                        |b5|                          |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.01).       |
+   +-----------------------------------------------------+------------------------------------------------------+
 
 Scalar Diffusion: Sinusoidal Variation of Scalar
 ------------------------------------------------
-This tests scalar advection with triply periodic boundaries.
+This tests scalar diffusion with triply periodic boundaries.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarDiffusionSine`_
+Test Location: `Tests/test_files/ScalarDiffusionSine`_
 
-.. _`test_files/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionSine
+.. _`Tests/test_files/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionSine
 
-Problem Location: `ScalarDiffusion`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`ScalarDiffusion`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarDiffusion
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/tests/scalar_diff_sine_start.png
-  :width: 600
-.. image:: figures/tests/scalar_diff_sine_end.png
-  :width: 600
-Flow-field at times {0, 0.2} s.
+.. |a6| image:: figures/tests/scalar_diff_sine_start.png
+        :width: 300
 
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. |b6| image:: figures/tests/scalar_diff_sine_end.png
+        :width: 300
+
+.. _fig:scalar_diffusion_sine
+
+.. table:: Scalar concentration
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a6|                         |                        |b6|                          |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.2).        |
+   +-----------------------------------------------------+------------------------------------------------------+
 
 
 Scalar Advection/Diffusion by Uniform Flow
 ------------------------------------------------
 This tests scalar advection and diffusion with triply periodic boundaries.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/ScalarAdvectionDiffusionUniformU`_
+Test Location: `Tests/test_files/ScalarAdvectionDiffusionUniformU`_
 
-.. _`test_files/ScalarAdvectionDiffusionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionDiffusionUniformU
+.. _`Tests/test_files/ScalarAdvectionDiffusionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionDiffusionUniformU
 
-Problem Location: `ScalarAdvecDiffUniformU`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`ScalarAdvecDiffUniformU`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecDiffUniformU
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/tests/scalar_advec_diff_start.png
-  :width: 600
-.. image:: figures/tests/scalar_advec_diff_end.png
-  :width: 600
-Flow-field at times {0, 0.01} s.
+.. |a7| image:: figures/tests/scalar_advec_diff_start.png
+        :width: 300
 
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. |b7| image:: figures/tests/scalar_advec_diff_end.png
+        :width: 300
+
+.. _fig:scalar_diffusion_sine
+
+.. table:: Scalar concentration
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a7|                         |                        |b7|                          |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.01).       |
+   +-----------------------------------------------------+------------------------------------------------------+
 
 Isentropic Vortex: Stationary
 ---------------------------------
-This tests advection of an isentropic vortex tith triply periodic boundaries.
+This tests advection of an isentropic vortex with triply periodic boundaries.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/IsentropicVortexStationary`_
+Test Location: `Tests/test_files/IsentropicVortexStationary`_
 
-.. _`test_files/IsentropicVortexStationary`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexStationary
+.. _`Tests/test_files/IsentropicVortexStationary`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexStationary
 
-Problem Location: `IsentropicVortex`_
+Problem Location: `Exec/IsentropicVortex`_
 
-.. _`IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
-
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _`Exec/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
 
 Isentropic Vortex: Advecting
 ---------------------------
-This tests advection of an isentropic vortex tith triply periodic boundaries.
+This tests advection of an isentropic vortex with triply periodic boundaries.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/IsentropicVortexAdvecting`_
+Test Location: `Tests/test_files/IsentropicVortexAdvecting`_
 
-.. _`test_files/IsentropicVortexAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexAdvecting
+.. _`Tests/test_files/IsentropicVortexAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexAdvecting
 
-Problem Location: `IsentropicVortex`_
+Problem Location: `Exec/IsentropicVortex`_
 
-.. _`IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
-
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _`Exec/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
 
 Taylor Green Vortex: Advection
 ------------------------------------------------
 This tests advection and diffusion with triply periodic boundaries.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/TaylorGreenAdvecting`_
+Test Location: `Tests/test_files/TaylorGreenAdvecting`_
 
-.. _`test_files/TaylorGreenAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvecting
+.. _`Tests/test_files/TaylorGreenAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvecting
 
-Problem Location: `TaylorGreenVortex`_
+Problem Location: `Exec/TaylorGreenVortex`_
 
-.. _`TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
-
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _`Exec/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
 
 Taylor Green Vortex: Advection and Diffusion
 ------------------------------------------------
 This tests advection and diffusion with triply periodic boundaries.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/TaylorGreenAdvectingDiffusing`_
+Test Location: `Tests/test_files/TaylorGreenAdvectingDiffusing`_
 
-.. _`test_files/TaylorGreenAdvectingDiffusing`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvectingDiffusing
+.. _`Tests/test_files/TaylorGreenAdvectingDiffusing`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvectingDiffusing
 
-Problem Location: `TaylorGreenVortex`_
+Problem Location: `Exec/TaylorGreenVortex`_
 
-.. _`TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
+.. _`Exec/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
 
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/tests/TGV_start.png
-  :width: 600
-.. image:: figures/tests/TGV_end.png
-  :width: 600
-Flow-field at times {0, 1.6} s.
+.. |a8| image:: figures/tests/TGV_start.png
+        :width: 300
 
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. |b8| image:: figures/tests/TGV_end.png
+        :width: 300
+
+.. _fig:taylor_green_vortex
+
+.. table:: Scalar concentration
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a8|                         |                        |b8|                          |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Flow field at t=0.                                |   Flow field at 10 steps (t = 1.6).                  |
+   +-----------------------------------------------------+------------------------------------------------------+
 
 Channel Flow: DNS
 ------------------------
-Problem Definition
-~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Problem Location: `ChannelDNS`_
+Problem Location: `Exec/ChannelDNS`_
 
-.. _`ChannelDNS`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelDNS
-
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _`Exec/ChannelDNS`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelDNS
 
 Channel Flow: LES
 ------------------------
-Problem Definition
-~~~~~~~~~~~~~~~~~~
 Test Location:
 
-Problem Location: `ChannelLES`_
+Problem Location: `Exec/ChannelLES`_
 
-.. _`ChannelLES`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelLES
-
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _`Exec/ChannelLES`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelLES
 
 Couette Flow
 ------------
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/CouetteFlow`_
+Test Location: `Tests/test_files/CouetteFlow`_
 
-.. _`test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow
+.. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow
 
-Problem Location: `CouetteFlow`_
+Problem Location: `Exec/CouetteFlow`_
 
-.. _`CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Exec/CouetteFlow
-
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _`Exec/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Exec/CouetteFlow
 
 Ekman Spiral
 ---------------------------
 This tests the Coriolis and geostrophic forcing.
 
-Problem Definition
-~~~~~~~~~~~~~~~~~~
-Test Location: `test_files/EkmanSpiral`_
+Test Location: `Tests/test_files/EkmanSpiral`_
 
-.. _`test_files/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/EkmanSpiral
+.. _`Tests/test_files/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/EkmanSpiral
 
-Problem Location: `EkmanSpiral`_
+Problem Location: `Exec/EkmanSpiral`_
 
-.. _`EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/EkmanSpiral
-
-Sample Solution/ Flow-field
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-V&V for the Reference Solution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. _`Exec/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/EkmanSpiral

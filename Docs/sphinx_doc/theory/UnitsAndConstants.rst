@@ -46,4 +46,4 @@ Constants
    | :math:`\gamma`        | 1.4                   | :math:`c_p /(c_p-R_d)`   |
    +-----------------------+-----------------------+--------------------------+
 
-These constants are defined in the file  :cpp:`Source/Constants.H`
+These constants are defined in the file  :cpp:`Source/ERF_Constants.H`

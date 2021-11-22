@@ -7,7 +7,7 @@
 #include <AMReX_FArrayBox.H>
 
 #include "IndexDefines.H"
-#include "Constants.H"
+#include "ERF_Constants.H"
 #include "EOS.H"
 #include "Tagging.H"
 #include "ProblemDerive.H"
@@ -20,6 +20,10 @@ struct ProbParm {
 }; // namespace ProbParm
 
 extern ProbParm parms;
+
+void
+erf_init_hse(amrex::Vector<amrex::Real>& dens_hse,
+             amrex::GeometryData const& geomdata);
 
 void
 erf_init_prob(

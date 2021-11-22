@@ -20,63 +20,6 @@ grow_box_by_one(const amrex::Box& b)
   return amrex::grow(b, 1);
 }
 
-//
-// Components are:
-//  Interior, Inflow, Outflow,  Symmetry,     SlipWall,     NoSlipWall, UserBC
-//
-static int scalar_bc[] = {INT_DIR,      EXT_DIR,      FOEXTRAP, REFLECT_EVEN,
-                          REFLECT_EVEN, REFLECT_EVEN, EXT_DIR};
-
-//static int norm_vel_bc[] = {INT_DIR,     EXT_DIR,     FOEXTRAP, REFLECT_ODD,
-//                            REFLECT_ODD, REFLECT_ODD, EXT_DIR};
-
-//static int tang_vel_bc[] = {INT_DIR,      EXT_DIR,     FOEXTRAP, REFLECT_EVEN,
-//                            REFLECT_EVEN, REFLECT_ODD, EXT_DIR};
-
-static void
-set_scalar_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
-{
-  const int* lo_bc = phys_bc.lo();
-  const int* hi_bc = phys_bc.hi();
-  for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-    bc.setLo(dir, scalar_bc[lo_bc[dir]]);
-    bc.setHi(dir, scalar_bc[hi_bc[dir]]);
-  }
-}
-
-//static void
-//set_x_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
-//{
-//  const int* lo_bc = phys_bc.lo();
-//  const int* hi_bc = phys_bc.hi();
-//  AMREX_D_TERM(
-//    bc.setLo(0, norm_vel_bc[lo_bc[0]]); bc.setHi(0, norm_vel_bc[hi_bc[0]]);
-//    , bc.setLo(1, tang_vel_bc[lo_bc[1]]); bc.setHi(1, tang_vel_bc[hi_bc[1]]);
-//    , bc.setLo(2, tang_vel_bc[lo_bc[2]]); bc.setHi(2, tang_vel_bc[hi_bc[2]]););
-//}
-//
-//static void
-//set_y_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
-//{
-//  const int* lo_bc = phys_bc.lo();
-//  const int* hi_bc = phys_bc.hi();
-//  AMREX_D_TERM(
-//    bc.setLo(0, tang_vel_bc[lo_bc[0]]); bc.setHi(0, tang_vel_bc[hi_bc[0]]);
-//    , bc.setLo(1, norm_vel_bc[lo_bc[1]]); bc.setHi(1, norm_vel_bc[hi_bc[1]]);
-//    , bc.setLo(2, tang_vel_bc[lo_bc[2]]); bc.setHi(2, tang_vel_bc[hi_bc[2]]););
-//}
-//
-//static void
-//set_z_vel_bc(amrex::BCRec& bc, const amrex::BCRec& phys_bc)
-//{
-//  const int* lo_bc = phys_bc.lo();
-//  const int* hi_bc = phys_bc.hi();
-//  AMREX_D_TERM(
-//    bc.setLo(0, tang_vel_bc[lo_bc[0]]); bc.setHi(0, tang_vel_bc[hi_bc[0]]);
-//    , bc.setLo(1, tang_vel_bc[lo_bc[1]]); bc.setHi(1, tang_vel_bc[hi_bc[1]]);
-//    , bc.setLo(2, norm_vel_bc[lo_bc[2]]); bc.setHi(2, norm_vel_bc[hi_bc[2]]););
-//}
-
 void
 ERF::variableSetUp()
 {
@@ -129,6 +72,8 @@ ERF::variableSetUp()
 
   amrex::Interpolater* interp;
 
+  // At this cell_cons_interp is the default, but we might at some point use pc_interp for debugging
+  int state_interp_order = 1;
   if (state_interp_order == 0) {
     interp = &amrex::pc_interp;
   } else {
@@ -155,11 +100,9 @@ ERF::variableSetUp()
 
   amrex::BCRec bc;
   int cnt = 0;
-  //set_scalar_bc(bc, phys_bc);
   bcs[cnt] = bc;
   name[cnt] = "density";
   cnt++;
-  //set_scalar_bc(bc, phys_bc);
   bcs[cnt] = bc;
   name[cnt] = "rhotheta";
 
@@ -167,7 +110,6 @@ ERF::variableSetUp()
     char buf[64];
     sprintf(buf, "adv_%d", i);
     cnt++;
-    //set_scalar_bc(bc, phys_bc);
     bcs[cnt] = bc;
     name[cnt] = std::string(buf);
   }
@@ -182,6 +124,12 @@ ERF::variableSetUp()
   //     and for all conserved quantities as well
   //     (unnecessary right now but convenient)
   //
+  amrex::StateDescriptor::BndryFunc bndryfunc_null(erf_nullfill);
+  bndryfunc_null.setRunOnGPU(true);
+  amrex::Vector<amrex::BCRec> vel_bcs(1);
+  amrex::Vector<std::string> vel_name(1);
+  vel_bcs[0] = bc;
+
   store_in_checkpoint = true;
   amrex::IndexType xface(amrex::IntVect(1,0,0));
   desc_lst.addDescriptor(X_Vel_Type, xface,
@@ -189,17 +137,26 @@ ERF::variableSetUp()
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
+  vel_name[0] = "x_velocity";
+  desc_lst.setComponent(X_Vel_Type, 0, vel_name, vel_bcs, bndryfunc_null);
+
   amrex::IndexType yface(amrex::IntVect(0,1,0));
   desc_lst.addDescriptor(Y_Vel_Type, yface,
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
+  vel_name[0] = "y_velocity";
+  desc_lst.setComponent(Y_Vel_Type, 0, vel_name, vel_bcs, bndryfunc_null);
+
   amrex::IndexType zface(amrex::IntVect(0,0,1));
   desc_lst.addDescriptor(Z_Vel_Type, zface,
                          amrex::StateDescriptor::Point, 1, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
+
+  vel_name[0] = "z_velocity";
+  desc_lst.setComponent(Z_Vel_Type, 0, vel_name, vel_bcs, bndryfunc_null);
 
   num_state_type = desc_lst.size();
 
@@ -269,6 +226,9 @@ ERF::initDataProb (amrex::MultiFab& S_new,
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
 
+  const auto geomdata = geom.data();
+  erf_init_hse(dens_hse[level],geomdata);
+
   for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
   {
     const amrex::Box& bx = mfi.tilebox();
@@ -276,7 +236,6 @@ ERF::initDataProb (amrex::MultiFab& S_new,
     auto ufab  = U_new.array(mfi);
     auto vfab  = V_new.array(mfi);
     auto wfab  = W_new.array(mfi);
-    const auto geomdata = geom.data();
     erf_init_prob(bx, sfab, ufab, vfab, wfab, geomdata);
   }
 

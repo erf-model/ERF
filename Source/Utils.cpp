@@ -78,13 +78,6 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
              */
 
 
-            // FIXME
-            // Declaring in this way doesn't work. I think it's because the box arrays
-            // have been changed and each src box is not completely contained within a
-            // single box in the Factory's BA
-            // For now, coarse-fine boundary doesn't intersect EB, so should be okay...
-            // MultiFab crse_src(crse_src_ba, dm, 1, 0, MFInfo(), getLevel(lev-1).Factory());
-            // MultiFab fine_src(fine_src_ba, dm, 1, 0, MFInfo(), Factory());
             MultiFab crse_src(crse_src_ba, dm, 1, 0);
             MultiFab fine_src(fine_src_ba, dm, 1, 0);
 

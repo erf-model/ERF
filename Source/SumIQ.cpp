@@ -46,6 +46,7 @@ ERF::sum_integrated_quantities()
             if (time == 0.0) {
               data_log1 << std::setw(datwidth) << "          time";
               data_log1 << std::setw(datwidth) << "          mass";
+              data_log1 << std::endl;
             }
 
             // Write the quantities at this time

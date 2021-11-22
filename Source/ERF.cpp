@@ -18,12 +18,15 @@
 #include "EOS.H"
 #include "Tagging.H"
 #include "IndexDefines.H"
+#include "DataStruct.H"
 
 using namespace amrex;
 
 bool ERF::signalStopJob = false;
 bool ERF::dump_old = false;
 int ERF::verbose = 0;
+
+SolverChoice ERF::solverChoice;
 
 amrex::Real ERF::cfl         = 0.8;
 amrex::Real ERF::init_shrink = 1.0;
@@ -39,38 +42,19 @@ int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
-bool ERF::use_state_advection = true;
-bool ERF::use_momentum_advection = true;
-bool ERF::use_thermal_diffusion = true;
-bool ERF::use_scalar_diffusion = true;
-bool ERF::use_momentum_diffusion = true;
-bool ERF::use_pressure = true;
-bool ERF::use_gravity = true;
-bool ERF::use_coriolis = false;
-
-amrex::Real ERF::coriolis_factor =  0.0;
-amrex::Real ERF::sinphi =  0.0;
-amrex::Real ERF::cosphi =  0.0;
-
-bool ERF::use_smagorinsky = true;
-
 amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2);
-//amrex::Real ERF::frac_change = 1.e200;
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
 
-#include "erf_defaults.H"
-
 amrex::Vector<int> ERF::src_list;
+
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::dens_hse(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::pres_hse(0);
 
 // this will be reset upon restart
 amrex::Real ERF::previousCPUTimeUsed = 0.0;
 amrex::Real ERF::startCPUTime = 0.0;
 int ERF::num_state_type = 0;
-
-std::string ERF::abl_driver_type = "None";
-amrex::Vector<amrex::Real> ERF::abl_geo_forcing   = {0.0, 0.0, 0.0};
-amrex::Vector<amrex::Real> ERF::abl_pressure_grad = {0.0, 0.0, 0.0};
 
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
@@ -131,8 +115,6 @@ ERF::read_params()
 
   amrex::ParmParse pp("erf");
 
-#include <erf_queries.H>
-
   pp.query("v", verbose);
   pp.query("sum_interval", sum_interval);
   pp.query("dump_old", dump_old);
@@ -159,22 +141,6 @@ ERF::read_params()
   pp.query("fixed_dt", fixed_dt);
   pp.query("max_dt", max_dt);
   pp.query("dt_cutoff", dt_cutoff);
-
-  pp.query("abl_driver_type",abl_driver_type);
-  pp.queryarr("abl_pressure_grad",abl_pressure_grad);
-
-  // These default to true but are used for unit testing
-  pp.query("use_state_advection" ,use_state_advection);
-  pp.query("use_state_advection", use_state_advection);
-  pp.query("use_momentum_advection", use_momentum_advection);
-  pp.query("use_thermal_diffusion", use_thermal_diffusion);
-  pp.query("use_scalar_diffusion", use_scalar_diffusion);
-  pp.query("use_momentum_diffusion", use_momentum_diffusion);
-  pp.query("use_pressure", use_pressure);
-  pp.query("use_gravity", use_gravity);
-
-  // Which LES closure
-  pp.query("use_smagorinsky", use_smagorinsky);
 
   // Get boundary conditions
   amrex::Vector<std::string> lo_bc_char(AMREX_SPACEDIM);
@@ -249,9 +215,7 @@ ERF::read_params()
   // Read tagging parameters
   read_tagging_params();
 
-  // Define the Coriolis and geostrophic forcing terms from the inputs
-  if (use_coriolis)
-      build_coriolis_forcings();
+  solverChoice.init_params();
 }
 
 ERF::ERF()
@@ -324,6 +288,28 @@ ERF::initData()
   amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
 
+  if (level == 0) {
+    //
+    // Setup Base State Arrays
+    //
+    const int max_level = parent->maxLevel();
+    const int finest_level = parent->finestLevel();
+    dens_hse.resize(max_level+1, Vector<Real>(0));
+    pres_hse.resize(max_level+1, Vector<Real>(0));
+
+    for (int lev(0); lev <= max_level; ++lev) {
+      dens_hse[lev].resize(0);
+      pres_hse[lev].resize(0);
+    }
+
+    // set the size for the base state at each valid level
+    for (int lev(0); lev <= finest_level; ++lev) {
+      const int zlen = geom.Domain().length(2);
+      dens_hse[lev].resize(zlen, 0.0_rt);
+      pres_hse[lev].resize(zlen, 0.0_rt);
+    }
+  }
+
   initDataProb(S_new, U_new, V_new, W_new);
 }
 
@@ -344,7 +330,14 @@ ERF::init(AmrLevel& old)
   setTimeLevel(cur_time, dt_old, dt_new);
 
   amrex::MultiFab& S_new = get_new_data(State_Type);
+  amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
+  amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
+  amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
+
   FillPatch(old, S_new, 0, cur_time, State_Type, 0, NVAR);
+  FillPatch(old, U_new, 0, cur_time, X_Vel_Type, 0, 1);
+  FillPatch(old, V_new, 0, cur_time, Y_Vel_Type, 0, 1);
+  FillPatch(old, W_new, 0, cur_time, Z_Vel_Type, 0, 1);
 }
 
 /**
@@ -555,7 +548,6 @@ ERF::computeInitialDt(
 
   amrex::Real dt_0 = 1.0e+100;
   int n_factor = 1;
-  // TODO/DEBUG: This will need to change for optimal subcycling.
   for (int i = 0; i <= finest_level; i++) {
     dt_level[i] = getLevel(i).initialTimeStep();
     n_factor *= n_cycle[i];
@@ -660,6 +652,21 @@ ERF::post_regrid(int lbase, int new_finest)
 {
   BL_PROFILE("ERF::post_regrid()");
   fine_mask.clear();
+
+  // if we have not yet initialized the base state, do so
+  if (dens_hse.empty()) {
+    dens_hse.resize(parent->maxLevel()+1, Vector<Real>(0));
+    pres_hse.resize(parent->maxLevel()+1, Vector<Real>(0));
+  }
+
+  if (dens_hse[level].empty()) {
+    const int zlen = geom.Domain().length(2);
+    dens_hse[level].resize(zlen, 0.0_rt);
+    pres_hse[level].resize(zlen, 0.0_rt);
+  }
+
+  // HOOK: initialize the base state at this level
+  // initialize_base_state();
 }
 
 void

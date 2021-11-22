@@ -1,7 +1,7 @@
 #ifndef _EOS_H_
 #define _EOS_H_
 
-#include <Constants.H>
+#include <ERF_Constants.H>
 #include <AMReX.H>
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

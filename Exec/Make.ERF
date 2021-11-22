@@ -35,7 +35,7 @@ all: $(executable)
 	$(SILENT) $(RM) AMReX_buildInfo.cpp
 	@echo SUCCESS
 
-Bdirs := Source Source/Params/param_includes Source/TimeIntegration Source/IO
+Bdirs := Source Source/TimeIntegration Source/IO
 Pdirs := Base Amr Boundary AmrCore
 
 Bpack += $(foreach dir, $(Pdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)
