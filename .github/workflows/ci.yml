@@ -46,6 +46,21 @@ jobs:
         # Install MPI
         ${{matrix.install_deps}}
 
+    - name: Configure SUNDIALS CMake
+      run: |
+        cmake \
+          -B${{runner.workspace}}/ERF/build-sundials-${{matrix.os}} \
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install-sundials \
+          -DCMAKE_INSTALL_LIBDIR=lib \
+          -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON \
+          -DCMAKE_C_COMPILER=$(which gcc)  \
+          -DCMAKE_CXX_COMPILER=$(which g++)   \
+          ${{github.workspace}}/Submodules/SUNDIALS;
+
+    - name: SUNDIALS Build
+      run: |
+        cmake --build ${{runner.workspace}}/ERF/build-sundials-${{matrix.os}} --parallel ${{env.NPROCS}};
+
     - name: Configure CMake
       run: |
         cmake \
@@ -58,6 +73,7 @@ jobs:
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_AMREX_EB:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
+	  -DCMAKE_PREFIX_PATH:PATH=${{runner.workspace}}/ERF/install-sundials \
           ${{github.workspace}};
         # ${{matrix.mpipreflags}} \
         # -DCODECOVERAGE:BOOL=ON \

@@ -75,6 +75,7 @@ else ()
    set(BUILD_IDAS                   OFF                        CACHE INTERNAL "" )
    set(BUILD_CVODES                 OFF                        CACHE INTERNAL "" )
    set(BUILD_TESTING OFF)
+   set(EXAMPLES_INSTALL OFF)
 
    #  Add  SUNDIALS sources to the build
    add_subdirectory(${SUNDIALS_SRC_DIR})

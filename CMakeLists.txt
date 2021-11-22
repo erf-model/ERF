@@ -61,6 +61,13 @@ endif()
 set(AMREX_SUBMOD_LOCATION "${CMAKE_SOURCE_DIR}/Submodules/AMReX")
 include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexOptions.cmake)
 list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
+
+########################## SUNDIALS ##################################
+
+include(SetupSUNDIALS)
+
+########################### AMReX #####################################
+
 add_subdirectory(${AMREX_SUBMOD_LOCATION})
 include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexCompileFlags.cmake)
 
