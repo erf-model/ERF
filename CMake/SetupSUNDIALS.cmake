@@ -85,4 +85,25 @@ else ()
    add_library(SUNDIALS::arkode     ALIAS sundials_arkode_static)
    add_library(SUNDIALS::nvecmanyvector ALIAS sundials_nvecmanyvector_static)
 
+   if (AMReX_GPU_BACKEND STREQUAL CUDA)
+      add_library(SUNDIALS::nveccuda ALIAS sundials_nveccuda_static)
+      install(TARGETS sundials_nveccuda_static
+      EXPORT sundials)
+   elseif (AMReX_GPU_BACKEND STREQUAL HIP)
+      add_library(SUNDIALS::nvechip ALIAS sundials_nvechip_static)
+      install(TARGETS sundials_nvechip_static
+      EXPORT sundials)
+   elseif (AMReX_GPU_BACKEND STREQUAL SYCL)
+      add_library(SUNDIALS::nvecsycl ALIAS sundials_nvecsycl_static)
+      install(TARGETS sundials_nvecsycl_static
+      EXPORT sundials)
+   else ()
+     add_library(SUNDIALS::nvecserial ALIAS sundials_nvecserial_static)
+     install(TARGETS sundials_nvecserial_static
+     EXPORT sundials)
+   endif ()
+
+   export(EXPORT sundials)
+   set(SUNDIALS_FOUND TRUE)
+
 endif ()
