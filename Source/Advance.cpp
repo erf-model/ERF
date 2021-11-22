@@ -123,6 +123,8 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   //          V_new    (y-velocity on y-faces)
   //          W_new    (z-velocity on z-faces)
   // *****************************************************************
+  amrex::Real* dptr_dens_hse = d_dens_hse[level].data() + ng_dens_hse;
+  amrex::Real* dptr_pres_hse = d_pres_hse[level].data() + ng_pres_hse;
   erf_advance(level,
               state_mf, S_new,
               U_old, V_old, W_old,
@@ -135,8 +137,7 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               ref_ratio,
               dx, dt, time, &ifr,
               solverChoice,
-              dens_hse[level],
-              pres_hse[level]);
+              dptr_dens_hse, dptr_pres_hse);
 
   return dt;
 }

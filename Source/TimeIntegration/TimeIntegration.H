@@ -66,8 +66,8 @@ void erf_advance(int level,
                  const amrex::Real time,
                        amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice,
-                 const amrex::Vector<amrex::Real>& dens_hse,
-                 const amrex::Vector<amrex::Real>& pres_hse);
+                 const amrex::Real* dptr_dens_hse,
+                 const amrex::Real* dptr_pres_hse);
 
 void erf_rhs(int level,
              Vector<std::unique_ptr<MultiFab> >& S_rhs,
@@ -77,8 +77,8 @@ void erf_rhs(int level,
              const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
                    amrex::InterpFaceRegister* ifr,
              const SolverChoice& solverChoice,
-             const amrex::Vector<amrex::Real>& dens_hse,
-             const amrex::Vector<amrex::Real>& pres_hse);
+             const amrex::Real* dptr_dens_hse,
+             const amrex::Real* dptr_pres_hse);
 
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
@@ -93,7 +93,7 @@ Real InterpolatePertFromCell(const int &i, const int &j, const int &k,
                            const enum NextOrPrev &nextOrPrev,
                            const enum Coord& coordDir,
                            const int &spatial_order,
-                           const amrex::Vector<amrex::Real>& hse_vec);
+                           const amrex::Real* dptr_hse);
 
 AMREX_GPU_DEVICE
 Real InterpolateDensityFromCellToFace(const int &i, const int &j, const int &k,
@@ -108,7 +108,7 @@ Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int 
                                const enum NextOrPrev &nextOrPrev,
                                const enum Coord& coordDir,
                                const int &spatial_order,
-                               const amrex::Vector<amrex::Real>& hse_vec);
+                               const amrex::Real* dptr_hse);
 
 AMREX_GPU_DEVICE
 Real InterpolateRhoThetaFromCellToFace(const int &i, const int &j, const int &k,

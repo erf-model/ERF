@@ -28,10 +28,10 @@ InterpolateDensityPertFromCellToFace(
   const NextOrPrev& nextOrPrev,
   const Coord& coordDir,
   const int& spatial_order,
-  const amrex::Vector<amrex::Real>& hse_vec)
+  const amrex::Real* dptr_hse)
 {
   return InterpolatePertFromCell(
-    i, j, k, cons_in, Rho_comp, nextOrPrev, coordDir, spatial_order, hse_vec);
+    i, j, k, cons_in, Rho_comp, nextOrPrev, coordDir, spatial_order, dptr_hse);
 }
 
 AMREX_GPU_DEVICE
@@ -257,7 +257,7 @@ InterpolatePertFromCell(
   const NextOrPrev& nextOrPrev,
   const Coord& coordDir,
   const int& spatial_order,
-  const amrex::Vector<amrex::Real>& hse_vec)
+  const amrex::Real* dptr_hse)
 {
   Real interpolatedVal = 0.0;
   if (nextOrPrev == NextOrPrev::prev) {
@@ -279,8 +279,8 @@ InterpolatePertFromCell(
         interpolatedVal = 0.5*(qty(i, j, k, qty_index) + qty(i, j-1, k, qty_index));
         break;
       case Coord::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
-        interpolatedVal = 0.5*((qty(i, j, k  , qty_index)-hse_vec[k  ])
-                             + (qty(i, j, k-1, qty_index)-hse_vec[k-1]));
+        interpolatedVal = 0.5*((qty(i, j, k  , qty_index)-dptr_hse[k  ])
+                             + (qty(i, j, k-1, qty_index)-dptr_hse[k-1]));
         break;
       default:
         amrex::Abort("Error: Advection direction is unrecognized");
@@ -298,10 +298,10 @@ InterpolatePertFromCell(
                           -(1.0/12.0)*(qty(i, j+1, k, qty_index) + qty(i, j-2, k, qty_index));
         break;
       case Coord::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
-        interpolatedVal = (7.0/12.0)*((qty(i, j, k  , qty_index)-hse_vec[k  ])
-                                    + (qty(i, j, k-1, qty_index)-hse_vec[k-1]))
-                         -(1.0/12.0)*((qty(i, j, k+1, qty_index)-hse_vec[k+1])
-                                    + (qty(i, j, k-2, qty_index)-hse_vec[k-2]));
+        interpolatedVal = (7.0/12.0)*((qty(i, j, k  , qty_index)-dptr_hse[k  ])
+                                    + (qty(i, j, k-1, qty_index)-dptr_hse[k-1]))
+                         -(1.0/12.0)*((qty(i, j, k+1, qty_index)-dptr_hse[k+1])
+                                    + (qty(i, j, k-2, qty_index)-dptr_hse[k-2]));
         break;
       default:
         amrex::Abort("Error: Advection direction is unrecognized");
@@ -321,12 +321,12 @@ InterpolatePertFromCell(
                           +(1.0/60.0)*(qty(i, j+2, k, qty_index) + qty(i, j-3, k, qty_index));
         break;
       case Coord::z: // m = k, q(m-1/2) = q(i    , j    , k-1/2)
-        interpolatedVal = (37.0/60.0)*((qty(i, j, k  , qty_index)-hse_vec[k  ])
-                                     + (qty(i, j, k-1, qty_index)-hse_vec[k-1]))
-                          -(2.0/15.0)*((qty(i, j, k+1, qty_index)-hse_vec[k+1])
-                                     + (qty(i, j, k-2, qty_index)-hse_vec[k-2]))
-                          +(1.0/60.0)*((qty(i, j, k+2, qty_index)-hse_vec[k+2])
-                                     + (qty(i, j, k-3, qty_index)-hse_vec[k-3]));
+        interpolatedVal = (37.0/60.0)*((qty(i, j, k  , qty_index)-dptr_hse[k  ])
+                                     + (qty(i, j, k-1, qty_index)-dptr_hse[k-1]))
+                          -(2.0/15.0)*((qty(i, j, k+1, qty_index)-dptr_hse[k+1])
+                                     + (qty(i, j, k-2, qty_index)-dptr_hse[k-2]))
+                          +(1.0/60.0)*((qty(i, j, k+2, qty_index)-dptr_hse[k+2])
+                                     + (qty(i, j, k-3, qty_index)-dptr_hse[k-3]));
         break;
       default:
         amrex::Abort("Error: Advection direction is unrecognized");

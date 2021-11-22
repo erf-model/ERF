@@ -42,14 +42,20 @@ int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
+// Create dens_hse and pres_hse with one ghost cell
+int ERF::ng_dens_hse = 1;
+int ERF::ng_pres_hse = 1;
+
 amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2);
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
 
 amrex::Vector<int> ERF::src_list;
 
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::dens_hse(0);
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::pres_hse(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_dens_hse(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_pres_hse(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_dens_hse(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_pres_hse(0);
 
 // this will be reset upon restart
 amrex::Real ERF::previousCPUTimeUsed = 0.0;
@@ -293,15 +299,20 @@ ERF::initData()
     // Setup Base State Arrays
     //
     const int max_level = parent->maxLevel();
-    dens_hse.resize(max_level+1, Vector<Real>(0));
-    pres_hse.resize(max_level+1, Vector<Real>(0));
+    h_dens_hse.resize(max_level+1, amrex::Vector<Real>(0));
+    h_pres_hse.resize(max_level+1, amrex::Vector<Real>(0));
+    d_dens_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+    d_pres_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
 
     // Initialize the base state arrays at all levels (with 3 ghost cells),
     //     and set from problem-dependent input
     for (int lev(0); lev <= max_level; ++lev) {
-      const int zlen = parent->Geom(lev).Domain().length(2) + 2*3;
-      dens_hse[lev].resize(zlen, 0.0_rt);
-      pres_hse[lev].resize(zlen, p_0);
+      const int zlen_dens = parent->Geom(lev).Domain().length(2) + 2*ng_dens_hse;
+      h_dens_hse[lev].resize(zlen_dens, 0.0_rt);
+      d_dens_hse[lev].resize(zlen_dens, 0.0_rt);
+      const int zlen_pres = parent->Geom(lev).Domain().length(2) + 2*ng_pres_hse;
+      h_pres_hse[lev].resize(zlen_pres, p_0);
+      d_pres_hse[lev].resize(zlen_pres, p_0);
       getLevel(lev).initHSE();
     }
   }
@@ -634,15 +645,20 @@ ERF::post_restart()
     // Setup Base State Arrays
     //
     const int max_level = parent->maxLevel();
-    dens_hse.resize(max_level+1, Vector<Real>(0));
-    pres_hse.resize(max_level+1, Vector<Real>(0));
+    h_dens_hse.resize(max_level+1, amrex::Vector<Real>(0));
+    h_pres_hse.resize(max_level+1, amrex::Vector<Real>(0));
+    d_dens_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+    d_pres_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
 
     // Initialize the base state arrays at all levels (with 3 ghost cells),
     //     and set from problem-dependent input
     for (int lev(0); lev <= max_level; ++lev) {
-      const int zlen = parent->Geom(lev).Domain().length(2) + 2*3;
-      dens_hse[lev].resize(zlen, 0.0_rt);
-      pres_hse[lev].resize(zlen, p_0);
+      const int zlen_dens = parent->Geom(lev).Domain().length(2) + 2*ng_dens_hse;
+      h_dens_hse[lev].resize(zlen_dens, 0.0_rt);
+      d_dens_hse[lev].resize(zlen_dens, 0.0_rt);
+      const int zlen_pres = parent->Geom(lev).Domain().length(2) + 2*ng_pres_hse;
+      h_pres_hse[lev].resize(zlen_pres, p_0);
+      d_pres_hse[lev].resize(zlen_pres, p_0);
       getLevel(lev).initHSE();
     }
   }
