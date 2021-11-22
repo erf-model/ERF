@@ -28,7 +28,7 @@ jobs:
             cuda_extra: libcurand-dev-11-0 cuda-cupti-dev-11-0 libcusolver-dev-11-0 libcublas-dev-11-0 libcusparse-dev-11-0
           - cuda_ver: "10.2"
             cuda_pkg: 10-2
-            cuda_extra: cuda-curand-dev-10-2 cuda-cupti-dev-10-2 cuda-cusolver-dev-10-2 cuda-cublas-dev_10.2.2.89* cuda-cusparse-dev-10-2
+            cuda_extra: cuda-curand-dev-10-2 cuda-cupti-dev-10-2 cuda-cusolver-dev-10-2 libcublas10_10.2.2.89* cuda-cusparse-dev-10-2
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.6.0
