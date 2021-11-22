@@ -60,6 +60,7 @@ jobs:
     - name: SUNDIALS Build
       run: |
         cmake --build ${{runner.workspace}}/ERF/build-sundials-${{matrix.os}} --parallel ${{env.NPROCS}};
+        cmake --install ${{runner.workspace}}/ERF/build-sundials-${{matrix.os}} --parallel ${{env.NPROCS}};
 
     - name: Configure CMake
       run: |
