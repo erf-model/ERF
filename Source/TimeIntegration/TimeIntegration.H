@@ -27,14 +27,12 @@ namespace IntVar {
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         MultiFab& cons_in,
                         MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in,
-                        int ngrow,
-                        const SolverChoice& solverChoice);
+                        int ngrow, int l_spatial_order);
 
 void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in,
                         MultiFab& cons_in,
                         MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out,
-                        const SolverChoice& solverChoice);
-
+                        int l_spatial_order);
 
 /**
  * Update the cell-centered state and face-based velocity using a time integrator

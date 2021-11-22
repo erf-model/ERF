@@ -150,15 +150,17 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
     Real advectionContribution = 0.0;
 
+    int l_spatial_order = solverChoice.spatial_order;
+
     switch (momentumEqn) {
         case MomentumEqn::x: //x-momentum, reference face index is (i, j, k)
             Real centFluxXXNext, centFluxXXPrev, edgeFluxXYNext, edgeFluxXYPrev, edgeFluxXZNext, edgeFluxXZPrev;
-            centFluxXXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            centFluxXXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            edgeFluxXYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            edgeFluxXYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            edgeFluxXZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-            edgeFluxXZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            centFluxXXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_u, l_spatial_order);
+            centFluxXXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_u, l_spatial_order);
+            edgeFluxXYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_v, l_spatial_order);
+            edgeFluxXYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_v, l_spatial_order);
+            edgeFluxXZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_w, l_spatial_order);
+            edgeFluxXZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_w, l_spatial_order);
 
             advectionContribution = (centFluxXXNext - centFluxXXPrev) / dx   // Contribution to x-mom eqn from advective flux in x-dir
                                   + (edgeFluxXYNext - edgeFluxXYPrev) / dy   // Contribution to x-mom eqn from advective flux in y-dir
@@ -166,12 +168,12 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
             break;
         case MomentumEqn::y: //y-momentum, reference face index is (i, j, k)
             Real centFluxYYNext, centFluxYYPrev, edgeFluxYXNext, edgeFluxYXPrev, edgeFluxYZNext, edgeFluxYZPrev;
-            edgeFluxYXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            edgeFluxYXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            centFluxYYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            centFluxYYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            edgeFluxYZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-            edgeFluxYZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            edgeFluxYXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_u, l_spatial_order);
+            edgeFluxYXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_u, l_spatial_order);
+            centFluxYYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_v, l_spatial_order);
+            centFluxYYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_v, l_spatial_order);
+            edgeFluxYZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_w, l_spatial_order);
+            edgeFluxYZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_w, l_spatial_order);
 
             advectionContribution = (edgeFluxYXNext - edgeFluxYXPrev) / dx   // Contribution to y-mom eqn from advective flux in x-dir
                                   + (centFluxYYNext - centFluxYYPrev) / dy   // Contribution to y-mom eqn from advective flux in y-dir
@@ -179,12 +181,12 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
             break;
         case MomentumEqn::z: //z-momentum, reference face index is (i, j, k)
             Real centFluxZZNext, centFluxZZPrev, edgeFluxZXNext, edgeFluxZXPrev, edgeFluxZYNext, edgeFluxZYPrev;
-            edgeFluxZXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            edgeFluxZXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_u, solverChoice.spatial_order);
-            edgeFluxZYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            edgeFluxZYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_v, solverChoice.spatial_order);
-            centFluxZZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
-            centFluxZZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_w, solverChoice.spatial_order);
+            edgeFluxZXNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_u, l_spatial_order);
+            edgeFluxZXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_u, l_spatial_order);
+            edgeFluxZYNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_v, l_spatial_order);
+            edgeFluxZYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_v, l_spatial_order);
+            centFluxZZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_w, l_spatial_order);
+            centFluxZZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_w, l_spatial_order);
 
             advectionContribution = (edgeFluxZXNext - edgeFluxZXPrev) / dx  // Contribution to z-mom eqn from advective flux in x-dir
                                   + (edgeFluxZYNext - edgeFluxZYPrev) / dy  // Contribution to z-mom eqn from advective flux in y-dir
