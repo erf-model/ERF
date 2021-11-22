@@ -19,6 +19,7 @@ void erf_rhs (int level,
               const amrex::Vector<amrex::Real>& dens_hse,
               const amrex::Vector<amrex::Real>& pres_hse)
 {
+    int pres_hse_offset = pres_hse.size() - 
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
 
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
@@ -177,9 +178,11 @@ void erf_rhs (int level,
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
+            {
                 rho_u_rhs(i, j, k) += (-1.0_rt / dx[0]) *
-                  (getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),pres_hse[k]) -
+                  (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),pres_hse[k]) -
                    getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),pres_hse[k]));
+            }
 
             // Add gravity term
             if (solverChoice.use_gravity)
@@ -231,7 +234,7 @@ void erf_rhs (int level,
             // Add pressure gradient
             if (solverChoice.use_pressure)
                 rho_v_rhs(i, j, k) += (-1.0_rt / dx[1]) *
-                  (getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),pres_hse[k]) -
+                  (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),pres_hse[k]) -
                    getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),pres_hse[k]));
 
             // Add gravity term

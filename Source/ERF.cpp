@@ -14,11 +14,11 @@
 #include <AMReX_ParmParse.H>
 
 #include "ERF.H"
+#include "ERF_Constants.H"
 #include "Derive.H"
 #include "EOS.H"
 #include "Tagging.H"
 #include "IndexDefines.H"
-#include "DataStruct.H"
 
 using namespace amrex;
 
@@ -293,21 +293,15 @@ ERF::initData()
     // Setup Base State Arrays
     //
     const int max_level = parent->maxLevel();
-    const int finest_level = parent->finestLevel();
     dens_hse.resize(max_level+1, Vector<Real>(0));
     pres_hse.resize(max_level+1, Vector<Real>(0));
 
-    for (int lev(0); lev <= max_level; ++lev) {
-      dens_hse[lev].resize(0);
-      pres_hse[lev].resize(0);
-    }
-
-    // Initialize the base state arrays at all levels,
+    // Initialize the base state arrays at all levels (with 3 ghost cells),
     //     and set from problem-dependent input
-    for (int lev(0); lev <= finest_level; ++lev) {
-      const int zlen = parent->Geom(lev).Domain().length(2);
+    for (int lev(0); lev <= max_level; ++lev) {
+      const int zlen = parent->Geom(lev).Domain().length(2) + 2*3;
       dens_hse[lev].resize(zlen, 0.0_rt);
-      pres_hse[lev].resize(zlen, 0.0_rt);
+      pres_hse[lev].resize(zlen, p_0);
       getLevel(lev).initHSE();
     }
   }
@@ -635,7 +629,23 @@ ERF::post_restart()
 {
   BL_PROFILE("ERF::post_restart()");
 
-//  amrex::Real cur_time = state[State_Type].curTime();
+  if (level == 0) {
+    //
+    // Setup Base State Arrays
+    //
+    const int max_level = parent->maxLevel();
+    dens_hse.resize(max_level+1, Vector<Real>(0));
+    pres_hse.resize(max_level+1, Vector<Real>(0));
+
+    // Initialize the base state arrays at all levels (with 3 ghost cells),
+    //     and set from problem-dependent input
+    for (int lev(0); lev <= max_level; ++lev) {
+      const int zlen = parent->Geom(lev).Domain().length(2) + 2*3;
+      dens_hse[lev].resize(zlen, 0.0_rt);
+      pres_hse[lev].resize(zlen, p_0);
+      getLevel(lev).initHSE();
+    }
+  }
 
 #ifdef DO_PROBLEM_POST_RESTART
   problem_post_restart();
@@ -654,21 +664,6 @@ ERF::post_regrid(int lbase, int new_finest)
 {
   BL_PROFILE("ERF::post_regrid()");
   fine_mask.clear();
-
-  // if we have not yet initialized the base state, do so
-  if (dens_hse.empty()) {
-    dens_hse.resize(parent->maxLevel()+1, Vector<Real>(0));
-    pres_hse.resize(parent->maxLevel()+1, Vector<Real>(0));
-  }
-
-  if (dens_hse[level].empty()) {
-    const int zlen = geom.Domain().length(2);
-    dens_hse[level].resize(zlen, 0.0_rt);
-    pres_hse[level].resize(zlen, 0.0_rt);
-  }
-
-  // HOOK: initialize the base state at this level
-  // initialize_base_state();
 }
 
 void
