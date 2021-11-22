@@ -256,6 +256,14 @@ ERF::initHSE()
 {
     erf_init_dens_hse(h_dens_hse[level]);
     erf_enforce_hse(h_dens_hse[level],h_pres_hse[level]);
+
+    // Copy from host version to device version
+#if 0
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_dens_hse[level].begin(), h_dens_hse[level].end(), 
+                     d_dens_hse[level]);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_pres_hse[level].begin(), h_pres_hse[level].end(), 
+                     d_dens_hse[level]);
+#endif
 }
 
 void
