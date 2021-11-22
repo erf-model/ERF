@@ -13,37 +13,39 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                         const Array4<Real>& Ksmag,
                         const SolverChoice &solverChoice) {
-    Real stressTerm = 0.0;
-    Real turbViscInterpolated = 0.0;
 
     // Here, we have computed strain rate on the fly.
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
     Real strainRate = ComputeStrainRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
-    // TODO: Consider passing turbModel to this function instead of computing it here from SolverChoice
-    enum TurbulenceModel turbModel;
-
-    if (solverChoice.les_type == LESType::Smagorinsky)
-        turbModel = TurbulenceModel::Smagorinsky;
-    else if (solverChoice.les_type == LESType::Deardorff)
-        turbModel = TurbulenceModel::Deardorff;
-    else
-        turbModel = TurbulenceModel::DNS;
-
-    switch (turbModel) {
-        case TurbulenceModel::DNS:
-            //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
-            // Future implementations may account for mu = mu(T) computed at the coordinate of interest.
-            stressTerm = 2.0 * solverChoice.dynamicViscosity * strainRate; // 2*mu*Sij(m+1/2) or 2*mu*Sij(m-1/2)
-            break;
-        case TurbulenceModel::Smagorinsky:
-            turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize, Ksmag);
-            stressTerm = turbViscInterpolated * strainRate; // // K_interp*Sij(m+1/2) or K_interp*Sij(m-1/2)
-            break;
+    Real viscosity_factor = 0.0;
+    //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
+    // Future implementations may account for mu = mu(T) computed at the coordinate of interest.
+    // That could be done with a new MolecDiffType
+    switch (solverChoice.molec_diff_type) {
+        case MolecDiffType::Constant:
+	    viscosity_factor += 2.0 * solverChoice.dynamicViscosity;
+	    break;
+        case MolecDiffType::None:
+	    break;
         default:
-            amrex::Abort("Error: Turbulence model is unrecognized");
+	    amrex::Abort("Error: Molecular diffusion/viscosity model is unrecognized");
     }
 
+    Real turbViscInterpolated = 0.0;
+    // TODO: Add Deardorff model, perhaps take advantage of turbulence model indicator
+    switch (solverChoice.les_type) {
+        case LESType::Smagorinsky:
+	    turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize, Ksmag);
+	    viscosity_factor += turbViscInterpolated;
+	    break;
+        case LESType::None:
+	    break;
+        default:
+            amrex::Abort("Error:  LES model is unrecognized");
+    }
+
+    Real stressTerm = viscosity_factor * strainRate;
     return stressTerm;
 }
 
@@ -124,7 +126,6 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   const int kr = k + ((coordDir == Coord::z) && (nextOrPrev == NextOrPrev::next));
 
   // Get diffusion coefficients
-  amrex::Real rhoAlpha = 0.0;
   amrex::Real rhoAlpha_molec;
   amrex::Real Pr_or_Sc_turb_inv;
   switch(qty_index) {
@@ -140,35 +141,38 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     amrex::Abort("Error: Diffusion term for the data index isn't implemented");
   }
 
-  //TODO: Update this to account for other turbulence models in future. This would alo require update in SolverChoice
-  enum TurbulenceModel turbModel;
-  amrex::Real rhoAlpha_r, rhoAlpha_l;
-  if (solverChoice.use_smagorinsky)
-    turbModel = TurbulenceModel::Smagorinsky;
-  else
-    turbModel = TurbulenceModel::DNS;
-  switch (turbModel) {
-  case TurbulenceModel::DNS:
-    //TODO: molecular transport coefficients are assumed to be constant in the current implementation.
-    // note this assumption applies to the product, e.g. rhoAlpha_T = lambda/c_p
-    // Future implementations may account for rhoAlpha = rhoAlpha(T) computed at the coordinate of interest.
-    rhoAlpha = rhoAlpha_molec;
+  amrex::Real rhoAlpha = 0.0;
+  switch (solverChoice.molec_diff_type) {
+  case MolecDiffType::Constant:
+    rhoAlpha += rhoAlpha_molec;
     break;
-  case TurbulenceModel::Smagorinsky:
-    // Ksmag = 2*mu_t
-    rhoAlpha_r = Ksmag(ir, jr, kr) * 0.5 * Pr_or_Sc_turb_inv;
-    rhoAlpha_l = Ksmag(il, jl, kl) * 0.5 * Pr_or_Sc_turb_inv;
-    rhoAlpha = 0.5*(rhoAlpha_l + rhoAlpha_r);
+  case MolecDiffType::None:
     break;
   default:
-    amrex::Abort("Error: Turbulence model is unrecognized");
+    amrex::Abort("Error: Molecular diffusion/viscosity model is unrecognized");
+  }
+
+  amrex::Real rhoAlpha_r = 0.0, rhoAlpha_l = 0.0;
+  // TODO: Add Deardorff model, perhaps take advantage of turbulence model indicator
+  switch (solverChoice.les_type) {
+  case LESType::Smagorinsky:
+    // Ksmag = 2*mu_t -> extra factor of 0.5 when computing rhoAlpha
+    rhoAlpha_r = Ksmag(ir, jr, kr) * Pr_or_Sc_turb_inv;
+    rhoAlpha_l = Ksmag(il, jl, kl) * Pr_or_Sc_turb_inv;
+    rhoAlpha += 0.25*(rhoAlpha_l + rhoAlpha_r);
+    break;
+  case LESType::None:
+    break;
+  default:
+    amrex::Abort("Error:  LES model is unrecognized");
   }
 
   // Compute the flux
+  // TODO : could be more efficient to compute comp from Rho_comp before this
   amrex::Real diffusionFlux = rhoAlpha *(cell_data(ir, jr, kr, qty_index) /
                      cell_data(ir, jr, kr, Rho_comp)
                      - cell_data(il, jl, kl, qty_index) /
-                     cell_data(il, jl, kl, Rho_comp));
+                     cell_data(il, jl, kl, Rho_comp)) * invCellWidth;
 
   return diffusionFlux;
 }
@@ -185,6 +189,7 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
   const amrex::Real dy_inv = 1.0/cellSize[1];
   const amrex::Real dz_inv = 1.0/cellSize[2];
 
+  // TODO : could be more efficient to compute and save all fluxes before taking divergence (now all fluxes are computed 2x);
   amrex::Real xDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::x);
   amrex::Real yDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::y);
   amrex::Real zDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::z);

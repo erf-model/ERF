@@ -14,7 +14,8 @@ Compressible Navier-Stokes Equations
 ====================================
 
 The following partial differential equations (prognostic equations)
-are solved in ERF for mass, momentum, potential temperature, and scalars:
+are solved in ERF for mass, momentum, potential temperature, and scalars
+in compressible flow:
 
 .. math::
   \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
@@ -143,11 +144,10 @@ The model coefficients :math:`C_s, C_I, Pr_t, Sc_t` have nominal values of 0.16,
 respectively (Martin et al., Theoret. Comput. Fluid Dynamics (2000)).
 Note that the gradient transport LES models take exactly the same form as the molecular transport terms, but with the
 constant molecular transport coefficients replaced by turbulent equivalents (e.g. :math:`\mu` becomes the turbulent viscosity,
-:math:`\mu_{t}`). Molecular transport is omitted in the present implementation because the molecular
-transport coefficients are insignificant compared to turbulent transport for most LES grids.
-
-.. note:: The omission of molecular transport in LES mode will need to be revisited if resolutions close to DNS become of interest.
-      Presently, we also assume :math:`C_I =0`. This term is similar to the bulk viscosity term for molecular transport and
+:math:`\mu_{t}`). Molecular transport is omitted by default in the present implementation because the molecular
+transport coefficients are insignificant compared to turbulent transport for most LES grids. However, for fine LES grids, molecular transport and LES models may both be activated.
+	  
+.. note:: Presently, we assume :math:`C_I =0`. This term is similar to the bulk viscosity term for molecular transport and
       should be added if the bulk viscosity term is added. It is believed to be small for low-Mach number flows, but there
       is some discussion in the literature about this topic. See Moin et al., "A dynamic subgrid-scale model for
       compressible turbulence and scalar transport", PoF (1991); Martin et al., Subgrid-scale models for compressible
