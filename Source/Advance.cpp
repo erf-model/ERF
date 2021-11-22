@@ -67,7 +67,8 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
       rV_crse.define(V_crse.boxArray(), V_crse.DistributionMap(), 1, 1);
       rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, 1);
 
-      VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,solverChoice);
+      VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,
+                        solverChoice.spatial_order);
   }
 
   // Fill level 0 ghost cells (including at periodic boundaries)
