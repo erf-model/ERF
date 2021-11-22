@@ -73,7 +73,7 @@ jobs:
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_AMREX_EB:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
-	  -DCMAKE_PREFIX_PATH:PATH=${{runner.workspace}}/ERF/install-sundials \
+          -DCMAKE_PREFIX_PATH:PATH=${{runner.workspace}}/ERF/install-sundials \
           ${{github.workspace}};
         # ${{matrix.mpipreflags}} \
         # -DCODECOVERAGE:BOOL=ON \
