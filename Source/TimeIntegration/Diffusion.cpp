@@ -24,23 +24,23 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     // That could be done with a new MolecDiffType
     switch (solverChoice.molec_diff_type) {
         case MolecDiffType::Constant:
-	    viscosity_factor += 2.0 * solverChoice.dynamicViscosity;
-	    break;
+        viscosity_factor += 2.0 * solverChoice.dynamicViscosity;
+        break;
         case MolecDiffType::None:
-	    break;
+        break;
         default:
-	    amrex::Abort("Error: Molecular diffusion/viscosity model is unrecognized");
+        amrex::Abort("Error: Molecular diffusion/viscosity model is unrecognized");
     }
 
     Real turbViscInterpolated = 0.0;
     // TODO: Add Deardorff model, perhaps take advantage of turbulence model indicator
     switch (solverChoice.les_type) {
         case LESType::Smagorinsky:
-	    turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize, Ksmag);
-	    viscosity_factor += turbViscInterpolated;
-	    break;
+        turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize, Ksmag);
+        viscosity_factor += turbViscInterpolated;
+        break;
         case LESType::None:
-	    break;
+        break;
         default:
             amrex::Abort("Error:  LES model is unrecognized");
     }

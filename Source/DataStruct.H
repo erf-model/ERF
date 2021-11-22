@@ -83,17 +83,17 @@ struct SolverChoice {
             amrex::Error("Deardorff LES model not yet implemented");
         }
 
-	// Include molecular transport?
+    // Include molecular transport?
         static std::string molec_diff_type_string = "None";
-	if (les_type == LESType::None) {
-	  molec_diff_type_string = "Constant";
-	}
+    if (les_type == LESType::None) {
+      molec_diff_type_string = "Constant";
+    }
         pp.query("molec_diff_type",molec_diff_type_string);
-	if (!molec_diff_type_string.compare("Constant")) {
-	  molec_diff_type = MolecDiffType::Constant;
-	} else if (!molec_diff_type_string.compare("None")) {
-	  molec_diff_type = MolecDiffType::None;
-	} else {
+    if (!molec_diff_type_string.compare("Constant")) {
+      molec_diff_type = MolecDiffType::Constant;
+    } else if (!molec_diff_type_string.compare("None")) {
+      molec_diff_type = MolecDiffType::None;
+    } else {
             amrex::Error("Don't know this molec_trans_type");
         }
 
@@ -104,14 +104,14 @@ struct SolverChoice {
         pp.query("Cs" , Cs);
         pp.query("CI" , CI);
         pp.query("Pr_t", Pr_t);
-	pp.query("Sc_t", Sc_t);
-	pp.query("rho0_trans", rho0_trans);
+    pp.query("Sc_t", Sc_t);
+    pp.query("rho0_trans", rho0_trans);
 
-	// Compute relevant forms of diffusion parameters
-	Pr_t_inv = 1.0 / Pr_t;
-	Sc_t_inv = 1.0 / Sc_t;
-	rhoAlpha_T = rho0_trans * alpha_T;
-	rhoAlpha_C = rho0_trans * alpha_C;
+    // Compute relevant forms of diffusion parameters
+    Pr_t_inv = 1.0 / Pr_t;
+    Sc_t_inv = 1.0 / Sc_t;
+    rhoAlpha_T = rho0_trans * alpha_T;
+    rhoAlpha_C = rho0_trans * alpha_C;
 
         // Order of spatial discretization
         pp.query("spatial_order", spatial_order);
