@@ -19,7 +19,6 @@ void erf_rhs (int level,
               const amrex::Vector<amrex::Real>& dens_hse,
               const amrex::Vector<amrex::Real>& pres_hse)
 {
-    int pres_hse_offset = pres_hse.size() - 
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
 
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
