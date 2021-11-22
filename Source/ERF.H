@@ -17,7 +17,7 @@
 #include <AMReX_Lazy.H>
 #endif
 
-#include "SolverStruct.H"
+#include "DataStruct.H"
 #include "IndexDefines.H"
 #include "IOManager.H"
 
