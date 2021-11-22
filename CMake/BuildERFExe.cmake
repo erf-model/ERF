@@ -33,7 +33,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Advance.cpp
        ${SRC_DIR}/Bld.cpp
        ${SRC_DIR}/DataStruct.H
-       ${SRC_DIR}/SolverStruct.H
        ${SRC_DIR}/ERF_Constants.H
        ${SRC_DIR}/Derive.H
        ${SRC_DIR}/Derive.cpp
