@@ -42,6 +42,10 @@ enum class LESType {
     None, Smagorinsky, Deardorff
 };
 
+enum class MolecDiffType {
+    None, Constant
+};
+
 enum class TurbulenceModel {
     DNS, Smagorinsky, Deardorff
 };
@@ -79,13 +83,35 @@ struct SolverChoice {
             amrex::Error("Deardorff LES model not yet implemented");
         }
 
+    // Include molecular transport?
+        static std::string molec_diff_type_string = "None";
+    if (les_type == LESType::None) {
+      molec_diff_type_string = "Constant";
+    }
+        pp.query("molec_diff_type",molec_diff_type_string);
+    if (!molec_diff_type_string.compare("Constant")) {
+      molec_diff_type = MolecDiffType::Constant;
+    } else if (!molec_diff_type_string.compare("None")) {
+      molec_diff_type = MolecDiffType::None;
+    } else {
+            amrex::Error("Don't know this molec_trans_type");
+        }
+
         // Diffusive/viscous/LES constants...
         pp.query("alpha_T", alpha_T);
         pp.query("alpha_C", alpha_C);
         pp.query("dynamicViscosity", dynamicViscosity);
         pp.query("Cs" , Cs);
         pp.query("CI" , CI);
-        pp.query("PrT", PrT);
+        pp.query("Pr_t", Pr_t);
+    pp.query("Sc_t", Sc_t);
+    pp.query("rho0_trans", rho0_trans);
+
+    // Compute relevant forms of diffusion parameters
+    Pr_t_inv = 1.0 / Pr_t;
+    Sc_t_inv = 1.0 / Sc_t;
+    rhoAlpha_T = rho0_trans * alpha_T;
+    rhoAlpha_C = rho0_trans * alpha_C;
 
         // Order of spatial discretization
         pp.query("spatial_order", spatial_order);
@@ -129,12 +155,14 @@ struct SolverChoice {
         amrex::Print() << "use_pressure          : " << use_pressure << std::endl;
         amrex::Print() << "use_coriolis          : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity           : " << use_gravity << std::endl;
+        amrex::Print() << "rho0_trans            : " << rho0_trans << std::endl;
         amrex::Print() << "alpha_T               : " << alpha_T << std::endl;
         amrex::Print() << "alpha_C               : " << alpha_C << std::endl;
         amrex::Print() << "dynamicViscosity      : " << dynamicViscosity << std::endl;
         amrex::Print() << "Cs                    : " << Cs << std::endl;
         amrex::Print() << "CI                    : " << CI << std::endl;
-        amrex::Print() << "PrT                   : " << PrT << std::endl;
+        amrex::Print() << "Pr_t                  : " << Pr_t << std::endl;
+        amrex::Print() << "Sc_t                  : " << Sc_t << std::endl;
         amrex::Print() << "spatial_order         : " << spatial_order << std::endl;
 
         if (abl_driver_type == ABLDriverType::None) {
@@ -210,9 +238,16 @@ struct SolverChoice {
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
 
-    // Diffusive/viscous coefficients
+    // Molecular transport model
+    MolecDiffType molec_diff_type;
+    // Diffusive/viscous coefficients (units m2/s)
     amrex::Real alpha_T = 0.0;
-    amrex::Real alpha_C= 0.0;
+    amrex::Real alpha_C = 0.0;
+    // Density for computation of rhoAlpha (which is assumed constant)
+    amrex::Real rho0_trans = 1.0;
+    // Dynamic diffusion coefficients
+    amrex::Real rhoAlpha_T = 0.0;
+    amrex::Real rhoAlpha_C = 0.0;
     amrex::Real dynamicViscosity = 0.0;
 
     // LES model
@@ -221,8 +256,12 @@ struct SolverChoice {
     amrex::Real Cs = 0.0;
     // Smagorinsky CI coefficient
     amrex::Real CI = 0.0;
-    // Smagorinsky PrT coefficient
-    amrex::Real PrT = 0.0;
+    // Smagorinsky Turbulent Prandtl Number
+    amrex::Real Pr_t = 1.0;
+    amrex::Real Pr_t_inv = 1.0;
+    // Smagorinsky Turbulent Schmidt Number
+    amrex::Real Sc_t = 1.0;
+    amrex::Real Sc_t_inv = 1.0;
 
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;
