@@ -16,7 +16,7 @@ void erf_rhs (int level,
               const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
                     amrex::InterpFaceRegister* ifr,
               const SolverChoice& solverChoice,
-              amrex::Real* dptr_dens_hse, amrex::Real* dptr_pres_hse)
+              const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse)
 {
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
 
