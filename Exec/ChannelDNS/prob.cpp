@@ -3,10 +3,10 @@
 ProbParm parms;
 
 void
-erf_init_hse(amrex::Vector<amrex::Real>& dens_hse, amrex::GeometryData const& geomdata)
+erf_init_dens_hse(amrex::Vector<amrex::Real>& dens_hse)
 {
-  int khi = geomdata.Domain().bigEnd(2);
-  for (int k = 0; k < khi; k++)
+  const int klen = dens_hse.size();
+  for (int k = 0; k < klen; k++)
   {
       dens_hse[k] = parms.rho_0;
   }

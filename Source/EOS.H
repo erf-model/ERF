@@ -19,6 +19,14 @@ amrex::Real getPgivenRTh(amrex::Real rhotheta)
     return p_0 * std::pow(R_d * rhotheta / p_0, Gamma);
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real getPprimegivenRTh(amrex::Real rhotheta, amrex::Real pres_hse_at_k)
+{
+    // diagnostic relation for the full pressure
+    // see https://erf.readthedocs.io/en/latest/theory/NavierStokesEquations.html
+    return p_0 * std::pow(R_d * rhotheta / p_0, Gamma) - pres_hse_at_k;
+}
+
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getRhoThetagivenP(amrex::Real p)

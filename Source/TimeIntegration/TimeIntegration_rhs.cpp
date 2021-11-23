@@ -15,7 +15,8 @@ void erf_rhs (int level,
               std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
               const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
                     amrex::InterpFaceRegister* ifr,
-              const SolverChoice& solverChoice)
+              const SolverChoice& solverChoice,
+              const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse)
 {
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
 
@@ -44,12 +45,8 @@ void erf_rhs (int level,
     ERF::applyBCs(geom, vel_vars);
 
     // *************************************************************************
-    // Deal with gravity
-    Real gravity = solverChoice.use_gravity? CONST_GRAV: 0.0;
-    // CONST_GRAV is a positive constant, but application of grav_gpu to the vertical momentum
-    // tendency assumes this quantity is negative.
-    //    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, gravity};
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
+    // Set gravity as a vector
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *************************************************************************
@@ -179,13 +176,17 @@ void erf_rhs (int level,
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
+            {
                 rho_u_rhs(i, j, k) += (-1.0_rt / dx[0]) *
-                  (getPgivenRTh(cell_data(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data(i - 1, j, k, RhoTheta_comp)));
+                  (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),dptr_pres_hse[k]) -
+                   getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),dptr_pres_hse[k]));
+            }
 
             // Add gravity term
             if (solverChoice.use_gravity)
                 rho_u_rhs(i, j, k) += grav_gpu[0] *
-                  InterpolateDensityFromCellToFace(i, j, k, cell_data, NextOrPrev::prev, Coord::x, solverChoice.spatial_order);
+                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, NextOrPrev::prev,
+                                                       Coord::x, solverChoice.spatial_order, dptr_dens_hse);
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -231,12 +232,14 @@ void erf_rhs (int level,
             // Add pressure gradient
             if (solverChoice.use_pressure)
                 rho_v_rhs(i, j, k) += (-1.0_rt / dx[1]) *
-                  (getPgivenRTh(cell_data(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data(i, j - 1, k, RhoTheta_comp)));
+                  (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),dptr_pres_hse[k]) -
+                   getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),dptr_pres_hse[k]));
 
             // Add gravity term
             if (solverChoice.use_gravity)
                rho_v_rhs(i, j, k) += grav_gpu[1] *
-                  InterpolateDensityFromCellToFace(i, j, k, cell_data, NextOrPrev::prev, Coord::y, solverChoice.spatial_order);
+                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, NextOrPrev::prev,
+                                                       Coord::y, solverChoice.spatial_order, dptr_dens_hse);
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -280,12 +283,14 @@ void erf_rhs (int level,
             // Add pressure gradient
             if (solverChoice.use_pressure)
                 rho_w_rhs(i, j, k) += (-1.0_rt / dx[2]) *
-                    (getPgivenRTh(cell_data(i, j, k, RhoTheta_comp)) - getPgivenRTh(cell_data(i, j, k - 1, RhoTheta_comp)));
+                    (getPprimegivenRTh(cell_data(i, j, k    , RhoTheta_comp),dptr_pres_hse[k  ]) -
+                     getPprimegivenRTh(cell_data(i, j, k - 1, RhoTheta_comp),dptr_pres_hse[k-1]));
 
             // Add gravity term
             if (solverChoice.use_gravity)
                rho_w_rhs(i, j, k) += grav_gpu[2] *
-                   InterpolateDensityFromCellToFace(i, j, k, cell_data, NextOrPrev::prev, Coord::z, solverChoice.spatial_order);
+                   InterpolateDensityPertFromCellToFace(i, j, k, cell_data, NextOrPrev::prev,
+                                                       Coord::z, solverChoice.spatial_order, dptr_dens_hse);
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)

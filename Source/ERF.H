@@ -117,6 +117,14 @@ public:
   //! Cleanup data descriptors at end of run.
   static void variableCleanUp();
 
+  static int ng_dens_hse;
+  static int ng_pres_hse;
+
+  //! Initialize HSE
+  void initHSE();
+  void erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
+                       amrex::Vector<amrex::Real>& pres);
+
   //! Initialize grid data at problem start-up.
   virtual void initData() override;
   void initDataProb(amrex::MultiFab& S_new,
@@ -357,8 +365,10 @@ protected:
   static amrex::Vector<int> src_list;
 
   // Base state quantities: density and pressure, 1 array per AMR level
-  static amrex::Vector<amrex::Vector<amrex::Real> > dens_hse;
-  static amrex::Vector<amrex::Vector<amrex::Real> > pres_hse;
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
 
 /* problem-specific includes */
 #include <Problem.H>

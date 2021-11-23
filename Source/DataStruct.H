@@ -65,6 +65,8 @@ struct SolverChoice {
         pp.query("use_pressure", use_pressure);
         pp.query("use_gravity", use_gravity);
 
+        gravity = use_gravity? CONST_GRAV: 0.0;
+
         // Which LES closure?
         static std::string les_type_string = "None";
         pp.query("les_type",les_type_string);
@@ -237,6 +239,8 @@ struct SolverChoice {
 
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
+
+    amrex::Real gravity;
 
     // Molecular transport model
     MolecDiffType molec_diff_type;

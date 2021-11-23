@@ -23,7 +23,9 @@ void erf_advance(int level,
                  const amrex::Real* dxp, const amrex::Real dt,
                  const amrex::Real time,
                  amrex::InterpFaceRegister* ifr,
-                 const SolverChoice& solverChoice)
+                 const SolverChoice& solverChoice,
+                 const amrex::Real* dptr_dens_hse,
+                 const amrex::Real* dptr_pres_hse)
 {
     BL_PROFILE_VAR("erf_advance()",erf_advance);
 
@@ -127,7 +129,8 @@ void erf_advance(int level,
                 faceflux,
                 fine_geom, dxp, dt,
                 ifr,
-                solverChoice);
+                solverChoice,
+                dptr_dens_hse, dptr_pres_hse);
     };
 
     auto post_update_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
