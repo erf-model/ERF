@@ -95,3 +95,58 @@ jobs:
     #     name: build-and-test
     #     path: |
     #       ${{runner.workspace}}/ERF/regressioncov.html
+
+  Build-And-Test-With-SUNDIALS:
+
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        include:
+        - os: ubuntu-latest
+          install_deps: sudo apt-get install mpich libmpich-dev gcovr
+          comp: gnu
+          procs: $(nproc)
+
+    steps:
+
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Setup
+      run: |
+        # echo "::add-matcher::.github/problem-matchers/gcc.json"
+        echo "NPROCS=${{matrix.procs}}" >> $GITHUB_ENV
+        # cmake -E make_directory ${{runner.workspace}}/deps
+
+    - name: Handle Dependencies
+      run: |
+        # Install MPI
+        ${{matrix.install_deps}}
+
+    - name: Configure CMake
+      run: |
+        cmake \
+          -B${{runner.workspace}}/ERF/build-sundials-${{matrix.os}} \
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install-sundials \
+          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
+          -DERF_ENABLE_SUNDIALS:BOOL=ON \
+          -DERF_ENABLE_AMREX_EB:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          ${{github.workspace}};
+        # ${{matrix.mpipreflags}} \
+        # -DCODECOVERAGE:BOOL=ON \
+
+    - name: Build
+      run: |
+        cmake --build ${{runner.workspace}}/ERF/build-sundials-${{matrix.os}} --parallel ${{env.NPROCS}};
+
+    - name: Regression Tests
+      run: |
+        ctest -L regression -VV
+      working-directory: ${{runner.workspace}}/ERF/build-sundials-${{matrix.os}}

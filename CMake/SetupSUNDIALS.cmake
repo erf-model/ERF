@@ -1,3 +1,4 @@
+# Note this setup file expects to be used after AMReX options are set and before any targets are linked
 set(SUNDIALS_MINIMUM_VERSION 5.8.0 CACHE INTERNAL "Minimum required SUNDIALS version")
 
 # We first check if we can find an AMReX installation.
@@ -62,6 +63,7 @@ else ()
       set(ENABLE_CUDA                  OFF                     CACHE INTERNAL "" )
       if (AMReX_GPU_BACKEND STREQUAL HIP)
 	set(ENABLE_HIP                   ON                      CACHE INTERNAL "" )
+	set(AMDGPU_TARGETS               ${AMReX_AMD_ARCH}       CACHE INTERNAL "" )
 #        set(SUNDIALS_BUILD_PACKAGE_FUSED_KERNELS     ON          CACHE INTERNAL "" )
       endif ()
       if (AMReX_GPU_BACKEND STREQUAL SYCL)
