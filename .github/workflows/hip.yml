@@ -20,7 +20,7 @@ jobs:
   # https://gitlab.kitware.com/cmake/cmake/-/issues/21968
   # https://github.com/ROCm-Developer-Tools/HIP/issues/2246
   Build-And-Test-HIP:
-    name: HIP ROCm GFortran@9.3 C++17 [tests] with SUNDIALS=${sundials_state}
+    name: HIP ROCm GFortran@9.3 C++17 [tests] with SUNDIALS=${{matrix.sundials_state}}
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -59,7 +59,7 @@ jobs:
         export LDFLAGS="-lopen-pal"
 
         cmake \
-          -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
+          -B${{runner.workspace}}/ERF/build-${{matrix.sundials_state}}-${{matrix.os}} \
           -DCMAKE_VERBOSE_MAKEFILE=ON                   \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
           -DCMAKE_BUILD_TYPE:STRING=Debug \
