@@ -117,7 +117,7 @@ ComputeRotationRate(const int &i, const int &j, const int &k,
 
     Real rotationRate = 0;
 
-    //TODO: Account for extra terms in the diagonal elements. See the issue: https://github.com/erf-model/ERF/issues/61
+    //TODO: Implement the correct discretization of diagonal terms
 
     switch (momentumEqn) {
         case MomentumEqn::x:
@@ -129,18 +129,10 @@ ComputeRotationRate(const int &i, const int &j, const int &k,
                         rotationRate = (u(i, j, k) - u(i-1, j, k))/dx; // S11 (i-1/2)
                     break;
                 case DiffusionDir::y: // D12
-                    if (nextOrPrev == NextOrPrev::next)
-                        rotationRate = (u(i, j+1, k) - u(i, j, k))/dy + (v(i, j+1, k) - v(i-1, j+1, k))/dx; // S12 (j+1/2)
-                    else // nextOrPrev == NextOrPrev::prev
-                        rotationRate = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S12 (j-1/2)
                     rotationRate = 0.0;
                     break;
                 case DiffusionDir::z: // D13
-                    if (nextOrPrev == NextOrPrev::next)
-                        rotationRate = (u(i, j, k+1) - u(i, j, k))/dz + (w(i, j, k+1) - w(i-1, j, k+1))/dx; // S13 (k+1/2)
-                    else // nextOrPrev == NextOrPrev::prev
-                        rotationRate = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S13 (k-1/2)
-                    rotationRate *= 0.5;
+                    rotationRate = 0.0;
                     break;
                 default:
                     amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -149,11 +141,7 @@ ComputeRotationRate(const int &i, const int &j, const int &k,
         case MomentumEqn::y:
             switch (diffDir) {
                 case DiffusionDir::x: // D21
-                    if (nextOrPrev == NextOrPrev::next)
-                        rotationRate = (u(i+1, j, k) - u(i+1, j-1, k))/dy + (v(i+1, j, k) - v(i, j, k))/dx; // S21 (i+1/2)
-                    else // nextOrPrev == NextOrPrev::prev
-                        rotationRate = (u(i, j, k) - u(i, j-1, k))/dy + (v(i, j, k) - v(i-1, j, k))/dx; // S21 (i-1/2)
-                    rotationRate *= 0.5;
+                    rotationRate = 0.0;
                     break;
                 case DiffusionDir::y: // D22
                     if (nextOrPrev == NextOrPrev::next)
@@ -162,11 +150,7 @@ ComputeRotationRate(const int &i, const int &j, const int &k,
                         rotationRate = (v(i, j, k) - v(i, j-1, k))/dy; // S22 (j-1/2)
                     break;
                 case DiffusionDir::z: // D23
-                    if (nextOrPrev == NextOrPrev::next)
-                        rotationRate = (v(i, j, k+1) - v(i, j, k))/dz + (w(i, j, k+1) - w(i, j-1, k+1))/dy; // S23 (k+1/2) //TODO: Check this with Branko
-                    else // nextOrPrev == NextOrPrev::prev
-                        rotationRate = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S23 (k-1/2) //TODO: Check this with Branko
-                    rotationRate *= 0.5;
+                    rotationRate = 0.0;
                     break;
                 default:
                     amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -175,18 +159,10 @@ ComputeRotationRate(const int &i, const int &j, const int &k,
         case MomentumEqn::z:
             switch (diffDir) {
                 case DiffusionDir::x: // D31
-                    if (nextOrPrev == NextOrPrev::next)
-                        rotationRate = (u(i+1, j, k) - u(i+1, j, k-1))/dz + (w(i+1, j, k) - w(i, j, k))/dx; // S31 (i+1/2)
-                    else // nextOrPrev == NextOrPrev::prev
-                        rotationRate = (u(i, j, k) - u(i, j, k-1))/dz + (w(i, j, k) - w(i-1, j, k))/dx; // S31 (i-1/2)
-                    rotationRate *= 0.5;
+                    rotationRate = 0.0;
                     break;
                 case DiffusionDir::y: // D32
-                    if (nextOrPrev == NextOrPrev::next)
-                        rotationRate = (v(i, j+1, k) - v(i, j+1, k-1))/dz + (w(i, j+1, k) - w(i, j, k))/dy; // S32 (j+1/2) //TODO: Check this with Branko
-                    else // nextOrPrev == NextOrPrev::prev
-                        rotationRate = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S32 (j-1/2) //TODO: Check this with Branko
-                    rotationRate *= 0.5;
+                    rotationRate = 0.0;
                     break;
                 case DiffusionDir::z: // D33
                     if (nextOrPrev == NextOrPrev::next)
