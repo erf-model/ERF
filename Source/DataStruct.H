@@ -240,6 +240,8 @@ struct SolverChoice {
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
 
+    amrex::Real gravity;
+
     // Molecular transport model
     MolecDiffType molec_diff_type;
     // Diffusive/viscous coefficients (units m2/s)
