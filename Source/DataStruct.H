@@ -46,10 +46,6 @@ enum class MolecDiffType {
     None, Constant
 };
 
-enum class TurbulenceModel {
-    DNS, Smagorinsky, Deardorff
-};
-
 struct SolverChoice {
   public:
     void init_params()
@@ -68,33 +64,36 @@ struct SolverChoice {
         // Which LES closure?
         static std::string les_type_string = "None";
         pp.query("les_type",les_type_string);
+
         if (!les_type_string.compare("Smagorinsky")) {
             les_type = LESType::Smagorinsky;
         } else if (!les_type_string.compare("Deardorff")) {
             les_type = LESType::Deardorff;
         } else if (!les_type_string.compare("None")) {
-            les_type = LESType::None;
+            les_type = LESType::None; // Means DNS
         } else {
             amrex::Error("Don't know this les_type");
         }
 
-        if (les_type == LESType::Deardorff)
-        {
+        if (les_type == LESType::Deardorff) {
             amrex::Error("Deardorff LES model not yet implemented");
         }
 
-    // Include molecular transport?
+        // Include molecular transport?
         static std::string molec_diff_type_string = "None";
-    if (les_type == LESType::None) {
-      molec_diff_type_string = "Constant";
-    }
         pp.query("molec_diff_type",molec_diff_type_string);
-    if (!molec_diff_type_string.compare("Constant")) {
-      molec_diff_type = MolecDiffType::Constant;
-    } else if (!molec_diff_type_string.compare("None")) {
-      molec_diff_type = MolecDiffType::None;
-    } else {
-            amrex::Error("Don't know this molec_trans_type");
+
+        // Force the constant molecular diffusivity for DNS irrespective of what the user inputs
+        if (les_type == LESType::None) { // DNS
+            molec_diff_type_string = "Constant"; // For DNS, use constant molecular viscosity
+        }
+
+        if (!molec_diff_type_string.compare("Constant")) {
+            molec_diff_type = MolecDiffType::Constant;
+        } else if (!molec_diff_type_string.compare("None")) {
+            molec_diff_type = MolecDiffType::None;
+        } else {
+            amrex::Error("Don't know this molec_diff_type");
         }
 
         // Diffusive/viscous/LES constants...
@@ -104,14 +103,14 @@ struct SolverChoice {
         pp.query("Cs" , Cs);
         pp.query("CI" , CI);
         pp.query("Pr_t", Pr_t);
-    pp.query("Sc_t", Sc_t);
-    pp.query("rho0_trans", rho0_trans);
+        pp.query("Sc_t", Sc_t);
+        pp.query("rho0_trans", rho0_trans);
 
-    // Compute relevant forms of diffusion parameters
-    Pr_t_inv = 1.0 / Pr_t;
-    Sc_t_inv = 1.0 / Sc_t;
-    rhoAlpha_T = rho0_trans * alpha_T;
-    rhoAlpha_C = rho0_trans * alpha_C;
+        // Compute relevant forms of diffusion parameters
+        Pr_t_inv = 1.0 / Pr_t;
+        Sc_t_inv = 1.0 / Sc_t;
+        rhoAlpha_T = rho0_trans * alpha_T;
+        rhoAlpha_C = rho0_trans * alpha_C;
 
         // Order of spatial discretization
         pp.query("spatial_order", spatial_order);
@@ -122,12 +121,15 @@ struct SolverChoice {
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
         pp.query("abl_driver_type",abl_driver_type_string);
+
         if (!abl_driver_type_string.compare("PressureGradient")) {
             abl_driver_type = ABLDriverType::PressureGradient;
         } else if (!abl_driver_type_string.compare("GeostrophicWind")) {
             abl_driver_type = ABLDriverType::GeostrophicWind;
+        } else if (!abl_driver_type_string.compare("None")){
+            abl_driver_type = ABLDriverType::None; // No ABL driver for simulating classical fluid dynamics problems
         } else {
-            abl_driver_type = ABLDriverType::None;
+            amrex::Error("Don't know this abl_driver_type");
         }
 
         amrex::Vector<amrex::Real> abl_pressure_grad_in = {0.0, 0.0, 0.0};
@@ -185,10 +187,18 @@ struct SolverChoice {
         if (les_type == LESType::None) {
             amrex::Print() << "Using DNS model " << std::endl;
         } else if  (les_type == LESType::Smagorinsky) {
-            amrex::Print() << "Using Smagorinsky model " << std::endl;
+            amrex::Print() << "Using Smagorinsky LES model " << std::endl;
         } else if  (les_type == LESType::Deardorff) {
-            amrex::Print() << "Using Deardorff model " << std::endl;
+            amrex::Print() << "Using Deardorff LES model " << std::endl;
         }
+
+        if (molec_diff_type == MolecDiffType::Constant) {
+            amrex::Print() << "Using constant molecular diffusivity (relevant for DNS)" << std::endl;
+        } else if (molec_diff_type == MolecDiffType::None) {
+            amrex::Print() << "Not using any molecular diffusivity, i.e. using the modeled turbulent diffusivity"
+            << std::endl;
+        }
+
     }
 
     void build_coriolis_forcings()
