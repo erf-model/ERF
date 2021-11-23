@@ -18,6 +18,10 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
     Real strainRate = ComputeStrainRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
+    Real rotationRate = 0.0; //ComputeRotationRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
+
+    Real strainRateDeviaoric = strainRate - rotationRate;
+
     Real viscosity_factor = 0.0;
     //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
     // Future implementations may account for mu = mu(T) computed at the coordinate of interest.
@@ -45,7 +49,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
             amrex::Abort("Error:  LES model is unrecognized");
     }
 
-    Real stressTerm = viscosity_factor * strainRate;
+    Real stressTerm = viscosity_factor * strainRateDeviaoric;
     return stressTerm;
 }
 
