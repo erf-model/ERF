@@ -27,14 +27,12 @@ namespace IntVar {
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         MultiFab& cons_in,
                         MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in,
-                        int ngrow,
-                        const SolverChoice& solverChoice);
+                        int ngrow, int l_spatial_order);
 
 void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in,
                         MultiFab& cons_in,
                         MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out,
-                        const SolverChoice& solverChoice);
-
+                        int l_spatial_order);
 
 /**
  * Update the cell-centered state and face-based velocity using a time integrator
@@ -171,14 +169,14 @@ Real ComputeStrainRate(const int &i, const int &j, const int &k,
                         const enum DiffusionDir &diffDir,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize);
 
-/** Given a velocity field and a geometry, compute nut or K(i, j, k) at cell-centers */
+/** Given a velocity field and a geometry, compute Ksmag or K(i, j, k) at cell-centers */
 //AMREX_GPU_DEVICE
 void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                                MultiFab& cons_in, MultiFab& eddyViscosity,
                                const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                const SolverChoice& solverChoice);
 
-/** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known */
+/** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or Ksmag (i, j, k) is known */
 AMREX_GPU_DEVICE
 Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
@@ -186,7 +184,7 @@ Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const enum MomentumEqn &momentumEqn,
                             const enum DiffusionDir &diffDir,
                             const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                            const Array4<Real>& nut);
+                            const Array4<Real>& Ksmag);
 
 /** Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky */
 AMREX_GPU_DEVICE
@@ -196,7 +194,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const enum MomentumEqn &momentumEqn,
                         const enum DiffusionDir &diffDir,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                        const Array4<Real>& nut,
+                        const Array4<Real>& Ksmag,
                         const SolverChoice &solverChoice);
 
 AMREX_GPU_DEVICE
@@ -204,18 +202,23 @@ Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
                                  const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                                  const enum MomentumEqn &momentumEqn,
                                  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                                 const Array4<Real>& nut,
+                                 const Array4<Real>& Ksmag,
                                  const SolverChoice &solverChoice);
 
 AMREX_GPU_DEVICE
-Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
+Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
                                   const Array4<Real>& cell_data, const int & qty_index,
+                  const amrex::Real invCellWidth,
+                  const Array4<Real>& Ksmag,
+                  const SolverChoice &solverChoice,
+                  const enum NextOrPrev &nextOrPrev,
                                   const enum Coord& coordDir);
 
 AMREX_GPU_DEVICE
 Real DiffusionContributionForState(const int &i, const int &j, const int &k,
                                    const Array4<Real>& cell_data, const int & qty_index,
                                    const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
+                   const Array4<Real>& Ksmag,
                                    const SolverChoice &solverChoice);
 
 int ComputeGhostCells(const int &spatial_order);

@@ -11,39 +11,41 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const enum MomentumEqn &momentumEqn,
                         const enum DiffusionDir &diffDir,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                        const Array4<Real>& nut,
+                        const Array4<Real>& Ksmag,
                         const SolverChoice &solverChoice) {
-    Real stressTerm = 0.0;
-    Real turbViscInterpolated = 0.0;
 
     // Here, we have computed strain rate on the fly.
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
     Real strainRate = ComputeStrainRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
-    // TODO: Consider passing turbModel to this function instead of computing it here from SolverChoice
-    enum TurbulenceModel turbModel;
-
-    if (solverChoice.les_type == LESType::Smagorinsky)
-        turbModel = TurbulenceModel::Smagorinsky;
-    else if (solverChoice.les_type == LESType::Deardorff)
-        turbModel = TurbulenceModel::Deardorff;
-    else
-        turbModel = TurbulenceModel::DNS;
-
-    switch (turbModel) {
-        case TurbulenceModel::DNS:
-            //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
-            // Future implementations may account for mu = mu(T) computed at the coordinate of interest.
-            stressTerm = 2.0 * solverChoice.dynamicViscosity * strainRate; // 2*mu*Sij(m+1/2) or 2*mu*Sij(m-1/2)
-            break;
-        case TurbulenceModel::Smagorinsky:
-            turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize, nut);
-            stressTerm = turbViscInterpolated * strainRate; // // K_interp*Sij(m+1/2) or K_interp*Sij(m-1/2)
-            break;
+    Real viscosity_factor = 0.0;
+    //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
+    // Future implementations may account for mu = mu(T) computed at the coordinate of interest.
+    // That could be done with a new MolecDiffType
+    switch (solverChoice.molec_diff_type) {
+        case MolecDiffType::Constant:
+        viscosity_factor += 2.0 * solverChoice.dynamicViscosity;
+        break;
+        case MolecDiffType::None:
+        break;
         default:
-            amrex::Abort("Error: Turbulence model is unrecognized");
+        amrex::Abort("Error: Molecular diffusion/viscosity model is unrecognized");
     }
 
+    Real turbViscInterpolated = 0.0;
+    // TODO: Add Deardorff model, perhaps take advantage of turbulence model indicator
+    switch (solverChoice.les_type) {
+        case LESType::Smagorinsky:
+        turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize, Ksmag);
+        viscosity_factor += turbViscInterpolated;
+        break;
+        case LESType::None:
+        break;
+        default:
+            amrex::Abort("Error:  LES model is unrecognized");
+    }
+
+    Real stressTerm = viscosity_factor * strainRate;
     return stressTerm;
 }
 
@@ -53,7 +55,7 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                             const enum MomentumEqn &momentumEqn,
                             const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                            const Array4<Real>& nut,
+                            const Array4<Real>& Ksmag,
                             const SolverChoice &solverChoice) {
 
     auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
@@ -62,12 +64,12 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
     switch (momentumEqn) {
         case MomentumEqn::x:
             Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
-            tau11Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
-            tau11Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
-            tau12Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
-            tau12Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
-            tau13Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
-            tau13Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
+            tau11Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, cellSize, Ksmag, solverChoice);
+            tau11Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, cellSize, Ksmag, solverChoice);
+            tau12Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, cellSize, Ksmag, solverChoice);
+            tau12Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, cellSize, Ksmag, solverChoice);
+            tau13Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, cellSize, Ksmag, solverChoice);
+            tau13Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, cellSize, Ksmag, solverChoice);
 
             diffusionContribution = (tau11Next - tau11Prev) / dx  // Contribution to x-mom eqn from diffusive flux in x-dir
                                   + (tau12Next - tau12Prev) / dy  // Contribution to x-mom eqn from diffusive flux in y-dir
@@ -75,12 +77,12 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
             break;
         case MomentumEqn::y:
             Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
-            tau21Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
-            tau21Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
-            tau22Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
-            tau22Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
-            tau23Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
-            tau23Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
+            tau21Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, cellSize, Ksmag, solverChoice);
+            tau21Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, cellSize, Ksmag, solverChoice);
+            tau22Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, cellSize, Ksmag, solverChoice);
+            tau22Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, cellSize, Ksmag, solverChoice);
+            tau23Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, cellSize, Ksmag, solverChoice);
+            tau23Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, cellSize, Ksmag, solverChoice);
 
             diffusionContribution = (tau21Next - tau21Prev) / dx  // Contribution to y-mom eqn from diffusive flux in x-dir
                                   + (tau22Next - tau22Prev) / dy  // Contribution to y-mom eqn from diffusive flux in y-dir
@@ -88,12 +90,12 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
             break;
         case MomentumEqn::z:
             Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev;
-            tau31Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
-            tau31Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, cellSize, nut, solverChoice);
-            tau32Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
-            tau32Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, cellSize, nut, solverChoice);
-            tau33Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
-            tau33Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, cellSize, nut, solverChoice);
+            tau31Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::x, cellSize, Ksmag, solverChoice);
+            tau31Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::x, cellSize, Ksmag, solverChoice);
+            tau32Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::y, cellSize, Ksmag, solverChoice);
+            tau32Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::y, cellSize, Ksmag, solverChoice);
+            tau33Next = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::next, momentumEqn, DiffusionDir::z, cellSize, Ksmag, solverChoice);
+            tau33Prev = ComputeStressTerm(i, j, k, u, v, w, NextOrPrev::prev, momentumEqn, DiffusionDir::z, cellSize, Ksmag, solverChoice);
 
             diffusionContribution = (tau31Next - tau31Prev) / dx  // Contribution to z-mom eqn from diffusive flux in x-dir
                                   + (tau32Next - tau32Prev) / dy  // Contribution to z-mom eqn from diffusive flux in y-dir
@@ -107,27 +109,72 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
 }
 
 AMREX_GPU_DEVICE
-Real ComputeDiffusionTermForState(const int &i, const int &j, const int &k,
-                                  const Array4<Real>& cell_data, const int & qty_index,
-                                  const enum Coord& coordDir) {
-    Real diffusionTerm = 0.0;
-    //TODO: Discuss about the implementation changes needed (if any). The current implemenation is based on a previous
-    // version of documentation.
-    switch (coordDir) {
-        case Coord::x:
-            diffusionTerm = cell_data(i+1, j, k, qty_index) -2.0*cell_data(i, j, k, qty_index) + cell_data(i-1, j, k, qty_index);
-            break;
-        case Coord::y:
-            diffusionTerm = cell_data(i, j+1, k, qty_index) -2.0*cell_data(i, j, k, qty_index) + cell_data(i, j-1, k, qty_index);
-            break;
-        case Coord::z:
-            diffusionTerm = cell_data(i, j, k+1, qty_index) -2.0*cell_data(i, j, k, qty_index) + cell_data(i, j, k-1, qty_index);
-            break;
-        default:
-            amrex::Abort("Error: Coord direction is unrecognized");
-    }
+amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
+                     const Array4<Real>& cell_data, const int & qty_index,
+                     const amrex::Real invCellWidth,
+                     const Array4<Real>& Ksmag,
+                     const SolverChoice &solverChoice,
+                     const enum NextOrPrev &nextOrPrev,
+                     const enum Coord& coordDir)
+{
+  // Get indices of states to left and right of the face on which we want the flux
+  const int il = i - ((coordDir == Coord::x) && (nextOrPrev == NextOrPrev::prev));
+  const int ir = i + ((coordDir == Coord::x) && (nextOrPrev == NextOrPrev::next));
+  const int jl = j - ((coordDir == Coord::y) && (nextOrPrev == NextOrPrev::prev));
+  const int jr = j + ((coordDir == Coord::y) && (nextOrPrev == NextOrPrev::next));
+  const int kl = k - ((coordDir == Coord::z) && (nextOrPrev == NextOrPrev::prev));
+  const int kr = k + ((coordDir == Coord::z) && (nextOrPrev == NextOrPrev::next));
 
-    return diffusionTerm;
+  // Get diffusion coefficients
+  amrex::Real rhoAlpha_molec;
+  amrex::Real Pr_or_Sc_turb_inv;
+  switch(qty_index) {
+  case RhoTheta_comp: // Temperature
+    rhoAlpha_molec = solverChoice.rhoAlpha_T;
+    Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
+    break;
+  case RhoScalar_comp: // Scalar
+    rhoAlpha_molec = solverChoice.rhoAlpha_C;
+    Pr_or_Sc_turb_inv = solverChoice.Sc_t_inv;
+    break;
+  default:
+    amrex::Abort("Error: Diffusion term for the data index isn't implemented");
+  }
+
+  amrex::Real rhoAlpha = 0.0;
+  switch (solverChoice.molec_diff_type) {
+  case MolecDiffType::Constant:
+    rhoAlpha += rhoAlpha_molec;
+    break;
+  case MolecDiffType::None:
+    break;
+  default:
+    amrex::Abort("Error: Molecular diffusion/viscosity model is unrecognized");
+  }
+
+  amrex::Real rhoAlpha_r = 0.0, rhoAlpha_l = 0.0;
+  // TODO: Add Deardorff model, perhaps take advantage of turbulence model indicator
+  switch (solverChoice.les_type) {
+  case LESType::Smagorinsky:
+    // Ksmag = 2*mu_t -> extra factor of 0.5 when computing rhoAlpha
+    rhoAlpha_r = Ksmag(ir, jr, kr) * Pr_or_Sc_turb_inv;
+    rhoAlpha_l = Ksmag(il, jl, kl) * Pr_or_Sc_turb_inv;
+    rhoAlpha += 0.25*(rhoAlpha_l + rhoAlpha_r);
+    break;
+  case LESType::None:
+    break;
+  default:
+    amrex::Abort("Error:  LES model is unrecognized");
+  }
+
+  // Compute the flux
+  // TODO : could be more efficient to compute comp from Rho_comp before this
+  amrex::Real diffusionFlux = rhoAlpha *(cell_data(ir, jr, kr, qty_index) /
+                     cell_data(ir, jr, kr, Rho_comp)
+                     - cell_data(il, jl, kl, qty_index) /
+                     cell_data(il, jl, kl, Rho_comp)) * invCellWidth;
+
+  return diffusionFlux;
 }
 
 AMREX_GPU_DEVICE
@@ -135,33 +182,27 @@ Real
 DiffusionContributionForState(const int &i, const int &j, const int &k,
                               const Array4<Real>& cell_data, const int & qty_index,
                               const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
+                              const Array4<Real>& Ksmag,
                               const SolverChoice &solverChoice) {
 
-    auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
-    Real xDiffFlux = 0.0, yDiffFlux = 0.0, zDiffFlux = 0.0, diffCoeff = 0.0;
+  const amrex::Real dx_inv = 1.0/cellSize[0];
+  const amrex::Real dy_inv = 1.0/cellSize[1];
+  const amrex::Real dz_inv = 1.0/cellSize[2];
 
-    xDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::x);
-    yDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::y);
-    zDiffFlux = ComputeDiffusionTermForState(i, j, k, cell_data, qty_index, Coord::z);
+  // TODO : could be more efficient to compute and save all fluxes before taking divergence (now all fluxes are computed 2x);
+  amrex::Real xDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::x);
+  amrex::Real yDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::y);
+  amrex::Real zDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::z);
 
-    //TODO: Discuss about the implementation changes needed (if any). Diffusion coefficients are assumed to be constant.
-    switch(qty_index) {
-        case RhoTheta_comp: // Temperature
-            diffCoeff = solverChoice.alpha_T;
-            break;
-        case RhoScalar_comp: // Scalar
-            diffCoeff = solverChoice.alpha_C;
-            break;
-        default:
-            amrex::Abort("Error: Diffusion term for the data index isn't implemented");
-    }
+  amrex::Real xDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::x);
+  amrex::Real yDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::y);
+  amrex::Real zDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::z);
 
-    // Assemble diffusion contribution.
-    Real diffusionContribution = diffCoeff *
-                                 (  xDiffFlux / (dx*dx)  // Diffusive flux in x-dir
-                                  + yDiffFlux / (dy*dy)  // Diffusive flux in y-dir
-                                  + zDiffFlux / (dz*dz)  // Diffusive flux in z-dir
-                                 );
+  // Assemble diffusion contribution.
+  Real diffusionContribution =
+    (xDiffFluxNext - xDiffFluxPrev) * dx_inv   // Diffusive flux in x-dir
+    + (yDiffFluxNext - yDiffFluxPrev) * dy_inv   // Diffusive flux in y-dir
+    + (zDiffFluxNext - zDiffFluxPrev) * dz_inv;  // Diffusive flux in z-dir
 
-    return diffusionContribution;
+  return diffusionContribution;
 }

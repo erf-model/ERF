@@ -62,6 +62,8 @@ erf.use_pressure = false
 erf.use_gravity = false
 
 erf.les_type         = "None"
+erf.molec_diff_type  = "Constant"
+erf.rho0_trans       = 1.0
 erf.dynamicViscosity = 0.0
 
 erf.spatial_order = 2
@@ -72,7 +74,6 @@ prob.A_0 = 0.0
 prob.B_0 = 1.0
 prob.u_0 = 0.0
 prob.v_0 = 0.0
-prob.uRef = 0.0
 prob.prob_type = 10
 
 # INTEGRATION

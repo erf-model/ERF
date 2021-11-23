@@ -70,7 +70,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 .. _fig:scalar_advection_u
 
-.. table:: Scalar concentration with uniform flow in x- and y-directions.
+.. table:: Advection of a spherical blob in a uniform velocity field (100,0,0)
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a1|                         |                       |b1|                           |
@@ -98,7 +98,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 .. _fig:scalar_advection_uv
 
-.. table:: Scalar concentration with uniform flow in x- and y-directions.
+.. table:: Advection of a spherical blob in a uniform velocity field (10,5,0)
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a2|                         |                        |b2|                          |
@@ -126,7 +126,8 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 .. _fig:scalar_advection_sheared_u
 
-.. table:: Scalar concentration in vertically sheared flow in x-direction.
+.. table:: Advection of a spherical blob in a uniform shearing velocity field (8 log( (z+z0)/z0 ) / log ( (zref+z0)/z0 )
+   with z0 = 0.1 and zref = 80 in a domain 8x8x8
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a3|                         |                        |b3|                          |
@@ -142,9 +143,9 @@ Test Location: `Tests/test_files/ScalarAdvectionRigidRotation`_
 
 .. _`Tests/test_files/ScalarAdvectionRigidRotation`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionRigidRotation
 
-Problem Location: `Exec/ScalarAdvecRigidRot`_
+Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvecRigidRot`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvecRigidRot
+.. _`Exec/ScalarAdvecAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
 .. |a4| image:: figures/tests/scalar_advec_rigid_rot_start.png
         :width: 300
@@ -154,13 +155,15 @@ Problem Location: `Exec/ScalarAdvecRigidRot`_
 
 .. _fig:scalar_advection_rigid_rot
 
-.. table:: Scalar concentration with rigid rotation
+.. table::   Advection of a 2D blob in a rotating velocity field (.5-y, x-.5, 0) in a domain 1x1x1
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a4|                         |                        |b4|                          |
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 6.283185).   |
    +-----------------------------------------------------+------------------------------------------------------+
+
+See http://ammar-hakim.org/sj/je/je16/je16-ldg.html#rigid-body-rotating-flow
 
 Scalar Diffusion: Sphere of Scalar
 ------------------------------------------------
@@ -182,7 +185,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 .. _fig:scalar_diffusion_gaussian
 
-.. table:: Scalar concentration
+.. table:: Diffusion of a spherical blob of scalar
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a5|                         |                        |b5|                          |
@@ -210,7 +213,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 .. _fig:scalar_diffusion_sine
 
-.. table:: Scalar concentration
+.. table:: Diffusion of a scalar initialized as sin(x)
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a6|                         |                        |b6|                          |
@@ -239,7 +242,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 .. _fig:scalar_diffusion_sine
 
-.. table:: Scalar concentration
+.. table:: Advection and diffusion of a spherical blob in a uniform velocity field (100,0,0)
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a7|                         |                        |b7|                          |

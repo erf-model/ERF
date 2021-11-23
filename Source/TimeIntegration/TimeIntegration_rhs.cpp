@@ -33,7 +33,7 @@ void erf_rhs (int level,
                        *S_data[IntVar::xmom],
                        *S_data[IntVar::ymom],
                        *S_data[IntVar::zmom],
-                       1, solverChoice);
+                       1, solverChoice.spatial_order);
 
     xvel.FillBoundary(geom.periodicity());
     yvel.FillBoundary(geom.periodicity());
@@ -125,7 +125,7 @@ void erf_rhs (int level,
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom]->array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom]->array(mfi);
 
-        const Array4<Real>& nut = eddyViscosity.array(mfi);
+        const Array4<Real>& Ksmag = eddyViscosity.array(mfi);
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
@@ -140,9 +140,9 @@ void erf_rhs (int level,
 
             // Add diffusive terms.
             if (solverChoice.use_thermal_diffusion && n == RhoTheta_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp, dx, solverChoice);
+          cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp, dx, Ksmag, solverChoice);
             if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp, dx, solverChoice);
+          cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp, dx, Ksmag, solverChoice);
 
             // Add source terms. TODO: Put this under a if condition when we implement source term
             cell_rhs(i, j, k, n) += source_fab(i, j, k, n);
@@ -172,7 +172,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dx, nut, solverChoice);
+                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dx, Ksmag, solverChoice);
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
@@ -195,7 +195,7 @@ void erf_rhs (int level,
             // Add Coriolis forcing (that assumes east is +x, north is +y)
             if (solverChoice.use_coriolis)
             {
-                Real rho_v_loc = 0.25 * (rho_u(i,j+1,k) + rho_u(i,j,k) + rho_u(i-1,j+1,k) + rho_u(i-1,j,k));
+                Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                 Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
                 rho_u_rhs(i, j, k) += solverChoice.coriolis_factor *
                         (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
@@ -227,7 +227,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dx, nut, solverChoice);
+                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dx, Ksmag, solverChoice);
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
@@ -278,7 +278,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dx, nut, solverChoice);
+                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dx, Ksmag, solverChoice);
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
@@ -302,6 +302,11 @@ void erf_rhs (int level,
                 Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
                 rho_w_rhs(i, j, k) += solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
             }
+
+            // Add geostrophic forcing
+            if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
+                rho_w_rhs(i, j, k) += solverChoice.abl_geo_forcing[2];
+
             } // not on coarse-fine boundary
         });
     }

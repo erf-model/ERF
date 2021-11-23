@@ -62,6 +62,7 @@ erf.use_gravity = false
 erf.spatial_order = 2
 
 erf.les_type         = "None"
+erf.molec_diff_type  = "None"
 erf.dynamicViscosity = 0.0
 
 # PROBLEM PARAMETERS
@@ -71,7 +72,6 @@ prob.A_0   = 1.0
 prob.u_0   = 10.0
 prob.v_0   = 5.0
 prob.rad_0 = 0.25
-prob.uRef  = 0.0
 
 # INTEGRATION
 ## integration.type can take on the following values:

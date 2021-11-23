@@ -22,7 +22,12 @@ struct ProbParm {
   amrex::Real rad_0 = 0.0;
   amrex::Real z0    = 0.1;  // Surface Roughness
   amrex::Real zRef  = 80.0; // Reference Height
-  amrex::Real uRef  = 8.0;  // Reference Wind Speed
+  amrex::Real uRef  = 0.0;  // Reference Wind Speed
+
+  amrex::Real xc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
+  amrex::Real yc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
+  amrex::Real zc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
+
   int prob_type = -1;
 }; // namespace ProbParm
 

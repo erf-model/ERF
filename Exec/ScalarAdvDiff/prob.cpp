@@ -31,11 +31,12 @@ erf_init_prob(
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Define a point (xc,yc,zc) at the center of the domain
-    const amrex::Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
-    const amrex::Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-    const amrex::Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
+    const amrex::Real xc = parms.xc_frac * (prob_lo[0] + prob_hi[0]);
+    const amrex::Real yc = parms.yc_frac * (prob_lo[1] + prob_hi[1]);
+    const amrex::Real zc = parms.zc_frac * (prob_lo[2] + prob_hi[2]);
 
-    const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
+    const amrex::Real r3d  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
+    const amrex::Real r2d  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
 
     const amrex::Real r0 = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
 
@@ -47,14 +48,16 @@ erf_init_prob(
 
     if (parms.prob_type == 10)
     {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r) + parms.B_0*sin(x);
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0*sin(x);
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
         //            + B_0*sin(x)
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r) + parms.B_0 * sin(x);
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0 * sin(x);
 
+    } else if (parms.prob_type == 11) {
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d, r0) / r0));
     } else {
         // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
-        if (r < r0) {
+        if (r3d < r0) {
            state(i, j, k, RhoScalar_comp) = parms.A_0;
         } else {
            state(i, j, k, RhoScalar_comp) = 0.0;
@@ -71,19 +74,33 @@ erf_init_prob(
 
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real*      dx = geomdata.CellSize();
+    const amrex::Real        y = prob_lo[1] + (j + 0.5) * dx[1];
     const amrex::Real        z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
-    x_vel(i, j, k) = parms.u_0 + parms.uRef *
-                     std::log((z + parms.z0)/parms.z0)/
-                     std::log((parms.zRef +parms.z0)/parms.z0);
+    if (parms.prob_type == 11) {
+        x_vel(i, j, k) = -y + 0.5;
+    } else {
+        x_vel(i, j, k) = parms.u_0 + parms.uRef *
+                         std::log((z + parms.z0)/parms.z0)/
+                         std::log((parms.zRef +parms.z0)/parms.z0);
+    }
   });
 
   // Construct a box that is on y-faces
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    y_vel(i, j, k) = parms.v_0;
+
+    const amrex::Real* prob_lo = geomdata.ProbLo();
+    const amrex::Real*      dx = geomdata.CellSize();
+    const amrex::Real        x = prob_lo[0] + (i + 0.5) * dx[0];
+
+    if (parms.prob_type == 11) {
+        y_vel(i, j, k) = x - 0.5;
+    } else {
+        y_vel(i, j, k) = parms.v_0;
+    }
   });
 
   // Construct a box that is on z-faces
@@ -136,6 +153,10 @@ amrex_probinit(
     pp.query("z0", parms.z0);
     pp.query("zRef", parms.zRef);
     pp.query("uRef", parms.uRef);
+
+    pp.query("xc_frac", parms.xc_frac);
+    pp.query("yc_frac", parms.yc_frac);
+    pp.query("zc_frac", parms.zc_frac);
 
     pp.query("prob_type", parms.prob_type);
   }
