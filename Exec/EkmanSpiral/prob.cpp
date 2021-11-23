@@ -23,17 +23,19 @@ erf_init_prob(
 {
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
-    const amrex::Real* prob_lo = geomdata.ProbLo();
-    const auto dx = geomdata.CellSize();
-    const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+    //const amrex::Real* prob_lo = geomdata.ProbLo();
+    //const auto dx = geomdata.CellSize();
+    //const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
+    //const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
+    //const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the density
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial potential temperature (Actually rho*theta)
     state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
+
+
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;

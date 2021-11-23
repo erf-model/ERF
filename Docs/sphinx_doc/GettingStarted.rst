@@ -22,8 +22,8 @@ Then download the ERF repository by typing:
 
 .. include:: InputFiles.rst
 
-
-.. include:: tutorials.rst
+# To be added later
+#.. include:: tutorials.rst
 
 
 .. include:: testing.rst

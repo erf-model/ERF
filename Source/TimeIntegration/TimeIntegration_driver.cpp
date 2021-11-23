@@ -35,7 +35,7 @@ void erf_advance(int level,
     // **************************************************************************************
     //TODO: Check if this is the only place to specify the number of ghost cells
     //TODO: Also explore how 'ngrow' should be related to the spatial_order
-    int ngc = ComputeGhostCells(solverChoice.spatial_order);
+    //int ngc = ComputeGhostCells(solverChoice.spatial_order);
 
     const BoxArray& ba            = cons_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();

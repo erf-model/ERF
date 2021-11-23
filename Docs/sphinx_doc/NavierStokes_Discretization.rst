@@ -1,7 +1,7 @@
 #########################################
 Discretization of Navier-Stokes Equations
 #########################################
-Last update: 2021-11-13
+Last update: 2021-11-22
 
 NOTE: For the sake of simplicity, the discretized equations mention time levels :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
 
@@ -131,8 +131,9 @@ Contributions from different directions
 .. image:: figures/grid_discretization/temp_advec_z.PNG
   :width: 400
 
- Scalar Advection
---------------------------------------
+
+Scalar Advection
+-----------------------------------------------------
 
 .. math::
 
@@ -210,13 +211,19 @@ Momentum, Thermal, and Scalar Diffusion Contribution to DNS
 
 Strain Rate Tensor
 ------------------
-The schematic below shows the definition of strain-rate components.
+The schematic below (isomeric view) shows the definition of strain-rate components.
 
 .. image:: figures/grid_discretization/StrainRate.PNG
   :width: 400
 
 Strain-Rate Components for X-Momentum Equation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. image:: figures/grid_discretization/x_mom_diff_a.PNG
+  :width: 400
+.. image:: figures/grid_discretization/x_mom_diff_b.PNG
+  :width: 400
+
 .. math::
 
    \begin{array}{ll}
@@ -230,6 +237,12 @@ Strain-Rate Components for X-Momentum Equation
 
 Strain-Rate Components for Y-Momentum Equation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. image:: figures/grid_discretization/y_mom_diff_a.PNG
+  :width: 400
+.. image:: figures/grid_discretization/y_mom_diff_b.PNG
+  :width: 400
+
 .. math::
 
    \begin{array}{ll}
@@ -243,6 +256,12 @@ Strain-Rate Components for Y-Momentum Equation
 
 Strain-Rate Components for Z-Momentum Equation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. image:: figures/grid_discretization/z_mom_diff_a.PNG
+  :width: 400
+.. image:: figures/grid_discretization/z_mom_diff_b.PNG
+  :width: 400
+
 .. math::
 
    \begin{array}{ll}
@@ -255,7 +274,7 @@ Strain-Rate Components for Z-Momentum Equation
    \end{array}
 
 Expansion-Rate Tensor
-------------------
+-------------------------
 Place holder....
 ... to be updated
 
@@ -281,18 +300,16 @@ U Momentum viscous stress divergence
               & + \left. \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{align}
 
-Note that LES equation has a similar format except how :math:`\tau_{11,i + \frac{1}{2}}`, :math:`\tau_{11,i - \frac{1}{2}}`, :math:`\tau_{12,j + \frac{1}{2}}`, :math:`\tau_{12,j - \frac{1}{2}}`, :math:`\tau_{13,k + \frac{1}{2}}`, and :math:`\tau_{13,k - \frac{1}{2}}` are defined.
+Note that LES equation has a similar format except how :math:`\tau_{11,i + \frac{1}{2}}`, :math:`\tau_{11,i - \frac{1}{2}}`,
+:math:`\tau_{12,j + \frac{1}{2}}`, :math:`\tau_{12,j - \frac{1}{2}}`, :math:`\tau_{13,k + \frac{1}{2}}`,
+and :math:`\tau_{13,k - \frac{1}{2}}` are defined.
 
-:math:`\tau_{ij,m + \frac{1}{2}} = 2\mu\ S_{ij,m + \frac{1}{2}}` and :math:`\tau_{ij,m - \frac{1}{2}} = 2\mu\ S_{ij,m - \frac{1}{2}}`, where :math:`m = i, j, k`.
+:math:`\tau_{ij,m + \frac{1}{2}} = 2\mu\ S_{ij,m + \frac{1}{2}}` and
+:math:`\tau_{ij,m - \frac{1}{2}} = 2\mu\ S_{ij,m - \frac{1}{2}}`,
+where :math:`m = i, j, k`.
 
-The nomenclature is similar for other two momentum equations. Note that :math:`\mu` is constant in the current implementation and its variation with temperature for low-Mach atmospheric flows has been ignored.
-
-Contributions from different directions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/grid_discretization/x_mom_diff_a.PNG
-  :width: 400
-.. image:: figures/grid_discretization/x_mom_diff_b.PNG
-  :width: 400
+The nomenclature is similar for other two momentum equations. Note that :math:`\mu` is constant in the current
+implementation and its variation with temperature for low-Mach atmospheric flows has been ignored.
 
 V Momentum viscous stress divergence
 ------------------------------------
@@ -306,14 +323,9 @@ V Momentum viscous stress divergence
               & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
 
-Note that LES equation has a similar format except how :math:`\tau_{21,i + \frac{1}{2}}`, :math:`\tau_{21,i - \frac{1}{2}}`, :math:`\tau_{22,j + \frac{1}{2}}`, :math:`\tau_{22,j - \frac{1}{2}}`, :math:`\tau_{23,k + \frac{1}{2}}`, and :math:`\tau_{23,k - \frac{1}{2}}` are defined.
-
-Contributions from different directions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/grid_discretization/y_mom_diff_a.PNG
-  :width: 400
-.. image:: figures/grid_discretization/y_mom_diff_b.PNG
-  :width: 400
+Note that LES equation has a similar format except how :math:`\tau_{21,i + \frac{1}{2}}`, :math:`\tau_{21,i - \frac{1}{2}}`,
+:math:`\tau_{22,j + \frac{1}{2}}`, :math:`\tau_{22,j - \frac{1}{2}}`, :math:`\tau_{23,k + \frac{1}{2}}`,
+and :math:`\tau_{23,k - \frac{1}{2}}` are defined.
 
 W Momentum viscous stress divergence
 ------------------------------------
@@ -327,14 +339,9 @@ W Momentum viscous stress divergence
              & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
 
-Note that LES equation has a similar format except how :math:`\tau_{31,i + \frac{1}{2}}`, :math:`\tau_{31,i - \frac{1}{2}}`, :math:`\tau_{32,j + \frac{1}{2}}`, :math:`\tau_{32,j - \frac{1}{2}}`, :math:`\tau_{33,k + \frac{1}{2}}`, and :math:`\tau_{33,k - \frac{1}{2}}` are defined.
-
-Contributions from different directions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. image:: figures/grid_discretization/z_mom_diff_a.PNG
-  :width: 400
-.. image:: figures/grid_discretization/z_mom_diff_b.PNG
-  :width: 400
+Note that LES equation has a similar format except how :math:`\tau_{31,i + \frac{1}{2}}`, :math:`\tau_{31,i - \frac{1}{2}}`,
+:math:`\tau_{32,j + \frac{1}{2}}`, :math:`\tau_{32,j - \frac{1}{2}}`, :math:`\tau_{33,k + \frac{1}{2}}`,
+and :math:`\tau_{33,k - \frac{1}{2}}` are defined.
 
 Potential Temperature Diffusion
 -------------------------------
@@ -444,12 +451,12 @@ U Momentum - subfilter stress divergence
 .. math::
 
    \begin{array}{l}
-   \tau_{11,i + \frac{1}{2}} = K_{i,j,k}                            \ S_{11,i + \frac{1}{2}} = K_{i,j,k}                                                    \frac{1}{\Delta x}\left( u_{i + 1,j,k} - u_{i,j,k} \right) \\
-   \tau_{11,i - \frac{1}{2}} = K_{i - 1,j,k}                        \ S_{11,i - \frac{1}{2}} = K_{i - 1,j,k}                                                \frac{1}{\Delta x}\left( u_{i,j,k} - u_{i - 1,j,k} \right) \\
-   \tau_{12,j + \frac{1}{2}} = K_{i - \frac{1}{2},j + \frac{1}{2},k}\ S_{12,j + \frac{1}{2}} = K_{i - \frac{1}{2},j + \frac{1}{2},k}\frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j + 1,k} - u_{i,j,k} \right) + \frac{1}{\Delta x}\left( v_{i,j + 1,k} - v_{i - 1,j + 1,k} \right) \right\rbrack \\
-   \tau_{12,j - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k}\ S_{12,j - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k}\frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j,k} - u_{i,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i,j,k} - v_{i - 1,j,k} \right) \right\rbrack \\
-   \tau_{13,k + \frac{1}{2}} = K_{i - \frac{1}{2},j,k + \frac{1}{2}}\ S_{13,k + \frac{1}{2}} = K_{i - \frac{1}{2},j,k + \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k + 1} - u_{i,j,k} \right) + \frac{1}{\Delta x}\left( w_{i,j,k + 1} - w_{i - 1,j,k + 1} \right) \right\rbrack \\
-   \tau_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\ S_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack
+   \tau_{11,i + \frac{1}{2}} = K_{i,j,k}                             \ S_{11,i + \frac{1}{2}} \\
+   \tau_{11,i - \frac{1}{2}} = K_{i - 1,j,k}                         \ S_{11,i - \frac{1}{2}} \\
+   \tau_{12,j + \frac{1}{2}} = K_{i - \frac{1}{2},j + \frac{1}{2},k} \ S_{12,j + \frac{1}{2}} \\
+   \tau_{12,j - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k} \ S_{12,j - \frac{1}{2}} \\
+   \tau_{13,k + \frac{1}{2}} = K_{i - \frac{1}{2},j,k + \frac{1}{2}} \ S_{13,k + \frac{1}{2}} \\
+   \tau_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}} \ S_{13,k - \frac{1}{2}}
    \end{array}
 
 V Momentum - subfilter stress divergence
@@ -467,12 +474,12 @@ V Momentum - subfilter stress divergence
 .. math::
 
    \begin{array}{ll}
-   \tau_{21,i + \frac{1}{2}} = K_{i + \frac{1}{2},j - \frac{1}{2},k}\ S_{21,i + \frac{1}{2}} & \hspace{-5pt} = K_{i + \frac{1}{2},j - \frac{1}{2},k} \frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i + 1,j,k} - u_{i + 1,j - 1,k} \right) + \frac{1}{\Delta x}\left( v_{i + 1,j,k} - v_{i,j,k} \right) \right\rbrack \\
-   \tau_{21,i - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k}\ S_{21,i - \frac{1}{2}} & \hspace{-5pt} = K_{i - \frac{1}{2},j - \frac{1}{2},k} \frac{1}{2}\left\lbrack \frac{1}{\Delta y}\left( u_{i,j,k} -     u_{i,j - 1,k} \right)     + \frac{1}{\Delta x}\left( v_{i,j,k} - v_{i - 1,j,k} \right) \right\rbrack \\
-   \tau_{22,j + \frac{1}{2}} = K_{i,j,k}                            \ S_{22,j + \frac{1}{2}} & \hspace{-5pt} = K_{i,j,k}                                                     \frac{1}{\Delta y}\left( v_{i,j + 1,k} - v_{i,j,k} \right) \\
-   \tau_{22,j - \frac{1}{2}} = K_{i,j - 1,k}                        \ S_{22,j - \frac{1}{2}} & \hspace{-5pt} = K_{i,j - 1,k}                                                 \frac{1}{\Delta y}\left( v_{i,j,k} -     v_{i,j - 1,k} \right) \\
-   \tau_{23,k + \frac{1}{2}} = K_{i,j - \frac{1}{2},k + \frac{1}{2}}\ S_{23,k + \frac{1}{2}} & \hspace{-5pt} = K_{i,j - \frac{1}{2},k + \frac{1}{2}} \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k + 1} - v_{i,j,k} \right)     + \frac{1}{\Delta y}\left( w_{i,j,k + 1} - w_{i,j - 1,k + 1} \right) \right\rbrack \\
-   \tau_{23,k - \frac{1}{2}} = K_{i,j - \frac{1}{2}k - \frac{1}{2}} \ S_{23,k - \frac{1}{2}} & \hspace{-5pt} = K_{i,j - \frac{1}{2},k - \frac{1}{2}} \frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} -     v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k}         \right) \right\rbrack \\
+   \tau_{21,i + \frac{1}{2}} = K_{i + \frac{1}{2},j - \frac{1}{2},k} \ S_{21,i + \frac{1}{2}} \\
+   \tau_{21,i - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k} \ S_{21,i - \frac{1}{2}} \\
+   \tau_{22,j + \frac{1}{2}} = K_{i,j,k}                             \ S_{22,j + \frac{1}{2}} \\
+   \tau_{22,j - \frac{1}{2}} = K_{i,j - 1,k}                         \ S_{22,j - \frac{1}{2}} \\
+   \tau_{23,k + \frac{1}{2}} = K_{i,j - \frac{1}{2},k + \frac{1}{2}} \ S_{23,k + \frac{1}{2}} \\
+   \tau_{23,k - \frac{1}{2}} = K_{i,j - \frac{1}{2}k - \frac{1}{2}}  \ S_{23,k - \frac{1}{2}}
    \end{array}
 
 W Momentum - subfilter stress divergence
@@ -490,12 +497,12 @@ W Momentum - subfilter stress divergence
 .. math::
 
    \begin{array}{ll}
-   \tau_{31,i + \frac{1}{2}} = K_{i + \frac{1}{2},j,k - \frac{1}{2}}\ S_{31,i + \frac{1}{2}} & \hspace{-5pt} = K_{i + \frac{1}{2},j,k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i + 1,j,k} - u_{i + 1,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i + 1,j,k} - w_{i,j,k} \right) \right\rbrack \\
-   \tau_{31,i - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\ S_{31,i - \frac{1}{2}} & \hspace{-5pt} = K_{i - \frac{1}{2},j,k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( u_{i,j,k} - u_{i,j,k - 1} \right) + \frac{1}{\Delta x}\left( w_{i,j,k} - w_{i - 1,j,k} \right) \right\rbrack \\
-   \tau_{32,j + \frac{1}{2}} = K_{i,j + \frac{1}{2},k - \frac{1}{2}}\ S_{32,j + \frac{1}{2}} & \hspace{-5pt} = K_{i,j + \frac{1}{2},k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j + 1,k} - v_{i,j + 1,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j + 1,k} - w_{i,j,k} \right) \right\rbrack \\
-   \tau_{32,j - \frac{1}{2}} = K_{i,j - \frac{1}{2},k - \frac{1}{2}}\ S_{32,j - \frac{1}{2}} & \hspace{-5pt} = K_{i,j - \frac{1}{2},k - \frac{1}{2}}\frac{1}{2}\left\lbrack \frac{1}{\Delta z}\left( v_{i,j,k} - v_{i,j,k - 1} \right) + \frac{1}{\Delta y}\left( w_{i,j,k} - w_{i,j - 1,k} \right) \right\rbrack \\
-   \tau_{33,k + \frac{1}{2}} = K_{i,j,k}\ S_{33,k + \frac{1}{2}}                             & \hspace{-5pt} = K_{i,j,k}\frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \\
-   \tau_{33,k - \frac{1}{2}} = K_{i,j, k - 1}\ S_{33,k - \frac{1}{2}}                        & \hspace{-5pt} = K_{i,j,k - 1}\frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k - 1} \right)
+   \tau_{31,i + \frac{1}{2}} = K_{i + \frac{1}{2},j,k - \frac{1}{2}} \ S_{31,i + \frac{1}{2}} \\
+   \tau_{31,i - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}} \ S_{31,i - \frac{1}{2}} \\
+   \tau_{32,j + \frac{1}{2}} = K_{i,j + \frac{1}{2},k - \frac{1}{2}} \ S_{32,j + \frac{1}{2}} \\
+   \tau_{32,j - \frac{1}{2}} = K_{i,j - \frac{1}{2},k - \frac{1}{2}} \ S_{32,j - \frac{1}{2}} \\
+   \tau_{33,k + \frac{1}{2}} = K_{i,j,k}                             \ S_{33,k + \frac{1}{2}} \\
+   \tau_{33,k - \frac{1}{2}} = K_{i,j, k - 1}                        \ S_{33,k - \frac{1}{2}}
    \end{array}
 
 Energy Conservation- Subgrid heat flux

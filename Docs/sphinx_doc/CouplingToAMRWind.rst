@@ -46,8 +46,7 @@ File-based coupling
 
 *  You should specify either **erf.output_int** or **erf.output_per**, but not both.
 
-*  The name of the output files will begin with "prof" unless an alternate name is
-specified in the inputs file.
+*  The name of the output files will begin with "prof" unless an alternate name is specified in the inputs file.
 
 1D File output
 ~~~~~~~~~~~~~~
