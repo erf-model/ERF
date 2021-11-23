@@ -53,7 +53,6 @@ erf_init_prob(
   amrex::ParallelForRNG(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Note that this is called on a box of x-faces
     const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real* prob_hi = geomdata.ProbHi();
     const amrex::Real* dx = geomdata.CellSize();
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
@@ -73,7 +72,6 @@ erf_init_prob(
   amrex::ParallelForRNG(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Note that this is called on a box of y-faces
     const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real* prob_hi = geomdata.ProbHi();
     const amrex::Real* dx = geomdata.CellSize();
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
@@ -92,12 +90,10 @@ erf_init_prob(
   // Set the z-velocity
   amrex::ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
   // Note that this is called on a box of z-faces
-    const amrex::Real* dx = geomdata.CellSize();
-    const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real* prob_hi = geomdata.ProbHi();
+//    const amrex::Real* dx = geomdata.CellSize();
+//    const amrex::Real* prob_lo = geomdata.ProbLo();
     const int dom_lo_z = geomdata.Domain().smallEnd()[2];
     const int dom_hi_z = geomdata.Domain().bigEnd()[2];
-    const amrex::Real z = prob_lo[2] + k * dx[2];
 
     // Set the z-velocity
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
