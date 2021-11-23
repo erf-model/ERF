@@ -62,6 +62,7 @@ jobs:
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_HIP:BOOL=ON \
+	  -DAMReX_AMD_ARCH=gfx908 \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_MASA:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
