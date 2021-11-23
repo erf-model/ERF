@@ -1,4 +1,4 @@
-set(erf_exe_name channel_dns)
+set(erf_exe_name channel_flow)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

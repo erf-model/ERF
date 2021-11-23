@@ -15,14 +15,14 @@
 
 struct ProbParm {
   amrex::Real rho_0 = 0.0; // left density (g/cc)
-  amrex::Real Theta_0 = 1.0;
+  amrex::Real T_0 = 1.0;
   amrex::Real A_0 = 1.0;
 
-  amrex::Real U0 = 10.0;
+  amrex::Real U0 = 0.0;
   amrex::Real V0 = 0.0;
   amrex::Real W0 = 0.0;
-  amrex::Real U0_Pert_Mag = 1.0;
-  amrex::Real V0_Pert_Mag = 1.0;
+  amrex::Real U0_Pert_Mag = 0.0;
+  amrex::Real V0_Pert_Mag = 0.0;
   amrex::Real W0_Pert_Mag = 0.0;
 }; // namespace ProbParm
 

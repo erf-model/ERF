@@ -316,19 +316,25 @@ Problem Location: `Exec/TaylorGreenVortex`_
 
 Channel Flow: DNS
 ------------------------
+
+This tests DNS flow in a channel which is periodic in x and z, and no-slip-wall on both y-faces
+
 Test Location:
 
-Problem Location: `Exec/ChannelDNS`_
+Problem Location: `Exec/ChannelFlow`_
 
-.. _`Exec/ChannelDNS`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelDNS
+.. _`Exec/ChannelFlow`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelFlow
 
 Channel Flow: LES
 ------------------------
+
+This tests LES flow in a channel which is periodic in x and z, and no-slip-wall on both y-faces
+
 Test Location:
 
-Problem Location: `Exec/ChannelLES`_
+Problem Location: `Exec/ChannelFlow`_
 
-.. _`Exec/ChannelLES`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelLES
+.. _`Exec/ChannelFlow`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelFlow
 
 Couette Flow
 ------------

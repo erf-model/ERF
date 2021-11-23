@@ -37,63 +37,38 @@ erf_init_prob(
 
     const amrex::Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
-    // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
-
     // Set the density
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial Rho0*Theta0
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
   });
 
-  // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
-  // Set the x-velocity
   amrex::ParallelForRNG(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-    // Note that this is called on a box of x-faces
 
-    // Set the x-velocity
-    //amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
     amrex::Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U0_Pert_Mag;
-  //  if (i < 2 && j < 2 && k <2)
-  //      amrex::Print() << "random number in erf_init_xvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
-  //                     << rand_double << ", U' = " << x_vel_prime  << std::endl;
     x_vel(i, j, k) = parms.U0 + x_vel_prime;
   });
 
-  // Construct a box that is on y-faces
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
-  // Set the y-velocity
   amrex::ParallelForRNG(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-    // Note that this is called on a box of y-faces
 
-    // Set the y-velocity
-    //amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
     amrex::Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V0_Pert_Mag;
-  //  if (i < 2 && j < 2 && k <2)
-  //      amrex::Print() << "random number in erf_init_yvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
-  //                     << rand_double << ", V' = " << y_vel_prime << std::endl;
     y_vel(i, j, k) = parms.V0 + y_vel_prime;
   });
 
-  // Construct a box that is on z-faces
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
-  // Set the z-velocity
   amrex::ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-    // Note that this is called on a box of z-faces
 
     // Set the z-velocity
-    //amrex::Real rand_double = static_cast <double> (rand()) / static_cast <double> (RAND_MAX); // Between 0.0 and 1.0
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
     amrex::Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W0_Pert_Mag;
-  //  if (i < 2 && j < 2 && k <2)
-  //      amrex::Print() << "random number in erf_init_zvel for (i, j, k) = (" << i << ", " << j << ", " << k <<"): "
-  //                     << rand_double << ", W' = " << z_vel_prime << std::endl;
     z_vel(i, j, k) = parms.W0 + z_vel_prime;
   });
 }
@@ -131,7 +106,7 @@ amrex_probinit(
   // Parse params
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
+  pp.query("T_0", parms.T_0);
   pp.query("A_0", parms.A_0);
 
   pp.query("U0", parms.U0);
