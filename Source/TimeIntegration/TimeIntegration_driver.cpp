@@ -5,18 +5,23 @@
 
 #include <TimeIntegration.H>
 #include <utils.H>
+
+#ifdef AMREX_USE_SUNDIALS
 #include <arkode/arkode_erkstep.h>     /* prototypes for ARKStep fcts., consts */
 #include <nvector/nvector_manyvector.h>/* manyvector N_Vector types, fcts. etc */
 #include <AMReX_NVector_MultiFab.H>    /* MultiFab N_Vector types, fcts., macros */
 #include <AMReX_Sundials.H>    /* MultiFab N_Vector types, fcts., macros */
 #include <sunlinsol/sunlinsol_spgmr.h> /* access to SPGMR SUNLinearSolver      */
 #include <sundials/sundials_types.h>   /* defs. of realtype, sunindextype, etc */
+#endif
 
 using namespace amrex;
 
+#ifdef AMREX_USE_SUNDIALS
 /* User-supplied Functions Called by the Solver */
 static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
+#endif
 
 // TODO: Check if the order of applying BC on cell-centered state or face-centered mom makes any difference
 
@@ -131,6 +136,8 @@ void erf_advance(int level,
     // **************************************************************************************
     TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > integrator(state_old);
 
+#ifdef AMREX_USE_SUNDIALS
+    // Create SUNDIALS specific objects
     SUNLinearSolver LS = NULL;    /* empty linear solver object */
     void *arkode_mem = NULL;      /* empty ARKode memory structure */
     // Create an N_Vector wrapper for the solution MultiFab
@@ -163,7 +170,9 @@ void erf_advance(int level,
     nv_many_arr[2] = nv_ymom;
     nv_many_arr[3] = nv_zmom;
     N_Vector nv_S = N_VNew_ManyVector(NVar, nv_many_arr);
+#endif
 
+    //Create function lambdas
     auto rhs_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_rhs, const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data,
                 source,
@@ -192,6 +201,7 @@ void erf_advance(int level,
     integrator.set_rhs(rhs_fun);
     integrator.set_post_update(post_update_fun);
 
+#ifdef AMREX_USE_SUNDIALS
     /* Call ERKStepCreate to initialize the ERK timestepper module and
     specify the right-hand side function in y'=f(t,y), the inital time
     T0, and the initial dependent variable vector y. */
@@ -224,14 +234,18 @@ void erf_advance(int level,
     bool advance_erk=true;
     if(advance_erk)
     {
+
+    // Use ERKStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
     ERKStepEvolve(arkode_mem, tout, nv_S, &t, ARK_NORMAL);
 
+    // Copy the result stored in nv_S to state_new
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
     MultiFab::Copy(*state_new[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
     }
     }
     else
+#endif
     {
     // **************************************************************************************
     // Integrate for a single timestep
@@ -265,6 +279,7 @@ void erf_advance(int level,
 
 }
 
+#ifdef AMREX_USE_SUNDIALS
 /* f routine to compute the ODE RHS function f(t,y). */
 static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 {
@@ -316,3 +331,4 @@ static int ProcessStage(realtype t, N_Vector y_data, void *user_data)
 
   return 0;
 }
+#endif

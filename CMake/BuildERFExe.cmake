@@ -97,11 +97,11 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})
 
-#  if (AMReX_SUNDIALS)
+  if (AMReX_SUNDIALS)
     target_link_libraries(${erf_lib_name} PUBLIC SUNDIALS::cvode)
     target_link_libraries(${erf_lib_name} PUBLIC SUNDIALS::arkode)
     target_link_libraries(${erf_lib_name} PUBLIC SUNDIALS::nvecmanyvector)
-#  endif ()
+  endif ()
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC amrex)
