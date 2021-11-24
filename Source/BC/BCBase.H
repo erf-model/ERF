@@ -1284,7 +1284,8 @@ namespace phys_bcs {
 class BCBase {
   public:
   virtual void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) = 0;
-  virtual bool isInterior() { return false; }
+  virtual bool isInterior()   { return false; }
+  virtual bool isNoSlipWall() { return false; }
 };
 
 }

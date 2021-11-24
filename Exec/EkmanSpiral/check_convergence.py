@@ -38,12 +38,12 @@ def load_soln(pltfile):
 #pltfile = 'plt00000'
 pltfile = 'plt00010'
 results = {
-    25.0: load_soln(f'convergence/dz25.0/{pltfile}'),
-    12.5: load_soln(f'convergence/dz12.5/{pltfile}'),
-    6.25: load_soln(f'convergence/dz6.25/{pltfile}'),
-    3.125: load_soln(f'convergence/dz3.125/{pltfile}'),
-    1.5625: load_soln(f'convergence/dz1.5625/{pltfile}'),
-    0.78125: load_soln(f'convergence/dz0.78125/{pltfile}'),
+    25.0: load_soln(f'convergence/dz25.0/plt00010'),
+    12.5: load_soln(f'convergence/dz12.5/plt00020'),
+    6.25: load_soln(f'convergence/dz6.25/plt00040'),
+    3.125: load_soln(f'convergence/dz3.125/plt00080'),
+    1.5625: load_soln(f'convergence/dz1.5625/plt00160'),
+    0.78125: load_soln(f'convergence/dz0.78125/plt00320'),
 }
 
 #
@@ -99,8 +99,15 @@ errors = pd.DataFrame({
 print(errors)
 
 fig,ax = plt.subplots()
-ax.semilogy(errors.index, errors['uerr'], label='u-error')
-ax.semilogy(errors.index, errors['verr'], label='v-error')
+ax.loglog(errors.index, errors['uerr'], '-o', label='u-error')
+ax.loglog(errors.index, errors['verr'], '-o', label='v-error')
+
+y1 = errors['uerr'].iloc[0]
+y2 = errors['uerr'].iloc[0]/1024.
+x = np.array([0.78125, 25.0])
+y = np.array([y2,y1])
+ax.loglog(x,y, '-', label='second-order')
+
 ax.legend(loc='upper left',fontsize='large')
 ax.set_xlabel(r'$\Delta z$ [m]',fontsize='x-large')
 ax.set_ylabel(r'$L_2$ error [m/s]',fontsize='x-large')

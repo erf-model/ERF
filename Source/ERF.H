@@ -248,6 +248,9 @@ public:
     }
   }
 
+  static bool lo_z_is_no_slip;
+  static bool hi_z_is_no_slip;
+
   amrex::Real volWgtSum( const std::string& name,
                          amrex::Real time,
                          bool local = false,

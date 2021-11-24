@@ -75,6 +75,8 @@ void erf_rhs(int level,
              const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
                    amrex::InterpFaceRegister* ifr,
              const SolverChoice& solverChoice,
+             const bool lo_z_is_no_slip,
+             const bool hi_z_is_no_slip,
              const amrex::Real* dptr_dens_hse,
              const amrex::Real* dptr_pres_hse);
 
@@ -163,18 +165,23 @@ Real AdvectionContributionForState(const int &i, const int &j, const int &k,
 /** Compute Sij */
 AMREX_GPU_DEVICE
 Real ComputeStrainRate(const int &i, const int &j, const int &k,
-                        const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                        const Array4<Real const>& u,
+                        const Array4<Real const>& v,
+                        const Array4<Real const>& w,
                         const enum NextOrPrev &nextOrPrev,
                         const enum MomentumEqn &momentumEqn,
                         const enum DiffusionDir &diffDir,
-                        const GpuArray<Real, AMREX_SPACEDIM>& cellSize);
+                        const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
+                        bool use_no_slip_stencil);
 
 /** Given a velocity field and a geometry, compute Ksmag or K(i, j, k) at cell-centers */
 //AMREX_GPU_DEVICE
-void ComputeTurbulentViscosity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
-                               MultiFab& cons_in, MultiFab& eddyViscosity,
+void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel,
+                               const MultiFab& cons_in, MultiFab& eddyViscosity,
                                const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                               const SolverChoice& solverChoice);
+                               const SolverChoice& solverChoice,
+                               const bool& use_no_slip_stencil_at_lo_k, const int& klo,
+                               const bool& use_no_slip_stencil_at_hi_k, const int& khi);
 
 /** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or Ksmag (i, j, k) is known */
 AMREX_GPU_DEVICE
@@ -203,7 +210,9 @@ Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
                                  const enum MomentumEqn &momentumEqn,
                                  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                  const Array4<Real>& Ksmag,
-                                 const SolverChoice &solverChoice);
+                                 const SolverChoice &solverChoice,
+                                 bool use_no_slip_stencil_at_lo_k,
+                                 bool use_no_slip_stencil_at_hi_k);
 
 AMREX_GPU_DEVICE
 Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,

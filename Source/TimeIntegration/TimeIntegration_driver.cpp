@@ -123,6 +123,9 @@ void erf_advance(int level,
     // **************************************************************************************
     TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > integrator(state_old);
 
+    bool l_lo_z_is_no_slip = ERF::lo_z_is_no_slip;
+    bool l_hi_z_is_no_slip = ERF::hi_z_is_no_slip;
+
     auto rhs_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_rhs, const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data,
                 source,
@@ -130,6 +133,8 @@ void erf_advance(int level,
                 fine_geom, dxp, dt,
                 ifr,
                 solverChoice,
+                l_lo_z_is_no_slip,
+                l_hi_z_is_no_slip,
                 dptr_dens_hse, dptr_pres_hse);
     };
 
