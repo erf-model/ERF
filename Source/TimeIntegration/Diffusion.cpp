@@ -18,9 +18,9 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
     Real strainRate = ComputeStrainRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
-    Real rotationRate = 0.0; //ComputeRotationRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
+    Real expansionRate = 0.0; //ComputeExpansionRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
-    Real strainRateDeviaoric = strainRate - rotationRate;
+    Real strainRateDeviaoric = strainRate - expansionRate;
 
     Real viscosity_factor = 0.0;
     //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
@@ -173,10 +173,10 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 
   // Compute the flux
   // TODO : could be more efficient to compute comp from Rho_comp before this
-  amrex::Real diffusionFlux = rhoAlpha *(cell_data(ir, jr, kr, qty_index) /
-                     cell_data(ir, jr, kr, Rho_comp)
-                     - cell_data(il, jl, kl, qty_index) /
-                     cell_data(il, jl, kl, Rho_comp)) * invCellWidth;
+  amrex::Real diffusionFlux = rhoAlpha * (
+            cell_data(ir, jr, kr, qty_index) / cell_data(ir, jr, kr, Rho_comp)
+          - cell_data(il, jl, kl, qty_index) / cell_data(il, jl, kl, Rho_comp)
+          ) * invCellWidth;
 
   return diffusionFlux;
 }
