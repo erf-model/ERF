@@ -388,10 +388,10 @@ Problem Location: `Exec/EkmanSpiral`_
 
 .. _`Exec/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/EkmanSpiral
 
-.. |aek| image:: figures/tests/ekman_spiral_profiles.png
+.. |aek| image:: figures/ekman_spiral_profiles.png
          :width: 300
 
-.. |bek| image:: figures/tests/ekman_spiral_errors.png
+.. |bek| image:: figures/ekman_spiral_errors.png
          :width: 300
 
 .. _fig:ekman_spiral
