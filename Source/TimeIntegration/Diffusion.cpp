@@ -18,7 +18,8 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
     Real strainRate = ComputeStrainRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
-    Real expansionRate = 0.0; //ComputeExpansionRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
+    //Real expansionRate = 0.0;
+    Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
     Real strainRateDeviaoric = strainRate - expansionRate;
 
