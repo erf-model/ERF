@@ -18,18 +18,19 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
     Real strainRate = ComputeStrainRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
+    // D_ij term
     //Real expansionRate = 0.0;
     Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
-    Real strainRateDeviaoric = strainRate - expansionRate;
+    Real strainRateDeviaoric = strainRate - expansionRate; // sigma_ij = S_ij - D_ij
 
-    Real viscosity_factor = 0.0;
+    Real mu_effective = 0.0;
     //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
     // Future implementations may account for mu = mu(T) computed at the coordinate of interest.
     // That could be done with a new MolecDiffType
     switch (solverChoice.molec_diff_type) {
         case MolecDiffType::Constant:
-            viscosity_factor += 2.0 * solverChoice.dynamicViscosity;
+            mu_effective += 2.0 * solverChoice.dynamicViscosity; // 2*mu
             break;
         case MolecDiffType::None:
             break;
@@ -42,15 +43,15 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     switch (solverChoice.les_type) {
         case LESType::Smagorinsky:
             turbViscInterpolated = InterpolateTurbulentViscosity(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize, Ksmag); // 2*mu_t
-            viscosity_factor += turbViscInterpolated; // 2*mu + 2*mu_t if MolecDiffType::Constant else 2*mu_t
+            mu_effective += turbViscInterpolated; // mu_effective = 2*mu + 2*mu_t if MolecDiffType::Constant else 2*mu_t
             break;
-        case LESType::None:
+        case LESType::None: // // mu_effective = 2*mu if MolecDiffType::Constant else 0
             break;
         default:
             amrex::Abort("Error:  LES model is unrecognized");
     }
 
-    Real stressTerm = viscosity_factor * strainRateDeviaoric;
+    Real stressTerm = mu_effective * strainRateDeviaoric; // tau_ij = mu_effective * sigma_ij
     return stressTerm;
 }
 
