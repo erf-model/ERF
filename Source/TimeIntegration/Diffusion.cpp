@@ -22,7 +22,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     //Real expansionRate = 0.0;
     Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, nextOrPrev, momentumEqn, diffDir, cellSize);
 
-    Real strainRateDeviaoric = strainRate - expansionRate; // sigma_ij = S_ij - D_ij
+    Real strainRateDeviatoric = strainRate - expansionRate; // sigma_ij = S_ij - D_ij
 
     Real mu_effective = 0.0;
     //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
@@ -51,7 +51,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
             amrex::Abort("Error:  LES model is unrecognized");
     }
 
-    Real stressTerm = mu_effective * strainRateDeviaoric; // tau_ij = mu_effective * sigma_ij
+    Real stressTerm = mu_effective * strainRateDeviatoric; // tau_ij = mu_effective * sigma_ij
     return stressTerm;
 }
 
