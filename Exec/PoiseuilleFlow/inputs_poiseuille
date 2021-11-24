@@ -1,27 +1,25 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 50
+max_step = 10
 
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.is_periodic =  1     1     0
-geometry.prob_lo     =  0     0     0
-geometry.prob_hi     = 32     4    16
-amr.n_cell           = 32     4    16
+geometry.is_periodic =  1    1    0
+geometry.prob_lo     =  0    0.  -1.
+geometry.prob_hi     =  4.   1.   1.    
+amr.n_cell           = 32    4   16
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 erf.lo_bc       = "Interior"   "Interior"   "NoSlipWall"
-erf.hi_bc       = "Interior"   "Interior"   "Dirichlet"
-
-zhi.velocity    = 2.0 0.0 0.0  # for Dirichlet BC
+erf.hi_bc       = "Interior"   "Interior"   "NoSlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 0.1     # fixed time step
-#erf.cfl            = 0.9    # cfl number for hyperbolic system
+#erf.fixed_dt       = 0.1    # fixed time step
+erf.cfl            = 0.5     # cfl number for hyperbolic system
 erf.init_shrink    = 1.0     # scale back initial timestep
 erf.change_max     = 1.05    # scale back initial timestep
 erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
@@ -29,8 +27,8 @@ erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
-amr.v                = 1       # verbosity in Amr.cpp
-amr.data_log         = datlog
+amr.v              = 1       # verbosity in Amr.cpp
+amr.data_log       = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -48,34 +46,35 @@ amr.check_int       = 1000       # number of timesteps between checkpoints
 # PLOTFILES
 amr.plot_files_output = 1
 amr.plot_file       = plt        # root name of plotfile
-amr.plot_int        = 50         # number of timesteps between plotfiles
-amr.plot_vars        = density # u does not get output for some reason
+amr.plot_int        = 100        # number of timesteps between plotfiles
+amr.plot_vars        = density
 amr.derive_plot_vars = x_velocity y_velocity z_velocity #pressure theta
 
 # SOLVER CHOICE
-erf.use_state_advection = true
+erf.use_state_advection    = true
 erf.use_momentum_advection = true
 erf.use_momentum_diffusion = true
+erf.use_pressure           = true
+erf.use_gravity            = false
 
 erf.use_thermal_diffusion = false
 erf.alpha_T = 0.0
 erf.use_scalar_diffusion = false
 erf.alpha_C = 1.0
-erf.use_pressure = false
-erf.use_gravity = false
 
-erf.les_type   = "None"
+erf.les_type         = "None"
+erf.rho0_trans       = 1.0
 erf.dynamicViscosity = 0.1
+
+erf.use_coriolis = false
+erf.abl_driver_type = "PressureGradient"
+erf.abl_pressure_grad = -0.2 0. 0.
 
 erf.spatial_order = 2
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
-// NOTE: this u_0 should match the zhi.velocity specified above
-prob.u_0 = 2.0
-prob.v_0 = 0.0
-prob.w_0 = 0.0
 
 # INTEGRATION
 ## integration.type can take on the following values:

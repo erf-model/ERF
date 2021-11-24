@@ -50,6 +50,9 @@ amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2)
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
 
+bool ERF::lo_z_is_no_slip = false;
+bool ERF::hi_z_is_no_slip = false;
+
 amrex::Vector<int> ERF::src_list;
 
 amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_dens_hse(0);
@@ -154,22 +157,19 @@ ERF::read_params()
   pp.getarr("lo_bc", lo_bc_char, 0, AMREX_SPACEDIM);
   pp.getarr("hi_bc", hi_bc_char, 0, AMREX_SPACEDIM);
 
-  for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-    switch (dir) {
-      case 0:
-        bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0]);
-        bc_recs[1] = ERF::initialize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0]);
-        break;
-      case 1:
-        bc_recs[2] = ERF::initialize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1]);
-        bc_recs[3] = ERF::initialize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1]);
-        break;
-      case 2:
-        bc_recs[4] = ERF::initialize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2]);
-        bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2]);
-        break;
-    }
-  }
+  if (lo_bc_char[0] == "NoSlipWall" || hi_bc_char[0] == "NoSlipWall" ||
+      lo_bc_char[1] == "NoSlipWall" || hi_bc_char[1] == "NoSlipWall")
+      amrex::Error("No-slip wall only allowed on z-faces");
+
+  bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0]);
+  bc_recs[1] = ERF::initialize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0]);
+  bc_recs[2] = ERF::initialize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1]);
+  bc_recs[3] = ERF::initialize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1]);
+  bc_recs[4] = ERF::initialize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2]);
+  bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2]);
+
+  if (lo_bc_char[2] == "NoSlipWall") lo_z_is_no_slip = true;
+  if (hi_bc_char[2] == "NoSlipWall") hi_z_is_no_slip = true;
 
   //
   // Check bc_recs against possible periodic geometry
