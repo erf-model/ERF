@@ -375,10 +375,11 @@ Ekman Spiral
 ---------------------------
 The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.
 
-A description of the problem, including the exact solution, can be found at
+A description of the problem, including the exact solution, can be found at `Ekman Spiral Description`_
+
 .. _`Ekman Spiral Description`: https://exawind.github.io/amr-wind/developer/verification.html#ekman-spiral
 
-The steady solution is shown below, as well as a plot showing the error as a function of $\Delta z.$
+The steady solution is shown below, as well as a log-log plot showing the error scaling as :math:`O(\Delta z^2)`.
 
 Test Location: `Tests/test_files/EkmanSpiral`_
 
