@@ -204,7 +204,7 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
 
   // Assemble diffusion contribution.
   Real diffusionContribution =
-    (xDiffFluxNext - xDiffFluxPrev) * dx_inv   // Diffusive flux in x-dir
+      (xDiffFluxNext - xDiffFluxPrev) * dx_inv   // Diffusive flux in x-dir
     + (yDiffFluxNext - yDiffFluxPrev) * dy_inv   // Diffusive flux in y-dir
     + (zDiffFluxNext - zDiffFluxPrev) * dz_inv;  // Diffusive flux in z-dir
 
