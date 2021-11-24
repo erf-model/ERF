@@ -44,8 +44,11 @@ The following problems are currently tested in the CI:
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
 | TaylorGreenAdvectingDiffusing | 16 16 16 | per | per | per | None  |                |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
-| CouetteFlow                   | 32 16  4 | per | NSW | per | None  |                |
-|                               |          |     | Dir |     |       |                |
+| CouetteFlow                   | 32 4  16 | per | per | NSW | None  |                |
+|                               |          |     |     | Dir |       |                |
++-------------------------------+----------+-----+-----+-----+-------+----------------+
+| PoiseuilleFlow                | 32 4  16 | per | per | NSW | GradP |                |
+|                               |          |     |     | NSW |       |                |
 +-------------------------------+----------+-----+-----+-----+-------+----------------+
 | EkmanSpiral                   | 4 4 400  | per | per | NSW | Geo   | +Coriolis      |
 |                               |          |     |     | SW  |       | +gravity       |
@@ -338,6 +341,12 @@ Problem Location: `Exec/ChannelFlow`_
 
 Couette Flow
 ------------
+
+This tests Couette flow in a channel.  The domain is periodic in the x- and y-directions, and has
+NoSlipWall bc's on the low-z face and Dirichlet bc's on the high-z face.  At the high-z boundary
+the velocity is specified to be :math:`U = (2,0,0)`.   The steady solution for this problem is
+:math:`U = (z/8,0,0)` in the domain which is 16 units high in z.
+
 Test Location: `Tests/test_files/CouetteFlow`_
 
 .. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow
@@ -346,9 +355,30 @@ Problem Location: `Exec/CouetteFlow`_
 
 .. _`Exec/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Exec/CouetteFlow
 
+Poiseuille Flow
+---------------
+
+This tests Poiseuille flow in a channel.  The domain is periodic in the x- and y-directions, and has
+NoSlipWall bc's on the low-z and high-z faces.  We initialize the solution with the steady parabolic
+profile :math:`U = (1-z^2,0,0)` in the domain which runs from -1. to 1. in z.  The viscosity is
+specified to be 0.1 and the imposed pressure gradient is :math:`Gp = (-0.2,0,0)`.
+
+Test Location: `Tests/test_files/PoiseuilleFlow`_
+
+.. _`Tests/test_files/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow
+
+Problem Location: `Exec/PoiseuilleFlow`_
+
+.. _`Exec/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Exec/PoiseuilleFlow
+
 Ekman Spiral
 ---------------------------
-This tests the Coriolis and geostrophic forcing.
+The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.
+
+A description of the problem, including the exact solution, can be found at
+.. _`Ekman Spiral Description`: https://exawind.github.io/amr-wind/developer/verification.html#ekman-spiral
+
+The steady solution is shown below, as well as a plot showing the error as a function of $\Delta z.$
 
 Test Location: `Tests/test_files/EkmanSpiral`_
 
@@ -357,3 +387,19 @@ Test Location: `Tests/test_files/EkmanSpiral`_
 Problem Location: `Exec/EkmanSpiral`_
 
 .. _`Exec/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/EkmanSpiral
+
+.. |aek| image:: figures/tests/ekman_spiral_profiles.png
+         :width: 300
+
+.. |bek| image:: figures/tests/ekman_spiral_errors.png
+         :width: 300
+
+.. _fig:ekman_spiral
+
+.. table:: Flow profile and Error
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |a8|                         |                        |b8|                          |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |   Flow profiles                                     |   Convergence study                                  |
+   +-----------------------------------------------------+------------------------------------------------------+
