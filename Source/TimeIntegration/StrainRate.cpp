@@ -61,10 +61,9 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       break;
     case DiffusionDir::z: // S23
       if (nextOrPrev == NextOrPrev::next)
-        strainRate = (v(i, j, k+1) - v(i, j, k))/dz + (w(i, j, k+1) - w(i, j-1, k+1))/dy; // S23 (k+1/2) //TODO: Check this with Branko
+        strainRate = (v(i, j, k+1) - v(i, j, k))/dz + (w(i, j, k+1) - w(i, j-1, k+1))/dy; // S23 (k+1/2)
       else // nextOrPrev == NextOrPrev::prev
-        strainRate = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S23 (k-1/2) //TODO: Check this with Branko
-      strainRate *= 0.5;
+        strainRate = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S23 (k-1/2)
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -81,9 +80,9 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       break;
     case DiffusionDir::y: // S32
       if (nextOrPrev == NextOrPrev::next)
-        strainRate = (v(i, j+1, k) - v(i, j+1, k-1))/dz + (w(i, j+1, k) - w(i, j, k))/dy; // S32 (j+1/2) //TODO: Check this with Branko
+        strainRate = (v(i, j+1, k) - v(i, j+1, k-1))/dz + (w(i, j+1, k) - w(i, j, k))/dy; // S32 (j+1/2)
       else // nextOrPrev == NextOrPrev::prev
-        strainRate = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S32 (j-1/2) //TODO: Check this with Branko
+        strainRate = (v(i, j, k) - v(i, j, k-1))/dz + (w(i, j, k) - w(i, j-1, k))/dy; // S32 (j-1/2)
       strainRate *= 0.5;
       break;
     case DiffusionDir::z: // S33
