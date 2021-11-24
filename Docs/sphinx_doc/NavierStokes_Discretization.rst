@@ -275,18 +275,48 @@ Strain-Rate Components for Z-Momentum Equation
 
 Expansion-Rate Tensor
 -------------------------
-Place holder....
-... to be updated
 
 Expansion-Rate Components for X-Momentum Equation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. math::
+
+   \begin{array}{ll}
+   D_{11,i + \frac{1}{2}} = & \frac{1}{3}\left\lbrack \frac{1}{\Delta x}\left( u_{i + 1,j,k} - u_{i,j,k} \right) + \frac{1}{\Delta y}\left( v_{i,j + 1,k} - v_{i,j,k} \right) + \frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \right\rbrack \\
+   D_{11,i - \frac{1}{2}} = & \frac{1}{3}\left\lbrack \frac{1}{\Delta x}\left( u_{i,j,k} - u_{i-1,j,k} \right) + \frac{1}{\Delta y}\left( v_{i-1,j + 1,k} - v_{i-1,j,k} \right) + \frac{1}{\Delta z}\left( w_{i-1,j,k + 1} - w_{i-1,j,k} \right) \right\rbrack \\
+   D_{12,j + \frac{1}{2}} = & 0 \\
+   D_{12,j - \frac{1}{2}} = & 0 \\
+   D_{13,k + \frac{1}{2}} = & 0 \\
+   D_{13,k - \frac{1}{2}} = & 0 \\
+   \end{array}
+
 Expansion-Rate Components for Y-Momentum Equation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. math::
+
+   \begin{array}{ll}
+   D_{21,i + \frac{1}{2}} = & 0 \\
+   D_{21,i - \frac{1}{2}} = & 0 \\
+   D_{22,j + \frac{1}{2}} = & \frac{1}{3}\left\lbrack \frac{1}{\Delta x}\left( u_{i + 1,j,k} - u_{i,j,k} \right) + \frac{1}{\Delta y}\left( v_{i,j + 1,k} - v_{i,j,k} \right) + \frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \right\rbrack \\
+   D_{22,j - \frac{1}{2}} = & \frac{1}{3}\left\lbrack \frac{1}{\Delta x}\left( u_{i + 1,j-1,k} - u_{i,j-1,k} \right) + \frac{1}{\Delta y}\left( v_{i,j,k} - v_{i,j-1,k} \right) + \frac{1}{\Delta z}\left( w_{i,j-1,k + 1} - w_{i,j-1,k} \right) \right\rbrack \\
+   D_{23,k + \frac{1}{2}} = & 0 \\
+   D_{23,k - \frac{1}{2}} = & 0 \\
+   \end{array}
 
 Expansion-Rate Components for Z-Momentum Equation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. math::
+
+   \begin{array}{ll}
+   D_{21,i + \frac{1}{2}} = & 0 \\
+   D_{21,i - \frac{1}{2}} = & 0 \\
+   D_{22,j + \frac{1}{2}} = & 0 \\
+   D_{22,j - \frac{1}{2}} = & 0 \\
+   D_{23,k + \frac{1}{2}} = & \frac{1}{3}\left\lbrack \frac{1}{\Delta x}\left( u_{i + 1,j,k} - u_{i,j,k} \right) + \frac{1}{\Delta y}\left( v_{i,j + 1,k} - v_{i,j,k} \right) + \frac{1}{\Delta z}\left( w_{i,j,k + 1} - w_{i,j,k} \right) \right\rbrack \\
+   D_{23,k - \frac{1}{2}} = & \frac{1}{3}\left\lbrack \frac{1}{\Delta x}\left( u_{i + 1,j,k-1} - u_{i,j,k-1} \right) + \frac{1}{\Delta y}\left( v_{i,j + 1,k-1} - v_{i,j,k-1} \right) + \frac{1}{\Delta z}\left( w_{i,j,k} - w_{i,j,k-1} \right) \right\rbrack \\
+   \end{array}
 
 U Momentum viscous stress divergence
 ------------------------------------
