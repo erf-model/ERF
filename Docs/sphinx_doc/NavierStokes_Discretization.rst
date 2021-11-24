@@ -1,7 +1,7 @@
 #########################################
 Discretization of Navier-Stokes Equations
 #########################################
-Last update: 2021-11-22
+Last update: 2021-11-24
 
 NOTE: For the sake of simplicity, the discretized equations mention time levels :math:`n` and :math:`n+1`. They should be treated as initial and final states of each RK3 stage.
 
@@ -330,13 +330,21 @@ U Momentum viscous stress divergence
               & + \left. \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
    \end{align}
 
-Note that LES equation has a similar format except how :math:`\tau_{11,i + \frac{1}{2}}`, :math:`\tau_{11,i - \frac{1}{2}}`,
+Note that LES equation has a similar format for computing :math:`\tau_{11,i + \frac{1}{2}}`, :math:`\tau_{11,i - \frac{1}{2}}`,
 :math:`\tau_{12,j + \frac{1}{2}}`, :math:`\tau_{12,j - \frac{1}{2}}`, :math:`\tau_{13,k + \frac{1}{2}}`,
-and :math:`\tau_{13,k - \frac{1}{2}}` are defined.
+and :math:`\tau_{13,k - \frac{1}{2}}`.
 
-:math:`\tau_{ij,m + \frac{1}{2}} = 2\mu\ S_{ij,m + \frac{1}{2}}` and
-:math:`\tau_{ij,m - \frac{1}{2}} = 2\mu\ S_{ij,m - \frac{1}{2}}`,
+.. math::
+
+   \begin{array}{ll}
+   \tau_{ij,m + \frac{1}{2}} = & \mu_{eff} \ \left\lbrack S_{ij,m + \frac{1}{2}} - D_{ij,m + \frac{1}{2}} \right\rbrack \\
+   \tau_{ij,m - \frac{1}{2}} = & \mu_{eff} \ \left\lbrack S_{ij,m - \frac{1}{2}} - D_{ij,m - \frac{1}{2}} \right\rbrack
+   \end{array}
+
 where :math:`m = i, j, k`.
+
+:math:`\mu_{eff} = 2\mu` if a constant molecular diffusion type is chosen (``erf.molec_diff_type = "Constant"``).
+Otherwise (``erf.molec_diff_type = "None"``), :math:`\mu_{eff} = 0`.
 
 The nomenclature is similar for other two momentum equations. Note that :math:`\mu` is constant in the current
 implementation and its variation with temperature for low-Mach atmospheric flows has been ignored.
@@ -353,9 +361,9 @@ V Momentum viscous stress divergence
               & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
 
-Note that LES equation has a similar format except how :math:`\tau_{21,i + \frac{1}{2}}`, :math:`\tau_{21,i - \frac{1}{2}}`,
+Note that LES equation has a similar format for computing :math:`\tau_{21,i + \frac{1}{2}}`, :math:`\tau_{21,i - \frac{1}{2}}`,
 :math:`\tau_{22,j + \frac{1}{2}}`, :math:`\tau_{22,j - \frac{1}{2}}`, :math:`\tau_{23,k + \frac{1}{2}}`,
-and :math:`\tau_{23,k - \frac{1}{2}}` are defined.
+and :math:`\tau_{23,k - \frac{1}{2}}`.
 
 W Momentum viscous stress divergence
 ------------------------------------
@@ -369,9 +377,9 @@ W Momentum viscous stress divergence
              & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\}
    \end{align}
 
-Note that LES equation has a similar format except how :math:`\tau_{31,i + \frac{1}{2}}`, :math:`\tau_{31,i - \frac{1}{2}}`,
+Note that LES equation has a similar format for computing :math:`\tau_{31,i + \frac{1}{2}}`, :math:`\tau_{31,i - \frac{1}{2}}`,
 :math:`\tau_{32,j + \frac{1}{2}}`, :math:`\tau_{32,j - \frac{1}{2}}`, :math:`\tau_{33,k + \frac{1}{2}}`,
-and :math:`\tau_{33,k - \frac{1}{2}}` are defined.
+and :math:`\tau_{33,k - \frac{1}{2}}`.
 
 Potential Temperature Diffusion
 -------------------------------
@@ -444,10 +452,17 @@ where
 
    S_{mn}S_{mn} = S_{11}^{2} + S_{22}^{2} + S_{33}^{2} + S_{12}^{2} + S_{13}^{2} + S_{23}^{2} + S_{21}^{2} + S_{31}^{2} + S_{32}^{2} \\
 
-
-Note that :math:`K_{i,j,k}` used in LES is analogous to :math:`2\mu_{i, j, k}` = :math:`2\mu` used in DNS.
-
 Owing to symmetry we need to compute 6 of the 9 tensor components.
+
+:math:`K_{i,j,k} = 2 \ {\mu_{t}}_{i, j, k}` is the modeled turbulent viscosity and can be considered analogous to
+:math:`2\mu_{i, j, k}`.
+
+:math:`\mu_{eff} = 2\mu + K = 2\mu + 2\mu_{t}` if a constant molecular diffusion type is chosen (``erf.molec_diff_type = "Constant"``).
+Otherwise (``erf.molec_diff_type = "None"``), :math:`\mu_{eff} = K = 2\mu_{t}`.
+
+
+
+
 
 .. image:: figures/grid_discretization/EddyViscosity.PNG
   :width: 400
