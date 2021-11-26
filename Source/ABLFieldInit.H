@@ -35,7 +35,7 @@ struct ABLFieldInit {
         pp_abl.query("random_gauss_var", m_theta_gauss_var);
         pp_abl.query("cutoff_height", m_theta_cutoff_height);
         pp_abl.query("theta_amplitude", m_deltaT);
-    
+
         pp_abl.query("init_tke", m_tke_init);
 
         // TODO: Modify this to accept velocity as a function of height
@@ -90,7 +90,7 @@ struct ABLFieldInit {
            const amrex::Real z = problo[2] + (k + 0.5) * dx[2];
 
            state(i, j, k, Rho_comp) = rho_init;
-   
+
            amrex::Real theta = tv[0];
            for (int iz = 0; iz < ntvals - 1; ++iz) {
                if ((z > th[iz]) && (z <= th[iz + 1])) {
@@ -99,16 +99,16 @@ struct ABLFieldInit {
                    theta = tv[iz] + (z - th[iz]) * slope;
                }
            }
-   
+
            state(i, j, k, RhoTheta_comp) = theta;
            state(i, j, k, RhoScalar_comp) = 0.;
        });
 
      const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
-     amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+     amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
          {
            x_vel(i, j, k) = umean;
-   
+
            if (perturb_vel) {
                const amrex::Real x = problo[0] + (i      ) * dx[0];
                const amrex::Real y = problo[1] + (j + 0.5) * dx[1];
@@ -123,7 +123,7 @@ struct ABLFieldInit {
          });
 
      const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
-     amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+     amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
          {
            y_vel(i, j, k) = vmean;
 
@@ -141,7 +141,7 @@ struct ABLFieldInit {
       });
 
       const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
-      amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+      amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
           z_vel(i, j, k) = wmean;
       });
