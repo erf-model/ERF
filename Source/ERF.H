@@ -29,6 +29,8 @@
 #include "BC/BCNoSlipWall.H"
 #include "BC/BCSimSlipWall.H"
 
+#include "ABLFieldInit.H"
+
 using std::istream;
 using std::ostream;
 
@@ -71,6 +73,7 @@ public:
   ERF();
 
   static SolverChoice solverChoice;
+  static ABLFieldInit ablinit;
 
   //! The basic constructor.
   ERF(
@@ -116,6 +119,8 @@ public:
 
   //! Cleanup data descriptors at end of run.
   static void variableCleanUp();
+
+  static bool init_abl;
 
   static int ng_dens_hse;
   static int ng_pres_hse;
