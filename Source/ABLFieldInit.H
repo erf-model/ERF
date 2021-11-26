@@ -64,7 +64,7 @@ struct ABLFieldInit {
         const amrex::GeometryData& geom) const
 
     {
-       const amrex::Real pi = M_PI;
+       const amrex::Real pi = PI;
        const auto& dx = geom.CellSize();
        const auto& problo = geom.ProbLo();
        const auto& probhi = geom.ProbHi();
