@@ -14,6 +14,7 @@ CEXE_sources += Utils.cpp
 
 #C++ headers
 CEXE_headers += DataStruct.H
+CEXE_headers += ABLFieldInit.H
 CEXE_headers += EOS.H
 CEXE_headers += ERF.H
 CEXE_headers += Problem.H

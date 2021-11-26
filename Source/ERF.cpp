@@ -27,6 +27,7 @@ bool ERF::dump_old = false;
 int ERF::verbose = 0;
 
 SolverChoice ERF::solverChoice;
+ABLFieldInit ERF::ablinit;
 
 amrex::Real ERF::cfl         = 0.8;
 amrex::Real ERF::init_shrink = 1.0;
@@ -41,6 +42,8 @@ int         ERF::do_reflux     = 0;
 int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
+
+bool        ERF::init_abl      = false;
 
 // Create dens_hse and pres_hse with one ghost cell
 int ERF::ng_dens_hse = 1;
@@ -141,6 +144,9 @@ ERF::read_params()
   } else {
       amrex::Error("Unknown coupling type");
   }
+
+  // This defaults to false; is only true if we want to call ABLFieldInit::init_params
+  pp.query("init_abl", init_abl);
 
   // Time step controls
   pp.query("cfl", cfl);
@@ -314,6 +320,11 @@ ERF::initData()
       h_pres_hse[lev].resize(zlen_pres, p_0);
       d_pres_hse[lev].resize(zlen_pres, p_0);
       getLevel(lev).initHSE();
+    }
+
+    if (init_abl)
+    {
+        ablinit.init_params();
     }
   }
 
