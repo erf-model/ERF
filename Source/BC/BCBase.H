@@ -36,11 +36,7 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
-              if (i == 0 and j == 0)
-              amrex::Print() << "DOING FOEXTRAP " << IntVect(i,j,k) << " " << data(i,j,lo,n) << std::endl;
               data(i,j,k,n) = (lo-k+1)*data(i,j,lo,n) - (lo-k)*data(i,j,lo+1,n);
-              if (i == 0 and j == 0)
-              amrex::Print() << "TO ET " << IntVect(i,j,k) << " " << data(i,j,k,n) << std::endl;
             }
           });
         }
@@ -976,8 +972,6 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
-              amrex::Print() << "DOING HOEXTRAP " << IntVect(i,j,k) << " " << data(i,j,lo,n) << std::endl;
-              exit(0);
               amrex::Real grad = (-3.*data(i,j,lo,n)+4.*data(i,j,lo+1,n)-data(i,j,lo+2,n))/2.;
               data(i,j,k,n) = data(i,j,lo,n) - (lo-k)*grad;
             }
