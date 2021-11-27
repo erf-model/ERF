@@ -104,6 +104,9 @@ struct ABLFieldInit {
            state(i, j, k, RhoScalar_comp) = 0.;
        });
 
+     if (add_temperature_perturbations())
+         perturb_temperature(bx,state,geom);
+
      const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
      amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
          {
@@ -145,15 +148,17 @@ struct ABLFieldInit {
       {
           z_vel(i, j, k) = wmean;
       });
-}
+    }
 
     /** Add temperature perturbations
      *
      *  This uses amrex::Random and, therefore, executes the loop on CPU and
      *  pushes the field to device.
      */
-    void perturb_temperature(
-        const int lev, const amrex::Geometry& geom, amrex::MultiFab& temperature)
+        
+    void perturb_temperature(const amrex::Box& bx,
+                             const amrex::Array4<amrex::Real>& state,
+                             const amrex::GeometryData& geom) const
     {
     /** Perturbations for the temperature field is adapted from the following
      * paper:
@@ -165,35 +170,23 @@ struct ABLFieldInit {
      *
      */
 
-#if 0
-    const auto& dx = geom.CellSizeArray();
-    const auto& problo = geom.ProbLoArray();
-    auto& theta_fab = temperature(lev);
+    const auto& dx     = geom.CellSize();
+    const auto& problo = geom.ProbLo();
     const auto theta_cutoff_height = m_theta_cutoff_height;
     const auto theta_gauss_mean = m_theta_gauss_mean;
     const auto theta_gauss_var = m_theta_gauss_var;
     const auto deltaT = m_deltaT;
 
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for (amrex::MFIter mfi(theta_fab, amrex::TilingIfNotGPU()); mfi.isValid();
-         ++mfi) {
-        const auto& bx = mfi.tilebox();
-        const auto& theta = theta_fab.array(mfi);
-
-        amrex::ParallelForRNG(
-            bx, [=] AMREX_GPU_DEVICE(
-                    int i, int j, int k,
-                    const amrex::RandomEngine& engine) noexcept {
-                const amrex::Real z = problo[2] + (k + 0.5) * dx[2];
-                if (z < theta_cutoff_height)
-                    theta(i, j, k) =
-                        deltaT * amrex::RandomNormal(
-                                     theta_gauss_mean, theta_gauss_var, engine);
-            });
-    }
-#endif
+    amrex::ParallelForRNG(
+        bx, [=] AMREX_GPU_DEVICE(
+            int i, int j, int k,
+            const amrex::RandomEngine& engine) noexcept {
+            const amrex::Real z = problo[2] + (k + 0.5) * dx[2];
+            if (z < theta_cutoff_height)
+                state(i, j, k, RhoTheta_comp) =
+                    deltaT * amrex::RandomNormal(
+                                 theta_gauss_mean, theta_gauss_var, engine);
+        });
     }
 
     //! Flag indicating whether temperature field needs perturbations
