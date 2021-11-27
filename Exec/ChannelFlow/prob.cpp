@@ -3,12 +3,14 @@
 ProbParm parms;
 
 void
-erf_init_dens_hse(amrex::Vector<amrex::Real>& dens_hse)
+erf_init_dens_hse(amrex::Real* dens_hse_ptr,
+                  amrex::GeometryData const& geomdata,
+                  const int ng_dens_hse)
 {
-  const int klen = dens_hse.size();
-  for (int k = 0; k < klen; k++)
+  const int khi = geomdata.Domain().bigEnd()[2];
+  for (int k = -ng_dens_hse; k <= khi+ng_dens_hse; k++)
   {
-      dens_hse[k] = parms.rho_0;
+      dens_hse_ptr[k] = parms.rho_0;
   }
 }
 
@@ -71,22 +73,6 @@ erf_init_prob(
     amrex::Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W0_Pert_Mag;
     z_vel(i, j, k) = parms.W0 + z_vel_prime;
   });
-}
-
-AMREX_GPU_DEVICE
-void
-bcnormal(
-  const amrex::Real x[AMREX_SPACEDIM],
-  const amrex::Real s_int[NVAR],
-  amrex::Real s_ext[NVAR],
-  const int idir,
-  const int sgn,
-  const amrex::Real time,
-  amrex::GeometryData const& geomdata)
-{
-  for (int n = 0; n < NVAR; n++) {
-    s_ext[n] = s_int[n];
-  }
 }
 
 void

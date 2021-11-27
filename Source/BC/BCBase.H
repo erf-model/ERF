@@ -8,11 +8,11 @@ namespace math_bcs {
 
   enum BCBound { lower, upper };
 
-  template<int IDIR, BCBound Bound> struct foextrap;
+  template<int IDIR, BCBound Bound> struct lin_extrap;
 
   template<int IDIR>
-  struct foextrap<IDIR, BCBound::lower> {
-    using self = foextrap<IDIR, BCBound::lower>;
+  struct lin_extrap<IDIR, BCBound::lower> {
+    using self = lin_extrap<IDIR, BCBound::lower>;
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
@@ -36,7 +36,11 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
+              if (i == 0 and j == 0)
+              amrex::Print() << "DOING FOEXTRAP " << IntVect(i,j,k) << " " << data(i,j,lo,n) << std::endl;
               data(i,j,k,n) = (lo-k+1)*data(i,j,lo,n) - (lo-k)*data(i,j,lo+1,n);
+              if (i == 0 and j == 0)
+              amrex::Print() << "TO ET " << IntVect(i,j,k) << " " << data(i,j,k,n) << std::endl;
             }
           });
         }
@@ -84,8 +88,8 @@ namespace math_bcs {
   };
 
   template<int IDIR>
-  struct foextrap<IDIR, BCBound::upper> {
-    using self = foextrap<IDIR, BCBound::upper>;
+  struct lin_extrap<IDIR, BCBound::upper> {
+    using self = lin_extrap<IDIR, BCBound::upper>;
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
@@ -735,9 +739,10 @@ namespace math_bcs {
   struct sim_bc<IDIR, BCBound::lower> {
     using self = sim_bc<IDIR, BCBound::lower>;
 
-    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
-      int lo = geom.Domain().smallEnd(IDIR);
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1)
+    {
       const auto dxarray = geom.CellSizeArray();
+      int lo = geom.Domain().smallEnd(IDIR);
       const auto zrough = 0.01;
              //
              // For similarity BCs, the condition on the tangential velocities is found by
@@ -835,9 +840,10 @@ namespace math_bcs {
   struct sim_bc<IDIR, BCBound::upper> {
     using self = sim_bc<IDIR, BCBound::upper>;
 
-    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
-      int hi = geom.Domain().bigEnd(IDIR);
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1)
+    {
       const auto dxarray = geom.CellSizeArray();
+      int hi = geom.Domain().bigEnd(IDIR);
       const auto zrough = 0.01;
              //
              // For similarity BCs, the condition on the tangential velocities is found by
@@ -937,11 +943,11 @@ namespace math_bcs {
 
 
 
-  template<int IDIR, BCBound Bound> struct hoextrap;
+  template<int IDIR, BCBound Bound> struct quad_extrap;
 
   template<int IDIR>
-  struct hoextrap<IDIR, BCBound::lower> {
-    using self = hoextrap<IDIR, BCBound::lower>;
+  struct quad_extrap<IDIR, BCBound::lower> {
+    using self = quad_extrap<IDIR, BCBound::lower>;
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int lo = geom.Domain().smallEnd(IDIR);
@@ -970,6 +976,8 @@ namespace math_bcs {
           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             if (k < lo) {
+              amrex::Print() << "DOING HOEXTRAP " << IntVect(i,j,k) << " " << data(i,j,lo,n) << std::endl;
+              exit(0);
               amrex::Real grad = (-3.*data(i,j,lo,n)+4.*data(i,j,lo+1,n)-data(i,j,lo+2,n))/2.;
               data(i,j,k,n) = data(i,j,lo,n) - (lo-k)*grad;
             }
@@ -1023,8 +1031,8 @@ namespace math_bcs {
   };
 
   template<int IDIR>
-  struct hoextrap<IDIR, BCBound::upper> {
-    using self = hoextrap<IDIR, BCBound::upper>;
+  struct quad_extrap<IDIR, BCBound::upper> {
+    using self = quad_extrap<IDIR, BCBound::upper>;
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
       int hi = geom.Domain().bigEnd(IDIR);
@@ -1118,7 +1126,7 @@ namespace math_bcs {
         //  Note that CONST_GRAV is positive, but the vertical component of grav is negative //
         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};  */
 
-        const auto dxarray = geom.CellSizeArray();
+        // const auto dxarray = geom.CellSizeArray();
 
         if(b.smallEnd(IDIR) < lo) {
           if (IDIR == 0) {
@@ -1203,9 +1211,6 @@ namespace math_bcs {
         const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, gravity};
         const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]}; */
 
-        const auto dxarray = geom.CellSizeArray();
-
-
         if(b.bigEnd(IDIR) > hi) {
           if (IDIR == 0) {
             amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -1283,7 +1288,7 @@ namespace phys_bcs {
 
 class BCBase {
   public:
-  virtual void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) = 0;
+  virtual void applyBC (const amrex::Geometry /*geom*/, amrex::Vector<MultiFab*>& /*vars*/) = 0;
   virtual bool isInterior()   { return false; }
   virtual bool isNoSlipWall() { return false; }
 };

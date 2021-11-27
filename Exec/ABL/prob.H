@@ -29,7 +29,9 @@ struct ProbParm {
 extern ProbParm parms;
 
 void
-erf_init_dens_hse(amrex::Vector<amrex::Real>& dens_hse);
+erf_init_dens_hse(amrex::Real* dens_hse_ptr,
+                  amrex::GeometryData const& geomdata,
+                  const int ng_dens_hse);
 
 void
 erf_init_prob(
@@ -40,6 +42,7 @@ erf_init_prob(
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata);
 
+#if 0
 AMREX_GPU_DEVICE
 void
 bcnormal(
@@ -50,6 +53,7 @@ bcnormal(
   const int sgn,
   const amrex::Real time,
   amrex::GeometryData const& geomdata);
+#endif
 
 void erf_prob_close();
 

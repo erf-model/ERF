@@ -247,8 +247,6 @@ ERF::ERF(
 {
   buildMetrics();
 
-  amrex::MultiFab& S_new = get_new_data(State_Type);
-
   Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
 
   if (do_reflux && level > 0) {
@@ -291,9 +289,6 @@ void
 ERF::initData()
 {
   BL_PROFILE("ERF::initData()");
-
-  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
-//  amrex::Real cur_time = state[State_Type].curTime();
 
   amrex::MultiFab& S_new = get_new_data(State_Type);
   amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
@@ -405,8 +400,6 @@ ERF::estTimeStep(amrex::Real dt_old)
     return fixed_dt;
 
   amrex::Real estdt = max_dt;
-
-//  const amrex::Real* dx = geom.CellSize();
 
   std::string limiter = "erf.max_dt";
 

@@ -4,7 +4,8 @@
 #include "AMReX_Gpu.H"
 #include "AMReX_MultiFab.H"
 
-/** Initialize ABL fields
+/** Initialize ABL fields: The contents of this file were copied almost verbatim from amr-wind:
+    https://github.com/Exawind/amr-wind
  */
 struct ABLFieldInit {
 
@@ -84,8 +85,6 @@ struct ABLFieldInit {
        const amrex::Real* tv = m_thvv_d.data();
 
        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-           const amrex::Real x = problo[0] + (i + 0.5) * dx[0];
-           const amrex::Real y = problo[1] + (j + 0.5) * dx[1];
            const amrex::Real z = problo[2] + (k + 0.5) * dx[2];
 
            state(i, j, k, Rho_comp) = rho_init;
@@ -113,10 +112,8 @@ struct ABLFieldInit {
            x_vel(i, j, k) = umean;
 
            if (perturb_vel) {
-               const amrex::Real x = problo[0] + (i      ) * dx[0];
                const amrex::Real y = problo[1] + (j + 0.5) * dx[1];
                const amrex::Real z = problo[2] + (k + 0.5) * dx[2];
-               const amrex::Real xl = x - problo[0];
                const amrex::Real yl = y - problo[1];
                const amrex::Real zl = z / ref_height;
                const amrex::Real damp = std::exp(-0.5 * zl * zl);
@@ -132,10 +129,8 @@ struct ABLFieldInit {
 
            if (perturb_vel) {
                const amrex::Real x = problo[0] + (i + 0.5) * dx[0];
-               const amrex::Real y = problo[1] + (j      ) * dx[1];
                const amrex::Real z = problo[2] + (k + 0.5) * dx[2];
                const amrex::Real xl = x - problo[0];
-               const amrex::Real yl = y - problo[1];
                const amrex::Real zl = z / ref_height;
                const amrex::Real damp = std::exp(-0.5 * zl * zl);
 
