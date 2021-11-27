@@ -14,8 +14,6 @@ struct ABLFieldInit {
     {
         amrex::ParmParse pp_abl("ABL");
 
-        amrex::Print() << "IN THE INIT " << std::endl;
-
         // Temperature variation as a function of height
         pp_abl.getarr("temperature_heights", m_theta_heights);
         pp_abl.getarr("temperature_values", m_theta_values);
@@ -27,8 +25,6 @@ struct ABLFieldInit {
         pp_abl.query("perturb_ref_height", m_ref_height);
         pp_abl.query("Uperiods", m_Uperiods);
         pp_abl.query("Vperiods", m_Vperiods);
-        pp_abl.query("deltaU", m_deltaU);
-        pp_abl.query("deltaV", m_deltaV);
 
         pp_abl.query("perturb_temperature", m_perturb_theta);
         pp_abl.query("random_gauss_mean", m_theta_gauss_mean);
@@ -37,12 +33,6 @@ struct ABLFieldInit {
         pp_abl.query("theta_amplitude", m_deltaT);
 
         pp_abl.query("init_tke", m_tke_init);
-
-        // TODO: Modify this to accept velocity as a function of height
-        // Extract velocity field from incflo
-        amrex::ParmParse pp_incflo("incflo");
-        pp_incflo.get("density", m_rho);
-        pp_incflo.getarr("velocity", m_vel);
 
         m_thht_d.resize(num_theta_values);
         m_thvv_d.resize(num_theta_values);
@@ -53,6 +43,15 @@ struct ABLFieldInit {
         amrex::Gpu::copy(
             amrex::Gpu::hostToDevice, m_theta_values.begin(), m_theta_values.end(),
             m_thvv_d.begin());
+
+        amrex::ParmParse pp_prob("prob");
+
+        pp_prob.query("rho_0", m_rho);
+        pp_prob.query("U0"   , m_vel_x);
+        pp_prob.query("V0"   , m_vel_y);
+        pp_prob.query("W0"   , m_vel_z);
+        pp_prob.query("U0_Pert_Mag", m_deltaU);
+        pp_prob.query("V0_Pert_Mag", m_deltaV);
     }
 
     void operator()(
@@ -71,9 +70,9 @@ struct ABLFieldInit {
 
        const bool perturb_vel = m_perturb_vel;
        const amrex::Real rho_init = m_rho;
-       const amrex::Real umean = m_vel[0];
-       const amrex::Real vmean = m_vel[1];
-       const amrex::Real wmean = m_vel[2];
+       const amrex::Real umean = m_vel_x;
+       const amrex::Real vmean = m_vel_y;
+       const amrex::Real wmean = m_vel_z;
        const amrex::Real aval = m_Uperiods * 2.0 * pi / (probhi[1] - problo[1]);
        const amrex::Real bval = m_Vperiods * 2.0 * pi / (probhi[0] - problo[0]);
        const amrex::Real ufac = m_deltaU * std::exp(0.5) / m_ref_height;
@@ -101,8 +100,12 @@ struct ABLFieldInit {
            }
 
            state(i, j, k, RhoTheta_comp) = theta;
+           state(i, j, k, RhoTheta_comp) *= state(i, j, k, Rho_comp);
            state(i, j, k, RhoScalar_comp) = 0.;
        });
+
+     if (add_temperature_perturbations())
+         perturb_temperature(bx,state,geom);
 
      const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
      amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -145,15 +148,17 @@ struct ABLFieldInit {
       {
           z_vel(i, j, k) = wmean;
       });
-}
+    }
 
     /** Add temperature perturbations
      *
      *  This uses amrex::Random and, therefore, executes the loop on CPU and
      *  pushes the field to device.
      */
-    void perturb_temperature(
-        const int lev, const amrex::Geometry& geom, amrex::MultiFab& temperature)
+
+    void perturb_temperature(const amrex::Box& bx,
+                             const amrex::Array4<amrex::Real>& state,
+                             const amrex::GeometryData& geom) const
     {
     /** Perturbations for the temperature field is adapted from the following
      * paper:
@@ -165,35 +170,23 @@ struct ABLFieldInit {
      *
      */
 
-#if 0
-    const auto& dx = geom.CellSizeArray();
-    const auto& problo = geom.ProbLoArray();
-    auto& theta_fab = temperature(lev);
+    const auto& dx     = geom.CellSize();
+    const auto& problo = geom.ProbLo();
     const auto theta_cutoff_height = m_theta_cutoff_height;
     const auto theta_gauss_mean = m_theta_gauss_mean;
     const auto theta_gauss_var = m_theta_gauss_var;
     const auto deltaT = m_deltaT;
 
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for (amrex::MFIter mfi(theta_fab, amrex::TilingIfNotGPU()); mfi.isValid();
-         ++mfi) {
-        const auto& bx = mfi.tilebox();
-        const auto& theta = theta_fab.array(mfi);
-
-        amrex::ParallelForRNG(
-            bx, [=] AMREX_GPU_DEVICE(
-                    int i, int j, int k,
-                    const amrex::RandomEngine& engine) noexcept {
-                const amrex::Real z = problo[2] + (k + 0.5) * dx[2];
-                if (z < theta_cutoff_height)
-                    theta(i, j, k) =
-                        deltaT * amrex::RandomNormal(
-                                     theta_gauss_mean, theta_gauss_var, engine);
-            });
-    }
-#endif
+    amrex::ParallelForRNG(
+        bx, [=] AMREX_GPU_DEVICE(
+            int i, int j, int k,
+            const amrex::RandomEngine& engine) noexcept {
+            const amrex::Real z = problo[2] + (k + 0.5) * dx[2];
+            if (z < theta_cutoff_height)
+                state(i, j, k, RhoTheta_comp) =
+                    deltaT * amrex::RandomNormal(
+                                 theta_gauss_mean, theta_gauss_var, engine);
+        });
     }
 
     //! Flag indicating whether temperature field needs perturbations
@@ -204,7 +197,9 @@ struct ABLFieldInit {
 
   private:
     //! Initial velocity components
-    amrex::Vector<amrex::Real> m_vel;
+    amrex::Real m_vel_x;
+    amrex::Real m_vel_y;
+    amrex::Real m_vel_z;
 
     ///@{
     //! Lookup table containing temperature variation w.r.t. height above
