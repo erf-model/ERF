@@ -261,7 +261,7 @@ ERF::initHSE()
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_dens_hse[level].begin(), h_dens_hse[level].end(),
                      d_dens_hse[level].begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_pres_hse[level].begin(), h_pres_hse[level].end(),
-                     d_dens_hse[level].begin());
+                     d_pres_hse[level].begin());
 }
 
 void
