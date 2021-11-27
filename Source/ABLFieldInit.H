@@ -155,7 +155,7 @@ struct ABLFieldInit {
      *  This uses amrex::Random and, therefore, executes the loop on CPU and
      *  pushes the field to device.
      */
-        
+
     void perturb_temperature(const amrex::Box& bx,
                              const amrex::Array4<amrex::Real>& state,
                              const amrex::GeometryData& geom) const
