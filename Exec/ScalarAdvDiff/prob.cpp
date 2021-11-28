@@ -15,13 +15,22 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
 }
 
 void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
-                  amrex::Vector<amrex::Real>& /*ubar*/,
-                  amrex::Vector<amrex::Real>& /*vbar*/,
-                  amrex::Vector<amrex::Real>& /*thetabar*/,
-                  amrex::GeometryData  const& /*geomdata*/)
+erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
+                  amrex::Vector<amrex::Real>& ubar,
+                  amrex::Vector<amrex::Real>& vbar,
+                  amrex::Vector<amrex::Real>& thetabar,
+                  amrex::GeometryData  const& geomdata)
 {
-   amrex::Error("Should never get here for ScalarAdvDiff problems");
+  const int khi              = geomdata.Domain().bigEnd()[2];
+
+  // We just use these values to test the Rayleigh damping
+  for (int k = 0; k <= khi; k++)
+  {
+      tau[k]  = 1.0;
+      ubar[k] = 2.0;
+      vbar[k] = 1.0;
+      thetabar[k] = parms.Theta_0;
+  }
 }
 
 void

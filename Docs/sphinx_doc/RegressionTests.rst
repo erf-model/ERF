@@ -19,40 +19,42 @@ Results from the nightly GPU tests can be found here: `GPU tests`_
 
 The following problems are currently tested in the CI:
 
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| Test                          | nx ny nz | xbc | ybc | zbc | Ext   | Other          |
-+===============================+==========+=====+=====+=====+=======+================+
-| ScalarAdvectionUniformU       | 16 16 16 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| ScalarAdvectionUniformUV      | 16 16  4 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| ScalarAdvectionShearedU       | 16  4 16 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| ScalarAdvectionRigidRotation  | 16 16  4 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| ScalarAdvectionDiffusion      | 16 16 16 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| ScalarDiffusionGaussian       | 16 16 16 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| ScalarDiffusionSine           | 16 16  4 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| IsentropicVortexAdvecting     | 48 48  4 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| IsentropicVortexStationary    | 48 48  4 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| TaylorGreenAdvecting          | 16 16 16 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| TaylorGreenAdvectingDiffusing | 16 16 16 | per | per | per | None  |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| CouetteFlow                   | 32 4  16 | per | per | NSW | None  |                |
-|                               |          |     |     | Dir |       |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| PoiseuilleFlow                | 32 4  16 | per | per | NSW | GradP |                |
-|                               |          |     |     | NSW |       |                |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
-| EkmanSpiral                   | 4 4 400  | per | per | NSW | Geo   | +Coriolis      |
-|                               |          |     |     | SW  |       | +gravity       |
-+-------------------------------+----------+-----+-----+-----+-------+----------------+
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| Test                          | nx ny nz | xbc | ybc | zbc | Ext   | Other            |
++===============================+==========+=====+=====+=====+=======+==================+
+| ScalarAdvectionUniformU       | 16 16 16 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| ScalarAdvectionUniformUV      | 16 16  4 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| ScalarAdvectionShearedU       | 16  4 16 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| ScalarAdvectionRigidRotation  | 16 16  4 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| ScalarAdvectionDiffusion      | 16 16 16 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| ScalarDiffusionGaussian       | 16 16 16 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| ScalarDiffusionSine           | 16 16  4 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| RayleighDamping               | 64  4 64 | per | per | per | None  | Rayleigh damping |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| IsentropicVortexAdvecting     | 48 48  4 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| IsentropicVortexStationary    | 48 48  4 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| TaylorGreenAdvecting          | 16 16 16 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| TaylorGreenAdvectingDiffusing | 16 16 16 | per | per | per | None  |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| CouetteFlow                   | 32 4  16 | per | per | NSW | None  |                  |
+|                               |          |     |     | Dir |       |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| PoiseuilleFlow                | 32 4  16 | per | per | NSW | GradP |                  |
+|                               |          |     |     | NSW |       |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
+| EkmanSpiral                   | 4 4 400  | per | per | NSW | Geo   | +Coriolis        |
+|                               |          |     |     | SW  |       | +gravity         |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
 
 Scalar Advection by Uniform Flow in X-Direction
 ------------------------------------------------
@@ -252,6 +254,21 @@ Problem Location: `Exec/ScalarAdvDiff`_
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.01).       |
    +-----------------------------------------------------+------------------------------------------------------+
+
+Rayleigh Damping
+----------------
+
+This tests Rayleigh damping.  The problem is initialized as in the shear flow case, then
+Rayleigh damping is applied with a target mean profile of (2,1,0).
+
+Test Location: `Tests/test_files/RayleighDamping`_
+
+.. _`Tests/test_files/RayleighDamping`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/RayleighDamping
+
+Problem Location: `Exec/ScalarAdvDiff`_
+
+.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+
 
 Isentropic Vortex: Stationary
 ---------------------------------
