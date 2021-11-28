@@ -15,6 +15,16 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
 }
 
 void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
+                  amrex::Vector<amrex::Real>& /*ubar*/,
+                  amrex::Vector<amrex::Real>& /*vbar*/,
+                  amrex::Vector<amrex::Real>& /*thetabar*/,
+                  amrex::GeometryData  const& /*geomdata*/)
+{
+   amrex::Error("Should never get here for ChannelFlow problem");
+}
+
+void
 erf_init_prob(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
@@ -43,7 +53,7 @@ erf_init_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial Rho0*Theta0
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
@@ -92,7 +102,7 @@ amrex_probinit(
   // Parse params
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.T_0);
+  pp.query("T_0", parms.Theta_0);
   pp.query("A_0", parms.A_0);
 
   pp.query("U0", parms.U0);

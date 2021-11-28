@@ -17,7 +17,9 @@ void erf_rhs (int level,
                     amrex::InterpFaceRegister* ifr,
               const SolverChoice& solverChoice,
               const bool lo_z_is_no_slip, const bool hi_z_is_no_slip,
-              const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse)
+              const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+              const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
+              const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
 {
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
 
@@ -150,6 +152,13 @@ void erf_rhs (int level,
             if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
             cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp, dx, Ksmag, solverChoice);
 
+            // Add Rayleigh damping
+            if (solverChoice.use_rayleigh_damping && n == RhoTheta_comp)
+            {
+                Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
+                cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,Rho_comp);
+            }
+
             // Add source terms. TODO: Put this under a if condition when we implement source term
             cell_rhs(i, j, k, n) += source_fab(i, j, k, n);
         }
@@ -216,6 +225,13 @@ void erf_rhs (int level,
             if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
                 rho_u_rhs(i, j, k) += solverChoice.abl_geo_forcing[0];
 
+            // Add Rayleigh damping
+            if (solverChoice.use_rayleigh_damping)
+            {
+                Real u = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
+                rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (u - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
+            }
+
             } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
@@ -272,6 +288,13 @@ void erf_rhs (int level,
             if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
                 rho_v_rhs(i, j, k) += solverChoice.abl_geo_forcing[1];
 
+            // Add Rayleigh damping
+            if (solverChoice.use_rayleigh_damping)
+            {
+                Real v = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
+                rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (v - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
+            }
+
             } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
@@ -323,6 +346,12 @@ void erf_rhs (int level,
             // Add geostrophic forcing
             if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
                 rho_w_rhs(i, j, k) += solverChoice.abl_geo_forcing[2];
+
+            // Add Rayleigh damping
+            if (solverChoice.use_rayleigh_damping)
+            {
+                rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
+            }
 
             } // not on coarse-fine boundary
         });

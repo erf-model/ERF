@@ -59,6 +59,7 @@ erf.use_momentum_diffusion = true
 erf.use_pressure = true
 erf.use_gravity = true
 erf.use_coriolis = false
+erf.use_rayleigh_damping = false
 erf.spatial_order = 2
 
 erf.les_type         = "None"

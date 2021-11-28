@@ -25,7 +25,11 @@ void erf_advance(int level,
                  amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice,
                  const amrex::Real* dptr_dens_hse,
-                 const amrex::Real* dptr_pres_hse)
+                 const amrex::Real* dptr_pres_hse,
+                 const amrex::Real* dptr_rayleigh_tau,
+                 const amrex::Real* dptr_rayleigh_ubar,
+                 const amrex::Real* dptr_rayleigh_vbar,
+                 const amrex::Real* dptr_rayleigh_thetabar)
 {
     BL_PROFILE_VAR("erf_advance()",erf_advance);
 
@@ -135,7 +139,9 @@ void erf_advance(int level,
                 solverChoice,
                 l_lo_z_is_no_slip,
                 l_hi_z_is_no_slip,
-                dptr_dens_hse, dptr_pres_hse);
+                dptr_dens_hse, dptr_pres_hse,
+                dptr_rayleigh_tau, dptr_rayleigh_ubar,
+                dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
     };
 
     auto post_update_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {

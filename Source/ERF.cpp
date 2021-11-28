@@ -63,6 +63,15 @@ amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_pres_hse(0);
 amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_dens_hse(0);
 amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_pres_hse(0);
 
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_tau(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_ubar(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_vbar(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_thetabar(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_tau(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_ubar(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_vbar(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_thetabar(0);
+
 // this will be reset upon restart
 amrex::Real ERF::previousCPUTimeUsed = 0.0;
 amrex::Real ERF::startCPUTime = 0.0;
@@ -305,16 +314,31 @@ ERF::initData()
     d_dens_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
     d_pres_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
 
-    // Initialize the base state arrays at all levels (with 3 ghost cells),
+    // Initialize the hydrostatic and Rayleigh damping arrays at all levels
     //     and set from problem-dependent input
     for (int lev(0); lev <= max_level; ++lev) {
+
       const int zlen_dens = parent->Geom(lev).Domain().length(2) + 2*ng_dens_hse;
       h_dens_hse[lev].resize(zlen_dens, 0.0_rt);
       d_dens_hse[lev].resize(zlen_dens, 0.0_rt);
+
       const int zlen_pres = parent->Geom(lev).Domain().length(2) + 2*ng_pres_hse;
       h_pres_hse[lev].resize(zlen_pres, p_0);
       d_pres_hse[lev].resize(zlen_pres, p_0);
+
       getLevel(lev).initHSE();
+
+      const int zlen_rayleigh = parent->Geom(lev).Domain().length(2);
+      h_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
+      d_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
+      h_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
+      d_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
+      h_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
+      d_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
+      h_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
+      d_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
+
+      getLevel(lev).initRayleigh();
     }
 
     if (init_abl)
@@ -664,6 +688,7 @@ ERF::post_restart()
       h_pres_hse[lev].resize(zlen_pres, p_0);
       d_pres_hse[lev].resize(zlen_pres, p_0);
       getLevel(lev).initHSE();
+      getLevel(lev).initRayleigh();
     }
   }
 

@@ -15,6 +15,16 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
 }
 
 void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
+                  amrex::Vector<amrex::Real>& /*ubar*/,
+                  amrex::Vector<amrex::Real>& /*vbar*/,
+                  amrex::Vector<amrex::Real>& /*thetabar*/,
+                  amrex::GeometryData  const& /*geomdata*/)
+{
+   amrex::Error("Should never get here for TaylorGreenVortex problem");
+}
+
+void
 erf_init_prob(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
@@ -99,7 +109,7 @@ amrex_probinit(
   // Parse params
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.T_0);
+  pp.query("T_0", parms.Theta_0);
   pp.query("M_0", parms.M_0);
   pp.query("V_0", parms.V_0);
 }
