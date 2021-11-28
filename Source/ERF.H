@@ -291,6 +291,8 @@ public:
   void avgDown();
   void avgDown(int state_indx);
 
+  void init1DArrays();
+
 protected:
   friend class IOManager;
 

@@ -305,6 +305,22 @@ ERF::initData()
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
 
   if (level == 0) {
+
+    init1DArrays();
+
+    if (init_abl)
+    {
+        ablinit.init_params();
+    }
+  }
+
+  initDataProb(S_new, U_new, V_new, W_new);
+}
+
+void
+ERF::init1DArrays()
+{
+    AMREX_ALWAYS_ASSERT(level == 0);
     //
     // Setup Base State Arrays
     //
@@ -313,6 +329,18 @@ ERF::initData()
     h_pres_hse.resize(max_level+1, amrex::Vector<Real>(0));
     d_dens_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
     d_pres_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+
+    if (solverChoice.use_rayleigh_damping)
+    {
+        h_rayleigh_tau.resize(max_level+1, amrex::Vector<Real>(0));
+        h_rayleigh_ubar.resize(max_level+1, amrex::Vector<Real>(0));
+        h_rayleigh_vbar.resize(max_level+1, amrex::Vector<Real>(0));
+        h_rayleigh_thetabar.resize(max_level+1, amrex::Vector<Real>(0));
+        d_rayleigh_tau.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        d_rayleigh_ubar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        d_rayleigh_vbar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        d_rayleigh_thetabar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+    }
 
     // Initialize the hydrostatic and Rayleigh damping arrays at all levels
     //     and set from problem-dependent input
@@ -328,26 +356,21 @@ ERF::initData()
 
       getLevel(lev).initHSE();
 
-      const int zlen_rayleigh = parent->Geom(lev).Domain().length(2);
-      h_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
-      d_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
-      h_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
-      d_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
-      h_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
-      d_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
-      h_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
-      d_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
+      if (solverChoice.use_rayleigh_damping)
+      {
+          const int zlen_rayleigh = parent->Geom(lev).Domain().length(2);
+          h_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
+          d_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
+          h_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
+          d_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
+          h_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
+          d_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
+          h_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
+          d_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
 
-      getLevel(lev).initRayleigh();
+          getLevel(lev).initRayleigh();
+      }
     }
-
-    if (init_abl)
-    {
-        ablinit.init_params();
-    }
-  }
-
-  initDataProb(S_new, U_new, V_new, W_new);
 }
 
 void
@@ -669,27 +692,7 @@ ERF::post_restart()
   BL_PROFILE("ERF::post_restart()");
 
   if (level == 0) {
-    //
-    // Setup Base State Arrays
-    //
-    const int max_level = parent->maxLevel();
-    h_dens_hse.resize(max_level+1, amrex::Vector<Real>(0));
-    h_pres_hse.resize(max_level+1, amrex::Vector<Real>(0));
-    d_dens_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-    d_pres_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-
-    // Initialize the base state arrays at all levels (with 3 ghost cells),
-    //     and set from problem-dependent input
-    for (int lev(0); lev <= max_level; ++lev) {
-      const int zlen_dens = parent->Geom(lev).Domain().length(2) + 2*ng_dens_hse;
-      h_dens_hse[lev].resize(zlen_dens, 0.0_rt);
-      d_dens_hse[lev].resize(zlen_dens, 0.0_rt);
-      const int zlen_pres = parent->Geom(lev).Domain().length(2) + 2*ng_pres_hse;
-      h_pres_hse[lev].resize(zlen_pres, p_0);
-      d_pres_hse[lev].resize(zlen_pres, p_0);
-      getLevel(lev).initHSE();
-      getLevel(lev).initRayleigh();
-    }
+    init1DArrays();
   }
 
 #ifdef DO_PROBLEM_POST_RESTART
