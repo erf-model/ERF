@@ -130,6 +130,9 @@ public:
   void erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
                        amrex::Vector<amrex::Real>& pres);
 
+  //! Initialize Rayleigh damping profiles
+  void initRayleigh();
+
   //! Initialize grid data at problem start-up.
   virtual void initData() override;
   void initDataProb(amrex::MultiFab& S_new,
@@ -288,6 +291,8 @@ public:
   void avgDown();
   void avgDown(int state_indx);
 
+  void init1DArrays();
+
 protected:
   friend class IOManager;
 
@@ -377,6 +382,16 @@ protected:
   static amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
   static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
   static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
+
+  // Mean quantities and tau for Rayleigh damping
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
 
 /* problem-specific includes */
 #include <Problem.H>

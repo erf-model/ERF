@@ -28,6 +28,16 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
 }
 
 void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
+                  amrex::Vector<amrex::Real>& /*ubar*/,
+                  amrex::Vector<amrex::Real>& /*vbar*/,
+                  amrex::Vector<amrex::Real>& /*thetabar*/,
+                  amrex::GeometryData  const& /*geomdata*/)
+{
+   amrex::Error("Should never get here for Isentropic Vortex problem");
+}
+
+void
 erf_init_prob(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
@@ -115,9 +125,9 @@ erf_prob_close()
 extern "C" {
 void
 amrex_probinit(
-  const int* init,
-  const int* name,
-  const int* namelen,
+  const int* /*init*/,
+  const int* /*name*/,
+  const int* /*namelen*/,
   const amrex_real* problo,
   const amrex_real* probhi)
 {

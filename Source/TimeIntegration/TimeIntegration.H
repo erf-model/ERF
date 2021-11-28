@@ -65,7 +65,11 @@ void erf_advance(int level,
                        amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice,
                  const amrex::Real* dptr_dens_hse,
-                 const amrex::Real* dptr_pres_hse);
+                 const amrex::Real* dptr_pres_hse,
+                 const amrex::Real* dptr_rayleigh_tau,
+                 const amrex::Real* dptr_rayleigh_ubar,
+                 const amrex::Real* dptr_rayleigh_vbar,
+                 const amrex::Real* dptr_rayleigh_thetabar);
 
 void erf_rhs(int level,
              Vector<std::unique_ptr<MultiFab> >& S_rhs,
@@ -78,7 +82,11 @@ void erf_rhs(int level,
              const bool lo_z_is_no_slip,
              const bool hi_z_is_no_slip,
              const amrex::Real* dptr_dens_hse,
-             const amrex::Real* dptr_pres_hse);
+             const amrex::Real* dptr_pres_hse,
+             const amrex::Real* dptr_rayleigh_tau,
+             const amrex::Real* dptr_rayleigh_ubar,
+             const amrex::Real* dptr_rayleigh_vbar,
+             const amrex::Real* dptr_rayleigh_thetabar);
 
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,

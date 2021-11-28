@@ -15,6 +15,16 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
 }
 
 void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
+                  amrex::Vector<amrex::Real>& /*ubar*/,
+                  amrex::Vector<amrex::Real>& /*vbar*/,
+                  amrex::Vector<amrex::Real>& /*thetabar*/,
+                  amrex::GeometryData  const& /*geomdata*/)
+{
+   amrex::Error("Should never get here for ChannelFlow problem");
+}
+
+void
 erf_init_prob(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
@@ -43,7 +53,7 @@ erf_init_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial Rho0*Theta0
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
@@ -53,16 +63,16 @@ erf_init_prob(
   amrex::ParallelForRNG(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
 
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-    amrex::Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U0_Pert_Mag;
-    x_vel(i, j, k) = parms.U0 + x_vel_prime;
+    amrex::Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
+    x_vel(i, j, k) = parms.U_0 + x_vel_prime;
   });
 
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   amrex::ParallelForRNG(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
 
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-    amrex::Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V0_Pert_Mag;
-    y_vel(i, j, k) = parms.V0 + y_vel_prime;
+    amrex::Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
+    y_vel(i, j, k) = parms.V_0 + y_vel_prime;
   });
 
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
@@ -70,8 +80,8 @@ erf_init_prob(
 
     // Set the z-velocity
     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-    amrex::Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W0_Pert_Mag;
-    z_vel(i, j, k) = parms.W0 + z_vel_prime;
+    amrex::Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W_0_Pert_Mag;
+    z_vel(i, j, k) = parms.W_0 + z_vel_prime;
   });
 }
 
@@ -83,23 +93,23 @@ erf_prob_close()
 extern "C" {
 void
 amrex_probinit(
-  const int* init,
-  const int* name,
-  const int* namelen,
-  const amrex_real* problo,
-  const amrex_real* probhi)
+  const int* /*init*/,
+  const int* /*name*/,
+  const int* /*namelen*/,
+  const amrex_real* /*problo*/,
+  const amrex_real* /*probhi*/)
 {
   // Parse params
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.T_0);
+  pp.query("T_0", parms.Theta_0);
   pp.query("A_0", parms.A_0);
 
-  pp.query("U0", parms.U0);
-  pp.query("V0", parms.V0);
-  pp.query("W0", parms.W0);
-  pp.query("U0_Pert_Mag", parms.U0_Pert_Mag);
-  pp.query("V0_Pert_Mag", parms.V0_Pert_Mag);
-  pp.query("W0_Pert_Mag", parms.W0_Pert_Mag);
+  pp.query("U_0", parms.U_0);
+  pp.query("V_0", parms.V_0);
+  pp.query("W_0", parms.W_0);
+  pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
+  pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
+  pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
 }
 }

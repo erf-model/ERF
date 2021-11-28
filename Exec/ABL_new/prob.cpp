@@ -17,6 +17,32 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
 }
 
 void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
+                  amrex::Vector<amrex::Real>& ubar,
+                  amrex::Vector<amrex::Real>& vbar,
+                  amrex::Vector<amrex::Real>& thetabar,
+                  amrex::GeometryData        const& geomdata)
+{
+   amrex::Error("Should never get here for Isentropic Vortex problem");
+}
+{
+  const amrex::Real* prob_lo = geomdata.ProbLo();
+  const auto dx              = geomdata.CellSize();
+  const int khi              = geomdata.Domain().bigEnd()[2];
+
+  for (int k = 0; k <= khi; k++)
+  {
+      const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+
+      tau[k]      = 1.0;
+
+      ubar[k]     = parms.U_0;
+      vbar[k]     = parms.V_0;
+      thetabar[k] = parms.Theta_0;
+  }
+}
+
+void
 erf_init_prob(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
@@ -36,11 +62,11 @@ erf_prob_close()
 extern "C" {
 void
 amrex_probinit(
-  const int* init,
-  const int* name,
-  const int* namelen,
-  const amrex_real* problo,
-  const amrex_real* probhi)
+  const int* /*init*/,
+  const int* /*name*/,
+  const int* /*namelen*/,
+  const amrex_real* /*problo*/,
+  const amrex_real* /*probhi*/)
 {
   // Parse params
   amrex::ParmParse pp("prob");
@@ -48,11 +74,11 @@ amrex_probinit(
   pp.query("T_0", parms.Theta_0);
   pp.query("A_0", parms.A_0);
 
-  pp.query("U0", parms.U0);
-  pp.query("V0", parms.V0);
-  pp.query("W0", parms.W0);
-  pp.query("U0_Pert_Mag", parms.U0_Pert_Mag);
-  pp.query("V0_Pert_Mag", parms.V0_Pert_Mag);
-  pp.query("W0_Pert_Mag", parms.W0_Pert_Mag);
+  pp.query("U_0", parms.U_0);
+  pp.query("V_0", parms.V_0);
+  pp.query("W_0", parms.W_0);
+  pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
+  pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
+  pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
 }
 }

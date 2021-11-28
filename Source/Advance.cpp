@@ -126,6 +126,10 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   // *****************************************************************
   amrex::Real* dptr_dens_hse = d_dens_hse[level].data() + ng_dens_hse;
   amrex::Real* dptr_pres_hse = d_pres_hse[level].data() + ng_pres_hse;
+  amrex::Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[level].data() : nullptr;
+  amrex::Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[level].data() : nullptr;
+  amrex::Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[level].data() : nullptr;
+  amrex::Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
   erf_advance(level,
               state_mf, S_new,
               U_old, V_old, W_old,
@@ -138,7 +142,9 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               ref_ratio,
               dx, dt, time, &ifr,
               solverChoice,
-              dptr_dens_hse, dptr_pres_hse);
+              dptr_dens_hse, dptr_pres_hse,
+              dptr_rayleigh_tau, dptr_rayleigh_ubar,
+              dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
 
   return dt;
 }

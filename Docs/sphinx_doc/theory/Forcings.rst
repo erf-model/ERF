@@ -47,6 +47,33 @@ period (measured in seconds), and :math:`\phi` the latitude.
 
 There is no dependence on the radial distance from the center of the earth, thus the curvature of the earth is neglected.
 
+Rayleigh Damping
+----------------
+
+If
+
+::
+
+      use_rayleigh_damping == true
+
+then explicit Rayleigh damping is included in the energy and momentum equations
+as described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.e. :
+
+.. math::
+
+  \mathbf{F} = - \tau(z) \rho (u - \overbar{u}, v - \overbar{v}, w - \overbar{w})
+
+and
+
+.. math::
+
+  F_{\rho \theta} = - \tau(z) \rho (\theta - \overbar{\theta})
+
+where :math:`(\overbar{u}, \overbar{v}, 0)` is the reference state velocity, typically
+defined as the initial horizontally homogeneous fields in idealized simulations,
+and :math:`\overbar{\theta}` is the reference state potential temperature.
+As in the WRF model, the reference state vertical velocity is assumed to be zero.
+
 
 Problem-Specific Forcing
 ========================

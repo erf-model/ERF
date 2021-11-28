@@ -247,6 +247,24 @@ ERF::initDataProb (amrex::MultiFab& S_new,
 }
 
 void
+ERF::initRayleigh()
+{
+    const auto geomdata = geom.data();
+
+    erf_init_rayleigh(h_rayleigh_tau[level], h_rayleigh_ubar[level], h_rayleigh_vbar[level], h_rayleigh_thetabar[level], geomdata);
+
+    // Copy from host version to device version
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_tau[level].begin(), h_rayleigh_tau[level].end(),
+                     d_rayleigh_tau[level].begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ubar[level].begin(), h_rayleigh_ubar[level].end(),
+                     d_rayleigh_ubar[level].begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_vbar[level].begin(), h_rayleigh_vbar[level].end(),
+                     d_rayleigh_vbar[level].begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_thetabar[level].begin(), h_rayleigh_thetabar[level].end(),
+                     d_rayleigh_thetabar[level].begin());
+}
+
+void
 ERF::initHSE()
 {
     const auto geomdata = geom.data();
