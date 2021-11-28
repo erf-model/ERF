@@ -110,12 +110,12 @@ ABL.bndry_io_mode = 1
 ABL.bndry_var_names = velocity temperature
 
 prob.rho_0 =  1.0
-prob.U0    = 10.0
-prob.V0    =  0.0
-prob.W0    =  0.0
-prob.U0_Pert_Mag = 1.0
-prob.V0_Pert_Mag = 1.0
-prob.W0_Pert_Mag = 0.0
+prob.U_0   = 10.0
+prob.V_0   =  0.0
+prob.W_0   =  0.0
+prob.U_0_Pert_Mag = 1.0
+prob.V_0_Pert_Mag = 1.0
+prob.W_0_Pert_Mag = 0.0
 
 #¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨¨#
 #        TIME INTEGRATION               #

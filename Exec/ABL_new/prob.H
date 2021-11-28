@@ -18,12 +18,12 @@ struct ProbParm {
   amrex::Real Theta_0 = 300.0;
   amrex::Real A_0     = 1.0;
 
-  amrex::Real U0 = 10.0;
-  amrex::Real V0 = 0.0;
-  amrex::Real W0 = 0.0;
-  amrex::Real U0_Pert_Mag = 1.0;
-  amrex::Real V0_Pert_Mag = 1.0;
-  amrex::Real W0_Pert_Mag = 0.0;
+  amrex::Real U_0 = 10.0;
+  amrex::Real V_0 = 0.0;
+  amrex::Real W_0 = 0.0;
+  amrex::Real U_0_Pert_Mag = 1.0;
+  amrex::Real V_0_Pert_Mag = 1.0;
+  amrex::Real W_0_Pert_Mag = 0.0;
 }; // namespace ProbParm
 
 extern ProbParm parms;
