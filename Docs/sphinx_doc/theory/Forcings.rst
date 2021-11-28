@@ -56,12 +56,12 @@ If
 
       use_rayleigh_damping == true
 
-then explicit Rayleigh damping is included in the energy and momentum equations 
+then explicit Rayleigh damping is included in the energy and momentum equations
 as described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.e. :
 
 .. math::
 
-  \mathbf{F} = - \tau(z) \rho (u - \overbar{u}, v - \overbar{v}, w - \overbar{w}) 
+  \mathbf{F} = - \tau(z) \rho (u - \overbar{u}, v - \overbar{v}, w - \overbar{w})
 
 and
 
