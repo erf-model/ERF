@@ -10,7 +10,7 @@ ScalarAdvectionRigidRotation      inputs_rigidrot
 
    Advection of a 2D blob in a rotating velocity field (.5-y, x-.5, 0) in a domain 1x1x1
 
-    See http://ammar-hakim.org/sj/je/je16/je16-ldg.html#rigid-body-rotating-flow
+   See http://ammar-hakim.org/sj/je/je16/je16-ldg.html#rigid-body-rotating-flow
 
 ScalarAdvectionShearedU           inputs_advect_shearU
 
@@ -32,3 +32,8 @@ ScalarDiffusionGaussian           inputs_diffuse_Gaussian
 ScalarDiffusionSine               inputs_diffuse_sine
 
    Diffusion of a scalar initialized as sin(x)
+
+RayleighDamping                  inputs_test_rayleigh 
+
+   This tests Rayleigh damping.  The problem is initialized as in the shear flow case, then
+   Rayleigh damping is applied with a target mean profile of (2,1,0).
