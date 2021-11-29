@@ -14,11 +14,6 @@ the_same_box(const amrex::Box& b)
 {
   return b;
 }
-static amrex::Box
-grow_box_by_one(const amrex::Box& b)
-{
-  return amrex::grow(b, 1);
-}
 
 void
 ERF::variableSetUp()
@@ -252,16 +247,39 @@ ERF::initDataProb (amrex::MultiFab& S_new,
 }
 
 void
+ERF::initRayleigh()
+{
+    const auto geomdata = geom.data();
+
+    erf_init_rayleigh(h_rayleigh_tau[level], h_rayleigh_ubar[level], h_rayleigh_vbar[level], h_rayleigh_thetabar[level], geomdata);
+
+    // Copy from host version to device version
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_tau[level].begin(), h_rayleigh_tau[level].end(),
+                     d_rayleigh_tau[level].begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ubar[level].begin(), h_rayleigh_ubar[level].end(),
+                     d_rayleigh_ubar[level].begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_vbar[level].begin(), h_rayleigh_vbar[level].end(),
+                     d_rayleigh_vbar[level].begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_thetabar[level].begin(), h_rayleigh_thetabar[level].end(),
+                     d_rayleigh_thetabar[level].begin());
+}
+
+void
 ERF::initHSE()
 {
-    erf_init_dens_hse(h_dens_hse[level]);
+    const auto geomdata = geom.data();
+
+    Real* hptr_dens = h_dens_hse[level].data() + ng_dens_hse;
+
+    erf_init_dens_hse(hptr_dens,geomdata,ng_dens_hse);
+
     erf_enforce_hse(h_dens_hse[level],h_pres_hse[level]);
 
     // Copy from host version to device version
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_dens_hse[level].begin(), h_dens_hse[level].end(),
                      d_dens_hse[level].begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_pres_hse[level].begin(), h_pres_hse[level].end(),
-                     d_dens_hse[level].begin());
+                     d_pres_hse[level].begin());
 }
 
 void
@@ -277,8 +295,8 @@ ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
     // We start by assuming pressure on the ground is p_0 (in ERF_Constants.H)
     // Note that gravity is positive
 
-    int l_spatial_order = solverChoice.spatial_order;
-    int l_gravity       = solverChoice.gravity;
+    int l_spatial_order   = solverChoice.spatial_order;
+    amrex::Real l_gravity = solverChoice.gravity;
 
     Real* hptr_dens = h_dens_hse[level].data() + ng_dens_hse;
     Real* hptr_pres = h_pres_hse[level].data() + ng_pres_hse;
@@ -317,6 +335,6 @@ ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
                                 +( 1./60.)*(hptr_dens[k+2]+hptr_dens[k-3]) ;
                break;
         }
-        hptr_pres[k] = hptr_pres[k-1] - (0.5*dz) * dens_interp * l_gravity;
+        hptr_pres[k] = hptr_pres[k-1] - dz * dens_interp * l_gravity;
     }
 }

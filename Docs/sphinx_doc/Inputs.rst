@@ -292,10 +292,6 @@ Examples of Usage
    | The dimensions of all the final grids will be multiples of 32 at
      level 0, multiples of 16 at level 1, and multiples of 8 at level 2.
 
-   Having grids that are large enough to coarsen multiple levels in a
-   V-cycle is essential for good multigrid performance in simulations
-   that use self-gravity.
-
 .. _subsec:grid-generation:
 
 Gridding and Load Balancing
@@ -762,19 +758,22 @@ List of Parameters
 |                                  | abl.driver_type = |                   |             |
 |                                  | PressureGradient) |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
-| **erf.abl_geo_wind**             | Geostrophic       | 3 Reals           | (10.,0.,0.) |
+| **erf.abl_geo_wind**             | Geostrophic       | 3 Reals           | (0.,0.,0.)  |
 |                                  | forcing term      |                   |             |
 |                                  | (only if          |                   |             |
 |                                  | abl.driver_type = |                   |             |
 |                                  | GeostrophicWind)  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_gravity**              | Include gravity   | true / false      | true        |
+| **erf.use_gravity**              | Include gravity   | true / false      | false       |
 |                                  | in momentum       |                   |             |
 |                                  | update?  If true, |                   |             |
 |                                  | there is buoyancy |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 | **erf.use_coriolis**             | Include Coriolis  | true / false      | false       |
 |                                  | forcing           |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_rayleigh_damping **    | Include explicit  | true / false      | false       |
+|                                  | Rayleigh damping  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 
 Unit Testing

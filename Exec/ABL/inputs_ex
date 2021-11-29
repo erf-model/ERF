@@ -71,15 +71,15 @@ erf.spatial_order = 2
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
 
-prob.U0 = 10.0
-prob.V0 = 0.0
-prob.W0 = 0.0
+prob.U_0 = 10.0
+prob.V_0 = 0.0
+prob.W_0 = 0.0
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U0_Pert_Mag = 0.08
-prob.V0_Pert_Mag = 0.08 #
-prob.W0_Pert_Mag = 0.0
+prob.U_0_Pert_Mag = 0.08
+prob.V_0_Pert_Mag = 0.08 #
+prob.W_0_Pert_Mag = 0.0
 
 # INTEGRATION
 ## integration.type can take on the following values:

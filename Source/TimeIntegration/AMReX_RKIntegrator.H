@@ -8,7 +8,7 @@
 
 namespace ButcherTableauTypes {
     enum ButcherTypes {User = 0, ForwardEuler, Trapezoid, SSPRK3, RK4, NumTypes};
-};
+}
 
 template<class T>
 class RKIntegrator : public IntegratorBase<T>

@@ -16,16 +16,20 @@ void erf_advance(int level,
                  MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
                  MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
-                 std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
+                 std::array< MultiFab, AMREX_SPACEDIM>& advflux,
+                 std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
                  const amrex::Geometry crse_geom,
                  const amrex::Geometry fine_geom,
                  const amrex::IntVect ref_ratio,
-                 const amrex::Real* dxp, const amrex::Real dt,
-                 const amrex::Real time,
+                 const amrex::Real dt, const amrex::Real time,
                  amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice,
                  const amrex::Real* dptr_dens_hse,
-                 const amrex::Real* dptr_pres_hse)
+                 const amrex::Real* dptr_pres_hse,
+                 const amrex::Real* dptr_rayleigh_tau,
+                 const amrex::Real* dptr_rayleigh_ubar,
+                 const amrex::Real* dptr_rayleigh_vbar,
+                 const amrex::Real* dptr_rayleigh_thetabar)
 {
     BL_PROFILE_VAR("erf_advance()",erf_advance);
 
@@ -129,13 +133,15 @@ void erf_advance(int level,
     auto rhs_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_rhs, const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data,
                 source,
-                faceflux,
-                fine_geom, dxp, dt,
+                advflux, diffflux,
+                fine_geom, dt,
                 ifr,
                 solverChoice,
                 l_lo_z_is_no_slip,
                 l_hi_z_is_no_slip,
-                dptr_dens_hse, dptr_pres_hse);
+                dptr_dens_hse, dptr_pres_hse,
+                dptr_rayleigh_tau, dptr_rayleigh_ubar,
+                dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
     };
 
     auto post_update_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {

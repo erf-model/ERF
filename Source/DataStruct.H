@@ -120,6 +120,9 @@ struct SolverChoice {
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
 
+        // Include Rayleigh damping?
+        pp.query("use_rayleigh_damping", use_rayleigh_damping);
+
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
         pp.query("abl_driver_type",abl_driver_type_string);
@@ -158,6 +161,7 @@ struct SolverChoice {
         amrex::Print() << "use_momentum_diffusion: " << use_momentum_diffusion << std::endl;
         amrex::Print() << "use_pressure          : " << use_pressure << std::endl;
         amrex::Print() << "use_coriolis          : " << use_coriolis << std::endl;
+        amrex::Print() << "use_rayleigh_damping  : " << use_rayleigh_damping << std::endl;
         amrex::Print() << "use_gravity           : " << use_gravity << std::endl;
         amrex::Print() << "rho0_trans            : " << rho0_trans << std::endl;
         amrex::Print() << "alpha_T               : " << alpha_T << std::endl;
@@ -249,6 +253,8 @@ struct SolverChoice {
 
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
+
+    bool        use_rayleigh_damping   = false;
 
     amrex::Real gravity;
 

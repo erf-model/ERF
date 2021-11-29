@@ -3,13 +3,25 @@
 ProbParm parms;
 
 void
-erf_init_dens_hse(amrex::Vector<amrex::Real>& dens_hse)
+erf_init_dens_hse(amrex::Real* dens_hse_ptr,
+                  amrex::GeometryData const& geomdata,
+                  const int ng_dens_hse)
 {
-  const int klen = dens_hse.size();
-  for (int k = 0; k < klen; k++)
+  const int khi = geomdata.Domain().bigEnd()[2];
+  for (int k = -ng_dens_hse; k <= khi+ng_dens_hse; k++)
   {
-      dens_hse[k] = parms.rho_0;
+      dens_hse_ptr[k] = parms.rho_0;
   }
+}
+
+void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
+                  amrex::Vector<amrex::Real>& /*ubar*/,
+                  amrex::Vector<amrex::Real>& /*vbar*/,
+                  amrex::Vector<amrex::Real>& /*thetabar*/,
+                  amrex::GeometryData  const& /*geomdata*/)
+{
+   amrex::Error("Should never get here for Ekman Spiral problem");
 }
 
 void
@@ -33,7 +45,7 @@ erf_init_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial potential temperature (Actually rho*theta)
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
 
 
 
@@ -94,22 +106,6 @@ erf_init_prob(
   });
 }
 
-AMREX_GPU_DEVICE
-void
-bcnormal(
-  const amrex::Real x[AMREX_SPACEDIM],
-  const amrex::Real s_int[NVAR],
-  amrex::Real s_ext[NVAR],
-  const int idir,
-  const int sgn,
-  const amrex::Real time,
-  amrex::GeometryData const& geomdata)
-{
-  for (int n = 0; n < NVAR; n++) {
-    s_ext[n] = s_int[n];
-  }
-}
-
 void
 erf_prob_close()
 {
@@ -118,15 +114,15 @@ erf_prob_close()
 extern "C" {
 void
 amrex_probinit(
-  const int* init,
-  const int* name,
-  const int* namelen,
-  const amrex_real* problo,
-  const amrex_real* probhi)
+  const int* /*init*/,
+  const int* /*name*/,
+  const int* /*namelen*/,
+  const amrex_real* /*problo*/,
+  const amrex_real* /*probhi*/)
 {
   // Parse params
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.T_0);
+  pp.query("T_0", parms.Theta_0);
 }
 }

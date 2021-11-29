@@ -12,19 +12,23 @@ void erf_rhs (int level,
               Vector<std::unique_ptr<MultiFab> >& S_rhs,
               const Vector<std::unique_ptr<MultiFab> >& S_data,
               MultiFab& source,
-              std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
-              const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+              std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+              std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
+              const amrex::Geometry geom, const amrex::Real dt,
                     amrex::InterpFaceRegister* ifr,
               const SolverChoice& solverChoice,
               const bool lo_z_is_no_slip, const bool hi_z_is_no_slip,
-              const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse)
+              const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+              const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
+              const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
 {
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
 
     int klo = geom.Domain().smallEnd()[2];
     int khi = geom.Domain().bigEnd()[2];
 
-    const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
+    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const auto& ba = S_data[IntVar::cons]->boxArray();
     const auto& dm = S_data[IntVar::cons]->DistributionMap();
 
@@ -131,6 +135,14 @@ void erf_rhs (int level,
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom]->array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom]->array(mfi);
 
+        const Array4<Real>& advflux_x = advflux[0].array(mfi);
+        const Array4<Real>& advflux_y = advflux[1].array(mfi);
+        const Array4<Real>& advflux_z = advflux[2].array(mfi);
+
+        const Array4<Real>& diffflux_x = diffflux[0].array(mfi);
+        const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
+        const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
+
         const Array4<Real>& Ksmag = eddyViscosity.array(mfi);
 
         // **************************************************************************
@@ -142,13 +154,23 @@ void erf_rhs (int level,
 
             // Add advection terms.
             if (solverChoice.use_state_advection)
-                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data, n, dx, solverChoice.spatial_order);
+                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data, n,
+                                         advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
 
             // Add diffusive terms.
             if (solverChoice.use_thermal_diffusion && n == RhoTheta_comp)
-            cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp, dx, Ksmag, solverChoice);
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp,
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, Ksmag, solverChoice);
             if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
-            cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp, dx, Ksmag, solverChoice);
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp,
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, Ksmag, solverChoice);
+
+            // Add Rayleigh damping
+            if (solverChoice.use_rayleigh_damping && n == RhoTheta_comp)
+            {
+                Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
+                cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,Rho_comp);
+            }
 
             // Add source terms. TODO: Put this under a if condition when we implement source term
             cell_rhs(i, j, k, n) += source_fab(i, j, k, n);
@@ -174,7 +196,7 @@ void erf_rhs (int level,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_u_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dx, solverChoice);
+                rho_u_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dxInv, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
@@ -188,7 +210,7 @@ void erf_rhs (int level,
             // Add pressure gradient
             if (solverChoice.use_pressure)
             {
-                rho_u_rhs(i, j, k) += (-1.0_rt / dx[0]) *
+                rho_u_rhs(i, j, k) += (-dxInv[0]) *
                   (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),dptr_pres_hse[k]) -
                    getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),dptr_pres_hse[k]));
             }
@@ -216,6 +238,13 @@ void erf_rhs (int level,
             if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
                 rho_u_rhs(i, j, k) += solverChoice.abl_geo_forcing[0];
 
+            // Add Rayleigh damping
+            if (solverChoice.use_rayleigh_damping)
+            {
+                Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
+                rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
+            }
+
             } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
@@ -234,7 +263,7 @@ void erf_rhs (int level,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_v_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, dx, solverChoice);
+                rho_v_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, dxInv, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
@@ -247,7 +276,7 @@ void erf_rhs (int level,
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
-                rho_v_rhs(i, j, k) += (-1.0_rt / dx[1]) *
+                rho_v_rhs(i, j, k) += (-dxInv[1]) *
                   (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),dptr_pres_hse[k]) -
                    getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),dptr_pres_hse[k]));
 
@@ -272,6 +301,13 @@ void erf_rhs (int level,
             if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
                 rho_v_rhs(i, j, k) += solverChoice.abl_geo_forcing[1];
 
+            // Add Rayleigh damping
+            if (solverChoice.use_rayleigh_damping)
+            {
+                Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
+                rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
+            }
+
             } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
@@ -290,7 +326,7 @@ void erf_rhs (int level,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_w_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dx, solverChoice);
+                rho_w_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dxInv, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
@@ -299,7 +335,7 @@ void erf_rhs (int level,
 
             // Add pressure gradient
             if (solverChoice.use_pressure)
-                rho_w_rhs(i, j, k) += (-1.0_rt / dx[2]) *
+                rho_w_rhs(i, j, k) += (-dxInv[2]) *
                     (getPprimegivenRTh(cell_data(i, j, k    , RhoTheta_comp),dptr_pres_hse[k  ]) -
                      getPprimegivenRTh(cell_data(i, j, k - 1, RhoTheta_comp),dptr_pres_hse[k-1]));
 
@@ -323,6 +359,12 @@ void erf_rhs (int level,
             // Add geostrophic forcing
             if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
                 rho_w_rhs(i, j, k) += solverChoice.abl_geo_forcing[2];
+
+            // Add Rayleigh damping
+            if (solverChoice.use_rayleigh_damping)
+            {
+                rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
+            }
 
             } // not on coarse-fine boundary
         });

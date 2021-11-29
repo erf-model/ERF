@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH --account=erf
+#SBATCH --time=3:00:00
+#SBATCH --job-name=straka_refsoln
+#SBATCH --ntasks=128
+#SBATCH --mail-user eliot.quon@nrel.gov
+#SBATCH --mail-type BEGIN,END,FAIL
+
+# load environment
+. ~/.bash_profile
+erf-env
+
+srun -n 128 --cpu_bind=cores ./erf_density_current inputs_refsoln &> log

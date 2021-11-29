@@ -13,16 +13,16 @@
 #include "ProblemDerive.H"
 
 struct ProbParm {
-  amrex::Real rho_0 = 0.0;
-  amrex::Real T_0   = 1.0;
-  amrex::Real A_0   = 1.0;
-  amrex::Real B_0   = 0.0;
-  amrex::Real u_0   = 0.0;
-  amrex::Real v_0   = 0.0;
-  amrex::Real rad_0 = 0.0;
-  amrex::Real z0    = 0.1;  // Surface Roughness
-  amrex::Real zRef  = 80.0; // Reference Height
-  amrex::Real uRef  = 0.0;  // Reference Wind Speed
+  amrex::Real rho_0   = 0.0;
+  amrex::Real Theta_0 = 1.0;
+  amrex::Real A_0     = 1.0;
+  amrex::Real B_0     = 0.0;
+  amrex::Real u_0     = 0.0;
+  amrex::Real v_0     = 0.0;
+  amrex::Real rad_0   = 0.0;
+  amrex::Real z0      = 0.1;  // Surface Roughness
+  amrex::Real zRef    = 80.0; // Reference Height
+  amrex::Real uRef    = 0.0;  // Reference Wind Speed
 
   amrex::Real xc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
   amrex::Real yc_frac = 0.5; // Location of "center" of scalar (multiplies domain length)
@@ -34,8 +34,15 @@ struct ProbParm {
 extern ProbParm parms;
 
 void
-erf_init_dens_hse(amrex::Vector<amrex::Real>& dens_hse);
-
+erf_init_dens_hse(amrex::Real* dens_hse_ptr,
+                  amrex::GeometryData const& geomdata,
+                  const int ng_dens_hse);
+void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
+                  amrex::Vector<amrex::Real>& ubar,
+                  amrex::Vector<amrex::Real>& vbar,
+                  amrex::Vector<amrex::Real>& thetabar,
+                  amrex::GeometryData  const& geomdata);
 void
 erf_init_prob(
   const amrex::Box& bx,
@@ -43,17 +50,6 @@ erf_init_prob(
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
-  amrex::GeometryData const& geomdata);
-
-AMREX_GPU_DEVICE
-void
-bcnormal(
-  const amrex::Real x[AMREX_SPACEDIM],
-  const amrex::Real s_int[NVAR],
-  amrex::Real s_ext[NVAR],
-  const int idir,
-  const int sgn,
-  const amrex::Real time,
   amrex::GeometryData const& geomdata);
 
 void erf_prob_close();

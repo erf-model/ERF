@@ -83,7 +83,7 @@ ERF::volWgtSquaredSum(const std::string& name, amrex::Real time, bool local)
 }
 
 amrex::Real
-ERF ::volWgtSquaredSumDiff(int comp, amrex::Real time, bool local)
+ERF ::volWgtSquaredSumDiff(int comp, amrex::Real /*time*/, bool local)
 {
 
   // Calculate volume weighted sum of the square of the difference

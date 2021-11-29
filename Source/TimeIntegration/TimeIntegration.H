@@ -56,29 +56,39 @@ void erf_advance(int level,
                  MultiFab& U_new, MultiFab& V_new, MultiFab& W_new,
                  MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
-                 std::array<MultiFab, AMREX_SPACEDIM>& faceflux,
+                 std::array<MultiFab, AMREX_SPACEDIM>&  advflux,
+                 std::array<MultiFab, AMREX_SPACEDIM>& diffflux,
                  const amrex::Geometry crse_geom,
                  const amrex::Geometry fine_geom,
                  const amrex::IntVect ref_ratio,
-                 const amrex::Real* dxp, const amrex::Real dt,
+                 const amrex::Real dt,
                  const amrex::Real time,
                        amrex::InterpFaceRegister* ifr,
                  const SolverChoice& solverChoice,
                  const amrex::Real* dptr_dens_hse,
-                 const amrex::Real* dptr_pres_hse);
+                 const amrex::Real* dptr_pres_hse,
+                 const amrex::Real* dptr_rayleigh_tau,
+                 const amrex::Real* dptr_rayleigh_ubar,
+                 const amrex::Real* dptr_rayleigh_vbar,
+                 const amrex::Real* dptr_rayleigh_thetabar);
 
 void erf_rhs(int level,
              Vector<std::unique_ptr<MultiFab> >& S_rhs,
              const Vector<std::unique_ptr<MultiFab> >& S_data,
              MultiFab& source,
-             std::array< MultiFab, AMREX_SPACEDIM>& faceflux,
-             const amrex::Geometry geom, const amrex::Real* dxp, const amrex::Real dt,
+             std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+             std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
+             const amrex::Geometry geom, const amrex::Real dt,
                    amrex::InterpFaceRegister* ifr,
              const SolverChoice& solverChoice,
              const bool lo_z_is_no_slip,
              const bool hi_z_is_no_slip,
              const amrex::Real* dptr_dens_hse,
-             const amrex::Real* dptr_pres_hse);
+             const amrex::Real* dptr_pres_hse,
+             const amrex::Real* dptr_rayleigh_tau,
+             const amrex::Real* dptr_rayleigh_ubar,
+             const amrex::Real* dptr_rayleigh_vbar,
+             const amrex::Real* dptr_rayleigh_thetabar);
 
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
@@ -158,6 +168,8 @@ AMREX_GPU_DEVICE
 Real AdvectionContributionForState(const int &i, const int &j, const int &k,
                                    const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                                    const Array4<Real>& cell_data, const int &qty_index,
+                                   const Array4<Real>& flux_x, const Array4<Real>& flux_y,
+                                   const Array4<Real>& flux_z,
                                    const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                    const int &spatial_order);
 
@@ -226,17 +238,19 @@ Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
                                   const Array4<Real>& cell_data, const int & qty_index,
-                  const amrex::Real invCellWidth,
-                  const Array4<Real>& Ksmag,
-                  const SolverChoice &solverChoice,
-                  const enum NextOrPrev &nextOrPrev,
+                                  const amrex::Real invCellWidth,
+                                  const Array4<Real>& Ksmag,
+                                  const SolverChoice &solverChoice,
+                                  const enum NextOrPrev &nextOrPrev,
                                   const enum Coord& coordDir);
 
 AMREX_GPU_DEVICE
 Real DiffusionContributionForState(const int &i, const int &j, const int &k,
                                    const Array4<Real>& cell_data, const int & qty_index,
+                                   const Array4<Real>& flux_x, const Array4<Real>& flux_y,
+                                   const Array4<Real>& flux_z,
                                    const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                   const Array4<Real>& Ksmag,
+                                   const Array4<Real>& Ksmag,
                                    const SolverChoice &solverChoice);
 
 int ComputeGhostCells(const int &spatial_order);

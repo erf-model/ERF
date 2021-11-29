@@ -27,6 +27,7 @@ bool ERF::dump_old = false;
 int ERF::verbose = 0;
 
 SolverChoice ERF::solverChoice;
+ABLFieldInit ERF::ablinit;
 
 amrex::Real ERF::cfl         = 0.8;
 amrex::Real ERF::init_shrink = 1.0;
@@ -41,6 +42,8 @@ int         ERF::do_reflux     = 0;
 int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
+
+bool        ERF::init_abl      = false;
 
 // Create dens_hse and pres_hse with one ghost cell
 int ERF::ng_dens_hse = 1;
@@ -60,6 +63,15 @@ amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_pres_hse(0);
 amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_dens_hse(0);
 amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_pres_hse(0);
 
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_tau(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_ubar(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_vbar(0);
+amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_thetabar(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_tau(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_ubar(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_vbar(0);
+amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_thetabar(0);
+
 // this will be reset upon restart
 amrex::Real ERF::previousCPUTimeUsed = 0.0;
 amrex::Real ERF::startCPUTime = 0.0;
@@ -76,16 +88,16 @@ std::unique_ptr<phys_bcs::BCBase>
 ERF::initialize_bcs(const std::string& bc_char) {
   if (!bc_char.compare("Interior")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCInterior());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("Hard")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("FOExtrap")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("Symmetry")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("Dirichlet")) {
     amrex::ParmParse bcinp(getBCName<DIM, Bound>());
     amrex::Vector<amrex::Real> uvec;
@@ -95,16 +107,16 @@ ERF::initialize_bcs(const std::string& bc_char) {
         << " fixedvalue=" << uvec[0] << " " << uvec[1] << " " << uvec[2]
         << std::endl;
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDirichlet<DIM, Bound>(uvec));
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("SlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("NoSlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCNoSlipWall<DIM, Bound>());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("SimSlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSimSlipWall<DIM, Bound>());
-    return std::move(bc_rec);
+    return bc_rec;
   } else {
     amrex::Abort("Wrong boundary condition word, please use: "
                  "Interior, Dirichlet, SimSlipWall, Symmetry, SlipWall, NoSlipWall");
@@ -141,6 +153,9 @@ ERF::read_params()
   } else {
       amrex::Error("Unknown coupling type");
   }
+
+  // This defaults to false; is only true if we want to call ABLFieldInit::init_params
+  pp.query("init_abl", init_abl);
 
   // Time step controls
   pp.query("cfl", cfl);
@@ -241,8 +256,6 @@ ERF::ERF(
 {
   buildMetrics();
 
-  amrex::MultiFab& S_new = get_new_data(State_Type);
-
   Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
 
   if (do_reflux && level > 0) {
@@ -286,15 +299,28 @@ ERF::initData()
 {
   BL_PROFILE("ERF::initData()");
 
-  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
-//  amrex::Real cur_time = state[State_Type].curTime();
-
   amrex::MultiFab& S_new = get_new_data(State_Type);
   amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
   amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
 
   if (level == 0) {
+
+    init1DArrays();
+
+    if (init_abl)
+    {
+        ablinit.init_params();
+    }
+  }
+
+  initDataProb(S_new, U_new, V_new, W_new);
+}
+
+void
+ERF::init1DArrays()
+{
+    AMREX_ALWAYS_ASSERT(level == 0);
     //
     // Setup Base State Arrays
     //
@@ -304,20 +330,47 @@ ERF::initData()
     d_dens_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
     d_pres_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
 
-    // Initialize the base state arrays at all levels (with 3 ghost cells),
+    if (solverChoice.use_rayleigh_damping)
+    {
+        h_rayleigh_tau.resize(max_level+1, amrex::Vector<Real>(0));
+        h_rayleigh_ubar.resize(max_level+1, amrex::Vector<Real>(0));
+        h_rayleigh_vbar.resize(max_level+1, amrex::Vector<Real>(0));
+        h_rayleigh_thetabar.resize(max_level+1, amrex::Vector<Real>(0));
+        d_rayleigh_tau.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        d_rayleigh_ubar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        d_rayleigh_vbar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        d_rayleigh_thetabar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+    }
+
+    // Initialize the hydrostatic and Rayleigh damping arrays at all levels
     //     and set from problem-dependent input
     for (int lev(0); lev <= max_level; ++lev) {
+
       const int zlen_dens = parent->Geom(lev).Domain().length(2) + 2*ng_dens_hse;
       h_dens_hse[lev].resize(zlen_dens, 0.0_rt);
       d_dens_hse[lev].resize(zlen_dens, 0.0_rt);
+
       const int zlen_pres = parent->Geom(lev).Domain().length(2) + 2*ng_pres_hse;
       h_pres_hse[lev].resize(zlen_pres, p_0);
       d_pres_hse[lev].resize(zlen_pres, p_0);
-      getLevel(lev).initHSE();
-    }
-  }
 
-  initDataProb(S_new, U_new, V_new, W_new);
+      getLevel(lev).initHSE();
+
+      if (solverChoice.use_rayleigh_damping)
+      {
+          const int zlen_rayleigh = parent->Geom(lev).Domain().length(2);
+          h_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
+          d_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
+          h_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
+          d_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
+          h_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
+          d_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
+          h_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
+          d_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
+
+          getLevel(lev).initRayleigh();
+      }
+    }
 }
 
 void
@@ -386,7 +439,7 @@ ERF::initialTimeStep()
 }
 
 amrex::Real
-ERF::estTimeStep(amrex::Real dt_old)
+ERF::estTimeStep(amrex::Real /*dt_old*/)
 {
   BL_PROFILE("ERF::estTimeStep()");
 
@@ -394,8 +447,6 @@ ERF::estTimeStep(amrex::Real dt_old)
     return fixed_dt;
 
   amrex::Real estdt = max_dt;
-
-//  const amrex::Real* dx = geom.CellSize();
 
   std::string limiter = "erf.max_dt";
 
@@ -408,7 +459,7 @@ ERF::estTimeStep(amrex::Real dt_old)
 
   auto const dxinv = geom.InvCellSizeArray();
 
-  MultiFab& state = get_new_data(State_Type);
+  MultiFab& S_new = get_new_data(State_Type);
 
   MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
   MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
@@ -422,7 +473,7 @@ ERF::estTimeStep(amrex::Real dt_old)
   // Initialize to large value since we are taking min below
   // Real estdt_hydro_inv = 1.e100;
 
-  Real estdt_hydro_inv = amrex::ReduceMax(state, ccvel, 0,
+  Real estdt_hydro_inv = amrex::ReduceMax(S_new, ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
                                   Array4<Real const> const& u) -> Real
@@ -468,9 +519,9 @@ ERF::estTimeStep(amrex::Real dt_old)
 void
 ERF::computeNewDt(
   int finest_level,
-  int sub_cycle,
+  int /*sub_cycle*/,
   amrex::Vector<int>& n_cycle,
-  const amrex::Vector<amrex::IntVect>& ref_ratio,
+  const amrex::Vector<amrex::IntVect>& /*ref_ratio*/,
   amrex::Vector<amrex::Real>& dt_min,
   amrex::Vector<amrex::Real>& dt_level,
   amrex::Real stop_time,
@@ -541,9 +592,9 @@ ERF::computeNewDt(
 void
 ERF::computeInitialDt(
   int finest_level,
-  int sub_cycle,
+  int /*sub_cycle*/,
   amrex::Vector<int>& n_cycle,
-  const amrex::Vector<amrex::IntVect>& ref_ratio,
+  const amrex::Vector<amrex::IntVect>& /*ref_ratio*/,
   amrex::Vector<amrex::Real>& dt_level,
   amrex::Real stop_time)
 {
@@ -578,7 +629,7 @@ ERF::computeInitialDt(
 }
 
 void
-ERF::post_timestep(int iteration)
+ERF::post_timestep(int /*iteration*/)
 {
   BL_PROFILE("ERF::post_timestep()");
 
@@ -621,8 +672,8 @@ ERF::post_timestep(int iteration)
     bool sum_per_test = false;
 
     if (sum_per > 0.0) {
-      const int num_per_old = amrex::Math::floor((cumtime - dtlev) / sum_per);
-      const int num_per_new = amrex::Math::floor((cumtime) / sum_per);
+      const int num_per_old = static_cast<int>(amrex::Math::floor((cumtime - dtlev) / sum_per));
+      const int num_per_new = static_cast<int>(amrex::Math::floor((cumtime) / sum_per));
 
       if (num_per_old != num_per_new) {
         sum_per_test = true;
@@ -641,26 +692,7 @@ ERF::post_restart()
   BL_PROFILE("ERF::post_restart()");
 
   if (level == 0) {
-    //
-    // Setup Base State Arrays
-    //
-    const int max_level = parent->maxLevel();
-    h_dens_hse.resize(max_level+1, amrex::Vector<Real>(0));
-    h_pres_hse.resize(max_level+1, amrex::Vector<Real>(0));
-    d_dens_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-    d_pres_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-
-    // Initialize the base state arrays at all levels (with 3 ghost cells),
-    //     and set from problem-dependent input
-    for (int lev(0); lev <= max_level; ++lev) {
-      const int zlen_dens = parent->Geom(lev).Domain().length(2) + 2*ng_dens_hse;
-      h_dens_hse[lev].resize(zlen_dens, 0.0_rt);
-      d_dens_hse[lev].resize(zlen_dens, 0.0_rt);
-      const int zlen_pres = parent->Geom(lev).Domain().length(2) + 2*ng_pres_hse;
-      h_pres_hse[lev].resize(zlen_pres, p_0);
-      d_pres_hse[lev].resize(zlen_pres, p_0);
-      getLevel(lev).initHSE();
-    }
+    init1DArrays();
   }
 
 #ifdef DO_PROBLEM_POST_RESTART
@@ -676,14 +708,14 @@ ERF::postCoarseTimeStep(amrex::Real cumtime)
 }
 
 void
-ERF::post_regrid(int lbase, int new_finest)
+ERF::post_regrid(int /*lbase*/, int /*new_finest*/)
 {
   BL_PROFILE("ERF::post_regrid()");
   fine_mask.clear();
 }
 
 void
-ERF::post_init(amrex::Real stop_time)
+ERF::post_init(amrex::Real /*stop_time*/)
 {
   BL_PROFILE("ERF::post_init()");
 
@@ -726,8 +758,8 @@ ERF::post_init(amrex::Real stop_time)
   bool sum_per_test = false;
 
   if (sum_per > 0.0) {
-    const int num_per_old = amrex::Math::floor((cumtime - dtlev) / sum_per);
-    const int num_per_new = amrex::Math::floor((cumtime) / sum_per);
+    const int num_per_old = static_cast<int>(amrex::Math::floor((cumtime - dtlev) / sum_per));
+    const int num_per_new = static_cast<int>(amrex::Math::floor((cumtime) / sum_per));
 
     if (num_per_old != num_per_new) {
       sum_per_test = true;
@@ -844,8 +876,8 @@ ERF::errorEst(
   int /*clearval*/,
   int /*tagval*/,
   amrex::Real time,
-  int n_error_buf,
-  int ngrow)
+  int /*n_error_buf*/,
+  int /*ngrow*/)
 {
   BL_PROFILE("ERF::errorEst()");
   const char tagval = amrex::TagBox::SET;
@@ -993,7 +1025,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
       MultiFab::Copy(*derive_dat, ccvel, 0, 0, 1, 0);
 
-      return std::move(derive_dat);
+      return derive_dat;
   }
   else if (name == "y_velocity")
   {
@@ -1009,7 +1041,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
       MultiFab::Copy(*derive_dat, ccvel, 1, 0, 1, 0);
 
-      return std::move(derive_dat);
+      return derive_dat;
   }
   else if (name == "z_velocity")
   {
@@ -1025,7 +1057,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
       MultiFab::Copy(*derive_dat, ccvel, 2, 0, 1, 0);
 
-      return std::move(derive_dat);
+      return derive_dat;
 
   } else {
      return AmrLevel::derive(name, time, ngrow);
