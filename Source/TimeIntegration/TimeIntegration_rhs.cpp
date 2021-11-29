@@ -196,7 +196,7 @@ void erf_rhs (int level,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_u_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dx, solverChoice);
+                rho_u_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dxInv, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
@@ -263,7 +263,7 @@ void erf_rhs (int level,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_v_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, dx, solverChoice);
+                rho_v_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, dxInv, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
@@ -326,7 +326,7 @@ void erf_rhs (int level,
 
             // Add advective terms
             if (solverChoice.use_momentum_advection)
-                rho_w_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dx, solverChoice);
+                rho_w_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dxInv, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
