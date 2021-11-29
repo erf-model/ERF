@@ -137,6 +137,7 @@ void erf_advance(int level,
     TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > integrator(state_old);
 
 #ifdef AMREX_USE_SUNDIALS
+
     // Create SUNDIALS specific objects
     SUNLinearSolver LS = NULL;    /* empty linear solver object */
     void *arkode_mem = NULL;      /* empty ARKode memory structure */
@@ -231,7 +232,11 @@ void erf_advance(int level,
     // Free the Butcher table
     ARKodeButcherTable_Free(B);
 
-    bool advance_erk=true;
+    bool advance_erk=false;
+    amrex::ParmParse pp("integration.sundials");
+
+    pp.query("erk", advance_erk);
+
     if(advance_erk)
     {
 
