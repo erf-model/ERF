@@ -61,17 +61,17 @@ as described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.
 
 .. math::
 
-  \mathbf{F} = - \tau(z) \rho (u - \overbar{u}, v - \overbar{v}, w - \overbar{w})
+  \mathbf{F} = - \tau(z) \rho (u - \overline{u}, v - \overline{v}, w - \overline{w})
 
 and
 
 .. math::
 
-  F_{\rho \theta} = - \tau(z) \rho (\theta - \overbar{\theta})
+  F_{\rho \theta} = - \tau(z) \rho (\theta - \overline{\theta})
 
-where :math:`(\overbar{u}, \overbar{v}, 0)` is the reference state velocity, typically
+where :math:`(\overline{u}, \overline{v}, 0)` is the reference state velocity, typically
 defined as the initial horizontally homogeneous fields in idealized simulations,
-and :math:`\overbar{\theta}` is the reference state potential temperature.
+and :math:`\overline{\theta}` is the reference state potential temperature.
 As in the WRF model, the reference state vertical velocity is assumed to be zero.
 
 
