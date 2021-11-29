@@ -86,7 +86,6 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
       ifr.define(S_old.boxArray(), S_old.DistributionMap(), geom, ref_ratio);
   }
 
-  const Real* dx = geom.CellSize();
   const BoxArray&            ba = S_old.boxArray();
   const DistributionMapping& dm = S_old.DistributionMap();
 
@@ -98,16 +97,28 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
 
   // We keep faceflux so that we can re-fluxing operations for two-way coupling
   std::array< MultiFab, AMREX_SPACEDIM > faceflux;
+  std::array< MultiFab, AMREX_SPACEDIM > tempflux;
   //faceflux[0] is of size (ncells_x + 1, ncells_y    , ncells_z    )
   faceflux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
+  tempflux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
   //faceflux[1] is of size (ncells_x    , ncells_y + 1, ncells_z    )
   faceflux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
+  tempflux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
   //faceflux[2] is of size (ncells_x    , ncells_y    , ncells_z + 1)
   faceflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
+  tempflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
 
   // Make sure to fill the ghost cells
   MultiFab state_mf(grids,dmap,nvars,S_old.nGrow());
   FillPatch(*this,state_mf,S_old.nGrow(),time,0,0,nvars);
+
+  // Pass the 1D arrays if relevant
+  amrex::Real* dptr_dens_hse = d_dens_hse[level].data() + ng_dens_hse;
+  amrex::Real* dptr_pres_hse = d_pres_hse[level].data() + ng_pres_hse;
+  amrex::Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[level].data() : nullptr;
+  amrex::Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[level].data() : nullptr;
+  amrex::Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[level].data() : nullptr;
+  amrex::Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
 
   // *****************************************************************
   // Update the cell-centered state and face-based velocity using
@@ -124,23 +135,18 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   //          V_new    (y-velocity on y-faces)
   //          W_new    (z-velocity on z-faces)
   // *****************************************************************
-  amrex::Real* dptr_dens_hse = d_dens_hse[level].data() + ng_dens_hse;
-  amrex::Real* dptr_pres_hse = d_pres_hse[level].data() + ng_pres_hse;
-  amrex::Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[level].data() : nullptr;
-  amrex::Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[level].data() : nullptr;
-  amrex::Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[level].data() : nullptr;
-  amrex::Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
+
   erf_advance(level,
               state_mf, S_new,
               U_old, V_old, W_old,
               U_new, V_new, W_new,
               rU_crse, rV_crse, rW_crse,
               source,
-              faceflux,
+              faceflux, tempflux,
               (level > 0) ? parent->Geom(level-1) : geom,
               geom,
               ref_ratio,
-              dx, dt, time, &ifr,
+              dt, time, &ifr,
               solverChoice,
               dptr_dens_hse, dptr_pres_hse,
               dptr_rayleigh_tau, dptr_rayleigh_ubar,
