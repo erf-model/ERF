@@ -234,8 +234,11 @@ void erf_advance(int level,
     MRIStepSStolerances(mristep_mem, reltol, abstol);
     MRIStepSetFixedStep(mristep_mem, hfixed);
 
+    bool use_erk3 = false;
+    ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
+    if(use_erk3)
+    {
     // Use SSP-RK3
-    ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNTRUE);
     B->A[1][0] = 1.0;
     B->A[2][0] = 0.25;
     B->A[2][1] = 0.25;
@@ -246,7 +249,18 @@ void erf_advance(int level,
     B->c[2] = 0.5;
     B->q=3;
     B->p=0;
-
+    }
+    else
+    {
+    B->A[1][0] = 1.0;
+    B->A[2][0] = 0.5;
+    B->A[2][2] = 0.5;
+    B->b[0] = 0.5;
+    B->b[2] = 0.5;
+    B->c[1] = 1.0;
+    B->c[2] = 1.0;
+    B->q=2;
+    }
     //Set table
     //    ERKStepSetTable(arkode_mem, B);
     ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
