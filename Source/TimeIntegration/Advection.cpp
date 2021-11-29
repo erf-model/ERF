@@ -220,7 +220,7 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
             amrex::Abort("Error: Conserved quantity index is unrecognized");
     }
 
-  // HACK HACK HACK 
+  // HACK HACK HACK
   NextOrPrev nextOrPrev = NextOrPrev::prev;
 
   // Compute advected quantity for different choice of AdvectingQuantity
