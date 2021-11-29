@@ -201,9 +201,7 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real
 ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
-                                const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                                 const Array4<Real>& cell_data, const int& qty_index,
-                                const enum NextOrPrev &nextOrPrev,
                                 const enum AdvectingQuantity &advectingQuantity,
                                 const int &spatial_order) {
   Real advectingQty = 0.0;
@@ -212,9 +210,6 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
   AdvectedQuantity advectedQuantity;
 
   switch(qty_index) {
-        case Rho_comp: // Continuity
-            advectedQuantity = AdvectedQuantity::unity;
-            break;
         case RhoTheta_comp: // Temperature
             advectedQuantity = AdvectedQuantity::theta;
             break;
@@ -225,45 +220,11 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
             amrex::Abort("Error: Conserved quantity index is unrecognized");
     }
 
-  /* NOTE: For the all three types of state equations (continuity, energy, scalar),
-   * the advecting quantities are the same */
-  if (nextOrPrev == NextOrPrev::next) {
-    switch (advectingQuantity) { // reference cell is (i, j, k)
-    case AdvectingQuantity::rho_u:
-      advectingQty = rho_u(i+1, j, k); // rho_u (i+1, j, k)
-      break;
-    case AdvectingQuantity::rho_v:
-      advectingQty = rho_v(i, j+1, k); // rho_v (i, j+1, k)
-      break;
-    case AdvectingQuantity::rho_w:
-      advectingQty = rho_w(i, j, k+1); // rho_w (i, j, k+1)
-      break;
-    default:
-      amrex::Abort("Error: Advecting quantity is unrecognized");
-    }
-  }
-  else { // nextOrPrev == NextOrPrev::prev
-    switch (advectingQuantity) { // reference cell is (i, j, k)
-    case AdvectingQuantity::rho_u:
-      advectingQty = rho_u(i, j, k); // rho_u (i, j, k)
-      break;
-    case AdvectingQuantity::rho_v:
-      advectingQty = rho_v(i, j, k); // rho_v (i, j, k)
-      break;
-    case AdvectingQuantity::rho_w:
-      advectingQty = rho_w(i, j, k); // rho_w (i, j, k)
-      break;
-    default:
-      amrex::Abort("Error: Advecting quantity is unrecognized");
-    }
-  }
+  // HACK HACK HACK 
+  NextOrPrev nextOrPrev = NextOrPrev::prev;
 
   // Compute advected quantity for different choice of AdvectingQuantity
   switch(advectedQuantity) {
-
-  case AdvectedQuantity::unity: // continuity equation, reference cell is (i, j, k)
-    advectedQty = 1.0; // for AdvectingQuantity = {rho_u, rho_v, rho_w}
-    break;
 
   case AdvectedQuantity::theta:
     switch (advectingQuantity) { // reference cell is (i, j, k)
@@ -318,8 +279,8 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     amrex::Abort("Error: Advected quantity is unrecognized");
   }
 
-  // Return the product of advected and advecting quantities
-  return advectingQty * advectedQty;
+  // Return the advected quantity
+  return advectedQty;
 }
 
 AMREX_GPU_DEVICE
@@ -333,22 +294,32 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-    xflux(i+1,j,k,qty_index) = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, qty_index,
-                               NextOrPrev::next, AdvectingQuantity::rho_u, spatial_order);
-    xflux(i  ,j,k,qty_index) = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, qty_index,
-                               NextOrPrev::prev, AdvectingQuantity::rho_u, spatial_order);
-    yflux(i,j+1,k,qty_index) = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, qty_index,
-                               NextOrPrev::next, AdvectingQuantity::rho_v, spatial_order);
-    yflux(i,j  ,k,qty_index) = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, qty_index,
-                               NextOrPrev::prev, AdvectingQuantity::rho_v, spatial_order);
-    zflux(i,j,k+1,qty_index) = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, qty_index,
-                               NextOrPrev::next, AdvectingQuantity::rho_w, spatial_order);
-    zflux(i,j,k  ,qty_index) = ComputeAdvectedQuantityForState(i, j, k, rho_u, rho_v, rho_w, cell_data, qty_index,
-                               NextOrPrev::prev, AdvectingQuantity::rho_w, spatial_order);
+    Real advectionContribution;
 
-    Real advectionContribution = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
-                               + (yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dyInv
-                               + (zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dzInv;
+    if (qty_index == Rho_comp)
+    {
+        advectionContribution = (rho_u(i+1,j,k,qty_index) - rho_u(i  ,j,k,qty_index)) * dxInv
+                              + (rho_v(i,j+1,k,qty_index) - rho_v(i,j  ,k,qty_index)) * dyInv
+                              + (rho_w(i,j,k+1,qty_index) - rho_w(i,j,k  ,qty_index)) * dzInv;
+    } else {
+
+        xflux(i+1,j,k,qty_index) = ComputeAdvectedQuantityForState(i+1, j, k, cell_data, qty_index,
+                                   AdvectingQuantity::rho_u, spatial_order) * rho_u(i+1,j,k);
+        xflux(i  ,j,k,qty_index) = ComputeAdvectedQuantityForState(i  , j, k, cell_data, qty_index,
+                                   AdvectingQuantity::rho_u, spatial_order) * rho_u(i  ,j,k);
+        yflux(i,j+1,k,qty_index) = ComputeAdvectedQuantityForState(i, j+1, k, cell_data, qty_index,
+                                   AdvectingQuantity::rho_v, spatial_order) * rho_v(i,j+1,k);
+        yflux(i,j  ,k,qty_index) = ComputeAdvectedQuantityForState(i, j  , k, cell_data, qty_index,
+                                   AdvectingQuantity::rho_v, spatial_order) * rho_v(i,j  ,k);
+        zflux(i,j,k+1,qty_index) = ComputeAdvectedQuantityForState(i, j, k+1, cell_data, qty_index,
+                                   AdvectingQuantity::rho_w, spatial_order) * rho_w(i,j,k+1);
+        zflux(i,j,k  ,qty_index) = ComputeAdvectedQuantityForState(i, j, k  , cell_data, qty_index,
+                                   AdvectingQuantity::rho_w, spatial_order) * rho_w(i,j,k  );
+
+        advectionContribution = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
+                              + (yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dyInv
+                              + (zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dzInv;
+    }
 
     return advectionContribution;
 }
