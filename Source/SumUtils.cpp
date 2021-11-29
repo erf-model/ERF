@@ -154,8 +154,7 @@ ERF::maxDerive(const std::string& name, amrex::Real time, bool local)
 }
 
 bool
-ERF::is_it_time_for_action(int action_interval,
-			   amrex::Real action_per)
+ERF::is_it_time_for_action(int action_interval, amrex::Real action_per)
 {
   int nstep = parent->levelSteps(0);
   amrex::Real dtlev = parent->dtLevel(0);
