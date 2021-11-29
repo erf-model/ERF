@@ -7,7 +7,9 @@
 #include <utils.H>
 
 #ifdef AMREX_USE_SUNDIALS
-#include <arkode/arkode_erkstep.h>     /* prototypes for ARKStep fcts., consts */
+#include <arkode/arkode_erkstep.h>     /* prototypes for ERKStep fcts., consts */
+#include <arkode/arkode_arkstep.h>     /* prototypes for ARKStep fcts., consts */
+#include <arkode/arkode_mristep.h>     /* prototypes for MRIStep fcts., consts */
 #include <nvector/nvector_manyvector.h>/* manyvector N_Vector types, fcts. etc */
 #include <AMReX_NVector_MultiFab.H>    /* MultiFab N_Vector types, fcts., macros */
 #include <AMReX_Sundials.H>    /* MultiFab N_Vector types, fcts., macros */
@@ -20,6 +22,7 @@ using namespace amrex;
 #ifdef AMREX_USE_SUNDIALS
 /* User-supplied Functions Called by the Solver */
 static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
+static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
 #endif
 
@@ -146,7 +149,8 @@ void erf_advance(int level,
 
     // Create SUNDIALS specific objects
     SUNLinearSolver LS = NULL;    /* empty linear solver object */
-    void *arkode_mem = NULL;      /* empty ARKode memory structure */
+    void *inner_mem = NULL;      /* empty ARKode memory structure */
+    void *mristep_mem = NULL;      /* empty ARKode memory structure */
     // Create an N_Vector wrapper for the solution MultiFab
     auto get_length = [&](int index) -> sunindextype {
         auto* p_mf = state_old[index].get();
@@ -165,6 +169,8 @@ void erf_advance(int level,
     Real t               = time;
     Real tout            = time+dt;
     Real hfixed          = dt;
+    Real m               = 10;
+    Real hfixed_mri      = dt / m;
     N_Vector nv_cons     = N_VMake_MultiFab(length, state_old[IntVar::cons].get());
     N_Vector nv_xmom     = N_VMake_MultiFab(length_mx, state_old[IntVar::xmom].get());
     N_Vector nv_ymom     = N_VMake_MultiFab(length_my, state_old[IntVar::ymom].get());
@@ -217,15 +223,16 @@ void erf_advance(int level,
     integrator.set_post_update(post_update_fun);
 
 #ifdef AMREX_USE_SUNDIALS
-    /* Call ERKStepCreate to initialize the ERK timestepper module and
+    /* Call MRIStepCreate to initialize the ERK timestepper module and
     specify the right-hand side function in y'=f(t,y), the inital time
     T0, and the initial dependent variable vector y. */
-    arkode_mem = ERKStepCreate(f, time, nv_S);
-    ERKStepSetUserData(arkode_mem, (void *) &integrator);  /* Pass udata to user functions */
-    ERKStepSetPostprocessStageFn(arkode_mem, ProcessStage);
+    inner_mem = ARKStepCreate(f0, NULL, time, nv_S);
+    mristep_mem = MRIStepCreate(f, time, nv_S, MRISTEP_ARKSTEP, inner_mem);
+    MRIStepSetUserData(mristep_mem, (void *) &integrator);  /* Pass udata to user functions */
+    MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
     /* Specify tolerances */
-    ERKStepSStolerances(arkode_mem, reltol, abstol);
-    ERKStepSetFixedStep(arkode_mem, hfixed);
+    MRIStepSStolerances(mristep_mem, reltol, abstol);
+    MRIStepSetFixedStep(mristep_mem, hfixed);
 
     // Use SSP-RK3
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNTRUE);
@@ -241,7 +248,11 @@ void erf_advance(int level,
     B->p=0;
 
     //Set table
-    ERKStepSetTable(arkode_mem, B);
+    //    ERKStepSetTable(arkode_mem, B);
+    ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
+    ARKStepSetFixedStep(inner_mem, hfixed_mri);            // Specify fixed time step size
+
+    MRIStepSetTable(mristep_mem, B->q, B);
 
     // Free the Butcher table
     ARKodeButcherTable_Free(B);
@@ -254,8 +265,8 @@ void erf_advance(int level,
     if(advance_erk)
     {
 
-    // Use ERKStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
-    ERKStepEvolve(arkode_mem, tout, nv_S, &t, ARK_NORMAL);
+    // Use MRIStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
+    MRIStepEvolve(mristep_mem, tout, nv_S, &t, ARK_NORMAL);
 
     // Copy the result stored in nv_S to state_new
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
@@ -299,6 +310,14 @@ void erf_advance(int level,
 }
 
 #ifdef AMREX_USE_SUNDIALS
+// f0 routine to compute a zero-valued ODE RHS function f(t,y).
+static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data)
+{
+  // Initialize ydot to zero and return
+  N_VConst(0.0, ydot);
+  return 0;
+}
+
 /* f routine to compute the ODE RHS function f(t,y). */
 static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 {
