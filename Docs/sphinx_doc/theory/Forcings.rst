@@ -61,7 +61,7 @@ as described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.
 
 .. math::
 
-  \mathbf{F} = - \tau(z) \rho (u - \overline{u}, v - \overline{v}, w - \overline{w})
+  \mathbf{F} = - \tau(z) \rho \; (u - \overline{u}, v - \overline{v}, 0)
 
 and
 
