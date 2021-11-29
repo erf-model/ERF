@@ -33,18 +33,42 @@ While performing a ``cmake -LAH ..`` command will give descriptions of every opt
 Building the Tests
 ~~~~~~~~~~~~~~~~~~
 
-Once the user has performed the CMake configure step, the ``make`` command will build every executable required for each test. In this step, it is highly beneficial for the user to use the ``-j`` option for ``make`` to build source files in parallel. It is also beneficial if the user has access to the ``Ninja`` build system with Fortran support which is described in the section on building ERF.
+Once the user has performed the CMake configure step, the ``make`` command will build every executable required for each test.
+In this step, it is highly beneficial for the user to use the ``-j`` option for ``make`` to build source files in parallel.
+It is also beneficial if the user has access to the ``Ninja`` build system with Fortran support which is described in the
+section on building ERF.
 
 Running the Tests
 ~~~~~~~~~~~~~~~~~
 
-Once the test executables are built, CTest also creates working directories for each test within the ``Build`` directory where plot files will be output, etc. This directory is analogous to the source location of the tests in ``Tests/test_files``.
+Once the test executables are built, CTest also creates working directories for each test within the ``Build`` directory
+where plot files will be output, etc. This directory is analogous to the source location of the tests in ``Tests/test_files``.
 
-To run the test suite, run ``ctest`` in the ``Build`` directory. CTest will run the tests and report their exit status. Useful options for CTest are ``-VV`` which runs in a verbose mode where the output of each test can be seen. ``-R`` where a regex string can be used to run specific sets of tests. ``-j`` where CTest will bin pack and run tests in parallel based on how many processes each test is specified to use and fit them into the amount of cores available on the machine. ``-L`` where the subset of tests containing a particular label will be run. Output for the last set of tests run is available in the ``Build`` directory in ``Tests/Temporary/LastTest.log``.
+To run the test suite, run ``ctest`` in the ``Build`` directory. CTest will run the tests and report their exit status.
+Useful options for CTest are ``-VV`` which runs in a verbose mode where the output of each test can be seen. ``-R``
+where a regex string can be used to run specific sets of tests. ``-j`` where CTest will bin pack and run tests in
+parallel based on how many processes each test is specified to use and fit them into the amount of cores available
+on the machine. ``-L`` where the subset of tests containing a particular label will be run. Output for the last set
+of tests run is available in the ``Build`` directory in ``Tests/Temporary/LastTest.log``.
 
 Adding Tests
 ~~~~~~~~~~~~
 
-Developers are encouraged to add tests to ERF and in this section we describe how the tests are organized in the CTest framework. The locations (relative to the ERF code base) of the tests are in ``Tests``. To add a test, first create a problem directory with a name in ``Exec/<prob_name>``. This problem directory is meant for a production run where the simulation is run until convergence or a solution is developed. This problem setup could comprise of a more complex physics than the corresponding tests for regression at ``Tests/test_files/<test_name>``. Prepare toned down versions of the input file(s) for each combination of physics that a regression test is desired. For example, ``TaylorGreenVortex`` problem with input file ``Exec/TaylorGreenVortex/inputs_ex`` solves an advection-diffusion problem. The corresponding regression tests are driven by the input files ``Tests/test_files/TaylorGreenAdvecting/TaylorGreenAdvecting.i`` and ``Tests/test_files/TaylorGreenAdvectingDiffusing/TaylorGreenAdvectingDiffusing.i``.
+Developers are encouraged to add tests to ERF and in this section we describe how the tests are organized in the
+CTest framework. The locations (relative to the ERF code base) of the tests are in ``Tests``. To add a test, first
+create a problem directory with a name in ``Exec/<prob_name>``. This problem directory is meant for a production
+run where the simulation is run until convergence or a solution is developed. This problem setup could comprise
+of a more complex physics than the corresponding tests for regression at ``Tests/test_files/<test_name>``. Prepare
+toned down versions of the input file(s) for each combination of physics that a regression test is desired.
+For example, ``TaylorGreenVortex`` problem with input file ``Exec/TaylorGreenVortex/inputs_ex`` solves an
+advection-diffusion problem. The corresponding regression tests are driven by the input files
+``Tests/test_files/TaylorGreenAdvecting/TaylorGreenAdvecting.i`` and
+``Tests/test_files/TaylorGreenAdvectingDiffusing/TaylorGreenAdvectingDiffusing.i``.
 
-Any file in the test directory will be copied during CMake configure to the test's working directory. The input files meant for regression test run only until a few time steps. The reference solution that the regression test will refer to should be placed in ``Tests/ERF-WindGoldFiles/<test_name>``. Next, edit the ``Exec/CMakeLists.txt`` and ``Tests/CTestList.cmake`` files, add the problem and the corresponding tests to the list. Note that there are different categories of tests and if your test falls outside of these categories, a new function to add the test will need to be created. After these steps, your test will be automatically added to the test suite database when doing the CMake configure with the testing suite enabled.
+Any file in the test directory will be copied during CMake configure to the test's working directory.
+The input files meant for regression test run only until a few time steps. The reference solution that the
+regression test will refer to should be placed in ``Tests/ERF-WindGoldFiles/<test_name>``. Next, edit the
+``Exec/CMakeLists.txt`` and ``Tests/CTestList.cmake`` files, add the problem and the corresponding tests
+to the list. Note that there are different categories of tests and if your test falls outside of these
+categories, a new function to add the test will need to be created. After these steps, your test will be
+automatically added to the test suite database when doing the CMake configure with the testing suite enabled.

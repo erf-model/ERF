@@ -11,7 +11,7 @@
 namespace IntegratorTypes {
     enum TimeIntegratorTypes {ForwardEuler = 0,
                               ExplicitRungeKutta};
-};
+}
 
 template<class T>
 class TimeIntegrator

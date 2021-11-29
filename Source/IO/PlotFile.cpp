@@ -212,7 +212,6 @@ IOManager::writeJobInfo(const std::string& dir)
   jobInfoFile << " ERF Job Information\n";
   jobInfoFile << PrettyLine;
 
-  jobInfoFile << "job name: " << erf.job_name << "\n\n";
   jobInfoFile << "inputs file: " << inputs_name << "\n\n";
 
   jobInfoFile << "number of MPI processes: "

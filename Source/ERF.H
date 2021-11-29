@@ -29,6 +29,8 @@
 #include "BC/BCNoSlipWall.H"
 #include "BC/BCSimSlipWall.H"
 
+#include "ABLFieldInit.H"
+
 using std::istream;
 using std::ostream;
 
@@ -69,6 +71,9 @@ class ERF : public amrex::AmrLevel
 public:
   //! Default constructor.  Builds invalid object.
   ERF();
+
+  static SolverChoice solverChoice;
+  static ABLFieldInit ablinit;
 
   //! The basic constructor.
   ERF(
@@ -115,6 +120,19 @@ public:
   //! Cleanup data descriptors at end of run.
   static void variableCleanUp();
 
+  static bool init_abl;
+
+  static int ng_dens_hse;
+  static int ng_pres_hse;
+
+  //! Initialize HSE
+  void initHSE();
+  void erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
+                       amrex::Vector<amrex::Real>& pres);
+
+  //! Initialize Rayleigh damping profiles
+  void initRayleigh();
+
   //! Initialize grid data at problem start-up.
   virtual void initData() override;
   void initDataProb(amrex::MultiFab& S_new,
@@ -141,10 +159,6 @@ public:
    */
   virtual void init() override;
 
-  /*
-   * Initialize EB geometry for finest_level and level grids for
-   * other levels
-   */
   //! for the Amr class to do timed load balances.
   virtual int WorkEstType() override { return Work_Estimate_Type; }
 
@@ -236,42 +250,31 @@ public:
 
   static int numGrow();
 
-  static void applyBCs(const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) {
+  static void applyBCs( const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) {
     for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
       bc_recs[dir]->applyBC(geom, vars);
     }
   }
 
-//  void computeTemp(amrex::MultiFab& State, int ng);
+  static bool lo_z_is_no_slip;
+  static bool hi_z_is_no_slip;
 
-//  void getMOLSrcTerm(
-//    const amrex::MultiFab& S,
-//    amrex::MultiFab& MOLSrcTerm,
-//    amrex::Real time,
-//    amrex::Real dt,
-//    amrex::Real flux_factor);
+  amrex::Real volWgtSum( const std::string& name,
+                         amrex::Real time,
+                         bool local = false,
+                         bool finemask = true);
 
-  amrex::Real volWgtSum(
-    const std::string& name,
-    amrex::Real time,
-    bool local = false,
-    bool finemask = true);
-  amrex::Real volWgtSquaredSum(
-    const std::string& name, amrex::Real time, bool local = false);
-  amrex::Real volWgtSumMF(
-    const amrex::MultiFab& mf,
-    int comp,
-    bool local = false,
-    bool finemask = false);
-  amrex::Real
-  volWgtSquaredSumDiff(int comp, amrex::Real time, bool local = false);
-  amrex::Real
-  maxDerive(const std::string& name, amrex::Real time, bool local = false);
+  amrex::Real volWgtSquaredSum( const std::string& name, amrex::Real time, bool local = false);
+
+  amrex::Real volWgtSumMF( const amrex::MultiFab& mf,
+                           int comp,
+                           bool local = false,
+                           bool finemask = false);
+
+  amrex::Real volWgtSquaredSumDiff( int comp, amrex::Real time, bool local = false);
+  amrex::Real maxDerive( const std::string& name, amrex::Real time, bool local = false);
 
   static int FirstAdv, NumAdv;
-
-  /// Index locations into particle state
-  static int pstateVel, pstateT, pstateDia, pstateRho, pstateY, pstateNum;
 
   // This MultiFab is on the coarser level.  This is useful for the coarser
   // level to mask out the finer level.  We only build this when it is needed.
@@ -285,13 +288,10 @@ public:
   amrex::YAFluxRegister& getFluxReg();
   amrex::YAFluxRegister& getFluxReg(int lev);
 
-  amrex::YAFluxRegister pres_reg;
-
-  amrex::YAFluxRegister& getPresReg();
-  amrex::YAFluxRegister& getPresReg(int lev);
-
   void avgDown();
   void avgDown(int state_indx);
+
+  void init1DArrays();
 
 protected:
   friend class IOManager;
@@ -312,8 +312,6 @@ protected:
   static void read_params();
 
   static void read_tagging_params();
-
-  static void build_coriolis_forcings();
 
   template<int DIM, math_bcs::BCBound Bound>
   static std::unique_ptr<phys_bcs::BCBase> initialize_bcs(const std::string& bc_char);
@@ -342,7 +340,6 @@ protected:
 
   // ***************************************************************************
   // Static data members.
-#include "erf_params.H"
   static bool signalStopJob;
   static bool dump_old;
   static int verbose;
@@ -363,33 +360,6 @@ protected:
   static amrex::Real cfl;
   static amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > bc_recs;
 
-  static std::string abl_driver_type;
-  static amrex::Real coriolis_factor;
-  static amrex::Real sinphi;
-  static amrex::Real cosphi;
-  static amrex::Vector<amrex::Real> abl_geo_forcing;
-  static amrex::Vector<amrex::Real> abl_pressure_grad;
-
-  static bool use_state_advection;
-  static bool use_momentum_advection;
-  static bool use_thermal_diffusion;
-  static bool use_scalar_diffusion;
-  static bool use_momentum_diffusion;
-  static bool use_smagorinsky;
-  static bool use_pressure;
-  static bool use_gravity;
-  static bool use_coriolis;
-
-  // for keeping track of mass changes from negative density resets
-//  static amrex::Real frac_change;
-
-  /** For keeping track of fluid quantities lost at physical grid boundaries.
-   * This should persist through restarts, but right now only on level 0.
-   */
-  static const int n_lost = 8;
-  amrex::Real material_lost_through_boundary_cumulative[n_lost];
-//  amrex::Real material_lost_through_boundary_temp[n_lost];
-
   /** for keeping track of the amount of CPU time used -- this will persist
    * after restarts
    */
@@ -406,6 +376,22 @@ protected:
   static int num_state_type;
 
   static amrex::Vector<int> src_list;
+
+  // Base state quantities: density and pressure, 1 array per AMR level
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
+
+  // Mean quantities and tau for Rayleigh damping
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
+  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
+  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
 
 /* problem-specific includes */
 #include <Problem.H>
@@ -493,19 +479,4 @@ ERF::getFluxReg(int lev)
 {
   return getLevel(lev).getFluxReg();
 }
-
-AMREX_FORCE_INLINE
-amrex::YAFluxRegister&
-ERF::getPresReg()
-{
-  return pres_reg;
-}
-
-AMREX_FORCE_INLINE
-amrex::YAFluxRegister&
-ERF::getPresReg(int lev)
-{
-  return getLevel(lev).getPresReg();
-}
-
 #endif

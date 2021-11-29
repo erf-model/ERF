@@ -56,7 +56,7 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
 
             const int N = fine_src_ba.size();
 
-            std::vector<long> wgts(N);
+            std::vector<amrex::Long> wgts(N);
 
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -67,14 +67,17 @@ create_umac_grown (int lev, int nGrow, BoxArray& fine_grids,
             DistributionMapping dm;
             // This DM won't be put into the cache.
             dm.KnapSackProcessorMap(wgts,ParallelDescriptor::NProcs());
+            /* Compiling on Windows fails due to line above. The message is:
+             *
+             * D:\a\ERF\ERF\Source\Utils.cpp(69,70): error C2664:
+             * 'void amrex::DistributionMapping::KnapSackProcessorMap(const
+             * std::vector<amrex::Long,std::allocator<amrex::Long>> &,int,amrex::Real *,bool,int,bool)':
+             * cannot convert argument 1 from 'std::vector<long,std::allocator<long>>' to
+             * 'const std::vector<amrex::Long,std::allocator<amrex::Long>> &'
+             * [D:\a\ERF\ERF\Build\Exec\erf_srclib.vcxproj]
+             */
 
-            // FIXME
-            // Declaring in this way doesn't work. I think it's because the box arrays
-            // have been changed and each src box is not completely contained within a
-            // single box in the Factory's BA
-            // For now, coarse-fine boundary doesn't intersect EB, so should be okay...
-            // MultiFab crse_src(crse_src_ba, dm, 1, 0, MFInfo(), getLevel(lev-1).Factory());
-            // MultiFab fine_src(fine_src_ba, dm, 1, 0, MFInfo(), Factory());
+
             MultiFab crse_src(crse_src_ba, dm, 1, 0);
             MultiFab fine_src(fine_src_ba, dm, 1, 0);
 

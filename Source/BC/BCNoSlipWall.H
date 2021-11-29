@@ -13,6 +13,8 @@ class BCNoSlipWall : public BCBase {
   public:
   BCNoSlipWall() = default;
 
+  bool isNoSlipWall() override { return true; }
+
   void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) override {
     if ((geom.isPeriodic(IDIR)) || (vars.size() == 0)) return;
 

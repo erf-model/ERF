@@ -58,16 +58,22 @@ erf.alpha_T = 0.0
 erf.use_scalar_diffusion = true
 erf.alpha_C = 1.0
 erf.use_momentum_diffusion = false
-erf.dynamicViscosity = 0.0
-erf.use_smagorinsky   = false
 erf.use_pressure = false
 erf.use_gravity = false
+
+erf.les_type         = "None"
+erf.dynamicViscosity = 0.0
+
 erf.spatial_order = 2
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 0.0
 prob.B_0 = 1.0
+prob.u_0 = 0.0
+prob.v_0 = 0.0
+prob.uRef = 0.0
+prob.prob_type = 10
 
 # INTEGRATION
 ## integration.type can take on the following values:

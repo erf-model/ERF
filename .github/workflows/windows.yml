@@ -1,0 +1,38 @@
+name: Windows
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-windows
+  cancel-in-progress: true
+
+jobs:
+  WIN32-MSVC10:
+    name: WIN32 MSVC@19.29
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2.4.0
+      with:
+        submodules: true
+
+    - name: Configure Project and Generate Build System
+      run: |
+        cmake -S . -B build `
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
+          -DCMAKE_BUILD_TYPE:STRING=Debug `
+          -DERF_DIM:STRING=3 `
+          -DERF_ENABLE_MPI:BOOL=OFF `
+          -DERF_ENABLE_TESTS:BOOL=ON `
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
+          -DERF_ENABLE_AMREX_EB:BOOL=ON `
+          -DERF_ENABLE_FCOMPARE:BOOL=ON `
+          ${{github.workspace}};
+
+    - name: Compile and Link
+      run: |
+        cmake --build build --parallel 2 --verbose
+
+ #  - name: CMake Tests # see file ERF/Tests/CTestList.cmake
+ #    run: |
+ #      ctest
+ #    working-directory: ${{runner.workspace}}/ERF/build

@@ -19,7 +19,7 @@ erf.hi_bc       = "Interior"   "Interior"   "SlipWall"
 
 # TIME STEP CONTROL
 #TODO: Need to play around with time step to get rid of ringing
-erf.fixed_dt       = 5.0e-3    # dx = 1024/64 = 16m => dt = CFL*dx/U # fixed time step depending on grid resolution
+erf.fixed_dt       = 2.0e-2  # fixed time step depending on grid resolution
 #erf.cfl            = 0.9     # cfl number for hyperbolic system
 erf.init_shrink    = 1.0     # scale back initial timestep
 erf.change_max     = 1.05    # scale back initial timestep
@@ -59,26 +59,27 @@ erf.alpha_T = 0.0
 erf.use_scalar_diffusion = true
 erf.alpha_C = 1.0
 erf.use_momentum_diffusion = true
-erf.dynamicViscosity = 1.0e-1
-erf.use_smagorinsky   = true
-erf.Cs = 0.1
 erf.use_pressure = true
 erf.use_gravity = false
+
+erf.les_type = "Smagorinsky"
+erf.Cs       = 0.1
+
 erf.spatial_order = 2
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
 
-prob.U0 = 10.0
-prob.V0 = 0.0
-prob.W0 = 0.0
+prob.U_0 = 10.0
+prob.V_0 = 0.0
+prob.W_0 = 0.0
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U0_Pert_Mag = 0.08
-prob.V0_Pert_Mag = 0.08 #
-prob.W0_Pert_Mag = 0.0
+prob.U_0_Pert_Mag = 0.08
+prob.V_0_Pert_Mag = 0.08 #
+prob.W_0_Pert_Mag = 0.0
 
 # INTEGRATION
 ## integration.type can take on the following values:

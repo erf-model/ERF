@@ -328,9 +328,6 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     FullPathDiagFile += "/Diagnostics";
     DiagFile.open(FullPathDiagFile.c_str(), std::ios::in);
 
-    for (int i = 0; i < erf.n_lost; i++)
-      DiagFile >> erf.material_lost_through_boundary_cumulative[i];
-
     DiagFile.close();
   }
 

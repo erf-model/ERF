@@ -41,17 +41,6 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
       }
     }
 
-    // TODO: Better make it a member of the ERF class. Need to deal with static stuff.
-    SolverChoice solverChoice(use_state_advection, use_momentum_advection,
-                              use_thermal_diffusion, alpha_T,
-                              use_scalar_diffusion, alpha_C,
-                              use_momentum_diffusion, dynamicViscosity,
-                              use_smagorinsky, Cs,
-                              use_pressure, use_gravity, use_coriolis,
-                              coriolis_factor, sinphi, cosphi, spatial_order,
-                              abl_driver_type, abl_pressure_grad, abl_geo_forcing);
-    //solverChoice.display();
-
   MultiFab& S_old = get_old_data(State_Type);
   MultiFab& S_new = get_new_data(State_Type);
 
@@ -78,7 +67,8 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
       rV_crse.define(V_crse.boxArray(), V_crse.DistributionMap(), 1, 1);
       rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, 1);
 
-      VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,solverChoice);
+      VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,
+                        solverChoice.spatial_order);
   }
 
   // Fill level 0 ghost cells (including at periodic boundaries)
@@ -96,7 +86,6 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
       ifr.define(S_old.boxArray(), S_old.DistributionMap(), geom, ref_ratio);
   }
 
-  const Real* dx = geom.CellSize();
   const BoxArray&            ba = S_old.boxArray();
   const DistributionMapping& dm = S_old.DistributionMap();
 
@@ -108,16 +97,28 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
 
   // We keep faceflux so that we can re-fluxing operations for two-way coupling
   std::array< MultiFab, AMREX_SPACEDIM > faceflux;
+  std::array< MultiFab, AMREX_SPACEDIM > tempflux;
   //faceflux[0] is of size (ncells_x + 1, ncells_y    , ncells_z    )
   faceflux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
+  tempflux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
   //faceflux[1] is of size (ncells_x    , ncells_y + 1, ncells_z    )
   faceflux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
+  tempflux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
   //faceflux[2] is of size (ncells_x    , ncells_y    , ncells_z + 1)
   faceflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
+  tempflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
 
   // Make sure to fill the ghost cells
   MultiFab state_mf(grids,dmap,nvars,S_old.nGrow());
   FillPatch(*this,state_mf,S_old.nGrow(),time,0,0,nvars);
+
+  // Pass the 1D arrays if relevant
+  amrex::Real* dptr_dens_hse = d_dens_hse[level].data() + ng_dens_hse;
+  amrex::Real* dptr_pres_hse = d_pres_hse[level].data() + ng_pres_hse;
+  amrex::Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[level].data() : nullptr;
+  amrex::Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[level].data() : nullptr;
+  amrex::Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[level].data() : nullptr;
+  amrex::Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
 
   // *****************************************************************
   // Update the cell-centered state and face-based velocity using
@@ -134,18 +135,22 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   //          V_new    (y-velocity on y-faces)
   //          W_new    (z-velocity on z-faces)
   // *****************************************************************
+
   erf_advance(level,
               state_mf, S_new,
               U_old, V_old, W_old,
               U_new, V_new, W_new,
               rU_crse, rV_crse, rW_crse,
               source,
-              faceflux,
+              faceflux, tempflux,
               (level > 0) ? parent->Geom(level-1) : geom,
               geom,
               ref_ratio,
-              dx, dt, time, &ifr,
-              solverChoice);
+              dt, time, &ifr,
+              solverChoice,
+              dptr_dens_hse, dptr_pres_hse,
+              dptr_rayleigh_tau, dptr_rayleigh_ubar,
+              dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
 
   return dt;
 }

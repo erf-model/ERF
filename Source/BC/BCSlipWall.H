@@ -30,13 +30,26 @@ class BCSlipWall : public BCBase {
             amrex::IntVect type = b.type();
 
             if (type == amrex::IntVect::Zero) {  // for state type variable
-               math_bcs::foextrap<IDIR, Bound>::apply_cell_based(geom, b, data, ncomp);
+               math_bcs::reflect_even<IDIR, Bound>::apply_cell_based(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL
-               math_bcs::foextrap<IDIR, Bound>::template apply_face_based<(IDIR==0)>(geom, b, data, ncomp);
+               if (IDIR == 0) { // x-vel on x-faces
+                   math_bcs::reflect_odd<IDIR, Bound>::template apply_face_based<(IDIR==0)>(geom, b, data, ncomp);
+               } else { // x-vel on y- or z-faces
+                   math_bcs::reflect_even<IDIR, Bound>::template apply_face_based<(IDIR==0)>(geom, b, data, ncomp);
+               }
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
-               math_bcs::foextrap<IDIR, Bound>::template apply_face_based<(IDIR==1)>(geom, b, data, ncomp);
+               if (IDIR == 1) { // y-vel on y-faces
+                   math_bcs::reflect_odd<IDIR, Bound>::template apply_face_based<(IDIR==1)>(geom, b, data, ncomp);
+               } else { // y-vel on x- or z-faces
+                   math_bcs::reflect_even<IDIR, Bound>::template apply_face_based<(IDIR==1)>(geom, b, data, ncomp);
+               }
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
-               math_bcs::foextrap<IDIR, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
+               if (IDIR == 2) { // z-vel on z-faces
+                   math_bcs::reflect_odd<IDIR, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
+               } else { // z-vel on x- or y-faces
+                   math_bcs::reflect_even<IDIR, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
+               }
+               math_bcs::reflect_even<IDIR, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
             }
          }
      }

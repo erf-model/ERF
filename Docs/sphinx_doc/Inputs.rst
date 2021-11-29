@@ -292,10 +292,6 @@ Examples of Usage
    | The dimensions of all the final grids will be multiples of 32 at
      level 0, multiples of 16 at level 1, and multiples of 8 at level 2.
 
-   Having grids that are large enough to coarsen multiple levels in a
-   V-cycle is essential for good multigrid performance in simulations
-   that use self-gravity.
-
 .. _subsec:grid-generation:
 
 Gridding and Load Balancing
@@ -694,8 +690,8 @@ Examples of Usage
      and print these quanitities.
 
 
-Physics
-=======
+Diffusive Physics
+=================
 
 .. _list-of-parameters-12:
 
@@ -706,25 +702,39 @@ List of Parameters
 | Parameter                        | Definition         | Acceptable        | Default     |
 |                                  |                    | Values            |             |
 +==================================+====================+===================+=============+
-| **erf.alpha_T**                  | Diffusion coeff.   | Real              | 1.0         |
+| **erf.alpha_T**                  | Diffusion coeff.   | Real              | 0.0         |
 |                                  | for temperature    |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
-| **erf.alpha_C**                  | Diffusion coeff.   | Real              | 1.0         |
+| **erf.alpha_C**                  | Diffusion coeff.   | Real              | 0.0         |
 |                                  | for scalar         |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
-| **erf.use_smagorinsky**          | If true set        | true / false      | true        |
-|                                  | turbulence model   |                   |             |
-|                                  | to Smagorinsky;    |                   |             |
-|                                  | else to DNS        |                   |             |
+| **erf.rho0_trans**               | Reference density  | Real              | 1.0         |
+|                                  | to compute const.  |                   |             |
+|                                  | rho*Alpha          |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
-| **erf.dynamicViscosity**         | Viscous coeff. if  | Real              | 1.5e-5      |
+| **erf.les_type**                 | Using an LES       | "None",           | "None"      |
+|                                  | model, and if so,  | "Smagorinsky",    |             |
+|                                  | which type?        | "Deardorff"       |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.molec_diff_type**          | Using molecular    | "None",           | "Constant", |
+|                                  | viscosity and      | "Constant"        | but "None"  |
+|                                  | diffusivity?       |                   | for LES     |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.dynamicViscosity**         | Viscous coeff. if  | Real              | 0.0         |
 |                                  | DNS                |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
-| **erf.Cs**                       | Constant           | Real              | 0.1         |
+| **erf.Cs**                       | Constant           | Real              | 0.0         |
 |                                  | Smagorinsky coeff. |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.Pr_t**                     | Turbulent Prandtl  | Real              | 1.0         |
+|                                  | Number             |                   |             |
++----------------------------------+--------------------+-------------------+-------------+
+| **erf.Sc_t**                     | Turbulent Schmidt  | Real              | 1.0         |
+|                                  | Number             |                   |             |
 +----------------------------------+--------------------+-------------------+-------------+
 | **erf.spatial_order**            |                    | 1 / 2 / 4         | 2           |
 +----------------------------------+--------------------+-------------------+-------------+
+
 
 Forcing Terms
 =============
@@ -748,19 +758,22 @@ List of Parameters
 |                                  | abl.driver_type = |                   |             |
 |                                  | PressureGradient) |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
-| **erf.abl_geo_wind**             | Geostrophic       | 3 Reals           | (10.,0.,0.) |
+| **erf.abl_geo_wind**             | Geostrophic       | 3 Reals           | (0.,0.,0.)  |
 |                                  | forcing term      |                   |             |
 |                                  | (only if          |                   |             |
 |                                  | abl.driver_type = |                   |             |
 |                                  | GeostrophicWind)  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_gravity**              | Include gravity   | true / false      | true        |
+| **erf.use_gravity**              | Include gravity   | true / false      | false       |
 |                                  | in momentum       |                   |             |
 |                                  | update?  If true, |                   |             |
 |                                  | there is buoyancy |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 | **erf.use_coriolis**             | Include Coriolis  | true / false      | false       |
 |                                  | forcing           |                   |             |
++----------------------------------+-------------------+-------------------+-------------+
+| **erf.use_rayleigh_damping **    | Include explicit  | true / false      | false       |
+|                                  | Rayleigh damping  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 
 Unit Testing
