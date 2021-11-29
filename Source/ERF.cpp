@@ -88,16 +88,16 @@ std::unique_ptr<phys_bcs::BCBase>
 ERF::initialize_bcs(const std::string& bc_char) {
   if (!bc_char.compare("Interior")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCInterior());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("Hard")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("FOExtrap")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("Symmetry")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("Dirichlet")) {
     amrex::ParmParse bcinp(getBCName<DIM, Bound>());
     amrex::Vector<amrex::Real> uvec;
@@ -107,16 +107,16 @@ ERF::initialize_bcs(const std::string& bc_char) {
         << " fixedvalue=" << uvec[0] << " " << uvec[1] << " " << uvec[2]
         << std::endl;
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDirichlet<DIM, Bound>(uvec));
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("SlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("NoSlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCNoSlipWall<DIM, Bound>());
-    return std::move(bc_rec);
+    return bc_rec;
   } else if (!bc_char.compare("SimSlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSimSlipWall<DIM, Bound>());
-    return std::move(bc_rec);
+    return bc_rec;
   } else {
     amrex::Abort("Wrong boundary condition word, please use: "
                  "Interior, Dirichlet, SimSlipWall, Symmetry, SlipWall, NoSlipWall");
@@ -439,7 +439,7 @@ ERF::initialTimeStep()
 }
 
 amrex::Real
-ERF::estTimeStep(amrex::Real dt_old)
+ERF::estTimeStep(amrex::Real /*dt_old*/)
 {
   BL_PROFILE("ERF::estTimeStep()");
 
@@ -459,7 +459,7 @@ ERF::estTimeStep(amrex::Real dt_old)
 
   auto const dxinv = geom.InvCellSizeArray();
 
-  MultiFab& state = get_new_data(State_Type);
+  MultiFab& S_new = get_new_data(State_Type);
 
   MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
   MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
@@ -473,7 +473,7 @@ ERF::estTimeStep(amrex::Real dt_old)
   // Initialize to large value since we are taking min below
   // Real estdt_hydro_inv = 1.e100;
 
-  Real estdt_hydro_inv = amrex::ReduceMax(state, ccvel, 0,
+  Real estdt_hydro_inv = amrex::ReduceMax(S_new, ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
                                   Array4<Real const> const& u) -> Real
@@ -519,9 +519,9 @@ ERF::estTimeStep(amrex::Real dt_old)
 void
 ERF::computeNewDt(
   int finest_level,
-  int sub_cycle,
+  int /*sub_cycle*/,
   amrex::Vector<int>& n_cycle,
-  const amrex::Vector<amrex::IntVect>& ref_ratio,
+  const amrex::Vector<amrex::IntVect>& /*ref_ratio*/,
   amrex::Vector<amrex::Real>& dt_min,
   amrex::Vector<amrex::Real>& dt_level,
   amrex::Real stop_time,
@@ -592,9 +592,9 @@ ERF::computeNewDt(
 void
 ERF::computeInitialDt(
   int finest_level,
-  int sub_cycle,
+  int /*sub_cycle*/,
   amrex::Vector<int>& n_cycle,
-  const amrex::Vector<amrex::IntVect>& ref_ratio,
+  const amrex::Vector<amrex::IntVect>& /*ref_ratio*/,
   amrex::Vector<amrex::Real>& dt_level,
   amrex::Real stop_time)
 {
@@ -629,7 +629,7 @@ ERF::computeInitialDt(
 }
 
 void
-ERF::post_timestep(int iteration)
+ERF::post_timestep(int /*iteration*/)
 {
   BL_PROFILE("ERF::post_timestep()");
 
@@ -672,8 +672,8 @@ ERF::post_timestep(int iteration)
     bool sum_per_test = false;
 
     if (sum_per > 0.0) {
-      const int num_per_old = amrex::Math::floor((cumtime - dtlev) / sum_per);
-      const int num_per_new = amrex::Math::floor((cumtime) / sum_per);
+      const int num_per_old = static_cast<int>(amrex::Math::floor((cumtime - dtlev) / sum_per));
+      const int num_per_new = static_cast<int>(amrex::Math::floor((cumtime) / sum_per));
 
       if (num_per_old != num_per_new) {
         sum_per_test = true;
@@ -708,14 +708,14 @@ ERF::postCoarseTimeStep(amrex::Real cumtime)
 }
 
 void
-ERF::post_regrid(int lbase, int new_finest)
+ERF::post_regrid(int /*lbase*/, int /*new_finest*/)
 {
   BL_PROFILE("ERF::post_regrid()");
   fine_mask.clear();
 }
 
 void
-ERF::post_init(amrex::Real stop_time)
+ERF::post_init(amrex::Real /*stop_time*/)
 {
   BL_PROFILE("ERF::post_init()");
 
@@ -758,8 +758,8 @@ ERF::post_init(amrex::Real stop_time)
   bool sum_per_test = false;
 
   if (sum_per > 0.0) {
-    const int num_per_old = amrex::Math::floor((cumtime - dtlev) / sum_per);
-    const int num_per_new = amrex::Math::floor((cumtime) / sum_per);
+    const int num_per_old = static_cast<int>(amrex::Math::floor((cumtime - dtlev) / sum_per));
+    const int num_per_new = static_cast<int>(amrex::Math::floor((cumtime) / sum_per));
 
     if (num_per_old != num_per_new) {
       sum_per_test = true;
@@ -876,8 +876,8 @@ ERF::errorEst(
   int /*clearval*/,
   int /*tagval*/,
   amrex::Real time,
-  int n_error_buf,
-  int ngrow)
+  int /*n_error_buf*/,
+  int /*ngrow*/)
 {
   BL_PROFILE("ERF::errorEst()");
   const char tagval = amrex::TagBox::SET;
@@ -1025,7 +1025,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
       MultiFab::Copy(*derive_dat, ccvel, 0, 0, 1, 0);
 
-      return std::move(derive_dat);
+      return derive_dat;
   }
   else if (name == "y_velocity")
   {
@@ -1041,7 +1041,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
       MultiFab::Copy(*derive_dat, ccvel, 1, 0, 1, 0);
 
-      return std::move(derive_dat);
+      return derive_dat;
   }
   else if (name == "z_velocity")
   {
@@ -1057,7 +1057,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
       MultiFab::Copy(*derive_dat, ccvel, 2, 0, 1, 0);
 
-      return std::move(derive_dat);
+      return derive_dat;
 
   } else {
      return AmrLevel::derive(name, time, ngrow);

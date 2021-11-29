@@ -1,4 +1,3 @@
-// Created by Pankaj Jha on 6/15/21.
 #include <TimeIntegration.H>
 
 using namespace amrex;
@@ -190,10 +189,9 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 
   // Compute the flux
   // TODO : could be more efficient to compute comp from Rho_comp before this
-  amrex::Real diffusionFlux = rhoAlpha *(cell_data(ir, jr, kr, qty_index) /
-                     cell_data(ir, jr, kr, Rho_comp)
-                     - cell_data(il, jl, kl, qty_index) /
-                     cell_data(il, jl, kl, Rho_comp)) * invCellWidth;
+  amrex::Real diffusionFlux = rhoAlpha * invCellWidth *
+      (cell_data(ir, jr, kr, qty_index) / cell_data(ir, jr, kr, Rho_comp)
+     - cell_data(il, jl, kl, qty_index) / cell_data(il, jl, kl, Rho_comp));
 
   return diffusionFlux;
 }
@@ -202,28 +200,28 @@ AMREX_GPU_DEVICE
 Real
 DiffusionContributionForState(const int &i, const int &j, const int &k,
                               const Array4<Real>& cell_data, const int & qty_index,
-                              const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
+                              const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
+                              const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                               const Array4<Real>& Ksmag,
                               const SolverChoice &solverChoice)
 {
-  const amrex::Real dx_inv = 1.0/cellSize[0];
-  const amrex::Real dy_inv = 1.0/cellSize[1];
-  const amrex::Real dz_inv = 1.0/cellSize[2];
+  const amrex::Real dx_inv = cellSizeInv[0];
+  const amrex::Real dy_inv = cellSizeInv[1];
+  const amrex::Real dz_inv = cellSizeInv[2];
 
   // TODO : could be more efficient to compute and save all fluxes before taking divergence (now all fluxes are computed 2x);
-  amrex::Real xDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::x);
-  amrex::Real yDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::y);
-  amrex::Real zDiffFluxNext = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::z);
+  xflux(i+1,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::x);
+  yflux(i,j+1,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::y);
+  zflux(i,j,k+1,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::next, Coord::z);
 
-  amrex::Real xDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::x);
-  amrex::Real yDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::y);
-  amrex::Real zDiffFluxPrev = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::z);
+  xflux(i  ,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dx_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::x);
+  yflux(i,j  ,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dy_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::y);
+  zflux(i,j,k  ,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, qty_index, dz_inv, Ksmag, solverChoice, NextOrPrev::prev, Coord::z);
 
-  // Assemble diffusion contribution.
   Real diffusionContribution =
-      (xDiffFluxNext - xDiffFluxPrev) * dx_inv   // Diffusive flux in x-dir
-    + (yDiffFluxNext - yDiffFluxPrev) * dy_inv   // Diffusive flux in y-dir
-    + (zDiffFluxNext - zDiffFluxPrev) * dz_inv;  // Diffusive flux in z-dir
+      (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dx_inv   // Diffusive flux in x-dir
+     +(yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dy_inv   // Diffusive flux in y-dir
+     +(zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dz_inv;  // Diffusive flux in z-dir
 
   return diffusionContribution;
 }
