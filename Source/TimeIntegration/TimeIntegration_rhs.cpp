@@ -159,10 +159,10 @@ void erf_rhs (int level,
 
             // Add diffusive terms.
             if (solverChoice.use_thermal_diffusion && n == RhoTheta_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp, 
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, Ksmag, solverChoice);
             if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp, 
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, Ksmag, solverChoice);
 
             // Add Rayleigh damping

@@ -208,7 +208,7 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                                 const int &spatial_order) {
   Real advectingQty = 0.0;
   Real advectedQty = 1.0;
-  
+
   AdvectedQuantity advectedQuantity;
 
   switch(qty_index) {

@@ -142,7 +142,7 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               U_new, V_new, W_new,
               rU_crse, rV_crse, rW_crse,
               source,
-              faceflux, tempflux, 
+              faceflux, tempflux,
               (level > 0) ? parent->Geom(level-1) : geom,
               geom,
               ref_ratio,
