@@ -152,3 +152,29 @@ ERF::maxDerive(const std::string& name, amrex::Real time, bool local)
 
   return mf->max(0, 0, local);
 }
+
+bool
+ERF::is_it_time_for_action(int action_interval,
+			   amrex::Real action_per)
+{
+  int nstep = parent->levelSteps(0);
+  amrex::Real dtlev = parent->dtLevel(0);
+  amrex::Real cumtime = parent->cumTime();
+  if (cumtime != 0) {
+    cumtime += dtlev;
+  }
+
+  bool int_test = (action_interval > 0 && nstep % action_interval == 0);
+
+  bool per_test = false;
+  if (action_per > 0.0) {
+    const int num_per_old = static_cast<int>(amrex::Math::floor((cumtime - dtlev) / action_per));
+    const int num_per_new = static_cast<int>(amrex::Math::floor((cumtime) / action_per));
+
+    if (num_per_old != num_per_new) {
+      per_test = true;
+    }
+  }
+
+  return int_test || per_test;
+}

@@ -43,6 +43,14 @@ int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
+int         ERF::output_1d_column = 0;
+amrex::Real ERF::column_interval  = -1;
+amrex::Real ERF::column_per       = -1.0;
+amrex::Real ERF::column_loc_x     = 0.0;
+amrex::Real ERF::column_loc_y     = 0.0;
+amrex::Real ERF::column_max_height= -1.0;
+std::string ERF::column_file_name = "column_data.nc";
+
 bool        ERF::init_abl      = false;
 
 // Create dens_hse and pres_hse with one ghost cell
@@ -139,6 +147,14 @@ ERF::read_params()
   pp.query("v", verbose);
   pp.query("sum_interval", sum_interval);
   pp.query("dump_old", dump_old);
+
+  pp.query("output_1d_column", output_1d_column);
+  pp.query("column_per", column_per);
+  pp.query("column_interval", column_interval);
+  pp.query("column_loc_x", column_loc_x);
+  pp.query("column_loc_y", column_loc_y);
+  pp.query("column_max_height", column_max_height);
+  pp.query("column_file_name", column_file_name);
 
   pp.query("coupling_type",coupling_type);
   if (coupling_type == "OneWay")
@@ -698,6 +714,8 @@ ERF::post_restart()
 #ifdef DO_PROBLEM_POST_RESTART
   problem_post_restart();
 #endif
+
+  //TODO: handle post restart dumping of column data
 }
 
 void
@@ -743,31 +761,15 @@ ERF::post_init(amrex::Real /*stop_time*/)
   problem_post_init();
 #endif
 
-  int nstep = parent->levelSteps(0);
-  if (cumtime != 0.0)
-    cumtime += dtlev;
-
-  bool sum_int_test = false;
-
-  if (sum_interval > 0) {
-    if (nstep % sum_interval == 0) {
-      sum_int_test = true;
-    }
-  }
-
-  bool sum_per_test = false;
-
-  if (sum_per > 0.0) {
-    const int num_per_old = static_cast<int>(amrex::Math::floor((cumtime - dtlev) / sum_per));
-    const int num_per_new = static_cast<int>(amrex::Math::floor((cumtime) / sum_per));
-
-    if (num_per_old != num_per_new) {
-      sum_per_test = true;
-    }
-  }
-
-  if (sum_int_test || sum_per_test) {
+  if (is_it_time_for_action(sum_interval, sum_per)) {
     sum_integrated_quantities();
+  }
+
+  if (output_1d_column) {
+    io_mgr->createNCColumnFile(column_file_name, column_loc_x, column_loc_y);
+    if (is_it_time_for_action(column_interval, column_per)) {
+      io_mgr->writeToNCColumnFile(column_file_name, column_loc_x, column_loc_y);
+    }
   }
 }
 
@@ -1196,11 +1198,11 @@ void ERF::writeJobInfo(const std::string& dir)
 
 void ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
 {
-#ifdef ERF_USE_NETCDF
-  io_mgr->writeNCPlotFile(dir, os);
-#else
+  //#ifdef ERF_USE_NETCDF
+  //io_mgr->writeNCPlotFile(dir, os);
+  //#else
   io_mgr->writePlotFile(dir, os, how);
-#endif
+  //#endif
 }
 
 void ERF::writeSmallPlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)

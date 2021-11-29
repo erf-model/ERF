@@ -66,6 +66,12 @@ public:
     //! write job information
     void writeJobInfo(const std::string& dir);
 
+    //! Create 1D vertical column output for coupling
+    void createNCColumnFile(const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
+
+    //! Write a timestep to 1D vertical column output for coupling
+    void writeToNCColumnFile(const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
+
     //! write build information
     static void writeBuildInfo(std::ostream& os);
 
