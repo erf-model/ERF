@@ -143,10 +143,10 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
                             const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                             const enum MomentumEqn &momentumEqn,
-                            const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
+                            const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                             const SolverChoice &solverChoice) {
 
-    auto dx = cellSize[0], dy = cellSize[1], dz = cellSize[2];
+    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real advectionContribution = 0.0;
 
     int l_spatial_order = solverChoice.spatial_order;
@@ -161,9 +161,9 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
             edgeFluxXZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::u, AdvectingQuantity::rho_w, l_spatial_order);
             edgeFluxXZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::u, AdvectingQuantity::rho_w, l_spatial_order);
 
-            advectionContribution = (centFluxXXNext - centFluxXXPrev) / dx   // Contribution to x-mom eqn from advective flux in x-dir
-                                  + (edgeFluxXYNext - edgeFluxXYPrev) / dy   // Contribution to x-mom eqn from advective flux in y-dir
-                                  + (edgeFluxXZNext - edgeFluxXZPrev) / dz;  // Contribution to x-mom eqn from advective flux in z-dir
+            advectionContribution = (centFluxXXNext - centFluxXXPrev) * dxInv   // Contribution to x-mom eqn from advective flux in x-dir
+                                  + (edgeFluxXYNext - edgeFluxXYPrev) * dyInv   // Contribution to x-mom eqn from advective flux in y-dir
+                                  + (edgeFluxXZNext - edgeFluxXZPrev) * dzInv;  // Contribution to x-mom eqn from advective flux in z-dir
             break;
         case MomentumEqn::y: //y-momentum, reference face index is (i, j, k)
             Real centFluxYYNext, centFluxYYPrev, edgeFluxYXNext, edgeFluxYXPrev, edgeFluxYZNext, edgeFluxYZPrev;
@@ -174,9 +174,9 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
             edgeFluxYZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::v, AdvectingQuantity::rho_w, l_spatial_order);
             edgeFluxYZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::v, AdvectingQuantity::rho_w, l_spatial_order);
 
-            advectionContribution = (edgeFluxYXNext - edgeFluxYXPrev) / dx   // Contribution to y-mom eqn from advective flux in x-dir
-                                  + (centFluxYYNext - centFluxYYPrev) / dy   // Contribution to y-mom eqn from advective flux in y-dir
-                                  + (edgeFluxYZNext - edgeFluxYZPrev) / dz;  // Contribution to y-mom eqn from advective flux in z-dir
+            advectionContribution = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv   // Contribution to y-mom eqn from advective flux in x-dir
+                                  + (centFluxYYNext - centFluxYYPrev) * dyInv   // Contribution to y-mom eqn from advective flux in y-dir
+                                  + (edgeFluxYZNext - edgeFluxYZPrev) * dzInv;  // Contribution to y-mom eqn from advective flux in z-dir
             break;
         case MomentumEqn::z: //z-momentum, reference face index is (i, j, k)
             Real centFluxZZNext, centFluxZZPrev, edgeFluxZXNext, edgeFluxZXPrev, edgeFluxZYNext, edgeFluxZYPrev;
@@ -187,9 +187,9 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
             centFluxZZNext = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::next, AdvectedQuantity::w, AdvectingQuantity::rho_w, l_spatial_order);
             centFluxZZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,                                                                     NextOrPrev::prev, AdvectedQuantity::w, AdvectingQuantity::rho_w, l_spatial_order);
 
-            advectionContribution = (edgeFluxZXNext - edgeFluxZXPrev) / dx  // Contribution to z-mom eqn from advective flux in x-dir
-                                  + (edgeFluxZYNext - edgeFluxZYPrev) / dy  // Contribution to z-mom eqn from advective flux in y-dir
-                                  + (centFluxZZNext - centFluxZZPrev) / dz; // Contribution to z-mom eqn from advective flux in z-dir
+            advectionContribution = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv  // Contribution to z-mom eqn from advective flux in x-dir
+                                  + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv  // Contribution to z-mom eqn from advective flux in y-dir
+                                  + (centFluxZZNext - centFluxZZPrev) * dzInv; // Contribution to z-mom eqn from advective flux in z-dir
             break;
         default:
             amrex::Abort("Error: Momentum equation is unrecognized");
