@@ -152,17 +152,15 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
     //TODO: Check if it is more efficient to store computed divergence at cell-centers rather than
     // computing on the fly
 
-    // Divergence at cell (i, j, k)
-    Real divergence = (u(i+1, j, k) - u(i, j, k))/dx +
-                      (v(i, j+1, k) - v(i, j, k))/dy +
-                      (w(i, j, k+1) - w(i, j, k))/dz;
-
     switch (momentumEqn) {
         case MomentumEqn::x:
             switch (diffDir) {
                 case DiffusionDir::x: // D11
                     if (nextOrPrev == NextOrPrev::next) // cell (i, j, k) is at x-face (i+1/2, j, k)
-                        expansionRate = divergence; // D11 (i+1/2)
+                        // D11 (i+1/2)
+                        expansionRate = (u(i+1, j, k) - u(i, j, k))/dx +
+                                        (v(i, j+1, k) - v(i, j, k))/dy +
+                                        (w(i, j, k+1) - w(i, j, k))/dz;
                     else // nextOrPrev == NextOrPrev::prev // D11 (i-1/2)
                         expansionRate = (u(i, j, k) - u(i-1, j, k))/dx +
                                         (v(i-1, j+1, k) - v(i-1, j, k))/dy +
@@ -185,7 +183,10 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
                     break;
                 case DiffusionDir::y: // D22
                     if (nextOrPrev == NextOrPrev::next) // cell (i, j, k) is at y-face (i, j+1/2, k)
-                        expansionRate = divergence; // D22 (j+1/2)
+                        // D22 (j+1/2)
+                        expansionRate = (u(i+1, j, k) - u(i, j, k))/dx +
+                                        (v(i, j+1, k) - v(i, j, k))/dy +
+                                        (w(i, j, k+1) - w(i, j, k))/dz;
                     else // nextOrPrev == NextOrPrev::prev // D22 (j-1/2)
                         expansionRate = (u(i+1, j-1, k) - u(i, j-1, k))/dx +
                                         (v(i, j, k) - v(i, j-1, k))/dy +
@@ -208,7 +209,10 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
                     break;
                 case DiffusionDir::z: // D33
                     if (nextOrPrev == NextOrPrev::next) // cell (i, j, k) is at z-face (i, j, k+1/2)
-                        expansionRate = divergence; // D33 (k+1/2)
+                        // D33 (k+1/2)
+                        expansionRate = (u(i+1, j, k) - u(i, j, k))/dx +
+                                        (v(i, j+1, k) - v(i, j, k))/dy +
+                                        (w(i, j, k+1) - w(i, j, k))/dz;
                     else // nextOrPrev == NextOrPrev::prev // D33 (k-1/2)
                         expansionRate = (u(i+1, j, k-1) - u(i, j, k-1))/dx +
                                         (v(i, j+1, k-1) - v(i, j, k-1))/dy +
