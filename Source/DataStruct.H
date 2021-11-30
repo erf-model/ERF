@@ -12,12 +12,6 @@ enum class Coord {
     x, y, z
 };
 
-enum class NextOrPrev {
-    prev = -1,
-    local = 0,
-    next = 1
-};
-
 enum class AdvectedQuantity {
     unity, u, v, w, theta, scalar
 };

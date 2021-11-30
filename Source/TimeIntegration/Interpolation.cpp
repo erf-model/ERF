@@ -71,25 +71,6 @@ InterpolateFromCellOrFace(
   const Coord& coordDir,
   const int& spatial_order)
 {
-   /*
-   If the interpolation of cell_data is to be done on face (i, j, k) which is previous to cell (i,j,k)
-   in the coordinate direction,
-   call as InterpolateFromCellOrFace(i, j, k, cell_data, qty_index, NextOrPrev::prev, ...)
-   */
-   /*
-   If the interpolation of cell_data is to be done on face (i+1, j, k), (i, j+1, k) or (i, j, k+1)
-   which are next to cell (i,j,k) in the coordinate direction,
-   call as InterpolateFromCellOrFace(i, j, k, cell_data, qty_index, NextOrPrev::next, ...)
-   */
-   /*
-    Likewise, if the interpolation of face_data is to be done in any direction use as follows:
-    face_data(i+1/2,    j, k, qty_index) =
-                InterpolateFromCellOrFace(i, j, k, face_data, qty_index, NextOrPrev::next, Coord::x, spatial_order);
-    face_data(i   , j-1/2, k, qty_index) =
-                InterpolateFromCellOrFace(i, j, k, face_data, qty_index, NextOrPrev::prev, Coord::y, spatial_order);
-   */
-
-
   Real interpolatedVal = 0.0;
     /*
      w.r.t. the cell index (i, j, k), the face previous to it is the face at cell index m-1/2, where m = {i, j, k}
