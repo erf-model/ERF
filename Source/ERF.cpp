@@ -683,25 +683,17 @@ ERF::post_timestep(int /*iteration*/)
 #endif
 
   if (level == 0) {
-    int nstep = parent->levelSteps(0);
-    amrex::Real dtlev = parent->dtLevel(0);
-    amrex::Real cumtime = parent->cumTime() + dtlev;
-
-    bool sum_int_test = (sum_interval > 0 && nstep % sum_interval == 0);
-
-    bool sum_per_test = false;
-
-    if (sum_per > 0.0) {
-      const int num_per_old = static_cast<int>(amrex::Math::floor((cumtime - dtlev) / sum_per));
-      const int num_per_new = static_cast<int>(amrex::Math::floor((cumtime) / sum_per));
-
-      if (num_per_old != num_per_new) {
-        sum_per_test = true;
-      }
-    }
-
-    if (sum_int_test || sum_per_test) {
+    if (is_it_time_for_action(sum_interval, sum_per)) {
       sum_integrated_quantities();
+    }
+    if (output_1d_column) {
+#ifdef ERF_USE_NETCDF
+      if (is_it_time_for_action(column_interval, column_per)) {
+        io_mgr->writeToNCColumnFile(column_file_name, column_loc_x, column_loc_y);
+      }
+#else
+      amrex::Abort("To output 1D column files ERF must be compiled with NetCDF");
+#endif
     }
   }
 }
@@ -770,10 +762,14 @@ ERF::post_init(amrex::Real /*stop_time*/)
   }
 
   if (output_1d_column) {
+#ifdef ERF_USE_NETCDF
     io_mgr->createNCColumnFile(column_file_name, column_loc_x, column_loc_y);
     if (is_it_time_for_action(column_interval, column_per)) {
       io_mgr->writeToNCColumnFile(column_file_name, column_loc_x, column_loc_y);
     }
+#else
+    amrex::Abort("To output 1D column files ERF must be compiled with NetCDF");
+#endif
   }
 }
 

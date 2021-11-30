@@ -3,21 +3,6 @@
 #include "NCInterface.H"
 #include "IndexDefines.H"
 
-#ifndef ERF_USE_NETCDF
-// If not compiling with NetCDF, fail gracefully
-void IOManager::createNCColumnFile(const std::string& colfile_name,
-                                   const amrex::Real xloc,
-                                   const amrex::Real yloc)
-{
-  amrex::Error("To save output data in NetCDF format, you must enable NetCDF at compile time");
-}
-
-void IOManager::writeToNCColumnFile(const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc)
-{
-  amrex::Error("To save output data in NetCDF format, you must enable NetCDF at compile time");
-}
-
-#else
 void IOManager::createNCColumnFile(const std::string& colfile_name,
                                    const amrex::Real xloc,
                                    const amrex::Real yloc)
@@ -190,5 +175,3 @@ void IOManager::writeToNCColumnFile(const std::string& colfile_name, const amrex
     ncf.close();
   }
 }
-
-#endif
