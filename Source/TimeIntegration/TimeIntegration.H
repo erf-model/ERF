@@ -20,7 +20,10 @@ namespace IntVar {
         cons = 0,
         xmom,
         ymom,
-        zmom
+        zmom,
+        xflux,
+        yflux,
+        zflux
     };
 }
 
@@ -37,7 +40,6 @@ void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in
 /**
  * Update the cell-centered state and face-based velocity using a time integrator
  *
- * \param[in]  S_old  state on cell centers
  * \param[in]  S_old  state on cell centers
  * \param[in]  U_old  x-velocity on x-faces
  * \param[in]  V_old  y-velocity on y-faces
@@ -93,14 +95,12 @@ void erf_rhs(int level,
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
                            const Array4<Real>& qty, const int & qty_index,
-                           const enum NextOrPrev &nextOrPrev,
                            const enum Coord& coordDir,
                            const int &spatial_order);
 
 AMREX_GPU_DEVICE
 Real InterpolatePertFromCell(const int &i, const int &j, const int &k,
                            const Array4<Real>& qty, const int & qty_index,
-                           const enum NextOrPrev &nextOrPrev,
                            const enum Coord& coordDir,
                            const int &spatial_order,
                            const amrex::Real* dptr_hse);
@@ -108,14 +108,12 @@ Real InterpolatePertFromCell(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real InterpolateDensityFromCellToFace(const int &i, const int &j, const int &k,
                                const Array4<Real>& cons_in,
-                               const enum NextOrPrev &nextOrPrev,
                                const enum Coord& coordDir,
                                const int &spatial_order);
 
 AMREX_GPU_DEVICE
 Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int &k,
                                const Array4<Real>& cons_in,
-                               const enum NextOrPrev &nextOrPrev,
                                const enum Coord& coordDir,
                                const int &spatial_order,
                                const amrex::Real* dptr_hse);
@@ -123,14 +121,12 @@ Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int 
 AMREX_GPU_DEVICE
 Real InterpolateRhoThetaFromCellToFace(const int &i, const int &j, const int &k,
                                       const Array4<Real>& cons_in,
-                                      const enum NextOrPrev &nextOrPrev,
                                       const enum Coord& coordDir,
                                       const int &spatial_order);
 
 AMREX_GPU_DEVICE
 Real InterpolateRhoScalarFromCellToFace(const int &i, const int &j, const int &k,
                                       const Array4<Real>& cons_in,
-                                      const enum NextOrPrev &nextOrPrev,
                                       const enum Coord& coordDir,
                                       const int &spatial_order);
 

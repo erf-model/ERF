@@ -135,10 +135,16 @@ void erf_rhs (int level,
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom]->array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom]->array(mfi);
 
+        const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux]->array(mfi);
+        const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux]->array(mfi);
+        const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux]->array(mfi);
+
+        // These are temporaries we use to add to the S_rhs for the fluxes
         const Array4<Real>& advflux_x = advflux[0].array(mfi);
         const Array4<Real>& advflux_y = advflux[1].array(mfi);
         const Array4<Real>& advflux_z = advflux[2].array(mfi);
 
+        // These are temporaries we use to add to the S_rhs for the fluxes
         const Array4<Real>& diffflux_x = diffflux[0].array(mfi);
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
@@ -176,6 +182,25 @@ void erf_rhs (int level,
             cell_rhs(i, j, k, n) += source_fab(i, j, k, n);
         }
         );
+
+        // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
+        //         fluxes at fine-fine interfaces
+        amrex::ParallelFor(tbx, S_data[IntVar::cons]->nComp(),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
+        { 
+            xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n) + diffflux_x(i,j,k,n);
+        });
+        amrex::ParallelFor(tby, S_data[IntVar::cons]->nComp(),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
+        { 
+            yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n) + diffflux_y(i,j,k,n);
+        });
+        amrex::ParallelFor(tbz, S_data[IntVar::cons]->nComp(),
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
+        { 
+            zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n) + diffflux_z(i,j,k,n);
+        });
+
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
@@ -218,7 +243,7 @@ void erf_rhs (int level,
             // Add gravity term
             if (solverChoice.use_gravity)
                 rho_u_rhs(i, j, k) += grav_gpu[0] *
-                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, NextOrPrev::prev,
+                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data,
                                                        Coord::x, solverChoice.spatial_order, dptr_dens_hse);
 
             // Add driving pressure gradient
@@ -283,7 +308,7 @@ void erf_rhs (int level,
             // Add gravity term
             if (solverChoice.use_gravity)
                rho_v_rhs(i, j, k) += grav_gpu[1] *
-                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, NextOrPrev::prev,
+                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data,
                                                        Coord::y, solverChoice.spatial_order, dptr_dens_hse);
 
             // Add driving pressure gradient
@@ -342,7 +367,7 @@ void erf_rhs (int level,
             // Add gravity term
             if (solverChoice.use_gravity)
                rho_w_rhs(i, j, k) += grav_gpu[2] *
-                   InterpolateDensityPertFromCellToFace(i, j, k, cell_data, NextOrPrev::prev,
+                   InterpolateDensityPertFromCellToFace(i, j, k, cell_data,
                                                        Coord::z, solverChoice.spatial_order, dptr_dens_hse);
 
             // Add driving pressure gradient
