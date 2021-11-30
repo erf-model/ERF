@@ -43,12 +43,14 @@ int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
+std::string ERF::plotfile_type = "amrex";
+std::string ERF::checkpoint_type = "amrex";
+
 int         ERF::output_1d_column = 0;
 amrex::Real ERF::column_interval  = -1;
 amrex::Real ERF::column_per       = -1.0;
 amrex::Real ERF::column_loc_x     = 0.0;
 amrex::Real ERF::column_loc_y     = 0.0;
-amrex::Real ERF::column_max_height= -1.0;
 std::string ERF::column_file_name = "column_data.nc";
 
 bool        ERF::init_abl      = false;
@@ -148,12 +150,14 @@ ERF::read_params()
   pp.query("sum_interval", sum_interval);
   pp.query("dump_old", dump_old);
 
+  pp.query("plotfile_type", plotfile_type);
+  pp.query("checkpoint_type", checkpoint_type);
+
   pp.query("output_1d_column", output_1d_column);
   pp.query("column_per", column_per);
   pp.query("column_interval", column_interval);
   pp.query("column_loc_x", column_loc_x);
   pp.query("column_loc_y", column_loc_y);
-  pp.query("column_max_height", column_max_height);
   pp.query("column_file_name", column_file_name);
 
   pp.query("coupling_type",coupling_type);
@@ -1161,12 +1165,18 @@ ERF::build_interior_boundary_mask(int ng)
 
 void ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 {
+  if (checkpoint_type == "amrex") {
+    AmrLevel::restart(papa, is, bReadSpecial);
+    io_mgr->restart(papa, is, bReadSpecial);
+  }
 #ifdef ERF_USE_NETCDF
-  io_mgr->ncrestart(papa, is, bReadSpecial);
-#else
-  AmrLevel::restart(papa, is, bReadSpecial);
-  io_mgr->restart(papa, is, bReadSpecial);
+  else if (checkpoint_type == "NetCDF") {
+    io_mgr->ncrestart(papa, is, bReadSpecial);
+  }
 #endif
+  else {
+    amrex::Abort("Invalid checkpoint_type specified");
+  }
 }
 
 void ERF::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
@@ -1177,12 +1187,18 @@ void ERF::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
 void ERF::checkPoint(const std::string& dir, std::ostream& os,
                      amrex::VisMF::How how, bool dump_old_default)
 {
+  if (checkpoint_type == "amrex") {
+    AmrLevel::checkPoint(dir, os, how, dump_old);
+    io_mgr->checkPoint(dir, os, how, dump_old_default);
+  }
 #ifdef ERF_USE_NETCDF
-  io_mgr->NCWriteCheckpointFile (dir, os, dump_old);
-#else
-  AmrLevel::checkPoint(dir, os, how, dump_old);
-  io_mgr->checkPoint(dir, os, how, dump_old_default);
+  else if (checkpoint_type == "NetCDF") {
+    io_mgr->NCWriteCheckpointFile (dir, os, dump_old);
+  }
 #endif
+  else {
+    amrex::Abort("Invalid checkpoint_type specified");
+  }
 }
 
 void ERF::setPlotVariables()
@@ -1198,11 +1214,17 @@ void ERF::writeJobInfo(const std::string& dir)
 
 void ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
 {
-  //#ifdef ERF_USE_NETCDF
-  //io_mgr->writeNCPlotFile(dir, os);
-  //#else
-  io_mgr->writePlotFile(dir, os, how);
-  //#endif
+  if (plotfile_type == "amrex") {
+    io_mgr->writePlotFile(dir, os, how);
+  }
+  #ifdef ERF_USE_NETCDF
+  else if (plotfile_type == "NetCDF") {
+    io_mgr->writeNCPlotFile(dir, os);
+  }
+  #endif
+  else {
+    amrex::Abort("Invalid plotfile_type specified");
+  }
 }
 
 void ERF::writeSmallPlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
