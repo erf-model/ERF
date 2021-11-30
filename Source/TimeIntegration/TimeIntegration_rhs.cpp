@@ -231,7 +231,7 @@ void erf_rhs (int level,
             {
                 bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
                 bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
-                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dx, Ksmag, solverChoice,
+                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, Ksmag, solverChoice,
                                                                   use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
             }
 
@@ -298,7 +298,7 @@ void erf_rhs (int level,
             {
                 bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
                 bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
-                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dx, Ksmag, solverChoice,
+                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, Ksmag, solverChoice,
                                                                   use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
             }
 
@@ -358,7 +358,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dx, Ksmag, solverChoice,
+                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, Ksmag, solverChoice,
                                                                   false, false);
 
             // Add pressure gradient
