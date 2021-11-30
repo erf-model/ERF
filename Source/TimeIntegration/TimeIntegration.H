@@ -203,7 +203,6 @@ Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                             const enum MomentumEqn &momentumEqn,
                             const enum DiffusionDir &diffDir,
-                            const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                             const Array4<Real>& Ksmag);
 
 /** Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky */

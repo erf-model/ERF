@@ -8,12 +8,12 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
                   const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& w,
                   const enum MomentumEqn &momentumEqn,
                   const enum DiffusionDir &diffDir,
-                  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
+                  const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                   bool use_no_slip_stencil_lo, bool use_no_slip_stencil_hi)
 {
-  Real dx_inv = 1.0/cellSize[0];
-  Real dy_inv = 1.0/cellSize[1];
-  Real dz_inv = 1.0/cellSize[2];
+  Real dx_inv = cellSizeInv[0];
+  Real dy_inv = cellSizeInv[1];
+  Real dz_inv = cellSizeInv[2];
 
   Real strainRate = 0;
 
@@ -94,10 +94,10 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
                      const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                      const enum MomentumEqn &momentumEqn,
                      const enum DiffusionDir &diffDir,
-                     const GpuArray<Real, AMREX_SPACEDIM>& cellSize) {
-    Real dx_inv = 1.0/cellSize[0];
-    Real dy_inv = 1.0/cellSize[1];
-    Real dz_inv = 1.0/cellSize[2];
+                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv) {
+    Real dx_inv = cellSizeInv[0];
+    Real dy_inv = cellSizeInv[1];
+    Real dz_inv = cellSizeInv[2];
 
     Real expansionRate = 0;
 

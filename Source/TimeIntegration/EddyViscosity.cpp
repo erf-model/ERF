@@ -7,12 +7,12 @@ using namespace amrex;
 //AMREX_GPU_DEVICE
 void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel,
                                const MultiFab& cons_in, MultiFab& eddyViscosity,
-                               const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
+                               const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                                const SolverChoice& solverChoice,
                                const bool& use_no_slip_stencil_at_lo_k, const int& klo,
                                const bool& use_no_slip_stencil_at_hi_k, const int& khi)
 {
-    const Real cellVol = cellSize[0] * cellSize[1] * cellSize[2];
+    const Real cellVol = 1.0 / (cellSizeInv[0] * cellSizeInv[1] * cellSizeInv[2]);
     Real Cs = solverChoice.Cs;
     Real CsDeltaSqr = Cs*Cs * std::pow(cellVol, 2.0/3.0);
 
@@ -29,39 +29,39 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 
         amrex::ParallelFor(bx, eddyViscosity.nComp(),[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            Real S11 = ComputeStrainRate(i+1, j, k, u, v, w, MomentumEqn::x, DiffusionDir::x, cellSize, false, false);
-            Real S22 = ComputeStrainRate(i, j+1, k, u, v, w, MomentumEqn::y, DiffusionDir::y, cellSize, false, false);
-            Real S33 = ComputeStrainRate(i, j, k+1, u, v, w, MomentumEqn::z, DiffusionDir::z, cellSize, false, false);
+            Real S11 = ComputeStrainRate(i+1, j, k, u, v, w, MomentumEqn::x, DiffusionDir::x, cellSizeInv, false, false);
+            Real S22 = ComputeStrainRate(i, j+1, k, u, v, w, MomentumEqn::y, DiffusionDir::y, cellSizeInv, false, false);
+            Real S33 = ComputeStrainRate(i, j, k+1, u, v, w, MomentumEqn::z, DiffusionDir::z, cellSizeInv, false, false);
 
             Real S12 = 0.25* (
-                      ComputeStrainRate(i  , j  , k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSize, false, false)
-                    + ComputeStrainRate(i  , j+1, k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSize, false, false)
-                    + ComputeStrainRate(i+1, j  , k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSize, false, false)
-                    + ComputeStrainRate(i+1, j+1, k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSize, false, false)
+                      ComputeStrainRate(i  , j  , k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSizeInv, false, false)
+                    + ComputeStrainRate(i  , j+1, k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSizeInv, false, false)
+                    + ComputeStrainRate(i+1, j  , k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSizeInv, false, false)
+                    + ComputeStrainRate(i+1, j+1, k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSizeInv, false, false)
                     );
 
             bool use_no_slip_stencil_lo = (use_no_slip_stencil_at_lo_k && (k == klo));
             bool use_no_slip_stencil_hi = (use_no_slip_stencil_at_hi_k && (k == khi));
 
             Real S13 = 0.25* (
-                      ComputeStrainRate(i  , j, k  , u, v, w, MomentumEqn::x, DiffusionDir::z, cellSize,
+                      ComputeStrainRate(i  , j, k  , u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
                                        use_no_slip_stencil_lo, use_no_slip_stencil_hi)
-                    + ComputeStrainRate(i  , j, k+1, u, v, w, MomentumEqn::x, DiffusionDir::z, cellSize,
+                    + ComputeStrainRate(i  , j, k+1, u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
                                        use_no_slip_stencil_lo, use_no_slip_stencil_hi)
-                    + ComputeStrainRate(i+1, j, k  , u, v, w, MomentumEqn::x, DiffusionDir::z, cellSize,
+                    + ComputeStrainRate(i+1, j, k  , u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
                                        use_no_slip_stencil_lo, use_no_slip_stencil_hi)
-                    + ComputeStrainRate(i+1, j, k+1, u, v, w, MomentumEqn::x, DiffusionDir::z, cellSize,
+                    + ComputeStrainRate(i+1, j, k+1, u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
                                        use_no_slip_stencil_lo, use_no_slip_stencil_hi)
                     );
 
             Real S23 = 0.25* (
-                      ComputeStrainRate(i, j  , k  , u, v, w, MomentumEqn::y, DiffusionDir::z, cellSize,
+                      ComputeStrainRate(i, j  , k  , u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
                                        use_no_slip_stencil_lo, use_no_slip_stencil_hi)
-                    + ComputeStrainRate(i, j  , k+1, u, v, w, MomentumEqn::y, DiffusionDir::z, cellSize,
+                    + ComputeStrainRate(i, j  , k+1, u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
                                        use_no_slip_stencil_lo, use_no_slip_stencil_hi)
-                    + ComputeStrainRate(i, j+1, k  , u, v, w, MomentumEqn::y, DiffusionDir::z, cellSize,
+                    + ComputeStrainRate(i, j+1, k  , u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
                                        use_no_slip_stencil_lo, use_no_slip_stencil_hi)
-                    + ComputeStrainRate(i, j+1, k+1, u, v, w, MomentumEqn::y, DiffusionDir::z, cellSize,
+                    + ComputeStrainRate(i, j+1, k+1, u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
                                        use_no_slip_stencil_lo, use_no_slip_stencil_hi)
                     );
 
@@ -81,7 +81,6 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                               const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                               const enum MomentumEqn &momentumEqn,
                               const enum DiffusionDir &diffDir,
-                              const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                               const Array4<Real>& Ksmag) {
   // Assuming we already have 'Ksmag' computed for all (i, j, k)
   Real turbViscInterpolated = 1.0;
