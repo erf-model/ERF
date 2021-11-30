@@ -5,14 +5,14 @@
 #include <AMReX.H>
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getTgivenRandRTh(amrex::Real rho, amrex::Real rhotheta)
+amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta)
 {
     amrex::Real p_loc = p_0 * std::pow(R_d * rhotheta / p_0, Gamma);
     return p_loc / (R_d * rho);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getPgivenRTh(amrex::Real rhotheta)
+amrex::Real getPgivenRTh(const amrex::Real rhotheta)
 {
     // diagnostic relation for the full pressure
     // see https://erf.readthedocs.io/en/latest/theory/NavierStokesEquations.html
@@ -20,7 +20,7 @@ amrex::Real getPgivenRTh(amrex::Real rhotheta)
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getPprimegivenRTh(amrex::Real rhotheta, amrex::Real pres_hse_at_k)
+amrex::Real getPprimegivenRTh(const amrex::Real rhotheta, const amrex::Real pres_hse_at_k)
 {
     // diagnostic relation for the full pressure
     // see https://erf.readthedocs.io/en/latest/theory/NavierStokesEquations.html
@@ -29,7 +29,7 @@ amrex::Real getPprimegivenRTh(amrex::Real rhotheta, amrex::Real pres_hse_at_k)
 
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getRhoThetagivenP(amrex::Real p)
+amrex::Real getRhoThetagivenP(const amrex::Real p)
 {
     // diagnostic relation for the full pressure
     // see https://erf.readthedocs.io/en/latest/theory/NavierStokesEquations.html
