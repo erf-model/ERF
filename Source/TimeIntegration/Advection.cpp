@@ -18,15 +18,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
     case AdvectedQuantity::u: //x-momentum, reference face index is (i, j, k)
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::x, spatial_order); // u(i+1/2,    j, k    )
+        advectedQty = InterpolateFromCellOrFace(i+1, j, k, u, 0, Coord::x, spatial_order); // u(i+1/2,    j, k    )
         advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i, j, k)); // Effectively rho_u (i+1/2, j, k)
         break;
       case AdvectingQuantity::rho_v:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::y, spatial_order); // u(i   , j+1/2, k    )
+        advectedQty = InterpolateFromCellOrFace(i, j+1, k, u, 0, Coord::y, spatial_order); // u(i   , j+1/2, k    )
         advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i-1, j+1, k)); // Effectively rho_v (i-1/2, j+1, k)
         break;
       case AdvectingQuantity::rho_w:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::z, spatial_order); // u(i   , j    , k+1/2)
+        advectedQty = InterpolateFromCellOrFace(i, j, k+1, u, 0, Coord::z, spatial_order); // u(i   , j    , k+1/2)
         advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i-1, j, k+1)); // Effectively rho_w (i-1/2, j, k+1)
         break;
       default:
@@ -36,15 +36,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
     case AdvectedQuantity::v: //y-momentum, reference face index is (i, j, k)
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::x, spatial_order); // v(i+1/2,    j, k    )
+        advectedQty = InterpolateFromCellOrFace(i+1, j, k, v, 0, Coord::x, spatial_order); // v(i+1/2,    j, k    )
         advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k)); // Effectively rho_u (i+1, j-1/2, k)
         break;
       case AdvectingQuantity::rho_v:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::y, spatial_order); // v(i   , j+1/2, k    )
+        advectedQty = InterpolateFromCellOrFace(i, j+1, k, v, 0, Coord::y, spatial_order); // v(i   , j+1/2, k    )
         advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j, k)); // Effectively rho_v (i, j+1/2, k)
         break;
       case AdvectingQuantity::rho_w:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::z, spatial_order); // v(i   , j    , k+1/2)
+        advectedQty = InterpolateFromCellOrFace(i, j, k+1, v, 0, Coord::z, spatial_order); // v(i   , j    , k+1/2)
         advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1)); // Effectively rho_w (i, j-1/2, k+1)
         break;
       default:
@@ -54,15 +54,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
     case AdvectedQuantity::w: //z-momentum, reference face index is (i, j, k)
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::x, spatial_order); // w(i+1/2,    j, k    )
+        advectedQty = InterpolateFromCellOrFace(i+1, j, k, w, 0, Coord::x, spatial_order); // w(i+1/2,    j, k    )
         advectingQty = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1)); // Effectively rho_u (i+1, j, k-1/2)
         break;
       case AdvectingQuantity::rho_v:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::y, spatial_order); // w(i   , j+1/2, k    )
+        advectedQty = InterpolateFromCellOrFace(i, j+1, k, w, 0, Coord::y, spatial_order); // w(i   , j+1/2, k    )
         advectingQty = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1)); // Effectively rho_v (i, j+1, k-1/2)
         break;
       case AdvectingQuantity::rho_w:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::z, spatial_order); // w(i   , j    , k+1/2)
+        advectedQty = InterpolateFromCellOrFace(i, j, k+1, w, 0, Coord::z, spatial_order); // w(i   , j    , k+1/2)
         advectingQty = 0.5*(rho_w(i, j, k+1) + rho_w(i, j, k)); // Effectively rho_w (i, j, k+1/2)
         break;
       default:
@@ -78,15 +78,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
     case AdvectedQuantity::u: //x-momentum, reference face index is (i, j, k)
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::x, spatial_order); // u(i-1/2,    j, k    )
+        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, Coord::x, spatial_order); // u(i-1/2,    j, k    )
         advectingQty = 0.5*(rho_u(i-1, j, k) + rho_u(i, j, k)); // Effectively rho_u (i-1/2, j, k)
         break;
       case AdvectingQuantity::rho_v:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::y, spatial_order); // u(i   , j-1/2, k    )
+        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, Coord::y, spatial_order); // u(i   , j-1/2, k    )
         advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i-1, j, k)); // Effectively rho_v (i-1/2, j, k)
         break;
       case AdvectingQuantity::rho_w:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, nextOrPrev, Coord::z, spatial_order); // u(i   , j    , k-1/2)
+        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, Coord::z, spatial_order); // u(i   , j    , k-1/2)
         advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i-1, j, k)); // Effectively rho_w (i-1/2, j, k)
         break;
       default:
@@ -96,15 +96,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
     case AdvectedQuantity::v: //y-momentum, reference face index is (i, j, k)
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::x, spatial_order); // v(i-1/2,    j, k    )
+        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, Coord::x, spatial_order); // v(i-1/2,    j, k    )
         advectingQty = 0.5*(rho_u(i, j, k) + rho_u(i, j-1, k)); // Effectively rho_u (i, j-1/2, k)
         break;
       case AdvectingQuantity::rho_v:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::y, spatial_order); // v(i   , j-1/2, k    )
+        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, Coord::y, spatial_order); // v(i   , j-1/2, k    )
         advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k)); // Effectively rho_v (i, j-1/2, k)
         break;
       case AdvectingQuantity::rho_w:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, nextOrPrev, Coord::z, spatial_order); // v(i   , j    , k-1/2)
+        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, Coord::z, spatial_order); // v(i   , j    , k-1/2)
         advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k)); // Effectively rho_w (i, j-1/2, k)
         break;
       default:
@@ -114,15 +114,15 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
     case AdvectedQuantity::w: //z-momentum, reference face index is (i, j, k)
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::x, spatial_order); // w(i-1/2,    j, k    )
+        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, Coord::x, spatial_order); // w(i-1/2,    j, k    )
         advectingQty = 0.5*(rho_u(i, j, k) + rho_u(i, j, k-1)); // Effectively rho_u (i, j, k-1/2)
         break;
       case AdvectingQuantity::rho_v:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::y, spatial_order); // w(i   , j-1/2, k    )
+        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, Coord::y, spatial_order); // w(i   , j-1/2, k    )
         advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i, j, k-1)); // Effectively rho_v (i, j, k-1/2)
         break;
       case AdvectingQuantity::rho_w:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, nextOrPrev, Coord::z, spatial_order); // w(i   , j    , k-1/2)
+        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, Coord::z, spatial_order); // w(i   , j    , k-1/2)
         advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i, j, k-1)); // Effectively rho_w (i, j, k-1/2)
         break;
       default:
@@ -220,9 +220,6 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
             amrex::Abort("Error: Conserved quantity index is unrecognized");
     }
 
-  // HACK HACK HACK
-  NextOrPrev nextOrPrev = NextOrPrev::prev;
-
   // Compute advected quantity for different choice of AdvectingQuantity
   switch(advectedQuantity) {
 
@@ -231,20 +228,20 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     case AdvectingQuantity::rho_u:
       // Get theta (i+1/2,    j, k    ) = theta on face (i+1, j  , k  ) for x-dir if nextOrPrev = NextOrPrev::next
       // Get theta (i-1/2,    j, k    ) = theta on face (i,   j  , k  ) for x-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
+      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, Coord::x, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, Coord::x, spatial_order);
       break;
     case AdvectingQuantity::rho_v:
       // Get theta (i   , j+1/2, k    ) = theta on face (i  , j+1, k  ) for y-dir if nextOrPrev = NextOrPrev::next
       // Get theta (i   , j-1/2, k    ) = theta on face (i  , j  , k  ) for y-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
+      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, Coord::y, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, Coord::y, spatial_order);
       break;
     case AdvectingQuantity::rho_w:
       // Get theta (i   , j    , k+1/2) = theta on face (i  , j  , k+1) for z-dir if nextOrPrev = NextOrPrev::next
       // Get theta (i   , j    , k-1/2) = theta on face (i  , j  , k  ) for z-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
+      advectedQty = InterpolateRhoThetaFromCellToFace(i, j, k, cell_data, Coord::z, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, Coord::z, spatial_order);
       break;
     default:
       amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -256,20 +253,20 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     case AdvectingQuantity::rho_u:
       // Get scalar (i+1/2,    j, k    ) = scalar on face (i+1, j  , k  ) for x-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i-1/2,    j, k    ) = scalar on face (i,   j  , k  ) for x-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::x, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, Coord::x, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, Coord::x, spatial_order);
       break;
     case AdvectingQuantity::rho_v:
       // Get scalar (i   , j+1/2, k    ) = scalar on face (i  , j+1, k  ) for y-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i   , j-1/2, k    ) = scalar on face (i  , j  , k  ) for y-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::y, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, Coord::y, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, Coord::y, spatial_order);
       break;
     case AdvectingQuantity::rho_w:
       // Get scalar (i   , j    , k+1/2) = scalar on face (i  , j  , k+1) for z-dir if nextOrPrev = NextOrPrev::next
       // Get scalar (i   , j    , k-1/2) = scalar on face (i  , j  , k  ) for z-dir if nextOrPrev = NextOrPrev::prev
-      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
-      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, nextOrPrev, Coord::z, spatial_order);
+      advectedQty = InterpolateRhoScalarFromCellToFace(i, j, k, cell_data, Coord::z, spatial_order);
+      advectedQty/= InterpolateDensityFromCellToFace(i, j, k, cell_data, Coord::z, spatial_order);
       break;
     default:
       amrex::Abort("Error: Advecting quantity is unrecognized");
