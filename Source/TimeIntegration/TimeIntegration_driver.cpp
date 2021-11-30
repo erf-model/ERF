@@ -147,6 +147,7 @@ void erf_advance(int level,
 
 #ifdef AMREX_USE_SUNDIALS
 
+    ////STEP ONE
     // Create SUNDIALS specific objects
     SUNNonlinearSolver NLS = NULL;    /* empty nonlinear solver object */
     void *inner_mem = NULL;      /* empty ARKode memory structure */
@@ -157,6 +158,7 @@ void erf_advance(int level,
         return p_mf->nComp() * (p_mf->boxArray()).numPts();
     };
 
+    ////STEP TWO
     sunindextype length = get_length(IntVar::cons);
     sunindextype length_mx = get_length(IntVar::xmom);
     sunindextype length_my = get_length(IntVar::ymom);
@@ -177,6 +179,7 @@ void erf_advance(int level,
     N_Vector nv_zmom     = N_VMake_MultiFab(length_mz, state_old[IntVar::zmom].get());
     N_Vector nv_many_arr[NVar];              /* vector array composed of cons, xmom, ymom, zmom component vectors */
 
+    ////STEP THREE
     /* Create manyvector for solution */
     nv_many_arr[0] = nv_cons;
     nv_many_arr[1] = nv_xmom;
@@ -224,6 +227,7 @@ void erf_advance(int level,
 
 #ifdef AMREX_USE_SUNDIALS
     bool use_erk3 = false;
+    ////STEP FOUR
     /* Call ARKStepCreate to initialize the inner ARK timestepper module and
     specify the right-hand side function in y'=f(t,y), the inital time
     T0, and the initial dependent variable vector y. */
@@ -232,10 +236,8 @@ void erf_advance(int level,
     else
       inner_mem = ARKStepCreate(NULL, f0, time, nv_S);
 
+    ////STEP FIVE
     ARKStepSetFixedStep(inner_mem, hfixed_mri);            // Specify fixed time step size
-
-    NLS = SUNNonlinSol_FixedPoint(nv_S, 50);
-    ARKStepSetNonlinearSolver(inner_mem, NLS);
 
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     if(use_erk3)
@@ -267,16 +269,22 @@ void erf_advance(int level,
     }
     //Set table
     //    ERKStepSetTable(arkode_mem, B);
+    ////STEP SIX
     mristep_mem = MRIStepCreate(f, time, nv_S, MRISTEP_ARKSTEP, inner_mem);
-    MRIStepSetUserData(mristep_mem, (void *) &integrator);  /* Pass udata to user functions */
-    MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
-    MRIStepSetTable(mristep_mem, B->q, B);
-
+    ////STEP SEVEN
+    MRIStepSetFixedStep(mristep_mem, hfixed);
+    ////STEP 8.1
     /* Specify tolerances */
     MRIStepSStolerances(mristep_mem, reltol, abstol);
-    MRIStepSetFixedStep(mristep_mem, hfixed);
-
+    ////STEP 8.2
+    NLS = SUNNonlinSol_FixedPoint(nv_S, 50);
+    ////STEP 8.3
+    //    ARKStepSetNonlinearSolver(inner_mem, NLS);
     MRIStepSetNonlinearSolver(mristep_mem, NLS);
+    ////STEP NINE
+    MRIStepSetUserData(mristep_mem, (void *) &integrator);  /* Pass udata to user functions */
+    MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
+
     MRIStepSetTable(mristep_mem, B->q, B);
 
     // Free the Butcher table
@@ -289,7 +297,7 @@ void erf_advance(int level,
 
     if(advance_erk)
     {
-
+    ////STEP ELEVEN
     // Use MRIStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
     MRIStepEvolve(mristep_mem, tout, nv_S, &t, ARK_NORMAL);
 
@@ -309,6 +317,13 @@ void erf_advance(int level,
     }
 
 #ifdef AMREX_USE_SUNDIALS
+  ////STEP THIRTEEN
+  N_VDestroy(nv_cons);
+  N_VDestroy(nv_xmom);
+  N_VDestroy(nv_ymom);
+  N_VDestroy(nv_zmom);
+  N_VDestroy(nv_S);
+  ////STEP FOURTEEN
   MRIStepFree(&mristep_mem);
   ARKStepFree(&inner_mem);
   SUNNonlinSolFree(NLS);    // Free nonlinear solvers
