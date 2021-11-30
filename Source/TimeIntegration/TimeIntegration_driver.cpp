@@ -230,7 +230,7 @@ void erf_advance(int level,
     integrator.set_post_update(post_update_fun);
 
 #ifdef AMREX_USE_SUNDIALS
-    bool use_erk3 = false;
+    bool use_erk3 = true;
     bool use_linear = false;
     ////STEP FOUR
     /* Call ARKStepCreate to initialize the inner ARK timestepper module and
@@ -247,6 +247,7 @@ void erf_advance(int level,
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     if(use_erk3)
     {
+	/*
     // Use SSP-RK3
     B->A[1][0] = 1.0;
     B->A[2][0] = 0.25;
@@ -256,15 +257,23 @@ void erf_advance(int level,
     B->b[2] = 2./3.;
     B->c[1] = 1.0;
     B->c[2] = 0.5;
-    B->q=3;
+    B->q=3;*/
+    B->A[1][0] = 1.0;
+    B->A[2][0] = 1.0;
+    B->A[2][2] = 0.0;
+    B->b[0] = 0.5;
+    B->b[2] = 0.5;
+    B->c[1] = 1.0;
+    B->c[2] = 1.0;
+    B->q=2;
     B->p=0;
     ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
     }
     else
     {
     B->A[1][0] = 1.0;
-    B->A[2][0] = 0.5;
-    B->A[2][2] = 0.5;
+    B->A[2][0] = 1.0;
+    B->A[2][2] = 0.0;
     B->b[0] = 0.5;
     B->b[2] = 0.5;
     B->c[1] = 1.0;
@@ -272,12 +281,14 @@ void erf_advance(int level,
     B->q=2;
     ARKStepSetTables(inner_mem, B->q, B->p, B, NULL);       // Specify Butcher table
     }
+    /*
     LSf = SUNLinSol_SPGMR(nv_S, PREC_NONE, 10);
     NLSf = SUNNonlinSol_FixedPoint(nv_S, 50);
     if(use_linear)
       ARKStepSetLinearSolver(inner_mem, LSf, NULL);
     else
       ARKStepSetNonlinearSolver(inner_mem, NLSf);
+*/
     //Set table
     //    ERKStepSetTable(arkode_mem, B);
     ////STEP SIX
