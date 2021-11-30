@@ -13,7 +13,8 @@
 #include <nvector/nvector_manyvector.h>/* manyvector N_Vector types, fcts. etc */
 #include <AMReX_NVector_MultiFab.H>    /* MultiFab N_Vector types, fcts., macros */
 #include <AMReX_Sundials.H>    /* MultiFab N_Vector types, fcts., macros */
-#include <sunnonlinsol/sunnonlinsol_fixedpoint.h> /* access to SPGMR SUNLinearSolver      */
+#include <sunlinsol/sunlinsol_spgmr.h> /* access to SPGMR SUNLinearSolver      */
+#include <sunnonlinsol/sunnonlinsol_fixedpoint.h> /* access to FixedPoint SUNNonlinearSolver      */
 #include <sundials/sundials_types.h>   /* defs. of realtype, sunindextype, etc */
 #endif
 
@@ -150,6 +151,9 @@ void erf_advance(int level,
     ////STEP ONE
     // Create SUNDIALS specific objects
     SUNNonlinearSolver NLS = NULL;    /* empty nonlinear solver object */
+    SUNLinearSolver LS = NULL;    /* empty linear solver object */
+    SUNNonlinearSolver NLSf = NULL;    /* empty nonlinear solver object */
+    SUNLinearSolver LSf = NULL;    /* empty linear solver object */
     void *inner_mem = NULL;      /* empty ARKode memory structure */
     void *mristep_mem = NULL;      /* empty ARKode memory structure */
     // Create an N_Vector wrapper for the solution MultiFab
@@ -227,6 +231,7 @@ void erf_advance(int level,
 
 #ifdef AMREX_USE_SUNDIALS
     bool use_erk3 = false;
+    bool use_linear = true;
     ////STEP FOUR
     /* Call ARKStepCreate to initialize the inner ARK timestepper module and
     specify the right-hand side function in y'=f(t,y), the inital time
@@ -267,6 +272,12 @@ void erf_advance(int level,
     B->q=2;
     ARKStepSetTables(inner_mem, B->q, B->p, B, NULL);       // Specify Butcher table
     }
+    LSf = SUNLinSol_SPGMR(nv_S, PREC_NONE, 10);
+    NLSf = SUNNonlinSol_FixedPoint(nv_S, 50);
+    if(use_linear)
+      ARKStepSetLinearSolver(inner_mem, LSf, NULL);
+    else
+      ARKStepSetNonlinearSolver(inner_mem, NLSf);
     //Set table
     //    ERKStepSetTable(arkode_mem, B);
     ////STEP SIX
@@ -277,12 +288,18 @@ void erf_advance(int level,
     /* Specify tolerances */
     MRIStepSStolerances(mristep_mem, reltol, abstol);
     ////STEP 8.2
+    /* Initialize spgmr solver */
+    LS = SUNLinSol_SPGMR(nv_S, PREC_NONE, 10);
     NLS = SUNNonlinSol_FixedPoint(nv_S, 50);
     ////STEP 8.3
     //    ARKStepSetNonlinearSolver(inner_mem, NLS);
-    MRIStepSetNonlinearSolver(mristep_mem, NLS);
+    if(use_linear)
+      MRIStepSetLinearSolver(mristep_mem, LS, NULL);
+    else
+      MRIStepSetNonlinearSolver(mristep_mem, NLS);
     ////STEP NINE
     MRIStepSetUserData(mristep_mem, (void *) &integrator);  /* Pass udata to user functions */
+    MRIStepSetPostInnerFn(mristep_mem, ProcessStage);
     MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
 
     MRIStepSetTable(mristep_mem, B->q, B);
