@@ -32,8 +32,8 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
           strainRate =  (3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dz_inv
                       + (w(i, j, k) - w(i-1, j, k))*dx_inv; // S13 (k-1/2); // S13 (k-1/2)
       } else if (use_no_slip_stencil_hi) {
-          strainRate =  -(3. * u(i,j,k) - (1./3.) * u(i,j,k-1))*dz_inv
-                       + (w(i, j, k+1) - w(i-1, j, k+1))*dx_inv; // S13 (k-1/2); // S13 (k+1/2)
+          strainRate =  -(3. * u(i,j,k-1) - (1./3.) * u(i,j,k-2))*dz_inv
+                       + (w(i, j, k-1) - w(i-1, j, k-1))*dx_inv; // S13 (k-1/2); // S13 (k+1/2)
       } else {
           strainRate = (u(i, j, k) - u(i, j, k-1))*dz_inv + (w(i, j, k) - w(i-1, j, k))*dx_inv; // S13 (k-1/2)
       }
@@ -57,8 +57,8 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
           strainRate =  (3. * v(i,j,k) - (1./3.) * v(i,j,k+1))*dz_inv
                       + (w(i, j, k) - w(i, j-1, k))*dy_inv; // S23 (k-1/2)
       } if (use_no_slip_stencil_hi) {
-          strainRate =  -(3. * v(i,j,k) - (1./3.) * v(i,j,k-1))*dz_inv
-                       + (w(i, j, k+1) - w(i, j-1, k+1))*dy_inv; // S23 (k+1/2
+          strainRate =  -(3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dz_inv
+                       + (w(i, j, k) - w(i, j-1, k))*dy_inv; // S23 (k+1/2
       } else {
           strainRate = (v(i, j, k) - v(i, j, k-1))*dz_inv
                      + (w(i, j, k) - w(i, j-1, k))*dy_inv; // S23 (k-1/2)
