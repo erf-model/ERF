@@ -446,7 +446,7 @@ IOManager::writeBuildInfo(std::ostream& os)
 void
 IOManager::writePlotFile(const std::string& dir, std::ostream& os, amrex::VisMF::How how)
 {
-std::cout << "writePlotFile_00" << std::endl;
+
   int i, n;
   //
   // The list of indices of State to write to plotfile.

@@ -231,7 +231,7 @@ void erf_advance(int level,
 
 #ifdef AMREX_USE_SUNDIALS
     bool use_erk3 = false;
-    bool use_linear = true;
+    bool use_linear = false;
     ////STEP FOUR
     /* Call ARKStepCreate to initialize the inner ARK timestepper module and
     specify the right-hand side function in y'=f(t,y), the inital time
