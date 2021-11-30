@@ -51,6 +51,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/PlotFile.H
        ${SRC_DIR}/IO/PlotFile.cpp
        ${SRC_DIR}/IO/IOManager.cpp
+       ${SRC_DIR}/IO/NCColumnFile.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration.H
        ${SRC_DIR}/TimeIntegration/MomentumToVelocity.cpp
        ${SRC_DIR}/TimeIntegration/VelocityToMomentum.cpp
