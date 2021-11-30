@@ -16,7 +16,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
 
     // Here, we have computed strain rate on the fly.
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
-    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSize, 
+    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSize,
                                        use_no_slip_stencil_lo, use_no_slip_stencil_hi);
 
     // D_ij term
@@ -82,7 +82,7 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
             tau12Prev = ComputeStressTerm(i, j  , k, u, v, w, momentumEqn,
                                           DiffusionDir::y, cellSize, Ksmag, solverChoice, false, false);
             tau13Next = ComputeStressTerm(i, j, k+1, u, v, w, momentumEqn,
-                                          DiffusionDir::z, cellSize, Ksmag, solverChoice, 
+                                          DiffusionDir::z, cellSize, Ksmag, solverChoice,
                                           use_no_slip_stencil_at_lo_k, use_no_slip_stencil_at_hi_k);
             tau13Prev = ComputeStressTerm(i, j, k  , u, v, w, momentumEqn,
                                           DiffusionDir::z, cellSize, Ksmag, solverChoice,
