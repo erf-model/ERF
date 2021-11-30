@@ -13,7 +13,7 @@
 #include <nvector/nvector_manyvector.h>/* manyvector N_Vector types, fcts. etc */
 #include <AMReX_NVector_MultiFab.H>    /* MultiFab N_Vector types, fcts., macros */
 #include <AMReX_Sundials.H>    /* MultiFab N_Vector types, fcts., macros */
-#include <sunlinsol/sunlinsol_spgmr.h> /* access to SPGMR SUNLinearSolver      */
+#include <sunnonlinsol/sunnonlinsol_fixedpoint.h> /* access to SPGMR SUNLinearSolver      */
 #include <sundials/sundials_types.h>   /* defs. of realtype, sunindextype, etc */
 #endif
 
@@ -148,7 +148,7 @@ void erf_advance(int level,
 #ifdef AMREX_USE_SUNDIALS
 
     // Create SUNDIALS specific objects
-    SUNLinearSolver LS = NULL;    /* empty linear solver object */
+    SUNNonlinearSolver NLS = NULL;    /* empty nonlinear solver object */
     void *inner_mem = NULL;      /* empty ARKode memory structure */
     void *mristep_mem = NULL;      /* empty ARKode memory structure */
     // Create an N_Vector wrapper for the solution MultiFab
@@ -223,18 +223,20 @@ void erf_advance(int level,
     integrator.set_post_update(post_update_fun);
 
 #ifdef AMREX_USE_SUNDIALS
-    /* Call MRIStepCreate to initialize the ERK timestepper module and
+    bool use_erk3 = false;
+    /* Call ARKStepCreate to initialize the inner ARK timestepper module and
     specify the right-hand side function in y'=f(t,y), the inital time
     T0, and the initial dependent variable vector y. */
-    inner_mem = ARKStepCreate(f0, NULL, time, nv_S);
-    mristep_mem = MRIStepCreate(f, time, nv_S, MRISTEP_ARKSTEP, inner_mem);
-    MRIStepSetUserData(mristep_mem, (void *) &integrator);  /* Pass udata to user functions */
-    MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
-    /* Specify tolerances */
-    MRIStepSStolerances(mristep_mem, reltol, abstol);
-    MRIStepSetFixedStep(mristep_mem, hfixed);
+    if(use_erk3)
+      inner_mem = ARKStepCreate(f0, NULL, time, nv_S);
+    else
+      inner_mem = ARKStepCreate(NULL, f0, time, nv_S);
 
-    bool use_erk3 = false;
+    ARKStepSetFixedStep(inner_mem, hfixed_mri);            // Specify fixed time step size
+
+    NLS = SUNNonlinSol_FixedPoint(nv_S, 50);
+    ARKStepSetNonlinearSolver(inner_mem, NLS);
+
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     if(use_erk3)
     {
@@ -249,6 +251,7 @@ void erf_advance(int level,
     B->c[2] = 0.5;
     B->q=3;
     B->p=0;
+    ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
     }
     else
     {
@@ -260,12 +263,20 @@ void erf_advance(int level,
     B->c[1] = 1.0;
     B->c[2] = 1.0;
     B->q=2;
+    ARKStepSetTables(inner_mem, B->q, B->p, B, NULL);       // Specify Butcher table
     }
     //Set table
     //    ERKStepSetTable(arkode_mem, B);
-    ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
-    ARKStepSetFixedStep(inner_mem, hfixed_mri);            // Specify fixed time step size
+    mristep_mem = MRIStepCreate(f, time, nv_S, MRISTEP_ARKSTEP, inner_mem);
+    MRIStepSetUserData(mristep_mem, (void *) &integrator);  /* Pass udata to user functions */
+    MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
+    MRIStepSetTable(mristep_mem, B->q, B);
 
+    /* Specify tolerances */
+    MRIStepSStolerances(mristep_mem, reltol, abstol);
+    MRIStepSetFixedStep(mristep_mem, hfixed);
+
+    MRIStepSetNonlinearSolver(mristep_mem, NLS);
     MRIStepSetTable(mristep_mem, B->q, B);
 
     // Free the Butcher table
@@ -296,6 +307,12 @@ void erf_advance(int level,
     // **************************************************************************************
     integrator.advance(state_old, state_new, time, dt);
     }
+
+#ifdef AMREX_USE_SUNDIALS
+  MRIStepFree(&mristep_mem);
+  ARKStepFree(&inner_mem);
+  SUNNonlinSolFree(NLS);    // Free nonlinear solvers
+#endif
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after we have taken a timestep
     // **************************************************************************************
