@@ -140,7 +140,7 @@ void erf_advance(int level,
     bool l_lo_z_is_no_slip = ERF::lo_z_is_no_slip;
     bool l_hi_z_is_no_slip = ERF::hi_z_is_no_slip;
 
-    auto rhs_fun = [&](      Vector<std::unique_ptr<MultiFab> >& S_rhs, 
+    auto rhs_fun = [&](      Vector<std::unique_ptr<MultiFab> >& S_rhs,
                        const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data,
                 source,

@@ -186,18 +186,18 @@ void erf_rhs (int level,
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
         //         fluxes at fine-fine interfaces
         amrex::ParallelFor(tbx, S_data[IntVar::cons]->nComp(),
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
-        { 
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
             xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n) + diffflux_x(i,j,k,n);
         });
         amrex::ParallelFor(tby, S_data[IntVar::cons]->nComp(),
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
-        { 
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
             yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n) + diffflux_y(i,j,k,n);
         });
         amrex::ParallelFor(tbz, S_data[IntVar::cons]->nComp(),
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
-        { 
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
             zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n) + diffflux_z(i,j,k,n);
         });
 
