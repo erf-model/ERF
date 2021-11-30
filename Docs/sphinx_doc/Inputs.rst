@@ -488,6 +488,10 @@ List of Parameters
 |                                 | old data in    |                |                |
 |                                 | checkpoints?   |                |                |
 +---------------------------------+----------------+----------------+----------------+
+| **erf.checkpoint_type**         | AMReX chk file | "amrex" or     | "amrex"        |
+|                                 | type or NetCDF | "NetCDF"       |                |
+|                                 |                |                |                |
++---------------------------------+----------------+----------------+----------------+
 
 .. _notes-4:
 
@@ -512,6 +516,9 @@ Notes
 -  If you are doing a scaling study then set
    **amr.checkpoint_files_output** = 0 so you can test scaling of the
    algorithm without I/O.
+
+-  If you compile with NetCDF capability, you may choose to dump a
+   NetCDF format checkpoint file instead of the default.
 
 .. _examples-of-usage-7:
 
@@ -597,6 +604,10 @@ List of Parameters
 |                             | the writing of   | :math:`\geq 1`   |         |
 |                             | the plotfiles    |                  |         |
 +-----------------------------+------------------+------------------+---------+
+| **erf.plotfile_type**       | AMReX plt file   | "amrex" or       | "amrex" |
+|                             | type or NetCDF   | "NetCDF"         |         |
+|                             |                  |                  |         |
++-----------------------------+------------------+------------------+---------+
 
 .. _notes-5:
 
@@ -619,6 +630,9 @@ Notes
 -  By default, plotfiles are written in double precision (NATIVE
    format). If you want to save space by writing them in single
    precision, set the fab.format flag to IEEE32.
+
+-  If you compile with NetCDF capability, you may choose to dump a
+   NetCDF format plot file instead of the default.
 
 .. _examples-of-usage-8:
 

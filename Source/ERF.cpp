@@ -43,6 +43,16 @@ int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
+std::string ERF::plotfile_type = "amrex";
+std::string ERF::checkpoint_type = "amrex";
+
+int         ERF::output_1d_column = 0;
+amrex::Real ERF::column_interval  = -1;
+amrex::Real ERF::column_per       = -1.0;
+amrex::Real ERF::column_loc_x     = 0.0;
+amrex::Real ERF::column_loc_y     = 0.0;
+std::string ERF::column_file_name = "column_data.nc";
+
 bool        ERF::init_abl      = false;
 
 // Create dens_hse and pres_hse with one ghost cell
@@ -139,6 +149,16 @@ ERF::read_params()
   pp.query("v", verbose);
   pp.query("sum_interval", sum_interval);
   pp.query("dump_old", dump_old);
+
+  pp.query("plotfile_type", plotfile_type);
+  pp.query("checkpoint_type", checkpoint_type);
+
+  pp.query("output_1d_column", output_1d_column);
+  pp.query("column_per", column_per);
+  pp.query("column_interval", column_interval);
+  pp.query("column_loc_x", column_loc_x);
+  pp.query("column_loc_y", column_loc_y);
+  pp.query("column_file_name", column_file_name);
 
   pp.query("coupling_type",coupling_type);
   if (coupling_type == "OneWay")
@@ -663,25 +683,17 @@ ERF::post_timestep(int /*iteration*/)
 #endif
 
   if (level == 0) {
-    int nstep = parent->levelSteps(0);
-    amrex::Real dtlev = parent->dtLevel(0);
-    amrex::Real cumtime = parent->cumTime() + dtlev;
-
-    bool sum_int_test = (sum_interval > 0 && nstep % sum_interval == 0);
-
-    bool sum_per_test = false;
-
-    if (sum_per > 0.0) {
-      const int num_per_old = static_cast<int>(amrex::Math::floor((cumtime - dtlev) / sum_per));
-      const int num_per_new = static_cast<int>(amrex::Math::floor((cumtime) / sum_per));
-
-      if (num_per_old != num_per_new) {
-        sum_per_test = true;
-      }
-    }
-
-    if (sum_int_test || sum_per_test) {
+    if (is_it_time_for_action(sum_interval, sum_per)) {
       sum_integrated_quantities();
+    }
+    if (output_1d_column) {
+#ifdef ERF_USE_NETCDF
+      if (is_it_time_for_action(column_interval, column_per)) {
+        io_mgr->writeToNCColumnFile(column_file_name, column_loc_x, column_loc_y);
+      }
+#else
+      amrex::Abort("To output 1D column files ERF must be compiled with NetCDF");
+#endif
     }
   }
 }
@@ -698,6 +710,8 @@ ERF::post_restart()
 #ifdef DO_PROBLEM_POST_RESTART
   problem_post_restart();
 #endif
+
+  //TODO: handle post restart dumping of column data
 }
 
 void
@@ -743,31 +757,19 @@ ERF::post_init(amrex::Real /*stop_time*/)
   problem_post_init();
 #endif
 
-  int nstep = parent->levelSteps(0);
-  if (cumtime != 0.0)
-    cumtime += dtlev;
-
-  bool sum_int_test = false;
-
-  if (sum_interval > 0) {
-    if (nstep % sum_interval == 0) {
-      sum_int_test = true;
-    }
-  }
-
-  bool sum_per_test = false;
-
-  if (sum_per > 0.0) {
-    const int num_per_old = static_cast<int>(amrex::Math::floor((cumtime - dtlev) / sum_per));
-    const int num_per_new = static_cast<int>(amrex::Math::floor((cumtime) / sum_per));
-
-    if (num_per_old != num_per_new) {
-      sum_per_test = true;
-    }
-  }
-
-  if (sum_int_test || sum_per_test) {
+  if (is_it_time_for_action(sum_interval, sum_per)) {
     sum_integrated_quantities();
+  }
+
+  if (output_1d_column) {
+#ifdef ERF_USE_NETCDF
+    io_mgr->createNCColumnFile(column_file_name, column_loc_x, column_loc_y);
+    if (is_it_time_for_action(column_interval, column_per)) {
+      io_mgr->writeToNCColumnFile(column_file_name, column_loc_x, column_loc_y);
+    }
+#else
+    amrex::Abort("To output 1D column files ERF must be compiled with NetCDF");
+#endif
   }
 }
 
@@ -1159,12 +1161,18 @@ ERF::build_interior_boundary_mask(int ng)
 
 void ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 {
+  if (checkpoint_type == "amrex") {
+    AmrLevel::restart(papa, is, bReadSpecial);
+    io_mgr->restart(papa, is, bReadSpecial);
+  }
 #ifdef ERF_USE_NETCDF
-  io_mgr->ncrestart(papa, is, bReadSpecial);
-#else
-  AmrLevel::restart(papa, is, bReadSpecial);
-  io_mgr->restart(papa, is, bReadSpecial);
+  else if (checkpoint_type == "NetCDF") {
+    io_mgr->ncrestart(papa, is, bReadSpecial);
+  }
 #endif
+  else {
+    amrex::Abort("Invalid checkpoint_type specified");
+  }
 }
 
 void ERF::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
@@ -1175,12 +1183,18 @@ void ERF::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
 void ERF::checkPoint(const std::string& dir, std::ostream& os,
                      amrex::VisMF::How how, bool dump_old_default)
 {
+  if (checkpoint_type == "amrex") {
+    AmrLevel::checkPoint(dir, os, how, dump_old);
+    io_mgr->checkPoint(dir, os, how, dump_old_default);
+  }
 #ifdef ERF_USE_NETCDF
-  io_mgr->NCWriteCheckpointFile (dir, os, dump_old);
-#else
-  AmrLevel::checkPoint(dir, os, how, dump_old);
-  io_mgr->checkPoint(dir, os, how, dump_old_default);
+  else if (checkpoint_type == "NetCDF") {
+    io_mgr->NCWriteCheckpointFile (dir, os, dump_old);
+  }
 #endif
+  else {
+    amrex::Abort("Invalid checkpoint_type specified");
+  }
 }
 
 void ERF::setPlotVariables()
@@ -1196,11 +1210,17 @@ void ERF::writeJobInfo(const std::string& dir)
 
 void ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
 {
-#ifdef ERF_USE_NETCDF
-  io_mgr->writeNCPlotFile(dir, os);
-#else
-  io_mgr->writePlotFile(dir, os, how);
-#endif
+  if (plotfile_type == "amrex") {
+    io_mgr->writePlotFile(dir, os, how);
+  }
+  #ifdef ERF_USE_NETCDF
+  else if (plotfile_type == "NetCDF") {
+    io_mgr->writeNCPlotFile(dir, os);
+  }
+  #endif
+  else {
+    amrex::Abort("Invalid plotfile_type specified");
+  }
 }
 
 void ERF::writeSmallPlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)

@@ -320,6 +320,7 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     amrex::Print() << "read CPU time: " << erf.previousCPUTimeUsed << "\n";
   }
 
+  /* Deprecated: erf.track_grid_losses is not a supported option
   if (erf.track_grid_losses && erf.level == 0) {
 
     // get the current value of the diagnostic quantities
@@ -330,6 +331,7 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
     DiagFile.close();
   }
+  */
 
   /*Not implemented for CUDA
       if (level == 0)

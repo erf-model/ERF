@@ -184,6 +184,9 @@ public:
     amrex::Vector<amrex::Real>& dt_level,
     amrex::Real stop_time) override;
 
+  //! Decide if it is time to take an action
+  bool is_it_time_for_action(int action_interval, amrex::Real action_per);
+
   //! Compute new `dt'.
   virtual void computeNewDt(
     int finest_level,
@@ -350,6 +353,16 @@ protected:
 
   static int sum_interval;
   static amrex::Real sum_per;
+
+  static std::string plotfile_type;
+  static std::string checkpoint_type;
+
+  static int         output_1d_column;
+  static amrex::Real column_interval;
+  static amrex::Real column_per;
+  static amrex::Real column_loc_x;
+  static amrex::Real column_loc_y;
+  static std::string column_file_name;
 
   static amrex::Real initial_dt;
   static amrex::Real fixed_dt;
