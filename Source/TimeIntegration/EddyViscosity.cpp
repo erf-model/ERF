@@ -45,24 +45,24 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 
             Real S13 = 0.25* (
                       ComputeStrainRate(i  , j, k  , u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi)
+                                       use_no_slip_stencil_lo, false)
                     + ComputeStrainRate(i  , j, k+1, u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi)
+                                       false, use_no_slip_stencil_hi)
                     + ComputeStrainRate(i+1, j, k  , u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi)
+                                       use_no_slip_stencil_lo, false)
                     + ComputeStrainRate(i+1, j, k+1, u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi)
+                                       false, use_no_slip_stencil_hi)
                     );
 
             Real S23 = 0.25* (
                       ComputeStrainRate(i, j  , k  , u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi)
+                                       use_no_slip_stencil_lo, false)
                     + ComputeStrainRate(i, j  , k+1, u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi)
+                                       false, use_no_slip_stencil_hi)
                     + ComputeStrainRate(i, j+1, k  , u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi)
+                                       use_no_slip_stencil_lo, false)
                     + ComputeStrainRate(i, j+1, k+1, u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi)
+                                       false, use_no_slip_stencil_hi)
                     );
 
             Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;

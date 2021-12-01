@@ -70,7 +70,7 @@ void erf_rhs (int level,
     if (solverChoice.les_type == LESType::Smagorinsky)
     {
         ComputeTurbulentViscosity(xvel, yvel, zvel, *S_data[IntVar::cons],
-                                  eddyViscosity, dx, solverChoice,
+                                  eddyViscosity, dxInv, solverChoice,
                                   lo_z_is_no_slip, klo, hi_z_is_no_slip, khi);
         eddyViscosity.FillBoundary(geom.periodicity());
         amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};

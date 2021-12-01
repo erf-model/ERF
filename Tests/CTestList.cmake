@@ -87,6 +87,7 @@ add_test_r(TaylorGreenAdvectingDiffusing    "TaylorGreenVortex/taylor_green" "pl
 add_test_r(CouetteFlow "CouetteFlow/erf_couette_flow" "plt00050")
 add_test_r(PoiseuilleFlow "PoiseuilleFlow/erf_poiseuille_flow" "plt00010")
 add_test_r(EkmanSpiral "EkmanSpiral/ekman_spiral" "plt00010")
+add_test_r(ABL "ABL/erf_abl" "plt00010")
 
 #=============================================================================
 # Performance tests
