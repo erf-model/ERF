@@ -24,7 +24,8 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       strainRate = (u(i, j, k) - u(i-1, j, k))*dx_inv;
       break;
     case DiffusionDir::y: // S12
-      strainRate = (u(i, j, k) - u(i, j-1, k))*dy_inv + (v(i, j, k) - v(i-1, j, k)) * dx_inv * 0.5;
+      strainRate  = (u(i, j, k) - u(i, j-1, k))*dy_inv + (v(i, j, k) - v(i-1, j, k)) * dx_inv;
+      strainRate *= 0.5;
       break;
     case DiffusionDir::z: // S13
       if (use_no_slip_stencil_lo) {
@@ -45,7 +46,8 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
   case MomentumEqn::y:
     switch (diffDir) {
     case DiffusionDir::x: // S21
-      strainRate = (u(i, j, k) - u(i, j-1, k))*dy_inv + (v(i, j, k) - v(i-1, j, k)) * dx_inv * 0.5;
+      strainRate = (u(i, j, k) - u(i, j-1, k))*dy_inv + (v(i, j, k) - v(i-1, j, k)) * dx_inv;
+      strainRate *= 0.5;
       break;
     case DiffusionDir::y: // S22
       strainRate = (v(i, j, k) - v(i, j-1, k))*dy_inv;
@@ -69,10 +71,12 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
   case MomentumEqn::z:
     switch (diffDir) {
     case DiffusionDir::x: // S31
-      strainRate = (u(i, j, k) - u(i, j, k-1))*dz_inv + (w(i, j, k) - w(i-1, j, k)) * dx_inv * 0.5;
+      strainRate = (u(i, j, k) - u(i, j, k-1))*dz_inv + (w(i, j, k) - w(i-1, j, k)) * dx_inv;
+      strainRate *= 0.5;
       break;
     case DiffusionDir::y: // S32
-      strainRate = (v(i, j, k) - v(i, j, k-1))*dz_inv + (w(i, j, k) - w(i, j-1, k)) * dy_inv * 0.5;
+      strainRate = (v(i, j, k) - v(i, j, k-1))*dz_inv + (w(i, j, k) - w(i, j-1, k)) * dy_inv;
+      strainRate *= 0.5;
       break;
     case DiffusionDir::z: // S33
       strainRate = (w(i, j, k) - w(i, j, k-1))*dz_inv;
