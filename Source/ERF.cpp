@@ -278,14 +278,15 @@ ERF::ERF(
 
   Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
 
-  if (do_reflux && level > 0) {
-    flux_reg.define(
-      bl, papa.boxArray(level - 1), dm, papa.DistributionMap(level - 1),
-      level_geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, NVAR);
-  }
+  flux_reg = 0;
+  if (level > 0 && do_reflux)
+      flux_reg = new FluxRegister(grids, dmap, crse_ratio, level, NVAR);
 }
 
-ERF::~ERF() {}
+ERF::~ERF()
+{
+   delete flux_reg;
+}
 
 void
 ERF::buildMetrics()
@@ -805,28 +806,7 @@ ERF::reflux()
 
   AMREX_ASSERT(level < parent->finestLevel());
 
-  const amrex::Real strt = amrex::ParallelDescriptor::second();
-
-  ERF& fine_level = getLevel(level + 1);
-  amrex::MultiFab& S_crse = get_new_data(State_Type);
-
-  fine_level.flux_reg.Reflux(S_crse);
-
-  if (verbose) {
-    const int IOProc = amrex::ParallelDescriptor::IOProcessorNumber();
-    amrex::Real end = amrex::ParallelDescriptor::second() - strt;
-
-#ifdef AMREX_LAZY
-    Lazy::QueueReduction([=]() mutable {
-#endif
-      amrex::ParallelDescriptor::ReduceRealMax(end, IOProc);
-
-      amrex::Print() << "ERF::reflux() at level " << level
-                     << " : time = " << end << std::endl;
-#ifdef AMREX_LAZY
-    });
-#endif
-  }
+  get_flux_reg(level+1).Reflux(get_new_data(State_Type),1.0, 0, 0, NVAR, geom);
 }
 
 void
@@ -1173,6 +1153,10 @@ void ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
   else {
     amrex::Abort("Invalid checkpoint_type specified");
   }
+
+  BL_ASSERT(flux_reg == 0);
+  if (level > 0 && do_reflux)
+      flux_reg = new FluxRegister(grids, dmap, crse_ratio, level, NVAR);
 }
 
 void ERF::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
