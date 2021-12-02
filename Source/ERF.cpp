@@ -283,9 +283,9 @@ ERF::ERF(
       flux_reg = new FluxRegister(grids, dmap, crse_ratio, level, NVAR);
 }
 
-ERF::~ERF() 
+ERF::~ERF()
 {
-   delete flux_reg; 
+   delete flux_reg;
 }
 
 void
