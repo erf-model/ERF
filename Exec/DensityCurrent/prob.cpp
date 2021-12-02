@@ -13,7 +13,7 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
   r[0] = r_sfc;
   p[0] = p_0 - (0.5*dz) * r[0] * CONST_GRAV;
 
-  int MAX_ITER = 10; 
+  int MAX_ITER = 10;
   amrex::Real TOL = 1.e-8;
 
   int k = 0;
@@ -43,7 +43,7 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
 
           //amrex::Print() << "DRHO " << drho << std::endl;
 
-          r[k] = std::max(0.9*r_sfc, std::min(r[k] + drho, 1.1*r_sfc)); 
+          r[k] = std::max(0.9*r_sfc, std::min(r[k] + drho, 1.1*r_sfc));
           p[k] = getPgivenRTh(r[k]*theta);
 
           //amrex::Print() << "NEW R P " << r[0] << " " << p[0] << std::endl;
@@ -88,7 +88,7 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
 
           Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
 
-          r[k] = std::max(0.9*r[k-1], std::min(r[k] + drho, 1.1*r[k-1])); 
+          r[k] = std::max(0.9*r[k-1], std::min(r[k] + drho, 1.1*r[k-1]));
           p[k] = getPgivenRTh(r[k]*theta);
 
           if (std::abs(drho) < TOL * r[k-1])
@@ -159,7 +159,7 @@ erf_init_prob(
   amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
   amrex::Real rhobar = pbar / (R_d*Tbar);
 
-  amrex::Real theta = parms.T_0; 
+  amrex::Real theta = parms.T_0;
 
   amrex::Vector<amrex::Real> r;
   amrex::Vector<amrex::Real> p;
@@ -185,7 +185,7 @@ erf_init_prob(
 //  amrex::Real rhobar = pbar / (R_d*Tbar);
 
     // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-    amrex::Real Tbar = p[0] / (R_d * r[0]); 
+    amrex::Real Tbar = p[0] / (R_d * r[0]);
 
     amrex::Real L = std::sqrt(
         std::pow((x - parms.x_c)/parms.x_r, 2) +
