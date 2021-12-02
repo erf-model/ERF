@@ -20,6 +20,12 @@ amrex::Real getPgivenRTh(const amrex::Real rhotheta)
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real getdPdRgivenConstantTheta(const amrex::Real rho, const amrex::Real theta)
+{
+    return Gamma * p_0 * std::pow( (R_d * theta / p_0), Gamma) * std::pow(rho, Gamma-1.0) ;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getPprimegivenRTh(const amrex::Real rhotheta, const amrex::Real pres_hse_at_k)
 {
     // diagnostic relation for the full pressure
