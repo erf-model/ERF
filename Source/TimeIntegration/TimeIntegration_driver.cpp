@@ -16,8 +16,7 @@ void erf_advance(int level,
                  MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
                  MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
-                 std::array< MultiFab, AMREX_SPACEDIM>& advflux,
-                 std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
+                 std::array< MultiFab, AMREX_SPACEDIM>& flux,
                  const amrex::Geometry crse_geom,
                  const amrex::Geometry fine_geom,
                  const amrex::IntVect ref_ratio,
@@ -44,6 +43,32 @@ void erf_advance(int level,
     const BoxArray& ba            = cons_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();
 
+    // **************************************************************************************
+    // These are temporary arrays that we use to store the accumulation of the fluxes
+    // **************************************************************************************
+    std::array< MultiFab, AMREX_SPACEDIM >  advflux;
+    std::array< MultiFab, AMREX_SPACEDIM > diffflux;
+
+     advflux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
+    diffflux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
+
+     advflux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+    diffflux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+
+     advflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+    diffflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+
+     advflux[0].setVal(0.);
+     advflux[1].setVal(0.);
+     advflux[2].setVal(0.);
+
+    diffflux[0].setVal(0.);
+    diffflux[1].setVal(0.);
+    diffflux[2].setVal(0.);
+
+    // **************************************************************************************
+    // Here we define state_old and state_new which are the Nvectors to be advanced
+    // **************************************************************************************
     // Initial solution
     amrex::Vector<std::unique_ptr<amrex::MultiFab> > state_old;
     state_old.emplace_back(std::make_unique<amrex::MultiFab>(ba, dm, nvars, cons_old.nGrow())); // cons
@@ -94,6 +119,7 @@ void erf_advance(int level,
     state_old[IntVar::ymom]->FillBoundary(fine_geom.periodicity());
     state_old[IntVar::zmom]->FillBoundary(fine_geom.periodicity());
 
+    // Initialize the fluxes to zero
     state_old[IntVar::xflux]->setVal(0.0_rt);
     state_old[IntVar::yflux]->setVal(0.0_rt);
     state_old[IntVar::zflux]->setVal(0.0_rt);
@@ -195,6 +221,9 @@ void erf_advance(int level,
     // **************************************************************************************
     std::swap(cons_new, *state_new[IntVar::cons]);
 
+    std::swap(flux[0], *state_new[IntVar::xflux]);
+    std::swap(flux[1], *state_new[IntVar::yflux]);
+    std::swap(flux[2], *state_new[IntVar::zflux]);
 
     // One final application of internal and periodic ghost cell filling
     xvel_new.FillBoundary(fine_geom.periodicity());

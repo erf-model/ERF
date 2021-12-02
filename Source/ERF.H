@@ -11,7 +11,7 @@
 #include <AMReX_AmrLevel.H>
 #include <AMReX_iMultiFab.H>
 
-#include <AMReX_YAFluxRegister.H>
+#include <AMReX_FluxRegister.H>
 
 #ifdef AMREX_LAZY
 #include <AMReX_Lazy.H>
@@ -286,10 +286,10 @@ public:
   amrex::MultiFab fine_mask;
   amrex::MultiFab& build_fine_mask();
 
-  amrex::YAFluxRegister flux_reg;
+  amrex::FluxRegister* flux_reg;
 
-  amrex::YAFluxRegister& getFluxReg();
-  amrex::YAFluxRegister& getFluxReg(int lev);
+  amrex::FluxRegister& get_flux_reg();
+  amrex::FluxRegister& get_flux_reg(int lev);
 
   void avgDown();
   void avgDown(int state_indx);
@@ -480,16 +480,16 @@ ERF::stopJob()
 }
 
 AMREX_FORCE_INLINE
-amrex::YAFluxRegister&
-ERF::getFluxReg()
+amrex::FluxRegister&
+ERF::get_flux_reg()
 {
-  return flux_reg;
+  return *flux_reg;
 }
 
 AMREX_FORCE_INLINE
-amrex::YAFluxRegister&
-ERF::getFluxReg(int lev)
+amrex::FluxRegister&
+ERF::get_flux_reg(int lev)
 {
-  return getLevel(lev).getFluxReg();
+  return getLevel(lev).get_flux_reg();
 }
 #endif

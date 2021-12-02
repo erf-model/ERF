@@ -118,12 +118,6 @@ IOManager::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     delete [] dir_for_pass;
 
       }*/
-
-  if (erf.level > 0 && erf.do_reflux) {
-    erf.flux_reg.define(
-      erf.grids, papa.boxArray(erf.level - 1), erf.dmap, papa.DistributionMap(erf.level - 1),
-      erf.geom, papa.Geom(erf.level - 1), papa.refRatio(erf.level - 1), erf.level, NVAR);
-  }
 }
 
 void

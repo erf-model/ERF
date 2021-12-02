@@ -1,5 +1,6 @@
 #include <cmath>
 
+#include <AMReX_FluxRegister.H>
 #include "ERF.H"
 #include "TimeIntegration.H"
 #include "IndexDefines.H"
@@ -26,10 +27,6 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
     BL_PROFILE("ERF::advance()");
 
     int finest_level = parent->finestLevel();
-
-    if (level < finest_level && do_reflux) {
-      getFluxReg(level + 1).reset();
-    }
 
     BL_PROFILE("ERF::do_rk3_advance()");
 
@@ -95,18 +92,16 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   MultiFab source(ba,dm,nvars,1);
   source.setVal(0.0);
 
-  // We keep faceflux so that we can re-fluxing operations for two-way coupling
-  std::array< MultiFab, AMREX_SPACEDIM > faceflux;
-  std::array< MultiFab, AMREX_SPACEDIM > tempflux;
-  //faceflux[0] is of size (ncells_x + 1, ncells_y    , ncells_z    )
-  faceflux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
-  tempflux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
-  //faceflux[1] is of size (ncells_x    , ncells_y + 1, ncells_z    )
-  faceflux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
-  tempflux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
-  //faceflux[2] is of size (ncells_x    , ncells_y    , ncells_z + 1)
-  faceflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
-  tempflux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
+  // These are the actual fluxes we will use to fill the flux registers
+  std::array< MultiFab, AMREX_SPACEDIM > flux;
+
+  flux[0].define(convert(ba,IntVect(1,0,0)), dmap, nvars, 0);
+  flux[1].define(convert(ba,IntVect(0,1,0)), dmap, nvars, 0);
+  flux[2].define(convert(ba,IntVect(0,0,1)), dmap, nvars, 0);
+
+  flux[0].setVal(0.);
+  flux[1].setVal(0.);
+  flux[2].setVal(0.);
 
   // Make sure to fill the ghost cells
   MultiFab state_mf(grids,dmap,nvars,S_old.nGrow());
@@ -142,7 +137,7 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               U_new, V_new, W_new,
               rU_crse, rV_crse, rW_crse,
               source,
-              faceflux, tempflux,
+              flux,
               (level > 0) ? parent->Geom(level-1) : geom,
               geom,
               ref_ratio,
@@ -151,6 +146,38 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               dptr_dens_hse, dptr_pres_hse,
               dptr_rayleigh_tau, dptr_rayleigh_ubar,
               dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+
+  // *****************************************************************
+  // Now take care of the fluxes so we can reflux later
+  // *****************************************************************
+
+    //
+    // Get pointers to Flux registers, or set pointer to zero if not there.
+    //
+    amrex::FluxRegister* fine    = 0;
+    amrex::FluxRegister* current = 0;
+
+    if (finest_level > 0 && do_reflux)
+    {
+        if (level < finest_level)
+        {
+            fine = &get_flux_reg(level+1);
+        }
+        if (level > 0) {
+            current = &get_flux_reg(level);
+        }
+
+        if (current) {
+          for (int i = 0; i < AMREX_SPACEDIM ; i++) {
+            current->FineAdd(flux[i], i, 0, 0, nvars, 1);
+          }
+        }
+        if (fine) { // Note we use ADD with CrseInit rather than CrseAdd since fine is not a YAFluxRegister
+          for (int i = 0; i < AMREX_SPACEDIM ; i++) {
+            fine->CrseInit(flux[i],i,0,0,nvars,-1.,amrex::FluxRegister::ADD);
+          }
+        }
+  }
 
   return dt;
 }
