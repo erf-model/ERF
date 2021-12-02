@@ -152,6 +152,7 @@ void erf_advance(int level,
     // Create SUNDIALS specific objects
     SUNNonlinearSolver NLS = NULL;    /* empty nonlinear solver object */
     SUNLinearSolver LS = NULL;    /* empty linear solver object */
+    void *arkode_mem = NULL;      /* empty ARKode memory structure */
     SUNNonlinearSolver NLSf = NULL;    /* empty nonlinear solver object */
     SUNLinearSolver LSf = NULL;    /* empty linear solver object */
     void *inner_mem = NULL;      /* empty ARKode memory structure */
@@ -232,10 +233,25 @@ void erf_advance(int level,
 #ifdef AMREX_USE_SUNDIALS
     bool use_erk3 = true;
     bool use_linear = false;
+    bool advance_erk=false;
+    bool advance_mri=false;
+    amrex::ParmParse pp("integration.sundials");
+
+    pp.query("erk", advance_erk);
+    pp.query("mri", advance_mri);
+
+    bool advance_rk=!(advance_erk||advance_mri);
+
     ////STEP FOUR
     /* Call ARKStepCreate to initialize the inner ARK timestepper module and
     specify the right-hand side function in y'=f(t,y), the inital time
     T0, and the initial dependent variable vector y. */
+    arkode_mem = ERKStepCreate(f, time, nv_S);
+    ERKStepSetUserData(arkode_mem, (void *) &integrator);  /* Pass udata to user functions */
+    ERKStepSetPostprocessStageFn(arkode_mem, ProcessStage);
+    /* Specify tolerances */
+    ERKStepSStolerances(arkode_mem, reltol, abstol);
+    ERKStepSetFixedStep(arkode_mem, hfixed);
     if(use_erk3)
       inner_mem = ARKStepCreate(f0, NULL, time, nv_S);
     else
@@ -247,7 +263,8 @@ void erf_advance(int level,
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     if(use_erk3)
     {
-	/*
+	if(advance_erk)
+	{
     // Use SSP-RK3
     B->A[1][0] = 1.0;
     B->A[2][0] = 0.25;
@@ -257,7 +274,10 @@ void erf_advance(int level,
     B->b[2] = 2./3.;
     B->c[1] = 1.0;
     B->c[2] = 0.5;
-    B->q=3;*/
+    B->q=3;
+	}
+	if(advance_mri)
+	    {
     B->A[1][0] = 1.0;
     B->A[2][0] = 1.0;
     B->A[2][2] = 0.0;
@@ -267,6 +287,7 @@ void erf_advance(int level,
     B->c[2] = 1.0;
     B->q=2;
     B->p=0;
+	    }
     ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
     }
     else
@@ -291,6 +312,8 @@ void erf_advance(int level,
 */
     //Set table
     //    ERKStepSetTable(arkode_mem, B);
+    if(advance_mri)
+    {
     ////STEP SIX
     mristep_mem = MRIStepCreate(f, time, nv_S, MRISTEP_ARKSTEP, inner_mem);
     ////STEP SEVEN
@@ -312,23 +335,29 @@ void erf_advance(int level,
     MRIStepSetUserData(mristep_mem, (void *) &integrator);  /* Pass udata to user functions */
     MRIStepSetPostInnerFn(mristep_mem, ProcessStage);
     MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
-
+    }
+    //Set table
+    ERKStepSetTable(arkode_mem, B);
+    if(advance_mri)
     MRIStepSetTable(mristep_mem, B->q, B);
 
     // Free the Butcher table
     ARKodeButcherTable_Free(B);
 
-    bool advance_erk=false;
-    amrex::ParmParse pp("integration.sundials");
-
-    pp.query("erk", advance_erk);
-
-    if(advance_erk)
+    if(!advance_rk)
     {
+
+	if(advance_erk)
+	{
+    // Use ERKStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
+    ERKStepEvolve(arkode_mem, tout, nv_S, &t, ARK_NORMAL);
+	}
     ////STEP ELEVEN
+	if(advance_mri)
+	{
     // Use MRIStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
     MRIStepEvolve(mristep_mem, tout, nv_S, &t, ARK_NORMAL);
-
+	}
     // Copy the result stored in nv_S to state_new
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
@@ -352,9 +381,15 @@ void erf_advance(int level,
   N_VDestroy(nv_zmom);
   N_VDestroy(nv_S);
   ////STEP FOURTEEN
+  if(advance_mri)
   MRIStepFree(&mristep_mem);
   ARKStepFree(&inner_mem);
+  ERKStepFree(&arkode_mem);
+  if(advance_mri)
+  {
+  SUNLinSolFree(LS);    // Free nonlinear solvers
   SUNNonlinSolFree(NLS);    // Free nonlinear solvers
+  }
 #endif
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after we have taken a timestep
