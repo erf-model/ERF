@@ -262,6 +262,7 @@ ERF::read_params()
 ERF::ERF()
   : io_mgr(new IOManager(*this))
 {
+  flux_reg = 0;
 }
 
 ERF::ERF(
