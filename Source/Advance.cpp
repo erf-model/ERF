@@ -147,35 +147,36 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               dptr_rayleigh_tau, dptr_rayleigh_ubar,
               dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
 
-  // *****************************************************************
-  // Now take care of the fluxes so we can reflux later
-  // *****************************************************************
-
-    //
-    // Get pointers to Flux registers, or set pointer to zero if not there.
-    //
+    // *****************************************************************
+    // Now fill the flux registers with the fluxes so we can reflux later
+    // *****************************************************************
     amrex::FluxRegister* fine    = 0;
     amrex::FluxRegister* current = 0;
+
+    const auto& dx = geom.CellSize();
 
     if (finest_level > 0 && do_reflux)
     {
         if (level < finest_level)
         {
             fine = &get_flux_reg(level+1);
+            fine->setVal(0.0);
         }
         if (level > 0) {
             current = &get_flux_reg(level);
         }
 
         if (current) {
-          for (int i = 0; i < AMREX_SPACEDIM ; i++) {
-            current->FineAdd(flux[i], i, 0, 0, nvars, 1);
-          }
+          const auto& ref_ratio = parent->refRatio(level-1);
+
+          current->FineAdd(flux[0], 0, 0, 0, nvars, dx[1]*dx[2]);
+          current->FineAdd(flux[1], 1, 0, 0, nvars, dx[0]*dx[2]);
+          current->FineAdd(flux[2], 2, 0, 0, nvars, dx[0]*dx[1]);
         }
         if (fine) { // Note we use ADD with CrseInit rather than CrseAdd since fine is not a YAFluxRegister
-          for (int i = 0; i < AMREX_SPACEDIM ; i++) {
-            fine->CrseInit(flux[i],i,0,0,nvars,-1.,amrex::FluxRegister::ADD);
-          }
+            fine->CrseInit(flux[0],0,0,0,nvars,-dx[1]*dx[2],amrex::FluxRegister::ADD);
+            fine->CrseInit(flux[1],1,0,0,nvars,-dx[0]*dx[2],amrex::FluxRegister::ADD);
+            fine->CrseInit(flux[2],2,0,0,nvars,-dx[0]*dx[1],amrex::FluxRegister::ADD);
         }
   }
 

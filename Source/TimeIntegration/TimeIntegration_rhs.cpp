@@ -27,7 +27,6 @@ void erf_rhs (int level,
     int klo = geom.Domain().smallEnd()[2];
     int khi = geom.Domain().bigEnd()[2];
 
-    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const auto& ba = S_data[IntVar::cons]->boxArray();
     const auto& dm = S_data[IntVar::cons]->DistributionMap();
