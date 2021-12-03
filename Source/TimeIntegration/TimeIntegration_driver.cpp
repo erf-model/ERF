@@ -56,7 +56,7 @@ void erf_fast_rhs (int level,
 static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int f_fast(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data);
-static int StoreStage(realtype t, N_Vector f_data, void *user_data);
+static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data);
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
 #endif
 
@@ -583,7 +583,7 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   return 0;
 }
 
-static int StoreStage(realtype t, N_Vector f_data, void *user_data)
+static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
 {
 
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
