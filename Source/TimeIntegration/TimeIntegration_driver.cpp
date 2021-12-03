@@ -556,7 +556,10 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
   TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = fast_userdata->integrator;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
+  const amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_rhs;
+
+  N_VConst(0.0, y_rhs);
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
   S_data.resize(num_vecs);
@@ -568,11 +571,11 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
       S_rhs[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
   }
 
-  //Initialize to 0 with dummy function
-  f0(t, y_data, y_rhs, user_data);
+  //  integrator->call_post_update(S_data, t);
+  //  integrator->call_post_update(S_stage_data, t);
 
   //Call rhs_fun_fast lambda stored in userdata which uses erf_fast_rhs
-  fast_userdata->rhs_fun_fast(S_rhs, *(fast_userdata->S_stage_data), S_data, t);
+  //  fast_userdata->rhs_fun_fast(S_rhs, *(fast_userdata->S_stage_data), S_data, t);
 
   for(int i=0; i<num_vecs; i++)
   {
