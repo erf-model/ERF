@@ -279,7 +279,7 @@ void erf_advance(int level,
 #ifdef AMREX_USE_SUNDIALS
     bool use_erk3 = true;
     bool use_linear = false;
-    bool advance_erk=true;
+    bool advance_erk=false;
     bool advance_mri=false;
     amrex::ParmParse pp("integration.sundials");
 
