@@ -53,6 +53,8 @@ else ()
    # Set build options for subproject
    set(EXAMPLES_ENABLE_C            OFF                        CACHE INTERNAL "" )
    set(EXAMPLES_ENABLE_CXX          OFF                        CACHE INTERNAL "" )
+   set(EXAMPLES_INSTALL             OFF                        CACHE INTERNAL "" )
+   set(BUILD_TESTING                OFF                        CACHE INTERNAL "" )
    set(ENABLE_MPI                   OFF                        CACHE INTERNAL "" )
    set(ENABLE_OPENMP                ${ERF_ENABLE_OMP}                 CACHE INTERNAL "" )
    if (AMReX_GPU_BACKEND STREQUAL CUDA)
@@ -76,8 +78,6 @@ else ()
    set(BUILD_IDA                    OFF                        CACHE INTERNAL "" )
    set(BUILD_IDAS                   OFF                        CACHE INTERNAL "" )
    set(BUILD_CVODES                 OFF                        CACHE INTERNAL "" )
-   set(BUILD_TESTING OFF)
-   set(EXAMPLES_INSTALL OFF)
 
    #  Add  SUNDIALS sources to the build
    add_subdirectory(${SUNDIALS_SRC_DIR})
