@@ -31,50 +31,35 @@ void erf_fast_rhs (int level,
     const auto& ba = S_data[IntVar::cons]->boxArray();
     const auto& dm = S_data[IntVar::cons]->DistributionMap();
 
-    amrex::MultiFab xvel(convert(ba,IntVect(1,0,0)), dm, 1, 1);
-    amrex::MultiFab yvel(convert(ba,IntVect(0,1,0)), dm, 1, 1);
-    amrex::MultiFab zvel(convert(ba,IntVect(0,0,1)), dm, 1, 1);
+    amrex::MultiFab Delta_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
+    amrex::MultiFab Delta_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
+    amrex::MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, 1);
+    amrex::MultiFab Delta_rho  (            ba                , dm, 1, 1);
+    amrex::MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
+   
+    // Create delta_rho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
+    MultiFab::Copy(Delta_rho_u    , *S_data[IntVar::xmom], 0, 0, 1, 1);
+    MultiFab::Copy(Delta_rho_v    , *S_data[IntVar::ymom], 0, 0, 1, 1);
+    MultiFab::Copy(Delta_rho_w    , *S_data[IntVar::zmom], 0, 0, 1, 1);
+    MultiFab::Copy(Delta_rho      , *S_data[IntVar::cons], Rho_comp     , 0, 1,1);
+    MultiFab::Copy(Delta_rho_theta, *S_data[IntVar::cons], RhoTheta_comp, 0, 1,1);
+   
+    MultiFab::Subtract(Delta_rho_u    , *S_stage_data[IntVar::xmom], 0, 0, 1, 1);
+    MultiFab::Subtract(Delta_rho_v    , *S_stage_data[IntVar::ymom], 0, 0, 1, 1);
+    MultiFab::Subtract(Delta_rho_w    , *S_stage_data[IntVar::zmom], 0, 0, 1, 1);
+    MultiFab::Subtract(Delta_rho      , *S_stage_data[IntVar::cons], 0, Rho_comp     , 1, 1);
+    MultiFab::Subtract(Delta_rho_theta, *S_stage_data[IntVar::cons], 0, RhoTheta_comp, 1, 1);
 
-    MomentumToVelocity(xvel, yvel, zvel,
-                       *S_data[IntVar::cons],
-                       *S_data[IntVar::xmom],
-                       *S_data[IntVar::ymom],
-                       *S_data[IntVar::zmom],
-                       1, solverChoice.spatial_order);
-
-    xvel.FillBoundary(geom.periodicity());
-    yvel.FillBoundary(geom.periodicity());
-    zvel.FillBoundary(geom.periodicity());
-
-    // Apply BC on velocity data on faces
-    // Note that the BC was already applied on momentum
-    amrex::Vector<MultiFab*> vel_vars{&xvel, &yvel, &zvel};
-    ERF::applyBCs(geom, vel_vars);
+    // Not sure if we need these
+    Delta_rho_u.FillBoundary(geom.periodicity());
+    Delta_rho_v.FillBoundary(geom.periodicity());
+    Delta_rho_w.FillBoundary(geom.periodicity());
+    Delta_rho_theta.FillBoundary(geom.periodicity());
 
     // *************************************************************************
     // Set gravity as a vector
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
-
-    // *************************************************************************
-    // Calculate cell-centered eddy viscosity
-    //
-    // Notes:
-    // 1. Need to apply BC on velocity field so that ComputeStrainRate works
-    //    properly
-    // 2. Need to call FillBoundary and applyBCs to set ghost values on all
-    //    boundaries so that InterpolateTurbulentViscosity works properly
-    // *************************************************************************
-    MultiFab eddyViscosity(S_data[IntVar::cons]->boxArray(),S_data[IntVar::cons]->DistributionMap(),1,1);
-    if (solverChoice.les_type == LESType::Smagorinsky)
-    {
-        ComputeTurbulentViscosity(xvel, yvel, zvel, *S_data[IntVar::cons],
-                                  eddyViscosity, dxInv, solverChoice,
-                                  lo_z_is_no_slip, klo, hi_z_is_no_slip, khi);
-        eddyViscosity.FillBoundary(geom.periodicity());
-        amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};
-        ERF::applyBCs(geom, eddyvisc_update);
-    }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
@@ -118,18 +103,15 @@ void erf_fast_rhs (int level,
         auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
-        const Array4<Real> & cell_data  = S_data[IntVar::cons]->array(mfi);
-        const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons]->array(mfi);
-
+        const Array4<Real> & cell_data        = S_data[IntVar::cons]->array(mfi);
+        const Array4<Real> & cell_rhs         = S_rhs[IntVar::cons]->array(mfi);
         const Array4<Real> & cell_stage_data  = S_stage_data[IntVar::cons]->array(mfi);
 
-        const Array4<Real> & u = xvel.array(mfi);
-        const Array4<Real> & v = yvel.array(mfi);
-        const Array4<Real> & w = zvel.array(mfi);
-
-        const Array4<Real>& rho_u = S_data[IntVar::xmom]->array(mfi);
-        const Array4<Real>& rho_v = S_data[IntVar::ymom]->array(mfi);
-        const Array4<Real>& rho_w = S_data[IntVar::zmom]->array(mfi);
+        const Array4<Real>& delta_rho_u     = Delta_rho_u.array(mfi);
+        const Array4<Real>& delta_rho_v     = Delta_rho_v.array(mfi);
+        const Array4<Real>& delta_rho_w     = Delta_rho_w.array(mfi);
+        const Array4<Real>& delta_rho       = Delta_rho.array(mfi);
+        const Array4<Real>& delta_rho_theta = Delta_rho_theta.array(mfi);
 
         const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom]->array(mfi);
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom]->array(mfi);
@@ -144,8 +126,6 @@ void erf_fast_rhs (int level,
         const Array4<Real>& advflux_y = advflux[1].array(mfi);
         const Array4<Real>& advflux_z = advflux[2].array(mfi);
 
-        const Array4<Real>& Ksmag = eddyViscosity.array(mfi);
-
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
@@ -155,11 +135,13 @@ void erf_fast_rhs (int level,
             if (n == Rho_comp)
             {
                 // We use the most current momenta here to update rho
-                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data, n,
+                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
+                                         cell_data, Rho_comp,
                                          advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
             } else if (n == RhoTheta_comp) {
                 // We use the most current momenta but the "lagged" theta here to update (rho theta)
-                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_stage_data, n,
+                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
+                                         cell_stage_data, RhoTheta_comp,
                                          advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
             } else {
                 cell_rhs(i, j, k, n) = 0.0;
@@ -216,8 +198,9 @@ void erf_fast_rhs (int level,
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real exner_pi_l = std::pow(getPgivenRTh(cell_stage_data(i-1,j,k,RhoTheta_comp))/p_0,R_d/c_p);
                 Real exner_pi_r = std::pow(getPgivenRTh(cell_stage_data(i  ,j,k,RhoTheta_comp))/p_0,R_d/c_p);
-                rho_u_rhs(i, j, k) += (-dxInv[0]) * Gamma * R_d * 0.5 * (exner_pi_l + exner_pi_r) *  
-                  (cell_data(i  ,j,k, RhoTheta_comp) - cell_data(i-1,j,k, RhoTheta_comp));
+                Real exner_pi_c =  0.5 * (exner_pi_l + exner_pi_r);
+                rho_u_rhs(i, j, k) += (-dxInv[0]) * Gamma * R_d * exner_pi_c * 
+                  (delta_rho_theta(i  ,j,k,0) - delta_rho_theta(i-1,j,k,0));
 
             } // not on coarse-fine boundary
         },
@@ -238,8 +221,9 @@ void erf_fast_rhs (int level,
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real exner_pi_l = std::pow(getPgivenRTh(cell_stage_data(i,j-1,k,RhoTheta_comp))/p_0,R_d/c_p);
                 Real exner_pi_r = std::pow(getPgivenRTh(cell_stage_data(i,j  ,k,RhoTheta_comp))/p_0,R_d/c_p);
-                rho_v_rhs(i, j, k) += (-dxInv[1]) * Gamma * R_d * 0.5 * (exner_pi_l + exner_pi_r) *  
-                  (cell_data(i,j  ,k, RhoTheta_comp) - cell_data(i,j-1,k, RhoTheta_comp));
+                Real exner_pi_c =  0.5 * (exner_pi_l + exner_pi_r);
+                rho_v_rhs(i, j, k) += (-dxInv[1]) * Gamma * R_d * exner_pi_c *
+                  (delta_rho_theta(i,j  ,k,0) - delta_rho_theta(i,j-1,k,0));
 
             } // not on coarse-fine boundary
         },
@@ -261,18 +245,17 @@ void erf_fast_rhs (int level,
                 Real exner_pi_c =  0.5 * (exner_pi_l + exner_pi_r);
 
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                rho_w_rhs(i, j, k) += (-dxInv[2]) * Gamma * R_d * exner_pi_c * 
-                  (cell_data(i,j,k  ,RhoTheta_comp) - cell_data(i,j,k-1,RhoTheta_comp));
+                rho_w_rhs(i, j, k) += -1.0 * Gamma * R_d * exner_pi_c * 
+                  (delta_rho_theta(i,j,k,0) - delta_rho_theta(i,j,k-1,0))*dxInv[2];
 
-               // Add gravity term
-               Real rhobar = 0.5 * (dptr_dens_hse[k] + dptr_dens_hse[k-1]);
-               Real  pibar = std::pow(0.5 * (dptr_pres_hse[k] + dptr_pres_hse[k-1]),R_d/c_p);
-               rho_w_rhs(i, j, k) += grav_gpu[2] * (
-                   InterpolateDensityPertFromCellToFace(i, j, k, cell_data,
-                                                       Coord::z, solverChoice.spatial_order, dptr_dens_hse)
-                   - (R_d / (c_p - R_d)) * exner_pi_c * rhobar / pibar * 
-                   InterpolateRhoThetaFromCellToFace(i, j, k, cell_data      , Coord::z, solverChoice.spatial_order) /
-                   InterpolateRhoThetaFromCellToFace(i, j, k, cell_stage_data, Coord::z, solverChoice.spatial_order) );
+                // Add gravity term
+                Real rhobar = 0.5 * (dptr_dens_hse[k] + dptr_dens_hse[k-1]);
+                Real  pibar = std::pow(0.5 * (dptr_pres_hse[k] + dptr_pres_hse[k-1]),R_d/c_p);
+                rho_w_rhs(i, j, k) += grav_gpu[2] * (
+                    InterpolateFromCellOrFace(i, j, k, delta_rho, 0, Coord::z, 2)
+                    - (R_d / (c_p - R_d)) * exner_pi_c * rhobar / pibar * 
+                    InterpolateFromCellOrFace(i, j, k, delta_rho_theta,             0, Coord::z, 2) /
+                    InterpolateFromCellOrFace(i, j, k, cell_stage_data, RhoTheta_comp, Coord::z, 2) );
 
             } // not on coarse-fine boundary
         });
