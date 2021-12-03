@@ -147,13 +147,9 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
               dptr_rayleigh_tau, dptr_rayleigh_ubar,
               dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
 
-  // *****************************************************************
-  // Now take care of the fluxes so we can reflux later
-  // *****************************************************************
-
-    //
-    // Get pointers to Flux registers, or set pointer to zero if not there.
-    //
+    // *****************************************************************
+    // Now fill the flux registers with the fluxes so we can reflux later
+    // *****************************************************************
     amrex::FluxRegister* fine    = 0;
     amrex::FluxRegister* current = 0;
 
@@ -162,6 +158,7 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
         if (level < finest_level)
         {
             fine = &get_flux_reg(level+1);
+            fine->setVal(0.0);
         }
         if (level > 0) {
             current = &get_flux_reg(level);

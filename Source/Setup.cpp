@@ -243,15 +243,26 @@ ERF::initDataProb (amrex::MultiFab& S_new,
     amrex::Print() << "Done initializing level " << level << " data "
                    << std::endl;
   }
-
 }
 
 void
 ERF::initRayleigh()
 {
+    AMREX_ALWAYS_ASSERT(solverChoice.use_rayleigh_damping);
     const auto geomdata = geom.data();
 
-    erf_init_rayleigh(h_rayleigh_tau[level], h_rayleigh_ubar[level], h_rayleigh_vbar[level], h_rayleigh_thetabar[level], geomdata);
+    const int zlen_rayleigh = geom.Domain().length(2);
+    h_rayleigh_tau[level].resize(zlen_rayleigh, 0.0_rt);
+    d_rayleigh_tau[level].resize(zlen_rayleigh, 0.0_rt);
+    h_rayleigh_ubar[level].resize(zlen_rayleigh, 0.0_rt);
+    d_rayleigh_ubar[level].resize(zlen_rayleigh, 0.0_rt);
+    h_rayleigh_vbar[level].resize(zlen_rayleigh, 0.0_rt);
+    d_rayleigh_vbar[level].resize(zlen_rayleigh, 0.0_rt);
+    h_rayleigh_thetabar[level].resize(zlen_rayleigh, 0.0_rt);
+    d_rayleigh_thetabar[level].resize(zlen_rayleigh, 0.0_rt);
+
+    erf_init_rayleigh(h_rayleigh_tau[level], h_rayleigh_ubar[level], h_rayleigh_vbar[level], 
+                      h_rayleigh_thetabar[level], geomdata);
 
     // Copy from host version to device version
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_tau[level].begin(), h_rayleigh_tau[level].end(),
@@ -267,6 +278,14 @@ ERF::initRayleigh()
 void
 ERF::initHSE()
 {
+    const int zlen_dens = geom.Domain().length(2) + 2*ng_dens_hse;
+    h_dens_hse[level].resize(zlen_dens, 0.0_rt);
+    d_dens_hse[level].resize(zlen_dens, 0.0_rt);
+
+    const int zlen_pres = geom.Domain().length(2) + 2*ng_pres_hse;
+    h_pres_hse[level].resize(zlen_pres, p_0);
+    d_pres_hse[level].resize(zlen_pres, p_0);
+
     const auto geomdata = geom.data();
 
     Real* hptr_dens = h_dens_hse[level].data() + ng_dens_hse;
