@@ -26,9 +26,9 @@ typedef struct {
 
   //  std::function<void(amrex::Vector<std::unique_ptr<amrex::MultiFab> > &)>  rhs_fun_fast;
   std::function<void(amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
-                     amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
-                     amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
-                     realtype)>  rhs_fun_fast;
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
+                     const Real)>  rhs_fun_fast;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data; // hold previous slow stage data
   TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> >>* integrator;
   void* inner_mem;
@@ -50,6 +50,7 @@ void erf_fast_rhs (int level,
                    const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
 {
 
+  amrex::Print()<<"I called erf_fast_rhs"<<std::endl;
   return;
 }
 /* User-supplied Functions Called by the Solver */
@@ -556,31 +557,35 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
   TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = fast_userdata->integrator;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
-  const amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_rhs;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_stage_data;
 
   N_VConst(0.0, y_rhs);
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
   S_data.resize(num_vecs);
   S_rhs.resize(num_vecs);
+  S_stage_data.resize(num_vecs);
 
   for(int i=0; i<num_vecs; i++)
   {
       S_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
       S_rhs[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
+      S_stage_data[i].swap((*(fast_userdata->S_stage_data))[i]);
   }
 
-  //  integrator->call_post_update(S_data, t);
-  //  integrator->call_post_update(S_stage_data, t);
+  //integrator->call_post_update(S_data, t);
+  //integrator->call_post_update(S_stage_data, t);
 
   //Call rhs_fun_fast lambda stored in userdata which uses erf_fast_rhs
-  //  fast_userdata->rhs_fun_fast(S_rhs, *(fast_userdata->S_stage_data), S_data, t);
+  //fast_userdata->rhs_fun_fast(S_rhs, S_stage_data, S_data, t);
+  //fast_userdata->rhs_fun_fast(S_rhs, S_data, S_data, t);
 
   for(int i=0; i<num_vecs; i++)
   {
       S_data[i].release();
       S_rhs[i].release();
+      ((*(fast_userdata->S_stage_data))[i]).swap(S_stage_data[i]);
   }
 
   return 0;
@@ -591,16 +596,30 @@ static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
 
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
   void* inner_mem = fast_userdata->inner_mem;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_stage_data;
 
   N_Vector y_data;
   MRIStepGetCurrentState(inner_mem, &y_data);
+
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_stage_data.resize(num_vecs);
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_stage_data[i].swap((*(fast_userdata->S_stage_data))[i]);
+  }
 
   //  auto state_store = & fast_userdata->S_stage_data;
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
     const int nComp = (*(fast_userdata->S_stage_data))[i]->nComp();
     const int nGrow = (*(fast_userdata->S_stage_data))[i]->nGrow();
-    ((*(fast_userdata->S_stage_data))[i])->copy(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, nComp, nGrow);
+    ((S_stage_data)[i].get())->copy(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, nComp, nGrow);
+  }
+
+  for(int i=0; i<num_vecs; i++)
+  {
+    ((*(fast_userdata->S_stage_data))[i]).swap(S_stage_data[i]);
   }
 
   return 0;
