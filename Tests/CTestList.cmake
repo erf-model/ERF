@@ -48,6 +48,7 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
+    )
 
     set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNERK)
     set(RUNTIME_OPTIONS "integration.sundials.erk=1")
@@ -61,6 +62,7 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME_RUNTIME}.log"
+    )
 
     set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNMRI_unit)
     set(RUNTIME_OPTIONS "integration.sundials.mri=1")

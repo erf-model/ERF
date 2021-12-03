@@ -263,8 +263,8 @@ void erf_advance(int level,
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     if(use_erk3)
     {
-	if(advance_erk)
-	{
+    if(advance_erk)
+    {
     // Use SSP-RK3
     B->A[1][0] = 1.0;
     B->A[2][0] = 0.25;
@@ -275,9 +275,9 @@ void erf_advance(int level,
     B->c[1] = 1.0;
     B->c[2] = 0.5;
     B->q=3;
-	}
-	if(advance_mri)
-	    {
+    }
+    if(advance_mri)
+        {
     B->A[1][0] = 1.0;
     B->A[2][0] = 1.0;
     B->A[2][2] = 0.0;
@@ -287,7 +287,7 @@ void erf_advance(int level,
     B->c[2] = 1.0;
     B->q=2;
     B->p=0;
-	    }
+        }
     ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
     }
     else
@@ -347,17 +347,17 @@ void erf_advance(int level,
     if(!advance_rk)
     {
 
-	if(advance_erk)
-	{
+    if(advance_erk)
+    {
     // Use ERKStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
     ERKStepEvolve(arkode_mem, tout, nv_S, &t, ARK_NORMAL);
-	}
+    }
     ////STEP ELEVEN
-	if(advance_mri)
-	{
+    if(advance_mri)
+    {
     // Use MRIStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
     MRIStepEvolve(mristep_mem, tout, nv_S, &t, ARK_NORMAL);
-	}
+    }
     // Copy the result stored in nv_S to state_new
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
