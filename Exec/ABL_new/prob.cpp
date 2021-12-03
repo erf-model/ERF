@@ -23,9 +23,6 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
                   amrex::Vector<amrex::Real>& thetabar,
                   amrex::GeometryData        const& geomdata)
 {
-   amrex::Error("Should never get here for Isentropic Vortex problem");
-}
-{
   const amrex::Real* prob_lo = geomdata.ProbLo();
   const auto dx              = geomdata.CellSize();
   const int khi              = geomdata.Domain().bigEnd()[2];

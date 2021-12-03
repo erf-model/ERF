@@ -283,12 +283,6 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
     erf.finishConstructor();
 
-   if (erf.level > 0 && erf.do_reflux) {
-     erf.flux_reg.define(
-       erf.grids, papa.boxArray(erf.level - 1), erf.dmap, papa.DistributionMap(erf.level - 1),
-       erf.geom, papa.Geom(erf.level - 1), papa.refRatio(erf.level - 1), erf.level, NVAR);
-   }
-
   /*
     Deal here with new state descriptor types added, with corresponding
     input_version > 0, if applicable
@@ -320,6 +314,7 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     amrex::Print() << "read CPU time: " << erf.previousCPUTimeUsed << "\n";
   }
 
+  /* Deprecated: erf.track_grid_losses is not a supported option
   if (erf.track_grid_losses && erf.level == 0) {
 
     // get the current value of the diagnostic quantities
@@ -330,6 +325,7 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
 
     DiagFile.close();
   }
+  */
 
   /*Not implemented for CUDA
       if (level == 0)
@@ -354,12 +350,6 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     delete [] dir_for_pass;
 
       }*/
-
-  if (erf.level > 0 && erf.do_reflux) {
-    erf.flux_reg.define(
-      erf.grids, papa.boxArray(erf.level - 1), erf.dmap, papa.DistributionMap(erf.level - 1),
-      erf.geom, papa.Geom(erf.level - 1), papa.refRatio(erf.level - 1), erf.level, NVAR);
-  }
 }
 
 void

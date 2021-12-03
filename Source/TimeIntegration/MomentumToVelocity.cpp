@@ -41,18 +41,15 @@ void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             velx(i,j,k) = momx(i,j,k)/InterpolateDensityFromCellToFace(
-                                        i, j, k, cons, NextOrPrev::prev, Coord::x,
-                                        l_spatial_order);
+                                        i, j, k, cons, Coord::x, l_spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             vely(i,j,k) = momy(i,j,k)/InterpolateDensityFromCellToFace(
-                                        i, j, k, cons, NextOrPrev::prev, Coord::y,
-                                        l_spatial_order);
+                                        i, j, k, cons, Coord::y, l_spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             velz(i,j,k) = momz(i,j,k)/InterpolateDensityFromCellToFace(
-                                        i, j, k, cons, NextOrPrev::prev, Coord::z,
-                                        l_spatial_order);
+                                        i, j, k, cons, Coord::z, l_spatial_order);
         });
     } // end MFIter
 }

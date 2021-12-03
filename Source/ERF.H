@@ -11,7 +11,7 @@
 #include <AMReX_AmrLevel.H>
 #include <AMReX_iMultiFab.H>
 
-#include <AMReX_YAFluxRegister.H>
+#include <AMReX_FluxRegister.H>
 
 #ifdef AMREX_LAZY
 #include <AMReX_Lazy.H>
@@ -184,6 +184,9 @@ public:
     amrex::Vector<amrex::Real>& dt_level,
     amrex::Real stop_time) override;
 
+  //! Decide if it is time to take an action
+  bool is_it_time_for_action(int action_interval, amrex::Real action_per);
+
   //! Compute new `dt'.
   virtual void computeNewDt(
     int finest_level,
@@ -283,10 +286,10 @@ public:
   amrex::MultiFab fine_mask;
   amrex::MultiFab& build_fine_mask();
 
-  amrex::YAFluxRegister flux_reg;
+  amrex::FluxRegister* flux_reg;
 
-  amrex::YAFluxRegister& getFluxReg();
-  amrex::YAFluxRegister& getFluxReg(int lev);
+  amrex::FluxRegister& get_flux_reg();
+  amrex::FluxRegister& get_flux_reg(int lev);
 
   void avgDown();
   void avgDown(int state_indx);
@@ -350,6 +353,16 @@ protected:
 
   static int sum_interval;
   static amrex::Real sum_per;
+
+  static std::string plotfile_type;
+  static std::string checkpoint_type;
+
+  static int         output_1d_column;
+  static amrex::Real column_interval;
+  static amrex::Real column_per;
+  static amrex::Real column_loc_x;
+  static amrex::Real column_loc_y;
+  static std::string column_file_name;
 
   static amrex::Real initial_dt;
   static amrex::Real fixed_dt;
@@ -467,16 +480,16 @@ ERF::stopJob()
 }
 
 AMREX_FORCE_INLINE
-amrex::YAFluxRegister&
-ERF::getFluxReg()
+amrex::FluxRegister&
+ERF::get_flux_reg()
 {
-  return flux_reg;
+  return *flux_reg;
 }
 
 AMREX_FORCE_INLINE
-amrex::YAFluxRegister&
-ERF::getFluxReg(int lev)
+amrex::FluxRegister&
+ERF::get_flux_reg(int lev)
 {
-  return getLevel(lev).getFluxReg();
+  return getLevel(lev).get_flux_reg();
 }
 #endif

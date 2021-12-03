@@ -20,7 +20,10 @@ namespace IntVar {
         cons = 0,
         xmom,
         ymom,
-        zmom
+        zmom,
+        xflux,
+        yflux,
+        zflux
     };
 }
 
@@ -37,7 +40,6 @@ void VelocityToMomentum(MultiFab& xvel_in , MultiFab& yvel_in, MultiFab& zvel_in
 /**
  * Update the cell-centered state and face-based velocity using a time integrator
  *
- * \param[in]  S_old  state on cell centers
  * \param[in]  S_old  state on cell centers
  * \param[in]  U_old  x-velocity on x-faces
  * \param[in]  V_old  y-velocity on y-faces
@@ -56,8 +58,7 @@ void erf_advance(int level,
                  MultiFab& U_new, MultiFab& V_new, MultiFab& W_new,
                  MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                  MultiFab& source,
-                 std::array<MultiFab, AMREX_SPACEDIM>&  advflux,
-                 std::array<MultiFab, AMREX_SPACEDIM>& diffflux,
+                 std::array<MultiFab, AMREX_SPACEDIM>& flux,
                  const amrex::Geometry crse_geom,
                  const amrex::Geometry fine_geom,
                  const amrex::IntVect ref_ratio,
@@ -93,14 +94,12 @@ void erf_rhs(int level,
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
                            const Array4<Real>& qty, const int & qty_index,
-                           const enum NextOrPrev &nextOrPrev,
                            const enum Coord& coordDir,
                            const int &spatial_order);
 
 AMREX_GPU_DEVICE
 Real InterpolatePertFromCell(const int &i, const int &j, const int &k,
                            const Array4<Real>& qty, const int & qty_index,
-                           const enum NextOrPrev &nextOrPrev,
                            const enum Coord& coordDir,
                            const int &spatial_order,
                            const amrex::Real* dptr_hse);
@@ -108,14 +107,12 @@ Real InterpolatePertFromCell(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real InterpolateDensityFromCellToFace(const int &i, const int &j, const int &k,
                                const Array4<Real>& cons_in,
-                               const enum NextOrPrev &nextOrPrev,
                                const enum Coord& coordDir,
                                const int &spatial_order);
 
 AMREX_GPU_DEVICE
 Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int &k,
                                const Array4<Real>& cons_in,
-                               const enum NextOrPrev &nextOrPrev,
                                const enum Coord& coordDir,
                                const int &spatial_order,
                                const amrex::Real* dptr_hse);
@@ -123,14 +120,12 @@ Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int 
 AMREX_GPU_DEVICE
 Real InterpolateRhoThetaFromCellToFace(const int &i, const int &j, const int &k,
                                       const Array4<Real>& cons_in,
-                                      const enum NextOrPrev &nextOrPrev,
                                       const enum Coord& coordDir,
                                       const int &spatial_order);
 
 AMREX_GPU_DEVICE
 Real InterpolateRhoScalarFromCellToFace(const int &i, const int &j, const int &k,
                                       const Array4<Real>& cons_in,
-                                      const enum NextOrPrev &nextOrPrev,
                                       const enum Coord& coordDir,
                                       const int &spatial_order);
 
@@ -139,7 +134,6 @@ AMREX_GPU_DEVICE
 Real ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
                                    const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                                    const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                                   const enum NextOrPrev &nextOrPrev,
                                    const enum AdvectedQuantity &advectedQuantity,
                                    const enum AdvectingQuantity &advectingQuantity,
                                    const int &spatial_order);
@@ -158,7 +152,6 @@ AMREX_GPU_DEVICE
 Real ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                              const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
                              const Array4<Real>& cell_data,
-                             const enum NextOrPrev &nextOrPrev,
                              const enum AdvectedQuantity &advectedQuantity,
                              const enum AdvectingQuantity &advectingQuantity,
                              const int &spatial_order);
@@ -180,11 +173,19 @@ Real ComputeStrainRate(const int &i, const int &j, const int &k,
                         const Array4<Real const>& u,
                         const Array4<Real const>& v,
                         const Array4<Real const>& w,
-                        const enum NextOrPrev &nextOrPrev,
                         const enum MomentumEqn &momentumEqn,
                         const enum DiffusionDir &diffDir,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                        bool use_no_slip_stencil);
+                        bool use_no_slip_stencil_lo,
+                        bool use_no_slip_stencil_hi);
+
+/** Compute Dij */
+AMREX_GPU_DEVICE
+Real ComputeExpansionRate(const int &i, const int &j, const int &k,
+                          const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                          const enum MomentumEqn &momentumEqn,
+                          const enum DiffusionDir &diffDir,
+                          const GpuArray<Real, AMREX_SPACEDIM>& cellSize);
 
 /** Given a velocity field and a geometry, compute Ksmag or K(i, j, k) at cell-centers */
 //AMREX_GPU_DEVICE
@@ -199,17 +200,14 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 AMREX_GPU_DEVICE
 Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                            const enum NextOrPrev &nextOrPrev,
                             const enum MomentumEqn &momentumEqn,
                             const enum DiffusionDir &diffDir,
-                            const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                             const Array4<Real>& Ksmag);
 
 /** Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky */
 AMREX_GPU_DEVICE
 Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                        const enum NextOrPrev &nextOrPrev,
                         const enum MomentumEqn &momentumEqn,
                         const enum DiffusionDir &diffDir,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
@@ -232,7 +230,6 @@ Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
                                   const amrex::Real invCellWidth,
                                   const Array4<Real>& Ksmag,
                                   const SolverChoice &solverChoice,
-                                  const enum NextOrPrev &nextOrPrev,
                                   const enum Coord& coordDir);
 
 AMREX_GPU_DEVICE

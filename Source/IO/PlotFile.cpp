@@ -118,12 +118,6 @@ IOManager::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     delete [] dir_for_pass;
 
       }*/
-
-  if (erf.level > 0 && erf.do_reflux) {
-    erf.flux_reg.define(
-      erf.grids, papa.boxArray(erf.level - 1), erf.dmap, papa.DistributionMap(erf.level - 1),
-      erf.geom, papa.Geom(erf.level - 1), papa.refRatio(erf.level - 1), erf.level, NVAR);
-  }
 }
 
 void
@@ -446,7 +440,6 @@ IOManager::writeBuildInfo(std::ostream& os)
 void
 IOManager::writePlotFile(const std::string& dir, std::ostream& os, amrex::VisMF::How how)
 {
-
   int i, n;
   //
   // The list of indices of State to write to plotfile.
