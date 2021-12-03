@@ -31,6 +31,7 @@ typedef struct {
                      realtype)>  rhs_fun_fast;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data; // hold previous slow stage data
   TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> >>* integrator;
+  void* inner_mem;
 
 } FastRhsData;
 
@@ -55,6 +56,7 @@ void erf_fast_rhs (int level,
 static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int f_fast(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data);
+static int StoreStage(realtype t, N_Vector f_data, void *user_data);
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
 #endif
 
@@ -323,12 +325,6 @@ void erf_advance(int level,
     integrator.set_post_update(post_update_fun);
 
 #ifdef AMREX_USE_SUNDIALS
-    auto fast_userdata = (FastRhsData*)The_Arena()->alloc(sizeof(FastRhsData));
-    fast_userdata->integrator = & integrator;
-    fast_userdata->rhs_fun_fast = rhs_fun_fast;
-    //For the sundials solve, use state_new as temporary data;
-    fast_userdata->S_stage_data = & state_new;
-
     bool use_erk3 = true;
     bool use_linear = false;
     bool advance_erk=false;
@@ -365,9 +361,18 @@ void erf_advance(int level,
       inner_mem = ARKStepCreate(f_fast, NULL, time, nv_S);
     else
       inner_mem = ARKStepCreate(NULL, f_fast, time, nv_S);
+    MRIStepSetPreInnerFn(inner_mem, StoreStage);
     }
     ////STEP FIVE
     ARKStepSetFixedStep(inner_mem, hfixed_mri);            // Specify fixed time step size
+
+    auto fast_userdata = (FastRhsData*)The_Arena()->alloc(sizeof(FastRhsData));
+    fast_userdata->integrator = & integrator;
+    fast_userdata->rhs_fun_fast = rhs_fun_fast;
+    //For the sundials solve, use state_new as temporary data;
+    fast_userdata->S_stage_data = & state_new;
+    fast_userdata->inner_mem = inner_mem;
+
     ARKStepSetUserData(inner_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
 
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
@@ -578,6 +583,25 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   return 0;
 }
 
+static int StoreStage(realtype t, N_Vector f_data, void *user_data)
+{
+
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  void* inner_mem = fast_userdata->inner_mem;
+
+  N_Vector y_data;
+  MRIStepGetCurrentState(inner_mem, &y_data);
+
+  //  auto state_store = & fast_userdata->S_stage_data;
+  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
+  {
+    const int nComp = (*(fast_userdata->S_stage_data))[i]->nComp();
+    const int nGrow = (*(fast_userdata->S_stage_data))[i]->nGrow();
+    ((*(fast_userdata->S_stage_data))[i])->copy(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, nComp, nGrow);
+  }
+
+  return 0;
+}
 /* f routine to compute the ODE RHS function f(t,y). */
 static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 {
