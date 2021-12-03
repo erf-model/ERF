@@ -148,5 +148,5 @@ jobs:
 
     - name: Regression Tests
       run: |
-        ctest -L regression -VV
+        ctest -L 'regression|sundials' -VV
       working-directory: ${{runner.workspace}}/ERF/build-sundials-${{matrix.os}}

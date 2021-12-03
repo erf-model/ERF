@@ -60,7 +60,7 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
         TIMEOUT 5400
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
+        LABELS "sundials"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME_RUNTIME}.log"
     )
 
@@ -75,7 +75,7 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
         TIMEOUT 5400
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
+        LABELS "sundials"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME_RUNTIME}.log"
 
     )
