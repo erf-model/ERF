@@ -244,12 +244,12 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
 
     if (qty_index == Rho_comp)
     {
-        xflux(i+1,j,k,qty_index) = rho_u(i+1,j,k,qty_index);
-        xflux(i  ,j,k,qty_index) = rho_u(i  ,j,k,qty_index);
-        yflux(i,j+1,k,qty_index) = rho_v(i,j+1,k,qty_index);
-        yflux(i,j  ,k,qty_index) = rho_v(i,j  ,k,qty_index);
-        zflux(i,j,k+1,qty_index) = rho_w(i,j,k+1,qty_index);
-        zflux(i,j,k  ,qty_index) = rho_w(i,j,k  ,qty_index);
+        xflux(i+1,j,k,qty_index) = rho_u(i+1,j,k);
+        xflux(i  ,j,k,qty_index) = rho_u(i  ,j,k);
+        yflux(i,j+1,k,qty_index) = rho_v(i,j+1,k);
+        yflux(i,j  ,k,qty_index) = rho_v(i,j  ,k);
+        zflux(i,j,k+1,qty_index) = rho_w(i,j,k+1);
+        zflux(i,j,k  ,qty_index) = rho_w(i,j,k  );
 
     } else {
 
