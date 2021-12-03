@@ -65,7 +65,23 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     )
 
     set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNMRI_unit)
-    set(RUNTIME_OPTIONS "integration.sundials.mri=1 integration.sundials.erk=0")
+    set(RUNTIME_OPTIONS "integration.sundials.mri=1 integration.sundials.erk=0 integration.sundials.mri_test=1")
+    set(RUNTIME_OPTIONS2 "integration.rk.type=2 integration.sundials.mri=0 integration.sundials.erk=0")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME_RUNTIME}.log && mv ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS2} > ${TEST_NAME_RUNTIME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime")
+
+    add_test(${TEST_NAME_RUNTIME} ${test_command})
+    set_tests_properties(${TEST_NAME_RUNTIME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "sundials"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME_RUNTIME}.log"
+
+    )
+
+    set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNMRI)
+    set(RUNTIME_OPTIONS "integration.sundials.mri=1 integration.sundials.erk=0 integration.sundials.mri_test=0")
     set(RUNTIME_OPTIONS2 "integration.rk.type=2 integration.sundials.mri=0 integration.sundials.erk=0")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME_RUNTIME}.log && mv ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS2} > ${TEST_NAME_RUNTIME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime")
 

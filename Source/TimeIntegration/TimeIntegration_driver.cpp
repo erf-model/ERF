@@ -21,8 +21,39 @@
 using namespace amrex;
 
 #ifdef AMREX_USE_SUNDIALS
+
+typedef struct {
+
+  //  std::function<void(amrex::Vector<std::unique_ptr<amrex::MultiFab> > &)>  rhs_fun_fast;
+  std::function<void(amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
+                     realtype)>  rhs_fun_fast;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data; // hold previous slow stage data
+  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> >>* integrator;
+
+} FastRhsData;
+
+void erf_fast_rhs (int level,
+                   Vector<std::unique_ptr<MultiFab> >& S_rhs,
+                   const Vector<std::unique_ptr<MultiFab> >& S_stage_data,
+                   const Vector<std::unique_ptr<MultiFab> >& S_data,
+                   std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+                   std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
+                   const amrex::Geometry geom, const amrex::Real dt,
+                         amrex::InterpFaceRegister* ifr,
+                   const SolverChoice& solverChoice,
+                   const bool lo_z_is_no_slip, const bool hi_z_is_no_slip,
+                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+                   const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
+                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
+{
+
+  return;
+}
 /* User-supplied Functions Called by the Solver */
 static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
+static int f_fast(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
 #endif
@@ -257,6 +288,21 @@ void erf_advance(int level,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
     };
 
+    auto rhs_fun_fast = [&](      Vector<std::unique_ptr<MultiFab> >& S_rhs,
+                            const Vector<std::unique_ptr<MultiFab> >& S_stage_data,
+                            const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
+        erf_fast_rhs(level, S_rhs, S_stage_data, S_data,
+                     advflux, diffflux,
+                     fine_geom, dt,
+                     ifr,
+                     solverChoice,
+                     l_lo_z_is_no_slip,
+                     l_hi_z_is_no_slip,
+                     dptr_dens_hse, dptr_pres_hse,
+                     dptr_rayleigh_tau, dptr_rayleigh_ubar,
+                     dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+    };
+
     auto post_update_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
         // Apply BC on updated state and momentum data
         for (auto& mfp : S_data) {
@@ -277,14 +323,22 @@ void erf_advance(int level,
     integrator.set_post_update(post_update_fun);
 
 #ifdef AMREX_USE_SUNDIALS
+    auto fast_userdata = (FastRhsData*)The_Arena()->alloc(sizeof(FastRhsData));
+    fast_userdata->integrator = & integrator;
+    fast_userdata->rhs_fun_fast = rhs_fun_fast;
+    //For the sundials solve, use state_new as temporary data;
+    fast_userdata->S_stage_data = & state_new;
+
     bool use_erk3 = true;
     bool use_linear = false;
     bool advance_erk=false;
     bool advance_mri=false;
+    bool advance_mri_test=false;
     amrex::ParmParse pp("integration.sundials");
 
     pp.query("erk", advance_erk);
     pp.query("mri", advance_mri);
+    pp.query("mri_test", advance_mri_test);
 
     bool advance_rk=!(advance_erk||advance_mri);
 
@@ -298,13 +352,23 @@ void erf_advance(int level,
     /* Specify tolerances */
     ERKStepSStolerances(arkode_mem, reltol, abstol);
     ERKStepSetFixedStep(arkode_mem, hfixed);
+    if(advance_mri_test)
+    {
     if(use_erk3)
       inner_mem = ARKStepCreate(f0, NULL, time, nv_S);
     else
       inner_mem = ARKStepCreate(NULL, f0, time, nv_S);
-
+    }
+    else
+    {
+    if(use_erk3)
+      inner_mem = ARKStepCreate(f_fast, NULL, time, nv_S);
+    else
+      inner_mem = ARKStepCreate(NULL, f_fast, time, nv_S);
+    }
     ////STEP FIVE
     ARKStepSetFixedStep(inner_mem, hfixed_mri);            // Specify fixed time step size
+    ARKStepSetUserData(inner_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
 
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     if(use_erk3)
@@ -420,11 +484,15 @@ void erf_advance(int level,
     }
 
 #ifdef AMREX_USE_SUNDIALS
+  The_Arena()->free(fast_userdata);
   ////STEP THIRTEEN
   N_VDestroy(nv_cons);
   N_VDestroy(nv_xmom);
   N_VDestroy(nv_ymom);
   N_VDestroy(nv_zmom);
+  N_VDestroy(nv_xflux);
+  N_VDestroy(nv_yflux);
+  N_VDestroy(nv_zflux);
   N_VDestroy(nv_S);
   ////STEP FOURTEEN
   if(advance_mri)
@@ -474,6 +542,39 @@ static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data)
 {
   // Initialize ydot to zero and return
   N_VConst(0.0, ydot);
+  return 0;
+}
+
+/* f routine to compute the ODE RHS function f(t,y). */
+static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
+{
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = fast_userdata->integrator;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_rhs;
+
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_data.resize(num_vecs);
+  S_rhs.resize(num_vecs);
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
+      S_rhs[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
+  }
+
+  //Initialize to 0 with dummy function
+  f0(t, y_data, y_rhs, user_data);
+
+  //Call rhs_fun_fast lambda stored in userdata which uses erf_fast_rhs
+  fast_userdata->rhs_fun_fast(S_rhs, *(fast_userdata->S_stage_data), S_data, t);
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_data[i].release();
+      S_rhs[i].release();
+  }
+
   return 0;
 }
 
