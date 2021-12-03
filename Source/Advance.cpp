@@ -169,7 +169,7 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
         if (current) {
           const auto& ref_ratio = parent->refRatio(level-1);
 
-          current->FineAdd(flux[0], 0, 0, 0, nvars, dx[1]*dx[2]); 
+          current->FineAdd(flux[0], 0, 0, 0, nvars, dx[1]*dx[2]);
           current->FineAdd(flux[1], 1, 0, 0, nvars, dx[0]*dx[2]);
           current->FineAdd(flux[2], 2, 0, 0, nvars, dx[0]*dx[1]);
         }
