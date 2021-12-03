@@ -160,7 +160,6 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                                 const Array4<Real>& cell_data, const int& qty_index,
                                 const enum AdvectingQuantity &advectingQuantity,
                                 const int &spatial_order) {
-  Real advectingQty = 0.0;
   Real advectedQty = 1.0;
 
   AdvectedQuantity advectedQuantity;
@@ -245,9 +244,13 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
 
     if (qty_index == Rho_comp)
     {
-        advectionContribution = (rho_u(i+1,j,k,qty_index) - rho_u(i  ,j,k,qty_index)) * dxInv
-                              + (rho_v(i,j+1,k,qty_index) - rho_v(i,j  ,k,qty_index)) * dyInv
-                              + (rho_w(i,j,k+1,qty_index) - rho_w(i,j,k  ,qty_index)) * dzInv;
+        xflux(i+1,j,k,qty_index) = rho_u(i+1,j,k,qty_index);
+        xflux(i  ,j,k,qty_index) = rho_u(i  ,j,k,qty_index);
+        yflux(i,j+1,k,qty_index) = rho_v(i,j+1,k,qty_index);
+        yflux(i,j  ,k,qty_index) = rho_v(i,j  ,k,qty_index);
+        zflux(i,j,k+1,qty_index) = rho_w(i,j,k+1,qty_index);
+        zflux(i,j,k  ,qty_index) = rho_w(i,j,k  ,qty_index);
+
     } else {
 
         xflux(i+1,j,k,qty_index) = ComputeAdvectedQuantityForState(i+1, j, k, cell_data, qty_index,
@@ -262,11 +265,11 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
                                    AdvectingQuantity::rho_w, spatial_order) * rho_w(i,j,k+1);
         zflux(i,j,k  ,qty_index) = ComputeAdvectedQuantityForState(i, j, k  , cell_data, qty_index,
                                    AdvectingQuantity::rho_w, spatial_order) * rho_w(i,j,k  );
-
-        advectionContribution = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
-                              + (yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dyInv
-                              + (zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dzInv;
     }
+
+    advectionContribution = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
+                          + (yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dyInv
+                          + (zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dzInv;
 
     return advectionContribution;
 }

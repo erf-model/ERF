@@ -261,7 +261,7 @@ ERF::initRayleigh()
     h_rayleigh_thetabar[level].resize(zlen_rayleigh, 0.0_rt);
     d_rayleigh_thetabar[level].resize(zlen_rayleigh, 0.0_rt);
 
-    erf_init_rayleigh(h_rayleigh_tau[level], h_rayleigh_ubar[level], h_rayleigh_vbar[level], 
+    erf_init_rayleigh(h_rayleigh_tau[level], h_rayleigh_ubar[level], h_rayleigh_vbar[level],
                       h_rayleigh_thetabar[level], geomdata);
 
     // Copy from host version to device version
