@@ -74,6 +74,8 @@ difference between fluxes -- along the coarse-fine interfaces -- used to update 
 used to update the fine data is due to the difference in the averaging of the advected quantity to the face
 where the flux is defined.
 
-We note that both coupling schemes are conservative in the sense that quantities are conserved
-at the base level.   Two-way coupling is only conservative if the refluxing operation is included with the
-averaging down; if averaging down occurs without refluxing, conservation is lost.
+We note that both coupling schemes are conservative for mass because the fluxes for the continuity
+equation are the momenta themselves, which are interpolated on faces at the coarse-fine interface.  Other advected
+quantities which are advanced in conservation form will lose conservation with one-way coupling.
+Two-way coupling is conservative for these scalars as long as the refluxing operation is included with the
+averaging down.
