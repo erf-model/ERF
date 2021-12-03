@@ -36,14 +36,14 @@ void erf_fast_rhs (int level,
     amrex::MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, 1);
     amrex::MultiFab Delta_rho  (            ba                , dm, 1, 1);
     amrex::MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
-   
+
     // Create delta_rho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
     MultiFab::Copy(Delta_rho_u    , *S_data[IntVar::xmom], 0, 0, 1, 1);
     MultiFab::Copy(Delta_rho_v    , *S_data[IntVar::ymom], 0, 0, 1, 1);
     MultiFab::Copy(Delta_rho_w    , *S_data[IntVar::zmom], 0, 0, 1, 1);
     MultiFab::Copy(Delta_rho      , *S_data[IntVar::cons], Rho_comp     , 0, 1,1);
     MultiFab::Copy(Delta_rho_theta, *S_data[IntVar::cons], RhoTheta_comp, 0, 1,1);
-   
+
     MultiFab::Subtract(Delta_rho_u    , *S_stage_data[IntVar::xmom], 0, 0, 1, 1);
     MultiFab::Subtract(Delta_rho_v    , *S_stage_data[IntVar::ymom], 0, 0, 1, 1);
     MultiFab::Subtract(Delta_rho_w    , *S_stage_data[IntVar::zmom], 0, 0, 1, 1);
@@ -150,7 +150,7 @@ void erf_fast_rhs (int level,
         }
         );
 
-        // Compute the RHS for the flux terms from this stage -- 
+        // Compute the RHS for the flux terms from this stage --
         //     we do it this way so we don't double count
         amrex::ParallelFor(tbx, S_data[IntVar::cons]->nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -199,7 +199,7 @@ void erf_fast_rhs (int level,
                 Real exner_pi_l = std::pow(getPgivenRTh(cell_stage_data(i-1,j,k,RhoTheta_comp))/p_0,R_d/c_p);
                 Real exner_pi_r = std::pow(getPgivenRTh(cell_stage_data(i  ,j,k,RhoTheta_comp))/p_0,R_d/c_p);
                 Real exner_pi_c =  0.5 * (exner_pi_l + exner_pi_r);
-                rho_u_rhs(i, j, k) += (-dxInv[0]) * Gamma * R_d * exner_pi_c * 
+                rho_u_rhs(i, j, k) += (-dxInv[0]) * Gamma * R_d * exner_pi_c *
                   (delta_rho_theta(i  ,j,k,0) - delta_rho_theta(i-1,j,k,0));
 
             } // not on coarse-fine boundary
@@ -245,7 +245,7 @@ void erf_fast_rhs (int level,
                 Real exner_pi_c =  0.5 * (exner_pi_l + exner_pi_r);
 
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                rho_w_rhs(i, j, k) += -1.0 * Gamma * R_d * exner_pi_c * 
+                rho_w_rhs(i, j, k) += -1.0 * Gamma * R_d * exner_pi_c *
                   (delta_rho_theta(i,j,k,0) - delta_rho_theta(i,j,k-1,0))*dxInv[2];
 
                 // Add gravity term
@@ -253,7 +253,7 @@ void erf_fast_rhs (int level,
                 Real  pibar = std::pow(0.5 * (dptr_pres_hse[k] + dptr_pres_hse[k-1]),R_d/c_p);
                 rho_w_rhs(i, j, k) += grav_gpu[2] * (
                     InterpolateFromCellOrFace(i, j, k, delta_rho, 0, Coord::z, 2)
-                    - (R_d / (c_p - R_d)) * exner_pi_c * rhobar / pibar * 
+                    - (R_d / (c_p - R_d)) * exner_pi_c * rhobar / pibar *
                     InterpolateFromCellOrFace(i, j, k, delta_rho_theta,             0, Coord::z, 2) /
                     InterpolateFromCellOrFace(i, j, k, cell_stage_data, RhoTheta_comp, Coord::z, 2) );
 
