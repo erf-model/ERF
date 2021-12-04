@@ -684,7 +684,20 @@ ERF::post_restart()
   BL_PROFILE("ERF::post_restart()");
 
   if (level == 0) {
+
     init1DArrays();
+
+    if (init_abl)
+    {
+        ablinit.init_params();
+    }
+  }
+
+  initHSE();
+
+  if (solverChoice.use_rayleigh_damping)
+  {
+      initRayleigh();
   }
 
 #ifdef DO_PROBLEM_POST_RESTART
