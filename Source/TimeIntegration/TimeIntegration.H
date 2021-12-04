@@ -5,8 +5,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_InterpFaceRegister.H>
-#include <ERF.H>
-#include <AMReX_TimeIntegrator.H>
+#include "DataStruct.H"
 #include "IndexDefines.H"
 
 using namespace amrex;
@@ -166,37 +165,7 @@ Real AdvectionContributionForState(const int &i, const int &j, const int &k,
                                    const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                    const int &spatial_order);
 
-
-/** Compute Sij */
-AMREX_GPU_DEVICE
-Real ComputeStrainRate(const int &i, const int &j, const int &k,
-                        const Array4<Real const>& u,
-                        const Array4<Real const>& v,
-                        const Array4<Real const>& w,
-                        const enum MomentumEqn &momentumEqn,
-                        const enum DiffusionDir &diffDir,
-                        const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                        bool use_no_slip_stencil_lo,
-                        bool use_no_slip_stencil_hi);
-
-/** Compute Dij */
-AMREX_GPU_DEVICE
-Real ComputeExpansionRate(const int &i, const int &j, const int &k,
-                          const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                          const enum MomentumEqn &momentumEqn,
-                          const enum DiffusionDir &diffDir,
-                          const GpuArray<Real, AMREX_SPACEDIM>& cellSize);
-
-/** Given a velocity field and a geometry, compute Ksmag or K(i, j, k) at cell-centers */
-//AMREX_GPU_DEVICE
-void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel,
-                               const MultiFab& cons_in, MultiFab& eddyViscosity,
-                               const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
-                               const SolverChoice& solverChoice,
-                               const bool& use_no_slip_stencil_at_lo_k, const int& klo,
-                               const bool& use_no_slip_stencil_at_hi_k, const int& khi);
-
-/** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or Ksmag (i, j, k) is known */
+/** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known */
 AMREX_GPU_DEVICE
 Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,

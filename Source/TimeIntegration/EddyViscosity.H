@@ -1,10 +1,16 @@
-/** \file EddyViscosity.cpp */
+/** \file EddyViscosity.H */
+
+#ifndef _EDDY_VISCOSITY_H_
+#define _EDDY_VISCOSITY_H_
+
 #include <TimeIntegration.H>
+#include "StrainRate.H"
 
 using namespace amrex;
 
 /** Compute Eddy Viscosity */
 //AMREX_GPU_DEVICE
+inline
 void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel,
                                const MultiFab& cons_in, MultiFab& eddyViscosity,
                                const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -76,7 +82,7 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 /// Compute Ksmag (i-1/2, j+1/2, k) etc given Ksmag (i, j, k) is known
 // Note: This should be at edges for momEqnDir != diffDir, cell centers otherwise
 AMREX_GPU_DEVICE
-Real
+inline Real
 InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                               const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                               const enum MomentumEqn &momentumEqn,
@@ -137,3 +143,5 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
 
   return turbViscInterpolated;
 }
+
+#endif

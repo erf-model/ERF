@@ -71,10 +71,6 @@ struct SolverChoice {
             amrex::Error("Don't know this les_type");
         }
 
-        if (les_type == LESType::Deardorff) {
-            amrex::Error("Deardorff LES model not yet implemented");
-        }
-
         // Include molecular transport?
         static std::string molec_diff_type_string = "None";
         pp.query("molec_diff_type",molec_diff_type_string);

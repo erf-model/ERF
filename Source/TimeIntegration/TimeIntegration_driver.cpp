@@ -2,8 +2,9 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-
+#include <AMReX_TimeIntegrator.H>
 #include <TimeIntegration.H>
+#include <ERF.H>
 #include <utils.H>
 
 using namespace amrex;
@@ -99,6 +100,7 @@ void erf_advance(int level,
 
     // We need to apply the boundary conditions here because we are converting from velocity to momentum
     //    which requires having set boundary conditions on density
+    // TODO: CAN WE REALLY GET AWAY WITHOUT THIS??
     amrex::Vector<MultiFab*> vars_orig{&cons_old};
     ERF::applyBCs(fine_geom, vars_orig);
 

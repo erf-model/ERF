@@ -52,17 +52,18 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/PlotFile.H
        ${SRC_DIR}/IO/PlotFile.cpp
        ${SRC_DIR}/IO/IOManager.cpp
+       ${SRC_DIR}/TimeIntegration/EddyViscosity.H
+       ${SRC_DIR}/TimeIntegration/ExpansionRate.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration.H
+       ${SRC_DIR}/TimeIntegration/StrainRate.H
+       ${SRC_DIR}/TimeIntegration/Interpolation.cpp
        ${SRC_DIR}/TimeIntegration/MomentumToVelocity.cpp
-       ${SRC_DIR}/TimeIntegration/VelocityToMomentum.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_rhs.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_utils.cpp
-       ${SRC_DIR}/TimeIntegration/Interpolation.cpp
+       ${SRC_DIR}/TimeIntegration/VelocityToMomentum.cpp
        ${SRC_DIR}/TimeIntegration/Advection.cpp
        ${SRC_DIR}/TimeIntegration/Diffusion.cpp
-       ${SRC_DIR}/TimeIntegration/StrainRate.cpp
-       ${SRC_DIR}/TimeIntegration/EddyViscosity.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")

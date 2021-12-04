@@ -127,6 +127,9 @@ ERF::initialize_bcs(const std::string& bc_char) {
   } else if (!bc_char.compare("SimSlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSimSlipWall<DIM, Bound>());
     return bc_rec;
+  } else if (!bc_char.compare("MostWall")) {
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCMostWall<DIM, Bound>());
+    return bc_rec;
   } else {
     amrex::Abort("Wrong boundary condition word, please use: "
                  "Interior, Dirichlet, SimSlipWall, Symmetry, SlipWall, NoSlipWall");
