@@ -8,7 +8,7 @@ InterpolateDensityFromCellToFace(
   const int& i,
   const int& j,
   const int& k,
-  const Array4<Real>& cons_in,
+  const Array4<const Real>& cons_in,
   const Coord& coordDir,
   const int& spatial_order)
 {
@@ -22,7 +22,7 @@ InterpolateDensityPertFromCellToFace(
   const int& i,
   const int& j,
   const int& k,
-  const Array4<Real>& cons_in,
+  const Array4<const Real>& cons_in,
   const Coord& coordDir,
   const int& spatial_order,
   const amrex::Real* dptr_hse)
@@ -37,7 +37,7 @@ InterpolateRhoThetaFromCellToFace(
   const int& i,
   const int& j,
   const int& k,
-  const Array4<Real>& cons_in,
+  const Array4<const Real>& cons_in,
   const Coord& coordDir,
   const int& spatial_order)
 {
@@ -51,7 +51,7 @@ InterpolateRhoScalarFromCellToFace(
   const int& i,
   const int& j,
   const int& k,
-  const Array4<Real>& cons_in,
+  const Array4<const Real>& cons_in,
   const Coord& coordDir,
   const int& spatial_order)
 {
@@ -66,7 +66,7 @@ InterpolateFromCellOrFace(
   // The same interpolation routine also works for face-based data and should work for
   // edge-based data
   const int& i, const int& j, const int& k,
-  const Array4<Real>& qty,
+  const Array4<const Real>& qty,
   const int& qty_index,
   const Coord& coordDir,
   const int& spatial_order)
@@ -152,7 +152,7 @@ AMREX_GPU_DEVICE
 Real
 InterpolatePertFromCell(
   const int& i, const int& j, const int& k,
-  const Array4<Real>& qty,
+  const Array4<const Real>& qty,
   const int& qty_index,
   const Coord& coordDir,
   const int& spatial_order,

@@ -5,7 +5,7 @@ using namespace amrex;
 AMREX_GPU_DEVICE
 Real
 ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
-                              const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                               const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                               const enum AdvectedQuantity &advectedQuantity,
                               const enum AdvectingQuantity &advectingQuantity,
@@ -78,7 +78,7 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real
 AdvectionContributionForMom(const int &i, const int &j, const int &k,
-                            const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
+                            const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                             const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                             const enum MomentumEqn &momentumEqn,
                             const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -157,7 +157,7 @@ AdvectionContributionForMom(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real
 ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
-                                const Array4<Real>& cell_data, const int& qty_index,
+                                const Array4<const Real>& cell_data, const int& qty_index,
                                 const enum AdvectingQuantity &advectingQuantity,
                                 const int &spatial_order) {
   Real advectedQty = 1.0;
@@ -232,8 +232,8 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real
 AdvectionContributionForState(const int &i, const int &j, const int &k,
-                              const Array4<Real>& rho_u, const Array4<Real>& rho_v, const Array4<Real>& rho_w,
-                              const Array4<Real>& cell_data, const int &qty_index,
+                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
+                              const Array4<const Real>& cell_data, const int &qty_index,
                               const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
                               const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                               const int &spatial_order) {

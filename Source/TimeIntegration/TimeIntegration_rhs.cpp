@@ -9,8 +9,8 @@
 using namespace amrex;
 
 void erf_rhs (int level,
-              Vector<std::unique_ptr<MultiFab> >& S_rhs,
-              const Vector<std::unique_ptr<MultiFab> >& S_data,
+              Vector<MultiFab>& S_rhs,
+              const Vector<MultiFab>& S_data,
               MultiFab& source,
               std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
               std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
@@ -28,18 +28,18 @@ void erf_rhs (int level,
     int khi = geom.Domain().bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-    const auto& ba = S_data[IntVar::cons]->boxArray();
-    const auto& dm = S_data[IntVar::cons]->DistributionMap();
+    const auto& ba = S_data[IntVar::cons].boxArray();
+    const auto& dm = S_data[IntVar::cons].DistributionMap();
 
     amrex::MultiFab xvel(convert(ba,IntVect(1,0,0)), dm, 1, 1);
     amrex::MultiFab yvel(convert(ba,IntVect(0,1,0)), dm, 1, 1);
     amrex::MultiFab zvel(convert(ba,IntVect(0,0,1)), dm, 1, 1);
 
     MomentumToVelocity(xvel, yvel, zvel,
-                       *S_data[IntVar::cons],
-                       *S_data[IntVar::xmom],
-                       *S_data[IntVar::ymom],
-                       *S_data[IntVar::zmom],
+                       S_data[IntVar::cons],
+                       S_data[IntVar::xmom],
+                       S_data[IntVar::ymom],
+                       S_data[IntVar::zmom],
                        1, solverChoice.spatial_order);
 
     xvel.FillBoundary(geom.periodicity());
@@ -65,10 +65,10 @@ void erf_rhs (int level,
     // 2. Need to call FillBoundary and applyBCs to set ghost values on all
     //    boundaries so that InterpolateTurbulentViscosity works properly
     // *************************************************************************
-    MultiFab eddyViscosity(S_data[IntVar::cons]->boxArray(),S_data[IntVar::cons]->DistributionMap(),1,1);
+    MultiFab eddyViscosity(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
     if (solverChoice.les_type == LESType::Smagorinsky)
     {
-        ComputeTurbulentViscosity(xvel, yvel, zvel, *S_data[IntVar::cons],
+        ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
                                   eddyViscosity, dxInv, solverChoice,
                                   lo_z_is_no_slip, klo, hi_z_is_no_slip, khi);
         eddyViscosity.FillBoundary(geom.periodicity());
@@ -96,7 +96,7 @@ void erf_rhs (int level,
     //If the performance slows, consider saving all the fluxes apriori and accessing them here.
 
     // *************************************************************************
-    for ( MFIter mfi(*S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& bx = mfi.tilebox();
         const Box& tbx = mfi.nodaltilebox(0);
@@ -118,25 +118,25 @@ void erf_rhs (int level,
         auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
-        const Array4<Real> & cell_data  = S_data[IntVar::cons]->array(mfi);
-        const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons]->array(mfi);
+        const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+        const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
         const Array4<Real> & u = xvel.array(mfi);
         const Array4<Real> & v = yvel.array(mfi);
         const Array4<Real> & w = zvel.array(mfi);
 
-        const Array4<Real>& rho_u = S_data[IntVar::xmom]->array(mfi);
-        const Array4<Real>& rho_v = S_data[IntVar::ymom]->array(mfi);
-        const Array4<Real>& rho_w = S_data[IntVar::zmom]->array(mfi);
+        const Array4<const Real>& rho_u = S_data[IntVar::xmom].array(mfi);
+        const Array4<const Real>& rho_v = S_data[IntVar::ymom].array(mfi);
+        const Array4<const Real>& rho_w = S_data[IntVar::zmom].array(mfi);
 
-        const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom]->array(mfi);
-        const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom]->array(mfi);
-        const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom]->array(mfi);
+        const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom].array(mfi);
+        const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
+        const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
 
-        const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux]->array(mfi);
-        const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux]->array(mfi);
-        const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux]->array(mfi);
+        const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
+        const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
+        const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
 
         // These are temporaries we use to add to the S_rhs for the fluxes
         const Array4<Real>& advflux_x = advflux[0].array(mfi);
@@ -153,7 +153,7 @@ void erf_rhs (int level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        amrex::ParallelFor(bx, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(bx, S_data[IntVar::cons].nComp(),
        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
@@ -184,17 +184,17 @@ void erf_rhs (int level,
 
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
         //         fluxes at fine-fine interfaces
-        amrex::ParallelFor(tbx, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(tbx, S_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
              xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n) + diffflux_x(i,j,k,n);
         });
-        amrex::ParallelFor(tby, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(tby, S_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
              yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n) + diffflux_y(i,j,k,n);
         });
-        amrex::ParallelFor(tbz, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(tbz, S_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
              zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n) + diffflux_z(i,j,k,n);

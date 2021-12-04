@@ -140,7 +140,7 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
-                     const Array4<Real>& cell_data, const int & qty_index,
+                     const Array4<const Real>& cell_data, const int & qty_index,
                      const amrex::Real invCellWidth,
                      const Array4<Real>& Ksmag,
                      const SolverChoice &solverChoice,
@@ -208,7 +208,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 AMREX_GPU_DEVICE
 Real
 DiffusionContributionForState(const int &i, const int &j, const int &k,
-                              const Array4<Real>& cell_data, const int & qty_index,
+                              const Array4<const Real>& cell_data, const int & qty_index,
                               const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
                               const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                               const Array4<Real>& Ksmag,

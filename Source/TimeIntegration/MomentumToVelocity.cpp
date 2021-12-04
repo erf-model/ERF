@@ -12,8 +12,8 @@ using namespace amrex;
  * Convert updated momentum to updated velocity
  */
 void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
-                         MultiFab& cons_in,
-                         MultiFab& xmom_in, MultiFab& ymom_in, MultiFab& zmom_in,
+                         const MultiFab& cons_in,
+                         const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,
                          int ng, int l_spatial_order)
 {
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
@@ -26,7 +26,7 @@ void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
         const Box& tbz = amrex::grow(mfi.nodaltilebox(2),IntVect(ng,ng,0));
 
         // Conserved variables on cell centers -- we use this for density
-        const Array4<Real>& cons = cons_in.array(mfi);
+        const Array4<const Real>& cons = cons_in.array(mfi);
 
         // Momentum on faces
         Array4<Real const> const& momx = xmom_in.array(mfi);
