@@ -33,7 +33,7 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
         const Array4<Real const> &v = yvel.array(mfi);
         const Array4<Real const> &w = zvel.array(mfi);
 
-        amrex::ParallelFor(bx, eddyViscosity.nComp(),[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real S11 = ComputeStrainRate(i+1, j, k, u, v, w, MomentumEqn::x, DiffusionDir::x, cellSizeInv, false, false);
             Real S22 = ComputeStrainRate(i, j+1, k, u, v, w, MomentumEqn::y, DiffusionDir::y, cellSizeInv, false, false);
@@ -84,7 +84,6 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 AMREX_GPU_DEVICE
 inline Real
 InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
-                              const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                               const enum MomentumEqn &momentumEqn,
                               const enum DiffusionDir &diffDir,
                               const Array4<Real>& Ksmag) {

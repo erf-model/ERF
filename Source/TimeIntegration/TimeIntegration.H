@@ -168,7 +168,6 @@ Real AdvectionContributionForState(const int &i, const int &j, const int &k,
 /** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known */
 AMREX_GPU_DEVICE
 Real InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
-                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                             const enum MomentumEqn &momentumEqn,
                             const enum DiffusionDir &diffDir,
                             const Array4<Real>& Ksmag);

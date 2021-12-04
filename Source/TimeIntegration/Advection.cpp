@@ -162,23 +162,10 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
                                 const int &spatial_order) {
   Real advectedQty = 1.0;
 
-  AdvectedQuantity advectedQuantity;
-
-  switch(qty_index) {
-        case RhoTheta_comp: // Temperature
-            advectedQuantity = AdvectedQuantity::theta;
-            break;
-        case RhoScalar_comp: // Scalar
-            advectedQuantity = AdvectedQuantity::scalar;
-            break;
-        default:
-            amrex::Abort("Error: Conserved quantity index is unrecognized");
-    }
-
   // Compute advected quantity for different choice of AdvectingQuantity
-  switch(advectedQuantity) {
+  switch(qty_index) {
 
-  case AdvectedQuantity::theta:
+  case RhoTheta_comp:
     switch (advectingQuantity) { // reference cell is (i, j, k)
     case AdvectingQuantity::rho_u:
       // Get theta (i-1/2,    j, k    ) = theta on face (i,   j  , k  ) for x-dir
@@ -200,7 +187,7 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     }
     break;
 
-  case AdvectedQuantity::scalar:
+  case RhoScalar_comp:
     switch (advectingQuantity) { // reference cell is (i, j, k)
     case AdvectingQuantity::rho_u:
       // Get scalar (i-1/2,    j, k    ) = scalar on face (i,   j  , k  ) for x-dir
@@ -222,7 +209,7 @@ ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
     }
     break;
   default:
-    amrex::Abort("Error: Advected quantity is unrecognized");
+    amrex::Abort("Error: Advected quantity component is unrecognized");
   }
 
   // Return the advected quantity

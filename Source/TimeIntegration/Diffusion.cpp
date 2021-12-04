@@ -46,11 +46,11 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
     switch (solverChoice.les_type) {
         case LESType::Smagorinsky:
             // mu_effective = 2*mu + 2*mu_t if MolecDiffType::Constant else 2*mu_t
-            mu_effective += InterpolateTurbulentViscosity(i, j, k, u, v, w, momentumEqn, diffDir, K_LES); // 2*mu_t
+            mu_effective += InterpolateTurbulentViscosity(i, j, k, momentumEqn, diffDir, K_LES); // 2*mu_t
             break;
         case LESType::Deardorff:
             // mu_effective = 2*mu + 2*mu_t if MolecDiffType::Constant else 2*mu_t
-            mu_effective += InterpolateTurbulentViscosity(i, j, k, u, v, w, momentumEqn, diffDir, K_LES); // 2*mu_t
+            mu_effective += InterpolateTurbulentViscosity(i, j, k, momentumEqn, diffDir, K_LES); // 2*mu_t
         case LESType::None: // // mu_effective = 2*mu if MolecDiffType::Constant else 0
             break;
         default:
