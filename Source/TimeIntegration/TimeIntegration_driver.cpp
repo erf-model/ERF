@@ -22,18 +22,15 @@ using namespace amrex;
 
 #ifdef AMREX_USE_SUNDIALS
 
-typedef struct {
-
-  //  std::function<void(amrex::Vector<std::unique_ptr<amrex::MultiFab> > &)>  rhs_fun_fast;
+struct FastRhsData {
   std::function<void(amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
                      const amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
                      const amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
                      const Real)>  rhs_fun_fast;
   amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data; // hold previous slow stage data
-  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> >>* integrator;
+  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > >* integrator;
   void* inner_mem;
-
-} FastRhsData;
+};
 
 void erf_fast_rhs (int level,
                    Vector<std::unique_ptr<MultiFab> >& S_rhs,
@@ -51,8 +48,14 @@ void erf_fast_rhs (int level,
 {
 
   amrex::Print()<<"I called erf_fast_rhs"<<std::endl;
+
+  for (auto& sr : S_rhs) {
+    sr->setVal(0.);
+  }
+
   return;
 }
+
 /* User-supplied Functions Called by the Solver */
 static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int f_fast(realtype t, N_Vector y, N_Vector ydot, void *user_data);
@@ -364,15 +367,16 @@ void erf_advance(int level,
       inner_mem = ARKStepCreate(NULL, f_fast, time, nv_S);
     MRIStepSetPreInnerFn(inner_mem, StoreStage);
     }
+
     ////STEP FIVE
     ARKStepSetFixedStep(inner_mem, hfixed_mri);            // Specify fixed time step size
 
-    auto fast_userdata = (FastRhsData*)The_Arena()->alloc(sizeof(FastRhsData));
-    fast_userdata->integrator = & integrator;
-    fast_userdata->rhs_fun_fast = rhs_fun_fast;
+    FastRhsData fast_userdata;
+    fast_userdata.integrator = &integrator;
+    fast_userdata.rhs_fun_fast = rhs_fun_fast;
     //For the sundials solve, use state_new as temporary data;
-    fast_userdata->S_stage_data = & state_new;
-    fast_userdata->inner_mem = inner_mem;
+    fast_userdata.S_stage_data = &state_new;
+    fast_userdata.inner_mem = inner_mem;
 
     ARKStepSetUserData(inner_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
 
@@ -490,7 +494,6 @@ void erf_advance(int level,
     }
 
 #ifdef AMREX_USE_SUNDIALS
-  The_Arena()->free(fast_userdata);
   ////STEP THIRTEEN
   N_VDestroy(nv_cons);
   N_VDestroy(nv_xmom);
@@ -574,12 +577,10 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
       S_stage_data[i].swap((*(fast_userdata->S_stage_data))[i]);
   }
 
-  //integrator->call_post_update(S_data, t);
-  //integrator->call_post_update(S_stage_data, t);
+  integrator->call_post_update(S_data, t);
 
   //Call rhs_fun_fast lambda stored in userdata which uses erf_fast_rhs
-  //fast_userdata->rhs_fun_fast(S_rhs, S_stage_data, S_data, t);
-  //fast_userdata->rhs_fun_fast(S_rhs, S_data, S_data, t);
+  fast_userdata->rhs_fun_fast(S_rhs, S_stage_data, S_data, t);
 
   for(int i=0; i<num_vecs; i++)
   {
@@ -606,10 +607,9 @@ static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_stage_data[i].swap((*(fast_userdata->S_stage_data))[i]);
+      S_stage_data[i].reset((*(fast_userdata->S_stage_data))[i].get());
   }
 
-  //  auto state_store = & fast_userdata->S_stage_data;
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
     const int nComp = (*(fast_userdata->S_stage_data))[i]->nComp();
@@ -619,7 +619,7 @@ static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-    ((*(fast_userdata->S_stage_data))[i]).swap(S_stage_data[i]);
+    S_stage_data[i].release();
   }
 
   return 0;
