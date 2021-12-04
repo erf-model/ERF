@@ -29,11 +29,8 @@ struct FastRhsData {
                      const Real)>  rhs_fun_fast;
   TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > >* integrator;
   void* inner_mem;
-#if 0
-  int number_steps_since_slow;
-  int steps_between_stored_stage_update;
-  #endif
   amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data; // hold previous slow stage data
+  N_Vector nv_stage_data; // hold previous slow stage data
 };
 
 /* User-supplied Functions Called by the Solver */
@@ -243,7 +240,7 @@ void erf_advance(int level,
     Real t               = time;
     Real tout            = time+dt;
     Real hfixed          = dt;
-    Real m               = 10;
+    Real m               = 2;
     Real hfixed_mri      = dt / m;
     N_Vector nv_cons     = N_VMake_MultiFab(length, state_old[IntVar::cons].get());
     N_Vector nv_xmom     = N_VMake_MultiFab(length_mx, state_old[IntVar::xmom].get());
@@ -264,6 +261,7 @@ void erf_advance(int level,
     nv_many_arr[IntVar::yflux] = nv_yflux;
     nv_many_arr[IntVar::zflux] = nv_zflux;
     N_Vector nv_S = N_VNew_ManyVector(NVar, nv_many_arr);
+    N_Vector nv_store = N_VClone(nv_S);
 #endif
 
     //Create function lambdas
@@ -366,17 +364,18 @@ void erf_advance(int level,
     fast_userdata.rhs_fun_fast = rhs_fun_fast;
     //For the sundials solve, use state_new as temporary data;
     fast_userdata.S_stage_data = &state_store;
+    fast_userdata.nv_stage_data = nv_store;
     fast_userdata.inner_mem = inner_mem;
-    #if 0
-    fast_userdata.number_steps_since_slow=0;
-    fast_userdata.steps_between_stored_stage_update=m;
-#endif
+
     ARKStepSetUserData(inner_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
+
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
     MultiFab::Copy(*state_store[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
+    MultiFab::Copy(*NV_MFAB(N_VGetSubvector_ManyVector(nv_store, i)), *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
     }
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
+    ARKodeButcherTable B2 = ARKodeButcherTable_Alloc(2, SUNFALSE);
     if(use_erk3)
     {
     if(advance_erk)
@@ -403,8 +402,18 @@ void erf_advance(int level,
     B->c[2] = 1.0;
     B->q=2;
     B->p=0;
+    B2->A[1][0] = 1.0;
+    B2->b[0] = 0.5;
+    B2->b[1] = 0.5;
+    B2->c[1] = 1.0;
+    B2->q=2;
+    B2->p=0;
         }
-    ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
+    if(advance_mri)
+      if(advance_mri_test)
+	ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
+      else
+	ARKStepSetTables(inner_mem, B2->q, B2->p, NULL, B2);       // Specify Butcher table
     }
     else
     {
@@ -457,7 +466,10 @@ void erf_advance(int level,
     //Set table
     ERKStepSetTable(arkode_mem, B);
     if(advance_mri)
-    MRIStepSetTable(mristep_mem, B->q, B);
+      if(advance_mri_test)
+        MRIStepSetTable(mristep_mem, B->q, B);
+      else
+        MRIStepSetTable(mristep_mem, B2->q, B2);
 
     // Free the Butcher table
     ARKodeButcherTable_Free(B);
@@ -572,7 +584,7 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   {
       S_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
       S_rhs[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
-      S_stage_data[i].swap((*(fast_userdata->S_stage_data))[i]);
+      S_stage_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)));
   }
 
   integrator->call_post_update(S_data, t);
@@ -585,7 +597,7 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   {
       S_data[i].release();
       S_rhs[i].release();
-      ((*(fast_userdata->S_stage_data))[i]).swap(S_stage_data[i]);
+      S_stage_data[i].release();
   }
 
   return 0;
