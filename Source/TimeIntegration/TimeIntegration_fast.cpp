@@ -47,8 +47,8 @@ void erf_fast_rhs (int level,
     MultiFab::Subtract(Delta_rho_u    , *S_stage_data[IntVar::xmom], 0, 0, 1, 1);
     MultiFab::Subtract(Delta_rho_v    , *S_stage_data[IntVar::ymom], 0, 0, 1, 1);
     MultiFab::Subtract(Delta_rho_w    , *S_stage_data[IntVar::zmom], 0, 0, 1, 1);
-    MultiFab::Subtract(Delta_rho      , *S_stage_data[IntVar::cons], 0, Rho_comp     , 1, 1);
-    MultiFab::Subtract(Delta_rho_theta, *S_stage_data[IntVar::cons], 0, RhoTheta_comp, 1, 1);
+    MultiFab::Subtract(Delta_rho      , *S_stage_data[IntVar::cons], Rho_comp     , 0, 1, 1);
+    MultiFab::Subtract(Delta_rho_theta, *S_stage_data[IntVar::cons], RhoTheta_comp, 0, 1, 1);
 
     // Not sure if we need these
     Delta_rho_u.FillBoundary(geom.periodicity());

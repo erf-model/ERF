@@ -32,30 +32,6 @@ struct FastRhsData {
   void* inner_mem;
 };
 
-void erf_fast_rhs (int level,
-                   Vector<std::unique_ptr<MultiFab> >& S_rhs,
-                   const Vector<std::unique_ptr<MultiFab> >& S_stage_data,
-                   const Vector<std::unique_ptr<MultiFab> >& S_data,
-                   std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
-                   std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
-                   const amrex::Geometry geom, const amrex::Real dt,
-                         amrex::InterpFaceRegister* ifr,
-                   const SolverChoice& solverChoice,
-                   const bool lo_z_is_no_slip, const bool hi_z_is_no_slip,
-                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
-                   const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
-{
-
-  amrex::Print()<<"I called erf_fast_rhs"<<std::endl;
-
-  for (auto& sr : S_rhs) {
-    sr->setVal(0.);
-  }
-
-  return;
-}
-
 /* User-supplied Functions Called by the Solver */
 static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int f_fast(realtype t, N_Vector y, N_Vector ydot, void *user_data);

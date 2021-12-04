@@ -57,6 +57,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/VelocityToMomentum.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_rhs.cpp
+       ${SRC_DIR}/TimeIntegration/TimeIntegration_fast.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_utils.cpp
        ${SRC_DIR}/TimeIntegration/Interpolation.cpp
        ${SRC_DIR}/TimeIntegration/Advection.cpp
