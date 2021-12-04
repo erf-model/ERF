@@ -5,6 +5,7 @@
 #include <ERF_Constants.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
+#include <ERF.H>
 
 using namespace amrex;
 
@@ -66,11 +67,17 @@ void erf_rhs (int level,
     //    boundaries so that InterpolateTurbulentViscosity works properly
     // *************************************************************************
     MultiFab eddyViscosity(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
-    if (solverChoice.les_type == LESType::Smagorinsky)
+    if (solverChoice.les_type == LESType::Smagorinsky ||
+        solverChoice.les_type == LESType::Deardorff)
     {
-        ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                  eddyViscosity, dxInv, solverChoice,
-                                  lo_z_is_no_slip, klo, hi_z_is_no_slip, khi);
+        if (solverChoice.les_type == LESType::Smagorinsky)
+            ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
+                                      eddyViscosity, dxInv, solverChoice,
+                                      lo_z_is_no_slip, klo, hi_z_is_no_slip, khi);
+        else if (solverChoice.les_type == LESType::Deardorff)
+            ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
+                                      eddyViscosity, dxInv, solverChoice,
+                                      lo_z_is_no_slip, klo, hi_z_is_no_slip, khi);
         eddyViscosity.FillBoundary(geom.periodicity());
         amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};
         ERF::applyBCs(geom, eddyvisc_update);
@@ -148,7 +155,7 @@ void erf_rhs (int level,
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
-        const Array4<Real>& Ksmag = eddyViscosity.array(mfi);
+        const Array4<Real>& K_LES = eddyViscosity.array(mfi);
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
@@ -165,10 +172,10 @@ void erf_rhs (int level,
             // Add diffusive terms.
             if (solverChoice.use_thermal_diffusion && n == RhoTheta_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, Ksmag, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
             if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, Ksmag, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
 
             // Add Rayleigh damping
             if (solverChoice.use_rayleigh_damping && n == RhoTheta_comp)
@@ -227,7 +234,7 @@ void erf_rhs (int level,
             {
                 bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
                 bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
-                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, Ksmag, solverChoice,
+                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, K_LES, solverChoice,
                                                                   use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
             }
 
@@ -294,7 +301,7 @@ void erf_rhs (int level,
             {
                 bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
                 bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
-                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, Ksmag, solverChoice,
+                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, K_LES, solverChoice,
                                                                   use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
             }
 
@@ -354,7 +361,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, Ksmag, solverChoice,
+                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, K_LES, solverChoice,
                                                                   false, false);
 
             // Add pressure gradient

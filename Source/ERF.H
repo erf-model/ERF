@@ -28,13 +28,12 @@
 #include "BC/BCSlipWall.H"
 #include "BC/BCNoSlipWall.H"
 #include "BC/BCSimSlipWall.H"
+#include "BC/BCMostWall.H"
 
 #include "ABLFieldInit.H"
 
 using std::istream;
 using std::ostream;
-
-#define UserBC 6
 
 #define ENUM_BUILDER(name, ...) enum name { __VA_ARGS__ }; \
 inline std::string EnumToString(name value) {              \
@@ -255,7 +254,7 @@ public:
 
   static void applyBCs( const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) {
     for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
-      bc_recs[dir]->applyBC(geom, vars);
+      bc_recs[dir]->applyBC(geom, vars, solverChoice);
     }
   }
 

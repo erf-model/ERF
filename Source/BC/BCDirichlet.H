@@ -18,7 +18,7 @@ class BCDirichlet : public BCBase {
     vel = inputvel;
   }
 
-  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) override {
+  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, const SolverChoice& solverChoice) override {
     if ((geom.isPeriodic(IDIR)) || (vars.size() == 0)) return;
 
     // setup boundary conditions
