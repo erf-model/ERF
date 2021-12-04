@@ -606,6 +606,7 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
 {
 
+  //Note that user_data may be different between mristep and inner stepper
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
   void* inner_mem = fast_userdata->inner_mem;
 
@@ -620,6 +621,7 @@ static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
   {
     const int nComp = (*(fast_userdata->S_stage_data))[i]->nComp();
     const int nGrow = (*(fast_userdata->S_stage_data))[i]->nGrow();
+    amrex::Print()<<"Not using correct copy"<<std::endl;
     //    ((*(fast_userdata->S_stage_data))[i])->copy(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, nComp, nGrow);
   }
 
@@ -630,23 +632,25 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
 {
 
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
-  #if 0
-  int number_steps_since_slow = fast_userdata->number_steps_since_slow++;
-  int steps_between_stored_stage_update = fast_userdata->steps_between_stored_stage_update;
-#else
-  int number_steps_since_slow = 1;
-  int steps_between_stored_stage_update = 1;
-  #endif
+
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_stage_data;
+
+  S_stage_data.resize(num_vecs);
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_stage_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)));
+  }
 
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
-    const int nComp = (*(fast_userdata->S_stage_data))[i]->nComp();
-    const int nGrow = (*(fast_userdata->S_stage_data))[i]->nGrow();
-    #if 0
-    if(number_steps_since_slow % steps_between_stored_stage_update==0)
-       ((*(fast_userdata->S_stage_data))[i])->copy(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, nComp, nGrow);
-    #endif
+    MultiFab::Copy(*S_stage_data[i], *NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, 0, S_stage_data[i]->nComp(), S_stage_data[i]->nGrow());
+  }
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_stage_data[i].release();
   }
 
   return 0;
