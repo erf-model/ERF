@@ -27,9 +27,13 @@ struct FastRhsData {
                      const amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
                      const amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
                      const Real)>  rhs_fun_fast;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data; // hold previous slow stage data
   TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > >* integrator;
   void* inner_mem;
+#if 0
+  int number_steps_since_slow;
+  int steps_between_stored_stage_update;
+  #endif
+  amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data; // hold previous slow stage data
 };
 
 /* User-supplied Functions Called by the Solver */
@@ -37,6 +41,7 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int f_fast(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data);
 static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data);
+static int PostStoreStage(realtype t, N_Vector y_data, void *user_data);
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
 #endif
 
@@ -120,6 +125,16 @@ void erf_advance(int level,
     state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
     state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
     state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
+
+    // Temporary data
+    amrex::Vector<std::unique_ptr<amrex::MultiFab> > state_store;
+    state_store.emplace_back(std::make_unique<amrex::MultiFab>(ba, dm, nvars, cons_old.nGrow())); // cons
+    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
+    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
+    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
+    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
+    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
     // **************************************************************************************
     // Prepare the old-time data for calling the integrator
@@ -341,7 +356,6 @@ void erf_advance(int level,
       inner_mem = ARKStepCreate(f_fast, NULL, time, nv_S);
     else
       inner_mem = ARKStepCreate(NULL, f_fast, time, nv_S);
-    MRIStepSetPreInnerFn(inner_mem, StoreStage);
     }
 
     ////STEP FIVE
@@ -351,11 +365,17 @@ void erf_advance(int level,
     fast_userdata.integrator = &integrator;
     fast_userdata.rhs_fun_fast = rhs_fun_fast;
     //For the sundials solve, use state_new as temporary data;
-    fast_userdata.S_stage_data = &state_new;
+    fast_userdata.S_stage_data = &state_store;
     fast_userdata.inner_mem = inner_mem;
-
+    #if 0
+    fast_userdata.number_steps_since_slow=0;
+    fast_userdata.steps_between_stored_stage_update=m;
+#endif
     ARKStepSetUserData(inner_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
-
+    for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
+    {
+    MultiFab::Copy(*state_store[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
+    }
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     if(use_erk3)
     {
@@ -429,7 +449,9 @@ void erf_advance(int level,
       MRIStepSetNonlinearSolver(mristep_mem, NLS);
     ////STEP NINE
     MRIStepSetUserData(mristep_mem, (void *) &integrator);  /* Pass udata to user functions */
+
     MRIStepSetPostInnerFn(mristep_mem, ProcessStage);
+    ARKStepSetPostprocessStepFn(inner_mem, PostStoreStage);
     MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
     }
     //Set table
@@ -554,6 +576,7 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   }
 
   integrator->call_post_update(S_data, t);
+  integrator->call_post_update(S_stage_data, t);
 
   //Call rhs_fun_fast lambda stored in userdata which uses erf_fast_rhs
   fast_userdata->rhs_fun_fast(S_rhs, S_stage_data, S_data, t);
@@ -573,33 +596,50 @@ static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
 
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
   void* inner_mem = fast_userdata->inner_mem;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_stage_data;
 
   N_Vector y_data;
-  MRIStepGetCurrentState(inner_mem, &y_data);
+  Real tcur;
+  ARKStepGetCurrentState(inner_mem, &y_data);
+  ARKStepGetCurrentTime(inner_mem, &tcur);
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
-  S_stage_data.resize(num_vecs);
-
-  for(int i=0; i<num_vecs; i++)
-  {
-      S_stage_data[i].reset((*(fast_userdata->S_stage_data))[i].get());
-  }
 
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
     const int nComp = (*(fast_userdata->S_stage_data))[i]->nComp();
     const int nGrow = (*(fast_userdata->S_stage_data))[i]->nGrow();
-    ((S_stage_data)[i].get())->copy(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, nComp, nGrow);
-  }
-
-  for(int i=0; i<num_vecs; i++)
-  {
-    S_stage_data[i].release();
+    //    ((*(fast_userdata->S_stage_data))[i])->copy(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, nComp, nGrow);
   }
 
   return 0;
 }
+
+static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
+{
+
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  #if 0
+  int number_steps_since_slow = fast_userdata->number_steps_since_slow++;
+  int steps_between_stored_stage_update = fast_userdata->steps_between_stored_stage_update;
+#else
+  int number_steps_since_slow = 1;
+  int steps_between_stored_stage_update = 1;
+  #endif
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+
+  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
+  {
+    const int nComp = (*(fast_userdata->S_stage_data))[i]->nComp();
+    const int nGrow = (*(fast_userdata->S_stage_data))[i]->nGrow();
+    #if 0
+    if(number_steps_since_slow % steps_between_stored_stage_update==0)
+       ((*(fast_userdata->S_stage_data))[i])->copy(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, nComp, nGrow);
+    #endif
+  }
+
+  return 0;
+}
+
 /* f routine to compute the ODE RHS function f(t,y). */
 static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 {
