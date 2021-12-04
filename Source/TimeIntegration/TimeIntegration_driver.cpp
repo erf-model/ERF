@@ -411,9 +411,9 @@ void erf_advance(int level,
         }
     if(advance_mri)
       if(advance_mri_test)
-	ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
+    ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
       else
-	ARKStepSetTables(inner_mem, B2->q, B2->p, NULL, B2);       // Specify Butcher table
+    ARKStepSetTables(inner_mem, B2->q, B2->p, NULL, B2);       // Specify Butcher table
     }
     else
     {
