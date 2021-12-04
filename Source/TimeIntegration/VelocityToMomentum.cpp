@@ -10,8 +10,8 @@ using namespace amrex;
 /**
  * Convert velocity to momentum.
  */
-void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in,
-                         MultiFab& cons_in,
+void VelocityToMomentum( const MultiFab& xvel_in, const MultiFab& yvel_in, const MultiFab& zvel_in,
+                         const MultiFab& cons_in,
                          MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
                          const int l_spatial_order)
 {
@@ -25,7 +25,7 @@ void VelocityToMomentum( MultiFab& xvel_in, MultiFab& yvel_in, MultiFab& zvel_in
         const Box& tbz = mfi.nodaltilebox(2);
 
         // Conserved/state variables on cell centers -- we use this for density
-        const Array4<Real>& cons = cons_in.array(mfi);
+        const Array4<const Real>& cons = cons_in.array(mfi);
 
         // Momentum on faces, to be computed
         Array4<Real> const& momx = xmom.array(mfi);
