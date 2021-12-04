@@ -70,24 +70,24 @@ void erf_advance(int level,
     // Here we define state_old and state_new which are the Nvectors to be advanced
     // **************************************************************************************
     // Initial solution
-    amrex::Vector<std::unique_ptr<amrex::MultiFab> > state_old;
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
+    amrex::Vector<amrex::MultiFab> state_old;
+    state_old.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
+    state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
     // Final solution
-    amrex::Vector<std::unique_ptr<amrex::MultiFab> > state_new;
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
+    amrex::Vector<amrex::MultiFab> state_new;
+    state_new.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
+    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
     // **************************************************************************************
     // Prepare the old-time data for calling the integrator
@@ -102,35 +102,35 @@ void erf_advance(int level,
     amrex::Vector<MultiFab*> vars_orig{&cons_old};
     ERF::applyBCs(fine_geom, vars_orig);
 
-    MultiFab::Copy(*state_old[IntVar::cons], cons_old, 0, 0, cons_old.nComp(), cons_old.nGrow());
+    MultiFab::Copy(state_old[IntVar::cons], cons_old, 0, 0, cons_old.nComp(), cons_old.nGrow());
 
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // **************************************************************************************
     VelocityToMomentum(xvel_old, yvel_old, zvel_old,
-                       *state_old[IntVar::cons],
-                       *state_old[IntVar::xmom],
-                       *state_old[IntVar::ymom],
-                       *state_old[IntVar::zmom],
+                       state_old[IntVar::cons],
+                       state_old[IntVar::xmom],
+                       state_old[IntVar::ymom],
+                       state_old[IntVar::zmom],
                        solverChoice.spatial_order);
 
     // Apply BC on old momentum data on faces before integration
     // **************************************************************************************
-    state_old[IntVar::xmom]->FillBoundary(fine_geom.periodicity());
-    state_old[IntVar::ymom]->FillBoundary(fine_geom.periodicity());
-    state_old[IntVar::zmom]->FillBoundary(fine_geom.periodicity());
+    state_old[IntVar::xmom].FillBoundary(fine_geom.periodicity());
+    state_old[IntVar::ymom].FillBoundary(fine_geom.periodicity());
+    state_old[IntVar::zmom].FillBoundary(fine_geom.periodicity());
 
     // Initialize the fluxes to zero
-    state_old[IntVar::xflux]->setVal(0.0_rt);
-    state_old[IntVar::yflux]->setVal(0.0_rt);
-    state_old[IntVar::zflux]->setVal(0.0_rt);
+    state_old[IntVar::xflux].setVal(0.0_rt);
+    state_old[IntVar::yflux].setVal(0.0_rt);
+    state_old[IntVar::zflux].setVal(0.0_rt);
 
-    auto interpolate_coarse_fine_faces = [&](Vector<std::unique_ptr<MultiFab> >& S_data) {
+    auto interpolate_coarse_fine_faces = [&](Vector<MultiFab>& S_data) {
         if (level > 0)
         {
             amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
-            amrex::Array<MultiFab*,3> fmf{S_data[IntVar::xmom].get(),
-                                          S_data[IntVar::ymom].get(),
-                                          S_data[IntVar::zmom].get()};
+            amrex::Array<MultiFab*,3> fmf{&S_data[IntVar::xmom],
+                                          &S_data[IntVar::ymom],
+                                          &S_data[IntVar::zmom]};
 
             // Interpolate from coarse faces to fine faces *only* on the coarse-fine boundary
             ifr->interp(fmf,cmf_const,0,1);
@@ -145,11 +145,11 @@ void erf_advance(int level,
         }
     };
 
-    auto apply_bcs = [&](Vector<std::unique_ptr<MultiFab> >& S_data) {
-        amrex::Vector<MultiFab*> state_p{S_data[IntVar::cons].get(),
-                                         S_data[IntVar::xmom].get(),
-                                         S_data[IntVar::ymom].get(),
-                                         S_data[IntVar::zmom].get()};
+    auto apply_bcs = [&](Vector<MultiFab>& S_data) {
+        amrex::Vector<MultiFab*> state_p{&S_data[IntVar::cons],
+                                         &S_data[IntVar::xmom],
+                                         &S_data[IntVar::ymom],
+                                         &S_data[IntVar::zmom]};
 
         ERF::applyBCs(fine_geom, state_p);
     };
@@ -161,13 +161,13 @@ void erf_advance(int level,
     // **************************************************************************************
     // Setup the integrator
     // **************************************************************************************
-    TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > integrator(state_old);
+    TimeIntegrator<amrex::Vector<amrex::MultiFab> > integrator(state_old);
 
     bool l_lo_z_is_no_slip = ERF::lo_z_is_no_slip;
     bool l_hi_z_is_no_slip = ERF::hi_z_is_no_slip;
 
-    auto rhs_fun = [&](      Vector<std::unique_ptr<MultiFab> >& S_rhs,
-                       const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
+    auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
+                       const Vector<MultiFab>& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data,
                 source,
                 advflux, diffflux,
@@ -181,10 +181,10 @@ void erf_advance(int level,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
     };
 
-    auto post_update_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
+    auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time) {
         // Apply BC on updated state and momentum data
         for (auto& mfp : S_data) {
-            mfp->FillBoundary(fine_geom.periodicity());
+            mfp.FillBoundary(fine_geom.periodicity());
         }
 
         // are these in the right order?
@@ -209,21 +209,21 @@ void erf_advance(int level,
     // Convert updated momentum to updated velocity on faces after we have taken a timestep
     // **************************************************************************************
     MomentumToVelocity(xvel_new, yvel_new, zvel_new,
-                       *state_new[IntVar::cons],
-                       *state_new[IntVar::xmom],
-                       *state_new[IntVar::ymom],
-                       *state_new[IntVar::zmom],
+                       state_new[IntVar::cons],
+                       state_new[IntVar::xmom],
+                       state_new[IntVar::ymom],
+                       state_new[IntVar::zmom],
                        0, solverChoice.spatial_order);
 
     // **************************************************************************************
     // Get the final cell centered variables after the step
     // (do this at the very end because its a swap not a copy)
     // **************************************************************************************
-    std::swap(cons_new, *state_new[IntVar::cons]);
+    std::swap(cons_new, state_new[IntVar::cons]);
 
-    std::swap(flux[0], *state_new[IntVar::xflux]);
-    std::swap(flux[1], *state_new[IntVar::yflux]);
-    std::swap(flux[2], *state_new[IntVar::zflux]);
+    std::swap(flux[0], state_new[IntVar::xflux]);
+    std::swap(flux[1], state_new[IntVar::yflux]);
+    std::swap(flux[2], state_new[IntVar::zflux]);
 
     // One final application of internal and periodic ghost cell filling
     xvel_new.FillBoundary(fine_geom.periodicity());
