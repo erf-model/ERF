@@ -1290,7 +1290,7 @@ namespace math_bcs {
 
     static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b,
                                               amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
-                                              const ABLMost& most, int vartype, int ncomp=1) 
+                                              const ABLMost& most, int vartype, int ncomp=1)
     {
 #if 0
       int lo = geom.Domain().smallEnd(IDIR);
@@ -1462,9 +1462,9 @@ namespace math_bcs {
   struct ablmostwall<IDIR, BCBound::upper> {
     using self = ablmostwall<IDIR, BCBound::upper>;
 
-    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, 
-                                        amrex::Vector<Array4<Real>*>& states, Array4<Real>& data, 
-                                        const ABLMost& most, int vartype, int ncomp=1) 
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b,
+                                        amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
+                                        const ABLMost& most, int vartype, int ncomp=1)
     {
 #if 0
       int lo = geom.Domain().smallEnd(IDIR);
