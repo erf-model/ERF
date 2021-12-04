@@ -43,7 +43,7 @@ int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
-std::string ERF::plotfile_type = "amrex";
+std::string ERF::plotfile_type   = "amrex";
 std::string ERF::checkpoint_type = "amrex";
 
 int         ERF::output_1d_column = 0;
