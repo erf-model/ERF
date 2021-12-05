@@ -28,7 +28,7 @@ the low and high extents (in physical space) of each box in the lateral
 directions.   ERF enforces that all refinement spans the entire vertical direction.
 
 The following example demonstrates how to tag regions for static refinement.
-Here, all cells inside the region ((.25,.25,prob_lo)(.75,.75,prob_hi)) are tagged,
+Here, all cells inside the region ((.25,.25,prob_lo_z)(.75,.75,prob_hi_z)) are tagged,
 where prob_lo_z and prob_hi_z are the vertical extents of the domain:
 
 ::
@@ -56,10 +56,13 @@ Available tests include
 
 This example adds three user-named criteria –
 hi\_rho: cells with density greater than 1 on level 0, and greater than 2 on level 1 and higher;
-lo\_theta: cells with theta less than 300 that are inside the region ((.25,.25,prob_lo_z)(.75,.75,prob_hi_z));
+lo\_theta: cells with theta less than 300 that are inside the region ((.25,.25,.25)(.75,.75,.75));
 and adv_diff: cells having a difference in the scalar of 0.01 or more from that of any immediate neighbor.
 The first will trigger up to AMR level 3, the second only to level 1, and the third to level 2.
 The third will be active only when the problem time is between 0.001 and 0.002 seconds.
+
+Note that density and rhoadv_0 are the names of state variables, whereas theta is the name of a derived variable,
+computed by dividing the variable named rhotheta by the variable named density.
 
 ::
 
@@ -69,15 +72,15 @@ The third will be active only when the problem time is between 0.001 and 0.002 s
           amr.hi_rho.value_greater = 1. 2.
           amr.hi_rho.field_name = density
 
-          amr.lo_temp.max_level = 1
-          amr.lo_temp.value_less = 300
-          amr.lo_temp.field_name = theta
-          amr.lo_temp.in_box_lo = .25 .25
-          amr.lo_temp.in_box_hi = .75 .75
+          amr.lo_theta.max_level = 1
+          amr.lo_theta.value_less = 300
+          amr.lo_theta.field_name = rhotheta
+          amr.lo_theta.in_box_lo = .25 .25 .25
+          amr.lo_theta.in_box_hi = .75 .75 .75
 
           amr.advdiff.max_level = 2
           amr.advdiff.adjacent_difference_greater = 0.01
-          amr.advdiff.field_name = adv_0
+          amr.advdiff.field_name = rhoadv_0
           amr.advdiff.start_time = 0.001
           amr.advdiff.end_time = 0.002
 
