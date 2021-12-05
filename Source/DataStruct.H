@@ -98,9 +98,6 @@ struct SolverChoice {
         pp.query("Sc_t", Sc_t);
         pp.query("rho0_trans", rho0_trans);
 
-        pp.query("Ce" , Ce);
-        pp.query("Ck" , Ck);
-
         // Compute relevant forms of diffusion parameters
         Pr_t_inv = 1.0 / Pr_t;
         Sc_t_inv = 1.0 / Sc_t;
@@ -162,8 +159,6 @@ struct SolverChoice {
         amrex::Print() << "dynamicViscosity      : " << dynamicViscosity << std::endl;
         amrex::Print() << "Cs                    : " << Cs << std::endl;
         amrex::Print() << "CI                    : " << CI << std::endl;
-        amrex::Print() << "Ce                    : " << Ck << std::endl;
-        amrex::Print() << "Ck                    : " << Ce << std::endl;
         amrex::Print() << "Pr_t                  : " << Pr_t << std::endl;
         amrex::Print() << "Sc_t                  : " << Sc_t << std::endl;
         amrex::Print() << "spatial_order         : " << spatial_order << std::endl;
@@ -277,11 +272,6 @@ struct SolverChoice {
     // Smagorinsky Turbulent Schmidt Number
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;
-
-    // Deardorff Ce coefficient
-    amrex::Real Ce = 0.0;
-    // Deardorff Ck coefficient
-    amrex::Real Ck = 0.0;
 
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;

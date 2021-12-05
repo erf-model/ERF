@@ -168,10 +168,6 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     rhoAlpha_molec = solverChoice.rhoAlpha_T;
     Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
     break;
-  case RhoKE_comp: // Turbulent KE
-    rhoAlpha_molec = solverChoice.rhoAlpha_T;
-    Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
-    break;
   case RhoScalar_comp: // Scalar
     rhoAlpha_molec = solverChoice.rhoAlpha_C;
     Pr_or_Sc_turb_inv = solverChoice.Sc_t_inv;
@@ -196,13 +192,6 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   switch (solverChoice.les_type) {
   case LESType::Smagorinsky:
     // K_LES = 2*mu_t -> extra factor of 0.5 when computing rhoAlpha
-    rhoAlpha_r = K_LES(ir, jr, kr) * Pr_or_Sc_turb_inv;
-    rhoAlpha_l = K_LES(il, jl, kl) * Pr_or_Sc_turb_inv;
-    rhoAlpha += 0.25*(rhoAlpha_l + rhoAlpha_r);
-    break;
-  case LESType::Deardorff:
-    // K_LES = 2*mu_t -> extra factor of 0.5 when computing rhoAlpha
-    // TODO: the notes say the coefficient should be mu_t / sigma_k -- WHAT IS sigma_k??
     rhoAlpha_r = K_LES(ir, jr, kr) * Pr_or_Sc_turb_inv;
     rhoAlpha_l = K_LES(il, jl, kl) * Pr_or_Sc_turb_inv;
     rhoAlpha += 0.25*(rhoAlpha_l + rhoAlpha_r);

@@ -28,7 +28,6 @@ void erf_rhs (int level,
     int klo = geom.Domain().smallEnd()[2];
     int khi = geom.Domain().bigEnd()[2];
 
-    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const auto& ba = S_data[IntVar::cons].boxArray();
     const auto& dm = S_data[IntVar::cons].DistributionMap();
@@ -87,10 +86,6 @@ void erf_rhs (int level,
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
     const iMultiFab *mlo_mf_z, *mhi_mf_z;
-
-    bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
-    Real l_Delta         = std::pow(dx[0] * dx[1] * dx[2],1./3.);
-    Real l_C_e           = solverChoice.Ce;
 
     if (level > 0)
     {
@@ -170,7 +165,7 @@ void erf_rhs (int level,
             cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
             // Add advection terms.
-            if (solverChoice.use_state_advection && ((n != RhoKE_comp) || l_use_deardorff))
+            if (solverChoice.use_state_advection)
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data, n,
                                          advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
 
@@ -181,21 +176,12 @@ void erf_rhs (int level,
             if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
-            if (l_use_deardorff && n == RhoKE_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoKE_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
 
             // Add Rayleigh damping
             if (solverChoice.use_rayleigh_damping && n == RhoTheta_comp)
             {
                 Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
                 cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,Rho_comp);
-            }
-
-            if (l_use_deardorff && n == RhoKE_comp)
-            {
-                cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * l_C_e * 
-                    std::pow(cell_data(i,j,k,n)/cell_data(i,j,k,Rho_comp),1.5) / l_Delta;
             }
 
             // Add source terms. TODO: Put this under a if condition when we implement source term
