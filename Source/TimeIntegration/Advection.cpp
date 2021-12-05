@@ -11,6 +11,7 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
                               const enum AdvectingQuantity &advectingQuantity,
                               const int &spatial_order)
 {
+  Real flux = 0.;
   switch(advectedQuantity) {
     case AdvectedQuantity::u: //x-momentum
       switch (advectingQuantity) {
