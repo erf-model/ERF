@@ -9,13 +9,13 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
                               const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                               const enum AdvectedQuantity &advectedQuantity,
                               const enum AdvectingQuantity &advectingQuantity,
-                              const int &spatial_order) 
+                              const int &spatial_order)
 {
   switch(advectedQuantity) {
     case AdvectedQuantity::u: //x-momentum
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        flux = 0.5*(rho_u(i-1, j, k) + rho_u(i, j, k)) * 
+        flux = 0.5*(rho_u(i-1, j, k) + rho_u(i, j, k)) *
                     InterpolateFromCellOrFace(i, j, k, u, 0, Coord::x, spatial_order);
         break;
       case AdvectingQuantity::rho_v:

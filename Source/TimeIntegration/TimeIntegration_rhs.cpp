@@ -194,7 +194,7 @@ void erf_rhs (int level,
 
             if (l_use_deardorff && n == RhoKE_comp)
             {
-                cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * l_C_e * 
+                cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * l_C_e *
                     std::pow(cell_data(i,j,k,n)/cell_data(i,j,k,Rho_comp),1.5) / l_Delta;
             }
 

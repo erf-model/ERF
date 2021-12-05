@@ -1400,7 +1400,7 @@ namespace math_bcs {
   struct ablmostwall<IDIR, BCBound::upper> {
     using self = ablmostwall<IDIR, BCBound::upper>;
 
-    static inline void 
+    static inline void
     apply_cell_based(const amrex::Geometry& geom, const Box& b,
                      amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
                      const ABLMost& most, int vartype, int ncomp=1) {};

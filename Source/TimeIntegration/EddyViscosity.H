@@ -81,9 +81,9 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
         });
 
       } //mfi
-    } 
+    }
     else if (solverChoice.les_type == LESType::Deardorff)
-    { 
+    {
 
       Real l_C_k = solverChoice.Ck;
 
