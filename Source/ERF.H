@@ -10,6 +10,7 @@
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_AmrLevel.H>
 #include <AMReX_iMultiFab.H>
+#include <AMReX_ErrorList.H>
 
 #include <AMReX_FluxRegister.H>
 
@@ -24,6 +25,7 @@
 #include "BC/BCBase.H"
 #include "BC/BCDummy.H"
 #include "BC/BCInterior.H"
+#include "BC/BCOutflow.H"
 #include "BC/BCDirichlet.H"
 #include "BC/BCSlipWall.H"
 #include "BC/BCNoSlipWall.H"
@@ -313,8 +315,6 @@ protected:
 
   static void read_params();
 
-  static void read_tagging_params();
-
   template<int DIM, math_bcs::BCBound Bound>
   static std::unique_ptr<phys_bcs::BCBase> initialize_bcs(const std::string& bc_char);
 
@@ -404,6 +404,13 @@ protected:
   static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
   static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
   static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
+
+  static void refinement_criteria_setup();
+
+  //
+  // Holds info for dynamically generated tagging criteria
+  //
+  static amrex::Vector<amrex::AMRErrorTag> ref_tags;
 
 /* problem-specific includes */
 #include <Problem.H>

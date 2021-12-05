@@ -10,43 +10,76 @@
 Mesh Refinement
 ===============
 
-Note: Mesh refinement is a WIP -- for now the documentation is aspirational.
+ERF allows both static and dynamic mesh refinement.
 
-Grid Creation
--------------
-
-ERF allows both static and dynamic mesh refinement.  For the static refinement, we currently control
-the placement of grids using
-
-+--------------------------+------------------+-----------------+-------------+
-| Parameter                | Definition       | Acceptable      | Default     |
-|                          |                  | Values          |             |
-+==========================+==================+=================+=============+
-| **tagging.tag_region**   | are we going to  | true / false    | false       |
-|                          | specify a tagged |                 |             |
-|                          | region for       |                 |             |
-|                          | refinement       |                 |             |
-+--------------------------+------------------+-----------------+-------------+
-| **tagging.region_lo**    | low corner of    | 3 Reals         | None        |
-|                          | physical         |                 |             |
-|                          | location for     |                 |             |
-|                          | refinement if    |                 |             |
-|                          | tag_region true  |                 |             |
-+--------------------------+------------------+-----------------+-------------+
-| **tagging.region_hi**    | high corner of   | 3 Reals         | None        |
-|                          | physical         |                 |             |
-|                          | location for     |                 |             |
-|                          | refinement if    |                 |             |
-|                          | tag_region true  |                 |             |
-+--------------------------+------------------+-----------------+-------------+
-
-Note that the tagged region will be covered by one or more boxes.  The user may
-specify the region to be covered but not the decompostion of the region into
+Note that any tagged region will be covered by one or more boxes.  The user may
+specify the refinement criteria and/or region to be covered, but not the decomposition of the region into
 individual grids.
 
 See the `Gridding`_ section of the AMReX documentation for details of how individual grids are created.
 
 .. _`Gridding`: https://amrex-codes.github.io/amrex/docs_html/ManagingGridHierarchy_Chapter.html
+
+Static Mesh Refinement
+----------------------
+
+For static refinement, we control the placement of grids by specifying
+the low and high extents (in physical space) of each box in the lateral
+directions.   ERF enforces that all refinement spans the entire vertical direction.
+
+The following example demonstrates how to tag regions for static refinement.
+Here, all cells inside the region ((.25,.25,prob_lo)(.75,.75,prob_hi)) are tagged,
+where prob_lo_z and prob_hi_z are the vertical extents of the domain:
+
+::
+
+          amr.refinement_indicators = box
+
+          amr.box.in_box_lo = .25 .25
+          amr.box.in_box_hi = .75 .75
+
+
+Dynamic Mesh Refinement
+-----------------------
+
+Dynamically created tagging functions are based on runtime data specified in the inputs file.
+These dynamically generated functions test on either state variables or derived variables
+defined in ERF_derive.cpp and included in the derive_lst in Setup.cpp.
+
+Available tests include
+
+-  “greater\_than”: :math:`field >= threshold`
+
+-  “less\_than”: :math:`field <= threshold`
+
+-  “adjacent\_difference\_greater”: :math:`max( | \text{difference between any nearest-neighbor cell} | ) >= threshold`
+
+This example adds three user-named criteria –
+hi\_rho: cells with density greater than 1 on level 0, and greater than 2 on level 1 and higher;
+lo\_theta: cells with theta less than 300 that are inside the region ((.25,.25,prob_lo_z)(.75,.75,prob_hi_z));
+and adv_diff: cells having a difference in the scalar of 0.01 or more from that of any immediate neighbor.
+The first will trigger up to AMR level 3, the second only to level 1, and the third to level 2.
+The third will be active only when the problem time is between 0.001 and 0.002 seconds.
+
+::
+
+          amr.refinement_indicators = hi_rho lo_theta advdiff
+
+          amr.hi_rho.max_level = 3
+          amr.hi_rho.value_greater = 1. 2.
+          amr.hi_rho.field_name = density
+
+          amr.lo_temp.max_level = 1
+          amr.lo_temp.value_less = 300
+          amr.lo_temp.field_name = theta
+          amr.lo_temp.in_box_lo = .25 .25
+          amr.lo_temp.in_box_hi = .75 .75
+
+          amr.advdiff.max_level = 2
+          amr.advdiff.adjacent_difference_greater = 0.01
+          amr.advdiff.field_name = adv_0
+          amr.advdiff.start_time = 0.001
+          amr.advdiff.end_time = 0.002
 
 Coupling Types
 --------------

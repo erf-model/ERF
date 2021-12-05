@@ -17,7 +17,7 @@
 #include "ERF_Constants.H"
 #include "Derive.H"
 #include "EOS.H"
-#include "Tagging.H"
+//#include "Tagging.H"
 #include "IndexDefines.H"
 
 using namespace amrex;
@@ -66,6 +66,8 @@ int ERF::FirstAdv = -1;
 bool ERF::lo_z_is_no_slip = false;
 bool ERF::hi_z_is_no_slip = false;
 
+Vector<AMRErrorTag> ERF::ref_tags;
+
 amrex::Vector<int> ERF::src_list;
 
 amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_dens_hse(0);
@@ -102,11 +104,11 @@ ERF::initialize_bcs(const std::string& bc_char) {
   } else if (!bc_char.compare("Hard")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
     return bc_rec;
-  } else if (!bc_char.compare("FOExtrap")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
+  } else if (!bc_char.compare("Outflow")) {
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCOutflow<DIM, Bound>());
     return bc_rec;
   } else if (!bc_char.compare("Symmetry")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
     return bc_rec;
   } else if (!bc_char.compare("Dirichlet")) {
     amrex::ParmParse bcinp(getBCName<DIM, Bound>());
@@ -255,9 +257,6 @@ ERF::read_params()
   if (max_dt < fixed_dt) {
     amrex::Error("Cannot have max_dt < fixed_dt");
   }
-
-  // Read tagging parameters
-  read_tagging_params();
 
   solverChoice.init_params();
 }
@@ -845,144 +844,6 @@ void
 ERF::removeOldData()
 {
   AmrLevel::removeOldData();
-}
-
-void
-ERF::errorEst(
-  amrex::TagBoxArray& tags,
-  int /*clearval*/,
-  int /*tagval*/,
-  amrex::Real time,
-  int /*n_error_buf*/,
-  int /*ngrow*/)
-{
-  BL_PROFILE("ERF::errorEst()");
-  const char tagval = amrex::TagBox::SET;
-
-  amrex::MultiFab S_data(
-    get_new_data(State_Type).boxArray(),
-    get_new_data(State_Type).DistributionMap(), NVAR, 1);
-
-  // Static refinement of a specified region
-  if (tparm.tag_region)
-  {
-      Real xlo = (tparm.region_lo[0] - geom.ProbLo()[0]);
-      Real ylo = (tparm.region_lo[1] - geom.ProbLo()[0]);
-      Real xhi = (tparm.region_hi[0] - geom.ProbLo()[1]);
-      Real yhi = (tparm.region_hi[1] - geom.ProbLo()[1]);
-      Real zlo = (tparm.region_lo[2] - geom.ProbLo()[2]);
-      Real zhi = (tparm.region_hi[2] - geom.ProbLo()[2]);
-
-      const Real l_dx = geom.CellSize(0);
-      const Real l_dy = geom.CellSize(1);
-      const Real l_dz = geom.CellSize(2);
-
-      for (amrex::MFIter mfi(S_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-      {
-         const amrex::Box& bx = mfi.tilebox();
-         auto tag_arr = tags.array(mfi);
-
-         amrex::ParallelFor(bx,
-         [xlo, xhi, ylo, yhi, zlo, zhi, l_dx, l_dy, l_dz,tagval, tag_arr]
-         AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-         {
-              Real x = (i+0.5)*l_dx;
-              Real y = (j+0.5)*l_dy;
-              Real z = (k+0.5)*l_dz;
-
-              // Tag if we are inside the specified box
-              if (x >= xlo && x <= xhi && y >= ylo && y <= yhi && z >= zlo && z <= zhi)
-              {
-                 tag_arr(i,j,k) = tagval;
-              }
-         });
-      }
-
-  } else {
-
-  const amrex::Real cur_time = state[State_Type].curTime();
-  FillPatch(
-    *this, S_data, S_data.nGrow(), cur_time, State_Type, Rho_comp, NVAR, 0);
-
-  amrex::Vector<amrex::BCRec> bcs(NVAR);
-//  const char clearval = amrex::TagBox::CLEAR;
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-  {
-    for (amrex::MFIter mfi(S_data, amrex::TilingIfNotGPU()); mfi.isValid();
-         ++mfi) {
-      const amrex::Box& tilebox = mfi.tilebox();
-      const auto Sfab = S_data.array(mfi);
-      auto tag_arr = tags.array(mfi);
-      const auto datbox = S_data[mfi].box();
-      amrex::Elixir S_data_mfi_eli = S_data[mfi].elixir();
-
-      amrex::FArrayBox S_derData(datbox, 1);
-      amrex::Elixir S_derData_eli = S_derData.elixir();
-      auto S_derarr = S_derData.array();
-      const int ncp = S_derData.nComp();
-      const int* bc = bcs[0].data();
-
-      // Tagging density
-      if (level < tparm.max_denerr_lev) {
-        amrex::ParallelFor(
-          tilebox, [=, denerr=tparm.denerr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_error(i, j, k, tag_arr, Sfab, denerr, tagval);
-          });
-      }
-      if (level < tparm.max_dengrad_lev) {
-        amrex::ParallelFor(
-          tilebox, [=, dengrad=tparm.dengrad] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_graderror(i, j, k, tag_arr, Sfab, dengrad, tagval);
-          });
-      }
-
-      // Tagging pressure
-      S_derData.setVal<amrex::RunOn::Device>(0.0);
-      erf_derpres(
-        datbox, S_derData, ncp, Sfab.nComp(), S_data[mfi], geom, time, bc,
-        level);
-      if (level < tparm.max_presserr_lev) {
-        amrex::ParallelFor(
-          tilebox, [=, presserr=tparm.presserr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_error(
-              i, j, k, tag_arr, S_derarr, presserr, tagval);
-          });
-      }
-      if (level < tparm.max_pressgrad_lev) {
-        amrex::ParallelFor(
-          tilebox, [=, pressgrad=tparm.pressgrad] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_graderror(
-              i, j, k, tag_arr, S_derarr, pressgrad, tagval);
-          });
-      }
-
-      // Tagging temperature
-      S_derData.setVal<amrex::RunOn::Device>(0.0);
-      erf_dertemp(
-        datbox, S_derData, ncp, Sfab.nComp(), S_data[mfi], geom, time, bc,
-        level);
-      if (level < tparm.max_temperr_lev) {
-        amrex::ParallelFor(
-          tilebox, [=, temperr=tparm.temperr] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_error(i, j, k, tag_arr, S_derarr, temperr, tagval);
-          });
-      }
-      if (level < tparm.max_tempgrad_lev) {
-        amrex::ParallelFor(
-          tilebox, [=, tempgrad=tparm.tempgrad] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            tag_graderror(
-              i, j, k, tag_arr, S_derarr, tempgrad, tagval);
-          });
-      }
-
-      // Now update the tags in the TagBox.
-      // tag_arr.tags(itags, tilebox);
-    }
-  }
-  } // end of !tag_region
 }
 
 std::unique_ptr<amrex::MultiFab>

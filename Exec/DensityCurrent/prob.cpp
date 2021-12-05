@@ -185,7 +185,7 @@ erf_init_prob(
 //  amrex::Real rhobar = pbar / (R_d*Tbar);
 
     // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-    amrex::Real Tbar = p[0] / (R_d * r[0]);
+    const amrex::Real Tbar_hse = p[0] / (R_d * r[0]);
 
     amrex::Real L = std::sqrt(
         std::pow((x - parms.x_c)/parms.x_r, 2) +
@@ -203,7 +203,7 @@ erf_init_prob(
     state(i, j, k, Rho_comp) = r[k];
 
     // Note: dT is a perturbation temperature, which should be converted to a delta theta
-    state(i, j, k, RhoTheta_comp) = r[k] * (Tbar+dT)*std::pow(p_0/pbar, R_d/parms.C_p);
+    state(i, j, k, RhoTheta_comp) = r[k] * (Tbar_hse+dT)*std::pow(p_0/pbar, R_d/parms.C_p);
 
     // Using this is a test of whether the initial state is in fact hydrostatically stratified
     //state(i, j, k, RhoTheta_comp) = r[k] * parms.T_0;

@@ -1,52 +1,92 @@
-#include <AMReX_ParmParse.H>
-
 #include "ERF.H"
-#include "Tagging.H"
-
-TaggingParm tparm;
 
 void
-ERF::read_tagging_params()
+ERF::errorEst (TagBoxArray& tags,
+               int          clearval,
+               int          tagval,
+               Real         time,
+               int          n_error_buf,
+               int          ngrow)
 {
-  amrex::ParmParse pp("tagging");
-
-  pp.query("denerr", tparm.denerr);
-  pp.query("max_denerr_lev", tparm.max_denerr_lev);
-  pp.query("dengrad", tparm.dengrad);
-  pp.query("max_dengrad_lev", tparm.max_dengrad_lev);
-
-  pp.query("presserr", tparm.presserr);
-  pp.query("max_presserr_lev", tparm.max_presserr_lev);
-  pp.query("pressgrad", tparm.pressgrad);
-  pp.query("max_pressgrad_lev", tparm.max_pressgrad_lev);
-
-  pp.query("velerr", tparm.velerr);
-  pp.query("max_velerr_lev", tparm.max_velerr_lev);
-  pp.query("velgrad", tparm.velgrad);
-  pp.query("max_velgrad_lev", tparm.max_velgrad_lev);
-
-  pp.query("vorterr", tparm.vorterr);
-  pp.query("max_vorterr_lev", tparm.max_vorterr_lev);
-
-  pp.query("temperr", tparm.temperr);
-  pp.query("max_temperr_lev", tparm.max_temperr_lev);
-  pp.query("tempgrad", tparm.tempgrad);
-  pp.query("max_tempgrad_lev", tparm.max_tempgrad_lev);
-
-  pp.query("ftracerr", tparm.ftracerr);
-  pp.query("max_ftracerr_lev", tparm.max_ftracerr_lev);
-  pp.query("ftracgrad", tparm.ftracgrad);
-  pp.query("max_ftracgrad_lev", tparm.max_ftracgrad_lev);
-
-  pp.query("vfracerr", tparm.vfracerr);
-  pp.query("max_vfracerr_lev", tparm.max_vfracerr_lev);
-
-  pp.query("tag_region", tparm.tag_region);
-  if (tparm.tag_region)
-  {
-      tparm.region_lo.resize(3);
-      tparm.region_hi.resize(3);
-      pp.getarr("region_lo", tparm.region_lo);
-      pp.getarr("region_hi", tparm.region_hi);
+  for (int j=0; j < ref_tags.size(); ++j) {
+    std::unique_ptr<MultiFab> mf;
+    if (ref_tags[j].Field() != std::string()) {
+      mf = derive(ref_tags[j].Field(), time, ref_tags[j].NGrow());
+    }
+    ref_tags[j](tags,mf.get(),clearval,tagval,time,level,geom);
   }
 }
+
+void
+ERF::refinement_criteria_setup()
+{
+    //
+    // Dynamically generated tagging functions
+    //
+    std::string amr_prefix = "amr";
+    ParmParse ppamr(amr_prefix);
+    Vector<std::string> refinement_indicators;
+    ppamr.queryarr("refinement_indicators",refinement_indicators,0,ppamr.countval("refinement_indicators"));
+    for (int i=0; i<refinement_indicators.size(); ++i)
+    {
+        std::string ref_prefix = amr_prefix + "." + refinement_indicators[i];
+
+        ParmParse ppr(ref_prefix);
+        RealBox realbox;
+        if (ppr.countval("in_box_lo")) {
+            std::vector<Real> box_lo(3), box_hi(3);
+            ppr.getarr("in_box_lo",box_lo,0,2);
+            ppr.getarr("in_box_hi",box_hi,0,2);
+            box_lo[2] = 0.0;
+            box_hi[2] = 1.e10; // Sufficiently large we will refine the entire vertical extent
+            realbox = RealBox(&(box_lo[0]),&(box_hi[0]));
+        }
+
+        AMRErrorTagInfo info;
+
+        if (realbox.ok()) {
+            info.SetRealBox(realbox);
+        }
+        if (ppr.countval("start_time") > 0) {
+            Real min_time; ppr.get("start_time",min_time);
+            info.SetMinTime(min_time);
+        }
+        if (ppr.countval("end_time") > 0) {
+            Real max_time; ppr.get("end_time",max_time);
+            info.SetMaxTime(max_time);
+        }
+        if (ppr.countval("max_level") > 0) {
+            int max_level; ppr.get("max_level",max_level);
+            info.SetMaxLevel(max_level);
+        }
+
+        if (ppr.countval("value_greater")) {
+	    int num_val = ppr.countval("value_greater");
+	    Vector<Real> value(num_val);
+	    ppr.getarr("value_greater",value,0,num_val);
+            std::string field; ppr.get("field_name",field);
+            ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
+        }
+        else if (ppr.countval("value_less")) {
+	    int num_val = ppr.countval("value_less");
+	    Vector<Real> value(num_val);
+	    ppr.getarr("value_less",value,0,num_val);
+            std::string field; ppr.get("field_name",field);
+            ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
+        }
+        else if (ppr.countval("adjacent_difference_greater")) {
+	    int num_val = ppr.countval("adjacent_difference_greater");
+	    Vector<Real> value(num_val);
+	    ppr.getarr("adjacent_difference_greater",value,0,num_val);
+            std::string field; ppr.get("field_name",field);
+            ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GRAD,field,info));
+        }
+        else if (realbox.ok())
+        {
+            ref_tags.push_back(AMRErrorTag(info));
+        } else {
+            Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
+        }
+    }
+}
+
