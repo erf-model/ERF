@@ -61,23 +61,23 @@ ERF::refinement_criteria_setup()
         }
 
         if (ppr.countval("value_greater")) {
-	    int num_val = ppr.countval("value_greater");
-	    Vector<Real> value(num_val);
-	    ppr.getarr("value_greater",value,0,num_val);
+        int num_val = ppr.countval("value_greater");
+        Vector<Real> value(num_val);
+        ppr.getarr("value_greater",value,0,num_val);
             std::string field; ppr.get("field_name",field);
             ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
         }
         else if (ppr.countval("value_less")) {
-	    int num_val = ppr.countval("value_less");
-	    Vector<Real> value(num_val);
-	    ppr.getarr("value_less",value,0,num_val);
+        int num_val = ppr.countval("value_less");
+        Vector<Real> value(num_val);
+        ppr.getarr("value_less",value,0,num_val);
             std::string field; ppr.get("field_name",field);
             ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
         }
         else if (ppr.countval("adjacent_difference_greater")) {
-	    int num_val = ppr.countval("adjacent_difference_greater");
-	    Vector<Real> value(num_val);
-	    ppr.getarr("adjacent_difference_greater",value,0,num_val);
+        int num_val = ppr.countval("adjacent_difference_greater");
+        Vector<Real> value(num_val);
+        ppr.getarr("adjacent_difference_greater",value,0,num_val);
             std::string field; ppr.get("field_name",field);
             ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GRAD,field,info));
         }
