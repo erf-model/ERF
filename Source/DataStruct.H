@@ -100,6 +100,7 @@ struct SolverChoice {
 
         pp.query("Ce" , Ce);
         pp.query("Ck" , Ck);
+        pp.query("sigma_k" , sigma_k);
 
         // Compute relevant forms of diffusion parameters
         Pr_t_inv = 1.0 / Pr_t;
@@ -162,8 +163,9 @@ struct SolverChoice {
         amrex::Print() << "dynamicViscosity      : " << dynamicViscosity << std::endl;
         amrex::Print() << "Cs                    : " << Cs << std::endl;
         amrex::Print() << "CI                    : " << CI << std::endl;
-        amrex::Print() << "Ce                    : " << Ck << std::endl;
-        amrex::Print() << "Ck                    : " << Ce << std::endl;
+        amrex::Print() << "Ce                    : " << Ce << std::endl;
+        amrex::Print() << "Ck                    : " << Ck << std::endl;
+        amrex::Print() << "sigma_k               : " << sigma_k << std::endl;
         amrex::Print() << "Pr_t                  : " << Pr_t << std::endl;
         amrex::Print() << "Sc_t                  : " << Sc_t << std::endl;
         amrex::Print() << "spatial_order         : " << spatial_order << std::endl;
@@ -282,6 +284,8 @@ struct SolverChoice {
     amrex::Real Ce = 0.0;
     // Deardorff Ck coefficient
     amrex::Real Ck = 0.0;
+    // Deardorff sigma_k coefficient
+    amrex::Real sigma_k = 1.0;
 
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;

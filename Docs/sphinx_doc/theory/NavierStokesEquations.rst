@@ -188,5 +188,12 @@ The equation solved to determine :math:`k^{sfs}`, the subfilter contribution to 
 
 .. math::
 
-   \frac{\partial \overline{\rho} k^{sfs}}{\partial t} = - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{k}^{sfs}) + \nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla k ^{sfs}  \right) + ( \overline{\rho} \widetilde{\mathbf{uu}} - \overline{\rho} \tilde{\mathbf{u}} \tilde{\mathbf{u}})\nabla \cdot \mathbf{\tilde{u}} - \overline{\rho} C_\epsilon \frac{(k^{sfs})^{3/2}}{\overline{\Delta}}.
+   \frac{\partial \overline{\rho} k^{sfs}}{\partial t} = - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{k}^{sfs})
+                                                         + \nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla k ^{sfs}  \right)
+                                                         - \tau_{ij} \frac{\partial \tilde{u}_i}{\partial x_j}
+                                                         - \overline{\rho} C_\epsilon \frac{(k^{sfs})^{3/2}}{\overline{\Delta}}.
 
+where :math:`\sigma_k` is a constant model coefficient representing the ratio of turbulent viscosity to turbulent diffusivity
+of TKE that should be order unity.
+
+The current implementation of the Deardorff model in ERF neglects a buoyancy source term in this equation.

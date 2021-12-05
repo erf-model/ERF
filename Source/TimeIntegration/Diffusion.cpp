@@ -192,6 +192,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   }
 
   amrex::Real rhoAlpha_r = 0.0, rhoAlpha_l = 0.0;
+  amrex::Real l_sigma_k = solverChoice.sigma_k;
   // TODO: Add Deardorff model, perhaps take advantage of turbulence model indicator
   switch (solverChoice.les_type) {
   case LESType::Smagorinsky:
@@ -202,10 +203,9 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     break;
   case LESType::Deardorff:
     // K_LES = 2*mu_t -> extra factor of 0.5 when computing rhoAlpha
-    // TODO: the notes say the coefficient should be mu_t / sigma_k -- WHAT IS sigma_k??
     rhoAlpha_r = K_LES(ir, jr, kr) * Pr_or_Sc_turb_inv;
     rhoAlpha_l = K_LES(il, jl, kl) * Pr_or_Sc_turb_inv;
-    rhoAlpha += 0.25*(rhoAlpha_l + rhoAlpha_r);
+    rhoAlpha += 0.25*(rhoAlpha_l + rhoAlpha_r) / sigma_k;
     break;
   case LESType::None:
     break;
