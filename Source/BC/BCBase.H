@@ -1292,75 +1292,16 @@ namespace math_bcs {
                                               amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
                                               const ABLMost& most, int vartype, int ncomp=1)
     {
+      AMREX_ALWAYS_ASSERT(IDIR == 2);
+      int lo = geom.Domain().smallEnd()[IDIR];
+
+      if (b.smallEnd(IDIR) >= lo) return;
+
 #if 0
-      int lo = geom.Domain().smallEnd(IDIR);
-      amrex::Print() <<" HERE IWTH IDIR " << IDIR << " in box " << b << std::endl;
-
-      if(b.smallEnd(IDIR) < lo) {
-        if (IDIR == 0) {
-          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-          {
-            if (i < lo) {
-              Real vely = (*states[1])(lo,j,k);
-              Real velz = (*states[2])(lo,j,k);
-              Real rho  = (*states[3])(lo,j,k,Rho_comp);
-              Real theta = (*states[3])(lo,j,k,RhoTheta_comp)/rho;
-              Real eta  = (*states[4])(lo,j,k);
-              Real vmag = sqrt(vely*vely+velz*velz);
-
-              Real vgy = ((vely-most.vel_mean[1])*most.vmag_mean + vmag*most.vel_mean[1])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-              Real vgz = ((velz-most.vel_mean[2])*most.vmag_mean + vmag*most.vel_mean[2])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-
-              Real num1  = (theta-most.theta_mean)*most.vmag_mean;
-              Real num2  = (most.theta_mean-most.surf_temp)*most.vmag_mean;
-              Real motheta = (num1+num2)*most.utau*most.kappa/most.phi_h();
-
-              if (vartype == 0 && n == RhoTheta_comp) {
-                 data(i,j,k,n) = rho*motheta;
-              } else if (vartype == 2 ) {
-                 data(i,j,k,n) = vgy;
-              } else if (vartype == 3) {
-                 data(i,j,k,n) = vgz;
-              } else {
-                 data(i,j,k,n) = (lo-i+1)*data(lo,j,k,n) - (lo-i)*data(lo+1,j,k,n);
-              }
-            }
-          });
-        } else if (IDIR == 1) {
-          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-          {
-            if (j < lo) {
-              Real velx = (*states[0])(i,lo,k);
-              Real velz = (*states[2])(i,lo,k);
-              Real rho  = (*states[3])(i,lo,k,Rho_comp);
-              Real theta = (*states[3])(i,lo,k,RhoTheta_comp)/rho;
-              Real eta  = (*states[4])(i,lo,k);
-              Real vmag = sqrt(velx*velx+velz*velz);
-
-              Real vgx = ((velx-most.vel_mean[0])*most.vmag_mean + vmag*most.vel_mean[0])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-              Real vgz = ((velz-most.vel_mean[2])*most.vmag_mean + vmag*most.vel_mean[2])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-
-              Real num1  = (theta-most.theta_mean)*most.vmag_mean;
-              Real num2  = (most.theta_mean-most.surf_temp)*most.vmag_mean;
-              Real motheta = (num1+num2)*most.utau*most.kappa/most.phi_h();
-
-              if (vartype == 0 && n == RhoTheta_comp) {
-                 data(i,j,k,n) = rho*motheta;
-              } else if (vartype ==  1 ) { // for velx, and velz
-                 data(i,j,k,n) = vgx;
-              } else if (vartype == 3) {
-                 data(i,j,k,n) = vgz;
-              } else {
-                 data(i,j,k,n) = (lo-j+1)*data(i,lo,k,n) - (lo-j)*data(i,lo+1,k,n);
-              }
-            }
-          });
-        } else if (IDIR == 2) {
-          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-          {
-            //amrex::Print() << " HERE WITH " << IntVect(i,j,k) << " " << lo << " " << vartype << std::endl;
-            if (k < lo) {
-              Real velx, vely, rho, theta, eta;
+      amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+      {
+        if (k < lo) {
+          Real velx, vely, rho, theta, eta;
 
               if (vartype == 1) {
                 int hi = geom.Domain().bigEnd(0);
@@ -1421,8 +1362,6 @@ namespace math_bcs {
               }
             }
           });
-        }
-      }
 #endif
     }
 
@@ -1457,156 +1396,17 @@ namespace math_bcs {
 
  };
 
-
   template<int IDIR>
   struct ablmostwall<IDIR, BCBound::upper> {
     using self = ablmostwall<IDIR, BCBound::upper>;
 
-    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b,
-                                        amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
-                                        const ABLMost& most, int vartype, int ncomp=1)
-    {
-#if 0
-      int lo = geom.Domain().smallEnd(IDIR);
-
-      if(b.smallEnd(IDIR) < lo) {
-        if (IDIR == 0) {
-          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-          {
-            if (i < lo) {
-              Real vely = (*states[1])(i,j,k);
-              Real velz = (*states[2])(i,j,k);
-              Real rho  = (*states[3])(i,j,k,Rho_comp);
-              Real theta = (*states[3])(i,j,k,RhoTheta_comp)/rho;
-              Real eta  = (*states[4])(i,j,k);
-              Real vmag = sqrt(vely*vely+velz*velz);
-
-              Real vgy = ((vely-most.vel_mean[1])*most.vmag_mean + vmag*most.vel_mean[1])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-              Real vgz = ((velz-most.vel_mean[2])*most.vmag_mean + vmag*most.vel_mean[2])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-
-              Real num1  = (theta-most.theta_mean)*most.vmag_mean;
-              Real num2  = (most.theta_mean-most.surf_temp)*most.vmag_mean;
-              Real motheta = (num1+num2)*most.utau*most.kappa/most.phi_h();
-
-              if (vartype == 0 && n == RhoTheta_comp) {
-                 data(i,j,k,n) = rho*motheta;
-              } else if (vartype == 2 ) {
-                 data(i,j,k,n) = vgy*rho/eta;
-              } else if (vartype == 3) {
-                 data(i,j,k,n) = vgz*rho/eta;
-              } else {
-                 data(i,j,k,n) = (lo-i+1)*data(lo,j,k,n) - (lo-i)*data(lo+1,j,k,n);
-              }
-            }
-          });
-        } else if (IDIR == 1) {
-          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-          {
-            if (j < lo) {
-              Real velx = (*states[0])(i,j,k);
-              Real velz = (*states[2])(i,j,k);
-              Real rho  = (*states[3])(i,j,k,Rho_comp);
-              Real theta = (*states[3])(i,j,k,RhoTheta_comp)/rho;
-              Real eta  = (*states[4])(i,j,k);
-              Real vmag = sqrt(velx*velx+velz*velz);
-
-              Real vgx = ((velx-most.vel_mean[0])*most.vmag_mean + vmag*most.vel_mean[0])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-              Real vgz = ((velz-most.vel_mean[2])*most.vmag_mean + vmag*most.vel_mean[2])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-
-              Real num1  = (theta-most.theta_mean)*most.vmag_mean;
-              Real num2  = (most.theta_mean-most.surf_temp)*most.vmag_mean;
-              Real motheta = (num1+num2)*most.utau*most.kappa/most.phi_h();
-
-              if (vartype == 0 && n == RhoTheta_comp) {
-                 data(i,j,k,n) = rho*motheta;
-              } else if (vartype ==  1 ) { // for velx, and velz
-                 data(i,j,k,n) = vgx*rho/eta;
-              } else if (vartype == 3) {
-                 data(i,j,k,n) = vgz*rho/eta;
-              } else {
-                 data(i,j,k,n) = (lo-j+1)*data(i,lo,k,n) - (lo-j)*data(i,lo+1,k,n);
-              }
-            }
-          });
-        } else if (IDIR == 2) {
-          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-          {
-            if (k < lo) {
-              Real velx, vely, rho, theta, eta;
-
-              if (vartype == 1) {
-                velx  = (*states[0])(i,j,k);
-                vely  = (*states[1])(i,j,k);
-                rho   = (*states[3])(i,j,k,Rho_comp);
-                theta = (*states[3])(i,j,k,RhoTheta_comp)/rho;
-                eta   = (*states[4])(i,j,k);
-              } else if (vartype == 2) {
-                velx  = (*states[0])(i,j,k);
-                vely  = (*states[1])(i,j,k);
-                rho   = (*states[3])(i,j,k,Rho_comp);
-                theta = (*states[3])(i,j,k,RhoTheta_comp)/rho;
-                eta   = (*states[4])(i,j,k);
-              } else {
-                velx  = (*states[0])(i,j,k);
-                vely  = (*states[1])(i,j,k);
-                rho   = (*states[3])(i,j,k,Rho_comp);
-                theta = (*states[3])(i,j,k,RhoTheta_comp)/rho;
-                eta   = (*states[4])(i,j,k);
-              }
-
-              Real vmag = sqrt(velx*velx+vely*vely);
-              Real vgx = ((velx-most.vel_mean[0])*most.vmag_mean + vmag*most.vel_mean[0])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-              Real vgy = ((vely-most.vel_mean[1])*most.vmag_mean + vmag*most.vel_mean[1])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-
-              Real num1  = (theta-most.theta_mean)*most.vmag_mean;
-              Real num2  = (most.theta_mean-most.surf_temp)*most.vmag_mean;
-              Real motheta = (num1+num2)*most.utau*most.kappa/most.phi_h();
-
-              if (vartype == 0 && n == RhoTheta_comp) {
-                 data(i,j,k,n) = rho*motheta;
-              } else if (vartype == 1) { // for velx, and vely
-                 data(i,j,k,n) = vgx*rho/eta;
-              } else if (vartype == 2) {
-                 data(i,j,k,n) = vgy*rho/eta;
-              } else {
-                 data(i,j,k,n) = (lo-k+1)*data(i,j,lo,n) - (lo-k)*data(i,j,lo+1,n);
-              }
-            }
-          });
-        }
-      }
-#endif
-    }
+    static inline void
+    apply_cell_based(const amrex::Geometry& geom, const Box& b,
+                     amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
+                     const ABLMost& most, int vartype, int ncomp=1) {};
 
     static inline void
-    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real>& data, int ncomp=1) {
-      int lo = geom.Domain().smallEnd(IDIR);
-      if(b.smallEnd(IDIR) < lo) {
-        if (IDIR == 0) {
-           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-           {
-            if (i < lo) {
-              data(i,j,k,n) = 0.0;
-            }
-           });
-        } else if (IDIR == 1) {
-           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-           {
-            if (j < lo) {
-              data(i,j,k,n) = 0.0;
-            }
-           });
-        } else if (IDIR == 2) {
-           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-           {
-            if (k < lo) {
-              data(i,j,k,n) = 0.0;
-            }
-           });
-        }
-      }
-    }
-
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real>& data, int ncomp=1) {}
  };
 
 }

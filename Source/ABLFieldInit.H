@@ -80,6 +80,8 @@ struct ABLFieldInit {
        const amrex::Real vfac = m_deltaV * std::exp(0.5) / m_ref_height;
        const amrex::Real ref_height = m_ref_height;
 
+       const amrex::Real tke_init = m_tke_init;
+
        const int ntvals = m_theta_heights.size();
        const amrex::Real* th = m_thht_d.data();
        const amrex::Real* tv = m_thvv_d.data();
@@ -101,6 +103,8 @@ struct ABLFieldInit {
            state(i, j, k, RhoTheta_comp) = theta;
            state(i, j, k, RhoTheta_comp) *= state(i, j, k, Rho_comp);
            state(i, j, k, RhoScalar_comp) = 0.;
+
+           state(i, j, k, RhoKE_comp) = tke_init;
        });
 
      if (add_temperature_perturbations())
