@@ -101,6 +101,8 @@ struct ABLFieldInit {
            state(i, j, k, RhoTheta_comp) = theta;
            state(i, j, k, RhoTheta_comp) *= state(i, j, k, Rho_comp);
            state(i, j, k, RhoScalar_comp) = 0.;
+
+           state(i, j, k, RhoKE_comp) = m_tke_init;
        });
 
      if (add_temperature_perturbations())
