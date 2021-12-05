@@ -10,6 +10,158 @@ namespace math_bcs {
 
   enum BCBound { lower, upper };
 
+  /****************************************************************************************************************/
+
+  template<int IDIR, BCBound Bound> struct pc_extrap;
+
+  template<int IDIR>
+  struct pc_extrap<IDIR, BCBound::lower> {
+    using self = pc_extrap<IDIR, BCBound::lower>;
+
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int lo = geom.Domain().smallEnd(IDIR);
+      if(b.smallEnd(IDIR) < lo) {
+        if (IDIR == 0) {
+
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (i < lo) {
+              data(i,j,k,n) = data(lo,j,k,n);
+            }
+          });
+        } else if (IDIR == 1) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (j < lo) {
+              data(i,j,k,n) = data(i,lo,k,n);
+            }
+          });
+        } else if (IDIR == 2) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (k < lo) {
+              data(i,j,k,n) = data(i,j,lo,n);
+            }
+          });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline
+    std::enable_if_t<val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int lo = geom.Domain().smallEnd(IDIR);
+      if(b.smallEnd(IDIR) < lo) {
+        if (IDIR == 0) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (i < lo) {
+              data(i,j,k,n) = data(lo+1,j,k,n);
+            }
+           });
+        } else if (IDIR == 1) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (j < lo) {
+              data(i,j,k,n) = data(i,lo+1,k,n);
+            }
+           });
+        } else if (IDIR == 2) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (k < lo) {
+              data(i,j,k,n) = data(i,j,lo+1,n);
+            }
+           });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline
+    std::enable_if_t<!val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      self::apply_cell_based(geom, b, data, ncomp);
+    }
+
+  };
+
+  template<int IDIR>
+  struct pc_extrap<IDIR, BCBound::upper> {
+    using self = pc_extrap<IDIR, BCBound::upper>;
+
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int hi = geom.Domain().bigEnd(IDIR);
+
+      if(b.bigEnd(IDIR) > hi) {
+        if (IDIR == 0) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (i > hi) {
+              data(i,j,k,n) = data(hi,j,k,n);
+            }
+          });
+        } else if (IDIR == 1) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (j > hi) {
+              data(i,j,k,n) = data(i,hi,k,n);
+            }
+          });
+        } else if (IDIR == 2) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (k > hi) {
+              data(i,j,k,n) = data(i,j,hi,n);
+            }
+          });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline
+    std::enable_if_t<val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      int hi = geom.Domain().bigEnd(IDIR);
+      if(b.bigEnd(IDIR) > hi) {
+        if (IDIR == 0) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             if (i > (hi+1)) {
+               data(i,j,k,n) = data(hi+1,j,k,n);
+             }
+           });
+        } else if (IDIR == 1) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             if (j > (hi+1)) {
+               data(i,j,k,n) = data(i,hi+1,k,n);
+             }
+           });
+        } else if (IDIR == 2) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             if (k > (hi+1)) {
+               data(i,j,k,n) = data(i,j,hi+1,n);
+             }
+           });
+        }
+      }
+    }
+
+    template <bool val>
+    static inline
+    std::enable_if_t<!val>
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real> data, int ncomp=1) {
+      self::apply_cell_based(geom, b, data, ncomp);
+    }
+
+  };
+
+  /****************************************************************************************************************/
+
   template<int IDIR, BCBound Bound> struct lin_extrap;
 
   template<int IDIR>
@@ -157,6 +309,8 @@ namespace math_bcs {
     }
 
   };
+
+  /****************************************************************************************************************/
 
   template<int IDIR, BCBound Bound> struct reflect_even;
 
@@ -337,6 +491,7 @@ namespace math_bcs {
 
   };
 
+  /****************************************************************************************************************/
 
   template<int IDIR, BCBound Bound> struct reflect_odd;
 
@@ -514,7 +669,7 @@ namespace math_bcs {
 
   };
 
-
+  /****************************************************************************************************************/
 
   template<int IDIR, BCBound Bound> struct dirichlet;
 
@@ -731,6 +886,8 @@ namespace math_bcs {
 
   };
 
+  /****************************************************************************************************************/
+
   template<int IDIR, BCBound Bound> struct sim_bc;
 
   template<int IDIR>
@@ -938,8 +1095,7 @@ namespace math_bcs {
 
   };
 
-
-
+  /****************************************************************************************************************/
 
   template<int IDIR, BCBound Bound> struct quad_extrap;
 
@@ -1104,6 +1260,8 @@ namespace math_bcs {
       self::apply_cell_based(geom, b, data, ncomp);
     }
   };
+
+  /****************************************************************************************************************/
 
   template<int IDIR, BCBound Bound> struct wall_scalars;
 
@@ -1278,6 +1436,8 @@ namespace math_bcs {
     }
   };
 
+  /****************************************************************************************************************/
+
   // MOST wall
   template<int IDIR, BCBound Bound> struct ablmostwall;
 
@@ -1401,13 +1561,15 @@ namespace math_bcs {
     using self = ablmostwall<IDIR, BCBound::upper>;
 
     static inline void
-    apply_cell_based(const amrex::Geometry& geom, const Box& b,
-                     amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
-                     const ABLMost& most, int vartype, int ncomp=1) {};
+    apply_cell_based(const amrex::Geometry& /*geom*/, const Box& /*b*/,
+                     amrex::Vector<Array4<Real>*>& /*states*/, Array4<Real>& /*data*/,
+                     const ABLMost& /*most*/, int /*vartype*/, int ncomp=1) {};
 
     static inline void
-    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real>& data, int ncomp=1) {}
+    apply_face_based(const amrex::Geometry& /*geom*/, const Box& /*b*/, Array4<Real>& /*data*/, int ncomp=1) {}
  };
+
+  /****************************************************************************************************************/
 
 }
 
@@ -1415,7 +1577,7 @@ namespace phys_bcs {
 
 class BCBase {
   public:
-  virtual void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, const SolverChoice& solverChoice) = 0;
+  virtual void applyBC (const amrex::Geometry /*geom*/, amrex::Vector<MultiFab*>& /*vars*/, const SolverChoice& /*solverChoice*/) = 0;
   virtual bool isInterior() { return false; }
   virtual bool isNoSlipWall() { return false; }
 };

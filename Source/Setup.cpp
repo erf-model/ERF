@@ -200,6 +200,11 @@ ERF::variableSetUp()
 
   // Problem-specific derives
   add_problem_derives<ProblemDerives>(derive_lst, desc_lst);
+
+ //
+ // **************  DEFINE REFINEMENT CRITERIA QUANTITIES  *************
+ //
+ refinement_criteria_setup();
 }
 
 void
