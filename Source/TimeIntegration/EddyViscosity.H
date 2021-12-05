@@ -19,10 +19,14 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
                                const bool& use_no_slip_stencil_at_hi_k, const int& khi)
 {
     const Real cellVol = 1.0 / (cellSizeInv[0] * cellSizeInv[1] * cellSizeInv[2]);
-    Real Cs = solverChoice.Cs;
-    Real CsDeltaSqr = Cs*Cs * std::pow(cellVol, 2.0/3.0);
+    const Real Delta = std::pow(cellVol,1.0/3.0);
 
-    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    if (solverChoice.les_type == LESType::Smagorinsky)
+    {
+      Real Cs = solverChoice.Cs;
+      Real CsDeltaSqr = Cs*Cs*Delta*Delta;
+
+      for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.tilebox();
 
@@ -76,31 +80,52 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
             K(i, j, k, 0) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
         });
 
-    } //mfi
+      } //mfi
+    } 
+    else if (solverChoice.les_type == LESType::Deardorff)
+    { 
+
+      Real l_C_k = solverChoice.Ck;
+
+      for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        const Box &bx = mfi.tilebox();
+
+        const Array4<Real const > &cell_data = cons_in.array(mfi);
+        const Array4<Real> &K = eddyViscosity.array(mfi);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            K(i,j,k,0) = l_C_k * Delta *  cell_data(i,j,k,Rho_comp) *
+                                std::sqrt(cell_data(i,j,k,RhoKE_comp));
+        });
+
+      } //mfi
+    }
 } // function call
 
-/// Compute Ksmag (i-1/2, j+1/2, k) etc given Ksmag (i, j, k) is known
+/// Compute K_LES (i-1/2, j+1/2, k) etc given K_LES (i, j, k) is known
 // Note: This should be at edges for momEqnDir != diffDir, cell centers otherwise
 AMREX_GPU_DEVICE
 inline Real
 InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                               const enum MomentumEqn &momentumEqn,
                               const enum DiffusionDir &diffDir,
-                              const Array4<Real>& Ksmag) {
-  // Assuming we already have 'Ksmag' computed for all (i, j, k)
+                              const Array4<Real>& K_LES) {
+  // Assuming we already have 'K_LES' computed for all (i, j, k)
   Real turbViscInterpolated = 1.0;
 
   switch (momentumEqn) {
   case MomentumEqn::x: // Reference face is x-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      turbViscInterpolated = Ksmag(i-1, j, k);
+      turbViscInterpolated = K_LES(i-1, j, k);
       break;
     case DiffusionDir::y:
-      turbViscInterpolated = 0.25*( Ksmag(i-1, j, k) + Ksmag(i, j, k) + Ksmag(i-1, j-1, k) + Ksmag(i, j-1, k) );
+      turbViscInterpolated = 0.25*( K_LES(i-1, j, k) + K_LES(i, j, k) + K_LES(i-1, j-1, k) + K_LES(i, j-1, k) );
       break;
     case DiffusionDir::z:
-      turbViscInterpolated = 0.25*( Ksmag(i-1, j, k) + Ksmag(i, j, k) + Ksmag(i-1, j, k-1) + Ksmag(i, j, k-1) );
+      turbViscInterpolated = 0.25*( K_LES(i-1, j, k) + K_LES(i, j, k) + K_LES(i-1, j, k-1) + K_LES(i, j, k-1) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -109,13 +134,13 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   case MomentumEqn::y: // Reference face is y-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      turbViscInterpolated = 0.25*( Ksmag(i, j-1, k) + Ksmag(i, j, k) + Ksmag(i-1, j-1, k) + Ksmag(i-1, j, k) );
+      turbViscInterpolated = 0.25*( K_LES(i, j-1, k) + K_LES(i, j, k) + K_LES(i-1, j-1, k) + K_LES(i-1, j, k) );
       break;
     case DiffusionDir::y:
-      turbViscInterpolated = Ksmag(i, j-1, k);
+      turbViscInterpolated = K_LES(i, j-1, k);
       break;
     case DiffusionDir::z:
-      turbViscInterpolated = 0.25*( Ksmag(i, j-1, k) + Ksmag(i, j, k) + Ksmag(i, j-1, k-1) + Ksmag(i, j, k-1) );
+      turbViscInterpolated = 0.25*( K_LES(i, j-1, k) + K_LES(i, j, k) + K_LES(i, j-1, k-1) + K_LES(i, j, k-1) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -124,13 +149,13 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   case MomentumEqn::z: // Reference face is z-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      turbViscInterpolated = 0.25*( Ksmag(i, j, k-1) + Ksmag(i, j, k) + Ksmag(i-1, j, k-1) + Ksmag(i-1, j, k) );
+      turbViscInterpolated = 0.25*( K_LES(i, j, k-1) + K_LES(i, j, k) + K_LES(i-1, j, k-1) + K_LES(i-1, j, k) );
       break;
     case DiffusionDir::y:
-      turbViscInterpolated = 0.25*( Ksmag(i, j, k-1) + Ksmag(i, j, k) + Ksmag(i, j-1, k-1) + Ksmag(i, j-1, k) );
+      turbViscInterpolated = 0.25*( K_LES(i, j, k-1) + K_LES(i, j, k) + K_LES(i, j-1, k-1) + K_LES(i, j-1, k) );
       break;
     case DiffusionDir::z:
-      turbViscInterpolated = Ksmag(i, j, k-1);
+      turbViscInterpolated = K_LES(i, j, k-1);
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");

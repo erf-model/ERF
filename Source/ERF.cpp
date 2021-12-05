@@ -329,6 +329,9 @@ ERF::initData()
   amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
 
+  // For now we initialize rho_KE to 0
+  S_new.setVal(0.0,RhoKE_comp,1,0);
+
   if (level == 0) {
 
     init1DArrays();

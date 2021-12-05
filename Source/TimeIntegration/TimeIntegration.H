@@ -104,29 +104,11 @@ Real InterpolatePertFromCell(const int &i, const int &j, const int &k,
                            const amrex::Real* dptr_hse);
 
 AMREX_GPU_DEVICE
-Real InterpolateDensityFromCellToFace(const int &i, const int &j, const int &k,
-                               const Array4<const Real>& cons_in,
-                               const enum Coord& coordDir,
-                               const int &spatial_order);
-
-AMREX_GPU_DEVICE
 Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int &k,
                                const Array4<const Real>& cons_in,
                                const enum Coord& coordDir,
                                const int &spatial_order,
                                const amrex::Real* dptr_hse);
-
-AMREX_GPU_DEVICE
-Real InterpolateRhoThetaFromCellToFace(const int &i, const int &j, const int &k,
-                                      const Array4<const Real>& cons_in,
-                                      const enum Coord& coordDir,
-                                      const int &spatial_order);
-
-AMREX_GPU_DEVICE
-Real InterpolateRhoScalarFromCellToFace(const int &i, const int &j, const int &k,
-                                      const Array4<const Real>& cons_in,
-                                      const enum Coord& coordDir,
-                                      const int &spatial_order);
 
 /** Meant for {x, y, z}- momentum equations */
 AMREX_GPU_DEVICE
