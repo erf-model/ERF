@@ -9,60 +9,60 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
                               const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
                               const enum AdvectedQuantity &advectedQuantity,
                               const enum AdvectingQuantity &advectingQuantity,
-                              const int &spatial_order) {
-  Real advectingQty = 0.0;
-  Real advectedQty = 1.0;
-
+                              const int &spatial_order) 
+{
   switch(advectedQuantity) {
-    case AdvectedQuantity::u: //x-momentum, reference face index is (i, j, k)
+    case AdvectedQuantity::u: //x-momentum
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, Coord::x, spatial_order); // u(i-1/2,    j, k    )
-        advectingQty = 0.5*(rho_u(i-1, j, k) + rho_u(i, j, k)); // Effectively rho_u (i-1/2, j, k)
+        flux = 0.5*(rho_u(i-1, j, k) + rho_u(i, j, k)) * 
+                    InterpolateFromCellOrFace(i, j, k, u, 0, Coord::x, spatial_order);
         break;
       case AdvectingQuantity::rho_v:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, Coord::y, spatial_order); // u(i   , j-1/2, k    )
-        advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i-1, j, k)); // Effectively rho_v (i-1/2, j, k)
+        flux = 0.5*(rho_v(i, j, k) + rho_v(i-1, j, k)) *
+                    InterpolateFromCellOrFace(i, j, k, u, 0, Coord::y, spatial_order);
         break;
       case AdvectingQuantity::rho_w:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, u, 0, Coord::z, spatial_order); // u(i   , j    , k-1/2)
-        advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i-1, j, k)); // Effectively rho_w (i-1/2, j, k)
+        flux = 0.5*(rho_w(i, j, k) + rho_w(i-1, j, k)) *
+                    InterpolateFromCellOrFace(i, j, k, u, 0, Coord::z, spatial_order);
         break;
       default:
         amrex::Abort("Error: Advecting quantity is unrecognized");
       }
       break;
-    case AdvectedQuantity::v: //y-momentum, reference face index is (i, j, k)
+
+    case AdvectedQuantity::v: //y-momentum
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, Coord::x, spatial_order); // v(i-1/2,    j, k    )
-        advectingQty = 0.5*(rho_u(i, j, k) + rho_u(i, j-1, k)); // Effectively rho_u (i, j-1/2, k)
+        flux = 0.5*(rho_u(i, j, k) + rho_u(i, j-1, k)) *
+                    InterpolateFromCellOrFace(i, j, k, v, 0, Coord::x, spatial_order);
         break;
       case AdvectingQuantity::rho_v:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, Coord::y, spatial_order); // v(i   , j-1/2, k    )
-        advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k)); // Effectively rho_v (i, j-1/2, k)
+        flux = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k)) *
+                    InterpolateFromCellOrFace(i, j, k, v, 0, Coord::y, spatial_order);
         break;
       case AdvectingQuantity::rho_w:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, v, 0, Coord::z, spatial_order); // v(i   , j    , k-1/2)
-        advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k)); // Effectively rho_w (i, j-1/2, k)
+        flux = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k)) *
+               InterpolateFromCellOrFace(i, j, k, v, 0, Coord::z, spatial_order);
         break;
       default:
         amrex::Abort("Error: Advecting quantity is unrecognized");
       }
       break;
-    case AdvectedQuantity::w: //z-momentum, reference face index is (i, j, k)
+
+    case AdvectedQuantity::w: //z-momentum
       switch (advectingQuantity) {
       case AdvectingQuantity::rho_u:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, Coord::x, spatial_order); // w(i-1/2,    j, k    )
-        advectingQty = 0.5*(rho_u(i, j, k) + rho_u(i, j, k-1)); // Effectively rho_u (i, j, k-1/2)
+        flux = 0.5*(rho_u(i, j, k) + rho_u(i, j, k-1)) *
+                    InterpolateFromCellOrFace(i, j, k, w, 0, Coord::x, spatial_order);
         break;
       case AdvectingQuantity::rho_v:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, Coord::y, spatial_order); // w(i   , j-1/2, k    )
-        advectingQty = 0.5*(rho_v(i, j, k) + rho_v(i, j, k-1)); // Effectively rho_v (i, j, k-1/2)
+        flux = 0.5*(rho_v(i, j, k) + rho_v(i, j, k-1)) *
+                    InterpolateFromCellOrFace(i, j, k, w, 0, Coord::y, spatial_order);
         break;
       case AdvectingQuantity::rho_w:
-        advectedQty = InterpolateFromCellOrFace(i, j, k, w, 0, Coord::z, spatial_order); // w(i   , j    , k-1/2)
-        advectingQty = 0.5*(rho_w(i, j, k) + rho_w(i, j, k-1)); // Effectively rho_w (i, j, k-1/2)
+        flux = 0.5*(rho_w(i, j, k) + rho_w(i, j, k-1)) *
+                    InterpolateFromCellOrFace(i, j, k, w, 0, Coord::z, spatial_order);
         break;
       default:
         amrex::Abort("Error: Advecting quantity is unrecognized");
@@ -72,7 +72,7 @@ ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
       amrex::Abort("Error: Advected quantity is unrecognized");
   }
 
-  return advectingQty * advectedQty;
+  return flux;
 }
 
 AMREX_GPU_DEVICE
