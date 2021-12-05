@@ -2,6 +2,8 @@
 #define ERF_BCBASE_H
 
 #include "ERF.H"
+#include "ABLMost.H"
+
 using namespace amrex;
 
 namespace math_bcs {
@@ -1276,14 +1278,145 @@ namespace math_bcs {
     }
   };
 
+  // MOST wall
+  template<int IDIR, BCBound Bound> struct ablmostwall;
+
+    //
+    // variables vartype = 0 (cell center), 1 (x velocity), 2 (y velocity), 3 (z velocity)
+    //
+  template<int IDIR>
+  struct ablmostwall<IDIR, BCBound::lower> {
+    using self = ablmostwall<IDIR, BCBound::lower>;
+
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b,
+                                              amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
+                                              const ABLMost& most, int vartype, int ncomp=1)
+    {
+      AMREX_ALWAYS_ASSERT(IDIR == 2);
+      int lo = geom.Domain().smallEnd()[IDIR];
+
+      if (b.smallEnd(IDIR) >= lo) return;
+
+#if 0
+      amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+      {
+        if (k < lo) {
+          Real velx, vely, rho, theta, eta;
+
+              if (vartype == 1) {
+                int hi = geom.Domain().bigEnd(0);
+//              if (i < hi) {
+                  velx  = (*states[0])(i,j,lo);
+                  vely  = (*states[1])(i,j,lo);
+                  rho   = (*states[3])(i,j,lo,Rho_comp);
+                  theta = (*states[3])(i,j,lo,RhoTheta_comp)/rho;
+                  eta   = (*states[4])(i,j,lo);
+//              } else {
+//                velx  = (*states[0])(i,j,lo);
+//                vely  = 2.0*(*states[1])(hi-1,j,lo)-(*states[1])(hi-2,j,lo);
+//                rho   = 2.0*(*states[3])(hi-1,j,lo,Rho_comp)-(*states[3])(hi-2,j,lo,Rho_comp);
+//                theta = (2.0*(*states[3])(hi-1,j,lo,RhoTheta_comp)-(*states[3])(hi-2,j,lo,RhoTheta_comp))/rho;
+//                eta   = 2.0*(*states[4])(hi-1,j,lo)-(*states[4])(hi-2,j,lo);
+//              }
+              } else if (vartype == 2) {
+                int hi = geom.Domain().bigEnd(1);
+//              if (j < hi) {
+                  velx  = (*states[0])(i,j,lo);
+                  vely  = (*states[1])(i,j,lo);
+                  rho   = (*states[3])(i,j,lo,Rho_comp);
+                  theta = (*states[3])(i,j,lo,RhoTheta_comp)/rho;
+                  eta   = (*states[4])(i,j,lo);
+//              } else {
+//                velx  = 2.0*(*states[0])(i,hi-1,lo)-(*states[0])(i,hi-2,lo);
+//                vely  = (*states[1])(i,j,lo);
+//                rho   = 2.0*(*states[3])(i,hi-1,lo,Rho_comp)-(*states[3])(i,hi-2,lo,Rho_comp);
+//                theta = (2.0*(*states[3])(i,hi-1,lo,RhoTheta_comp)-(*states[3])(i,hi-2,lo,RhoTheta_comp))/rho;
+//                eta   = 2.0*(*states[4])(i,hi-1,lo)-(*states[4])(i,hi-2,lo);
+//              }
+              } else {
+                velx  = (*states[0])(i,j,lo);
+                vely  = (*states[1])(i,j,lo);
+                rho   = (*states[3])(i,j,lo,Rho_comp);
+                theta = (*states[3])(i,j,lo,RhoTheta_comp)/rho;
+                eta   = (*states[4])(i,j,lo);
+              }
+
+              Real vmag  = sqrt(velx*velx+vely*vely);
+              Real vgx = ((velx-most.vel_mean[0])*most.vmag_mean + vmag*most.vel_mean[0])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+              Real vgy = ((vely-most.vel_mean[1])*most.vmag_mean + vmag*most.vel_mean[1])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+
+              Real num1  = (theta-most.theta_mean)*most.vmag_mean;
+              Real num2  = (most.theta_mean-most.surf_temp)*most.vmag_mean;
+              Real motheta = (num1+num2)*most.utau*most.kappa/most.phi_h();
+
+              //printf("i=%d, j=%d, k=%d, vx=%13.6e, vy=%13.6e, rho=%13.6e\n",i,j,k,vgx,vgy,rho);
+
+              if (vartype == 0 && n == RhoTheta_comp) {
+                 data(i,j,k,n) = rho*motheta;
+              } else if (vartype == 1) { // for velx, and vely
+                 data(i,j,k,n) = vgx*rho; //eta;
+              } else if (vartype == 2) {
+                 data(i,j,k,n) = vgy*rho; //eta;
+              } else {
+                 data(i,j,k,n) = (lo-k+1)*data(i,j,lo,n) - (lo-k)*data(i,j,lo+1,n);
+              }
+            }
+          });
+#endif
+    }
+
+    static inline void
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real>& data, int ncomp=1) {
+      int lo = geom.Domain().smallEnd(IDIR);
+      if(b.smallEnd(IDIR) < lo) {
+        if (IDIR == 0) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (i < lo) {
+              data(i,j,k,n) = 0.0;
+            }
+           });
+        } else if (IDIR == 1) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (j < lo) {
+              data(i,j,k,n) = 0.0;
+            }
+           });
+        } else if (IDIR == 2) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (k < lo) {
+              data(i,j,k,n) = 0.0;
+            }
+           });
+        }
+      }
+    }
+
+ };
+
+  template<int IDIR>
+  struct ablmostwall<IDIR, BCBound::upper> {
+    using self = ablmostwall<IDIR, BCBound::upper>;
+
+    static inline void
+    apply_cell_based(const amrex::Geometry& geom, const Box& b,
+                     amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
+                     const ABLMost& most, int vartype, int ncomp=1) {};
+
+    static inline void
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real>& data, int ncomp=1) {}
+ };
+
 }
 
 namespace phys_bcs {
 
 class BCBase {
   public:
-  virtual void applyBC (const amrex::Geometry /*geom*/, amrex::Vector<MultiFab*>& /*vars*/) = 0;
-  virtual bool isInterior()   { return false; }
+  virtual void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, const SolverChoice& solverChoice) = 0;
+  virtual bool isInterior() { return false; }
   virtual bool isNoSlipWall() { return false; }
 };
 

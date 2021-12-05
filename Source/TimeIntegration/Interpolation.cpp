@@ -4,25 +4,11 @@ using namespace amrex;
 
 AMREX_GPU_DEVICE
 Real
-InterpolateDensityFromCellToFace(
-  const int& i,
-  const int& j,
-  const int& k,
-  const Array4<Real>& cons_in,
-  const Coord& coordDir,
-  const int& spatial_order)
-{
-  return InterpolateFromCellOrFace(
-    i, j, k, cons_in, Rho_comp, coordDir, spatial_order);
-}
-
-AMREX_GPU_DEVICE
-Real
 InterpolateDensityPertFromCellToFace(
   const int& i,
   const int& j,
   const int& k,
-  const Array4<Real>& cons_in,
+  const Array4<const Real>& cons_in,
   const Coord& coordDir,
   const int& spatial_order,
   const amrex::Real* dptr_hse)
@@ -33,40 +19,12 @@ InterpolateDensityPertFromCellToFace(
 
 AMREX_GPU_DEVICE
 Real
-InterpolateRhoThetaFromCellToFace(
-  const int& i,
-  const int& j,
-  const int& k,
-  const Array4<Real>& cons_in,
-  const Coord& coordDir,
-  const int& spatial_order)
-{
-  return InterpolateFromCellOrFace(
-    i, j, k, cons_in, RhoTheta_comp, coordDir, spatial_order);
-}
-
-AMREX_GPU_DEVICE
-Real
-InterpolateRhoScalarFromCellToFace(
-  const int& i,
-  const int& j,
-  const int& k,
-  const Array4<Real>& cons_in,
-  const Coord& coordDir,
-  const int& spatial_order)
-{
-  return InterpolateFromCellOrFace(
-    i, j, k, cons_in, RhoScalar_comp, coordDir, spatial_order);
-}
-
-AMREX_GPU_DEVICE
-Real
 InterpolateFromCellOrFace(
   // (i, j, k) is the reference cell index w.r.t. which a face is being considered
   // The same interpolation routine also works for face-based data and should work for
   // edge-based data
   const int& i, const int& j, const int& k,
-  const Array4<Real>& qty,
+  const Array4<const Real>& qty,
   const int& qty_index,
   const Coord& coordDir,
   const int& spatial_order)
@@ -75,9 +33,9 @@ InterpolateFromCellOrFace(
     /*
      w.r.t. the cell index (i, j, k), the face previous to it is the face at cell index m-1/2, where m = {i, j, k}
      Face index is (i, j, k). This means:
-     Coordinates of face (i, j, k) = Coordinates of cell (i-1/2, j    , k    ) for x-dir. Face is previous to the cell.
-     Coordinates of face (i, j, k) = Coordinates of cell (i    , j-1/2, k    ) for y-dir. Face is previous to the cell.
-     Coordinates of face (i, j, k) = Coordinates of cell (i    , j    , k-1/2) for z-dir. Face is previous to the cell.
+     Coordinates of face (i, j, k) = Coordinates of cell (i-1/2, j    , k    ) for x-dir.
+     Coordinates of face (i, j, k) = Coordinates of cell (i    , j-1/2, k    ) for y-dir.
+     Coordinates of face (i, j, k) = Coordinates of cell (i    , j    , k-1/2) for z-dir.
     */
     /*
      The above explanation is for cell- and face-index relation. However, the interpolation is applicable to any multifab data.
@@ -152,7 +110,7 @@ AMREX_GPU_DEVICE
 Real
 InterpolatePertFromCell(
   const int& i, const int& j, const int& k,
-  const Array4<Real>& qty,
+  const Array4<const Real>& qty,
   const int& qty_index,
   const Coord& coordDir,
   const int& spatial_order,

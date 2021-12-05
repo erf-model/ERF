@@ -43,7 +43,7 @@ int         ERF::do_avg_down   = 0;
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
-std::string ERF::plotfile_type = "amrex";
+std::string ERF::plotfile_type   = "amrex";
 std::string ERF::checkpoint_type = "amrex";
 
 int         ERF::output_1d_column = 0;
@@ -126,6 +126,9 @@ ERF::initialize_bcs(const std::string& bc_char) {
     return bc_rec;
   } else if (!bc_char.compare("SimSlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSimSlipWall<DIM, Bound>());
+    return bc_rec;
+  } else if (!bc_char.compare("MostWall")) {
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCMostWall<DIM, Bound>());
     return bc_rec;
   } else {
     amrex::Abort("Wrong boundary condition word, please use: "
@@ -325,6 +328,9 @@ ERF::initData()
   amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
   amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
   amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
+
+  // For now we initialize rho_KE to 0
+  S_new.setVal(0.0,RhoKE_comp,1,0);
 
   if (level == 0) {
 
@@ -684,7 +690,20 @@ ERF::post_restart()
   BL_PROFILE("ERF::post_restart()");
 
   if (level == 0) {
+
     init1DArrays();
+
+    if (init_abl)
+    {
+        ablinit.init_params();
+    }
+  }
+
+  initHSE();
+
+  if (solverChoice.use_rayleigh_damping)
+  {
+      initRayleigh();
   }
 
 #ifdef DO_PROBLEM_POST_RESTART

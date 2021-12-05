@@ -9,9 +9,9 @@
 using namespace amrex;
 
 void erf_fast_rhs (int level,
-                   Vector<std::unique_ptr<MultiFab> >& S_rhs,
-                   const Vector<std::unique_ptr<MultiFab> >& S_stage_data,
-                   const Vector<std::unique_ptr<MultiFab> >& S_data,
+                   Vector<MultiFab >& S_rhs,
+                   const Vector<MultiFab >& S_stage_data,
+                   const Vector<MultiFab >& S_data,
                    std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
                    std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
                    const amrex::Geometry geom, const amrex::Real dt,
@@ -28,8 +28,8 @@ void erf_fast_rhs (int level,
     int khi = geom.Domain().bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-    const auto& ba = S_data[IntVar::cons]->boxArray();
-    const auto& dm = S_data[IntVar::cons]->DistributionMap();
+    const auto& ba = S_data[IntVar::cons].boxArray();
+    const auto& dm = S_data[IntVar::cons].DistributionMap();
 
     amrex::MultiFab Delta_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
     amrex::MultiFab Delta_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
@@ -38,17 +38,17 @@ void erf_fast_rhs (int level,
     amrex::MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
 
     // Create delta_rho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
-    MultiFab::Copy(Delta_rho_u    , *S_data[IntVar::xmom], 0, 0, 1, 1);
-    MultiFab::Copy(Delta_rho_v    , *S_data[IntVar::ymom], 0, 0, 1, 1);
-    MultiFab::Copy(Delta_rho_w    , *S_data[IntVar::zmom], 0, 0, 1, 1);
-    MultiFab::Copy(Delta_rho      , *S_data[IntVar::cons], Rho_comp     , 0, 1,1);
-    MultiFab::Copy(Delta_rho_theta, *S_data[IntVar::cons], RhoTheta_comp, 0, 1,1);
+    MultiFab::Copy(Delta_rho_u    , S_data[IntVar::xmom], 0, 0, 1, 1);
+    MultiFab::Copy(Delta_rho_v    , S_data[IntVar::ymom], 0, 0, 1, 1);
+    MultiFab::Copy(Delta_rho_w    , S_data[IntVar::zmom], 0, 0, 1, 1);
+    MultiFab::Copy(Delta_rho      , S_data[IntVar::cons], Rho_comp     , 0, 1,1);
+    MultiFab::Copy(Delta_rho_theta, S_data[IntVar::cons], RhoTheta_comp, 0, 1,1);
 
-    MultiFab::Subtract(Delta_rho_u    , *S_stage_data[IntVar::xmom], 0, 0, 1, 1);
-    MultiFab::Subtract(Delta_rho_v    , *S_stage_data[IntVar::ymom], 0, 0, 1, 1);
-    MultiFab::Subtract(Delta_rho_w    , *S_stage_data[IntVar::zmom], 0, 0, 1, 1);
-    MultiFab::Subtract(Delta_rho      , *S_stage_data[IntVar::cons], Rho_comp     , 0, 1, 1);
-    MultiFab::Subtract(Delta_rho_theta, *S_stage_data[IntVar::cons], RhoTheta_comp, 0, 1, 1);
+    MultiFab::Subtract(Delta_rho_u    , S_stage_data[IntVar::xmom], 0, 0, 1, 1);
+    MultiFab::Subtract(Delta_rho_v    , S_stage_data[IntVar::ymom], 0, 0, 1, 1);
+    MultiFab::Subtract(Delta_rho_w    , S_stage_data[IntVar::zmom], 0, 0, 1, 1);
+    MultiFab::Subtract(Delta_rho      , S_stage_data[IntVar::cons], Rho_comp     , 0, 1, 1);
+    MultiFab::Subtract(Delta_rho_theta, S_stage_data[IntVar::cons], RhoTheta_comp, 0, 1, 1);
 
     // Not sure if we need these
     Delta_rho_u.FillBoundary(geom.periodicity());
@@ -103,9 +103,9 @@ void erf_fast_rhs (int level,
         auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
-        const Array4<Real> & cell_data        = S_data[IntVar::cons]->array(mfi);
-        const Array4<Real> & cell_rhs         = S_rhs[IntVar::cons]->array(mfi);
-        const Array4<Real> & cell_stage_data  = S_stage_data[IntVar::cons]->array(mfi);
+        const Array4<Real> & cell_data        = S_data[IntVar::cons].array(mfi);
+        const Array4<Real> & cell_rhs         = S_rhs[IntVar::cons].array(mfi);
+        const Array4<Real> & cell_stage_data  = S_stage_data[IntVar::cons].array(mfi);
 
         const Array4<Real>& delta_rho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& delta_rho_v     = Delta_rho_v.array(mfi);
@@ -113,13 +113,13 @@ void erf_fast_rhs (int level,
         const Array4<Real>& delta_rho       = Delta_rho.array(mfi);
         const Array4<Real>& delta_rho_theta = Delta_rho_theta.array(mfi);
 
-        const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom]->array(mfi);
-        const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom]->array(mfi);
-        const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom]->array(mfi);
+        const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom].array(mfi);
+        const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
+        const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
 
-        const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux]->array(mfi);
-        const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux]->array(mfi);
-        const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux]->array(mfi);
+        const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
+        const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
+        const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
 
         // These are temporaries we use to add to the S_rhs for the fluxes
         const Array4<Real>& advflux_x = advflux[0].array(mfi);
@@ -129,7 +129,7 @@ void erf_fast_rhs (int level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        amrex::ParallelFor(bx, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(bx, S_data[IntVar::cons].nComp(),
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
 
             if (n == Rho_comp)
@@ -152,7 +152,7 @@ void erf_fast_rhs (int level,
 
         // Compute the RHS for the flux terms from this stage --
         //     we do it this way so we don't double count
-        amrex::ParallelFor(tbx, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(tbx, S_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             if (n == Rho_comp && n == RhoTheta_comp)
@@ -160,7 +160,7 @@ void erf_fast_rhs (int level,
             else
                 xflux_rhs(i,j,k,n) = 0.0;
         });
-        amrex::ParallelFor(tby, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(tby, S_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             if (n == Rho_comp && n == RhoTheta_comp)
@@ -168,7 +168,7 @@ void erf_fast_rhs (int level,
             else
                 yflux_rhs(i,j,k,n) = 0.0;
         });
-        amrex::ParallelFor(tbz, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(tbz, S_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             if (n == Rho_comp && n == RhoTheta_comp)

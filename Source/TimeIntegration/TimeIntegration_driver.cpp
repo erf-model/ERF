@@ -2,8 +2,9 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-
+#include <AMReX_TimeIntegrator.H>
 #include <TimeIntegration.H>
+#include <ERF.H>
 #include <utils.H>
 
 #ifdef AMREX_USE_SUNDIALS
@@ -23,13 +24,13 @@ using namespace amrex;
 #ifdef AMREX_USE_SUNDIALS
 
 struct FastRhsData {
-  std::function<void(amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
-                     const amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
-                     const amrex::Vector<std::unique_ptr<amrex::MultiFab> > &,
+  std::function<void(amrex::Vector<amrex::MultiFab> &,
+                     const amrex::Vector<amrex::MultiFab> &,
+                     const amrex::Vector<amrex::MultiFab> &,
                      const Real)>  rhs_fun_fast;
-  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > >* integrator;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> >* integrator;
   void* inner_mem;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> >* S_stage_data; // hold previous slow stage data
+  amrex::Vector<amrex::MultiFab>* S_stage_data; // hold previous slow stage data
   N_Vector nv_stage_data; // hold previous slow stage data
 };
 
@@ -104,34 +105,34 @@ void erf_advance(int level,
     // Here we define state_old and state_new which are the Nvectors to be advanced
     // **************************************************************************************
     // Initial solution
-    amrex::Vector<std::unique_ptr<amrex::MultiFab> > state_old;
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
-    state_old.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
+    amrex::Vector<amrex::MultiFab> state_old;
+    state_old.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
+    state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
     // Final solution
-    amrex::Vector<std::unique_ptr<amrex::MultiFab> > state_new;
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
-    state_new.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
+    amrex::Vector<amrex::MultiFab> state_new;
+    state_new.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
+    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
     // Temporary data
-    amrex::Vector<std::unique_ptr<amrex::MultiFab> > state_store;
-    state_store.emplace_back(std::make_unique<amrex::MultiFab>(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
-    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
-    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
-    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
-    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
-    state_store.emplace_back(std::make_unique<amrex::MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
+    amrex::Vector<amrex::MultiFab> state_store;
+    state_store.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
+    state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
     // **************************************************************************************
     // Prepare the old-time data for calling the integrator
@@ -143,38 +144,39 @@ void erf_advance(int level,
 
     // We need to apply the boundary conditions here because we are converting from velocity to momentum
     //    which requires having set boundary conditions on density
+    // TODO: CAN WE REALLY GET AWAY WITHOUT THIS??
     amrex::Vector<MultiFab*> vars_orig{&cons_old};
     ERF::applyBCs(fine_geom, vars_orig);
 
-    MultiFab::Copy(*state_old[IntVar::cons], cons_old, 0, 0, cons_old.nComp(), cons_old.nGrow());
+    MultiFab::Copy(state_old[IntVar::cons], cons_old, 0, 0, cons_old.nComp(), cons_old.nGrow());
 
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // **************************************************************************************
     VelocityToMomentum(xvel_old, yvel_old, zvel_old,
-                       *state_old[IntVar::cons],
-                       *state_old[IntVar::xmom],
-                       *state_old[IntVar::ymom],
-                       *state_old[IntVar::zmom],
+                       state_old[IntVar::cons],
+                       state_old[IntVar::xmom],
+                       state_old[IntVar::ymom],
+                       state_old[IntVar::zmom],
                        solverChoice.spatial_order);
 
     // Apply BC on old momentum data on faces before integration
     // **************************************************************************************
-    state_old[IntVar::xmom]->FillBoundary(fine_geom.periodicity());
-    state_old[IntVar::ymom]->FillBoundary(fine_geom.periodicity());
-    state_old[IntVar::zmom]->FillBoundary(fine_geom.periodicity());
+    state_old[IntVar::xmom].FillBoundary(fine_geom.periodicity());
+    state_old[IntVar::ymom].FillBoundary(fine_geom.periodicity());
+    state_old[IntVar::zmom].FillBoundary(fine_geom.periodicity());
 
     // Initialize the fluxes to zero
-    state_old[IntVar::xflux]->setVal(0.0_rt);
-    state_old[IntVar::yflux]->setVal(0.0_rt);
-    state_old[IntVar::zflux]->setVal(0.0_rt);
+    state_old[IntVar::xflux].setVal(0.0_rt);
+    state_old[IntVar::yflux].setVal(0.0_rt);
+    state_old[IntVar::zflux].setVal(0.0_rt);
 
-    auto interpolate_coarse_fine_faces = [&](Vector<std::unique_ptr<MultiFab> >& S_data) {
+    auto interpolate_coarse_fine_faces = [&](Vector<MultiFab>& S_data) {
         if (level > 0)
         {
             amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
-            amrex::Array<MultiFab*,3> fmf{S_data[IntVar::xmom].get(),
-                                          S_data[IntVar::ymom].get(),
-                                          S_data[IntVar::zmom].get()};
+            amrex::Array<MultiFab*,3> fmf{&S_data[IntVar::xmom],
+                                          &S_data[IntVar::ymom],
+                                          &S_data[IntVar::zmom]};
 
             // Interpolate from coarse faces to fine faces *only* on the coarse-fine boundary
             ifr->interp(fmf,cmf_const,0,1);
@@ -189,11 +191,11 @@ void erf_advance(int level,
         }
     };
 
-    auto apply_bcs = [&](Vector<std::unique_ptr<MultiFab> >& S_data) {
-        amrex::Vector<MultiFab*> state_p{S_data[IntVar::cons].get(),
-                                         S_data[IntVar::xmom].get(),
-                                         S_data[IntVar::ymom].get(),
-                                         S_data[IntVar::zmom].get()};
+    auto apply_bcs = [&](Vector<MultiFab>& S_data) {
+        amrex::Vector<MultiFab*> state_p{&S_data[IntVar::cons],
+                                         &S_data[IntVar::xmom],
+                                         &S_data[IntVar::ymom],
+                                         &S_data[IntVar::zmom]};
 
         ERF::applyBCs(fine_geom, state_p);
     };
@@ -205,7 +207,7 @@ void erf_advance(int level,
     // **************************************************************************************
     // Setup the integrator
     // **************************************************************************************
-    TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > integrator(state_old);
+    TimeIntegrator<amrex::Vector<amrex::MultiFab> > integrator(state_old);
 
 #ifdef AMREX_USE_SUNDIALS
 
@@ -220,8 +222,8 @@ void erf_advance(int level,
     void *mristep_mem = NULL;      /* empty ARKode memory structure */
     // Create an N_Vector wrapper for the solution MultiFab
     auto get_length = [&](int index) -> sunindextype {
-        auto* p_mf = state_old[index].get();
-        return p_mf->nComp() * (p_mf->boxArray()).numPts();
+        auto* p_mf = state_old[index];
+        return p_mf.nComp() * (p_mf.boxArray()).numPts();
     };
 
     ////STEP TWO
@@ -242,13 +244,13 @@ void erf_advance(int level,
     Real hfixed          = dt;
     Real m               = 2;
     Real hfixed_mri      = dt / m;
-    N_Vector nv_cons     = N_VMake_MultiFab(length, state_old[IntVar::cons].get());
-    N_Vector nv_xmom     = N_VMake_MultiFab(length_mx, state_old[IntVar::xmom].get());
-    N_Vector nv_ymom     = N_VMake_MultiFab(length_my, state_old[IntVar::ymom].get());
-    N_Vector nv_zmom     = N_VMake_MultiFab(length_mz, state_old[IntVar::zmom].get());
-    N_Vector nv_xflux    = N_VMake_MultiFab(length_mx, state_old[IntVar::xflux].get());
-    N_Vector nv_yflux    = N_VMake_MultiFab(length_my, state_old[IntVar::yflux].get());
-    N_Vector nv_zflux    = N_VMake_MultiFab(length_mz, state_old[IntVar::zflux].get());
+    N_Vector nv_cons     = N_VMake_MultiFab(length, &state_old[IntVar::cons]);
+    N_Vector nv_xmom     = N_VMake_MultiFab(length_mx, &state_old[IntVar::xmom]);
+    N_Vector nv_ymom     = N_VMake_MultiFab(length_my, &state_old[IntVar::ymom]);
+    N_Vector nv_zmom     = N_VMake_MultiFab(length_mz, &state_old[IntVar::zmom]);
+    N_Vector nv_xflux    = N_VMake_MultiFab(length_mx, &state_old[IntVar::xflux]);
+    N_Vector nv_yflux    = N_VMake_MultiFab(length_my, &state_old[IntVar::yflux]);
+    N_Vector nv_zflux    = N_VMake_MultiFab(length_mz, &state_old[IntVar::zflux]);
     N_Vector nv_many_arr[NVar];              /* vector array composed of cons, xmom, ymom, zmom component vectors */
 
     ////STEP THREE
@@ -268,8 +270,8 @@ void erf_advance(int level,
     bool l_lo_z_is_no_slip = ERF::lo_z_is_no_slip;
     bool l_hi_z_is_no_slip = ERF::hi_z_is_no_slip;
 
-    auto rhs_fun = [&](      Vector<std::unique_ptr<MultiFab> >& S_rhs,
-                       const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
+    auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
+                       const Vector<MultiFab>& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data,
                 source,
                 advflux, diffflux,
@@ -283,9 +285,9 @@ void erf_advance(int level,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
     };
 
-    auto rhs_fun_fast = [&](      Vector<std::unique_ptr<MultiFab> >& S_rhs,
-                            const Vector<std::unique_ptr<MultiFab> >& S_stage_data,
-                            const Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
+    auto rhs_fun_fast = [&](      Vector<MultiFab>& S_rhs,
+                            const Vector<MultiFab>& S_stage_data,
+                            const Vector<MultiFab>& S_data, const Real time) {
         erf_fast_rhs(level, S_rhs, S_stage_data, S_data,
                      advflux, diffflux,
                      fine_geom, dt,
@@ -298,10 +300,10 @@ void erf_advance(int level,
                      dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
     };
 
-    auto post_update_fun = [&](Vector<std::unique_ptr<MultiFab> >& S_data, const Real time) {
+    auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time) {
         // Apply BC on updated state and momentum data
         for (auto& mfp : S_data) {
-            mfp->FillBoundary(fine_geom.periodicity());
+            mfp.FillBoundary(fine_geom.periodicity());
         }
 
         // are these in the right order?
@@ -371,8 +373,8 @@ void erf_advance(int level,
 
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
-    MultiFab::Copy(*state_store[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
-    MultiFab::Copy(*NV_MFAB(N_VGetSubvector_ManyVector(nv_store, i)), *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
+    MultiFab::Copy(state_store[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
+    MultiFab::Copy(*NV_MFAB(N_VGetSubvector_ManyVector(nv_store, i)), *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
     }
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     ARKodeButcherTable B2 = ARKodeButcherTable_Alloc(2, SUNFALSE);
@@ -491,7 +493,7 @@ void erf_advance(int level,
     // Copy the result stored in nv_S to state_new
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
-    MultiFab::Copy(*state_new[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i]->nComp(), state_new[i]->nGrow());
+    MultiFab::Copy(state_new[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i].nComp(), state_new[i].nGrow());
     }
     }
     else
@@ -528,21 +530,21 @@ void erf_advance(int level,
     // Convert updated momentum to updated velocity on faces after we have taken a timestep
     // **************************************************************************************
     MomentumToVelocity(xvel_new, yvel_new, zvel_new,
-                       *state_new[IntVar::cons],
-                       *state_new[IntVar::xmom],
-                       *state_new[IntVar::ymom],
-                       *state_new[IntVar::zmom],
+                       state_new[IntVar::cons],
+                       state_new[IntVar::xmom],
+                       state_new[IntVar::ymom],
+                       state_new[IntVar::zmom],
                        0, solverChoice.spatial_order);
 
     // **************************************************************************************
     // Get the final cell centered variables after the step
     // (do this at the very end because its a swap not a copy)
     // **************************************************************************************
-    std::swap(cons_new, *state_new[IntVar::cons]);
+    std::swap(cons_new, state_new[IntVar::cons]);
 
-    std::swap(flux[0], *state_new[IntVar::xflux]);
-    std::swap(flux[1], *state_new[IntVar::yflux]);
-    std::swap(flux[2], *state_new[IntVar::zflux]);
+    std::swap(flux[0], state_new[IntVar::xflux]);
+    std::swap(flux[1], state_new[IntVar::yflux]);
+    std::swap(flux[2], state_new[IntVar::zflux]);
 
     // One final application of internal and periodic ghost cell filling
     xvel_new.FillBoundary(fine_geom.periodicity());
@@ -568,23 +570,20 @@ static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data)
 static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 {
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
-  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = fast_userdata->integrator;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_rhs;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_stage_data;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = fast_userdata->integrator;
+  amrex::Vector<amrex::MultiFab> S_data;
+  amrex::Vector<amrex::MultiFab> S_rhs;
+  amrex::Vector<amrex::MultiFab> S_stage_data;
 
   N_VConst(0.0, y_rhs);
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
-  S_data.resize(num_vecs);
-  S_rhs.resize(num_vecs);
-  S_stage_data.resize(num_vecs);
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
-      S_rhs[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
-      S_stage_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)));
+      S_data.at(i)=*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
+      S_rhs.at(i)=*NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
+      S_stage_data.at(i)=*NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)));
   }
 
   integrator->call_post_update(S_data, t);
@@ -595,9 +594,9 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data[i].release();
-      S_rhs[i].release();
-      S_stage_data[i].release();
+      S_data.pop_back();
+      S_rhs.pop_back();
+      S_stage_data.pop_back();
   }
 
   return 0;
@@ -617,13 +616,8 @@ static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
 
-  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
-  {
-    const int nComp = (*(fast_userdata->S_stage_data))[i]->nComp();
-    const int nGrow = (*(fast_userdata->S_stage_data))[i]->nGrow();
-    amrex::Print()<<"Not using correct copy"<<std::endl;
-    //    ((*(fast_userdata->S_stage_data))[i])->copy(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, nComp, nGrow);
-  }
+
+  //Do some sort of legal copy to the data we want
 
   return 0;
 }
@@ -634,23 +628,21 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_stage_data;
-
-  S_stage_data.resize(num_vecs);
+  amrex::Vector<amrex::MultiFab> S_stage_data;
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_stage_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)));
+      S_stage_data.at(i)=*NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)));
   }
 
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
-    MultiFab::Copy(*S_stage_data[i], *NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, 0, S_stage_data[i]->nComp(), S_stage_data[i]->nGrow());
+    MultiFab::Copy(S_stage_data[i], *NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, 0, S_stage_data[i].nComp(), S_stage_data[i].nGrow());
   }
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_stage_data[i].release();
+      S_stage_data.pop_back();
   }
 
   return 0;
@@ -659,18 +651,16 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
 /* f routine to compute the ODE RHS function f(t,y). */
 static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 {
-  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = (TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *) user_data;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_rhs;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = (TimeIntegrator<amrex::Vector<amrex::MultiFab> > *) user_data;
+  amrex::Vector<amrex::MultiFab> S_data;
+  amrex::Vector<amrex::MultiFab> S_rhs;
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
-  S_data.resize(num_vecs);
-  S_rhs.resize(num_vecs);
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
-      S_rhs[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
+      S_data.at(i)=*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
+      S_rhs.at(i)=*NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)));
   }
 
   integrator->call_post_update(S_data, t);
@@ -678,8 +668,8 @@ static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data[i].release();
-      S_rhs[i].release();
+      S_data.pop_back();
+      S_rhs.pop_back();
   }
 
   return 0;
@@ -687,22 +677,21 @@ static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data)
 {
-  TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *integrator = (TimeIntegrator<amrex::Vector<std::unique_ptr<amrex::MultiFab> > > *) user_data;
-  amrex::Vector<std::unique_ptr<amrex::MultiFab> > S_data;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab > > *integrator = (TimeIntegrator<amrex::Vector<amrex::MultiFab > > *) user_data;
+  amrex::Vector<amrex::MultiFab > S_data;
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
-  S_data.resize(num_vecs);
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data[i].reset(NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
+      S_data.at(i)=*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)));
   }
 
   integrator->call_post_update(S_data, t);
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data[i].release();
+      S_data.pop_back();
   }
 
   return 0;

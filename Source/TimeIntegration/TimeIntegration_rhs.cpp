@@ -3,14 +3,16 @@
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
 #include <ERF_Constants.H>
+#include <TKEProduction.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
+#include <ERF.H>
 
 using namespace amrex;
 
 void erf_rhs (int level,
-              Vector<std::unique_ptr<MultiFab> >& S_rhs,
-              const Vector<std::unique_ptr<MultiFab> >& S_data,
+              Vector<MultiFab>& S_rhs,
+              const Vector<MultiFab>& S_data,
               MultiFab& source,
               std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
               std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
@@ -27,19 +29,20 @@ void erf_rhs (int level,
     int klo = geom.Domain().smallEnd()[2];
     int khi = geom.Domain().bigEnd()[2];
 
+    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-    const auto& ba = S_data[IntVar::cons]->boxArray();
-    const auto& dm = S_data[IntVar::cons]->DistributionMap();
+    const auto& ba = S_data[IntVar::cons].boxArray();
+    const auto& dm = S_data[IntVar::cons].DistributionMap();
 
     amrex::MultiFab xvel(convert(ba,IntVect(1,0,0)), dm, 1, 1);
     amrex::MultiFab yvel(convert(ba,IntVect(0,1,0)), dm, 1, 1);
     amrex::MultiFab zvel(convert(ba,IntVect(0,0,1)), dm, 1, 1);
 
     MomentumToVelocity(xvel, yvel, zvel,
-                       *S_data[IntVar::cons],
-                       *S_data[IntVar::xmom],
-                       *S_data[IntVar::ymom],
-                       *S_data[IntVar::zmom],
+                       S_data[IntVar::cons],
+                       S_data[IntVar::xmom],
+                       S_data[IntVar::ymom],
+                       S_data[IntVar::zmom],
                        1, solverChoice.spatial_order);
 
     xvel.FillBoundary(geom.periodicity());
@@ -65,12 +68,18 @@ void erf_rhs (int level,
     // 2. Need to call FillBoundary and applyBCs to set ghost values on all
     //    boundaries so that InterpolateTurbulentViscosity works properly
     // *************************************************************************
-    MultiFab eddyViscosity(S_data[IntVar::cons]->boxArray(),S_data[IntVar::cons]->DistributionMap(),1,1);
-    if (solverChoice.les_type == LESType::Smagorinsky)
+    MultiFab eddyViscosity(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
+    if (solverChoice.les_type == LESType::Smagorinsky ||
+        solverChoice.les_type == LESType::Deardorff)
     {
-        ComputeTurbulentViscosity(xvel, yvel, zvel, *S_data[IntVar::cons],
-                                  eddyViscosity, dxInv, solverChoice,
-                                  lo_z_is_no_slip, klo, hi_z_is_no_slip, khi);
+        if (solverChoice.les_type == LESType::Smagorinsky)
+            ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
+                                      eddyViscosity, dxInv, solverChoice,
+                                      lo_z_is_no_slip, klo, hi_z_is_no_slip, khi);
+        else if (solverChoice.les_type == LESType::Deardorff)
+            ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
+                                      eddyViscosity, dxInv, solverChoice,
+                                      lo_z_is_no_slip, klo, hi_z_is_no_slip, khi);
         eddyViscosity.FillBoundary(geom.periodicity());
         amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};
         ERF::applyBCs(geom, eddyvisc_update);
@@ -79,6 +88,10 @@ void erf_rhs (int level,
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
     const iMultiFab *mlo_mf_z, *mhi_mf_z;
+
+    bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
+    Real l_Delta         = std::pow(dx[0] * dx[1] * dx[2],1./3.);
+    Real l_C_e           = solverChoice.Ce;
 
     if (level > 0)
     {
@@ -96,7 +109,7 @@ void erf_rhs (int level,
     //If the performance slows, consider saving all the fluxes apriori and accessing them here.
 
     // *************************************************************************
-    for ( MFIter mfi(*S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& bx = mfi.tilebox();
         const Box& tbx = mfi.nodaltilebox(0);
@@ -118,25 +131,25 @@ void erf_rhs (int level,
         auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
-        const Array4<Real> & cell_data  = S_data[IntVar::cons]->array(mfi);
-        const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons]->array(mfi);
+        const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+        const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
         const Array4<Real> & u = xvel.array(mfi);
         const Array4<Real> & v = yvel.array(mfi);
         const Array4<Real> & w = zvel.array(mfi);
 
-        const Array4<Real>& rho_u = S_data[IntVar::xmom]->array(mfi);
-        const Array4<Real>& rho_v = S_data[IntVar::ymom]->array(mfi);
-        const Array4<Real>& rho_w = S_data[IntVar::zmom]->array(mfi);
+        const Array4<const Real>& rho_u = S_data[IntVar::xmom].array(mfi);
+        const Array4<const Real>& rho_v = S_data[IntVar::ymom].array(mfi);
+        const Array4<const Real>& rho_w = S_data[IntVar::zmom].array(mfi);
 
-        const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom]->array(mfi);
-        const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom]->array(mfi);
-        const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom]->array(mfi);
+        const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom].array(mfi);
+        const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
+        const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
 
-        const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux]->array(mfi);
-        const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux]->array(mfi);
-        const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux]->array(mfi);
+        const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
+        const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
+        const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
 
         // These are temporaries we use to add to the S_rhs for the fluxes
         const Array4<Real>& advflux_x = advflux[0].array(mfi);
@@ -148,33 +161,46 @@ void erf_rhs (int level,
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
-        const Array4<Real>& Ksmag = eddyViscosity.array(mfi);
+        const Array4<Real>& K_LES = eddyViscosity.array(mfi);
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        amrex::ParallelFor(bx, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(bx, S_data[IntVar::cons].nComp(),
        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
             // Add advection terms.
-            if (solverChoice.use_state_advection)
+            if (solverChoice.use_state_advection && ((n != RhoKE_comp) || l_use_deardorff))
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data, n,
                                          advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
 
             // Add diffusive terms.
             if (solverChoice.use_thermal_diffusion && n == RhoTheta_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, Ksmag, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
             if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, Ksmag, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
+            if (l_use_deardorff && n == RhoKE_comp)
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoKE_comp,
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
 
             // Add Rayleigh damping
             if (solverChoice.use_rayleigh_damping && n == RhoTheta_comp)
             {
                 Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
                 cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,Rho_comp);
+            }
+
+            if (l_use_deardorff && n == RhoKE_comp)
+            {
+                bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
+                bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,dxInv,K_LES,solverChoice,
+                                                             use_no_slip_stencil_at_lo_k, use_no_slip_stencil_at_hi_k)
+                                     +  cell_data(i,j,k,Rho_comp) * l_C_e *
+                    std::pow(cell_data(i,j,k,n)/cell_data(i,j,k,Rho_comp),1.5) / l_Delta;
             }
 
             // Add source terms. TODO: Put this under a if condition when we implement source term
@@ -184,17 +210,17 @@ void erf_rhs (int level,
 
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
         //         fluxes at fine-fine interfaces
-        amrex::ParallelFor(tbx, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(tbx, S_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
              xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n) + diffflux_x(i,j,k,n);
         });
-        amrex::ParallelFor(tby, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(tby, S_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
              yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n) + diffflux_y(i,j,k,n);
         });
-        amrex::ParallelFor(tbz, S_data[IntVar::cons]->nComp(),
+        amrex::ParallelFor(tbz, S_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
              zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n) + diffflux_z(i,j,k,n);
@@ -227,7 +253,7 @@ void erf_rhs (int level,
             {
                 bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
                 bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
-                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, Ksmag, solverChoice,
+                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, K_LES, solverChoice,
                                                                   use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
             }
 
@@ -294,7 +320,7 @@ void erf_rhs (int level,
             {
                 bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
                 bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
-                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, Ksmag, solverChoice,
+                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, K_LES, solverChoice,
                                                                   use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
             }
 
@@ -354,7 +380,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
-                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, Ksmag, solverChoice,
+                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, K_LES, solverChoice,
                                                                   false, false);
 
             // Add pressure gradient
