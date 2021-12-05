@@ -62,7 +62,7 @@ ERF::variableSetUp()
 #endif
 
   if (NumAdv > 0) {
-    FirstAdv = RhoTheta_comp+1;
+    FirstAdv = RhoKE_comp+1;
   }
 
   amrex::Interpolater* interp;
@@ -84,7 +84,6 @@ ERF::variableSetUp()
 
   int ngrow_state = 1;
 
-  // NVAR is currently set to 2 in IndexDefines.H
   store_in_checkpoint = true;
   desc_lst.addDescriptor(
     State_Type, amrex::IndexType::TheCellType(), amrex::StateDescriptor::Point,
@@ -100,6 +99,9 @@ ERF::variableSetUp()
   cnt++;
   bcs[cnt] = bc;
   name[cnt] = "rhotheta";
+  cnt++;
+  bcs[cnt] = bc;
+  name[cnt] = "rhoKE";
 
   for (int i = 0; i < NumAdv; ++i) {
     char buf[64];

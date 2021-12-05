@@ -7,17 +7,13 @@
 // cell-centered state variables
 //TODO: Change these types of macros to 'const'
 #define Rho_comp  0
-#define RhoTheta_comp 1
-#define RhoScalar_comp   2
-#define NVAR          3
-
-#define SlipWall 4
-#define NoSlipWall 5
-#define SimSlipWall 6
+#define RhoTheta_comp  1
+#define RhoKE_comp     2
+#define RhoScalar_comp 3
+#define NVAR           4
 
 #define NUM_ADV 1
 
-// This value was hardcoded to 4 in get_method_params in the old Fortran code
 #define NUM_GROW 4
 
 #endif

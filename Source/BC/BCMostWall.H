@@ -33,21 +33,15 @@ class BCMostWall : public BCBase {
 
   // we need all velocity variables and temperature/theta as input
   void applyBC (const Geometry geom, Vector<MultiFab*>& vars, const SolverChoice& solverChoice) override {
+
+    // The MOST bc is only relevant at low z.
+    AMREX_ALWAYS_ASSERT (IDIR == 2);
+
     if ((geom.isPeriodic(IDIR)) || (vars.size() == 0)) return;
 
     auto most = ABLMost();
-    int idir0, idir1;
-
-    if (IDIR == 0) {
-      idir0 = 1;
-      idir1 = 2;
-    } else if (IDIR == 1) {
-      idir0 = 0;
-      idir1 = 2;
-    } else if (IDIR == 2) {
-      idir0 = 0;
-      idir1 = 1;
-    }
+    int idir0 = 0;
+    int idir1 = 1;
 
     MultiFab* velx   = getVelx (vars);
     MultiFab* vely   = getVely (vars);
@@ -106,24 +100,15 @@ class BCMostWall : public BCBase {
 
             if (type == IntVect::Zero) {  // for state type variable
                math_bcs::ablmostwall<IDIR, Bound>::apply_cell_based(geom, b, sarray, data, most, 0, ncomp);
+
             } else if (type == IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL
-               if (IDIR == 0) { // x-vel on x-faces
-                   math_bcs::ablmostwall<IDIR, Bound>::apply_face_based(geom, b, data, ncomp);
-               } else { // x-vel on y- or z-faces
-                   math_bcs::ablmostwall<IDIR, Bound>::apply_cell_based(geom, b, sarray, data, most, 1, ncomp);
-               }
+               math_bcs::ablmostwall<IDIR, Bound>::apply_cell_based(geom, b, sarray, data, most, 1, ncomp);
+
             } else if (type == IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
-               if (IDIR == 1) { // y-vel on y-faces
-                   math_bcs::ablmostwall<IDIR, Bound>::apply_face_based(geom, b, data, ncomp);
-               } else { // y-vel on x- or z-faces
-                   math_bcs::ablmostwall<IDIR, Bound>::apply_cell_based(geom, b, sarray, data, most, 2, ncomp);
-               }
+               math_bcs::ablmostwall<IDIR, Bound>::apply_cell_based(geom, b, sarray, data, most, 2, ncomp);
+
             } else if (type == IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
-               if (IDIR == 2) { // z-vel on z-faces
-                   math_bcs::ablmostwall<IDIR, Bound>::apply_face_based(geom, b, data, ncomp);
-               } else { // z-vel on x- or y-faces
-                   math_bcs::ablmostwall<IDIR, Bound>::apply_cell_based(geom, b, sarray, data, most, 3, ncomp);
-               }
+               math_bcs::ablmostwall<IDIR, Bound>::apply_face_based(geom, b, data, ncomp);
             }
          }
      }
