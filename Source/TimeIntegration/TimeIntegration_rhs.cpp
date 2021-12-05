@@ -3,6 +3,7 @@
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
 #include <ERF_Constants.H>
+#include <TKEProduction.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 #include <ERF.H>
@@ -194,7 +195,11 @@ void erf_rhs (int level,
 
             if (l_use_deardorff && n == RhoKE_comp)
             {
-                cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * l_C_e *
+                bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
+                bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,dxInv,K_LES,solverChoice,
+                                                             use_no_slip_stencil_at_lo_k, use_no_slip_stencil_at_hi_k)
+                                     +  cell_data(i,j,k,Rho_comp) * l_C_e *
                     std::pow(cell_data(i,j,k,n)/cell_data(i,j,k,Rho_comp),1.5) / l_Delta;
             }
 

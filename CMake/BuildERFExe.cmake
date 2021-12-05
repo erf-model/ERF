@@ -56,6 +56,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ExpansionRate.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration.H
        ${SRC_DIR}/TimeIntegration/StrainRate.H
+       ${SRC_DIR}/TimeIntegration/StressTerm.H
+       ${SRC_DIR}/TimeIntegration/TKEProduction.H
        ${SRC_DIR}/TimeIntegration/Interpolation.cpp
        ${SRC_DIR}/TimeIntegration/MomentumToVelocity.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp

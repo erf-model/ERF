@@ -8,7 +8,9 @@ CEXE_sources += Advection.cpp
 CEXE_sources += Diffusion.cpp
 
 CEXE_headers += TimeIntegration.H
+CEXE_headers += TKEProduction.H
 CEXE_headers += ExpansionRate.H
 CEXE_headers += StrainRate.H
+CEXE_headers += StressTerm.H
 CEXE_headers += EddyViscosity.H
 
