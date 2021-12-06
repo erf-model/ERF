@@ -11,29 +11,16 @@ using namespace amrex;
 using namespace amrex;
 
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
+//    given the strain rates
 AMREX_GPU_DEVICE
 inline Real
-ComputeStressTerm (const int &i, const int &j, const int &k,
-                   const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
-                   const enum MomentumEqn &momentumEqn,
-                   const enum DiffusionDir &diffDir,
-                   const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const Array4<Real>& K_LES,
-                   const SolverChoice &solverChoice,
-                   bool use_no_slip_stencil_lo,
-                   bool use_no_slip_stencil_hi)
+ComputeStressGivenRates (const int &i, const int &j, const int &k,
+                         const enum MomentumEqn &momentumEqn,
+                         const enum DiffusionDir &diffDir,
+                         const Array4<Real>& K_LES,
+                         const SolverChoice &solverChoice,
+                         amrex::Real strainRateDeviatoric)
 {
-
-    // Here, we have computed strain rate on the fly.
-    // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
-    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi);
-
-    // D_ij term
-    Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
-
-    Real strainRateDeviatoric = strainRate - expansionRate; // sigma_ij = S_ij - D_ij
-
     Real mu_effective = 0.0;
     //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
     // Future implementations may account for mu = mu(T) computed at the coordinate of interest.
@@ -65,6 +52,36 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
     }
 
     Real stressTerm = mu_effective * strainRateDeviatoric; // tau_ij = mu_effective * sigma_ij
+    return stressTerm;
+}
+
+// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
+AMREX_GPU_DEVICE
+inline Real
+ComputeStressTerm (const int &i, const int &j, const int &k,
+                   const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                   const enum MomentumEqn &momentumEqn,
+                   const enum DiffusionDir &diffDir,
+                   const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                   const Array4<Real>& K_LES,
+                   const SolverChoice &solverChoice,
+                   bool use_no_slip_stencil_lo,
+                   bool use_no_slip_stencil_hi)
+{
+
+    // Here, we have computed strain rate on the fly.
+    // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
+    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv,
+                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi);
+
+    // D_ij term
+    Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
+
+    Real strainRateDeviatoric = strainRate - expansionRate; // sigma_ij = S_ij - D_ij
+
+    Real stressTerm = ComputeStressGivenRates(i,j,k,momentumEqn,diffDir,K_LES,solverChoice,
+                                                strainRateDeviatoric);
+
     return stressTerm;
 }
 #endif
