@@ -574,10 +574,15 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   amrex::Vector<amrex::MultiFab> S_data;
   amrex::Vector<amrex::MultiFab> S_rhs;
   amrex::Vector<amrex::MultiFab> S_stage_data;
+  auto call_post_update = integrator->get_post_update();
+  auto call_rhs = integrator->get_rhs();
 
   N_VConst(0.0, y_rhs);
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_data.resize(num_vecs);
+  S_rhs.resize(num_vecs);
+  S_stage_data.resize(num_vecs);
 
   for(int i=0; i<num_vecs; i++)
   {
@@ -586,8 +591,8 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
       S_stage_data.at(i)=amrex::MultiFab(*NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)),amrex::make_alias,0,NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i))->nComp());
   }
 
-  integrator->call_post_update(S_data, t);
-  integrator->call_post_update(S_stage_data, t);
+  call_post_update(S_data, t);
+  call_post_update(S_stage_data, t);
 
   //Call rhs_fun_fast lambda stored in userdata which uses erf_fast_rhs
   fast_userdata->rhs_fun_fast(S_rhs, S_stage_data, S_data, t);
@@ -622,6 +627,7 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
   amrex::Vector<amrex::MultiFab> S_stage_data;
+  S_stage_data.resize(num_vecs);
 
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
@@ -637,8 +643,12 @@ static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
   TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = (TimeIntegrator<amrex::Vector<amrex::MultiFab> > *) user_data;
   amrex::Vector<amrex::MultiFab> S_data;
   amrex::Vector<amrex::MultiFab> S_rhs;
+  auto call_post_update = integrator->get_post_update();
+  auto call_rhs = integrator->get_rhs();
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_data.resize(num_vecs);
+  S_rhs.resize(num_vecs);
 
   for(int i=0; i<num_vecs; i++)
   {
@@ -646,8 +656,8 @@ static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
       S_rhs.at(i)=amrex::MultiFab(*NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
   }
 
-  integrator->call_post_update(S_data, t);
-  integrator->rhs(S_rhs, S_data, t);
+  call_post_update(S_data, t);
+  call_rhs(S_rhs, S_data, t);
 
   return 0;
 }
@@ -656,15 +666,17 @@ static int ProcessStage(realtype t, N_Vector y_data, void *user_data)
 {
   TimeIntegrator<amrex::Vector<amrex::MultiFab > > *integrator = (TimeIntegrator<amrex::Vector<amrex::MultiFab > > *) user_data;
   amrex::Vector<amrex::MultiFab > S_data;
+  auto call_post_update = integrator->get_post_update();
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_data.resize(num_vecs);
 
   for(int i=0; i<num_vecs; i++)
   {
       S_data.at(i)=amrex::MultiFab(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
   }
 
-  integrator->call_post_update(S_data, t);
+  call_post_update(S_data, t);
 
   return 0;
 }
