@@ -244,13 +244,13 @@ void erf_advance(int level,
     Real hfixed          = dt;
     Real m               = 2;
     Real hfixed_mri      = dt / m;
-    N_Vector nv_cons     = N_VMake_MultiFab(length, &state_old[IntVar::cons]);
-    N_Vector nv_xmom     = N_VMake_MultiFab(length_mx, &state_old[IntVar::xmom]);
-    N_Vector nv_ymom     = N_VMake_MultiFab(length_my, &state_old[IntVar::ymom]);
-    N_Vector nv_zmom     = N_VMake_MultiFab(length_mz, &state_old[IntVar::zmom]);
-    N_Vector nv_xflux    = N_VMake_MultiFab(length_mx, &state_old[IntVar::xflux]);
-    N_Vector nv_yflux    = N_VMake_MultiFab(length_my, &state_old[IntVar::yflux]);
-    N_Vector nv_zflux    = N_VMake_MultiFab(length_mz, &state_old[IntVar::zflux]);
+    N_Vector nv_cons     = amrex::sundials::N_VMake_MultiFab(length, &state_old[IntVar::cons]);
+    N_Vector nv_xmom     = amrex::sundials::N_VMake_MultiFab(length_mx, &state_old[IntVar::xmom]);
+    N_Vector nv_ymom     = amrex::sundials::N_VMake_MultiFab(length_my, &state_old[IntVar::ymom]);
+    N_Vector nv_zmom     = amrex::sundials::N_VMake_MultiFab(length_mz, &state_old[IntVar::zmom]);
+    N_Vector nv_xflux    = amrex::sundials::N_VMake_MultiFab(length_mx, &state_old[IntVar::xflux]);
+    N_Vector nv_yflux    = amrex::sundials::N_VMake_MultiFab(length_my, &state_old[IntVar::yflux]);
+    N_Vector nv_zflux    = amrex::sundials::N_VMake_MultiFab(length_mz, &state_old[IntVar::zflux]);
     N_Vector nv_many_arr[NVar];              /* vector array composed of cons, xmom, ymom, zmom component vectors */
 
     ////STEP THREE
@@ -373,8 +373,8 @@ void erf_advance(int level,
 
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
-    MultiFab::Copy(state_store[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
-    MultiFab::Copy(*NV_MFAB(N_VGetSubvector_ManyVector(nv_store, i)), *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
+    MultiFab::Copy(state_store[i], *AMREX_NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
+    MultiFab::Copy(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(nv_store, i)), *AMREX_NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
     }
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     ARKodeButcherTable B2 = ARKodeButcherTable_Alloc(2, SUNFALSE);
@@ -493,7 +493,7 @@ void erf_advance(int level,
     // Copy the result stored in nv_S to state_new
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
-    MultiFab::Copy(state_new[i], *NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i].nComp(), state_new[i].nGrow());
+    MultiFab::Copy(state_new[i], *AMREX_NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i].nComp(), state_new[i].nGrow());
     }
     }
     else
@@ -586,9 +586,9 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data.at(i)=amrex::MultiFab(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
-      S_rhs.at(i)=amrex::MultiFab(*NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
-      S_stage_data.at(i)=amrex::MultiFab(*NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)),amrex::make_alias,0,NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i))->nComp());
+      S_data.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
+      S_rhs.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
+      S_stage_data.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i))->nComp());
   }
 
   call_post_update(S_data, t);
@@ -631,7 +631,7 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
 
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
-    MultiFab::Copy(S_stage_data[i], *NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, 0, NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp(), NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nGrow());
+    MultiFab::Copy(S_stage_data[i], *AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, 0, AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp(), AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nGrow());
   }
 
   return 0;
@@ -652,8 +652,8 @@ static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data.at(i)=amrex::MultiFab(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
-      S_rhs.at(i)=amrex::MultiFab(*NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
+      S_data.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
+      S_rhs.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
   }
 
   call_post_update(S_data, t);
@@ -673,7 +673,7 @@ static int ProcessStage(realtype t, N_Vector y_data, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data.at(i)=amrex::MultiFab(*NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
+      S_data.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
   }
 
   call_post_update(S_data, t);
