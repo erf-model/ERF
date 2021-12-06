@@ -18,7 +18,7 @@ ComputeTKEProduction (const int &i, const int &j, const int &k,
     amrex::Real sig11 = (ComputeStrainRate(i, j, k, u, v, w, MomentumEqn::x, DiffusionDir::x, cellSizeInv,
                                           use_no_slip_stencil_lo, use_no_slip_stencil_hi) -
                          ComputeExpansionRate(i, j, k, u, v, w, MomentumEqn::x, DiffusionDir::x, cellSizeInv));
-    TKE_production += ComputeStressGivenRates(i, j, k, MomentumEqn::x, DiffusionDir::x, K_LES, solverChoice, sig11); 
+    TKE_production += ComputeStressGivenRates(i, j, k, MomentumEqn::x, DiffusionDir::x, K_LES, solverChoice, sig11);
 
     amrex::Real sig12 = (ComputeStrainRate(i, j, k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSizeInv,
                                           use_no_slip_stencil_lo, use_no_slip_stencil_hi) -

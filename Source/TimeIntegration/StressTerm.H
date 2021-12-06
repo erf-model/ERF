@@ -19,7 +19,7 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
                          const enum DiffusionDir &diffDir,
                          const Array4<Real>& K_LES,
                          const SolverChoice &solverChoice,
-                         amrex::Real strainRateDeviatoric) 
+                         amrex::Real strainRateDeviatoric)
 {
     Real mu_effective = 0.0;
     //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
