@@ -626,12 +626,12 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
-  amrex::Vector<amrex::MultiFab> S_stage_data;
-  S_stage_data.resize(num_vecs);
 
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
-    MultiFab::Copy(S_stage_data[i], *AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)), 0, 0, AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp(), AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nGrow());
+    MultiFab* mf_y = AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i));
+    MultiFab* mf_stage = AMREX_NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i));
+    MultiFab::Copy(*mf_stage, *mf_y, 0, 0, mf_y->nComp(), mf_y->nGrow());
   }
 
   return 0;
