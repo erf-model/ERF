@@ -81,7 +81,7 @@ void erf_fast_rhs (int level,
     //If the performance slows, consider saving all the fluxes apriori and accessing them here.
 
     // *************************************************************************
-    for ( MFIter mfi(*S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& bx = mfi.tilebox();
         const Box& tbx = mfi.nodaltilebox(0);
@@ -103,9 +103,9 @@ void erf_fast_rhs (int level,
         auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
-        const Array4<Real> & cell_data        = S_data[IntVar::cons].array(mfi);
+        const Array4<const Real> & cell_data        = S_data[IntVar::cons].array(mfi);
         const Array4<Real> & cell_rhs         = S_rhs[IntVar::cons].array(mfi);
-        const Array4<Real> & cell_stage_data  = S_stage_data[IntVar::cons].array(mfi);
+        const Array4<const Real> & cell_stage_data  = S_stage_data[IntVar::cons].array(mfi);
 
         const Array4<Real>& delta_rho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& delta_rho_v     = Delta_rho_v.array(mfi);
