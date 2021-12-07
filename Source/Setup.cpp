@@ -166,6 +166,25 @@ ERF::variableSetUp()
     "pressure", amrex::IndexType::TheCellType(), 1, erf_derpres, the_same_box);
   derive_lst.addComponent("pressure", desc_lst, State_Type, Rho_comp, NVAR);
 
+  // - hydrostatic equilibrium (base state)
+  derive_lst.add(
+    "pres_hse", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
+
+  // - deviation from hydrostatic equilibrium (perturbation)
+  derive_lst.add(
+    "pert_pres", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
+
+  //
+  // Density
+  //
+  // - hydrostatic equilibrium (base state)
+  derive_lst.add(
+    "dens_hse", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
+
+  // - deviation from hydrostatic equilibrium (perturbation)
+  derive_lst.add(
+    "pert_dens", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
+
   //
   // Temperature
   //

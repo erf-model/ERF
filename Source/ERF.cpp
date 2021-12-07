@@ -896,8 +896,69 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       MultiFab::Copy(*derive_dat, ccvel, 2, 0, 1, 0);
 
       return derive_dat;
+  }
+  else if (name == "pres_hse")
+  {
+      std::unique_ptr<MultiFab> derive_dat(new MultiFab(grids, dmap, 1, 0));
+      for (amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      {
+          const Box& bx = mfi.tilebox();
+          const Array4<Real>& derdat = (*derive_dat).array(mfi);
+          amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+              derdat(i, j, k) = d_pres_hse[level][k];
+          });
+      }
 
-  } else {
+      return derive_dat;
+  }
+  else if (name == "pert_pres")
+  {
+      std::unique_ptr<MultiFab> derive_dat(new MultiFab(grids, dmap, 1, 0));
+      MultiFab& S_data = get_new_data(State_Type);
+      for (amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      {
+          const Box& bx = mfi.tilebox();
+          const Array4<Real>& statedat = S_data.array(mfi);
+          const Array4<Real>& derdat = (*derive_dat).array(mfi);
+          amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+              const amrex::Real rhotheta = statedat(i, j, k, RhoTheta_comp);
+              derdat(i, j, k) = getPgivenRTh(rhotheta) - d_pres_hse[level][k];
+          });
+      }
+
+      return derive_dat;
+  }
+  else if (name == "dens_hse")
+  {
+      std::unique_ptr<MultiFab> derive_dat(new MultiFab(grids, dmap, 1, 0));
+      for (amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      {
+          const Box& bx = mfi.tilebox();
+          const Array4<Real>& derdat = (*derive_dat).array(mfi);
+          amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+              derdat(i, j, k) = d_dens_hse[level][k];
+          });
+      }
+
+      return derive_dat;
+  }
+  else if (name == "pert_dens")
+  {
+      std::unique_ptr<MultiFab> derive_dat(new MultiFab(grids, dmap, 1, 0));
+      MultiFab& S_data = get_new_data(State_Type);
+      for (amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      {
+          const Box& bx = mfi.tilebox();
+          const Array4<Real>& statedat = S_data.array(mfi);
+          const Array4<Real>& derdat = (*derive_dat).array(mfi);
+          amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+              derdat(i, j, k) = statedat(i, j, k, Rho_comp) - d_dens_hse[level][k];
+          });
+      }
+
+      return derive_dat;
+  }
+  else {
      return AmrLevel::derive(name, time, ngrow);
   }
 }
