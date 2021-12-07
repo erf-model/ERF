@@ -211,7 +211,7 @@ void erf_advance(int level,
 
 #ifdef AMREX_USE_SUNDIALS
 
-    ////STEP ONE
+    ////STEP amrex::Real(1.0)
     // Create SUNDIALS specific objects
     SUNNonlinearSolver NLS = NULL;    /* empty nonlinear solver object */
     SUNLinearSolver LS = NULL;    /* empty linear solver object */
@@ -430,7 +430,7 @@ void erf_advance(int level,
     ARKStepSetTables(inner_mem, B->q, B->p, B, NULL);       // Specify Butcher table
     }
     /*
-    LSf = SUNLinSol_SPGMR(nv_S, PREC_NONE, 10);
+    LSf = SUNLinSol_SPGMR(nv_S, PREC_Namrex::Real(1.0), 10);
     NLSf = SUNNonlinSol_FixedPoint(nv_S, 50);
     if(use_linear)
       ARKStepSetLinearSolver(inner_mem, LSf, NULL);
