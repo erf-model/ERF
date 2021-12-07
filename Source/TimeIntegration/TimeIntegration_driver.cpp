@@ -211,7 +211,7 @@ void erf_advance(int level,
 
 #ifdef AMREX_USE_SUNDIALS
 
-    ////STEP amrex::Real(1.0)
+    ////STEP ONE
     // Create SUNDIALS specific objects
     SUNNonlinearSolver NLS = NULL;    /* empty nonlinear solver object */
     SUNLinearSolver LS = NULL;    /* empty linear solver object */
