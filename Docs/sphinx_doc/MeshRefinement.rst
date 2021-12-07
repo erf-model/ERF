@@ -33,6 +33,7 @@ and in the region ((.65,.75,prob_lo_z)(.85,.95,prob_hi_z)) are tagged for
 one level of refinement, where prob_lo_z and prob_hi_z are the vertical extents of the domain:
 
 ::
+
           amr.max_level = 1
           amr.ref_ratio = 2
 
@@ -49,6 +50,7 @@ by two levels of factor 3 refinement. In this case, the refined region at level 
 be sufficient to enclose the refined region at level 2.
 
 ::
+
           amr.max_level = 2
           amr.ref_ratio = 3 3
 
@@ -62,6 +64,7 @@ will be refined by two levels of factor 3, but the larger region, ((.05,.05,prob
 will be refined by a single factor 3 refinement.
 
 ::
+
           amr.max_level = 2
           amr.ref_ratio = 3 3
 
