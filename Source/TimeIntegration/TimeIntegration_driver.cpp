@@ -373,8 +373,8 @@ void erf_advance(int level,
 
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
-    MultiFab::Copy(state_store[i], *AMREX_NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
-    MultiFab::Copy(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(nv_store, i)), *AMREX_NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
+    MultiFab::Copy(state_store[i], *amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
+    MultiFab::Copy(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(nv_store, i)), *amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
     }
     ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
     ARKodeButcherTable B2 = ARKodeButcherTable_Alloc(2, SUNFALSE);
@@ -493,7 +493,7 @@ void erf_advance(int level,
     // Copy the result stored in nv_S to state_new
     for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
     {
-    MultiFab::Copy(state_new[i], *AMREX_NV_MFAB(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i].nComp(), state_new[i].nGrow());
+    MultiFab::Copy(state_new[i], *amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i].nComp(), state_new[i].nGrow());
     }
     }
     else
@@ -586,9 +586,9 @@ static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
-      S_rhs.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
-      S_stage_data.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i))->nComp());
+      S_data.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i))->nComp());
+      S_rhs.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
+      S_stage_data.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i))->nComp());
   }
 
   call_post_update(S_data, t);
@@ -629,8 +629,8 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
 
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
-    MultiFab* mf_y = AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i));
-    MultiFab* mf_stage = AMREX_NV_MFAB(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i));
+    MultiFab* mf_y = amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i));
+    MultiFab* mf_stage = amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i));
     MultiFab::Copy(*mf_stage, *mf_y, 0, 0, mf_y->nComp(), mf_y->nGrow());
   }
 
@@ -652,8 +652,8 @@ static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
-      S_rhs.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
+      S_data.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i))->nComp());
+      S_rhs.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
   }
 
   call_post_update(S_data, t);
@@ -673,7 +673,7 @@ static int ProcessStage(realtype t, N_Vector y_data, void *user_data)
 
   for(int i=0; i<num_vecs; i++)
   {
-      S_data.at(i)=amrex::MultiFab(*AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,AMREX_NV_MFAB(N_VGetSubvector_ManyVector(y_data, i))->nComp());
+      S_data.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i))->nComp());
   }
 
   call_post_update(S_data, t);
