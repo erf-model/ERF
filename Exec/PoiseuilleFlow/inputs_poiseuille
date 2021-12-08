@@ -54,7 +54,6 @@ amr.derive_plot_vars = x_velocity y_velocity z_velocity #pressure theta
 erf.use_state_advection    = true
 erf.use_momentum_advection = true
 erf.use_momentum_diffusion = true
-erf.use_pressure           = true
 erf.use_gravity            = false
 
 erf.use_thermal_diffusion = false

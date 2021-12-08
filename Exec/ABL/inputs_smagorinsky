@@ -59,7 +59,6 @@ erf.alpha_T = 0.0
 erf.use_scalar_diffusion = true
 erf.alpha_C = 1.0
 erf.use_momentum_diffusion = true
-erf.use_pressure = true
 erf.use_gravity = false
 
 erf.les_type = "Smagorinsky"

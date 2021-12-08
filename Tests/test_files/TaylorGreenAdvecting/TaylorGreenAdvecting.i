@@ -58,7 +58,6 @@ erf.alpha_T = 1.0
 erf.use_scalar_diffusion = false
 erf.alpha_C = 2.0
 erf.use_momentum_diffusion = false
-erf.use_pressure = true
 erf.use_gravity = false
 
 erf.les_type         = "None"
