@@ -52,7 +52,6 @@ struct SolverChoice {
         pp.query("use_thermal_diffusion", use_thermal_diffusion);
         pp.query("use_scalar_diffusion", use_scalar_diffusion);
         pp.query("use_momentum_diffusion", use_momentum_diffusion);
-        pp.query("use_pressure", use_pressure);
         pp.query("use_gravity", use_gravity);
 
         gravity = use_gravity? CONST_GRAV: 0.0;
@@ -153,7 +152,6 @@ struct SolverChoice {
         amrex::Print() << "use_thermal_diffusion : " << use_thermal_diffusion << std::endl;
         amrex::Print() << "use_scalar_diffusion  : " << use_scalar_diffusion << std::endl;
         amrex::Print() << "use_momentum_diffusion: " << use_momentum_diffusion << std::endl;
-        amrex::Print() << "use_pressure          : " << use_pressure << std::endl;
         amrex::Print() << "use_coriolis          : " << use_coriolis << std::endl;
         amrex::Print() << "use_rayleigh_damping  : " << use_rayleigh_damping << std::endl;
         amrex::Print() << "use_gravity           : " << use_gravity << std::endl;
@@ -246,7 +244,6 @@ struct SolverChoice {
     bool        use_thermal_diffusion  = true;
     bool        use_scalar_diffusion   = true;
     bool        use_momentum_diffusion = true;
-    bool        use_pressure           = true;
 
     bool        use_gravity            = false;
     bool        use_coriolis           = false;

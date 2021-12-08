@@ -61,7 +61,6 @@ erf.use_thermal_diffusion = false
 erf.alpha_T = 0.0
 erf.use_scalar_diffusion = false
 erf.alpha_C = 1.0
-erf.use_pressure = false
 erf.use_gravity = false
 
 erf.les_type   = "None"
