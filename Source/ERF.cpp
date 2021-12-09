@@ -919,7 +919,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
       for ( amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
           const Box& bx = mfi.tilebox();
-          const Array4<Real  >& sdat = S_new.array(mfi);
+          const Array4<Real const>& sdat = S_new.array(mfi);
           const Array4<Real>& derdat = (*derive_dat).array(mfi);
           amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
               Real rhotheta = sdat(i,j,k,RhoTheta_comp);
