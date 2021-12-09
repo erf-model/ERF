@@ -1457,7 +1457,6 @@ namespace math_bcs {
 
       if (b.smallEnd(IDIR) >= lo) return;
 
-#if 0
       amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
       {
         if (k < lo) {
@@ -1522,7 +1521,6 @@ namespace math_bcs {
               }
             }
           });
-#endif
     }
 
     static inline void
