@@ -1453,7 +1453,7 @@ namespace math_bcs {
                                               const ABLMost& most, int vartype, int ncomp=1)
     {
       AMREX_ALWAYS_ASSERT(IDIR == 2);
-      int zlo = geom.Domain().smallEnd()[IDIR];
+      const int zlo = geom.Domain().smallEnd()[IDIR];
 
       if (b.smallEnd(IDIR) >= zlo) return;
 
