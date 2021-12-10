@@ -334,15 +334,6 @@ void erf_advance(int level,
     bool advance_rk=!(advance_erk||advance_mri);
 
     ////STEP FOUR
-    /* Call ARKStepCreate to initialize the inner ARK timestepper module and
-    specify the right-hand side function in y'=f(t,y), the inital time
-    T0, and the initial dependent variable vector y. */
-    arkode_mem = ERKStepCreate(f, time, nv_S);
-    ERKStepSetUserData(arkode_mem, (void *) &integrator);  /* Pass udata to user functions */
-    ERKStepSetPostprocessStageFn(arkode_mem, ProcessStage);
-    /* Specify tolerances */
-    ERKStepSStolerances(arkode_mem, reltol, abstol);
-    ERKStepSetFixedStep(arkode_mem, hfixed);
     if(advance_mri_test)
     {
     if(use_erk3)
@@ -368,6 +359,16 @@ void erf_advance(int level,
     fast_userdata.S_stage_data = &state_store;
     fast_userdata.nv_stage_data = nv_store;
     fast_userdata.inner_mem = inner_mem;
+
+    /* Call ERKStepCreate to initialize the inner ARK timestepper module and
+    specify the right-hand side function in y'=f(t,y), the inital time
+    T0, and the initial dependent variable vector y. */
+    arkode_mem = ERKStepCreate(f, time, nv_S);
+    ERKStepSetUserData(arkode_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
+    ERKStepSetPostprocessStageFn(arkode_mem, ProcessStage);
+    /* Specify tolerances */
+    ERKStepSStolerances(arkode_mem, reltol, abstol);
+    ERKStepSetFixedStep(arkode_mem, hfixed);
 
     ARKStepSetUserData(inner_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
 
@@ -459,10 +460,11 @@ void erf_advance(int level,
     else
       MRIStepSetNonlinearSolver(mristep_mem, NLS);
     ////STEP NINE
-    MRIStepSetUserData(mristep_mem, (void *) &integrator);  /* Pass udata to user functions */
+    MRIStepSetUserData(mristep_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
 
-    MRIStepSetPostInnerFn(mristep_mem, ProcessStage);
-    ARKStepSetPostprocessStepFn(inner_mem, PostStoreStage);
+    MRIStepSetPostInnerFn(mristep_mem, PostStoreStage);
+    //    ARKStepSetPostprocessStepFn(inner_mem, PostStoreStage);
+    //    MRIStepSetPreInnerFn(mristep_mem, StoreStage);
     MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
     }
     //Set table
@@ -612,10 +614,15 @@ static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
   ARKStepGetCurrentState(inner_mem, &y_data);
   ARKStepGetCurrentTime(inner_mem, &tcur);
 
+  //This segfaults if this function is called as PreInner
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
 
-
-  //Do some sort of legal copy to the data we want
+  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
+  {
+    MultiFab* mf_y = amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i));
+    MultiFab* mf_stage = amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i));
+    MultiFab::Copy(*mf_stage, *mf_y, 0, 0, mf_y->nComp(), mf_y->nGrow());
+  }
 
   return 0;
 }
@@ -624,8 +631,11 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
 {
 
   FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = fast_userdata->integrator;
 
   const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+
+  ProcessStage(t, y_data, user_data);
 
   for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
   {
@@ -640,7 +650,8 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
 /* f routine to compute the ODE RHS function f(t,y). */
 static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 {
-  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = (TimeIntegrator<amrex::Vector<amrex::MultiFab> > *) user_data;
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = fast_userdata->integrator;
   amrex::Vector<amrex::MultiFab> S_data;
   amrex::Vector<amrex::MultiFab> S_rhs;
   auto call_post_update = integrator->get_post_update();
@@ -664,7 +675,8 @@ static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
 
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data)
 {
-  TimeIntegrator<amrex::Vector<amrex::MultiFab > > *integrator = (TimeIntegrator<amrex::Vector<amrex::MultiFab > > *) user_data;
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = fast_userdata->integrator;
   amrex::Vector<amrex::MultiFab > S_data;
   auto call_post_update = integrator->get_post_update();
 
