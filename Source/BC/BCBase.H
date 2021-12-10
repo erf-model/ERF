@@ -1453,52 +1453,58 @@ namespace math_bcs {
                                               const ABLMost& most, int vartype, int ncomp=1)
     {
       AMREX_ALWAYS_ASSERT(IDIR == 2);
-      int lo = geom.Domain().smallEnd()[IDIR];
+      const int zlo = geom.Domain().smallEnd()[IDIR];
 
-      if (b.smallEnd(IDIR) >= lo) return;
+      if (b.smallEnd(IDIR) >= zlo) return;
 
-#if 0
+      const Array4<Real>& velx_array   = *states[0];
+      const Array4<Real>& vely_array   = *states[1];
+      const Array4<Real>& velz_array   = *states[2];
+      const Array4<Real>& states_array = *states[3];
+      const Array4<Real>& eta_array    = *states[4];
+
+      const int xhi = geom.Domain().bigEnd(0);
+      const int yhi = geom.Domain().bigEnd(1);
+
       amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
       {
-        if (k < lo) {
+        if (k < zlo) {
           Real velx, vely, rho, theta, eta;
 
               if (vartype == 1) {
-                int hi = geom.Domain().bigEnd(0);
-//              if (i < hi) {
-                  velx  = (*states[0])(i,j,lo);
-                  vely  = (*states[1])(i,j,lo);
-                  rho   = (*states[3])(i,j,lo,Rho_comp);
-                  theta = (*states[3])(i,j,lo,RhoTheta_comp)/rho;
-                  eta   = (*states[4])(i,j,lo);
+//              if (i < xhi) {
+                  velx  = velx_array(i,j,zlo);
+                  vely  = vely_array(i,j,zlo);
+                  rho   = states_array(i,j,zlo,Rho_comp);
+                  theta = states_array(i,j,zlo,RhoTheta_comp)/rho;
+                  eta   = eta_array(i,j,zlo);
 //              } else {
-//                velx  = (*states[0])(i,j,lo);
-//                vely  = 2.0*(*states[1])(hi-1,j,lo)-(*states[1])(hi-2,j,lo);
-//                rho   = 2.0*(*states[3])(hi-1,j,lo,Rho_comp)-(*states[3])(hi-2,j,lo,Rho_comp);
-//                theta = (2.0*(*states[3])(hi-1,j,lo,RhoTheta_comp)-(*states[3])(hi-2,j,lo,RhoTheta_comp))/rho;
-//                eta   = 2.0*(*states[4])(hi-1,j,lo)-(*states[4])(hi-2,j,lo);
+//                velx  = velx_array(i,j,zlo);
+//                vely  = 2.0*vely_array(xhi-1,j,zlo)-(vely_array)(xhi-2,j,zlo);
+//                rho   = 2.0*states_array(xhi-1,j,zlo,Rho_comp)-states_array(xhi-2,j,zlo,Rho_comp);
+//                theta = (2.0*states_array(xhi-1,j,zlo,RhoTheta_comp)-states_array(xhi-2,j,zlo,RhoTheta_comp))/rho;
+//                eta   = 2.0*eta_array(xhi-1,j,zlo)-eta_array(xhi-2,j,zlo);
 //              }
               } else if (vartype == 2) {
-                int hi = geom.Domain().bigEnd(1);
-//              if (j < hi) {
-                  velx  = (*states[0])(i,j,lo);
-                  vely  = (*states[1])(i,j,lo);
-                  rho   = (*states[3])(i,j,lo,Rho_comp);
-                  theta = (*states[3])(i,j,lo,RhoTheta_comp)/rho;
-                  eta   = (*states[4])(i,j,lo);
+//              if (j < yhi) {
+                  velx  = velx_array(i,j,zlo);
+                  vely  = vely_array(i,j,zlo);
+                  rho   = states_array(i,j,zlo,Rho_comp);
+                  theta = states_array(i,j,zlo,RhoTheta_comp)/rho;
+                  eta   = eta_array(i,j,zlo);
 //              } else {
-//                velx  = 2.0*(*states[0])(i,hi-1,lo)-(*states[0])(i,hi-2,lo);
-//                vely  = (*states[1])(i,j,lo);
-//                rho   = 2.0*(*states[3])(i,hi-1,lo,Rho_comp)-(*states[3])(i,hi-2,lo,Rho_comp);
-//                theta = (2.0*(*states[3])(i,hi-1,lo,RhoTheta_comp)-(*states[3])(i,hi-2,lo,RhoTheta_comp))/rho;
-//                eta   = 2.0*(*states[4])(i,hi-1,lo)-(*states[4])(i,hi-2,lo);
+//                velx  = 2.0*velx_array(i,yhi-1,zlo)-velx_array(i,yhi-2,zlo);
+//                vely  = vely_array(i,j,zlo);
+//                rho   = 2.0*states_array(i,yhi-1,zlo,Rho_comp)-states_array(i,yhi-2,zlo,Rho_comp);
+//                theta = (2.0*states_array(i,yhi-1,zlo,RhoTheta_comp)-states_array(i,yhi-2,zlo,RhoTheta_comp))/rho;
+//                eta   = 2.0*eta_array(i,yhi-1,zlo)-eta_array(i,yhi-2,zlo);
 //              }
               } else {
-                velx  = (*states[0])(i,j,lo);
-                vely  = (*states[1])(i,j,lo);
-                rho   = (*states[3])(i,j,lo,Rho_comp);
-                theta = (*states[3])(i,j,lo,RhoTheta_comp)/rho;
-                eta   = (*states[4])(i,j,lo);
+                  velx  = velx_array(i,j,zlo);
+                  vely  = vely_array(i,j,zlo);
+                  rho   = states_array(i,j,zlo,Rho_comp);
+                  theta = states_array(i,j,zlo,RhoTheta_comp)/rho;
+                  eta   = eta_array(i,j,zlo);
               }
 
               Real vmag  = sqrt(velx*velx+vely*vely);
@@ -1518,11 +1524,10 @@ namespace math_bcs {
               } else if (vartype == 2) {
                  data(i,j,k,n) = vgy*rho; //eta;
               } else {
-                 data(i,j,k,n) = (lo-k+1)*data(i,j,lo,n) - (lo-k)*data(i,j,lo+1,n);
+                 data(i,j,k,n) = (zlo-k+1)*data(i,j,zlo,n) - (zlo-k)*data(i,j,zlo+1,n);
               }
             }
           });
-#endif
     }
 
     static inline void

@@ -28,15 +28,54 @@ the low and high extents (in physical space) of each box in the lateral
 directions.   ERF enforces that all refinement spans the entire vertical direction.
 
 The following example demonstrates how to tag regions for static refinement.
-Here, all cells inside the region ((.25,.25,prob_lo_z)(.75,.75,prob_hi_z)) are tagged,
-where prob_lo_z and prob_hi_z are the vertical extents of the domain:
+In this first example, all cells in the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
+and in the region ((.65,.75,prob_lo_z)(.85,.95,prob_hi_z)) are tagged for
+one level of refinement, where prob_lo_z and prob_hi_z are the vertical extents of the domain:
 
 ::
 
-          amr.refinement_indicators = box
+          amr.max_level = 1
+          amr.ref_ratio = 2
 
-          amr.box.in_box_lo = .25 .25
-          amr.box.in_box_hi = .75 .75
+          amr.refinement_indicators = box1 box2
+
+          amr.box1.in_box_lo = .15 .25
+          amr.box1.in_box_hi = .35 .45
+
+          amr.box2.in_box_lo = .65 .75
+          amr.box2.in_box_hi = .85 .95
+
+In the example below, we refine the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
+by two levels of factor 3 refinement. In this case, the refined region at level 1 will
+be sufficient to enclose the refined region at level 2.
+
+::
+
+          amr.max_level = 2
+          amr.ref_ratio = 3 3
+
+          amr.refinement_indicators = box1
+
+          amr.box1.in_box_lo = .15 .25
+          amr.box1.in_box_hi = .35 .45
+
+And in this final example, the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
+will be refined by two levels of factor 3, but the larger region, ((.05,.05,prob_lo_z)(.75,.75,prob_hi_z))
+will be refined by a single factor 3 refinement.
+
+::
+
+          amr.max_level = 2
+          amr.ref_ratio = 3 3
+
+          amr.refinement_indicators = box1 box2
+
+          amr.box1.in_box_lo = .15 .25
+          amr.box1.in_box_hi = .35 .45
+
+          amr.box2.in_box_lo = .05 .05
+          amr.box2.in_box_hi = .75 .75
+          amr.box2.max_level = 1
 
 
 Dynamic Mesh Refinement

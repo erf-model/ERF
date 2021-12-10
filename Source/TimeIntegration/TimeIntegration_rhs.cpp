@@ -258,12 +258,9 @@ void erf_rhs (int level,
             }
 
             // Add pressure gradient
-            if (solverChoice.use_pressure)
-            {
-                rho_u_rhs(i, j, k) += (-dxInv[0]) *
-                  (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),dptr_pres_hse[k]) -
-                   getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),dptr_pres_hse[k]));
-            }
+            rho_u_rhs(i, j, k) += (-dxInv[0]) *
+                (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),dptr_pres_hse[k]) -
+                 getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),dptr_pres_hse[k]));
 
             // Add gravity term
             if (solverChoice.use_gravity)
@@ -325,10 +322,9 @@ void erf_rhs (int level,
             }
 
             // Add pressure gradient
-            if (solverChoice.use_pressure)
-                rho_v_rhs(i, j, k) += (-dxInv[1]) *
-                  (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),dptr_pres_hse[k]) -
-                   getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),dptr_pres_hse[k]));
+            rho_v_rhs(i, j, k) += (-dxInv[1]) *
+                (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),dptr_pres_hse[k]) -
+                 getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),dptr_pres_hse[k]));
 
             // Add gravity term
             if (solverChoice.use_gravity)
@@ -384,10 +380,9 @@ void erf_rhs (int level,
                                                                   false, false);
 
             // Add pressure gradient
-            if (solverChoice.use_pressure)
-                rho_w_rhs(i, j, k) += (-dxInv[2]) *
-                    (getPprimegivenRTh(cell_data(i, j, k    , RhoTheta_comp),dptr_pres_hse[k  ]) -
-                     getPprimegivenRTh(cell_data(i, j, k - 1, RhoTheta_comp),dptr_pres_hse[k-1]));
+            rho_w_rhs(i, j, k) += (-dxInv[2]) *
+                (getPprimegivenRTh(cell_data(i, j, k    , RhoTheta_comp),dptr_pres_hse[k  ]) -
+                 getPprimegivenRTh(cell_data(i, j, k - 1, RhoTheta_comp),dptr_pres_hse[k-1]));
 
             // Add gravity term
             if (solverChoice.use_gravity)

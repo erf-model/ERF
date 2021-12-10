@@ -58,6 +58,7 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    NavierStokes_Discretization.rst
    MeshRefinement.rst
    BoundaryConditions.rst
+   Derived.rst
    Visualization.rst
 
 .. toctree::

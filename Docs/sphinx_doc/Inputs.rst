@@ -824,7 +824,3 @@ We use these flags to turn off parts of the physics -- for use in unit testing a
 |                                  | term in scalar    |                   |             |
 |                                  | update?           |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_pressure**             | Include gradp     | true / false      | true        |
-|                                  | in momentum       |                   |             |
-|                                  | update?           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
