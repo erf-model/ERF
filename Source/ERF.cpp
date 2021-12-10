@@ -901,7 +901,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
   else if (name == "pres_hse")
   {
       std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
-      amrex::Gpu::DeviceVector<amrex::Real> d_pres_hse_lev = d_pres_hse[level];
+      auto d_pres_hse_lev = d_pres_hse[level].dataPtr();
       for ( amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
           const Box& bx = mfi.tilebox();
@@ -917,7 +917,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
   {
       std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
       MultiFab const& S_new = get_new_data(State_Type);
-      amrex::Gpu::DeviceVector<amrex::Real> d_pres_hse_lev = d_pres_hse[level];
+      auto d_pres_hse_lev = d_pres_hse[level].dataPtr();
       for ( amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
           const Box& bx = mfi.tilebox();
