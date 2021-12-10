@@ -49,7 +49,7 @@ main(int argc, char* argv[])
   }
 
   // Make sure to catch new failures.
-  amrex::Initialize(argc, argv, add_par);
+  amrex::Initialize(argc, argv, true, MPI_COMM_WORLD, add_par);
 
   // Save the inputs file name for later.
   if (!strchr(argv[1], '=')) {
