@@ -39,8 +39,8 @@ As an example, the following:
 
 ::
 
-    erf.lo_bc = 1 0 4 
-    erf.hi_bc = 2 0 4 
+    erf.lo_bc = 1 0 4
+    erf.hi_bc = 2 0 4
 
     geometry.is_periodic = 0 0 1
 
@@ -78,7 +78,7 @@ To use the same example problem as above, the following:
 
 would define a problem with inflow in the low-\ :math:`x` direction,
 outflow in the high-\ :math:`x` direction, periodic in the :math:`y`-direction,
-and slip wall on the low and high :math:`y`-faces, and 
+and slip wall on the low and high :math:`y`-faces, and
 Note that no keyword is needed for a periodic boundary, here only the
 specification in ``geometry.is\_periodic`` is needed.
 
@@ -171,7 +171,7 @@ differential operators throughout ERF are aware of the special boundaries
 that are Dirichlet and wall-centered, and the stencils are adjusted accordingly.
 
 For convenience, ERF provides a limited set of mappings from a physics-based boundary condition
-specification to a mathematical one that the code can apply. This set 
+specification to a mathematical one that the code can apply. This set
 (See ``AMReX/Src/Base/AMReX_BC_TYPES.H`` for more detail):
 includes
 
