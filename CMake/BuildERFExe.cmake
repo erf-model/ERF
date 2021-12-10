@@ -45,9 +45,17 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/utils.H
        ${SRC_DIR}/SumIQ.cpp
        ${SRC_DIR}/SumUtils.cpp
-       ${SRC_DIR}/Tagging.H
        ${SRC_DIR}/Tagging.cpp
        ${SRC_DIR}/Utils.cpp
+       ${SRC_DIR}/BC/BCBase.H
+       ${SRC_DIR}/BC/BCDirichlet.H
+       ${SRC_DIR}/BC/BCDummy.H
+       ${SRC_DIR}/BC/BCInterior.H
+       ${SRC_DIR}/BC/BCMostWall.H
+       ${SRC_DIR}/BC/BCOutflow.H
+       ${SRC_DIR}/BC/BCSlipWall.H
+       ${SRC_DIR}/BC/BCSimSlipWall.H
+       ${SRC_DIR}/BC/BCNoSlipWall.H
        ${SRC_DIR}/IO/IOManager.H
        ${SRC_DIR}/IO/PlotFile.H
        ${SRC_DIR}/IO/PlotFile.cpp

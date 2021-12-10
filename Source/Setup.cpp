@@ -105,7 +105,7 @@ ERF::variableSetUp()
 
   for (int i = 0; i < NumAdv; ++i) {
     char buf[64];
-    sprintf(buf, "adv_%d", i);
+    sprintf(buf, "rhoadv_%d", i);
     cnt++;
     bcs[cnt] = bc;
     name[cnt] = std::string(buf);
@@ -200,6 +200,11 @@ ERF::variableSetUp()
 
   // Problem-specific derives
   add_problem_derives<ProblemDerives>(derive_lst, desc_lst);
+
+ //
+ // **************  DEFINE REFINEMENT CRITERIA QUANTITIES  *************
+ //
+ refinement_criteria_setup();
 }
 
 void

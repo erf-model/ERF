@@ -9,7 +9,6 @@
 #include "IndexDefines.H"
 #include "ERF_Constants.H"
 #include "EOS.H"
-#include "Tagging.H"
 #include "ProblemDerive.H"
 
 struct ProbParm {
@@ -59,7 +58,6 @@ erf_init_prob(
 
 void erf_prob_close();
 
-using ProblemTags = EmptyProbTagStruct;
 using ProblemDerives = EmptyProbDeriveStruct;
 
 #endif

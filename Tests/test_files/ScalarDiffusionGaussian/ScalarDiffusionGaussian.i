@@ -47,7 +47,7 @@ amr.check_int       = 100        # number of timesteps between checkpoints
 amr.plot_files_output = 1
 amr.plot_file       = plt        # root name of plotfile
 amr.plot_int        = 20        # number of timesteps between plotfiles
-amr.plot_vars        =  density adv_0
+amr.plot_vars        =  density rhoadv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
@@ -58,7 +58,6 @@ erf.alpha_T = 0.0
 erf.use_scalar_diffusion = true
 erf.alpha_C = 1.0
 erf.use_momentum_diffusion = false
-erf.use_pressure = false
 erf.use_gravity = false
 
 erf.les_type         = "None"

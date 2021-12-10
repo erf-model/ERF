@@ -23,8 +23,8 @@ ERF::sum_integrated_quantities()
 
   for (int lev = 0; lev <= finest_level; lev++) {
     ERF& erf_lev = getLevel(lev);
-    mass   += erf_lev.volWgtSum("density", time, local_flag);
-    scalar += erf_lev.volWgtSum("adv_0"  , time, local_flag);
+    mass   += erf_lev.volWgtSum("density" , time, local_flag);
+    scalar += erf_lev.volWgtSum("rhoadv_0", time, local_flag);
   }
 
   if (verbose > 0) {
