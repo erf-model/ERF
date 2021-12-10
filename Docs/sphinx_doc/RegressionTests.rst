@@ -52,6 +52,9 @@ The following problems are currently tested in the CI:
 | PoiseuilleFlow                | 32 4  16 | per | per | NSW | GradP |                  |
 |                               |          |     |     | NSW |       |                  |
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
+| DensityCurrent                | 512 4 64 | per | per | SW  | None  | +gravity         |
+|                               |          |     |     | SW  |       |                  |
++-------------------------------+----------+-----+-----+-----+-------+------------------+
 | EkmanSpiral                   | 4 4 400  | per | per | NSW | Geo   | +Coriolis        |
 |                               |          |     |     | SW  |       | +gravity         |
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
@@ -388,6 +391,35 @@ Problem Location: `Exec/PoiseuilleFlow`_
 
 .. _`Exec/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Exec/PoiseuilleFlow
 
+Nonlinear Density Current
+---------------------------
+The density current problem tests the effects of gravity and the behavior at a slip wall.
+
+A detailed description of the problem and a comparison of solutions using a number
+of different codes can be found in the `Straka 1993 paper`_
+
+.. _`Straka 1993 paper`: https://onlinelibrary.wiley.com/doi/10.1002/fld.1650170103
+
+Test Location: `Tests/test_files/DensityCurrent`_
+
+.. _`Tests/test_files/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/DensityCurrent
+
+Problem Location: `Exec/DensityCurrent`_
+
+.. _`Exec/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/DensityCurrent
+
+.. |adc| image:: figures/density_current_600.png
+         :width: 300
+
+.. |bdc| image:: figures/density_current_900.png
+         :width: 300
+
+.. _fig:density_currennt
+
+.. table:: Potential temperature perturbation at 600s and 900s
+
+   +-----------------------------------------------------+------------------------------------------------------+
+
 Ekman Spiral
 ---------------------------
 The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.
@@ -417,7 +449,6 @@ Problem Location: `Exec/EkmanSpiral`_
 .. table:: Flow profile and Error
 
    +-----------------------------------------------------+------------------------------------------------------+
-   |                        |aek|                        |                        |bek|                         |
-   +-----------------------------------------------------+------------------------------------------------------+
+   |                        |aek|                        |                        |bek|                         | +-----------------------------------------------------+------------------------------------------------------+
    |   Flow profiles                                     |   Convergence study                                  |
    +-----------------------------------------------------+------------------------------------------------------+
