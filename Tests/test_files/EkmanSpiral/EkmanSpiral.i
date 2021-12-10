@@ -8,8 +8,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 0
-geometry.prob_lo     =  0.  0.    0.
-geometry.prob_hi     = 50. 50. 5000.
+geometry.prob_extent = 50. 50. 5000.
 amr.n_cell           = 4 4 400
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
@@ -31,8 +30,6 @@ amr.v                = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
-amr.blocking_factor = 4       # block factor in grid generation
-amr.max_grid_size   = 64
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0

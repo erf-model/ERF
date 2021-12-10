@@ -15,6 +15,19 @@ std::string inputs_name = "";
 
 amrex::LevelBld* getLevelBld();
 
+// Set the refine_grid_layout flags to (1,1,0) by default
+// since the ERF default is different from the amrex default (1,1,1)
+// Also set max_grid_size to very large since the only reason for
+// chopping grids is if Nprocs > Ngrids
+void add_par () {
+   ParmParse pp("amr");
+   pp.add("refine_grid_layout_x",1);
+   pp.add("refine_grid_layout_y",1);
+   pp.add("refine_grid_layout_z",0);
+   pp.add("max_grid_size",2048);
+   pp.add("blocking_factor",2);
+}
+
 int
 main(int argc, char* argv[])
 {
@@ -36,7 +49,7 @@ main(int argc, char* argv[])
   }
 
   // Make sure to catch new failures.
-  amrex::Initialize(argc, argv);
+  amrex::Initialize(argc, argv, add_par);
 
   // Save the inputs file name for later.
   if (!strchr(argv[1], '=')) {

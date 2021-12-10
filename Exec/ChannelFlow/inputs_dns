@@ -7,8 +7,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 0 1
-geometry.prob_lo     =  0     0     0
-geometry.prob_hi     =  1     1     1    
+geometry.prob_extent =  1     1     1    
 amr.n_cell           = 64     64     4 #TODO: Need to play around with resolution to get rid of ringing
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
@@ -34,8 +33,6 @@ amr.data_log         = datlog
 amr.max_level       = 0       # maximum level number allowed
 amr.ref_ratio       = 2 2 2 2 # refinement ratio
 amr.regrid_int      = 2 2 2 2 # how often to regrid
-amr.blocking_factor = 4       # block factor in grid generation
-amr.max_grid_size   = 64
 amr.n_error_buf     = 2 2 2 2 # number of buffer cells in error est
 
 # CHECKPOINT FILES

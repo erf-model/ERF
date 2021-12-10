@@ -7,15 +7,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 1
-geometry.prob_lo     =  0     0     0
-geometry.prob_hi     = 6.283185307179586476925    6.283185307179586476925    6.283185307179586476925    
+geometry.prob_extent = 6.283185307179586476925    6.283185307179586476925    6.283185307179586476925    
 amr.n_cell           = 16     16     16
-
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-# Interior, UserBC, Symmetry, SlipWall, NoSlipWall
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-erf.lo_bc       = "Interior"   "Interior"   "Interior"
-erf.hi_bc       = "Interior"   "Interior"   "Interior"
 
 # TIME STEP CONTROL
 erf.fixed_dt       = 1e-2    # fixed time step
@@ -32,11 +25,6 @@ amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
-amr.ref_ratio       = 2 2 2 2 # refinement ratio
-amr.regrid_int      = 2 2 2 2 # how often to regrid
-amr.blocking_factor = 4       # block factor in grid generation
-amr.max_grid_size   = 64
-amr.n_error_buf     = 2 2 2 2 # number of buffer cells in error est
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0
