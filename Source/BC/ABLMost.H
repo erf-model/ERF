@@ -45,51 +45,55 @@ struct ABLMost
 
     ThetaCalcType alg_type{SURFACE_TEMPERATURE};
 
+    AMREX_GPU_DEVICE AMREX_FORCE_INLINE
     amrex::Real phi_m() const
     {
         return std::log(zref / z0) - calc_psi_m(zref / obukhov_len);
     }
 
+    AMREX_GPU_DEVICE AMREX_FORCE_INLINE
     amrex::Real phi_m(amrex::Real z) const
     {
         return std::log(z / z0) - calc_psi_m(z / obukhov_len);
     }
 
+    AMREX_GPU_DEVICE AMREX_FORCE_INLINE
     amrex::Real phi_h() const
     {
         return std::log(zref / z0) - calc_psi_h(zref / obukhov_len);
     }
 
+    AMREX_GPU_DEVICE AMREX_FORCE_INLINE
     amrex::Real phi_h(amrex::Real z) const
     {
         return std::log(z / z0) - calc_psi_h(z / obukhov_len);
     }
 
-    amrex::Real calc_psi_m(amrex::Real zeta) const;
-    amrex::Real calc_psi_h(amrex::Real zeta) const;
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real calc_psi_m(amrex::Real zeta) const
+    {
+        if (zeta > 0) {
+            return -gamma_m * zeta;
+        } else {
+            amrex::Real x = std::sqrt(std::sqrt(1 - beta_m * zeta));
+            return 2.0 * std::log(0.5 * (1.0 + x)) + log(0.5 * (1 + x * x)) -
+                   2.0 * std::atan(x) + 1.57;
+        }
+    }
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real calc_psi_h(amrex::Real zeta) const
+    {
+        if (zeta > 0) {
+            return -gamma_h * zeta;
+        } else {
+            amrex::Real x = std::sqrt(1 - beta_h * zeta);
+            return 2.0 * std::log(0.5 * (1 + x));
+        }
+    }
+
     void update_fluxes(int max_iters = 25);
 };
-
-inline amrex::Real ABLMost::calc_psi_m(amrex::Real zeta) const
-{
-    if (zeta > 0) {
-        return -gamma_m * zeta;
-    } else {
-        amrex::Real x = std::sqrt(std::sqrt(1 - beta_m * zeta));
-        return 2.0 * std::log(0.5 * (1.0 + x)) + log(0.5 * (1 + x * x)) -
-               2.0 * std::atan(x) + 1.57;
-    }
-}
-
-inline amrex::Real ABLMost::calc_psi_h(amrex::Real zeta) const
-{
-    if (zeta > 0) {
-        return -gamma_h * zeta;
-    } else {
-        amrex::Real x = std::sqrt(1 - beta_h * zeta);
-        return 2.0 * std::log(0.5 * (1 + x));
-    }
-}
 
 inline void ABLMost::update_fluxes(int max_iters)
 {
