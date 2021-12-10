@@ -916,6 +916,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
   {
       std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
       MultiFab const& S_new = get_new_data(State_Type);
+      amrex::Gpu::DeviceVector<amrex::Real> d_pres_hse_lev = d_pres_hse[level];
       for ( amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
           const Box& bx = mfi.tilebox();
@@ -923,7 +924,7 @@ ERF::derive(const std::string& name, amrex::Real time, int ngrow)
           const Array4<Real>& derdat = (*derive_dat).array(mfi);
           amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
               Real rhotheta = sdat(i,j,k,RhoTheta_comp);
-              derdat(i, j, k) = getPgivenRTh(rhotheta) - d_pres_hse[level][k];
+              derdat(i, j, k) = getPgivenRTh(rhotheta) - d_pres_hse_lev[k];
           });
       }
       return derive_dat;
