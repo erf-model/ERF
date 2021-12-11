@@ -11,12 +11,6 @@ geometry.prob_lo     = -12  -12  -1
 geometry.prob_hi     =  12   12   1
 amr.n_cell           =  48   48   4
 
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-# Interior, UserBC, Symmetry, SlipWall, NoSlipWall
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-erf.lo_bc       = "Interior"   "Interior"   "Interior"
-erf.hi_bc       = "Interior"   "Interior"   "Interior"
-
 # TIME STEP CONTROL
 #erf.cfl            = 0.9     # cfl number for hyperbolic system
 #erf.init_shrink    = 1.0     # scale back initial timestep
@@ -32,11 +26,6 @@ amr.data_log        = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
-amr.ref_ratio       = 2 2 2 2 # refinement ratio
-amr.regrid_int      = 2 2 2 2 # how often to regrid
-amr.blocking_factor = 4       # block factor in grid generation
-amr.max_grid_size   = 64
-amr.n_error_buf     = 2 2 2 2 # number of buffer cells in error est
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0

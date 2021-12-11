@@ -7,15 +7,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 0
-geometry.prob_lo     =     0        0       0
-geometry.prob_hi     =  1024     1024    1024
+geometry.prob_extent =  1024     1024    1024
 amr.n_cell           =    64      64     64   # TODO: Enhance the resolution in y-direction
-
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-# Interior, SimSlipWall, Symmetry, SlipWall, NoSlipWall
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-erf.lo_bc       = "Interior"   "Interior"   "NoSlipWall"
-erf.hi_bc       = "Interior"   "Interior"   "SlipWall"
 
 # TIME STEP CONTROL
 #TODO: Need to play around with time step to get rid of ringing
@@ -33,11 +26,6 @@ amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
-amr.ref_ratio       = 2 2 2 2 # refinement ratio
-amr.regrid_int      = 2 2 2 2 # how often to regrid
-amr.blocking_factor = 4       # block factor in grid generation
-amr.max_grid_size   = 128
-amr.n_error_buf     = 2 2 2 2 # number of buffer cells in error est
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0

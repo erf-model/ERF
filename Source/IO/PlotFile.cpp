@@ -301,18 +301,39 @@ IOManager::writeJobInfo(const std::string& dir)
   amrex::Vector<std::string> lo_bc_out(AMREX_SPACEDIM);
   amrex::Vector<std::string> hi_bc_out(AMREX_SPACEDIM);
   amrex::ParmParse pp("erf");
-  pp.getarr("lo_bc", lo_bc_out, 0, AMREX_SPACEDIM);
-  pp.getarr("hi_bc", hi_bc_out, 0, AMREX_SPACEDIM);
+  //
+  // Check for integer BC type specification in inputs file (older style)
+  //
+  if ( pp.contains("lo_bc") )
+  {
+      pp.getarr("lo_bc", lo_bc_out, 0, AMREX_SPACEDIM);
+      pp.getarr("hi_bc", hi_bc_out, 0, AMREX_SPACEDIM);
+  }
 
-  // these names correspond to the integer flags setup in the
-  // Setup.cpp
-
-  jobInfoFile << "   -x: " << lo_bc_out[0] << "\n";
-  jobInfoFile << "   +x: " << hi_bc_out[0] << "\n";
-  jobInfoFile << "   -y: " << lo_bc_out[1] << "\n";
-  jobInfoFile << "   +y: " << hi_bc_out[1] << "\n";
-  jobInfoFile << "   -z: " << lo_bc_out[2] << "\n";
-  jobInfoFile << "   +z: " << hi_bc_out[2] << "\n";
+  if (erf.geom.isPeriodic(0))
+  {
+      jobInfoFile << "   -x: " << "Interior" << "\n";
+      jobInfoFile << "   +x: " << "Interior" << "\n";
+  } else {
+      jobInfoFile << "   -x: " << lo_bc_out[0] << "\n";
+      jobInfoFile << "   +x: " << hi_bc_out[0] << "\n";
+  }
+  if (erf.geom.isPeriodic(1))
+  {
+      jobInfoFile << "   -y: " << "Interior" << "\n";
+      jobInfoFile << "   +y: " << "Interior" << "\n";
+  } else {
+      jobInfoFile << "   -y: " << lo_bc_out[1] << "\n";
+      jobInfoFile << "   +y: " << hi_bc_out[1] << "\n";
+  }
+  if (erf.geom.isPeriodic(2))
+  {
+      jobInfoFile << "   -z: " << "Interior" << "\n";
+      jobInfoFile << "   +z: " << "Interior" << "\n";
+  } else {
+      jobInfoFile << "   -z: " << lo_bc_out[2] << "\n";
+      jobInfoFile << "   +z: " << hi_bc_out[2] << "\n";
+  }
 
   jobInfoFile << "\n\n";
 
