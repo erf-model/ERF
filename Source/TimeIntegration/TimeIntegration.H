@@ -90,6 +90,20 @@ void erf_rhs(int level,
              const amrex::Real* dptr_rayleigh_vbar,
              const amrex::Real* dptr_rayleigh_thetabar);
 
+void erf_fast_rhs(int level,
+                  Vector<MultiFab >& S_rhs,
+                  const Vector<MultiFab >& S_stage_data,
+                  const Vector<MultiFab >& S_data,
+                  std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+                  std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
+                  const amrex::Geometry geom, const amrex::Real dt,
+                        amrex::InterpFaceRegister* ifr,
+                  const SolverChoice& solverChoice,
+                  const bool lo_z_is_no_slip, const bool hi_z_is_no_slip,
+                  const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+                  const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
+                  const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar);
+
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
                            const Array4<const Real>& qty, const int & qty_index,

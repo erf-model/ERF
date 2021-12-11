@@ -14,6 +14,7 @@ option(ERF_ENABLE_AMREX_EB "Enable EB in AMReX library" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
+option(ERF_ENABLE_SUNDIALS "Enable SUNDIALS time integration" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
@@ -61,6 +62,15 @@ endif()
 set(AMREX_SUBMOD_LOCATION "${CMAKE_SOURCE_DIR}/Submodules/AMReX")
 include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexOptions.cmake)
 list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
+
+########################## SUNDIALS ##################################
+
+if(ERF_ENABLE_SUNDIALS)
+include(SetupSUNDIALS)
+endif()
+
+########################### AMReX #####################################
+
 add_subdirectory(${AMREX_SUBMOD_LOCATION})
 include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexCompileFlags.cmake)
 

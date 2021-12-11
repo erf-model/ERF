@@ -38,7 +38,10 @@ sudo apt-get install -y --no-install-recommends \
     roctracer-dev   \
     rocprofiler-dev \
     rocrand-dev     \
-    rocprim-dev
+    rocprim-dev     \
+    rocfft          \
+    rocprim         \
+    rocrand
 
 # activate
 #

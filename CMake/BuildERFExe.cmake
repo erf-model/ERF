@@ -70,6 +70,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/MomentumToVelocity.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_rhs.cpp
+       ${SRC_DIR}/TimeIntegration/TimeIntegration_fast.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_utils.cpp
        ${SRC_DIR}/TimeIntegration/VelocityToMomentum.cpp
        ${SRC_DIR}/TimeIntegration/Advection.cpp
@@ -105,6 +106,12 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})
 
+  if (AMReX_SUNDIALS)
+    target_link_libraries(${erf_lib_name} PUBLIC SUNDIALS::cvode)
+    target_link_libraries(${erf_lib_name} PUBLIC SUNDIALS::arkode)
+    target_link_libraries(${erf_lib_name} PUBLIC SUNDIALS::nvecmanyvector)
+  endif ()
+
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC amrex)
   if(ERF_ENABLE_CUDA)
@@ -121,7 +128,7 @@ function(build_erf_lib erf_lib_name)
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
   endif()
- 
+
   #Define what we want to be installed during a make install 
   install(TARGETS ${erf_lib_name}
           RUNTIME DESTINATION bin

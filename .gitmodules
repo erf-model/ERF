@@ -1,6 +1,9 @@
 [submodule "Submodules/AMReX"]
 	path = Submodules/AMReX
-	url = https://github.com/AMReX-Codes/amrex.git
+	url = https://github.com/amrex-codes/amrex.git
 [submodule "Submodules/GoogleTest"]
 	path = Submodules/GoogleTest
 	url = https://github.com/google/googletest.git
+[submodule "Submodules/SUNDIALS"]
+	path = Submodules/SUNDIALS
+	url = https://github.com/llnl/SUNDIALS.git

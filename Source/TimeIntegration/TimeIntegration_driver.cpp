@@ -7,7 +7,44 @@
 #include <ERF.H>
 #include <utils.H>
 
+#ifdef AMREX_USE_SUNDIALS
+#include <arkode/arkode_erkstep.h>     /* prototypes for ERKStep fcts., consts */
+#include <arkode/arkode_arkstep.h>     /* prototypes for ARKStep fcts., consts */
+#include <arkode/arkode_mristep.h>     /* prototypes for MRIStep fcts., consts */
+#include <nvector/nvector_manyvector.h>/* manyvector N_Vector types, fcts. etc */
+#include <AMReX_NVector_MultiFab.H>    /* MultiFab N_Vector types, fcts., macros */
+#include <AMReX_Sundials.H>    /* MultiFab N_Vector types, fcts., macros */
+#include <sunlinsol/sunlinsol_spgmr.h> /* access to SPGMR SUNLinearSolver      */
+#include <sunnonlinsol/sunnonlinsol_fixedpoint.h> /* access to FixedPoint SUNNonlinearSolver      */
+#include <sundials/sundials_types.h>   /* defs. of realtype, sunindextype, etc */
+#endif
+
 using namespace amrex;
+
+#ifdef AMREX_USE_SUNDIALS
+
+//! The stepper strategies
+enum Strategy { UNDEFINED = -1, NATIVE, ERK, MRI, MRITEST };
+
+struct FastRhsData {
+  std::function<void(amrex::Vector<amrex::MultiFab> &,
+                     const amrex::Vector<amrex::MultiFab> &,
+                     const amrex::Vector<amrex::MultiFab> &,
+                     const Real)>  rhs_fun_fast;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> >* integrator;
+  void* inner_mem;
+  amrex::Vector<amrex::MultiFab>* S_stage_data; // hold previous slow stage data
+  N_Vector nv_stage_data; // hold previous slow stage data
+};
+
+/* User-supplied Functions Called by the Solver */
+static int f(realtype t, N_Vector y, N_Vector ydot, void *user_data);
+static int f_fast(realtype t, N_Vector y, N_Vector ydot, void *user_data);
+static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data);
+static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data);
+static int PostStoreStage(realtype t, N_Vector y_data, void *user_data);
+static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
+#endif
 
 // TODO: Check if the order of applying BC on cell-centered state or face-centered mom makes any difference
 
@@ -90,6 +127,16 @@ void erf_advance(int level,
     state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
     state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
+    // Temporary data
+    amrex::Vector<amrex::MultiFab> state_store;
+    state_store.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
+    state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
+
     // **************************************************************************************
     // Prepare the old-time data for calling the integrator
     // **************************************************************************************
@@ -165,6 +212,64 @@ void erf_advance(int level,
     // **************************************************************************************
     TimeIntegrator<amrex::Vector<amrex::MultiFab> > integrator(state_old);
 
+#ifdef AMREX_USE_SUNDIALS
+
+    ////STEP ONE
+    // Create SUNDIALS specific objects
+    SUNNonlinearSolver NLS = NULL;    /* empty nonlinear solver object */
+    SUNLinearSolver LS = NULL;    /* empty linear solver object */
+    void *arkode_mem = NULL;      /* empty ARKode memory structure */
+    SUNNonlinearSolver NLSf = NULL;    /* empty nonlinear solver object */
+    SUNLinearSolver LSf = NULL;    /* empty linear solver object */
+    void *inner_mem = NULL;      /* empty ARKode memory structure */
+    void *mristep_mem = NULL;      /* empty ARKode memory structure */
+    // Create an N_Vector wrapper for the solution MultiFab
+    auto get_length = [&](int index) -> sunindextype {
+        auto* p_mf = &state_old[index];
+        return p_mf->nComp() * (p_mf->boxArray()).numPts();
+    };
+
+    ////STEP TWO
+    sunindextype length = get_length(IntVar::cons);
+    sunindextype length_mx = get_length(IntVar::xmom);
+    sunindextype length_my = get_length(IntVar::ymom);
+    sunindextype length_mz = get_length(IntVar::zmom);
+    sunindextype length_fx = get_length(IntVar::xflux);
+    sunindextype length_fy = get_length(IntVar::yflux);
+    sunindextype length_fz = get_length(IntVar::zflux);
+    // Testing data structures, this length may be different for "real" initial condition
+    int NVar             = 7;
+    //Arbitrary tolerances
+    Real reltol          = 1e-4;
+    Real abstol          = 1e-4;
+    Real t               = time;
+    Real tout            = time+dt;
+    Real hfixed          = dt;
+    Real m               = 2;
+    Real hfixed_mri      = dt / m;
+    N_Vector nv_cons     = amrex::sundials::N_VMake_MultiFab(length, &state_old[IntVar::cons]);
+    N_Vector nv_xmom     = amrex::sundials::N_VMake_MultiFab(length_mx, &state_old[IntVar::xmom]);
+    N_Vector nv_ymom     = amrex::sundials::N_VMake_MultiFab(length_my, &state_old[IntVar::ymom]);
+    N_Vector nv_zmom     = amrex::sundials::N_VMake_MultiFab(length_mz, &state_old[IntVar::zmom]);
+    N_Vector nv_xflux    = amrex::sundials::N_VMake_MultiFab(length_mx, &state_old[IntVar::xflux]);
+    N_Vector nv_yflux    = amrex::sundials::N_VMake_MultiFab(length_my, &state_old[IntVar::yflux]);
+    N_Vector nv_zflux    = amrex::sundials::N_VMake_MultiFab(length_mz, &state_old[IntVar::zflux]);
+    N_Vector nv_many_arr[NVar];              /* vector array composed of cons, xmom, ymom, zmom component vectors */
+
+    ////STEP THREE
+    /* Create manyvector for solution */
+    nv_many_arr[IntVar::cons] = nv_cons;
+    nv_many_arr[IntVar::xmom] = nv_xmom;
+    nv_many_arr[IntVar::ymom] = nv_ymom;
+    nv_many_arr[IntVar::zmom] = nv_zmom;
+    nv_many_arr[IntVar::xflux] = nv_xflux;
+    nv_many_arr[IntVar::yflux] = nv_yflux;
+    nv_many_arr[IntVar::zflux] = nv_zflux;
+    N_Vector nv_S = N_VNew_ManyVector(NVar, nv_many_arr);
+    N_Vector nv_store = N_VClone(nv_S);
+#endif
+
+    //Create function lambdas
     bool l_lo_z_is_no_slip = ERF::lo_z_is_no_slip;
     bool l_hi_z_is_no_slip = ERF::hi_z_is_no_slip;
 
@@ -181,6 +286,21 @@ void erf_advance(int level,
                 dptr_dens_hse, dptr_pres_hse,
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+    };
+
+    auto rhs_fun_fast = [&](      Vector<MultiFab>& S_rhs,
+                            const Vector<MultiFab>& S_stage_data,
+                            const Vector<MultiFab>& S_data, const Real time) {
+        erf_fast_rhs(level, S_rhs, S_stage_data, S_data,
+                     advflux, diffflux,
+                     fine_geom, dt,
+                     ifr,
+                     solverChoice,
+                     l_lo_z_is_no_slip,
+                     l_hi_z_is_no_slip,
+                     dptr_dens_hse, dptr_pres_hse,
+                     dptr_rayleigh_tau, dptr_rayleigh_ubar,
+                     dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
     };
 
     auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time) {
@@ -202,11 +322,245 @@ void erf_advance(int level,
     integrator.set_rhs(rhs_fun);
     integrator.set_post_update(post_update_fun);
 
+#ifdef AMREX_USE_SUNDIALS
+    bool use_erk3 = true;
+    bool use_linear = false;
+    bool advance_erk=false;
+    bool advance_mri=false;
+    bool advance_mri_test=false;
+    bool advance_rk=!(advance_erk||advance_mri);
+
+    amrex::ParmParse pp("integration.sundials");
+
+    std::string theStrategy;
+
+    if (pp.query("strategy", theStrategy))
+    {
+        if (theStrategy == "ERK")
+        {
+            advance_erk=true;
+        }
+        else if (theStrategy == "MRI")
+        {
+            advance_mri=true;
+        }
+        else if (theStrategy == "MRITEST")
+        {
+            advance_mri=true;
+            advance_mri_test=true;
+        }
+        else if (theStrategy == "NATIVE")
+        {
+            advance_rk=true;
+        }
+        else
+        {
+            std::string msg("Unknown strategy: ");
+            msg += theStrategy;
+            amrex::Warning(msg.c_str());
+        }
+    advance_rk=!(advance_erk||advance_mri);
+    }
+    else
+    {
+        advance_rk=true;  // default
+    }
+
+    ////STEP FOUR
+    if(advance_mri_test)
+    {
+    if(use_erk3)
+      inner_mem = ARKStepCreate(f0, NULL, time, nv_S);
+    else
+      inner_mem = ARKStepCreate(NULL, f0, time, nv_S);
+    }
+    else
+    {
+    if(use_erk3)
+      inner_mem = ARKStepCreate(f_fast, NULL, time, nv_S);
+    else
+      inner_mem = ARKStepCreate(NULL, f_fast, time, nv_S);
+    }
+
+    ////STEP FIVE
+    ARKStepSetFixedStep(inner_mem, hfixed_mri);            // Specify fixed time step size
+
+    FastRhsData fast_userdata;
+    fast_userdata.integrator = &integrator;
+    fast_userdata.rhs_fun_fast = rhs_fun_fast;
+    //For the sundials solve, use state_new as temporary data;
+    fast_userdata.S_stage_data = &state_store;
+    fast_userdata.nv_stage_data = nv_store;
+    fast_userdata.inner_mem = inner_mem;
+
+    /* Call ERKStepCreate to initialize the inner ARK timestepper module and
+    specify the right-hand side function in y'=f(t,y), the initial time
+    T0, and the initial dependent variable vector y. */
+    arkode_mem = ERKStepCreate(f, time, nv_S);
+    ERKStepSetUserData(arkode_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
+    ERKStepSetPostprocessStageFn(arkode_mem, ProcessStage);
+    /* Specify tolerances */
+    ERKStepSStolerances(arkode_mem, reltol, abstol);
+    ERKStepSetFixedStep(arkode_mem, hfixed);
+
+    ARKStepSetUserData(inner_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
+
+    for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
+    {
+    MultiFab::Copy(state_store[i], *amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
+    MultiFab::Copy(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(nv_store, i)), *amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_store[i].nComp(), state_store[i].nGrow());
+    }
+    ARKodeButcherTable B = ARKodeButcherTable_Alloc(3, SUNFALSE);
+    ARKodeButcherTable B2 = ARKodeButcherTable_Alloc(2, SUNFALSE);
+    if(use_erk3)
+    {
+    if(advance_erk)
+    {
+    // Use SSP-RK3
+    B->A[1][0] = 1.0;
+    B->A[2][0] = 0.25;
+    B->A[2][1] = 0.25;
+    B->b[0] = 1./6.;
+    B->b[1] = 1./6.;
+    B->b[2] = 2./3.;
+    B->c[1] = 1.0;
+    B->c[2] = 0.5;
+    B->q=3;
+    }
+    if(advance_mri)
+        {
+    B->A[1][0] = 1.0;
+    B->A[2][0] = 1.0;
+    B->A[2][2] = 0.0;
+    B->b[0] = 0.5;
+    B->b[2] = 0.5;
+    B->c[1] = 1.0;
+    B->c[2] = 1.0;
+    B->q=2;
+    B->p=0;
+    B2->A[1][0] = 1.0;
+    B2->b[0] = 0.5;
+    B2->b[1] = 0.5;
+    B2->c[1] = 1.0;
+    B2->q=2;
+    B2->p=0;
+        }
+    if(advance_mri)
+      if(advance_mri_test)
+    ARKStepSetTables(inner_mem, B->q, B->p, NULL, B);       // Specify Butcher table
+      else
+    ARKStepSetTables(inner_mem, B2->q, B2->p, NULL, B2);       // Specify Butcher table
+    }
+    else
+    {
+    B->A[1][0] = 1.0;
+    B->A[2][0] = 1.0;
+    B->A[2][2] = 0.0;
+    B->b[0] = 0.5;
+    B->b[2] = 0.5;
+    B->c[1] = 1.0;
+    B->c[2] = 1.0;
+    B->q=2;
+    ARKStepSetTables(inner_mem, B->q, B->p, B, NULL);       // Specify Butcher table
+    }
+    /*
+    LSf = SUNLinSol_SPGMR(nv_S, PREC_Namrex::Real(1.0), 10);
+    NLSf = SUNNonlinSol_FixedPoint(nv_S, 50);
+    if(use_linear)
+      ARKStepSetLinearSolver(inner_mem, LSf, NULL);
+    else
+      ARKStepSetNonlinearSolver(inner_mem, NLSf);
+*/
+    //Set table
+    //    ERKStepSetTable(arkode_mem, B);
+    if(advance_mri)
+    {
+    ////STEP SIX
+    mristep_mem = MRIStepCreate(f, time, nv_S, MRISTEP_ARKSTEP, inner_mem);
+    ////STEP SEVEN
+    MRIStepSetFixedStep(mristep_mem, hfixed);
+    ////STEP 8.1
+    /* Specify tolerances */
+    MRIStepSStolerances(mristep_mem, reltol, abstol);
+    ////STEP 8.2
+    /* Initialize spgmr solver */
+    LS = SUNLinSol_SPGMR(nv_S, PREC_NONE, 10);
+    NLS = SUNNonlinSol_FixedPoint(nv_S, 50);
+    ////STEP 8.3
+    //    ARKStepSetNonlinearSolver(inner_mem, NLS);
+    if(use_linear)
+      MRIStepSetLinearSolver(mristep_mem, LS, NULL);
+    else
+      MRIStepSetNonlinearSolver(mristep_mem, NLS);
+    ////STEP NINE
+    MRIStepSetUserData(mristep_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
+
+    MRIStepSetPostInnerFn(mristep_mem, PostStoreStage);
+    //    ARKStepSetPostprocessStepFn(inner_mem, PostStoreStage);
+    //    MRIStepSetPreInnerFn(mristep_mem, StoreStage);
+    MRIStepSetPostprocessStageFn(mristep_mem, ProcessStage);
+    }
+    //Set table
+    ERKStepSetTable(arkode_mem, B);
+    if(advance_mri)
+      if(advance_mri_test)
+        MRIStepSetTable(mristep_mem, B->q, B);
+      else
+        MRIStepSetTable(mristep_mem, B2->q, B2);
+
+    // Free the Butcher table
+    ARKodeButcherTable_Free(B);
+
+    if(!advance_rk)
+    {
+
+    if(advance_erk)
+    {
+    // Use ERKStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
+    ERKStepEvolve(arkode_mem, tout, nv_S, &t, ARK_NORMAL);
+    }
+    ////STEP ELEVEN
+    if(advance_mri)
+    {
+    // Use MRIStep to evolve state_old data (wrapped in nv_S) from t to tout=t+dt
+    MRIStepEvolve(mristep_mem, tout, nv_S, &t, ARK_NORMAL);
+    }
+    // Copy the result stored in nv_S to state_new
+    for(int i=0; i<N_VGetNumSubvectors_ManyVector(nv_S); i++)
+    {
+    MultiFab::Copy(state_new[i], *amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(nv_S, i)), 0, 0, state_new[i].nComp(), state_new[i].nGrow());
+    }
+    }
+    else
+#endif
+    {
     // **************************************************************************************
     // Integrate for a single timestep
     // **************************************************************************************
     integrator.advance(state_old, state_new, time, dt);
+    }
 
+#ifdef AMREX_USE_SUNDIALS
+  ////STEP THIRTEEN
+  N_VDestroy(nv_cons);
+  N_VDestroy(nv_xmom);
+  N_VDestroy(nv_ymom);
+  N_VDestroy(nv_zmom);
+  N_VDestroy(nv_xflux);
+  N_VDestroy(nv_yflux);
+  N_VDestroy(nv_zflux);
+  N_VDestroy(nv_S);
+  ////STEP FOURTEEN
+  if(advance_mri)
+  MRIStepFree(&mristep_mem);
+  ARKStepFree(&inner_mem);
+  ERKStepFree(&arkode_mem);
+  if(advance_mri)
+  {
+  SUNLinSolFree(LS);    // Free nonlinear solvers
+  SUNNonlinSolFree(NLS);    // Free nonlinear solvers
+  }
+#endif
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after we have taken a timestep
     // **************************************************************************************
@@ -237,3 +591,138 @@ void erf_advance(int level,
     ERF::applyBCs(fine_geom, vars);
 
 }
+
+#ifdef AMREX_USE_SUNDIALS
+// f0 routine to compute a zero-valued ODE RHS function f(t,y).
+static int f0(realtype t, N_Vector y, N_Vector ydot, void *user_data)
+{
+  // Initialize ydot to zero and return
+  N_VConst(0.0, ydot);
+  return 0;
+}
+
+/* f routine to compute the ODE RHS function f(t,y). */
+static int f_fast(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
+{
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = fast_userdata->integrator;
+  amrex::Vector<amrex::MultiFab> S_data;
+  amrex::Vector<amrex::MultiFab> S_rhs;
+  amrex::Vector<amrex::MultiFab> S_stage_data;
+  auto call_post_update = integrator->get_post_update();
+  auto call_rhs = integrator->get_rhs();
+
+  N_VConst(0.0, y_rhs);
+
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_data.resize(num_vecs);
+  S_rhs.resize(num_vecs);
+  S_stage_data.resize(num_vecs);
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_data.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i))->nComp());
+      S_rhs.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
+      S_stage_data.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i))->nComp());
+  }
+
+  call_post_update(S_data, t);
+  call_post_update(S_stage_data, t);
+
+  //Call rhs_fun_fast lambda stored in userdata which uses erf_fast_rhs
+  fast_userdata->rhs_fun_fast(S_rhs, S_stage_data, S_data, t);
+
+  return 0;
+}
+
+static int StoreStage(realtype t, N_Vector* f_data, int nvecs, void *user_data)
+{
+
+  //Note that user_data may be different between mristep and inner stepper
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  void* inner_mem = fast_userdata->inner_mem;
+
+  N_Vector y_data;
+  Real tcur;
+  ARKStepGetCurrentState(inner_mem, &y_data);
+  ARKStepGetCurrentTime(inner_mem, &tcur);
+
+  //This segfaults if this function is called as PreInner
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+
+  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
+  {
+    MultiFab* mf_y = amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i));
+    MultiFab* mf_stage = amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i));
+    MultiFab::Copy(*mf_stage, *mf_y, 0, 0, mf_y->nComp(), mf_y->nGrow());
+  }
+
+  return 0;
+}
+
+static int PostStoreStage(realtype t, N_Vector y_data, void *user_data)
+{
+
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = fast_userdata->integrator;
+
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+
+  ProcessStage(t, y_data, user_data);
+
+  for(int i=0; i<N_VGetNumSubvectors_ManyVector(y_data); i++)
+  {
+    MultiFab* mf_y = amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i));
+    MultiFab* mf_stage = amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(fast_userdata->nv_stage_data, i));
+    MultiFab::Copy(*mf_stage, *mf_y, 0, 0, mf_y->nComp(), mf_y->nGrow());
+  }
+
+  return 0;
+}
+
+/* f routine to compute the ODE RHS function f(t,y). */
+static int f(realtype t, N_Vector y_data, N_Vector y_rhs, void *user_data)
+{
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = fast_userdata->integrator;
+  amrex::Vector<amrex::MultiFab> S_data;
+  amrex::Vector<amrex::MultiFab> S_rhs;
+  auto call_post_update = integrator->get_post_update();
+  auto call_rhs = integrator->get_rhs();
+
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_data.resize(num_vecs);
+  S_rhs.resize(num_vecs);
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_data.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i))->nComp());
+      S_rhs.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_rhs, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_rhs, i))->nComp());
+  }
+
+  call_post_update(S_data, t);
+  call_rhs(S_rhs, S_data, t);
+
+  return 0;
+}
+
+static int ProcessStage(realtype t, N_Vector y_data, void *user_data)
+{
+  FastRhsData* fast_userdata = (FastRhsData*) user_data;
+  TimeIntegrator<amrex::Vector<amrex::MultiFab> > *integrator = fast_userdata->integrator;
+  amrex::Vector<amrex::MultiFab > S_data;
+  auto call_post_update = integrator->get_post_update();
+
+  const int num_vecs = N_VGetNumSubvectors_ManyVector(y_data);
+  S_data.resize(num_vecs);
+
+  for(int i=0; i<num_vecs; i++)
+  {
+      S_data.at(i)=amrex::MultiFab(*amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i)),amrex::make_alias,0,amrex::sundials::getMFptr(N_VGetSubvector_ManyVector(y_data, i))->nComp());
+  }
+
+  call_post_update(S_data, t);
+
+  return 0;
+}
+#endif
