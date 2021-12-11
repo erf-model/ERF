@@ -51,7 +51,7 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     )
 
     set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNERK)
-    set(RUNTIME_OPTIONS "integration.sundials.erk=1")
+    set(RUNTIME_OPTIONS "integration.sundials.strategy=ERK")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME_RUNTIME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 
     add_test(${TEST_NAME_RUNTIME} ${test_command})
@@ -65,8 +65,8 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     )
 
     set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNMRI_unit)
-    set(RUNTIME_OPTIONS "integration.sundials.mri=1 integration.sundials.erk=0 integration.sundials.mri_test=1")
-    set(RUNTIME_OPTIONS2 "integration.rk.type=2 integration.sundials.mri=0 integration.sundials.erk=0")
+    set(RUNTIME_OPTIONS "integration.sundials.strategy=MRITEST")
+    set(RUNTIME_OPTIONS2 "integration.rk.type=2 integration.sundials.strategy=NATIVE")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME_RUNTIME}.log && mv ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS2} > ${TEST_NAME_RUNTIME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime")
 
     add_test(${TEST_NAME_RUNTIME} ${test_command})
@@ -81,8 +81,8 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     )
 
     set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNMRI)
-    set(RUNTIME_OPTIONS "integration.sundials.mri=1 integration.sundials.erk=0 integration.sundials.mri_test=0")
-    set(RUNTIME_OPTIONS2 "integration.rk.type=2 integration.sundials.mri=0 integration.sundials.erk=0")
+    set(RUNTIME_OPTIONS "integration.sundials.strategy=MRI")
+    set(RUNTIME_OPTIONS2 "integration.rk.type=2 integration.sundials.strategy=NATIVE")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME_RUNTIME}.log && mv ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS2} > ${TEST_NAME_RUNTIME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime")
 
     add_test(${TEST_NAME_RUNTIME} ${test_command})

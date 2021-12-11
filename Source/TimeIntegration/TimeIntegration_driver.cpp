@@ -23,6 +23,9 @@ using namespace amrex;
 
 #ifdef AMREX_USE_SUNDIALS
 
+//! The stepper strategies
+enum Strategy { UNDEFINED = -1, NATIVE, ERK, MRI, MRITEST };
+
 struct FastRhsData {
   std::function<void(amrex::Vector<amrex::MultiFab> &,
                      const amrex::Vector<amrex::MultiFab> &,
@@ -325,13 +328,43 @@ void erf_advance(int level,
     bool advance_erk=false;
     bool advance_mri=false;
     bool advance_mri_test=false;
+    bool advance_rk=!(advance_erk||advance_mri);
+
     amrex::ParmParse pp("integration.sundials");
 
-    pp.query("erk", advance_erk);
-    pp.query("mri", advance_mri);
-    pp.query("mri_test", advance_mri_test);
+    std::string theStrategy;
 
-    bool advance_rk=!(advance_erk||advance_mri);
+    if (pp.query("strategy", theStrategy))
+    {
+        if (theStrategy == "ERK")
+        {
+            advance_erk=true;
+        }
+        else if (theStrategy == "MRI")
+        {
+            advance_mri=true;
+        }
+        else if (theStrategy == "MRITEST")
+        {
+            advance_mri=true;
+            advance_mri_test=true;
+        }
+        else if (theStrategy == "NATIVE")
+        {
+            advance_rk=true;
+        }
+        else
+        {
+            std::string msg("Unknown strategy: ");
+            msg += theStrategy;
+            amrex::Warning(msg.c_str());
+        }
+	advance_rk=!(advance_erk||advance_mri);
+    }
+    else
+    {
+        advance_rk=true;  // default
+    }
 
     ////STEP FOUR
     if(advance_mri_test)
