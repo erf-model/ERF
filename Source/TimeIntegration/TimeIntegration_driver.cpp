@@ -359,7 +359,7 @@ void erf_advance(int level,
             msg += theStrategy;
             amrex::Warning(msg.c_str());
         }
-	advance_rk=!(advance_erk||advance_mri);
+    advance_rk=!(advance_erk||advance_mri);
     }
     else
     {
@@ -394,7 +394,7 @@ void erf_advance(int level,
     fast_userdata.inner_mem = inner_mem;
 
     /* Call ERKStepCreate to initialize the inner ARK timestepper module and
-    specify the right-hand side function in y'=f(t,y), the inital time
+    specify the right-hand side function in y'=f(t,y), the initial time
     T0, and the initial dependent variable vector y. */
     arkode_mem = ERKStepCreate(f, time, nv_S);
     ERKStepSetUserData(arkode_mem, (void *) &fast_userdata);  /* Pass udata to user functions */
