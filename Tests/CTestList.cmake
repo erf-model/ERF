@@ -119,12 +119,10 @@ endfunction(add_test_u)
 # Regression tests
 #=============================================================================
 add_test_r(ScalarAdvectionUniformU          "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
-add_test_r(ScalarAdvectionUniformUV         "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarAdvectionShearedU          "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarAdvectionDiffusionUniformU "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarDiffusionGaussian          "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarDiffusionSine              "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
-add_test_r(ScalarAdvectionRigidRotation     "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(RayleighDamping                  "ScalarAdvDiff/erf_scalar_advdiff" "plt00100")
 add_test_r(IsentropicVortexStationary       "IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(IsentropicVortexAdvecting        "IsentropicVortex/erf_isentropic_vortex" "plt00010")

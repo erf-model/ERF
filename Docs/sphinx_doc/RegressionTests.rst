@@ -22,13 +22,9 @@ The following problems are currently tested in the CI:
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
 | Test                          | nx ny nz | xbc | ybc | zbc | Ext   | Other            |
 +===============================+==========+=====+=====+=====+=======+==================+
-| ScalarAdvectionUniformU       | 16 16 16 | per | per | per | None  |                  |
-+-------------------------------+----------+-----+-----+-----+-------+------------------+
-| ScalarAdvectionUniformUV      | 16 16  4 | per | per | per | None  |                  |
+| ScalarAdvectionUniformU       | 64 64  4 | per | per | per | None  |                  |
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
 | ScalarAdvectionShearedU       | 16  4 16 | per | per | per | None  |                  |
-+-------------------------------+----------+-----+-----+-----+-------+------------------+
-| ScalarAdvectionRigidRotation  | 16 16  4 | per | per | per | None  |                  |
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
 | ScalarAdvectionDiffusion      | 16 16 16 | per | per | per | None  |                  |
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
@@ -59,8 +55,9 @@ The following problems are currently tested in the CI:
 |                               |          |     |     | SW  |       | +gravity         |
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
 
-Scalar Advection by Uniform Flow in X-Direction
+Scalar Advection by Uniform Flow in XY Plane
 ------------------------------------------------
+This tests scalar advection with triply periodic boundaries.
 
 Test Location: `Tests/test_files/ScalarAdvectionUniformU`_
 
@@ -68,43 +65,7 @@ Test Location: `Tests/test_files/ScalarAdvectionUniformU`_
 
 Problem Location: `Exec/ScalarAdvDiff`_
 
-.. _`Exec/ScalarDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
-
-.. |a1| image:: figures/tests/scalar_advec_uniform_u_start.png
-        :width: 300
-
-.. |b1| image:: figures/tests/scalar_advec_uniform_u_end.png
-        :width: 300
-
-.. _fig:scalar_advection_u
-
-.. table:: Advection of a spherical blob in a uniform velocity field (100,0,0)
-
-   +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a1|                         |                       |b1|                           |
-   +-----------------------------------------------------+------------------------------------------------------+
-   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.0264788).  |
-   +-----------------------------------------------------+------------------------------------------------------+
-
-Scalar Advection by Uniform Flow in XY Plane
-------------------------------------------------
-This tests scalar advection with triply periodic boundaries.
-
-Test Location: `Tests/test_files/ScalarAdvectionUniformUV`_
-
-.. _`Tests/test_files/ScalarAdvectionUniformUV`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformUV
-
-Problem Location: `Exec/ScalarAdvDiff`_
-
 .. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
-
-.. |a2| image:: figures/tests/scalar_advec_uniform_uv_start.png
-        :width: 300
-
-.. |b2| image:: figures/tests/scalar_advec_uniform_uv_end.png
-        :width: 300
-
-.. _fig:scalar_advection_uv
 
 .. table:: Advection of a spherical blob in a uniform velocity field (10,5,0)
 
@@ -142,36 +103,6 @@ Problem Location: `Exec/ScalarAdvDiff`_
    +-----------------------------------------------------+------------------------------------------------------+
    |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.9819669.   |
    +-----------------------------------------------------+------------------------------------------------------+
-
-Scalar Advection: Rigid Rotation
-----------------------------------
-This tests scalar advection in a flow field representing rigid body rotation.
-
-Test Location: `Tests/test_files/ScalarAdvectionRigidRotation`_
-
-.. _`Tests/test_files/ScalarAdvectionRigidRotation`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionRigidRotation
-
-Problem Location: `Exec/ScalarAdvDiff`_
-
-.. _`Exec/ScalarAdvecAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
-
-.. |a4| image:: figures/tests/scalar_advec_rigid_rot_start.png
-        :width: 300
-
-.. |b4| image:: figures/tests/scalar_advec_rigid_rot_end.png
-        :width: 300
-
-.. _fig:scalar_advection_rigid_rot
-
-.. table::   Advection of a 2D blob in a rotating velocity field (.5-y, x-.5, 0) in a domain 1x1x1
-
-   +-----------------------------------------------------+------------------------------------------------------+
-   |                        |a4|                         |                        |b4|                          |
-   +-----------------------------------------------------+------------------------------------------------------+
-   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 6.283185).   |
-   +-----------------------------------------------------+------------------------------------------------------+
-
-See http://ammar-hakim.org/sj/je/je16/je16-ldg.html#rigid-body-rotating-flow
 
 Scalar Diffusion: Sphere of Scalar
 ------------------------------------------------

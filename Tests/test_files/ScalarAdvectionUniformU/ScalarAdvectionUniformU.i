@@ -7,8 +7,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 1
-geometry.prob_extent =  1     1     1    
-amr.n_cell           = 16     16   16
+geometry.prob_extent =  1     1     1
+amr.n_cell           = 64     64    4
 
 # TIME STEP CONTROL
 erf.cfl            = 0.9     # cfl number for hyperbolic system
@@ -33,7 +33,7 @@ amr.check_int       = 100        # number of timesteps between checkpoints
 # PLOTFILES
 amr.plot_files_output = 1
 amr.plot_file       = plt        # root name of plotfile
-amr.plot_int        = 20        # number of timesteps between plotfiles
+amr.plot_int        = 20       # number of timesteps between plotfiles
 amr.plot_vars        =  density rhoadv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
@@ -46,17 +46,20 @@ erf.use_momentum_diffusion = false
 erf.use_gravity = false
 
 erf.les_type         = "None"
+erf.molec_diff_type  = "None"
 erf.dynamicViscosity = 0.0
 
 erf.spatial_order = 2
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.A_0 = 1.0
-prob.u_0   = 100.0
-prob.v_0   = 0.0
-prob.rad_0 = 0.05
+prob.T_0   = 1.0
+prob.A_0   = 1.0
+prob.u_0   = 10.0
+prob.v_0   = 5.0
+prob.rad_0 = 0.125
 prob.uRef  = 0.0
+prob.prob_type = 11
 
 # INTEGRATION
 ## integration.type can take on the following values:
