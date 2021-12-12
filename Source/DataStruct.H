@@ -47,8 +47,6 @@ struct SolverChoice {
         amrex::ParmParse pp("erf");
 
         // These default to true but are used for unit testing
-        pp.query("use_state_advection", use_state_advection);
-        pp.query("use_momentum_advection", use_momentum_advection);
         pp.query("use_thermal_diffusion", use_thermal_diffusion);
         pp.query("use_scalar_diffusion", use_scalar_diffusion);
         pp.query("use_momentum_diffusion", use_momentum_diffusion);
@@ -147,8 +145,6 @@ struct SolverChoice {
     void display()
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "use_state_advection   : " << use_state_advection << std::endl;
-        amrex::Print() << "use_momentum_advection: " << use_momentum_advection << std::endl;
         amrex::Print() << "use_thermal_diffusion : " << use_thermal_diffusion << std::endl;
         amrex::Print() << "use_scalar_diffusion  : " << use_scalar_diffusion << std::endl;
         amrex::Print() << "use_momentum_diffusion: " << use_momentum_diffusion << std::endl;
@@ -238,9 +234,6 @@ struct SolverChoice {
     }
 
     // These default to true but are used for unit testing
-    bool        use_state_advection    = true;
-    bool        use_momentum_advection = true;
-
     bool        use_thermal_diffusion  = true;
     bool        use_scalar_diffusion   = true;
     bool        use_momentum_diffusion = true;
