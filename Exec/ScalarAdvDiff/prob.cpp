@@ -99,13 +99,9 @@ erf_init_prob(
     const amrex::Real        z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
-    if (parms.prob_type == 11) {
-        x_vel(i, j, k) = -y + 0.5;
-    } else {
-        x_vel(i, j, k) = parms.u_0 + parms.uRef *
-                         std::log((z + parms.z0)/parms.z0)/
-                         std::log((parms.zRef +parms.z0)/parms.z0);
-    }
+    x_vel(i, j, k) = parms.u_0 + parms.uRef *
+                     std::log((z + parms.z0)/parms.z0)/
+                     std::log((parms.zRef +parms.z0)/parms.z0);
   });
 
   // Construct a box that is on y-faces
@@ -117,11 +113,7 @@ erf_init_prob(
     const amrex::Real*      dx = geomdata.CellSize();
     const amrex::Real        x = prob_lo[0] + (i + 0.5) * dx[0];
 
-    if (parms.prob_type == 11) {
-        y_vel(i, j, k) = x - 0.5;
-    } else {
-        y_vel(i, j, k) = parms.v_0;
-    }
+    y_vel(i, j, k) = parms.v_0;
   });
 
   // Construct a box that is on z-faces

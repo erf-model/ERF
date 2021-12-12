@@ -25,9 +25,6 @@ amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
-amr.ref_ratio       = 2 2 2 2 # refinement ratio
-amr.regrid_int      = 2 2 2 2 # how often to regrid
-amr.n_error_buf     = 2 2 2 2 # number of buffer cells in error est
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0
@@ -42,8 +39,6 @@ amr.plot_vars        =  density rhoadv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.use_state_advection = true
-erf.use_momentum_advection = true
 erf.use_thermal_diffusion = false
 erf.alpha_T = 1.0
 erf.use_scalar_diffusion = false

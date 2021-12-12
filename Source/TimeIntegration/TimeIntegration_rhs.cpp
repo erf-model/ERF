@@ -171,7 +171,7 @@ void erf_rhs (int level,
             cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
             // Add advection terms.
-            if (solverChoice.use_state_advection && ((n != RhoKE_comp) || l_use_deardorff))
+            if ((n != RhoKE_comp) || l_use_deardorff)
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data, n,
                                          advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
 
@@ -245,8 +245,7 @@ void erf_rhs (int level,
             {
 
             // Add advective terms
-            if (solverChoice.use_momentum_advection)
-                rho_u_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dxInv, solverChoice);
+            rho_u_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dxInv, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
@@ -309,8 +308,7 @@ void erf_rhs (int level,
             {
 
             // Add advective terms
-            if (solverChoice.use_momentum_advection)
-                rho_v_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, dxInv, solverChoice);
+            rho_v_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, dxInv, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
@@ -371,8 +369,7 @@ void erf_rhs (int level,
             {
 
             // Add advective terms
-            if (solverChoice.use_momentum_advection)
-                rho_w_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dxInv, solverChoice);
+            rho_w_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dxInv, solverChoice);
 
             // Add diffusive terms
             if (solverChoice.use_momentum_diffusion)
