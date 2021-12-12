@@ -44,7 +44,7 @@ erf.alpha_C = 0.0
 erf.use_gravity = false
 
 erf.les_type         = "None"
-erf.molec_type       = "Constant"
+erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 6.25e-4 # 1.5e-5
 
 erf.spatial_order = 2

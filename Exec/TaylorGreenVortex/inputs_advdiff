@@ -39,12 +39,12 @@ amr.plot_vars        =  density rhoadv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.alpha_T = 1.0
-erf.alpha_C = 2.0
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
 erf.use_gravity = false
 
 erf.les_type         = "None"
-erf.molec_type       = "Constant"
+erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 6.25e-4 # 1.5e-5
 
 erf.spatial_order = 2

@@ -50,8 +50,9 @@ erf.alpha_T = 0.0
 erf.alpha_C = 1.0
 erf.use_gravity = false
 
-erf.les_type = "Smagorinsky"
-erf.Cs       = 0.1
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.1
 
 erf.spatial_order = 2
 

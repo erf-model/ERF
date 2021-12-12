@@ -10,6 +10,12 @@ geometry.is_periodic = 1 1 0
 geometry.prob_extent =  1024     1024    1024
 amr.n_cell           =    64      64     64   # TODO: Enhance the resolution in y-direction
 
+# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
+# Interior, SimSlipWall, Symmetry, SlipWall, NoSlipWall
+# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
+erf.lo_bc       = "Interior"   "Interior"   "NoSlipWall"
+erf.hi_bc       = "Interior"   "Interior"   "SlipWall"
+
 # TIME STEP CONTROL
 #TODO: Need to play around with time step to get rid of ringing
 erf.fixed_dt       = 2.0e-2  # fixed time step depending on grid resolution
@@ -44,9 +50,9 @@ erf.alpha_T = 0.0
 erf.alpha_C = 1.0
 erf.use_gravity = false
 
-erf.molec_type = "None"
-erf.les_type   = "Smagorinsky"
-erf.Cs         = 0.1
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.1
 
 erf.spatial_order = 2
 

@@ -55,7 +55,7 @@ erf.use_rayleigh_damping = false
 erf.spatial_order = 2
 
 erf.les_type         = "None"
-erf.molec_type       = "Constant"
+erf.molec_diff_type  = "Constant"
 # diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858
 erf.dynamicViscosity = 87.108013935 # kg/(m-s)
 

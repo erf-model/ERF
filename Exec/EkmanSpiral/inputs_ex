@@ -50,7 +50,7 @@ erf.use_gravity = false
 erf.spatial_order = 2
 
 erf.les_type         = "None"
-erf.molec_type       = "None"
+erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 5.0
 
 erf.use_coriolis = true

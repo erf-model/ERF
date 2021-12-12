@@ -46,7 +46,7 @@ erf.use_gravity = false
 erf.spatial_order = 2
 
 erf.les_type         = "None"
-erf.molec_type       = "None"
+erf.molec_diff_type  = "None"
 erf.dynamicViscosity = 0.0
 
 # PROBLEM PARAMETERS
