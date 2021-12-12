@@ -790,37 +790,3 @@ List of Parameters
 |                                  | Rayleigh damping  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 
-Unit Testing
-============
-
-.. _list-of-parameters-14:
-
-List of Parameters
-------------------
-
-We use these flags to turn off parts of the physics -- for use in unit testing and/or debugging.
-
-+----------------------------------+-------------------+-------------------+-------------+
-| Parameter                        | Definition        | Acceptable        | Default     |
-|                                  |                   | Values            |             |
-+==================================+===================+===================+=============+
-| **erf.use_state_advection**      | Include advective | true / false      | true        |
-|                                  | term in state     |                   |             |
-|                                  | update?           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_momentum_advection**   | Include advective | true / false      | true        |
-|                                  | term in momentum  |                   |             |
-|                                  | update?           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_momentum_diffusion**   | Include diffusive | true / false      | true        |
-|                                  | term in momentum  |                   |             |
-|                                  | update?           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_thermal_diffusion**    | Include diffusive | true / false      | true        |
-|                                  | term in temp.     |                   |             |
-|                                  | update?           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_scalar_diffusion**     | Include diffusive | true / false      | true        |
-|                                  | term in scalar    |                   |             |
-|                                  | update?           |                   |             |
-+----------------------------------+-------------------+-------------------+-------------+

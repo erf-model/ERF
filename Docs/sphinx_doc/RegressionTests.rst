@@ -68,10 +68,10 @@ Problem Location: `Exec/ScalarAdvDiff`_
 .. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
 .. |a2| image:: figures/tests/scalar_advec_uniform_u_start.png
-        :width: 300
+        :width: 200
 
 .. |b2| image:: figures/tests/scalar_advec_uniform_u_end.png
-        :width: 300
+        :width: 200
 
 .. _fig:scalar_advection_uniform_u
 

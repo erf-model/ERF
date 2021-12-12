@@ -176,10 +176,10 @@ void erf_rhs (int level,
                                          advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
 
             // Add diffusive terms.
-            if (solverChoice.use_thermal_diffusion && n == RhoTheta_comp)
+            if (n == RhoTheta_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
-            if (solverChoice.use_scalar_diffusion && n == RhoScalar_comp)
+            if (n == RhoScalar_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
             if (l_use_deardorff && n == RhoKE_comp)
@@ -248,13 +248,10 @@ void erf_rhs (int level,
             rho_u_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dxInv, solverChoice);
 
             // Add diffusive terms
-            if (solverChoice.use_momentum_diffusion)
-            {
-                bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
-                bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
-                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, K_LES, solverChoice,
-                                                                  use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
-            }
+            bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
+            bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
+            rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, K_LES, solverChoice,
+                                                              use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
 
             // Add pressure gradient
             rho_u_rhs(i, j, k) += (-dxInv[0]) *
@@ -311,13 +308,10 @@ void erf_rhs (int level,
             rho_v_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, dxInv, solverChoice);
 
             // Add diffusive terms
-            if (solverChoice.use_momentum_diffusion)
-            {
-                bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
-                bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
-                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, K_LES, solverChoice,
-                                                                  use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
-            }
+            bool use_no_slip_stencil_at_lo_k = ( (k == klo) && lo_z_is_no_slip);
+            bool use_no_slip_stencil_at_hi_k = ( (k == khi) && hi_z_is_no_slip);
+            rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, K_LES, solverChoice,
+                                                              use_no_slip_stencil_at_lo_k,use_no_slip_stencil_at_hi_k);
 
             // Add pressure gradient
             rho_v_rhs(i, j, k) += (-dxInv[1]) *
@@ -372,9 +366,8 @@ void erf_rhs (int level,
             rho_w_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dxInv, solverChoice);
 
             // Add diffusive terms
-            if (solverChoice.use_momentum_diffusion)
-                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, K_LES, solverChoice,
-                                                                  false, false);
+            rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, K_LES, solverChoice,
+                                                              false, false);
 
             // Add pressure gradient
             rho_w_rhs(i, j, k) += (-dxInv[2]) *
