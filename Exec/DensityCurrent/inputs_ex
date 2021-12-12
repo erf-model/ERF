@@ -47,17 +47,15 @@ amr.plot_vars        =  density
 amr.derive_plot_vars = pressure theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.use_thermal_diffusion = false
-erf.alpha_T = 1.0
-erf.use_scalar_diffusion = false
-erf.alpha_C = 2.0
-erf.use_momentum_diffusion = true
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
 erf.use_gravity = true
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
 erf.spatial_order = 2
 
 erf.les_type         = "None"
+erf.molec_type       = "Constant"
 # diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858
 erf.dynamicViscosity = 87.108013935 # kg/(m-s)
 

@@ -47,9 +47,6 @@ struct SolverChoice {
         amrex::ParmParse pp("erf");
 
         // These default to true but are used for unit testing
-        pp.query("use_thermal_diffusion", use_thermal_diffusion);
-        pp.query("use_scalar_diffusion", use_scalar_diffusion);
-        pp.query("use_momentum_diffusion", use_momentum_diffusion);
         pp.query("use_gravity", use_gravity);
 
         gravity = use_gravity? CONST_GRAV: 0.0;
@@ -68,14 +65,16 @@ struct SolverChoice {
             amrex::Error("Don't know this les_type");
         }
 
-        // Include molecular transport?
+        // Include molecular transport? Default to no.
         static std::string molec_diff_type_string = "None";
-        pp.query("molec_diff_type",molec_diff_type_string);
 
-        // Force the constant molecular diffusivity for DNS irrespective of what the user inputs
+        // If no LES then default to "Constant"
         if (les_type == LESType::None) { // DNS
             molec_diff_type_string = "Constant"; // For DNS, use constant molecular viscosity
         }
+
+        // But allow the user to reset to None
+        pp.query("molec_diff_type",molec_diff_type_string);
 
         if (!molec_diff_type_string.compare("Constant")) {
             molec_diff_type = MolecDiffType::Constant;
@@ -145,9 +144,6 @@ struct SolverChoice {
     void display()
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "use_thermal_diffusion : " << use_thermal_diffusion << std::endl;
-        amrex::Print() << "use_scalar_diffusion  : " << use_scalar_diffusion << std::endl;
-        amrex::Print() << "use_momentum_diffusion: " << use_momentum_diffusion << std::endl;
         amrex::Print() << "use_coriolis          : " << use_coriolis << std::endl;
         amrex::Print() << "use_rayleigh_damping  : " << use_rayleigh_damping << std::endl;
         amrex::Print() << "use_gravity           : " << use_gravity << std::endl;
@@ -233,14 +229,9 @@ struct SolverChoice {
         }
     }
 
-    // These default to true but are used for unit testing
-    bool        use_thermal_diffusion  = true;
-    bool        use_scalar_diffusion   = true;
-    bool        use_momentum_diffusion = true;
-
+    // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
-
     bool        use_rayleigh_damping   = false;
 
     amrex::Real gravity;

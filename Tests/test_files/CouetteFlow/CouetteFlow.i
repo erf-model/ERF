@@ -47,15 +47,12 @@ amr.plot_vars        = density # u does not get output for some reason
 amr.derive_plot_vars = x_velocity y_velocity z_velocity #pressure theta
 
 # SOLVER CHOICE
-erf.use_momentum_diffusion = true
-
-erf.use_thermal_diffusion = false
 erf.alpha_T = 0.0
-erf.use_scalar_diffusion = false
-erf.alpha_C = 1.0
+erf.alpha_C = 0.0
 erf.use_gravity = false
 
 erf.les_type   = "None"
+erf.molec_type = "Constant"
 erf.dynamicViscosity = 0.1
 
 erf.spatial_order = 2
