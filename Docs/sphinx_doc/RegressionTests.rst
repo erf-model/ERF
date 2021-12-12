@@ -67,6 +67,14 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 .. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
+.. |a2| image:: figures/tests/scalar_advec_uniform_u_start.png
+        :width: 300
+
+.. |b2| image:: figures/tests/scalar_advec_uniform_u_end.png
+        :width: 300
+
+.. _fig:scalar_advection_uniform_u
+
 .. table:: Advection of a spherical blob in a uniform velocity field (10,5,0)
 
    +-----------------------------------------------------+------------------------------------------------------+
