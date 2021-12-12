@@ -24,7 +24,7 @@ The following problems are currently tested in the CI:
 +===============================+==========+=====+=====+=====+=======+==================+
 | ScalarAdvectionUniformU       | 64 64  4 | per | per | per | None  |                  |
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
-| ScalarAdvectionShearedU       | 16  4 16 | per | per | per | None  |                  |
+| ScalarAdvectionShearedU       | 64  4 64 | per | per | per | None  |                  |
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
 | ScalarAdvectionDiffusion      | 16 16 16 | per | per | per | None  |                  |
 +-------------------------------+----------+-----+-----+-----+-------+------------------+
@@ -75,7 +75,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 .. _fig:scalar_advection_uniform_u
 
-.. table:: Advection of a spherical blob in a uniform velocity field (10,5,0)
+.. table:: X-Y slice of a 2-d cylindrical blob in a uniform velocity field (10,5,0)
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a2|                         |                        |b2|                          |
@@ -103,13 +103,13 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 .. _fig:scalar_advection_sheared_u
 
-.. table:: Advection of a spherical blob in a uniform shearing velocity field (8 log( (z+z0)/z0 ) / log ( (zref+z0)/z0 )
-   with z0 = 0.1 and zref = 80 in a domain 8x8x8
+.. table:: X-Z slice of a 2-d cylindrical blob in a uniform shearing velocity field (8 log( (z+z0)/z0 ) / log ( (zref+z0)/z0 )
+   with z0 = 0.1 and zref = 80 in a triply periodic domain 8x8x8
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                        |a3|                         |                        |b3|                          |
    +-----------------------------------------------------+------------------------------------------------------+
-   |   Scalar concentration at t=0.                      |   Scalar concentration at 20 steps (t = 0.9819669.   |
+   |   Scalar concentration at t=0.                      |   Scalar concentration at 80 steps                   |
    +-----------------------------------------------------+------------------------------------------------------+
 
 Scalar Diffusion: Sphere of Scalar

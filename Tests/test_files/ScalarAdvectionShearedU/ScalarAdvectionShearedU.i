@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 20
+max_step = 80
 
 amrex.fpe_trap_invalid = 1
 
@@ -8,7 +8,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 1
 geometry.prob_extent =  8     8     8
-amr.n_cell           = 16     4    16
+amr.n_cell           = 64     4    64
 
 # TIME STEP CONTROL
 erf.cfl            = 0.9     # cfl number for hyperbolic system
@@ -33,7 +33,7 @@ amr.check_int       = 100        # number of timesteps between checkpoints
 # PLOTFILES
 amr.plot_files_output = 1
 amr.plot_file       = plt        # root name of plotfile
-amr.plot_int        = 20       # number of timesteps between plotfiles
+amr.plot_int        = 20      # number of timesteps between plotfiles
 amr.plot_vars        =  density rhoadv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
@@ -59,6 +59,7 @@ prob.z0    = 0.1
 prob.zRef  = 80.0
 prob.uRef  = 8.0
 
+prob.prob_type = 12
 
 # INTEGRATION
 ## integration.type can take on the following values:
