@@ -73,6 +73,8 @@ Problem Location: `Exec/ScalarAdvDiff`_
 .. |b2| image:: figures/tests/scalar_advec_uniform_u_end.png
         :width: 300
 
+.. _fig:scalar_advection_uniform_u
+
 .. table:: Advection of a spherical blob in a uniform velocity field (10,5,0)
 
    +-----------------------------------------------------+------------------------------------------------------+
