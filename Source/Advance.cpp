@@ -60,16 +60,15 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
       MultiFab& V_crse = getLevel(level-1).get_old_data(Y_Vel_Type);
       MultiFab& W_crse = getLevel(level-1).get_old_data(Z_Vel_Type);
 
-      rU_crse.define(U_crse.boxArray(), U_crse.DistributionMap(), 1, 1);
-      rV_crse.define(V_crse.boxArray(), V_crse.DistributionMap(), 1, 1);
-      rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, 1);
+      rU_crse.define(U_crse.boxArray(), U_crse.DistributionMap(), 1, U_crse.nGrow());
+      rV_crse.define(V_crse.boxArray(), V_crse.DistributionMap(), 1, V_crse.nGrow());
+      rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, W_crse.nGrow());
 
       VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,
-                        solverChoice.spatial_order);
+                        solverChoice.spatial_order,U_crse.nGrow());
   }
 
   // Fill level 0 ghost cells (including at periodic boundaries)
-  //TODO: Check if we should consider the number of ghost cells as a function of spatial order here itself
   S_old.FillBoundary(geom.periodicity());
   U_old.FillBoundary(geom.periodicity());
   V_old.FillBoundary(geom.periodicity());

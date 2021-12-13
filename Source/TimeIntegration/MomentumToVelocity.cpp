@@ -14,16 +14,16 @@ using namespace amrex;
 void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                          const MultiFab& cons_in,
                          const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,
-                         int ng, int l_spatial_order)
+                         const int l_spatial_order, const int ngrow)
 {
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
 
-    // Loop over boxes
+    // Loop over boxes = valid boxes grown by ngrow
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& tbx = amrex::grow(mfi.nodaltilebox(0),IntVect(0,ng,ng));
-        const Box& tby = amrex::grow(mfi.nodaltilebox(1),IntVect(ng,0,ng));
-        const Box& tbz = amrex::grow(mfi.nodaltilebox(2),IntVect(ng,ng,0));
+        const Box& tbx = amrex::grow(mfi.nodaltilebox(0),IntVect(0,ngrow,ngrow));
+        const Box& tby = amrex::grow(mfi.nodaltilebox(1),IntVect(ngrow,0,ngrow));
+        const Box& tbz = amrex::grow(mfi.nodaltilebox(2),IntVect(ngrow,ngrow,0));
 
         // Conserved variables on cell centers -- we use this for density
         const Array4<const Real>& cons = cons_in.array(mfi);
