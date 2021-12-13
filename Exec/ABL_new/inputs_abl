@@ -10,9 +10,6 @@ stop_time = 22000.0
 #.......................................#
 fixed_dt         =   0.4        # Use this constant dt if > 0
 cfl              =   0.95         # CFL factor
-erf.init_shrink    = 1.0     # scale back initial timestep
-erf.change_max     = 1.05    # scale back initial timestep
-erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 
 amrex.fpe_trap_invalid = 1
 
