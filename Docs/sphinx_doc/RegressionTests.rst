@@ -96,10 +96,10 @@ Problem Location: `Exec/ScalarAdvDiff`_
 .. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
 
 .. |a3| image:: figures/tests/scalar_advec_sheared_u_start.png
-        :width: 300
+        :width: 200
 
 .. |b3| image:: figures/tests/scalar_advec_sheared_u_end.png
-        :width: 300
+        :width: 200
 
 .. _fig:scalar_advection_sheared_u
 
