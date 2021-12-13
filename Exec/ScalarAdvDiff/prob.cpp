@@ -56,8 +56,9 @@ erf_init_prob(
     const amrex::Real yc = parms.yc_frac * (prob_lo[1] + prob_hi[1]);
     const amrex::Real zc = parms.zc_frac * (prob_lo[2] + prob_hi[2]);
 
-    const amrex::Real r3d  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
-    const amrex::Real r2d  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
+    const amrex::Real r3d    = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
+    const amrex::Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
+    const amrex::Real r2d_xz = std::sqrt((x-xc)*(x-xc) + (z-zc)*(z-zc));
 
     const amrex::Real r0 = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
 
@@ -75,7 +76,9 @@ erf_init_prob(
         state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0 * sin(x);
 
     } else if (parms.prob_type == 11) {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d, r0) / r0));
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, r0) / r0));
+    } else if (parms.prob_type == 12) {
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
     } else {
         // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
         if (r3d < r0) {
