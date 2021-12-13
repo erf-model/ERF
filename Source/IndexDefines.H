@@ -14,6 +14,4 @@
 
 #define NUM_ADV 1
 
-#define NUM_GROW 4
-
 #endif

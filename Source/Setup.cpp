@@ -6,7 +6,9 @@
 
 #include "ERF.H"
 #include "Derive.H"
+#include "DataStruct.H"
 #include "IndexDefines.H"
+#include "TimeIntegration.H"
 #include "prob.H"
 
 static amrex::Box
@@ -82,7 +84,10 @@ ERF::variableSetUp()
   bool state_data_extrap = false;
   bool store_in_checkpoint;
 
-  int ngrow_state = 1;
+  // The number of ghost cells for density must be 1 greater than that for velocity
+  //     so that we can go back in forth betwen velocity and momentum on all faces
+  int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
+  int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
 
   store_in_checkpoint = true;
   desc_lst.addDescriptor(
@@ -130,7 +135,7 @@ ERF::variableSetUp()
   store_in_checkpoint = true;
   amrex::IndexType xface(amrex::IntVect(1,0,0));
   desc_lst.addDescriptor(X_Vel_Type, xface,
-                         amrex::StateDescriptor::Point, 1, 1,
+                         amrex::StateDescriptor::Point, ngrow_vels, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
@@ -139,7 +144,7 @@ ERF::variableSetUp()
 
   amrex::IndexType yface(amrex::IntVect(0,1,0));
   desc_lst.addDescriptor(Y_Vel_Type, yface,
-                         amrex::StateDescriptor::Point, 1, 1,
+                         amrex::StateDescriptor::Point, ngrow_vels, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 
@@ -148,7 +153,7 @@ ERF::variableSetUp()
 
   amrex::IndexType zface(amrex::IntVect(0,0,1));
   desc_lst.addDescriptor(Z_Vel_Type, zface,
-                         amrex::StateDescriptor::Point, 1, 1,
+                         amrex::StateDescriptor::Point, ngrow_vels, 1,
                          interp, state_data_extrap,
                          store_in_checkpoint);
 

@@ -259,9 +259,6 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
               ncf.var(typ_names[i]).get(itype.begin()   , {new_mfi.index(), 0}, {1, AMREX_SPACEDIM});
 
               amrex::Box fab_box = amrex::Box(smallend, bigend, itype);
-              if( NUM_GROW > 0) {
-                 fab_box.grow(NUM_GROW);
-              }
 
               amrex::FArrayBox &fab = new_data[new_mfi.index()];
 
@@ -297,10 +294,6 @@ IOManager::ncrestart(amrex::Amr& papa, istream& is, bool bReadSpecial)
     }
   }
   erf.buildMetrics();
-
-  amrex::MultiFab& S_new = erf.get_new_data(State_Type);
-
-  erf.Sborder.define(erf.grids, erf.dmap, NVAR, NUM_GROW, amrex::MFInfo(), erf.Factory());
 
   // get the elapsed CPU time to now;
   if (erf.level == 0 && amrex::ParallelDescriptor::IOProcessor()) {

@@ -252,8 +252,6 @@ public:
     amrex::MultiFab& mf,
     int dcomp) override;
 
-  static int numGrow();
-
   static void applyBCs( const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) {
     for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
       bc_recs[dir]->applyBC(geom, vars, solverChoice);
@@ -308,9 +306,6 @@ protected:
   amrex::Vector<std::unique_ptr<amrex::iMultiFab>> ib_mask;
   const amrex::iMultiFab* build_interior_boundary_mask(int ng);
 
-  /// A state array with ghost zones.
-  amrex::MultiFab Sborder;
-
   static void clear_prob();
 
   static void read_params();
@@ -338,7 +333,6 @@ protected:
   // The data or the member variables
   amrex::MultiFab volume;
   amrex::MultiFab area[AMREX_SPACEDIM];
-  int m_ngrow;
 
   // ***************************************************************************
   // Static data members.
@@ -442,13 +436,6 @@ void erf_nullfill(
 // *****************************************************************************
 // Inlines.
 //
-
-AMREX_FORCE_INLINE
-int
-ERF::numGrow()
-{
-  return NUM_GROW;
-}
 
 AMREX_FORCE_INLINE
 amrex::MultiFab*

@@ -46,8 +46,6 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data);
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
 #endif
 
-// TODO: Check if the order of applying BC on cell-centered state or face-centered mom makes any difference
-
 void erf_advance(int level,
                  MultiFab& cons_old,  MultiFab& cons_new,
                  MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
@@ -71,12 +69,6 @@ void erf_advance(int level,
     BL_PROFILE_VAR("erf_advance()",erf_advance);
 
     int nvars = cons_old.nComp();
-
-    // Determine the number of ghost cells depending on the spatial order
-    // **************************************************************************************
-    //TODO: Check if this is the only place to specify the number of ghost cells
-    //TODO: Also explore how 'ngrow' should be related to the spatial_order
-    //int ngc = ComputeGhostCells(solverChoice.spatial_order);
 
     const BoxArray& ba            = cons_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();
@@ -110,9 +102,9 @@ void erf_advance(int level,
     // Initial solution
     amrex::Vector<amrex::MultiFab> state_old;
     state_old.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
-    state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
-    state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
     state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
     state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
     state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
@@ -120,9 +112,9 @@ void erf_advance(int level,
     // Final solution
     amrex::Vector<amrex::MultiFab> state_new;
     state_new.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
-    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
-    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
     state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
     state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
     state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
@@ -130,9 +122,9 @@ void erf_advance(int level,
     // Temporary data
     amrex::Vector<amrex::MultiFab> state_store;
     state_store.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, 1)); // xmom
-    state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, 1)); // ymom
-    state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, 1)); // zmom
+    state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
     state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
     state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
     state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
@@ -141,16 +133,8 @@ void erf_advance(int level,
     // Prepare the old-time data for calling the integrator
     // **************************************************************************************
 
-    // Apply BC on old state data at cells
-    // **************************************************************************************
-    cons_old.FillBoundary(fine_geom.periodicity());
-
-    // We need to apply the boundary conditions here because we are converting from velocity to momentum
-    //    which requires having set boundary conditions on density
-    // TODO: CAN WE REALLY GET AWAY WITHOUT THIS??
-    amrex::Vector<MultiFab*> vars_orig{&cons_old};
-    ERF::applyBCs(fine_geom, vars_orig);
-
+    // Note that we have filled the ghost cells of cons_old and we are copying the ghost cell values
+    //      so we don't need to enforce BCs again here
     MultiFab::Copy(state_old[IntVar::cons], cons_old, 0, 0, cons_old.nComp(), cons_old.nGrow());
 
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
@@ -160,7 +144,8 @@ void erf_advance(int level,
                        state_old[IntVar::xmom],
                        state_old[IntVar::ymom],
                        state_old[IntVar::zmom],
-                       solverChoice.spatial_order);
+                       solverChoice.spatial_order,
+                       xvel_old.nGrow());
 
     // Apply BC on old momentum data on faces before integration
     // **************************************************************************************
@@ -569,7 +554,7 @@ void erf_advance(int level,
                        state_new[IntVar::xmom],
                        state_new[IntVar::ymom],
                        state_new[IntVar::zmom],
-                       0, solverChoice.spatial_order);
+                       solverChoice.spatial_order, 0);
 
     // **************************************************************************************
     // Get the final cell centered variables after the step
