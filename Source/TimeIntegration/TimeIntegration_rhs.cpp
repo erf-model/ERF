@@ -43,7 +43,7 @@ void erf_rhs (int level,
                        S_data[IntVar::xmom],
                        S_data[IntVar::ymom],
                        S_data[IntVar::zmom],
-                       1, solverChoice.spatial_order);
+                       solverChoice.spatial_order, xvel.nGrow());
 
     xvel.FillBoundary(geom.periodicity());
     yvel.FillBoundary(geom.periodicity());

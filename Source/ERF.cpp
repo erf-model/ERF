@@ -292,8 +292,6 @@ ERF::ERF(
 {
   buildMetrics();
 
-  Sborder.define(grids, dmap, NVAR, NUM_GROW, amrex::MFInfo(), Factory());
-
   flux_reg = 0;
   if (level > 0 && do_reflux)
       flux_reg = new FluxRegister(grids, dmap, crse_ratio, level, NVAR);
@@ -307,19 +305,17 @@ ERF::~ERF()
 void
 ERF::buildMetrics()
 {
-//  const int ngrd = grids.size();
-
-//  const amrex::Real* dx = geom.CellSize();
+  int ngrow = ComputeGhostCells(solverChoice.spatial_order);
 
   volume.clear();
   volume.define(
-    grids, dmap, 1, NUM_GROW, amrex::MFInfo(), amrex::FArrayBoxFactory());
+    grids, dmap, 1, ngrow, amrex::MFInfo(), amrex::FArrayBoxFactory());
   geom.GetVolume(volume);
 
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     area[dir].clear();
     area[dir].define(
-      getEdgeBoxArray(dir), dmap, 1, NUM_GROW, amrex::MFInfo(),
+      getEdgeBoxArray(dir), dmap, 1, ngrow, amrex::MFInfo(),
       amrex::FArrayBoxFactory());
     geom.GetFaceArea(area[dir], dir);
   }

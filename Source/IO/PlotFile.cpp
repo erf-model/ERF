@@ -77,10 +77,6 @@ IOManager::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
   }
   erf.buildMetrics();
 
-  amrex::MultiFab& S_new = erf.get_new_data(State_Type);
-
-  erf.Sborder.define(erf.grids, erf.dmap, NVAR, NUM_GROW, amrex::MFInfo(), erf.Factory());
-
   // get the elapsed CPU time to now;
   if (erf.level == 0 && amrex::ParallelDescriptor::IOProcessor()) {
     // get elapsed CPU time
