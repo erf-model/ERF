@@ -60,4 +60,4 @@ erf.dynamicViscosity = 87.108013935 # kg/(m-s)
 prob.T_0 = 300.0
 prob.U_0 = 0.0
 
-FILE = ../inputs.time_integration
+FILE = ./inputs.time_integration
