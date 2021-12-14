@@ -55,4 +55,4 @@ prob.beta  = 1.1088514254079065 # non-dimensional max perturbation strength [-]
 prob.R     = 1.0  # characteristic length scale for grid [m]
 prob.sigma = 1.0  # Gaussian standard deviation [-]
 
-FILE = ../inputs.time_integration
+FILE = ./inputs.time_integration

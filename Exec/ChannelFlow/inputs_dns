@@ -63,4 +63,4 @@ prob.U_0    = 10.0
 prob.V_0 = 0.0
 prob.W_0 = 0.0
 
-FILE = ../inputs.time_integration
+FILE = ./inputs.time_integration

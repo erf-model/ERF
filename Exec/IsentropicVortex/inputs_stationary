@@ -54,4 +54,4 @@ prob.alpha = 0.0  # inflow angle, 0 --> x-aligned [rad]
 prob.gamma = 1.4  # specific heat ratio [-]
 prob.beta = 0.05  # non-dimensional max perturbation strength [-]
 
-FILE = ../inputs.time_integration
+FILE = ./inputs.time_integration

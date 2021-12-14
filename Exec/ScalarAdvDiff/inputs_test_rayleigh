@@ -59,4 +59,4 @@ prob.z0    = 0.1
 prob.zRef  = 80.0
 prob.uRef  = 8.0
 
-FILE = ../inputs.time_integration
+FILE = ./inputs.time_integration

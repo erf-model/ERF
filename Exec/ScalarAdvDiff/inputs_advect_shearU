@@ -58,4 +58,4 @@ prob.uRef  = 8.0
 
 prob.prob_type = 12
 
-FILE = ../inputs.time_integration
+FILE = ./inputs.time_integration
