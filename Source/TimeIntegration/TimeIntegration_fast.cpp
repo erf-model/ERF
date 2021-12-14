@@ -17,7 +17,6 @@ void erf_fast_rhs (int level,
                    const amrex::Geometry geom, const amrex::Real dt,
                          amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
-                   const bool lo_z_is_no_slip, const bool hi_z_is_no_slip,
                    const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
                    const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                    const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)

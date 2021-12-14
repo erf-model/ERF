@@ -153,7 +153,9 @@ void erf_advance(int level,
     state_old[IntVar::ymom].FillBoundary(fine_geom.periodicity());
     state_old[IntVar::zmom].FillBoundary(fine_geom.periodicity());
 
+    // **************************************************************************************
     // Initialize the fluxes to zero
+    // **************************************************************************************
     state_old[IntVar::xflux].setVal(0.0_rt);
     state_old[IntVar::yflux].setVal(0.0_rt);
     state_old[IntVar::zflux].setVal(0.0_rt);
@@ -255,8 +257,8 @@ void erf_advance(int level,
 #endif
 
     //Create function lambdas
-    bool l_lo_z_is_no_slip = ERF::lo_z_is_no_slip;
-    bool l_hi_z_is_no_slip = ERF::hi_z_is_no_slip;
+    bool l_lo_z_is_dirichlet = ERF::lo_z_is_dirichlet;
+    bool l_hi_z_is_dirichlet = ERF::hi_z_is_dirichlet;
 
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
                        const Vector<MultiFab>& S_data, const Real time) {
@@ -266,8 +268,8 @@ void erf_advance(int level,
                 fine_geom, dt,
                 ifr,
                 solverChoice,
-                l_lo_z_is_no_slip,
-                l_hi_z_is_no_slip,
+                l_lo_z_is_dirichlet,
+                l_hi_z_is_dirichlet,
                 dptr_dens_hse, dptr_pres_hse,
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
@@ -281,8 +283,6 @@ void erf_advance(int level,
                      fine_geom, dt,
                      ifr,
                      solverChoice,
-                     l_lo_z_is_no_slip,
-                     l_hi_z_is_no_slip,
                      dptr_dens_hse, dptr_pres_hse,
                      dptr_rayleigh_tau, dptr_rayleigh_ubar,
                      dptr_rayleigh_vbar, dptr_rayleigh_thetabar);

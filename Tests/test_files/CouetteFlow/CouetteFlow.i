@@ -14,8 +14,9 @@ amr.n_cell           = 32     4    16
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 erf.lo_bc       = "Interior"   "Interior"   "NoSlipWall"
-erf.hi_bc       = "Interior"   "Interior"   "Dirichlet"
+erf.hi_bc       = "Interior"   "Interior"   "NoSlipWall"
 
+zlo.velocity    = 0.0 0.0 0.0  # for Dirichlet BC
 zhi.velocity    = 2.0 0.0 0.0  # for Dirichlet BC
 
 # TIME STEP CONTROL
