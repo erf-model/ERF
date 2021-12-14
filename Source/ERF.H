@@ -26,7 +26,6 @@
 #include "BC/BCDummy.H"
 #include "BC/BCInterior.H"
 #include "BC/BCOutflow.H"
-#include "BC/BCDirichlet.H"
 #include "BC/BCSlipWall.H"
 #include "BC/BCNoSlipWall.H"
 #include "BC/BCSimSlipWall.H"
@@ -258,8 +257,8 @@ public:
     }
   }
 
-  static bool lo_z_is_no_slip;
-  static bool hi_z_is_no_slip;
+  static bool lo_z_is_dirichlet;
+  static bool hi_z_is_dirichlet;
 
   amrex::Real volWgtSum( const std::string& name,
                          amrex::Real time,

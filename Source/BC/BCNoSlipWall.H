@@ -10,10 +10,15 @@ namespace phys_bcs {
 
 template <int IDIR, math_bcs::BCBound Bound>
 class BCNoSlipWall : public BCBase {
-  public:
-  BCNoSlipWall() = default;
+  amrex::Vector<amrex::Real> vel;
 
   bool isNoSlipWall() override { return true; }
+
+  public:
+  BCNoSlipWall(const amrex::Vector<amrex::Real> inputvel)
+  {
+    vel = inputvel;
+  }
 
   void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, const SolverChoice& solverChoice) override {
     if ((geom.isPeriodic(IDIR)) || (vars.size() == 0)) return;
@@ -34,11 +39,11 @@ class BCNoSlipWall : public BCBase {
             if (type == amrex::IntVect::Zero) {  // for state type variable
                math_bcs::wall_scalars<IDIR, Bound>::apply(geom, b, data, ncomp);
             } else if (type == amrex::IntVect(AMREX_D_DECL(1, 0, 0))) { // for X_VEL
-               math_bcs::reflect_odd<IDIR, Bound>::template apply_face_based<(IDIR==0)>(geom, b, data, ncomp);
+               math_bcs::dirichlet<IDIR, Bound>::template apply<(IDIR==0)>(geom, b, data, ncomp, vel[0]);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 1, 0))) { // for Y_VEL
-               math_bcs::reflect_odd<IDIR, Bound>::template apply_face_based<(IDIR==1)>(geom, b, data, ncomp);
+               math_bcs::dirichlet<IDIR, Bound>::template apply<(IDIR==1)>(geom, b, data, ncomp, vel[1]);
             } else if (type == amrex::IntVect(AMREX_D_DECL(0, 0, 1))) { // for Z_VEL
-               math_bcs::reflect_odd<IDIR, Bound>::template apply_face_based<(IDIR==2)>(geom, b, data, ncomp);
+               math_bcs::dirichlet<IDIR, Bound>::template apply<(IDIR==2)>(geom, b, data, ncomp, vel[2]);
             }
          }
       }

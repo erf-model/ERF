@@ -48,7 +48,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Tagging.cpp
        ${SRC_DIR}/Utils.cpp
        ${SRC_DIR}/BC/BCBase.H
-       ${SRC_DIR}/BC/BCDirichlet.H
        ${SRC_DIR}/BC/BCDummy.H
        ${SRC_DIR}/BC/BCInterior.H
        ${SRC_DIR}/BC/BCMostWall.H

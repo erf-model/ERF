@@ -10,8 +10,14 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
                   const enum MomentumEqn &momentumEqn,
                   const enum DiffusionDir &diffDir,
                   const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                  bool use_no_slip_stencil_lo, bool use_no_slip_stencil_hi)
+                  bool dirichlet_lo, bool dirichlet_hi)
 {
+
+  // Note:  if dirichlet_lo/dirichlet_hi is true, it means that the velocity is fixed
+  //        on the z-face, so we use a special stencil that understands the value is
+  //        at the z-face, not at dz/2 above/below the face.   The stencils below also
+  //        allow for the Dirichlet value to be non-zero
+
   Real dx_inv = cellSizeInv[0];
   Real dy_inv = cellSizeInv[1];
   Real dz_inv = cellSizeInv[2];
@@ -29,11 +35,11 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       strainRate *= 0.5;
       break;
     case DiffusionDir::z: // S13
-      if (use_no_slip_stencil_lo) {
-          strainRate =  (3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dz_inv
-                      + (w(i, j, k) - w(i-1, j, k))*dx_inv;
-      } else if (use_no_slip_stencil_hi) {
-          strainRate =  -(3. * u(i,j,k-1) - (1./3.) * u(i,j,k-2))*dz_inv
+      if (dirichlet_lo) {
+          strainRate =   (-(8./3.) * u(i,j,k-1) + 3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dz_inv
+                       + (w(i, j, k) - w(i-1, j, k))*dx_inv;
+      } else if (dirichlet_hi) {
+          strainRate =  -(-(8./3.) * u(i,j,k) + 3. * u(i,j,k-1) - (1./3.) * u(i,j,k-2))*dz_inv
                        + (w(i, j, k-1) - w(i-1, j, k-1))*dx_inv;
       } else {
           strainRate = (u(i, j, k) - u(i, j, k-1))*dz_inv + (w(i, j, k) - w(i-1, j, k))*dx_inv;
@@ -54,11 +60,11 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       strainRate = (v(i, j, k) - v(i, j-1, k))*dy_inv;
       break;
     case DiffusionDir::z: // S23
-      if (use_no_slip_stencil_lo) {
-          strainRate =  (3. * v(i,j,k) - (1./3.) * v(i,j,k+1))*dz_inv
-                      + (w(i, j, k) - w(i, j-1, k))*dy_inv;
-      } else if (use_no_slip_stencil_hi) {
-          strainRate =  -(3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dz_inv
+      if (dirichlet_lo) {
+          strainRate =   (-(8./3.) * v(i,j,k-1) + 3. * v(i,j,k) - (1./3.) * v(i,j,k+1))*dz_inv
+                       + (w(i, j, k) - w(i, j-1, k))*dy_inv;
+      } else if (dirichlet_hi) {
+          strainRate =  -(-(8./3.) * v(i,j,k) + 3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dz_inv
                        + (w(i, j, k) - w(i, j-1, k))*dy_inv;
       } else {
           strainRate = (v(i, j, k) - v(i, j, k-1))*dz_inv + (w(i, j, k) - w(i, j-1, k))*dy_inv;
