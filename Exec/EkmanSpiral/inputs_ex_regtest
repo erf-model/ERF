@@ -1,0 +1,64 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 10
+stop_time = 1000.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.is_periodic = 1 1 0
+geometry.prob_extent = 50. 50. 5000.
+amr.n_cell           = 4 4 400
+
+# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
+# Interior, UserBC, Symmetry, SlipWall, NoSlipWall
+# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
+erf.lo_bc       = "Interior"   "Interior"   "NoSlipWall"
+erf.hi_bc       = "Interior"   "Interior"   "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt       = 0.5     # fixed time step
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v                = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+amr.checkpoint_files_output = 0
+amr.check_file      = chk        # root name of checkpoint file
+amr.check_int       = 100        # number of timesteps between checkpoints
+
+# PLOTFILES
+amr.plot_files_output = 1
+amr.plot_file       = plt        # root name of plotfile
+amr.plot_int        = 100000   # number of timesteps between plotfiles
+amr.plot_vars        =  density
+amr.derive_plot_vars = x_velocity y_velocity z_velocity
+
+# SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+erf.use_gravity = false
+erf.spatial_order = 2
+
+erf.les_type         = "None"
+erf.molec_diff_type  = "Constant"
+erf.dynamicViscosity = 5.0
+
+erf.use_coriolis = true
+erf.abl_driver_type = "GeostrophicWind"
+erf.latitude = 90.
+erf.abl_geo_wind = 15.0 0.0 0.0
+erf.rotational_time_period = 86164.0900027328
+
+# PROBLEM PARAMETERS (optional)
+prob.rho_0 = 1.0
+prob.T_0 = 300.0
+
+# Regtests will copy the file into the working dir before running tests
+FILE = inputs.time_integration
