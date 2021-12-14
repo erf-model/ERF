@@ -24,6 +24,15 @@ void add_par () {
    pp.add("refine_grid_layout_x",1);
    pp.add("refine_grid_layout_y",1);
    pp.add("refine_grid_layout_z",0);
+
+   // n_proper is the minimum number of coarse cells between coarse-fine boundaries
+   // between levels (ell and ell+1) and levels (ell-1 and ell).   We want this to be
+   // greater than or equal to the stencil width (a function of spatial order) divided by
+   // ref_ratio (which can be 2,3 or 4).  This ensures that fillpatch at level (ell)
+   // does not need to reach beyond level (ell-1). Here to be conservative we set this to 2
+   // (rather than the amrex default of 1).
+   pp.add("n_proper",2);
+
    pp.add("max_grid_size",2048);
    pp.add("blocking_factor",2);
 }

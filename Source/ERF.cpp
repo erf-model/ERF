@@ -63,8 +63,8 @@ amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2)
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
 
-bool ERF::lo_z_is_no_slip = false;
-bool ERF::hi_z_is_no_slip = false;
+bool ERF::lo_z_is_dirichlet = false;
+bool ERF::hi_z_is_dirichlet = false;
 
 Vector<AMRErrorTag> ERF::ref_tags;
 
@@ -101,30 +101,27 @@ ERF::initialize_bcs(const std::string& bc_char) {
   if (!bc_char.compare("Interior")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCInterior());
     return bc_rec;
-  } else if (!bc_char.compare("Hard")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDummy());
-    return bc_rec;
   } else if (!bc_char.compare("Outflow")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCOutflow<DIM, Bound>());
     return bc_rec;
   } else if (!bc_char.compare("Symmetry")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
     return bc_rec;
-  } else if (!bc_char.compare("Dirichlet")) {
-    amrex::ParmParse bcinp(getBCName<DIM, Bound>());
-    amrex::Vector<amrex::Real> uvec;
-    bcinp.getarr("velocity", uvec, 0, AMREX_SPACEDIM);
-    amrex::Print() << "Dirichlet selected for DIM=" << DIM
-        << " lower/upper=" << Bound
-        << " fixedvalue=" << uvec[0] << " " << uvec[1] << " " << uvec[2]
-        << std::endl;
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCDirichlet<DIM, Bound>(uvec));
-    return bc_rec;
   } else if (!bc_char.compare("SlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
     return bc_rec;
   } else if (!bc_char.compare("NoSlipWall")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCNoSlipWall<DIM, Bound>());
+    amrex::ParmParse bcinp(getBCName<DIM, Bound>());
+    AMREX_ALWAYS_ASSERT( DIM == 2);
+    amrex::Vector<amrex::Real> uvec; uvec.resize(AMREX_SPACEDIM);
+    bool read_value = bcinp.queryarr("velocity", uvec, 0, AMREX_SPACEDIM);
+    if (!read_value) for (int i = 0; i < AMREX_SPACEDIM; i++) uvec[i] = 0.;
+    if (Bound == 0)
+      amrex::Print() << "NOTE: z-lo face has no-slip with specified vel = ";
+    else if (Bound == 1)
+      amrex::Print() << "NOTE: z-hi face has no-slip with specified vel = ";
+    amrex::Print()   << uvec[0] << " " << uvec[1] << " " << uvec[2] << std::endl;
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCNoSlipWall<DIM, Bound>(uvec));
     return bc_rec;
   } else if (!bc_char.compare("SimSlipWall")) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSimSlipWall<DIM, Bound>());
@@ -134,7 +131,7 @@ ERF::initialize_bcs(const std::string& bc_char) {
     return bc_rec;
   } else {
     amrex::Abort("Wrong boundary condition word, please use: "
-                 "Interior, Dirichlet, SimSlipWall, Symmetry, SlipWall, NoSlipWall");
+                 "Interior, Inflow, Outflow, Symmetry, SimSlipWall, SlipWall, NoSlipWall");
     return NULL;
   }
 }
@@ -221,8 +218,8 @@ ERF::read_params()
       bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>("Interior");
    }
 
-      if (lo_bc_char[2] == "NoSlipWall") lo_z_is_no_slip = true;
-      if (hi_bc_char[2] == "NoSlipWall") hi_z_is_no_slip = true;
+      if (lo_bc_char[2] == "NoSlipWall") lo_z_is_dirichlet = true;
+      if (hi_bc_char[2] == "NoSlipWall") hi_z_is_dirichlet = true;
 
       //
       // Check bc_recs against possible periodic geometry
