@@ -7,7 +7,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 1
-geometry.prob_extent = 6.2831853071795864    6.2831853071795864    6.2831853071795864
+geometry.prob_extent = 6.2831853071795864    6.2831853071795864    6.2831853071795864    
 amr.n_cell           = 64     64     4
 
 # TIME STEP CONTROL
@@ -55,4 +55,4 @@ prob.u_0 = 0.0
 prob.v_0 = 0.0
 prob.prob_type = 10
 
-FILE = inputs.time_integration
+FILE = ../inputs.time_integration
