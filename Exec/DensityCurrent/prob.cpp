@@ -155,9 +155,11 @@ erf_init_prob(
 
   // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
   const amrex::Real z0 = (0.5) * dx[2] + prob_lo[2];
+//const Real& Thetabar  = parms.T_0;
   amrex::Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
+//amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
   amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
-  amrex::Real rhobar = pbar / (R_d*Tbar);
+//amrex::Real rhobar = pbar / (R_d*Tbar); // UNUSED
 
   amrex::Real theta = parms.T_0;
 
@@ -168,7 +170,6 @@ erf_init_prob(
   p.resize(khi+1);
 
   const Real& rho_sfc   = p_0 / (R_d*parms.T_0);
-  const Real& Thetabar  = parms.T_0;
   const Real& dz        = dx[2];
   const Real& prob_lo_z = prob_lo[2];
 
@@ -178,11 +179,6 @@ erf_init_prob(
     // Geometry
     const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
-
-//  amrex::Real Tbar = parms.T_0 - z * CONST_GRAV / parms.C_p;
-//  amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
-//  amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
-//  amrex::Real rhobar = pbar / (R_d*Tbar);
 
     // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
     const amrex::Real Tbar_hse = p[0] / (R_d * r[0]);
