@@ -10,11 +10,10 @@ geometry.is_periodic =  1     1     0
 geometry.prob_extent = 32     4    16
 amr.n_cell           = 32     4    16
 
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-# Interior, UserBC, Symmetry, SlipWall, NoSlipWall
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-erf.lo_bc       = "Interior"   "Interior"   "NoSlipWall"
-erf.hi_bc       = "Interior"   "Interior"   "NoSlipWall"
+geometry.is_periodic = 1 1 0
+
+zlo.type = "NoSlipWall"
+zhi.type = "NoSlipWall"
 
 zlo.velocity    = 0.0 0.0 0.0  # for Dirichlet BC
 zhi.velocity    = 2.0 0.0 0.0  # for Dirichlet BC

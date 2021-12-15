@@ -99,6 +99,7 @@ template<int DIM, math_bcs::BCBound Bound>
 std::unique_ptr<phys_bcs::BCBase>
 ERF::initialize_bcs(const std::string& bc_char) {
   if (!bc_char.compare("Interior")) {
+    amrex::Print() <<" DOING INTERIOR " << std::endl;
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCInterior());
     return bc_rec;
   } else if (!bc_char.compare("Outflow")) {
@@ -108,6 +109,7 @@ ERF::initialize_bcs(const std::string& bc_char) {
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
     return bc_rec;
   } else if (!bc_char.compare("SlipWall")) {
+    amrex::Print() <<" DOING SLIP " << std::endl;
     std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
     return bc_rec;
   } else if (!bc_char.compare("NoSlipWall")) {
@@ -176,59 +178,76 @@ ERF::read_params()
       amrex::Error("Unknown coupling type");
   }
 
-  // This defaults to false; is only true if we want to call ABLFieldInit::init_params
-  pp.query("init_abl", init_abl);
+    // This defaults to false; is only true if we want to call ABLFieldInit::init_params
+    pp.query("init_abl", init_abl);
 
-  // Time step controls
-  pp.query("cfl", cfl);
-  pp.query("init_shrink", init_shrink);
-  pp.query("change_max", change_max);
-  pp.query("initial_dt", initial_dt);
-  pp.query("fixed_dt", fixed_dt);
-  pp.query("max_dt", max_dt);
-  pp.query("dt_cutoff", dt_cutoff);
+    // Time step controls
+    pp.query("cfl", cfl);
+    pp.query("init_shrink", init_shrink);
+    pp.query("change_max", change_max);
+    pp.query("initial_dt", initial_dt);
+    pp.query("fixed_dt", fixed_dt);
+    pp.query("max_dt", max_dt);
+    pp.query("dt_cutoff", dt_cutoff);
 
-  //
-  // Check for integer BC type specification in inputs file (older style)
-  //
-  amrex::Vector<std::string> lo_bc_char(AMREX_SPACEDIM);
-  amrex::Vector<std::string> hi_bc_char(AMREX_SPACEDIM);
+    int bc_tmp[2*AMREX_SPACEDIM];
 
-  if ( pp.contains("lo_bc") )
-  {
-      pp.getarr("lo_bc", lo_bc_char, 0, AMREX_SPACEDIM);
-      pp.getarr("hi_bc", hi_bc_char, 0, AMREX_SPACEDIM);
+    auto f = [&bc_tmp] (std::string const& bcid, Orientation ori)
+    {
+          ParmParse pbc(bcid);
+          std::string bc_type_in = "Interior";
+          pbc.query("type", bc_type_in);
+          std::string bc_type = amrex::toLower(bc_type_in);
 
-      if (lo_bc_char[0] == "NoSlipWall" || hi_bc_char[0] == "NoSlipWall" ||
-          lo_bc_char[1] == "NoSlipWall" || hi_bc_char[1] == "NoSlipWall")
-              amrex::Error("No-slip wall only allowed on z-faces");
+          if (bc_type_in == "NoSlipWall")
+              bc_tmp[ori] = PhysBCType::noslipwall;
+          else if (bc_type_in == "SlipWall")
+              bc_tmp[ori] = PhysBCType::slipwall;
+          else if (bc_type_in == "Inflow")
+              bc_tmp[ori] = PhysBCType::inflow;
+          else if (bc_type_in == "Outflow")
+              bc_tmp[ori] = PhysBCType::outflow;
+          else if (bc_type_in == "Symmetry")
+              bc_tmp[ori] = PhysBCType::symmetry;
+//        else if (bc_type_in == "ReflectOdd")
+//            bc_tmp[ori] = PhysBCType::reflectodd;
 
-      bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(lo_bc_char[0]);
-      bc_recs[1] = ERF::initialize_bcs<0, math_bcs::BCBound::upper>(hi_bc_char[0]);
-      bc_recs[2] = ERF::initialize_bcs<1, math_bcs::BCBound::lower>(lo_bc_char[1]);
-      bc_recs[3] = ERF::initialize_bcs<1, math_bcs::BCBound::upper>(hi_bc_char[1]);
-      bc_recs[4] = ERF::initialize_bcs<2, math_bcs::BCBound::lower>(lo_bc_char[2]);
-      bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>(hi_bc_char[2]);
-   } else {
-      bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>("Interior");
-      bc_recs[1] = ERF::initialize_bcs<0, math_bcs::BCBound::upper>("Interior");
-      bc_recs[2] = ERF::initialize_bcs<1, math_bcs::BCBound::lower>("Interior");
-      bc_recs[3] = ERF::initialize_bcs<1, math_bcs::BCBound::upper>("Interior");
-      bc_recs[4] = ERF::initialize_bcs<2, math_bcs::BCBound::lower>("Interior");
-      bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>("Interior");
-   }
+          int dir = ori.coordDir();
+          if (ori.isLow() && dir == 0)
+             bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(bc_type_in);
+          else if (!ori.isLow() && dir == 0)
+             bc_recs[1] = ERF::initialize_bcs<0, math_bcs::BCBound::upper>(bc_type_in);
+          if (ori.isLow() && dir == 1)
+             bc_recs[2] = ERF::initialize_bcs<1, math_bcs::BCBound::lower>(bc_type_in);
+          else if (!ori.isLow() && dir == 1)
+             bc_recs[3] = ERF::initialize_bcs<1, math_bcs::BCBound::upper>(bc_type_in);
+          else if (ori.isLow() && dir == 2)
+          {
+             bc_recs[4] = ERF::initialize_bcs<2, math_bcs::BCBound::lower>(bc_type_in);
+             if (bc_type_in == "NoSlipWall") lo_z_is_dirichlet = true;
+          }
+          else if (!ori.isLow() && dir == 2)
+          {
+             bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>(bc_type_in);
+             if (bc_type_in == "NoSlipWall") hi_z_is_dirichlet = true;
+          }
+    };
 
-      if (lo_bc_char[2] == "NoSlipWall") lo_z_is_dirichlet = true;
-      if (hi_bc_char[2] == "NoSlipWall") hi_z_is_dirichlet = true;
+    f("xlo", Orientation(Direction::x,Orientation::low ));
+    f("xhi", Orientation(Direction::x,Orientation::high));
+    f("ylo", Orientation(Direction::y,Orientation::low ));
+    f("yhi", Orientation(Direction::y,Orientation::high));
+    f("zlo", Orientation(Direction::z,Orientation::low ));
+    f("zhi", Orientation(Direction::z,Orientation::high));
 
-      //
-      // Check bc_recs against possible periodic geometry
-      // if periodic, must have internal BC marked.
-      //
-      //
-      // Do idiot check.  Periodic means interior in those directions.
-      //
-      for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
+    //
+    // Check bc_recs against possible periodic geometry
+    // if periodic, must have internal BC marked.
+    //
+    //
+    // Do idiot check.  Periodic means interior in those directions.
+    //
+    for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
         if (amrex::DefaultGeometry().isPeriodic(dir)) {
           if (
             !(bc_recs[2*dir]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
@@ -259,16 +278,16 @@ ERF::read_params()
         }
     }
 
-  // Sanity check
-  if (cfl <= 0.0 || cfl > 1.0) {
-    amrex::Error("Invalid CFL factor; must be between zero and one.");
-  }
+    // Sanity check
+    if (cfl <= 0.0 || cfl > 1.0) {
+      amrex::Error("Invalid CFL factor; must be between zero and one.");
+    }
 
-  if (max_dt < fixed_dt) {
-    amrex::Error("Cannot have max_dt < fixed_dt");
-  }
+    if (max_dt < fixed_dt) {
+      amrex::Error("Cannot have max_dt < fixed_dt");
+    }
 
-  solverChoice.init_params();
+    solverChoice.init_params();
 }
 
 ERF::ERF()

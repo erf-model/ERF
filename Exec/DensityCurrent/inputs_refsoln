@@ -7,17 +7,14 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.is_periodic = 1 1 0
 geometry.prob_lo     = -25600.   0.    0.
 geometry.prob_hi     =  25600. 100. 6400.
 amr.n_cell           =  2048   4    256   # dx=dy=dz=25 m, Straka et al 1993
 
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-# Interior, UserBC, Symmetry, SlipWall, NoSlipWall
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-# periodic in x matches WRF setup
-erf.lo_bc       = "Interior"   "Interior"   "SlipWall"
-erf.hi_bc       = "Interior"   "Interior"   "SlipWall"
+geometry.is_periodic = 1 1 0
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 #erf.fixed_dt       = 1.0     # fixed time step [s] -- from WRF
