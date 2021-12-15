@@ -7,48 +7,10 @@
 Domain Boundary Conditions
 --------------------------
 
-ERF provides two ways to specify boundary condition types: integer keys or keywords.
-An inputs file must choose one style or the other, they cannot be mixed.
-Here we provide examples of both styles. We then discuss how to provide Dirichlet
-boundary conditions. For a more detailed discussion of boundaries, see :ref:`sec:boundaries`
+ERF allows users to specify boundary condition with keywords.
+For a more detailed discussion of boundaries, see :ref:`sec:boundaries`
 
-Boundary conditions with integer keys
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-To specify boundary conditions with integer keys we use
-
--  erf.lo_bc: boundary type of each low face
-
--  erf.hi_bc: boundary type of each high face
-
-The valid boundary types are:
-
-+---------------------------+--------------------+
-| 0 – Interior / Periodic   | 3 – Symmetry       |
-+---------------------------+--------------------+
-| 1 – Inflow                | 4 – Slip Wall      |
-+---------------------------+--------------------+
-| 2 – Outflow               | 5 – No Slip Wall   |
-+---------------------------+--------------------+
-
-Note: ``erf.lo_bc`` and ``erf.hi_bc`` must be consistent with
-``geometry.is_periodic`` —if the domain is periodic in a particular
-direction then the low and high bc’s must be set to 0 for that direction.
-
-As an example, the following:
-
-::
-
-    erf.lo_bc = 1 0 4
-    erf.hi_bc = 2 0 4
-
-    geometry.is_periodic = 0 0 1
-
-would define a problem with inflow (1) in the low- :math:`x` direction,
-outflow (2) in the high- :math:`x` direction, periodic in the :math:`y`-direction.
-and slip wall (4) on the low and high :math:`z`-faces.
-
-Boundary conditions with keywords
+Domain Boundary Conditions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To specify boundary conditions with keywords, we use the following options
@@ -59,20 +21,20 @@ preceded by “xlo”, “xhi”, “ylo”, “yhi”, “zlo”, and “zhi”
 +====================+===========================================================================+=============+===========+
 | type               | Used to define boundary type. Available options include:                  |  String     |  None     |
 |                    |                                                                           |             |           |
-|                    | * 'po'  or 'pressure_outflow'                                             |             |           |
-|                    | * 'mi'  or 'mass_inflow'                                                  |             |           |
-|                    | * 'sw'  or 'slip_wall'                                                    |             |           |
-|                    | * 'nsw' or 'no_slip_wall'                                                 |             |           |
+|                    | * 'Outflow'                                                               |             |           |
+|                    | * 'Inflow'                                                                |             |           |
+|                    | * 'SlipWall'                                                              |             |           |
+|                    | * 'NoSlipWall'                                                            |             |           |
 +--------------------+---------------------------------------------------------------------------+-------------+-----------+
 
 To use the same example problem as above, the following:
 
 ::
 
-    xlo.type = mi
-    xhi.type = po
-    zlo.type = sw
-    zhi.type = sw
+    xlo.type = "Inflow"
+    xhi.type = "Outflow"
+    zlo.type = "SlipWall"
+    zhi.type = "SlipWall"
 
     geometry.is_periodic = 0 1 0
 
@@ -97,9 +59,9 @@ preceded by “xlo”, “xhi”, “ylo”, “yhi”, “zlo”, and “zhi”
 +--------------------+---------------------------------------------------------------------------+-------------+-----------+
 | density            | Sets boundary density for mass inflows                                    |    Real     |  None     |
 +--------------------+---------------------------------------------------------------------------+-------------+-----------+
-| tracer             | Sets boundary tracer concentration for mass inflows                       |    Real     |  None     |
+| tracer             | Sets boundary tracer concentration at inflow faces                        |    Real     |  None     |
 +--------------------+---------------------------------------------------------------------------+-------------+-----------+
-| temp               | Sets temperature for mass inflows                                         |    Real     |  None     |
+| theta              | Sets potential temperature at inflow faces                                |    Real     |  None     |
 +--------------------+---------------------------------------------------------------------------+-------------+-----------+
 
 
@@ -107,36 +69,18 @@ As an example,
 
 ::
 
-    xlo.type                =   "mass_inflow"
+    xlo.type                =   "Inflow"
     xlo.velocity            =   1.  0.  0.
     xlo.density             =   1.
     xlo.tracer              =   0.
-    xlo.temp                =   1.
+    xlo.theta               =   1.
 
 sets the boundary condtion type at the low x face to be an inflow with
-xlo.type = “mass_inflow”.
+xlo.type = “Inflow”.
 Then xlo.velocity = 1. 0. 0. sets the inflow velocity,
 xlo.density = 1. sets the inflow density,
 xlo.tracer = 0. sets the inflow tracer value, and
-xlo.temp = 1. sets the inflow temperature.
-
-Another example, from the Couette flow example,
-
-::
-
-    erf.lo_bc                =  4 4 5
-    erf.hi_bc                =  5 5 5
-
-    # 0 = Interior/Periodic  3 = Symmetry
-    # 1 = Inflow             4 = SlipWall
-    # 2 = Outflow            5 = NoSlipWall
-
-    # Boundary condition
-    zhi.velocity            =   2.  0.  0.
-
-Here, erf.hi_bc = 5 5 5 sets the boundary conditions on all high faces to no slip walls.
-zhi.velocity = 2. 0. 0. sets the wall at the high-z face to be moving in the x-direction.
-Note that ERF allows walls to move tangentially, but not in the normal direction.
+xlo.theta = 1. sets the inflow potential temperature.
 
 Users can create more complex Dirichlet boundary condtions by writing
 their own fill function in ``BCFill.H``, then using that function to create

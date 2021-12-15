@@ -59,44 +59,22 @@ Domain Boundary Conditions
 List of Parameters
 ------------------
 
-+---------------+---------------------------------+-------------------+-------------+
-| Parameter     | Definition                      | Acceptable Values | Default     |
-+===============+=================================+===================+=============+
-| **erf.lo_bc** | boundary type of each low face  | 0,1,2,3,4,5       | must be set |
-+---------------+---------------------------------+-------------------+-------------+
-| **erf.hi_bc** | boundary type of each high face | 0,1,2,3,4,5       | must be set |
-+---------------+---------------------------------+-------------------+-------------+
++---------------+---------------------------------+-------------------+----------------------------+
+| Parameter     | Definition                      | Acceptable Values | Default                    |
++===============+=================================+===================+============================+
+| **xlo.type**  | boundary type of xlo face       |                   | must be set if not periodic|
++---------------+---------------------------------+-------------------+----------------------------+
+| **xlo.type**  | boundary type of xhi face       |                   | must be set if not periodic|
++---------------+---------------------------------+-------------------+----------------------------+
+| **ylo.type**  | boundary type of ylo face       |                   | must be set if not periodic|
++---------------+---------------------------------+-------------------+----------------------------+
+| **ylo.type**  | boundary type of yhi face       |                   | must be set if not periodic|
++---------------+---------------------------------+-------------------+----------------------------+
+| **zlo.type**  | boundary type of zlo face       |                   | must be set if not periodic|
++---------------+---------------------------------+-------------------+----------------------------+
+| **zlo.type**  | boundary type of zhi face       |                   | must be set if not periodic|
++---------------+---------------------------------+-------------------+----------------------------+
 
-Notes
------
-
-Boundary types are:
-
-======================= ================
-0 – Interior / Periodic 3 – Symmetry
-1 – Inflow              4 – Slip Wall
-2 – Outflow             5 – No Slip Wall
-======================= ================
-
-Note – **erf.lo_bc** and **erf.hi_bc** must be consistent with
-**geometry.is_periodic** – if the domain is periodic in a particular
-direction then the low and high bc’s must be set to 0 for that
-direction.
-
-.. _examples-of-usage-1:
-
-Examples of Usage
------------------
-
--  **erf.lo_bc** = 1 4 0
-
--  **erf.hi_bc** = 2 4 0
-
--  **geometry.is_periodic** = 0 0 1
-
-would define a problem with inflow (1) in the low-x direction,
-outflow(2) in the high-x direction, slip wall (4) on the low and high
-y-faces, and periodic in the z-direction.
 
 Resolution
 ==========
