@@ -64,15 +64,15 @@ List of Parameters
 +===============+=================================+===================+============================+
 | **xlo.type**  | boundary type of xlo face       |                   | must be set if not periodic|
 +---------------+---------------------------------+-------------------+----------------------------+
-| **xlo.type**  | boundary type of xhi face       |                   | must be set if not periodic|
+| **xhi.type**  | boundary type of xhi face       |                   | must be set if not periodic|
 +---------------+---------------------------------+-------------------+----------------------------+
 | **ylo.type**  | boundary type of ylo face       |                   | must be set if not periodic|
 +---------------+---------------------------------+-------------------+----------------------------+
-| **ylo.type**  | boundary type of yhi face       |                   | must be set if not periodic|
+| **yhi.type**  | boundary type of yhi face       |                   | must be set if not periodic|
 +---------------+---------------------------------+-------------------+----------------------------+
 | **zlo.type**  | boundary type of zlo face       |                   | must be set if not periodic|
 +---------------+---------------------------------+-------------------+----------------------------+
-| **zlo.type**  | boundary type of zhi face       |                   | must be set if not periodic|
+| **zhi.type**  | boundary type of zhi face       |                   | must be set if not periodic|
 +---------------+---------------------------------+-------------------+----------------------------+
 
 
