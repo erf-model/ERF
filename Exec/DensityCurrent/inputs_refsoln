@@ -7,24 +7,18 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.is_periodic = 1 1 0
 geometry.prob_lo     = -25600.   0.    0.
 geometry.prob_hi     =  25600. 100. 6400.
 amr.n_cell           =  2048   4    256   # dx=dy=dz=25 m, Straka et al 1993
 
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-# Interior, UserBC, Symmetry, SlipWall, NoSlipWall
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-# periodic in x matches WRF setup
-erf.lo_bc       = "Interior"   "Interior"   "SlipWall"
-erf.hi_bc       = "Interior"   "Interior"   "SlipWall"
+geometry.is_periodic = 1 1 0
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 #erf.fixed_dt       = 1.0     # fixed time step [s] -- from WRF
 erf.fixed_dt       = 1.5625e-2  # fixed time step [s] -- Straka et al 1993
-erf.init_shrink    = 1.0     # scale back initial timestep
-erf.change_max     = 1.05    # scale back initial timestep
-erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -33,8 +27,6 @@ amr.v                = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
-amr.blocking_factor = 4       # block factor in grid generation
-amr.max_grid_size   = 64
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0
@@ -49,19 +41,15 @@ amr.plot_vars        =  density
 amr.derive_plot_vars = pressure theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.use_state_advection = true
-erf.use_momentum_advection = true
-erf.use_thermal_diffusion = false
-erf.alpha_T = 1.0
-erf.use_scalar_diffusion = false
-erf.alpha_C = 2.0
-erf.use_momentum_diffusion = true
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
 erf.use_gravity = true
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
 erf.spatial_order = 2
 
 erf.les_type         = "None"
+erf.moledctype       = "Constant"
 # diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858
 erf.dynamicViscosity = 87.108013935 # kg/(m-s)
 
@@ -69,4 +57,4 @@ erf.dynamicViscosity = 87.108013935 # kg/(m-s)
 prob.T_0 = 300.0
 prob.U_0 = 0.0
 
-FILE = ../inputs.time_integration
+FILE = ./inputs.time_integration

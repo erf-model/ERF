@@ -49,6 +49,52 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
         LABELS "regression"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
     )
+
+    set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNERK)
+    set(RUNTIME_OPTIONS "integration.sundials.strategy=ERK")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME_RUNTIME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+
+    add_test(${TEST_NAME_RUNTIME} ${test_command})
+    set_tests_properties(${TEST_NAME_RUNTIME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "sundials"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME_RUNTIME}.log"
+    )
+
+    set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNMRI_unit)
+    set(RUNTIME_OPTIONS "integration.sundials.strategy=MRITEST")
+    set(RUNTIME_OPTIONS2 "integration.rk.type=2 integration.sundials.strategy=NATIVE")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME_RUNTIME}.log && mv ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS2} > ${TEST_NAME_RUNTIME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime")
+
+    add_test(${TEST_NAME_RUNTIME} ${test_command})
+    set_tests_properties(${TEST_NAME_RUNTIME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "sundials"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME_RUNTIME}.log"
+
+    )
+
+    set(TEST_NAME_RUNTIME ${TEST_NAME}_SUNMRI)
+    set(RUNTIME_OPTIONS "integration.sundials.strategy=MRI")
+    set(RUNTIME_OPTIONS2 "integration.rk.type=2 integration.sundials.strategy=NATIVE")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME_RUNTIME}.log && mv ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS2} > ${TEST_NAME_RUNTIME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}_runtime")
+
+    add_test(${TEST_NAME_RUNTIME} ${test_command})
+    set_tests_properties(${TEST_NAME_RUNTIME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "sundials"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME_RUNTIME}.log"
+
+    )
 endfunction(add_test_r)
 
 # Standard unit test
@@ -73,12 +119,10 @@ endfunction(add_test_u)
 # Regression tests
 #=============================================================================
 add_test_r(ScalarAdvectionUniformU          "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
-add_test_r(ScalarAdvectionUniformUV         "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
-add_test_r(ScalarAdvectionShearedU          "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
+add_test_r(ScalarAdvectionShearedU          "ScalarAdvDiff/erf_scalar_advdiff" "plt00080")
 add_test_r(ScalarAdvectionDiffusionUniformU "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarDiffusionGaussian          "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(ScalarDiffusionSine              "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
-add_test_r(ScalarAdvectionRigidRotation     "ScalarAdvDiff/erf_scalar_advdiff" "plt00020")
 add_test_r(RayleighDamping                  "ScalarAdvDiff/erf_scalar_advdiff" "plt00100")
 add_test_r(IsentropicVortexStationary       "IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(IsentropicVortexAdvecting        "IsentropicVortex/erf_isentropic_vortex" "plt00010")

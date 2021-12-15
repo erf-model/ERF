@@ -56,8 +56,9 @@ erf_init_prob(
     const amrex::Real yc = parms.yc_frac * (prob_lo[1] + prob_hi[1]);
     const amrex::Real zc = parms.zc_frac * (prob_lo[2] + prob_hi[2]);
 
-    const amrex::Real r3d  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
-    const amrex::Real r2d  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
+    const amrex::Real r3d    = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
+    const amrex::Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
+    const amrex::Real r2d_xz = std::sqrt((x-xc)*(x-xc) + (z-zc)*(z-zc));
 
     const amrex::Real r0 = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
 
@@ -75,7 +76,9 @@ erf_init_prob(
         state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0 * sin(x);
 
     } else if (parms.prob_type == 11) {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d, r0) / r0));
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, r0) / r0));
+    } else if (parms.prob_type == 12) {
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
     } else {
         // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
         if (r3d < r0) {
@@ -99,13 +102,9 @@ erf_init_prob(
     const amrex::Real        z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
-    if (parms.prob_type == 11) {
-        x_vel(i, j, k) = -y + 0.5;
-    } else {
-        x_vel(i, j, k) = parms.u_0 + parms.uRef *
-                         std::log((z + parms.z0)/parms.z0)/
-                         std::log((parms.zRef +parms.z0)/parms.z0);
-    }
+    x_vel(i, j, k) = parms.u_0 + parms.uRef *
+                     std::log((z + parms.z0)/parms.z0)/
+                     std::log((parms.zRef +parms.z0)/parms.z0);
   });
 
   // Construct a box that is on y-faces
@@ -117,11 +116,7 @@ erf_init_prob(
     const amrex::Real*      dx = geomdata.CellSize();
     const amrex::Real        x = prob_lo[0] + (i + 0.5) * dx[0];
 
-    if (parms.prob_type == 11) {
-        y_vel(i, j, k) = x - 0.5;
-    } else {
-        y_vel(i, j, k) = parms.v_0;
-    }
+    y_vel(i, j, k) = parms.v_0;
   });
 
   // Construct a box that is on z-faces

@@ -16,35 +16,35 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
   int MAX_ITER = 10;
   amrex::Real TOL = 1.e-8;
 
-  int k = 0;
+  int k0 = 0;
   {
       // We do a Newton iteration to satisfy the EOS (with constant theta) and to discretely satisfy HSE
       bool converged_hse = false;
 
       // Initial guess
-      r[k] = r_sfc;
-      p[k] = getPgivenRTh(r[k]*theta);
+      r[k0] = r_sfc;
+      p[k0] = getPgivenRTh(r[k0]*theta);
 
-      Real p_eos = getPgivenRTh(r[k]*theta);
+      Real p_eos = getPgivenRTh(r[k0]*theta);
       Real p_hse;
 
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
           p_hse = p_0 -  (0.5*dz) * r_sfc * CONST_GRAV;
-          p_eos = getPgivenRTh(r[k]*theta);
+          p_eos = getPgivenRTh(r[k0]*theta);
 
           //amrex::Print() << "PHSE PEOS " << p_hse << " " << p_eos << std::endl;
 
           Real A = p_hse - p_eos;
 
-          Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
+          Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
 
           Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
 
           //amrex::Print() << "DRHO " << drho << std::endl;
 
-          r[k] = std::max(0.9*r_sfc, std::min(r[k] + drho, 1.1*r_sfc));
-          p[k] = getPgivenRTh(r[k]*theta);
+          r[k0] = std::max(0.9*r_sfc, std::min(r[k0] + drho, 1.1*r_sfc));
+          p[k0] = getPgivenRTh(r[k0]*theta);
 
           //amrex::Print() << "NEW R P " << r[0] << " " << p[0] << std::endl;
 
@@ -55,7 +55,7 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
           }
       }
 
-      if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
+      if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
       if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
 
       //amrex::Print() << " " << std::endl;

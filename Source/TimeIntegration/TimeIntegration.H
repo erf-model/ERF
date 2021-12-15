@@ -29,12 +29,12 @@ namespace IntVar {
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         const MultiFab& cons_in,
                         const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,
-                        int ngrow, int l_spatial_order);
+                        const int l_spatial_order, const int ngrow);
 
 void VelocityToMomentum(const MultiFab& xvel_in , const MultiFab& yvel_in, const MultiFab& zvel_in,
                         const MultiFab& cons_in,
                         MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out,
-                        int l_spatial_order);
+                        const int l_spatial_order, const int ngrow);
 
 /**
  * Update the cell-centered state and face-based velocity using a time integrator
@@ -81,14 +81,27 @@ void erf_rhs(int level,
              const amrex::Geometry geom, const amrex::Real dt,
                    amrex::InterpFaceRegister* ifr,
              const SolverChoice& solverChoice,
-             const bool lo_z_is_no_slip,
-             const bool hi_z_is_no_slip,
+             const bool lo_z_is_dirichlet,
+             const bool hi_z_is_dirichlet,
              const amrex::Real* dptr_dens_hse,
              const amrex::Real* dptr_pres_hse,
              const amrex::Real* dptr_rayleigh_tau,
              const amrex::Real* dptr_rayleigh_ubar,
              const amrex::Real* dptr_rayleigh_vbar,
              const amrex::Real* dptr_rayleigh_thetabar);
+
+void erf_fast_rhs(int level,
+                  Vector<MultiFab >& S_rhs,
+                  const Vector<MultiFab >& S_stage_data,
+                  const Vector<MultiFab >& S_data,
+                  std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+                  std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
+                  const amrex::Geometry geom, const amrex::Real dt,
+                        amrex::InterpFaceRegister* ifr,
+                  const SolverChoice& solverChoice,
+                  const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+                  const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
+                  const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar);
 
 AMREX_GPU_DEVICE
 Real InterpolateFromCellOrFace(const int &i, const int &j, const int &k,
@@ -171,8 +184,8 @@ Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
                                  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                  const Array4<Real>& Ksmag,
                                  const SolverChoice &solverChoice,
-                                 bool use_no_slip_stencil_at_lo_k,
-                                 bool use_no_slip_stencil_at_hi_k);
+                                 bool dirichlet_at_lo_k,
+                                 bool dirichlet_at_hi_k);
 
 AMREX_GPU_DEVICE
 Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,

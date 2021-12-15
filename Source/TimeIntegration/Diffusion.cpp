@@ -14,8 +14,8 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
                             const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                             const Array4<Real>& K_LES,
                             const SolverChoice &solverChoice,
-                            const bool use_no_slip_stencil_at_lo_k,
-                            const bool use_no_slip_stencil_at_hi_k)
+                            const bool dirichlet_at_lo_k,
+                            const bool dirichlet_at_hi_k)
 {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real diffusionContribution = 0.0;
@@ -33,10 +33,10 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
                                           DiffusionDir::y, cellSizeInv, K_LES, solverChoice, false, false);
             tau13Next = ComputeStressTerm(i, j, k+1, u, v, w, momentumEqn,
                                           DiffusionDir::z, cellSizeInv, K_LES, solverChoice,
-                                          false, use_no_slip_stencil_at_hi_k);
+                                          false, dirichlet_at_hi_k);
             tau13Prev = ComputeStressTerm(i, j, k  , u, v, w, momentumEqn,
                                           DiffusionDir::z, cellSizeInv, K_LES, solverChoice,
-                                          use_no_slip_stencil_at_lo_k, false);
+                                          dirichlet_at_lo_k, false);
 
             diffusionContribution = (tau11Next - tau11Prev) * dxInv  // Contribution to x-mom eqn from diffusive flux in x-dir
                                   + (tau12Next - tau12Prev) * dyInv  // Contribution to x-mom eqn from diffusive flux in y-dir
@@ -54,10 +54,10 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
                                           DiffusionDir::y, cellSizeInv, K_LES, solverChoice, false, false);
             tau23Next = ComputeStressTerm(i, j, k+1, u, v, w, momentumEqn,
                                           DiffusionDir::z, cellSizeInv, K_LES, solverChoice,
-                                          false, use_no_slip_stencil_at_hi_k);
+                                          false, dirichlet_at_hi_k);
             tau23Prev = ComputeStressTerm(i, j, k  , u, v, w, momentumEqn,
                                           DiffusionDir::z, cellSizeInv, K_LES, solverChoice,
-                                          use_no_slip_stencil_at_lo_k, false);
+                                          dirichlet_at_lo_k, false);
 
             diffusionContribution = (tau21Next - tau21Prev) * dxInv  // Contribution to y-mom eqn from diffusive flux in x-dir
                                   + (tau22Next - tau22Prev) * dyInv  // Contribution to y-mom eqn from diffusive flux in y-dir

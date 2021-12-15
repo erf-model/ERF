@@ -103,7 +103,7 @@ Runge-Kutta steps.  Then the fully explicit acoustic substepping evolves the equ
 
   W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} &=&  \delta \tau (
             -\gamma R_d \pi^t \frac{\partial \Theta^{\prime \prime, \tau}}{\partial z}
-            - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}} \frac{\Theta^{\prime \prime, t}}{\Theta^t}
+            - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}} \frac{\Theta^{\prime \prime}}{\Theta^t}
             + g \rho^{\prime \prime, t} + R^t_W )
 
   \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} &=& \delta \tau (
@@ -125,9 +125,11 @@ We note that :math:`\beta = 1` below would correspond to fully explicit; :math:`
 .. math::
 
   W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} &=&  \delta \tau (
-            -\gamma R_d \pi^t \frac{\partial ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} ) }{\partial z} \\
+            -\gamma R_d \pi^t \frac{\partial (     \beta  \Theta^{\prime \prime, \tau} +
+                                              (1 - \beta) \Theta^{\prime \prime, \tau  + \delta \tau} ) }{\partial z} \\
             && - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
-             \frac{ ( \beta \Theta^{\prime \prime, \tau}  (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t}
+             \frac{ (     \beta  \Theta^{\prime \prime, \tau}  +
+                     (1 - \beta) \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t}
             + g (\beta \rho^{\prime \prime, \tau} + (1 - \beta) \rho^{\prime \prime, \tau + \delta \tau } ) + R^t_W )
 
 .. math::

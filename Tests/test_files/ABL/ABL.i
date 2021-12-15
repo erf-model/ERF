@@ -7,8 +7,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 1 1 0
-geometry.prob_lo     =     0        0       0
-geometry.prob_hi     =  1024     1024    1024
+geometry.prob_extent =  1024     1024    1024
 amr.n_cell           =    64      64     64   # TODO: Enhance the resolution in y-direction
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
@@ -33,11 +32,6 @@ amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
-amr.ref_ratio       = 2 2 2 2 # refinement ratio
-amr.regrid_int      = 2 2 2 2 # how often to regrid
-amr.blocking_factor = 4       # block factor in grid generation
-amr.max_grid_size   = 128
-amr.n_error_buf     = 2 2 2 2 # number of buffer cells in error est
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0
@@ -52,17 +46,13 @@ amr.plot_vars        =  density rhoadv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.use_state_advection = true
-erf.use_momentum_advection = true
-erf.use_thermal_diffusion = false
 erf.alpha_T = 0.0
-erf.use_scalar_diffusion = true
 erf.alpha_C = 1.0
-erf.use_momentum_diffusion = true
 erf.use_gravity = false
 
-erf.les_type = "Smagorinsky"
-erf.Cs       = 0.1
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.1
 
 erf.spatial_order = 2
 

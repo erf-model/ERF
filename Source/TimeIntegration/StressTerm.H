@@ -64,22 +64,19 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
                    const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                    const Array4<Real>& K_LES,
                    const SolverChoice &solverChoice,
-                   bool use_no_slip_stencil_lo,
-                   bool use_no_slip_stencil_hi)
+                   bool dirichlet_lo, bool dirichlet_hi)
 {
 
     // Here, we have computed strain rate on the fly.
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
-    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv,
-                                       use_no_slip_stencil_lo, use_no_slip_stencil_hi);
+    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv, dirichlet_lo, dirichlet_hi);
 
     // D_ij term
     Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
 
     Real strainRateDeviatoric = strainRate - expansionRate; // sigma_ij = S_ij - D_ij
 
-    Real stressTerm = ComputeStressGivenRates(i,j,k,momentumEqn,diffDir,K_LES,solverChoice,
-                                                strainRateDeviatoric);
+    Real stressTerm = ComputeStressGivenRates(i,j,k,momentumEqn,diffDir,K_LES,solverChoice, strainRateDeviatoric);
 
     return stressTerm;
 }

@@ -1,21 +1,18 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 20
+max_step = 80
 
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.is_periodic = 1 1 1
-geometry.prob_lo     =  0     0     0
-geometry.prob_hi     =  8     8     8
-amr.n_cell           = 16     4    16
+geometry.prob_extent =  8     8     8
+amr.n_cell           = 64     4    64
 
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-# Interior, UserBC, Symmetry, SlipWall, NoSlipWall
-# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-erf.lo_bc       = "Interior"   "Interior"   "Interior"
-erf.hi_bc       = "Interior"   "Interior"   "Interior"
+geometry.is_periodic = 1 1 0
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.cfl            = 0.9     # cfl number for hyperbolic system
@@ -31,11 +28,6 @@ amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
-#amr.ref_ratio       = 2 2 2 2 # refinement ratio
-#amr.regrid_int      = 2 2 2 2 # how often to regrid
-amr.blocking_factor = 2       # block factor in grid generation
-amr.max_grid_size   = 64
-amr.n_error_buf     = 2 2 2 2 # number of buffer cells in error est
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0
@@ -45,21 +37,17 @@ amr.check_int       = 100        # number of timesteps between checkpoints
 # PLOTFILES
 amr.plot_files_output = 1
 amr.plot_file       = plt        # root name of plotfile
-amr.plot_int        = 20       # number of timesteps between plotfiles
+amr.plot_int        = 20      # number of timesteps between plotfiles
 amr.plot_vars        =  density rhoadv_0
 amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
 
 # SOLVER CHOICE
-erf.use_state_advection = true
-erf.use_momentum_advection = true
-erf.use_thermal_diffusion = false
 erf.alpha_T = 0.0
-erf.use_scalar_diffusion = false
 erf.alpha_C = 0.0
-erf.use_momentum_diffusion = false
 erf.use_gravity = false
 
 erf.les_type         = "None"
+erf.molec_diff_type  = "None"
 erf.dynamicViscosity = 0.0
 
 erf.spatial_order = 2
@@ -75,6 +63,7 @@ prob.z0    = 0.1
 prob.zRef  = 80.0
 prob.uRef  = 8.0
 
+prob.prob_type = 12
 
 # INTEGRATION
 ## integration.type can take on the following values:
