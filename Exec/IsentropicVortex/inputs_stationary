@@ -6,9 +6,13 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.is_periodic = 1 1 1
 geometry.prob_extent = 64   64   64  
 amr.n_cell           = 64   64   64  # Consider reducing n_cell in z-dir
+
+geometry.is_periodic = 1 1 0
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 #erf.cfl            = 0.9     # cfl number for hyperbolic system
