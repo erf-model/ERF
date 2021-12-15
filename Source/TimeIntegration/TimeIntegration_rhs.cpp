@@ -135,9 +135,9 @@ void erf_rhs (int level,
         const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
-        const Array4<Real> & u = xvel.array(mfi);
-        const Array4<Real> & v = yvel.array(mfi);
-        const Array4<Real> & w = zvel.array(mfi);
+        const Array4<const Real> & u = xvel.array(mfi);
+        const Array4<const Real> & v = yvel.array(mfi);
+        const Array4<const Real> & w = zvel.array(mfi);
 
         const Array4<const Real>& rho_u = S_data[IntVar::xmom].array(mfi);
         const Array4<const Real>& rho_v = S_data[IntVar::ymom].array(mfi);
@@ -250,8 +250,19 @@ void erf_rhs (int level,
             // Add diffusive terms
             bool dirichlet_at_lo_k = ( (k == klo) && lo_z_is_dirichlet);
             bool dirichlet_at_hi_k = ( (k == khi) && hi_z_is_dirichlet);
-            rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, K_LES, solverChoice,
-                                                              dirichlet_at_lo_k,dirichlet_at_hi_k);
+            if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity)
+            {
+                // DiffusionContributionForMom calls ComputeStressTerm, which returns mu_effective * strainRateDeviatoric
+                // For "ConstantK" (in DNS mode), mu_effective is twice the kinematic viscosity
+                // The factor of rho is provided by passing in rho*u instead of u
+                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, rho_u, rho_v, rho_w, MomentumEqn::x, dxInv, K_LES, solverChoice,
+                                                                  dirichlet_at_lo_k,dirichlet_at_hi_k);
+            }
+            else
+            {
+                rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, K_LES, solverChoice,
+                                                                  dirichlet_at_lo_k,dirichlet_at_hi_k);
+            }
 
             // Add pressure gradient
             rho_u_rhs(i, j, k) += (-dxInv[0]) *
@@ -310,8 +321,19 @@ void erf_rhs (int level,
             // Add diffusive terms
             bool dirichlet_at_lo_k = ( (k == klo) && lo_z_is_dirichlet);
             bool dirichlet_at_hi_k = ( (k == khi) && hi_z_is_dirichlet);
-            rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, K_LES, solverChoice,
-                                                              dirichlet_at_lo_k,dirichlet_at_hi_k);
+            if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity)
+            {
+                // DiffusionContributionForMom calls ComputeStressTerm, which returns mu_effective * strainRateDeviatoric
+                // For "ConstantK" (in DNS mode), mu_effective is twice the kinematic viscosity
+                // The factor of rho is provided by passing in rho*u instead of u
+                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, rho_u, rho_v, rho_w, MomentumEqn::y, dxInv, K_LES, solverChoice,
+                                                                  dirichlet_at_lo_k,dirichlet_at_hi_k);
+            }
+            else
+            {
+                rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, K_LES, solverChoice,
+                                                                  dirichlet_at_lo_k,dirichlet_at_hi_k);
+            }
 
             // Add pressure gradient
             rho_v_rhs(i, j, k) += (-dxInv[1]) *
@@ -366,8 +388,19 @@ void erf_rhs (int level,
             rho_w_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dxInv, solverChoice);
 
             // Add diffusive terms
-            rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, K_LES, solverChoice,
-                                                              false, false);
+            if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity)
+            {
+                // DiffusionContributionForMom calls ComputeStressTerm, which returns mu_effective * strainRateDeviatoric
+                // For "ConstantK" (in DNS mode), mu_effective is twice the kinematic viscosity
+                // The factor of rho is provided by passing in rho*u instead of u
+                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, rho_u, rho_v, rho_w, MomentumEqn::z, dxInv, K_LES, solverChoice,
+                                                                  false, false);
+            }
+            else
+            {
+                rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, K_LES, solverChoice,
+                                                                  false, false);
+            }
 
             // Add pressure gradient
             rho_w_rhs(i, j, k) += (-dxInv[2]) *

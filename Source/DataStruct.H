@@ -37,7 +37,7 @@ enum class LESType {
 };
 
 enum class MolecDiffType {
-    None, Constant
+    None, Constant, ConstantDiffusivity
 };
 
 struct SolverChoice {
@@ -68,7 +68,7 @@ struct SolverChoice {
         // Include molecular transport? Default to no.
         static std::string molec_diff_type_string = "None";
 
-        // If no LES then default to "Constant"
+        // If not running LES then default to "Constant"
         if (les_type == LESType::None) { // DNS
             molec_diff_type_string = "Constant"; // For DNS, use constant molecular viscosity
         }
@@ -78,6 +78,8 @@ struct SolverChoice {
 
         if (!molec_diff_type_string.compare("Constant")) {
             molec_diff_type = MolecDiffType::Constant;
+        } else if (!molec_diff_type_string.compare("ConstantDiffusivity")) {
+            molec_diff_type = MolecDiffType::ConstantDiffusivity;
         } else if (!molec_diff_type_string.compare("None")) {
             molec_diff_type = MolecDiffType::None;
         } else {
@@ -93,6 +95,13 @@ struct SolverChoice {
         pp.query("Pr_t", Pr_t);
         pp.query("Sc_t", Sc_t);
         pp.query("rho0_trans", rho0_trans);
+
+        if (molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+            amrex::Print() << "Using constant kinematic diffusion coefficients" << std::endl;
+            amrex::Print() << "  momentum : " << dynamicViscosity/rho0_trans << " m^2/s" << std::endl;
+            amrex::Print() << "  temperature : " << alpha_T << " m^2/s" << std::endl;
+            amrex::Print() << "  scalar : " << alpha_C << " m^2/s" << std::endl;
+        }
 
         pp.query("Ce" , Ce);
         pp.query("Ck" , Ck);
@@ -238,12 +247,12 @@ struct SolverChoice {
 
     // Molecular transport model
     MolecDiffType molec_diff_type;
-    // Diffusive/viscous coefficients (units m2/s)
+    // Diffusive/viscous coefficients [m2/s]
     amrex::Real alpha_T = 0.0;
     amrex::Real alpha_C = 0.0;
-    // Density for computation of rhoAlpha (which is assumed constant)
+    // Density for computation of rhoAlpha (which is assumed constant) [kg/m3]
     amrex::Real rho0_trans = 1.0;
-    // Dynamic diffusion coefficients
+    // Dynamic diffusion coefficients [kg/(m-s)]
     amrex::Real rhoAlpha_T = 0.0;
     amrex::Real rhoAlpha_C = 0.0;
     amrex::Real dynamicViscosity = 0.0;

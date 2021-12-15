@@ -29,6 +29,10 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
         case MolecDiffType::Constant:
             mu_effective += 2.0 * solverChoice.dynamicViscosity; // 2*mu
             break;
+        case MolecDiffType::ConstantDiffusivity:
+            // strain rate is calculated with rho*u, rho*v, rho*w instead of u,v,w
+            mu_effective += 2.0 * solverChoice.dynamicViscosity/solverChoice.rho0_trans; // 2*nu
+            break;
         case MolecDiffType::None:
             break;
         default:
@@ -58,7 +62,7 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 inline Real
 ComputeStressTerm (const int &i, const int &j, const int &k,
-                   const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                   const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                    const enum MomentumEqn &momentumEqn,
                    const enum DiffusionDir &diffDir,
                    const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,

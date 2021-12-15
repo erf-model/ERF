@@ -7,7 +7,7 @@
 AMREX_GPU_DEVICE
 inline Real
 ComputeTKEProduction (const int &i, const int &j, const int &k,
-                      const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                      const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                       const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                       const Array4<Real>& K_LES,
                       const SolverChoice &solverChoice,

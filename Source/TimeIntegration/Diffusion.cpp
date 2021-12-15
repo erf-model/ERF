@@ -9,7 +9,7 @@ using namespace amrex;
 AMREX_GPU_DEVICE
 Real
 DiffusionContributionForMom(const int &i, const int &j, const int &k,
-                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                            const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                             const enum MomentumEqn &momentumEqn,
                             const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                             const Array4<Real>& K_LES,
@@ -108,17 +108,33 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   // Get diffusion coefficients
   amrex::Real rhoAlpha_molec;
   amrex::Real Pr_or_Sc_turb_inv;
+  amrex::Real rhoFace;
+  if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+    rhoFace = (cell_data(il, jl, kl, Rho_comp) + cell_data(ir, jr, kr, Rho_comp)) / 2.0;
+  }
   switch(qty_index) {
   case RhoTheta_comp: // Temperature
-    rhoAlpha_molec = solverChoice.rhoAlpha_T;
+    if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+        rhoAlpha_molec = rhoFace * solverChoice.alpha_T;
+    } else {
+        rhoAlpha_molec = solverChoice.rhoAlpha_T;
+    }
     Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
     break;
   case RhoKE_comp: // Turbulent KE
-    rhoAlpha_molec = solverChoice.rhoAlpha_T;
+    if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+        rhoAlpha_molec = rhoFace * solverChoice.alpha_T;
+    } else {
+        rhoAlpha_molec = solverChoice.rhoAlpha_T;
+    }
     Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
     break;
   case RhoScalar_comp: // Scalar
-    rhoAlpha_molec = solverChoice.rhoAlpha_C;
+    if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+        rhoAlpha_molec = rhoFace * solverChoice.alpha_C;
+    } else {
+        rhoAlpha_molec = solverChoice.rhoAlpha_C;
+    }
     Pr_or_Sc_turb_inv = solverChoice.Sc_t_inv;
     break;
   default:
@@ -128,6 +144,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   amrex::Real rhoAlpha = 0.0;
   switch (solverChoice.molec_diff_type) {
   case MolecDiffType::Constant:
+  case MolecDiffType::ConstantDiffusivity:
     rhoAlpha += rhoAlpha_molec;
     break;
   case MolecDiffType::None:
