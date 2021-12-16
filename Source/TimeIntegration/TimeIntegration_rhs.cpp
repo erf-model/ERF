@@ -13,6 +13,9 @@ using namespace amrex;
 void erf_rhs (int level,
               Vector<MultiFab>& S_rhs,
               const Vector<MultiFab>& S_data,
+              MultiFab& xvel,
+              MultiFab& yvel,
+              MultiFab& zvel,
               MultiFab& source,
               std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
               std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
@@ -33,26 +36,6 @@ void erf_rhs (int level,
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const auto& ba = S_data[IntVar::cons].boxArray();
     const auto& dm = S_data[IntVar::cons].DistributionMap();
-
-    amrex::MultiFab xvel(convert(ba,IntVect(1,0,0)), dm, 1, 1);
-    amrex::MultiFab yvel(convert(ba,IntVect(0,1,0)), dm, 1, 1);
-    amrex::MultiFab zvel(convert(ba,IntVect(0,0,1)), dm, 1, 1);
-
-    MomentumToVelocity(xvel, yvel, zvel,
-                       S_data[IntVar::cons],
-                       S_data[IntVar::xmom],
-                       S_data[IntVar::ymom],
-                       S_data[IntVar::zmom],
-                       solverChoice.spatial_order, xvel.nGrow());
-
-    xvel.FillBoundary(geom.periodicity());
-    yvel.FillBoundary(geom.periodicity());
-    zvel.FillBoundary(geom.periodicity());
-
-    // Apply BC on velocity data on faces
-    // Note that the BC was already applied on momentum
-    amrex::Vector<MultiFab*> vel_vars{&xvel, &yvel, &zvel};
-    ERF::applyBCs(geom, vel_vars);
 
     // *************************************************************************
     // Set gravity as a vector

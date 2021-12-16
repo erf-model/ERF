@@ -194,6 +194,23 @@ void erf_advance(int level,
     interpolate_coarse_fine_faces(state_old);
     apply_bcs(state_old);
 
+    MomentumToVelocity(xvel_new, yvel_new, zvel_new,
+                       state_old[IntVar::cons],
+                       state_old[IntVar::xmom],
+                       state_old[IntVar::ymom],
+                       state_old[IntVar::zmom],
+                       solverChoice.spatial_order,
+                       xvel_new.nGrow());
+
+    xvel_new.FillBoundary(fine_geom.periodicity());
+    yvel_new.FillBoundary(fine_geom.periodicity());
+    zvel_new.FillBoundary(fine_geom.periodicity());
+
+    // Apply BC on velocity data on faces
+    // Note that the BC was already applied on momentum
+    amrex::Vector<MultiFab*> vel_vars{&xvel_new, &yvel_new, &zvel_new};
+    ERF::applyBCs(fine_geom, vel_vars);
+
     // **************************************************************************************
     // Setup the integrator
     // **************************************************************************************
@@ -263,6 +280,7 @@ void erf_advance(int level,
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
                        const Vector<MultiFab>& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data,
+                xvel_new, yvel_new, zvel_new,
                 source,
                 advflux, diffflux,
                 fine_geom, dt,
@@ -300,6 +318,23 @@ void erf_advance(int level,
         // TODO: we should interpolate coarse data in time first, so that this interplation
         // in space is at the correct time indicated by the `time` function argument.
         interpolate_coarse_fine_faces(S_data);
+
+        MomentumToVelocity(xvel_new, yvel_new, zvel_new,
+                           S_data[IntVar::cons],
+                           S_data[IntVar::xmom],
+                           S_data[IntVar::ymom],
+                           S_data[IntVar::zmom],
+                           solverChoice.spatial_order, xvel_new.nGrow());
+
+        xvel_new.FillBoundary(fine_geom.periodicity());
+        yvel_new.FillBoundary(fine_geom.periodicity());
+        zvel_new.FillBoundary(fine_geom.periodicity());
+
+        // Apply BC on velocity data on faces
+        // Note that the BC was already applied on momentum
+        amrex::Vector<MultiFab*> vel_vars{&xvel_new, &yvel_new, &zvel_new};
+        ERF::applyBCs(fine_geom, vel_vars);
+
     };
 
     // define rhs and 'post update' utility function that is called after calculating
