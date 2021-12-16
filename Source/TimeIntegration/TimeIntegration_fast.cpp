@@ -250,11 +250,12 @@ void erf_fast_rhs (int level,
                 // Add gravity term
                 Real rhobar = 0.5 * (dptr_dens_hse[k] + dptr_dens_hse[k-1]);
                 Real  pibar = std::pow(0.5 * (dptr_pres_hse[k] + dptr_pres_hse[k-1]),R_d/c_p);
+                Real wadv = 0.0; // We will not use this since we are using 2nd order interpolation
                 rho_w_rhs(i, j, k) += grav_gpu[2] * (
-                    InterpolateFromCellOrFace(i, j, k, delta_rho, 0, Coord::z, 2)
+                    InterpolateFromCellOrFace(i, j, k, delta_rho, 0, wadv, Coord::z, 2)
                     - (R_d / (c_p - R_d)) * exner_pi_c * rhobar / pibar *
-                    InterpolateFromCellOrFace(i, j, k, delta_rho_theta,             0, Coord::z, 2) /
-                    InterpolateFromCellOrFace(i, j, k, cell_stage_data, RhoTheta_comp, Coord::z, 2) );
+                    InterpolateFromCellOrFace(i, j, k, delta_rho_theta,             0, wadv, Coord::z, 2) /
+                    InterpolateFromCellOrFace(i, j, k, cell_stage_data, RhoTheta_comp, wadv, Coord::z, 2) );
 
             } // not on coarse-fine boundary
         });
