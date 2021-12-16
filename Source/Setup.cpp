@@ -360,6 +360,8 @@ ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
     // Note ng_pres_hse = 1
     hptr_pres[-1] = p_0 + (0.5*dz) * dens[0] * l_gravity;
     hptr_pres[ 0] = p_0 - (0.5*dz) * dens[0] * l_gravity;
+    //amrex::Print() << "erf_enforce_hse: p[-1] = " << hptr_pres[-1] << " (ghost)" << std::endl;
+    //amrex::Print() << "erf_enforce_hse: p[ 0] = " << hptr_pres[ 0] << std::endl;
 
     for (int k = 1; k < nz+ng_pres_hse; k++)
     {
