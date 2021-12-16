@@ -6,7 +6,7 @@ AMREX_GPU_DEVICE
 Real
 ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
                               const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                              const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                              const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                               const enum AdvectedQuantity &advectedQuantity,
                               const enum AdvectingQuantity &advectingQuantity,
                               const int &spatial_order)
@@ -80,7 +80,7 @@ AMREX_GPU_DEVICE
 Real
 AdvectionContributionForMom(const int &i, const int &j, const int &k,
                             const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                            const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                            const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                             const enum MomentumEqn &momentumEqn,
                             const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                             const SolverChoice &solverChoice) {
