@@ -154,38 +154,32 @@ erf_init_prob(
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
   // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
-  const amrex::Real z0 = (0.5) * dx[2] + prob_lo[2];
-  amrex::Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
-  amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
-  amrex::Real rhobar = pbar / (R_d*Tbar);
+//const amrex::Real z0 = (0.5) * dx[2] + prob_lo[2];
+//const amrex::Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
+//const amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
+//const amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
+//const amrex::Real rhobar = pbar / (R_d*Tbar); // UNUSED
 
-  amrex::Real theta = parms.T_0;
+  const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
+  const amrex::Real& thetabar  = parms.T_0;
+  const amrex::Real& dz        = dx[2];
+  const amrex::Real& prob_lo_z = prob_lo[2];
 
+  // These are at cell centers (unstaggered)
   amrex::Vector<amrex::Real> r;
   amrex::Vector<amrex::Real> p;
-
   r.resize(khi+1);
   p.resize(khi+1);
 
-  const Real& rho_sfc   = p_0 / (R_d*parms.T_0);
-  const Real& Thetabar  = parms.T_0;
-  const Real& dz        = dx[2];
-  const Real& prob_lo_z = prob_lo[2];
-
-  init_isentropic_hse(rho_sfc,theta,r.data(),p.data(),dz,prob_lo_z,khi);
+  init_isentropic_hse(rho_sfc,thetabar,r.data(),p.data(),dz,prob_lo_z,khi);
 
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
     const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-//  amrex::Real Tbar = parms.T_0 - z * CONST_GRAV / parms.C_p;
-//  amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
-//  amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
-//  amrex::Real rhobar = pbar / (R_d*Tbar);
-
     // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-    const amrex::Real Tbar_hse = p[0] / (R_d * r[0]);
+    const amrex::Real Tbar_hse = p[k] / (R_d * r[k]);
 
     amrex::Real L = std::sqrt(
         std::pow((x - parms.x_c)/parms.x_r, 2) +
@@ -203,7 +197,7 @@ erf_init_prob(
     state(i, j, k, Rho_comp) = r[k];
 
     // Note: dT is a perturbation temperature, which should be converted to a delta theta
-    state(i, j, k, RhoTheta_comp) = r[k] * (Tbar_hse+dT)*std::pow(p_0/pbar, R_d/parms.C_p);
+    state(i, j, k, RhoTheta_comp) = r[k] * (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
 
     // Using this is a test of whether the initial state is in fact hydrostatically stratified
     //state(i, j, k, RhoTheta_comp) = r[k] * parms.T_0;

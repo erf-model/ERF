@@ -171,6 +171,25 @@ ERF::variableSetUp()
     "pressure", amrex::IndexType::TheCellType(), 1, erf_derpres, the_same_box);
   derive_lst.addComponent("pressure", desc_lst, State_Type, Rho_comp, NVAR);
 
+  // - hydrostatic equilibrium (base state)
+  derive_lst.add(
+    "pres_hse", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
+
+  // - deviation from hydrostatic equilibrium (perturbation)
+  derive_lst.add(
+    "pert_pres", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
+
+  //
+  // Density
+  //
+  // - hydrostatic equilibrium (base state)
+  derive_lst.add(
+    "dens_hse", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
+
+  // - deviation from hydrostatic equilibrium (perturbation)
+  derive_lst.add(
+    "pert_dens", amrex::IndexType::TheCellType(), 1, erf_dernull, the_same_box);
+
   //
   // Temperature
   //
@@ -341,6 +360,8 @@ ERF::erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
     // Note ng_pres_hse = 1
     hptr_pres[-1] = p_0 + (0.5*dz) * dens[0] * l_gravity;
     hptr_pres[ 0] = p_0 - (0.5*dz) * dens[0] * l_gravity;
+    //amrex::Print() << "erf_enforce_hse: p[-1] = " << hptr_pres[-1] << " (ghost)" << std::endl;
+    //amrex::Print() << "erf_enforce_hse: p[ 0] = " << hptr_pres[ 0] << std::endl;
 
     for (int k = 1; k < nz+ng_pres_hse; k++)
     {

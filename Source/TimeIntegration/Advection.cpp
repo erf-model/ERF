@@ -46,6 +46,7 @@ AdvectionContributionForXMom(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 Real
+
 AdvectionContributionForYMom(const int &i, const int &j, const int &k,
                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                              const Array4<const Real>& v,
