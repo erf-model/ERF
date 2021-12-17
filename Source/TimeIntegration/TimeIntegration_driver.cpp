@@ -91,7 +91,6 @@ void erf_advance(int level,
     };
 
     MultiFab S_prim(ba, dm, NUM_PRIM, cons_old.nGrowVect());
-    cons_to_prim(cons_old, S_prim);
 
     // **************************************************************************************
     // These are temporary arrays that we use to store the accumulation of the fluxes
@@ -227,9 +226,9 @@ void erf_advance(int level,
         ERF::applyBCs(fine_geom, vel_vars);
     };
 
-    // are these in the right order?
     interpolate_coarse_fine_faces(state_old);
     apply_bcs(state_old);
+    cons_to_prim(state_old[IntVar::cons], S_prim);
 
     // **************************************************************************************
     // Setup the integrator
