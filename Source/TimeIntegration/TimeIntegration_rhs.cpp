@@ -115,6 +115,7 @@ void erf_rhs (int level,
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+        const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
@@ -155,24 +156,24 @@ void erf_rhs (int level,
 
             // Add advection terms.
             if ((n != RhoKE_comp) || l_use_deardorff)
-                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data, n,
+                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
                                          advflux_x, advflux_y, advflux_z, dxInv, l_spatial_order);
 
             // Add diffusive terms.
             if (n == RhoTheta_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoTheta_comp,
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_prim, RhoTheta_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
             if (n == RhoScalar_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoScalar_comp,
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_prim, RhoScalar_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
             if (l_use_deardorff && n == RhoKE_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k,cell_data, RhoKE_comp,
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_prim, RhoKE_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
 
             // Add Rayleigh damping
             if (solverChoice.use_rayleigh_damping && n == RhoTheta_comp)
             {
-                Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
+                Real theta = cell_prim(i,j,k,PrimTheta_comp);
                 cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,Rho_comp);
             }
 
@@ -183,7 +184,7 @@ void erf_rhs (int level,
                 cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,dxInv,K_LES,solverChoice,
                                                              dirichlet_at_lo_k, dirichlet_at_hi_k)
                                      +  cell_data(i,j,k,Rho_comp) * l_C_e *
-                    std::pow(cell_data(i,j,k,n)/cell_data(i,j,k,Rho_comp),1.5) / l_Delta;
+                    std::pow(cell_prim(i,j,k,PrimKE_comp),1.5) / l_Delta;
             }
 
             // Add source terms. TODO: Put this under a if condition when we implement source term
