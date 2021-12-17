@@ -14,4 +14,10 @@
 
 #define NUM_ADV 1
 
+// cell-centered primitive variables
+#define PrimTheta_comp   0
+#define PrimKE_comp      1
+#define PrimScalar_comp  2
+#define NUM_PRIM         2 + NUM_ADV // (assumes NUM_ADV >= 1)
+
 #endif

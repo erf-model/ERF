@@ -25,6 +25,7 @@ preceded by “xlo”, “xhi”, “ylo”, “yhi”, “zlo”, and “zhi”
 |                    | * 'Inflow'                                                                |             |           |
 |                    | * 'SlipWall'                                                              |             |           |
 |                    | * 'NoSlipWall'                                                            |             |           |
+|                    | * 'MostWall'                                                              |             |           |
 +--------------------+---------------------------------------------------------------------------+-------------+-----------+
 
 To use the same example problem as above, the following:
@@ -140,6 +141,14 @@ includes
    -  velocity: EXT_DIR, :math:`u_n=0`; HOEXTRAP, :math:`u_t`
 
    -  temperature: REFLECT_EVEN, :math:`dT/dn=0`
+
+   -  scalars: HOEXTRAP
+
+-  *Most Wall with Adiabatic Temp*:
+
+   -  velocity: EXT_DIR, :math:`u_n=0`; EXT_DIR, :math:`u_most`
+
+   -  temperature: EXT_DIR, :math:`T=T_most`
 
    -  scalars: HOEXTRAP
 

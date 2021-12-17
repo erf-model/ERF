@@ -39,7 +39,6 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
             amrex::Abort("Error: Molecular diffusion/viscosity model is unrecognized");
     }
 
-    // TODO: Add Deardorff model, perhaps take advantage of turbulence model indicator
     switch (solverChoice.les_type) {
         case LESType::Smagorinsky:
             // mu_effective = 2*mu + 2*mu_t if MolecDiffType::Constant else 2*mu_t

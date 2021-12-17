@@ -74,6 +74,25 @@ void erf_advance(int level,
     const DistributionMapping& dm = cons_old.DistributionMap();
 
     // **************************************************************************************
+    // Temporary array that we use to store primitive advected quantities for the RHS
+    // **************************************************************************************
+    auto cons_to_prim = [&](const MultiFab& cons_state, MultiFab& prim_state) {
+      for (MFIter mfi(cons_state,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+          const Box& gbx = mfi.growntilebox(cons_state.nGrowVect());
+          const Array4<const Real>& cons_arr = cons_state.array(mfi);
+          const Array4<Real>& prim_arr = prim_state.array(mfi);
+
+          amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            for (int n = 0; n < NUM_PRIM; ++n) {
+              prim_arr(i,j,k,PrimTheta_comp + n) = cons_arr(i,j,k,RhoTheta_comp + n) / cons_arr(i,j,k,Rho_comp);
+            }
+          });
+      }
+    };
+
+    MultiFab S_prim(ba, dm, NUM_PRIM, cons_old.nGrowVect());
+
+    // **************************************************************************************
     // These are temporary arrays that we use to store the accumulation of the fluxes
     // **************************************************************************************
     std::array< MultiFab, AMREX_SPACEDIM >  advflux;
@@ -188,11 +207,28 @@ void erf_advance(int level,
                                          &S_data[IntVar::zmom]};
 
         ERF::applyBCs(fine_geom, state_p);
+
+        MomentumToVelocity(xvel_new, yvel_new, zvel_new,
+                           S_data[IntVar::cons],
+                           S_data[IntVar::xmom],
+                           S_data[IntVar::ymom],
+                           S_data[IntVar::zmom],
+                           solverChoice.spatial_order,
+                           xvel_new.nGrow());
+
+        xvel_new.FillBoundary(fine_geom.periodicity());
+        yvel_new.FillBoundary(fine_geom.periodicity());
+        zvel_new.FillBoundary(fine_geom.periodicity());
+
+        // Apply BC on velocity data on faces
+        // Note that the BC was already applied on momentum
+        amrex::Vector<MultiFab*> vel_vars{&xvel_new, &yvel_new, &zvel_new};
+        ERF::applyBCs(fine_geom, vel_vars);
     };
 
-    // are these in the right order?
     interpolate_coarse_fine_faces(state_old);
     apply_bcs(state_old);
+    cons_to_prim(state_old[IntVar::cons], S_prim);
 
     // **************************************************************************************
     // Setup the integrator
@@ -262,7 +298,8 @@ void erf_advance(int level,
 
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
                        const Vector<MultiFab>& S_data, const Real time) {
-        erf_rhs(level, S_rhs, S_data,
+        erf_rhs(level, S_rhs, S_data, S_prim,
+                xvel_new, yvel_new, zvel_new,
                 source,
                 advflux, diffflux,
                 fine_geom, dt,
@@ -294,12 +331,11 @@ void erf_advance(int level,
             mfp.FillBoundary(fine_geom.periodicity());
         }
 
-        // are these in the right order?
-        apply_bcs(S_data);
-
         // TODO: we should interpolate coarse data in time first, so that this interplation
         // in space is at the correct time indicated by the `time` function argument.
         interpolate_coarse_fine_faces(S_data);
+        apply_bcs(S_data);
+        cons_to_prim(S_data[IntVar::cons], S_prim);
     };
 
     // define rhs and 'post update' utility function that is called after calculating
