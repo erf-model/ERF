@@ -28,7 +28,7 @@ void erf_rhs (int level,
               const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
 {
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
-   
+
     const int l_spatial_order = solverChoice.spatial_order;
 
     int klo = geom.Domain().smallEnd()[2];
