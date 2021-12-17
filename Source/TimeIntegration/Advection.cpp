@@ -132,7 +132,7 @@ AMREX_GPU_DEVICE
 Real
 AdvectionContributionForState(const int &i, const int &j, const int &k,
                               const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                              const Array4<const Real>& cell_data, const int &qty_index,
+                              const Array4<const Real>& cell_prim, const int &qty_index,
                               const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
                               const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                               const int &spatial_order) {
@@ -151,6 +151,7 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
         zflux(i,j,k  ,qty_index) = rho_w(i,j,k  );
 
     } else {
+        const int prim_index = qty_index - RhoTheta_comp;
 
         Real uadv_hi = rho_u(i+1,j,k);
         Real uadv_lo = rho_u(i  ,j,k);
@@ -159,26 +160,22 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
         Real wadv_hi = rho_w(i,j,k+1);
         Real wadv_lo = rho_w(i,j,k  );
         xflux(i+1,j,k,qty_index) = rho_u(i+1,j,k) *
-            InterpolateFromCellOrFace(i+1, j, k, cell_data, qty_index, uadv_hi, Coord::x, spatial_order) /
-            InterpolateFromCellOrFace(i+1, j, k, cell_data, Rho_comp , uadv_hi, Coord::x, spatial_order);
+            InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
 
         xflux(i  ,j,k,qty_index) = rho_u(i  ,j,k) *
-            InterpolateFromCellOrFace(i  , j, k, cell_data, qty_index, uadv_lo, Coord::x, spatial_order) /
-            InterpolateFromCellOrFace(i  , j, k, cell_data, Rho_comp , uadv_lo, Coord::x, spatial_order);
+            InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
 
         yflux(i,j+1,k,qty_index) = rho_v(i,j+1,k) *
-            InterpolateFromCellOrFace(i, j+1, k, cell_data, qty_index, vadv_hi, Coord::y, spatial_order) /
-            InterpolateFromCellOrFace(i, j+1, k, cell_data, Rho_comp , vadv_hi, Coord::y, spatial_order);
+            InterpolateFromCellOrFace(i, j+1, k, cell_prim, prim_index, vadv_hi, Coord::y, spatial_order);
+
         yflux(i,j  ,k,qty_index) = rho_v(i,j  ,k) *
-            InterpolateFromCellOrFace(i, j  , k, cell_data, qty_index, vadv_lo, Coord::y, spatial_order) /
-            InterpolateFromCellOrFace(i, j  , k, cell_data, Rho_comp , vadv_lo, Coord::y, spatial_order);
+            InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, vadv_lo, Coord::y, spatial_order);
 
         zflux(i,j,k+1,qty_index) = rho_w(i,j,k+1)*
-            InterpolateFromCellOrFace(i, j, k+1, cell_data, qty_index, wadv_hi, Coord::z, spatial_order) /
-            InterpolateFromCellOrFace(i, j, k+1, cell_data, Rho_comp , wadv_hi, Coord::z, spatial_order);
+            InterpolateFromCellOrFace(i, j, k+1, cell_prim, prim_index, wadv_hi, Coord::z, spatial_order);
+
         zflux(i,j,k  ,qty_index) = rho_w(i,j,k  )*
-            InterpolateFromCellOrFace(i, j, k  , cell_data, qty_index, wadv_lo, Coord::z, spatial_order) /
-            InterpolateFromCellOrFace(i, j, k  , cell_data, Rho_comp , wadv_lo, Coord::z, spatial_order);
+            InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
     }
 
     advectionContribution = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv

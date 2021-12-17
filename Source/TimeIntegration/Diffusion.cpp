@@ -91,7 +91,7 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
-                     const Array4<const Real>& cell_data, const int & qty_index,
+                     const Array4<const Real>& cell_prim, const int & prim_index,
                      const amrex::Real invCellWidth,
                      const Array4<Real>& K_LES,
                      const SolverChoice &solverChoice,
@@ -108,16 +108,16 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   // Get diffusion coefficients
   amrex::Real rhoAlpha_molec;
   amrex::Real Pr_or_Sc_turb_inv;
-  switch(qty_index) {
-  case RhoTheta_comp: // Temperature
+  switch(prim_index) {
+  case PrimTheta_comp: // Temperature
     rhoAlpha_molec = solverChoice.rhoAlpha_T;
     Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
     break;
-  case RhoKE_comp: // Turbulent KE
+  case PrimKE_comp: // Turbulent KE
     rhoAlpha_molec = solverChoice.rhoAlpha_T;
     Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
     break;
-  case RhoScalar_comp: // Scalar
+  case PrimScalar_comp: // Scalar
     rhoAlpha_molec = solverChoice.rhoAlpha_C;
     Pr_or_Sc_turb_inv = solverChoice.Sc_t_inv;
     break;
@@ -161,8 +161,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   // Compute the flux
   // TODO : could be more efficient to compute comp from Rho_comp before this
   amrex::Real diffusionFlux = rhoAlpha * invCellWidth *
-      (cell_data(ir, jr, kr, qty_index) / cell_data(ir, jr, kr, Rho_comp)
-     - cell_data(il, jl, kl, qty_index) / cell_data(il, jl, kl, Rho_comp));
+      (cell_prim(ir, jr, kr, prim_index) - cell_prim(il, jl, kl, prim_index));
 
   return diffusionFlux;
 }
@@ -170,7 +169,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 AMREX_GPU_DEVICE
 Real
 DiffusionContributionForState(const int &i, const int &j, const int &k,
-                              const Array4<const Real>& cell_data, const int & qty_index,
+                              const Array4<const Real>& cell_prim, const int & qty_index,
                               const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
                               const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                               const Array4<Real>& K_LES,
@@ -180,15 +179,17 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
   const amrex::Real dy_inv = cellSizeInv[1];
   const amrex::Real dz_inv = cellSizeInv[2];
 
+  const int prim_index = qty_index - RhoTheta_comp;
+
   // TODO : could be more efficient to compute and save all fluxes before taking divergence (now all fluxes are computed 2x);
-  xflux(i+1,j,k,qty_index) = ComputeDiffusionFluxForState(i+1, j, k, cell_data, qty_index, dx_inv, K_LES, solverChoice, Coord::x);
-  xflux(i  ,j,k,qty_index) = ComputeDiffusionFluxForState(i  , j, k, cell_data, qty_index, dx_inv, K_LES, solverChoice, Coord::x);
+  xflux(i+1,j,k,qty_index) = ComputeDiffusionFluxForState(i+1, j, k, cell_prim, prim_index, dx_inv, K_LES, solverChoice, Coord::x);
+  xflux(i  ,j,k,qty_index) = ComputeDiffusionFluxForState(i  , j, k, cell_prim, prim_index, dx_inv, K_LES, solverChoice, Coord::x);
 
-  yflux(i,j+1,k,qty_index) = ComputeDiffusionFluxForState(i, j+1, k, cell_data, qty_index, dy_inv, K_LES, solverChoice, Coord::y);
-  yflux(i,j  ,k,qty_index) = ComputeDiffusionFluxForState(i, j  , k, cell_data, qty_index, dy_inv, K_LES, solverChoice, Coord::y);
+  yflux(i,j+1,k,qty_index) = ComputeDiffusionFluxForState(i, j+1, k, cell_prim, prim_index, dy_inv, K_LES, solverChoice, Coord::y);
+  yflux(i,j  ,k,qty_index) = ComputeDiffusionFluxForState(i, j  , k, cell_prim, prim_index, dy_inv, K_LES, solverChoice, Coord::y);
 
-  zflux(i,j,k+1,qty_index) = ComputeDiffusionFluxForState(i, j, k+1, cell_data, qty_index, dz_inv, K_LES, solverChoice, Coord::z);
-  zflux(i,j,k  ,qty_index) = ComputeDiffusionFluxForState(i, j, k  , cell_data, qty_index, dz_inv, K_LES, solverChoice, Coord::z);
+  zflux(i,j,k+1,qty_index) = ComputeDiffusionFluxForState(i, j, k+1, cell_prim, prim_index, dz_inv, K_LES, solverChoice, Coord::z);
+  zflux(i,j,k  ,qty_index) = ComputeDiffusionFluxForState(i, j, k  , cell_prim, prim_index, dz_inv, K_LES, solverChoice, Coord::z);
 
   Real diffusionContribution =
       (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dx_inv   // Diffusive flux in x-dir
