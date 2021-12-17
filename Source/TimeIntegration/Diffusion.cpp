@@ -114,7 +114,6 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
     rhoFace = (cell_data(il, jl, kl, Rho_comp) + cell_data(ir, jr, kr, Rho_comp)) * 0.5;
   }
-  
   switch(prim_index) {
   case PrimTheta_comp: // Potential Temperature
     if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
@@ -143,7 +142,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   default:
     amrex::Abort("Error: Diffusion term for the data index isn't implemented");
   }
-
+  
   amrex::Real rhoAlpha = 0.0;
   switch (solverChoice.molec_diff_type) {
   case MolecDiffType::Constant:
