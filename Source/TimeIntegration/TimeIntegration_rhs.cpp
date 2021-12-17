@@ -13,6 +13,7 @@ using namespace amrex;
 void erf_rhs (int level,
               Vector<MultiFab>& S_rhs,
               const Vector<MultiFab>& S_data,
+              const MultiFab& S_prim,
               const MultiFab& xvel,
               const MultiFab& yvel,
               const MultiFab& zvel,
