@@ -14,27 +14,27 @@ AdvectionContributionForXMom(const int &i, const int &j, const int &k,
     Real rho_u_avg, rho_v_avg, rho_w_avg;
 
     rho_u_avg = 0.5 * (rho_u(i+1, j, k) + rho_u(i, j, k));
-    Real centFluxXXNext = rho_u_avg * 
+    Real centFluxXXNext = rho_u_avg *
                           InterpolateFromCellOrFace(i+1, j, k, u, 0, rho_u_avg, Coord::x, spatial_order);
 
     rho_u_avg = 0.5 * (rho_u(i-1, j, k) + rho_u(i, j, k));
-    Real centFluxXXPrev = rho_u_avg * 
+    Real centFluxXXPrev = rho_u_avg *
                           InterpolateFromCellOrFace(i  , j, k, u, 0, rho_u_avg, Coord::x, spatial_order);
 
     rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
-    Real edgeFluxXYNext = rho_v_avg * 
+    Real edgeFluxXYNext = rho_v_avg *
                           InterpolateFromCellOrFace(i, j+1, k, u, 0, rho_v_avg, Coord::y, spatial_order);
 
     rho_v_avg = 0.5 * (rho_v(i, j  , k) + rho_v(i-1, j  , k));
-    Real edgeFluxXYPrev = rho_v_avg * 
+    Real edgeFluxXYPrev = rho_v_avg *
                           InterpolateFromCellOrFace(i, j  , k, u, 0, rho_v_avg, Coord::y, spatial_order);
 
     rho_w_avg = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
-    Real edgeFluxXZNext = rho_w_avg * 
+    Real edgeFluxXZNext = rho_w_avg *
                           InterpolateFromCellOrFace(i, j, k+1, u, 0, rho_w_avg, Coord::z, spatial_order);
 
     rho_w_avg = 0.5 * (rho_w(i, j, k) + rho_w(i-1, j, k));
-    Real edgeFluxXZPrev = rho_w_avg * 
+    Real edgeFluxXZPrev = rho_w_avg *
                           InterpolateFromCellOrFace(i, j, k  , u, 0, rho_w_avg, Coord::z, spatial_order);
 
     Real advectionContribution = (centFluxXXNext - centFluxXXPrev) * dxInv
@@ -56,26 +56,26 @@ AdvectionContributionForYMom(const int &i, const int &j, const int &k,
     Real rho_u_avg, rho_v_avg, rho_w_avg;
 
     rho_u_avg = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
-    Real edgeFluxYXNext = rho_u_avg * 
+    Real edgeFluxYXNext = rho_u_avg *
                           InterpolateFromCellOrFace(i+1, j, k, v, 0, rho_u_avg, Coord::x, spatial_order);
 
     rho_u_avg = 0.5*(rho_u(i  , j, k) + rho_u(i  , j-1, k));
-    Real edgeFluxYXPrev = rho_u_avg * 
+    Real edgeFluxYXPrev = rho_u_avg *
                           InterpolateFromCellOrFace(i  , j, k, v, 0, rho_u_avg, Coord::x, spatial_order);
 
     rho_v_avg = 0.5*(rho_v(i, j, k) + rho_v(i, j+1, k));
-    Real centFluxYYNext = rho_v_avg * 
+    Real centFluxYYNext = rho_v_avg *
                           InterpolateFromCellOrFace(i, j+1, k, v, 0, rho_v_avg, Coord::y, spatial_order);
 
     rho_v_avg = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k));
-    Real centFluxYYPrev = rho_v_avg * 
+    Real centFluxYYPrev = rho_v_avg *
                           InterpolateFromCellOrFace(i, j  , k, v, 0, rho_v_avg, Coord::y, spatial_order);
 
-    rho_w_avg = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1)); 
+    rho_w_avg = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
     Real edgeFluxYZNext = rho_w_avg *
                           InterpolateFromCellOrFace(i, j, k+1, v, 0, rho_w_avg, Coord::z, spatial_order);
 
-    rho_w_avg = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k)); 
+    rho_w_avg = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k));
     Real edgeFluxYZPrev = rho_w_avg *
                           InterpolateFromCellOrFace(i, j, k  , v, 0, rho_w_avg, Coord::z, spatial_order);
 
@@ -98,27 +98,27 @@ AdvectionContributionForZMom(const int &i, const int &j, const int &k,
     Real rho_u_avg, rho_v_avg, rho_w_avg;
 
     rho_u_avg = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
-    Real edgeFluxZXNext = rho_u_avg * 
+    Real edgeFluxZXNext = rho_u_avg *
                           InterpolateFromCellOrFace(i+1, j, k, w, 0, rho_u_avg, Coord::x, spatial_order);
 
     rho_u_avg = 0.5*(rho_u(i  , j, k) + rho_u(i  , j, k-1));
-    Real edgeFluxZXPrev = rho_u_avg * 
+    Real edgeFluxZXPrev = rho_u_avg *
                           InterpolateFromCellOrFace(i  , j, k, w, 0, rho_u_avg, Coord::x, spatial_order);
 
     rho_v_avg = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
-    Real edgeFluxZYNext = rho_v_avg * 
+    Real edgeFluxZYNext = rho_v_avg *
                           InterpolateFromCellOrFace(i, j+1, k, w, 0, rho_v_avg, Coord::y, spatial_order);
 
     rho_v_avg = 0.5*(rho_v(i, j  , k) + rho_v(i, j  , k-1));
-    Real edgeFluxZYPrev = rho_v_avg * 
+    Real edgeFluxZYPrev = rho_v_avg *
                           InterpolateFromCellOrFace(i, j  , k, w, 0, rho_v_avg, Coord::y, spatial_order);
 
     rho_w_avg = 0.5*(rho_w(i, j  , k+1) + rho_w(i, j, k));
-    Real centFluxZZNext = rho_w_avg * 
+    Real centFluxZZNext = rho_w_avg *
                           InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
 
     rho_w_avg = 0.5*(rho_w(i, j  , k-1) + rho_w(i, j, k));
-    Real centFluxZZPrev = rho_w_avg * 
+    Real centFluxZZPrev = rho_w_avg *
                           InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
 
     Real advectionContribution = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv

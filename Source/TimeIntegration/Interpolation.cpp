@@ -6,7 +6,7 @@ AMREX_GPU_DEVICE
 Real
 interpolatedVal(const Real& avg1, const Real& avg2, const Real& avg3, const Real& scaled_upw, const int& spatial_order)
 {
-    Real myInterpolatedVal; 
+    Real myInterpolatedVal;
     switch (spatial_order) {
         case 2:
             myInterpolatedVal = 0.5 * avg1;
@@ -60,7 +60,7 @@ InterpolateFromCellOrFace(
     Real scaled_upw = 0.;
 
     // The value that comes in has not been normalized so we do that here
-    if (upw != 0.) 
+    if (upw != 0.)
         scaled_upw = upw / std::abs(upw);
 
     if (coordDir ==  Coord::x) {
@@ -104,7 +104,7 @@ InterpolatePertFromCell(
     Real scaled_upw = 0.;
 
     // The value that comes in has not been normalized so we do that here
-    if (upw != 0.) 
+    if (upw != 0.)
         scaled_upw = upw / std::abs(upw);
 
     if (coordDir ==  Coord::x) {
