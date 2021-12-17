@@ -138,7 +138,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 
   amrex::Real rhoAlpha_r = 0.0, rhoAlpha_l = 0.0;
   amrex::Real l_sigma_k = solverChoice.sigma_k;
-  // TODO: Add Deardorff model, perhaps take advantage of turbulence model indicator
+
   switch (solverChoice.les_type) {
   case LESType::Smagorinsky:
     // K_LES = 2*mu_t -> extra factor of 0.5 when computing rhoAlpha

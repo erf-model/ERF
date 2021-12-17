@@ -4,187 +4,128 @@ using namespace amrex;
 
 AMREX_GPU_DEVICE
 Real
-ComputeAdvectedQuantityForMom(const int &i, const int &j, const int &k,
-                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                              const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
-                              const enum AdvectedQuantity &advectedQuantity,
-                              const enum AdvectingQuantity &advectingQuantity,
-                              const int &spatial_order)
-{
-  Real flux = 0.;
-  switch(advectedQuantity) {
-    case AdvectedQuantity::u: //x-momentum
-      switch (advectingQuantity) {
-      case AdvectingQuantity::rho_u:
-        flux = 0.5*(rho_u(i-1, j, k) + rho_u(i, j, k)) *
-                    InterpolateFromCellOrFace(i, j, k, u, 0, Coord::x, spatial_order);
-        break;
-      case AdvectingQuantity::rho_v:
-        flux = 0.5*(rho_v(i, j, k) + rho_v(i-1, j, k)) *
-                    InterpolateFromCellOrFace(i, j, k, u, 0, Coord::y, spatial_order);
-        break;
-      case AdvectingQuantity::rho_w:
-        flux = 0.5*(rho_w(i, j, k) + rho_w(i-1, j, k)) *
-                    InterpolateFromCellOrFace(i, j, k, u, 0, Coord::z, spatial_order);
-        break;
-      default:
-        amrex::Abort("Error: Advecting quantity is unrecognized");
-      }
-      break;
-
-    case AdvectedQuantity::v: //y-momentum
-      switch (advectingQuantity) {
-      case AdvectingQuantity::rho_u:
-        flux = 0.5*(rho_u(i, j, k) + rho_u(i, j-1, k)) *
-                    InterpolateFromCellOrFace(i, j, k, v, 0, Coord::x, spatial_order);
-        break;
-      case AdvectingQuantity::rho_v:
-        flux = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k)) *
-                    InterpolateFromCellOrFace(i, j, k, v, 0, Coord::y, spatial_order);
-        break;
-      case AdvectingQuantity::rho_w:
-        flux = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k)) *
-               InterpolateFromCellOrFace(i, j, k, v, 0, Coord::z, spatial_order);
-        break;
-      default:
-        amrex::Abort("Error: Advecting quantity is unrecognized");
-      }
-      break;
-
-    case AdvectedQuantity::w: //z-momentum
-      switch (advectingQuantity) {
-      case AdvectingQuantity::rho_u:
-        flux = 0.5*(rho_u(i, j, k) + rho_u(i, j, k-1)) *
-                    InterpolateFromCellOrFace(i, j, k, w, 0, Coord::x, spatial_order);
-        break;
-      case AdvectingQuantity::rho_v:
-        flux = 0.5*(rho_v(i, j, k) + rho_v(i, j, k-1)) *
-                    InterpolateFromCellOrFace(i, j, k, w, 0, Coord::y, spatial_order);
-        break;
-      case AdvectingQuantity::rho_w:
-        flux = 0.5*(rho_w(i, j, k) + rho_w(i, j, k-1)) *
-                    InterpolateFromCellOrFace(i, j, k, w, 0, Coord::z, spatial_order);
-        break;
-      default:
-        amrex::Abort("Error: Advecting quantity is unrecognized");
-      }
-      break;
-    default:
-      amrex::Abort("Error: Advected quantity is unrecognized");
-  }
-
-  return flux;
-}
-
-AMREX_GPU_DEVICE
-Real
-AdvectionContributionForMom(const int &i, const int &j, const int &k,
+AdvectionContributionForXMom(const int &i, const int &j, const int &k,
                             const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                            const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
-                            const enum MomentumEqn &momentumEqn,
+                            const Array4<const Real>& u,
                             const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                            const SolverChoice &solverChoice) {
-
+                            const int& spatial_order)
+{
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-    Real advectionContribution = 0.0;
+    Real rho_u_avg, rho_v_avg, rho_w_avg;
 
-    int l_spatial_order = solverChoice.spatial_order;
+    rho_u_avg = 0.5 * (rho_u(i+1, j, k) + rho_u(i, j, k));
+    Real centFluxXXNext = rho_u_avg *
+                          InterpolateFromCellOrFace(i+1, j, k, u, 0, rho_u_avg, Coord::x, spatial_order);
 
-    switch (momentumEqn) {
-        case MomentumEqn::x: //x-momentum, reference face index is (i, j, k)
-            Real centFluxXXNext, centFluxXXPrev, edgeFluxXYNext, edgeFluxXYPrev, edgeFluxXZNext, edgeFluxXZPrev;
-            centFluxXXNext = ComputeAdvectedQuantityForMom(i+1, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::u, AdvectingQuantity::rho_u, l_spatial_order);
-            centFluxXXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::u, AdvectingQuantity::rho_u, l_spatial_order);
-            edgeFluxXYNext = ComputeAdvectedQuantityForMom(i, j+1, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::u, AdvectingQuantity::rho_v, l_spatial_order);
-            edgeFluxXYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::u, AdvectingQuantity::rho_v, l_spatial_order);
-            edgeFluxXZNext = ComputeAdvectedQuantityForMom(i, j, k+1, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::u, AdvectingQuantity::rho_w, l_spatial_order);
-            edgeFluxXZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::u, AdvectingQuantity::rho_w, l_spatial_order);
+    rho_u_avg = 0.5 * (rho_u(i-1, j, k) + rho_u(i, j, k));
+    Real centFluxXXPrev = rho_u_avg *
+                          InterpolateFromCellOrFace(i  , j, k, u, 0, rho_u_avg, Coord::x, spatial_order);
 
-            advectionContribution = (centFluxXXNext - centFluxXXPrev) * dxInv   // Contribution to x-mom eqn from advective flux in x-dir
-                                  + (edgeFluxXYNext - edgeFluxXYPrev) * dyInv   // Contribution to x-mom eqn from advective flux in y-dir
-                                  + (edgeFluxXZNext - edgeFluxXZPrev) * dzInv;  // Contribution to x-mom eqn from advective flux in z-dir
-            break;
-        case MomentumEqn::y: //y-momentum, reference face index is (i, j, k)
-            Real centFluxYYNext, centFluxYYPrev, edgeFluxYXNext, edgeFluxYXPrev, edgeFluxYZNext, edgeFluxYZPrev;
-            edgeFluxYXNext = ComputeAdvectedQuantityForMom(i+1, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::v, AdvectingQuantity::rho_u, l_spatial_order);
-            edgeFluxYXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::v, AdvectingQuantity::rho_u, l_spatial_order);
-            centFluxYYNext = ComputeAdvectedQuantityForMom(i, j+1, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::v, AdvectingQuantity::rho_v, l_spatial_order);
-            centFluxYYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::v, AdvectingQuantity::rho_v, l_spatial_order);
-            edgeFluxYZNext = ComputeAdvectedQuantityForMom(i, j, k+1, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::v, AdvectingQuantity::rho_w, l_spatial_order);
-            edgeFluxYZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::v, AdvectingQuantity::rho_w, l_spatial_order);
+    rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
+    Real edgeFluxXYNext = rho_v_avg *
+                          InterpolateFromCellOrFace(i, j+1, k, u, 0, rho_v_avg, Coord::y, spatial_order);
 
-            advectionContribution = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv   // Contribution to y-mom eqn from advective flux in x-dir
-                                  + (centFluxYYNext - centFluxYYPrev) * dyInv   // Contribution to y-mom eqn from advective flux in y-dir
-                                  + (edgeFluxYZNext - edgeFluxYZPrev) * dzInv;  // Contribution to y-mom eqn from advective flux in z-dir
-            break;
-        case MomentumEqn::z: //z-momentum, reference face index is (i, j, k)
-            Real centFluxZZNext, centFluxZZPrev, edgeFluxZXNext, edgeFluxZXPrev, edgeFluxZYNext, edgeFluxZYPrev;
-            edgeFluxZXNext = ComputeAdvectedQuantityForMom(i+1, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::w, AdvectingQuantity::rho_u, l_spatial_order);
-            edgeFluxZXPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::w, AdvectingQuantity::rho_u, l_spatial_order);
-            edgeFluxZYNext = ComputeAdvectedQuantityForMom(i, j+1, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::w, AdvectingQuantity::rho_v, l_spatial_order);
-            edgeFluxZYPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::w, AdvectingQuantity::rho_v, l_spatial_order);
-            centFluxZZNext = ComputeAdvectedQuantityForMom(i, j, k+1, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::w, AdvectingQuantity::rho_w, l_spatial_order);
-            centFluxZZPrev = ComputeAdvectedQuantityForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w,
-                AdvectedQuantity::w, AdvectingQuantity::rho_w, l_spatial_order);
+    rho_v_avg = 0.5 * (rho_v(i, j  , k) + rho_v(i-1, j  , k));
+    Real edgeFluxXYPrev = rho_v_avg *
+                          InterpolateFromCellOrFace(i, j  , k, u, 0, rho_v_avg, Coord::y, spatial_order);
 
-            advectionContribution = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv  // Contribution to z-mom eqn from advective flux in x-dir
-                                  + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv  // Contribution to z-mom eqn from advective flux in y-dir
-                                  + (centFluxZZNext - centFluxZZPrev) * dzInv; // Contribution to z-mom eqn from advective flux in z-dir
-            break;
-        default:
-            amrex::Abort("Error: Momentum equation is unrecognized");
-    }
+    rho_w_avg = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
+    Real edgeFluxXZNext = rho_w_avg *
+                          InterpolateFromCellOrFace(i, j, k+1, u, 0, rho_w_avg, Coord::z, spatial_order);
+
+    rho_w_avg = 0.5 * (rho_w(i, j, k) + rho_w(i-1, j, k));
+    Real edgeFluxXZPrev = rho_w_avg *
+                          InterpolateFromCellOrFace(i, j, k  , u, 0, rho_w_avg, Coord::z, spatial_order);
+
+    Real advectionContribution = (centFluxXXNext - centFluxXXPrev) * dxInv
+                               + (edgeFluxXYNext - edgeFluxXYPrev) * dyInv
+                               + (edgeFluxXZNext - edgeFluxXZPrev) * dzInv;
 
     return advectionContribution;
 }
 
 AMREX_GPU_DEVICE
 Real
-ComputeAdvectedQuantityForState(const int &i, const int &j, const int &k,
-                                const Array4<const Real>& cell_data, const int& qty_index,
-                                const enum AdvectingQuantity &advectingQuantity,
-                                const int &spatial_order) {
-  Real advectedQty = 1.0;
+AdvectionContributionForYMom(const int &i, const int &j, const int &k,
+                             const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
+                             const Array4<const Real>& v,
+                             const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                             const int& spatial_order)
+{
+    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
+    Real rho_u_avg, rho_v_avg, rho_w_avg;
 
-  switch (advectingQuantity) {
-    case AdvectingQuantity::rho_u:
-      // Get theta (i-1/2,    j, k    ) = theta on face (i,   j  , k  ) for x-dir
-      advectedQty = InterpolateFromCellOrFace(i, j, k, cell_data, qty_index, Coord::x, spatial_order);
-      advectedQty/= InterpolateFromCellOrFace(i, j, k, cell_data, Rho_comp , Coord::x, spatial_order);
-      break;
-    case AdvectingQuantity::rho_v:
-      // Get theta (i   , j-1/2, k    ) = theta on face (i  , j  , k  ) for y-dir
-      advectedQty = InterpolateFromCellOrFace(i, j, k, cell_data, qty_index, Coord::y, spatial_order);
-      advectedQty/= InterpolateFromCellOrFace(i, j, k, cell_data, Rho_comp , Coord::y, spatial_order);
-      break;
-    case AdvectingQuantity::rho_w:
-      // Get theta (i   , j    , k-1/2) = theta on face (i  , j  , k  ) for z-dir
-      advectedQty = InterpolateFromCellOrFace(i, j, k, cell_data, qty_index, Coord::z, spatial_order);
-      advectedQty/= InterpolateFromCellOrFace(i, j, k, cell_data, Rho_comp , Coord::z, spatial_order);
-      break;
-    default:
-      amrex::Abort("Error: Advecting quantity is unrecognized");
-  }
+    rho_u_avg = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
+    Real edgeFluxYXNext = rho_u_avg *
+                          InterpolateFromCellOrFace(i+1, j, k, v, 0, rho_u_avg, Coord::x, spatial_order);
 
-  // Return the advected quantity
-  return advectedQty;
+    rho_u_avg = 0.5*(rho_u(i  , j, k) + rho_u(i  , j-1, k));
+    Real edgeFluxYXPrev = rho_u_avg *
+                          InterpolateFromCellOrFace(i  , j, k, v, 0, rho_u_avg, Coord::x, spatial_order);
+
+    rho_v_avg = 0.5*(rho_v(i, j, k) + rho_v(i, j+1, k));
+    Real centFluxYYNext = rho_v_avg *
+                          InterpolateFromCellOrFace(i, j+1, k, v, 0, rho_v_avg, Coord::y, spatial_order);
+
+    rho_v_avg = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k));
+    Real centFluxYYPrev = rho_v_avg *
+                          InterpolateFromCellOrFace(i, j  , k, v, 0, rho_v_avg, Coord::y, spatial_order);
+
+    rho_w_avg = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
+    Real edgeFluxYZNext = rho_w_avg *
+                          InterpolateFromCellOrFace(i, j, k+1, v, 0, rho_w_avg, Coord::z, spatial_order);
+
+    rho_w_avg = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k));
+    Real edgeFluxYZPrev = rho_w_avg *
+                          InterpolateFromCellOrFace(i, j, k  , v, 0, rho_w_avg, Coord::z, spatial_order);
+
+    Real advectionContribution = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv
+                               + (centFluxYYNext - centFluxYYPrev) * dyInv
+                               + (edgeFluxYZNext - edgeFluxYZPrev) * dzInv;
+
+    return advectionContribution;
+}
+
+AMREX_GPU_DEVICE
+Real
+AdvectionContributionForZMom(const int &i, const int &j, const int &k,
+                            const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
+                            const Array4<const Real>& w,
+                            const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const int& spatial_order)
+{
+    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
+    Real rho_u_avg, rho_v_avg, rho_w_avg;
+
+    rho_u_avg = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
+    Real edgeFluxZXNext = rho_u_avg *
+                          InterpolateFromCellOrFace(i+1, j, k, w, 0, rho_u_avg, Coord::x, spatial_order);
+
+    rho_u_avg = 0.5*(rho_u(i  , j, k) + rho_u(i  , j, k-1));
+    Real edgeFluxZXPrev = rho_u_avg *
+                          InterpolateFromCellOrFace(i  , j, k, w, 0, rho_u_avg, Coord::x, spatial_order);
+
+    rho_v_avg = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
+    Real edgeFluxZYNext = rho_v_avg *
+                          InterpolateFromCellOrFace(i, j+1, k, w, 0, rho_v_avg, Coord::y, spatial_order);
+
+    rho_v_avg = 0.5*(rho_v(i, j  , k) + rho_v(i, j  , k-1));
+    Real edgeFluxZYPrev = rho_v_avg *
+                          InterpolateFromCellOrFace(i, j  , k, w, 0, rho_v_avg, Coord::y, spatial_order);
+
+    rho_w_avg = 0.5*(rho_w(i, j  , k+1) + rho_w(i, j, k));
+    Real centFluxZZNext = rho_w_avg *
+                          InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
+
+    rho_w_avg = 0.5*(rho_w(i, j  , k-1) + rho_w(i, j, k));
+    Real centFluxZZPrev = rho_w_avg *
+                          InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
+
+    Real advectionContribution = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
+                               + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
+                               + (centFluxZZNext - centFluxZZPrev) * dzInv;
+
+    return advectionContribution;
 }
 
 AMREX_GPU_DEVICE
@@ -211,18 +152,33 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
 
     } else {
 
-        xflux(i+1,j,k,qty_index) = ComputeAdvectedQuantityForState(i+1, j, k, cell_data, qty_index,
-                                   AdvectingQuantity::rho_u, spatial_order) * rho_u(i+1,j,k);
-        xflux(i  ,j,k,qty_index) = ComputeAdvectedQuantityForState(i  , j, k, cell_data, qty_index,
-                                   AdvectingQuantity::rho_u, spatial_order) * rho_u(i  ,j,k);
-        yflux(i,j+1,k,qty_index) = ComputeAdvectedQuantityForState(i, j+1, k, cell_data, qty_index,
-                                   AdvectingQuantity::rho_v, spatial_order) * rho_v(i,j+1,k);
-        yflux(i,j  ,k,qty_index) = ComputeAdvectedQuantityForState(i, j  , k, cell_data, qty_index,
-                                   AdvectingQuantity::rho_v, spatial_order) * rho_v(i,j  ,k);
-        zflux(i,j,k+1,qty_index) = ComputeAdvectedQuantityForState(i, j, k+1, cell_data, qty_index,
-                                   AdvectingQuantity::rho_w, spatial_order) * rho_w(i,j,k+1);
-        zflux(i,j,k  ,qty_index) = ComputeAdvectedQuantityForState(i, j, k  , cell_data, qty_index,
-                                   AdvectingQuantity::rho_w, spatial_order) * rho_w(i,j,k  );
+        Real uadv_hi = rho_u(i+1,j,k);
+        Real uadv_lo = rho_u(i  ,j,k);
+        Real vadv_hi = rho_v(i,j+1,k);
+        Real vadv_lo = rho_v(i,j  ,k);
+        Real wadv_hi = rho_w(i,j,k+1);
+        Real wadv_lo = rho_w(i,j,k  );
+        xflux(i+1,j,k,qty_index) = rho_u(i+1,j,k) *
+            InterpolateFromCellOrFace(i+1, j, k, cell_data, qty_index, uadv_hi, Coord::x, spatial_order) /
+            InterpolateFromCellOrFace(i+1, j, k, cell_data, Rho_comp , uadv_hi, Coord::x, spatial_order);
+
+        xflux(i  ,j,k,qty_index) = rho_u(i  ,j,k) *
+            InterpolateFromCellOrFace(i  , j, k, cell_data, qty_index, uadv_lo, Coord::x, spatial_order) /
+            InterpolateFromCellOrFace(i  , j, k, cell_data, Rho_comp , uadv_lo, Coord::x, spatial_order);
+
+        yflux(i,j+1,k,qty_index) = rho_v(i,j+1,k) *
+            InterpolateFromCellOrFace(i, j+1, k, cell_data, qty_index, vadv_hi, Coord::y, spatial_order) /
+            InterpolateFromCellOrFace(i, j+1, k, cell_data, Rho_comp , vadv_hi, Coord::y, spatial_order);
+        yflux(i,j  ,k,qty_index) = rho_v(i,j  ,k) *
+            InterpolateFromCellOrFace(i, j  , k, cell_data, qty_index, vadv_lo, Coord::y, spatial_order) /
+            InterpolateFromCellOrFace(i, j  , k, cell_data, Rho_comp , vadv_lo, Coord::y, spatial_order);
+
+        zflux(i,j,k+1,qty_index) = rho_w(i,j,k+1)*
+            InterpolateFromCellOrFace(i, j, k+1, cell_data, qty_index, wadv_hi, Coord::z, spatial_order) /
+            InterpolateFromCellOrFace(i, j, k+1, cell_data, Rho_comp , wadv_hi, Coord::z, spatial_order);
+        zflux(i,j,k  ,qty_index) = rho_w(i,j,k  )*
+            InterpolateFromCellOrFace(i, j, k  , cell_data, qty_index, wadv_lo, Coord::z, spatial_order) /
+            InterpolateFromCellOrFace(i, j, k  , cell_data, Rho_comp , wadv_lo, Coord::z, spatial_order);
     }
 
     advectionContribution = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv

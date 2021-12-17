@@ -29,6 +29,8 @@ void erf_rhs (int level,
 {
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
 
+    const int l_spatial_order = solverChoice.spatial_order;
+
     int klo = geom.Domain().smallEnd()[2];
     int khi = geom.Domain().bigEnd()[2];
 
@@ -87,10 +89,7 @@ void erf_rhs (int level,
     }
 
     // *************************************************************************
-    // Define updates in the current RK stage, fluxes are computed here itself
-    //TODO: Benchmarking of performance. We are computing the fluxes on the fly.
-    //If the performance slows, consider saving all the fluxes apriori and accessing them here.
-
+    // Define updates and fluxes in the current RK stage
     // *************************************************************************
     for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -156,7 +155,7 @@ void erf_rhs (int level,
             // Add advection terms.
             if ((n != RhoKE_comp) || l_use_deardorff)
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_data, n,
-                                         advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
+                                         advflux_x, advflux_y, advflux_z, dxInv, l_spatial_order);
 
             // Add diffusive terms.
             if (n == RhoTheta_comp)
@@ -228,7 +227,8 @@ void erf_rhs (int level,
             {
 
             // Add advective terms
-            rho_u_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::x, dxInv, solverChoice);
+            rho_u_rhs(i, j, k) += -AdvectionContributionForXMom(i, j, k, rho_u, rho_v, rho_w, u,
+                                                                dxInv, l_spatial_order);
 
             // Add diffusive terms
             bool dirichlet_at_lo_k = ( (k == klo) && lo_z_is_dirichlet);
@@ -243,9 +243,12 @@ void erf_rhs (int level,
 
             // Add gravity term
             if (solverChoice.use_gravity)
+            {
+                Real uadv = rho_u(i,j,k);
                 rho_u_rhs(i, j, k) += grav_gpu[0] *
-                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data,
-                                                       Coord::x, solverChoice.spatial_order, dptr_dens_hse);
+                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, uadv,
+                                                       Coord::x, l_spatial_order, dptr_dens_hse);
+            }
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -288,7 +291,8 @@ void erf_rhs (int level,
             {
 
             // Add advective terms
-            rho_v_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::y, dxInv, solverChoice);
+            rho_v_rhs(i, j, k) += -AdvectionContributionForYMom(i, j, k, rho_u, rho_v, rho_w, v,
+                                                                dxInv, l_spatial_order);
 
             // Add diffusive terms
             bool dirichlet_at_lo_k = ( (k == klo) && lo_z_is_dirichlet);
@@ -303,9 +307,12 @@ void erf_rhs (int level,
 
             // Add gravity term
             if (solverChoice.use_gravity)
-               rho_v_rhs(i, j, k) += grav_gpu[1] *
-                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data,
-                                                       Coord::y, solverChoice.spatial_order, dptr_dens_hse);
+            {
+                Real vadv = rho_v(i,j,k);
+                rho_v_rhs(i, j, k) += grav_gpu[1] *
+                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, vadv,
+                                                       Coord::y, l_spatial_order, dptr_dens_hse);
+            }
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -346,7 +353,8 @@ void erf_rhs (int level,
             {
 
             // Add advective terms
-            rho_w_rhs(i, j, k) += -AdvectionContributionForMom(i, j, k, rho_u, rho_v, rho_w, u, v, w, MomentumEqn::z, dxInv, solverChoice);
+            rho_w_rhs(i, j, k) += -AdvectionContributionForZMom(i, j, k, rho_u, rho_v, rho_w, w,
+                                                                dxInv, l_spatial_order);
 
             // Add diffusive terms
             rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, K_LES, solverChoice,
@@ -359,9 +367,12 @@ void erf_rhs (int level,
 
             // Add gravity term
             if (solverChoice.use_gravity)
-               rho_w_rhs(i, j, k) += grav_gpu[2] *
-                   InterpolateDensityPertFromCellToFace(i, j, k, cell_data,
-                                                       Coord::z, solverChoice.spatial_order, dptr_dens_hse);
+            {
+                Real wadv = rho_w(i,j,k);
+                rho_w_rhs(i, j, k) += grav_gpu[2] *
+                     InterpolateDensityPertFromCellToFace(i, j, k, cell_data, wadv,
+                                                          Coord::z, l_spatial_order, dptr_dens_hse);
+            }
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
