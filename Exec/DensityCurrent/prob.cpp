@@ -222,7 +222,7 @@ erf_init_prob(
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     x_vel(i, j, k) = parms.U_0;
   });
 
