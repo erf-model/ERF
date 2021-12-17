@@ -174,8 +174,8 @@ erf_init_prob(
 
   init_isentropic_hse(rho_sfc,theta,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
-  amrex::DeviceVector<amrex::Real> d_r;
-  amrex::DeviceVector<amrex::Real> d_p;
+  amrex::Gpu::DeviceVector<amrex::Real> d_r;
+  amrex::Gpu::DeviceVector<amrex::Real> d_p;
 
   d_r.resize(khi+1);
   d_p.resize(khi+1);
