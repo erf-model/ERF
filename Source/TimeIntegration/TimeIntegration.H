@@ -189,6 +189,7 @@ Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
+                                  const Array4<const Real>& cell_data,
                                   const Array4<const Real>& cell_prim, const int & prim_index,
                                   const amrex::Real invCellWidth,
                                   const Array4<Real>& Ksmag,
@@ -197,6 +198,7 @@ Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 Real DiffusionContributionForState(const int &i, const int &j, const int &k,
+                                   const Array4<const Real>& cell_data,
                                    const Array4<const Real>& cell_prim, const int & qty_index,
                                    const Array4<Real>& flux_x, const Array4<Real>& flux_y,
                                    const Array4<Real>& flux_z,
