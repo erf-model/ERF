@@ -161,13 +161,13 @@ void erf_rhs (int level,
 
             // Add diffusive terms.
             if (n == RhoTheta_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_prim, RhoTheta_comp,
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoTheta_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
             if (n == RhoScalar_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_prim, RhoScalar_comp,
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoScalar_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
             if (l_use_deardorff && n == RhoKE_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_prim, RhoKE_comp,
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoKE_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
 
             // Add Rayleigh damping
