@@ -161,18 +161,30 @@ erf_init_prob(
 
   amrex::Real theta = parms.T_0;
 
-  amrex::Vector<amrex::Real> r;
-  amrex::Vector<amrex::Real> p;
+  amrex::Vector<amrex::Real> h_r;
+  amrex::Vector<amrex::Real> h_p;
 
-  r.resize(khi+1);
-  p.resize(khi+1);
+  h_r.resize(khi+1);
+  h_p.resize(khi+1);
 
   const Real& rho_sfc   = p_0 / (R_d*parms.T_0);
   const Real& Thetabar  = parms.T_0;
   const Real& dz        = dx[2];
   const Real& prob_lo_z = prob_lo[2];
 
-  init_isentropic_hse(rho_sfc,theta,r.data(),p.data(),dz,prob_lo_z,khi);
+  init_isentropic_hse(rho_sfc,theta,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
+
+  amrex::DeviceVector<amrex::Real> d_r;
+  amrex::DeviceVector<amrex::Real> d_p;
+
+  d_r.resize(khi+1);
+  d_p.resize(khi+1);
+
+  amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
+  amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
+
+  amrex::Real* r = d_r.dataPtr();
+  amrex::Real* p = d_p.dataPtr();
 
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
