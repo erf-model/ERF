@@ -200,7 +200,7 @@ erf_init_prob(
     state(i, j, k, Rho_comp) = r[k];
     state(i, j, k, RhoTheta_comp) = state(i,j,k,Rho_comp) * theta_perturbed;
 
-    // This version perturbs rho but not p 
+    // This version perturbs rho but not p
     // state(i, j, k, RhoTheta_comp) = std::pow(p[k]/p_0,1.0/Gamma) * p_0 / R_d;
     // state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
 
