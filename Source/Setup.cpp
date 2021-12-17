@@ -205,6 +205,13 @@ ERF::variableSetUp()
   derive_lst.addComponent("theta", desc_lst, State_Type, Rho_comp, NVAR);
 
   //
+  // Sound speed
+  //
+  derive_lst.add(
+    "soundspeed", amrex::IndexType::TheCellType(), 1, erf_dersoundspeed, the_same_box);
+  derive_lst.addComponent("soundspeed", desc_lst, State_Type, Rho_comp, NVAR);
+
+  //
   // Velocities
   //
 

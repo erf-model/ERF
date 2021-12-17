@@ -39,6 +39,28 @@ erf_derpres(
 }
 
 void
+erf_dersoundspeed(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+  auto const dat = datfab.array();
+  auto cfab      = derfab.array();
+
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
+    const amrex::Real rho      = dat(i, j, k, Rho_comp);
+    cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta) / rho);
+  });
+}
+
+void
 erf_dertemp(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
