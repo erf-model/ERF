@@ -133,19 +133,19 @@ Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int 
 AMREX_GPU_DEVICE
 Real AdvectionContributionForXMom(const int &i, const int &j, const int &k,
                                   const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                                  const Array4<Real>& u,
+                                  const Array4<const Real>& u,
                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                   const int& spatial_order);
 AMREX_GPU_DEVICE
 Real AdvectionContributionForYMom(const int &i, const int &j, const int &k,
                                   const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                                  const Array4<Real>& v,
+                                  const Array4<const Real>& v,
                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                   const int& spatial_order);
 AMREX_GPU_DEVICE
 Real AdvectionContributionForZMom(const int &i, const int &j, const int &k,
                                   const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                                  const Array4<Real>& w,
+                                  const Array4<const Real>& w,
                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                   const int& spatial_order);
 
