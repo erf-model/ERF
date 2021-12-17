@@ -193,14 +193,16 @@ erf_init_prob(
         dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
     }
 
-    // Set the density
+    // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
+    Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
+
+    // This version perturbs p but not rho
     state(i, j, k, Rho_comp) = r[k];
+    state(i, j, k, RhoTheta_comp) = state(i,j,k,Rho_comp) * theta_perturbed;
 
-    // Note: dT is a perturbation temperature, which should be converted to a delta theta
-    state(i, j, k, RhoTheta_comp) = r[k] * (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
-
-    // Using this is a test of whether the initial state is in fact hydrostatically stratified
-    //state(i, j, k, RhoTheta_comp) = r[k] * parms.T_0;
+    // This version perturbs rho but not p
+    // state(i, j, k, RhoTheta_comp) = std::pow(p[k]/p_0,1.0/Gamma) * p_0 / R_d;
+    // state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
