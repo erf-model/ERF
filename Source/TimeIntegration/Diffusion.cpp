@@ -136,13 +136,13 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
         rhoAlpha_molec = rhoFace * solverChoice.alpha_C;
     } else {
         rhoAlpha_molec = solverChoice.rhoAlpha_C;
-    } 
+    }
     Pr_or_Sc_turb_inv = solverChoice.Sc_t_inv;
     break;
   default:
     amrex::Abort("Error: Diffusion term for the data index isn't implemented");
   }
-  
+
   amrex::Real rhoAlpha = 0.0;
   switch (solverChoice.molec_diff_type) {
   case MolecDiffType::Constant:
