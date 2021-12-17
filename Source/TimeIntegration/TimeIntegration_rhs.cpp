@@ -13,6 +13,9 @@ using namespace amrex;
 void erf_rhs (int level,
               Vector<MultiFab>& S_rhs,
               const Vector<MultiFab>& S_data,
+              const MultiFab& xvel,
+              const MultiFab& yvel,
+              const MultiFab& zvel,
               MultiFab& source,
               std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
               std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
@@ -33,28 +36,6 @@ void erf_rhs (int level,
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const auto& ba = S_data[IntVar::cons].boxArray();
     const auto& dm = S_data[IntVar::cons].DistributionMap();
-
-    amrex::MultiFab xvel(convert(ba,IntVect(1,0,0)), dm, 1, 1);
-    amrex::MultiFab yvel(convert(ba,IntVect(0,1,0)), dm, 1, 1);
-    amrex::MultiFab zvel(convert(ba,IntVect(0,0,1)), dm, 1, 1);
-
-    const int l_spatial_order = solverChoice.spatial_order;
-
-    MomentumToVelocity(xvel, yvel, zvel,
-                       S_data[IntVar::cons],
-                       S_data[IntVar::xmom],
-                       S_data[IntVar::ymom],
-                       S_data[IntVar::zmom],
-                       l_spatial_order, xvel.nGrow());
-
-    xvel.FillBoundary(geom.periodicity());
-    yvel.FillBoundary(geom.periodicity());
-    zvel.FillBoundary(geom.periodicity());
-
-    // Apply BC on velocity data on faces
-    // Note that the BC was already applied on momentum
-    amrex::Vector<MultiFab*> vel_vars{&xvel, &yvel, &zvel};
-    ERF::applyBCs(geom, vel_vars);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -134,9 +115,9 @@ void erf_rhs (int level,
         const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
-        const Array4<Real> & u = xvel.array(mfi);
-        const Array4<Real> & v = yvel.array(mfi);
-        const Array4<Real> & w = zvel.array(mfi);
+        const Array4<const Real> & u = xvel.array(mfi);
+        const Array4<const Real> & v = yvel.array(mfi);
+        const Array4<const Real> & w = zvel.array(mfi);
 
         const Array4<const Real>& rho_u = S_data[IntVar::xmom].array(mfi);
         const Array4<const Real>& rho_v = S_data[IntVar::ymom].array(mfi);

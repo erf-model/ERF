@@ -57,7 +57,7 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 inline Real
 ComputeStressTerm (const int &i, const int &j, const int &k,
-                   const Array4<Real>& u, const Array4<Real>& v, const Array4<Real>& w,
+                   const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                    const enum MomentumEqn &momentumEqn,
                    const enum DiffusionDir &diffDir,
                    const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
