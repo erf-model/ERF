@@ -11,5 +11,5 @@
 . ~/.bash_profile
 erf-env
 
-srun -n 32 --cpu_bind=cores ./erf_density_current inputs_wrf_baseline &> log
+srun -n 32 --cpu_bind=cores ./density_current inputs_wrf_baseline &> log
 

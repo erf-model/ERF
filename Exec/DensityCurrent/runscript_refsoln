@@ -10,4 +10,4 @@
 . ~/.bash_profile
 erf-env
 
-srun -n $SLURM_NTASKS --cpu_bind=cores ./erf_density_current inputs_refsoln &> log
+srun -n $SLURM_NTASKS --cpu_bind=cores ./density_current inputs_refsoln &> log
