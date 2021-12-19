@@ -443,28 +443,7 @@ List of Parameters
 |                                 | (directory)    |                |                |
 |                                 | from which to  |                |                |
 |                                 | restart        |                |                |
-+---------------------------------+----------------+----------------+----------------+
-| **amr.checkpoint_files_output** | should we      | 0 or 1         | 1              |
-|                                 | write          |                |                |
-|                                 | checkpoint     |                |                |
 |                                 | files          |                |                |
-+---------------------------------+----------------+----------------+----------------+
-| **amr.check_nfiles**            | how parallel   | Integer        | 64             |
-|                                 | is the writing | :math:`\geq 1` |                |
-|                                 | of the         |                |                |
-|                                 | checkpoint     |                |                |
-|                                 | files          |                |                |
-+---------------------------------+----------------+----------------+----------------+
-| **amr.checkpoint_on_restart**   | should we      | 0 or 1         | 0              |
-|                                 | write a        |                |                |
-|                                 | checkpoint     |                |                |
-|                                 | immediately    |                |                |
-|                                 | after          |                |                |
-|                                 | restarting     |                |                |
-+---------------------------------+----------------+----------------+----------------+
-| **erf.dump_old**                | do we store    | true / false   | false          |
-|                                 | old data in    |                |                |
-|                                 | checkpoints?   |                |                |
 +---------------------------------+----------------+----------------+----------------+
 | **erf.checkpoint_type**         | AMReX chk file | "amrex" or     | "amrex"        |
 |                                 | type or NetCDF | "NetCDF"       |                |
@@ -487,13 +466,6 @@ Notes
 -  Note that **amr.plotfile_on_restart** and
    **amr.checkpoint_on_restart** only take effect if
    **amr.regrid_on_restart** is in effect.
-
--  See the Software Section for more details on parallel I/O and the
-   **amr.check_nfiles** parameter.
-
--  If you are doing a scaling study then set
-   **amr.checkpoint_files_output** = 0 so you can test scaling of the
-   algorithm without I/O.
 
 -  If you compile with NetCDF capability, you may choose to dump a
    NetCDF format checkpoint file instead of the default.
@@ -570,18 +542,6 @@ List of Parameters
 |                             | include in       |                  |         |
 |                             | plotfiles        |                  |         |
 +-----------------------------+------------------+------------------+---------+
-| **amr.plot_files_output**   | should we write  | 0 or 1           | 1       |
-|                             | plot files       |                  |         |
-+-----------------------------+------------------+------------------+---------+
-| **amr.plotfile_on_restart** | should we write  | 0 or 1           | 0       |
-|                             | a plotfile       |                  |         |
-|                             | immediately      |                  |         |
-|                             | after restarting |                  |         |
-+-----------------------------+------------------+------------------+---------+
-| **amr.plot_nfiles**         | how parallel is  | Integer          | 64      |
-|                             | the writing of   | :math:`\geq 1`   |         |
-|                             | the plotfiles    |                  |         |
-+-----------------------------+------------------+------------------+---------+
 | **erf.plotfile_type**       | AMReX plt file   | "amrex" or       | "amrex" |
 |                             | type or NetCDF   | "NetCDF"         |         |
 |                             |                  |                  |         |
@@ -598,16 +558,6 @@ Notes
 -  Note that if **amr.plot_per** is used then in order to hit that exact
    time the code may modify the time step slightly, which will change
    your results ever so slightly than if you didn’t set this flag.
-
--  See the Software Section for more details on parallel I/O and the
-   **amr.plot_nfiles** parameter.
-
--  If you are doing a scaling study then set **amr.plot_files_output** =
-   0 so you can test scaling of the algorithm without I/O.
-
--  By default, plotfiles are written in double precision (NATIVE
-   format). If you want to save space by writing them in single
-   precision, set the fab.format flag to IEEE32.
 
 -  If you compile with NetCDF capability, you may choose to dump a
    NetCDF format plot file instead of the default.
