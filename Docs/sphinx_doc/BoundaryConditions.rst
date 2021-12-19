@@ -174,24 +174,25 @@ the MOST theory can be written as:
 
 .. math::
 
-  \overline{u^{'}w^{'}} &= const = -u^{2}_{\star},
+  \overline{u^{'}} \overline{w^{'}} = const = -u^{2}_{\star},
   
-  \overline{w^{'}\theta^{'} &= const = -u_{\star}\theta_{\star},
+  \overline{w^{'}} \overline{\theta^{'}} = const = -u_{\star}\theta_{\star},
   
-  \frac{kz}{u_{\star}}\frac{\partial \mathbf{U}}{\partial z} &= \Theta_{m}(\zeta),
+  \Theta_{m}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \mathbf{U}}{\partial z},
   
-  \frac{kz}{u_{\star}}\frac{\partial \theta}{\partial z} &= \Theta_{h}(\zeta)
-
-
+  \Theta_{h}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \theta}{\partial z}  
+  
+    
 here, :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature, and :math:`L` is the Monin-Okukhov length, :math:`\theta_{0}` is the potential temperature in the ASL.
 
 Integration of the equation gives the classical MOST profiles of mean velocity and potential temperature
 
 .. math::
 
-  \mathbf{U}(z) &= \frac{u_{\star}{k}[ln(\frac{z}{z_{0}})-\Psi_{m}(\zeta)],
+  \mathbf{U}(\zeta) = \frac{u_{\star}}{\kappa} [\mathbf{ln}(\frac{\mathbf{z}}{\mathbf{z}_{0}})-\Psi_{m}(\zeta)],
   
-  \mathbf{\Theta}(z)-\theta_{0} &= \frac{\theta_{\star}}{k}[ln(\frac{z}{z_{0}})-\Psi_{h}(\zeta)
+  \mathbf{\Theta}(\mathbf{z})-\theta_{0} &= \frac{\theta_{\star}}{\kappa}[\mathbf{ln}(\frac{\mathbf{z}}{\mathbf{z}_{0}})-\Psi_{h}(\zeta)
+  
 
 where
 
