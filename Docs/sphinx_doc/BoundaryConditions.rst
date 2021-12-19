@@ -169,20 +169,20 @@ The keywords used above are defined:
 
 MOST Boundaries
 -------------------
-Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), The MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and the turbulent stresses :math:`\overline{u^{'}w^{'}}` and :math:`\overline{w^{'}v^{'}}` are assumed to be constant with height. Based on these assumptions, 
+Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), The MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and the turbulent stresses :math:`\overline{u^{'}w^{'}}` and :math:`\overline{w^{'}v^{'}}` are assumed to be constant with height. Based on these assumptions,
 the MOST theory can be written as:
 
 .. math::
 
   \overline{u^{'}} \overline{w^{'}} = const = -u^{2}_{\star},
-  
+
   \overline{w^{'}} \overline{\theta^{'}} = const = -u_{\star}\theta_{\star},
-  
+
   \Theta_{m}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \mathbf{U}}{\partial z},
-  
-  \Theta_{h}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \theta}{\partial z}  
-  
-    
+
+  \Theta_{h}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \theta}{\partial z}
+
+
 here, :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature, and :math:`\theta_{0}` is the potential temperature near surface in the ASL, and the MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{w^{'}\theta^{'}}`, with :math:`\mathbf{L}` is the Monin-Okukhov length.
 
 Integration of the MOST assumption equations give the classical MOST profiles of mean velocity and potential temperature
@@ -190,16 +190,16 @@ Integration of the MOST assumption equations give the classical MOST profiles of
 .. math::
 
   \mathbf{U}(\zeta) &= \frac{u_{\star}}{\kappa} [\mathbf{ln}(\frac{\mathbf{z}}{\mathbf{z}_{0}})-\Psi_{m}(\zeta)],
-  
+
   \mathbf{\Theta}(\mathbf{z})-\theta_{0} &= \frac{\theta_{\star}}{\kappa}[\mathbf{ln}(\frac{\mathbf{z}}{\mathbf{z}_{0}})-\Psi_{h}(\zeta)
-  
+
 
 where
 
 .. math::
 
   \Psi_{m}(\zeta) &= \int _{\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{m}(\zeta)]d \mathbf{ln}(\zeta),
-  
+
   \Psi_{h}(\zeta) &= \int _{\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{h}(\zeta)]d \mathbf{ln}(\zeta)
 
 are integrated similarity function.
@@ -211,17 +211,17 @@ Unstable, :math:`(-2 < \zeta < 0)`
 
 .. math::
 
-  \Theta_{m} &= (1-\gamma_{1}\eta)^{-\frac{1}{4}},  
+  \Theta_{m} &= (1-\gamma_{1}\eta)^{-\frac{1}{4}},
   \Psi_{m}=\mathbf{ln}[\frac{1}{g}(1+\Psi_{m}^{2})(1+\Psi_{m}^{-1})^{2}]-2\arctan(\Theta_{m}^{-1})+\frac{\pi}{2},
-  
-  \Theta_{h} &= \sigma_{\theta}(1-\gamma_{2}\zeta)^{-\frac{1}{2}}, 
+
+  \Theta_{h} &= \sigma_{\theta}(1-\gamma_{2}\zeta)^{-\frac{1}{2}},
   \Psi_{h}=(1+\sigma_{\theta}) \mathbf{ln}[\frac{1}{2}(1+\Theta_{h}^{-1}]+(1-\sigma_{\theta})ln[\frac{1}{2}(-1+\Theta_{h}^{-1})]
 
 Stable, :math:`(0 < \zeta < 1)`
 
 .. math::
   \Theta_{m} &= 1+\beta \zeta, \Psi_{m}=-\beta \zeta,
-  
+
   \Theta_{h} &= \sigma_{\theta}+\beta \zeta, \Psi_{h}=(1-\sigma_{\theta})\mathbf{ln}(\zeta)-\beta \zeta
 
 and the constants are defined as:
@@ -229,7 +229,7 @@ and the constants are defined as:
 .. math::
   \sigma_{\theta}=1, \beta = 5, \gamma_{1}=16, \gamma_{2}=16
 
-The MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\kappa z \frac{g}{\theta_{0}} \frac{\theta_{\star}}{\mathbf{u}^{2}_{\star}}` is determined by the friction velocity :math:`\mathbf{u}_{\star}=\kappa \mathbf{U}/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{m}(\mathbf{u}/\mathbf{L})]`, and the surface temperature 
+The MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\kappa z \frac{g}{\theta_{0}} \frac{\theta_{\star}}{\mathbf{u}^{2}_{\star}}` is determined by the friction velocity :math:`\mathbf{u}_{\star}=\kappa \mathbf{U}/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{m}(\mathbf{u}/\mathbf{L})]`, and the surface temperature
 :math:`\theta_{\star} = \kappa (\theta_{a}-\theta_{g})/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{h}(\mathbf{z}/\mathbf{L})]`
 
 Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with height, the wind speed, temperature and moisture at surface can be derived as:
@@ -237,7 +237,7 @@ Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with hei
 .. math::
 
   u &= u_{\star}^{2} \frac{(u-\overline{U})\overline{U}_{mag}+\overline{U}_{mag} \overline{U}}{\overline{U}_{mag}^{2}},
-  
+
   \theta &= ku_{\star}\frac{\overline{U}_{mag}(\theta - \overline{\theta})+\overline{U}_{mag}(\overline{\theta}-\theta_{s})}{\overline{U}_{mag}\Theta_{h}}
 
-where :math:`\overline{U}`, and :math:`\overline{\theta}` are the plane averaged values. 
+where :math:`\overline{U}`, and :math:`\overline{\theta}` are the plane averaged values.

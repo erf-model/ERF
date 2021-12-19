@@ -254,15 +254,6 @@ void erf_rhs (int level,
                 (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),dptr_pres_hse[k]) -
                  getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),dptr_pres_hse[k]));
 
-            // Add gravity term
-            if (solverChoice.use_gravity)
-            {
-                Real uadv = rho_u(i,j,k);
-                rho_u_rhs(i, j, k) += grav_gpu[0] *
-                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, uadv,
-                                                       Coord::x, l_spatial_order, dptr_dens_hse);
-            }
-
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
                 rho_u_rhs(i, j, k) += -solverChoice.abl_pressure_grad[0];
@@ -329,15 +320,6 @@ void erf_rhs (int level,
                 (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),dptr_pres_hse[k]) -
                  getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),dptr_pres_hse[k]));
 
-            // Add gravity term
-            if (solverChoice.use_gravity)
-            {
-                Real vadv = rho_v(i,j,k);
-                rho_v_rhs(i, j, k) += grav_gpu[1] *
-                  InterpolateDensityPertFromCellToFace(i, j, k, cell_data, vadv,
-                                                       Coord::y, l_spatial_order, dptr_dens_hse);
-            }
-
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
                 rho_v_rhs(i, j, k) += -solverChoice.abl_pressure_grad[1];
@@ -403,10 +385,10 @@ void erf_rhs (int level,
             // Add gravity term
             if (solverChoice.use_gravity)
             {
-                Real wadv = rho_w(i,j,k);
+                int local_spatial_order = 2;
                 rho_w_rhs(i, j, k) += grav_gpu[2] *
-                     InterpolateDensityPertFromCellToFace(i, j, k, cell_data, wadv,
-                                                          Coord::z, l_spatial_order, dptr_dens_hse);
+                     InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
+                                                          Coord::z, local_spatial_order, dptr_dens_hse);
             }
 
             // Add driving pressure gradient
