@@ -183,7 +183,7 @@ the MOST theory can be written as:
   \Theta_{h}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \theta}{\partial z}  
   
     
-here, :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature, and :math:`\theta_{0}` is the potential temperature near surface in the ASL, and the MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{u^{'}\theta^{'}}`, with :math:`\mathbf{L}` is the Monin-Okukhov length.
+here, :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature, and :math:`\theta_{0}` is the potential temperature near surface in the ASL, and the MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{w^{'}\theta^{'}}`, with :math:`\mathbf{L}` is the Monin-Okukhov length.
 
 Integration of the MOST assumption equations give the classical MOST profiles of mean velocity and potential temperature
 
@@ -229,7 +229,7 @@ and the constants are defined as:
 .. math::
   \sigma_{\theta}=1, \beta = 5, \gamma_{1}=16, \gamma_{2}=16
 
-The MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{u^{'}\theta^{'}}` is determined by the friction velocity :math:`\mathbf{u}_{\star}=\kappa \mathbf{U}/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{m}(\mathbf{u}/\mathbf{L})]`, and the surface temperature 
+The MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\kappa z \frac{g}{\theta_{0}} \frac{\theta_{\star}}{\mathbf{u}^{2}_{\star}}` is determined by the friction velocity :math:`\mathbf{u}_{\star}=\kappa \mathbf{U}/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{m}(\mathbf{u}/\mathbf{L})]`, and the surface temperature 
 :math:`\theta_{\star} = \kappa (\theta_{a}-\theta_{g})/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{h}(\mathbf{z}/\mathbf{L})]`
 
 Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with height, the wind speed, temperature and moisture at surface can be derived as:
