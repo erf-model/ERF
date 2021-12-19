@@ -169,7 +169,7 @@ The keywords used above are defined:
 
 MOST Boundaries
 -------------------
-Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), The MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and the turbulent stresses :math:`u_{0}w_{0}` and :math:`w_{0}v_{0}` are assumed to be constant with height. Based on these assumptions, 
+Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), The MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and the turbulent stresses :math:`\overline{u_{'}w_{'}}` and :math:`\overline{w_{'}v_{'}}` are assumed to be constant with height. Based on these assumptions, 
 the MOST theory can be written as:
 
 .. math::
@@ -204,9 +204,11 @@ The integrated similarity functions (:math:`\Psi_{m}, \Psi_{h}`)are calculated a
 Unstable, :math:`(-2 < \zeta < 0)`
 
 .. math::
-  \Theta_{m} &= (1-\gamma_{1}\eta)^{\frac{-1}{4}},  \Psi_{m}=ln[\frac{1}{g}(1+\Psi_{m}^{2})(1+\Psi_{m}^{-1})^{2}]-2\arctan(\Theta_{m}^{-1})+\frac{\pi}{2},
+  \Theta_{m} &= (1-\gamma_{1}\eta)^{\frac{-1}{4}},  
+  \Psi_{m}=ln[\frac{1}{g}(1+\Psi_{m}^{2})(1+\Psi_{m}^{-1})^{2}]-2\arctan(\Theta_{m}^{-1})+\frac{\pi}{2},
   
-  \Theta_{h} &= \sigma_{\theta}(1-\gamma_{2}\zeta)^{\frac{-1}{2}}, \Psi_{h}=(1+\sigma_{\theta})ln[\frac{1}{2}(1+\Theta_{h}^{-1}]+(1-\sigma_{\theta})ln[\frac{1}{2}(-1+\Theta_{h}^{-1})]
+  \Theta_{h} &= \sigma_{\theta}(1-\gamma_{2}\zeta)^{\frac{-1}{2}}, 
+  \Psi_{h}=(1+\sigma_{\theta})ln[\frac{1}{2}(1+\Theta_{h}^{-1}]+(1-\sigma_{\theta})ln[\frac{1}{2}(-1+\Theta_{h}^{-1})]
 
 Stable, :math:`(0 < \zeta < 1)`
 
