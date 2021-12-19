@@ -197,11 +197,12 @@ where
 
 .. math::
 
-  \Psi_{m}(\zeta) &= \int _{\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{m}(\zeta}]dln\zeta,
+  \Psi_{m}(\zeta) &= \int _{\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{m}(\zeta)]dln\zeta,
   
-  \Psi_{h}(\zeta) &= \int_ {\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{h}(\zeta}]dln\zeta
+  \Psi_{h}(\zeta) &= \int _{\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{h}(\zeta)]dln\zeta
 
 are integrated similarity function.
+
 and :math:`\theta_{0}` is the potential temperature near the surface.
 
 The integrated similarity functions (:math:`\Psi_{m}, \Psi_{h}`)are calculated analytically in the stable and unstable stratification.
@@ -221,7 +222,7 @@ Stable, :math:`(0 < \zeta < 1)`
 .. math::
   \Theta_{m} &= 1+\beta \zeta, \Psi_{m}=-\beta \zeta,
   
-  \Theta_{h} &= \sigma_{\theta}+\beta \zeta, \Psi_{h}=(1-\sigma_{\theta})lh(\zeta)-\beta \zeta
+  \Theta_{h} &= \sigma_{\theta}+\beta \zeta, \Psi_{h}=(1-\sigma_{\theta})ln(\zeta)-\beta \zeta
 
 and the constants are defined as:
 
@@ -231,8 +232,8 @@ Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with hei
 
 .. math::
 
-  u &= u_{\star}^{2} \frac{(u-\overline{U})\overline{U_{mag}}+\overline{U_{mag}} \overline{U}}{\overline{U_{mag}}^{2}},
+  u &= u_{\star}^{2} \frac{(u-\overline{U})\overline{U}_{mag}+\overline{U}_{mag} \overline{U}}{\overline{U}_{mag}^{2}},
   
-  \theta &= ku_{\star}\frac{\overline{U_{mag}}(\theta - \overline{\theta})+\overline{U_{mag}}(\overline{\theta}-\theta_{s})}{\overline{U_{mag}}\Theta_{h}}
+  \theta &= ku_{\star}\frac{\overline{U}_{mag}(\theta - \overline{\theta})+\overline{U}_{mag}(\overline{\theta}-\theta_{s})}{\overline{U}_{mag}\Theta_{h}}
 
 where :math:`\overline{U}`, and :math:`\overline{\theta}` are the plane averaged values. 
