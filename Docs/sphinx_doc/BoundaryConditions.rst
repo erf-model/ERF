@@ -169,7 +169,7 @@ The keywords used above are defined:
 
 MOST Boundaries
 -------------------
-Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), The MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and the turbulent stresses :math:`\overline{u_{'}w_{'}}` and :math:`\overline{w_{'}v_{'}}` are assumed to be constant with height. Based on these assumptions, 
+Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), The MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and the turbulent stresses :math:`\overline{u^{'}w^{'}}` and :math:`\overline{w^{'}v^{'}}` are assumed to be constant with height. Based on these assumptions, 
 the MOST theory can be written as:
 
 .. math::
@@ -183,7 +183,7 @@ the MOST theory can be written as:
   \Theta_{h}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \theta}{\partial z}  
   
     
-here, :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature, and :math:`\theta_{0}` is the potential temperature near surface in the ASL, and the MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{u_{'}\theta_{'}}`, with :math:`\mathbf{L}` is the Monin-Okukhov length.
+here, :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature, and :math:`\theta_{0}` is the potential temperature near surface in the ASL, and the MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{u^{'}\theta^{'}}`, with :math:`\mathbf{L}` is the Monin-Okukhov length.
 
 Integration of the MOST assumption equations give the classical MOST profiles of mean velocity and potential temperature
 
