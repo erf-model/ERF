@@ -174,8 +174,11 @@ the MOST theory can be written as:
 
 .. math::
   \overline{u^{'}w^{'}} &= const = -u^{2}_{\star},
+  
   \overline{w^{'}\theta^{'} &= const = -u_{\star}\theta_{\star},
+  
   \frac{kz}{u_{\star}}\frac{\partial \mathbf{U}}{\partial z} &= \Theta_{m}(\zeta),
+  
   \frac{kz}{u_{\star}}\frac{\partial \theta}{\partial z} &= \Theta_{h}(\zeta)
 
 here, :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature, and :math:`L` is the Monin-Okukhov length, :math:`\theta_{0}` is the potential temperature in the ASL.
@@ -184,14 +187,15 @@ Integration of the equation gives the classical MOST profiles of mean velocity a
 
 .. math::
   \mathbf{U}(z) &= \frac{u_{\star}{k}[ln(\frac{z}{z_{0}})-\Psi_{m}(\zeta)],
+  
   \mathbf{\Theta}(z)-\theta_{0} &= \frac{\theta_{\star}}{k}[ln(\frac{z}{z_{0}})-\Psi_{h}(\zeta)
 
 where
 
 .. math::
-  \Psi_{m}(\zeta)=\int_{\frac{z_{0}}{L}}^{\frac{z}{L}}{[1-\Theta_{m}(\zeta}]dln\zeta},
+  \Psi_{m}(\zeta) &= \int_{\frac{z_{0}}{L}}^{\frac{z}{L}}{[1-\Theta_{m}(\zeta}]dln\zeta},
   
-  \Psi_{h}(\zeta)=\int_{\frac{z_{0}}{L}}^{\frac{z}{L}}{[1-\Theta_{h}(\zeta}]dln\zeta}
+  \Psi_{h}(\zeta) &= \int_{\frac{z_{0}}{L}}^{\frac{z}{L}}{[1-\Theta_{h}(\zeta}]dln\zeta}
 
 are integrated similarity function.
 and :math:`\theta_{0}` is the potential temperature near the surface.
@@ -200,14 +204,16 @@ The integrated similarity functions (:math:`\Psi_{m}, \Psi_{h}`)are calculated a
 Unstable, :math:`(-2 < \zeta < 0)`
 
 .. math::
-  \Theta_{m} = (1-\gamma_{1}\eta)^{\frac{-1}{4}},  \Psi_{m}=ln[\frac{1}{g}(1+\Psi_{m}^{2})(1+\Psi_{m}^{-1})^{2}]-2\arctan(\Theta_{m}^{-1})+\frac{\pi}{2},
-  \Theta_{h} = \sigma_{\theta}(1-\gamma_{2}\zeta)^{\frac{-1}{2}}, \Psi_{h}=(1+\sigma_{\theta})ln[\frac{1}{2}(1+\Theta_{h}^{-1}]+(1-\sigma_{\theta})ln[\frac{1}{2}(-1+\Theta_{h}^{-1})]
+  \Theta_{m} &= (1-\gamma_{1}\eta)^{\frac{-1}{4}},  \Psi_{m}=ln[\frac{1}{g}(1+\Psi_{m}^{2})(1+\Psi_{m}^{-1})^{2}]-2\arctan(\Theta_{m}^{-1})+\frac{\pi}{2},
+  
+  \Theta_{h} &= \sigma_{\theta}(1-\gamma_{2}\zeta)^{\frac{-1}{2}}, \Psi_{h}=(1+\sigma_{\theta})ln[\frac{1}{2}(1+\Theta_{h}^{-1}]+(1-\sigma_{\theta})ln[\frac{1}{2}(-1+\Theta_{h}^{-1})]
 
 Stable, :math:`(0 < \zeta < 1)`
 
 .. math::
-  \Theta_{m} = 1+\beta \zeta, \Psi_{m}=-\beta \zeta,
-  \Theta_{h} = \sigma_{\theta}+\beta \zeta, \Psi_{h}=(1-\sigma_{\theta})lh(\zeta)-\beta \zeta
+  \Theta_{m} &= 1+\beta \zeta, \Psi_{m}=-\beta \zeta,
+  
+  \Theta_{h} &= \sigma_{\theta}+\beta \zeta, \Psi_{h}=(1-\sigma_{\theta})lh(\zeta)-\beta \zeta
 
 and the constants are defined as:
 .. math::
@@ -217,6 +223,7 @@ Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with hei
 
 .. math::
   u &= u_{\star}^{2} \frac{(u-\overline{U})\overline{U_{mag}}+\overline{U_{mag}} \overline{U}}{\overline{U_{mag}}^{2}},
+  
   \theta &= ku_{\star}\frac{\overline{U_{mag}}(\theta - \overline{\theta})+\overline{U_{mag}}(\overline{\theta}-\theta_{s})}{\overline{U_{mag}}\Theta_{h}}
 
 where :math:`\overline{U}`, and :math:`\overline{\theta}` are the plane averaged values. 
