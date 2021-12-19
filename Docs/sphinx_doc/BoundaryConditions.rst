@@ -226,9 +226,11 @@ Stable, :math:`(0 < \zeta < 1)`
 
 and the constants are defined as:
 
-:math:`\sigma_{\theta}=1, \beta = 5, \gamma_{1}=16, \gamma_{2}=16`
+.. math::
+  `\sigma_{\theta}=1, \beta = 5, \gamma_{1}=16, \gamma_{2}=16`
 
-The MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{u_{'}\theta_{'}}` is determined by the friction velocity :math: `\mathbf{u}_{\star}=\kappa \mathbf{U}/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{m}(\mathbf{u}/mathbf{L})]`, and the surface temperature :math: `\theta_{\star} = \kappa (\theta_{a}-\theta_{g})/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{h}(\mathbf{z}/\mathbf{L})]`
+The MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{u_{'}\theta_{'}}` is determined by the friction velocity :math:`\mathbf{u}_{\star}=\kappa \mathbf{U}/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{m}(\mathbf{u}/mathbf{L})]`, and the surface temperature 
+:math:`\theta_{\star} = \kappa (\theta_{a}-\theta_{g})/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{h}(\mathbf{z}/\mathbf{L})]`
 
 Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with height, the wind speed, temperature and moisture at surface can be derived as:
 
