@@ -11,9 +11,9 @@ namespace phys_bcs {
 template <int IDIR, math_bcs::BCBound Bound>
 class BCOutflow : public BCBase {
   public:
-  BCOutflow() = default;
+  explicit BCOutflow(ERF& erf) : BCBase(erf) {}
 
-  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, const SolverChoice& solverChoice) override {
+  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, const SolverChoice& solverChoice, bool is_derived=false) override {
     if ((geom.isPeriodic(IDIR)) || (vars.size() == 0)) return;
 
     // setup boundary conditions

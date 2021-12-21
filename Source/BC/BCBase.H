@@ -1469,93 +1469,126 @@ namespace math_bcs {
   // MOST wall
   template<int IDIR, BCBound Bound> struct ablmostwall;
 
-    //
-    // variables vartype = 0 (cell center), 1 (x velocity), 2 (y velocity), 3 (z velocity)
-    //
   template<int IDIR>
   struct ablmostwall<IDIR, BCBound::lower> {
     using self = ablmostwall<IDIR, BCBound::lower>;
 
-    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b,
-                                              amrex::Vector<Array4<Real>*>& states, Array4<Real>& data,
-                                              const ABLMost& most, int vartype, int ncomp=1)
-    {
-      AMREX_ALWAYS_ASSERT(IDIR == 2);
-      const int zlo = geom.Domain().smallEnd()[IDIR];
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, amrex::Vector<Array4<Real>*>& states, Array4<Real>& data, const ABLMost& most, bool is_derived=false, int ncomp=1) {
+      int lo = geom.Domain().smallEnd(IDIR);
+      auto type = b.type();
+      const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
 
-      if (b.smallEnd(IDIR) >= zlo) return;
+      if(b.smallEnd(IDIR) < lo) {
+        if (IDIR == 0) {
+           amrex::Print() << " ABLMost not available for x-dimension " << std::endl;
 
-      const Array4<Real>& velx_array   = *states[0];
-      const Array4<Real>& vely_array   = *states[1];
-      const Array4<Real>& velz_array   = *states[2];
-      const Array4<Real>& states_array = *states[3];
-      const Array4<Real>& eta_array    = *states[4];
+        } else if (IDIR == 1) {
+           amrex::Print() << " ABLMost not available for y-dimension " << std::endl;
 
-      const int xhi = geom.Domain().bigEnd(0);
-      const int yhi = geom.Domain().bigEnd(1);
+        } else if (IDIR == 2) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            if (k < lo) {
+              Real velx, vely, rho, theta, eta;
+              int ix, jx, iy, jy, ie, je;
+              if (type == IntVect(AMREX_D_DECL(0, 0, 0)) && n == RhoTheta_comp) {
+                 /**
+                  * for zone centered variables, the face centered velocity need to be interpolated to
+                  * zone center.
+                  * NOTE: the number of ghost zone for state variables are different from face centered
+                  *       variables in the new version.
+                  */
+                 ix = i < lbound(*states[0]).x ? lbound(*states[0]).x : i;
+                 jx = j < lbound(*states[0]).y ? lbound(*states[0]).y : j;
+                 ix = i > ubound(*states[0]).x ? ubound(*states[0]).x-1 : i;
+                 jx = j > ubound(*states[0]).y ? ubound(*states[0]).y : j;
 
-      amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-      {
-        if (k < zlo) {
-          Real velx, vely, rho, theta, eta;
+                 iy = i < lbound(*states[1]).x ? lbound(*states[1]).x : i;
+                 jy = j < lbound(*states[1]).y ? lbound(*states[1]).y : j;
+                 iy = i > ubound(*states[1]).x ? ubound(*states[1]).x : i;
+                 jy = j > ubound(*states[1]).y ? ubound(*states[1]).y-1 : j;
 
-              if (vartype == 1) {
-//              if (i < xhi) {
-                  velx  = velx_array(i,j,zlo);
-                  vely  = vely_array(i,j,zlo);
-                  rho   = states_array(i,j,zlo,Rho_comp);
-                  theta = states_array(i,j,zlo,RhoTheta_comp)/rho;
-                  eta   = eta_array(i,j,zlo);
-//              } else {
-//                velx  = velx_array(i,j,zlo);
-//                vely  = 2.0*vely_array(xhi-1,j,zlo)-(vely_array)(xhi-2,j,zlo);
-//                rho   = 2.0*states_array(xhi-1,j,zlo,Rho_comp)-states_array(xhi-2,j,zlo,Rho_comp);
-//                theta = (2.0*states_array(xhi-1,j,zlo,RhoTheta_comp)-states_array(xhi-2,j,zlo,RhoTheta_comp))/rho;
-//                eta   = 2.0*eta_array(xhi-1,j,zlo)-eta_array(xhi-2,j,zlo);
-//              }
-              } else if (vartype == 2) {
-//              if (j < yhi) {
-                  velx  = velx_array(i,j,zlo);
-                  vely  = vely_array(i,j,zlo);
-                  rho   = states_array(i,j,zlo,Rho_comp);
-                  theta = states_array(i,j,zlo,RhoTheta_comp)/rho;
-                  eta   = eta_array(i,j,zlo);
-//              } else {
-//                velx  = 2.0*velx_array(i,yhi-1,zlo)-velx_array(i,yhi-2,zlo);
-//                vely  = vely_array(i,j,zlo);
-//                rho   = 2.0*states_array(i,yhi-1,zlo,Rho_comp)-states_array(i,yhi-2,zlo,Rho_comp);
-//                theta = (2.0*states_array(i,yhi-1,zlo,RhoTheta_comp)-states_array(i,yhi-2,zlo,RhoTheta_comp))/rho;
-//                eta   = 2.0*eta_array(i,yhi-1,zlo)-eta_array(i,yhi-2,zlo);
-//              }
-              } else {
-                  velx  = velx_array(i,j,zlo);
-                  vely  = vely_array(i,j,zlo);
-                  rho   = states_array(i,j,zlo,Rho_comp);
-                  theta = states_array(i,j,zlo,RhoTheta_comp)/rho;
-                  eta   = eta_array(i,j,zlo);
-              }
+                 ie = i < lbound(*states[3]).x ? lbound(*states[3]).x : i;
+                 je = j < lbound(*states[3]).y ? lbound(*states[3]).y : j;
+                 ie = i > ubound(*states[3]).x ? ubound(*states[3]).x : i;
+                 je = j > ubound(*states[3]).y ? ubound(*states[3]).y : j;
 
-              Real vmag  = sqrt(velx*velx+vely*vely);
-              Real vgx = ((velx-most.vel_mean[0])*most.vmag_mean + vmag*most.vel_mean[0])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
-              Real vgy = ((vely-most.vel_mean[1])*most.vmag_mean + vmag*most.vel_mean[1])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+                 velx  = 0.5*((*states[0])(ix,jx,lo)+(*states[0])(ix+1,jx,lo));
+                 vely  = 0.5*((*states[1])(iy,jy,lo)+(*states[0])(iy,jy+1,lo));
+                 rho   = (*states[4])(i,j,lo,Rho_comp);
+                 theta = (*states[4])(i,j,lo,RhoTheta_comp)/rho;
+                 eta   = (*states[3])(ie,je,lo);
 
-              Real num1  = (theta-most.theta_mean)*most.vmag_mean;
-              Real num2  = (most.theta_mean-most.surf_temp)*most.vmag_mean;
-              Real motheta = (num1+num2)*most.utau*most.kappa/most.phi_h();
+                 Real vmag    = sqrt(velx*velx+vely*vely);
+                 Real num1    = (theta-most.theta_mean)*most.vmag_mean;
+                 Real num2    = (most.theta_mean-most.surf_temp)*vmag;
+                 Real motheta = (num1+num2)*most.utau*most.kappa/most.phi_h();
 
-              //printf("i=%d, j=%d, k=%d, vx=%13.6e, vy=%13.6e, rho=%13.6e\n",i,j,k,vgx,vgy,rho);
+                 //printf("i=%d,j=%d,k=%d,theta=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,motheta,rho,(*states[3])(60,10,1),most.utau,motheta*rho/eta);
+                 if (!is_derived) {
+                    data(i,j,k,n) = rho*(most.surf_temp + motheta*rho/eta);
+                 } else {
+                    data(i,j,k,n) = most.surf_temp + motheta/eta;
+                 }
 
-              if (vartype == 0 && n == RhoTheta_comp) {
-                 data(i,j,k,n) = rho*motheta;
-              } else if (vartype == 1) { // for velx, and vely
-                 data(i,j,k,n) = vgx*rho; //eta;
-              } else if (vartype == 2) {
-                 data(i,j,k,n) = vgy*rho; //eta;
-              } else {
-                 data(i,j,k,n) = (zlo-k+1)*data(i,j,zlo,n) - (zlo-k)*data(i,j,zlo+1,n);
+              } else if (type == IntVect(AMREX_D_DECL(1, 0, 0))) { //for velx
+                 iy = i < lbound(*states[1]).x ? lbound(*states[1]).x : i;
+                 jy = j < lbound(*states[1]).y ? lbound(*states[1]).y : j;
+                 iy = i > ubound(*states[1]).x ? ubound(*states[1]).x : i;
+                 jy = j > ubound(*states[1]).y ? ubound(*states[1]).y-1 : j;
+
+                 ie = i < lbound(*states[3]).x ? lbound(*states[3]).x : i;
+                 je = j < lbound(*states[3]).y ? lbound(*states[3]).y : j;
+                 ie = i > ubound(*states[3]).x ? ubound(*states[3]).x-1 : i;
+                 je = j > ubound(*states[3]).y ? ubound(*states[3]).y : j;
+
+                 velx  = (*states[0])(i,j,lo);
+                 vely  = 0.5*((*states[1])(iy,jy,lo)+(*states[1])(iy,jy+1,lo));
+                 rho   = 0.5*((*states[4])(i,j,lo,Rho_comp)+(*states[4])(i+1,j,lo,Rho_comp));
+                 eta   = 0.5*((*states[3])(ie,je,lo)+(*states[3])(ie+1,je,lo));
+                 Real vmag  = sqrt(velx*velx+vely*vely);
+                 Real vgx   = ((velx-most.vel_mean[0])*most.vmag_mean + vmag*most.vel_mean[0])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+                 Real vgy   = ((vely-most.vel_mean[1])*most.vmag_mean + vmag*most.vel_mean[1])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+
+                 //printf("i=%d,j=%d,k=%d,vx=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgx,rho,eta,most.utau,vgx*rho/eta);
+                 if (!is_derived) {
+                    data(i,j,k,n) = data(i,j,lo,n) - vgx*rho/eta;
+                 } else {
+                    data(i,j,k,n) = data(i,j,lo,n) - vgx/eta;
+                 }
+
+              } else if (type == IntVect(AMREX_D_DECL(0, 1, 0))) { //for vely
+                 ix = i < lbound(*states[0]).x ? lbound(*states[0]).x : i;
+                 jx = j < lbound(*states[0]).y ? lbound(*states[0]).y : j;
+                 ix = i > ubound(*states[0]).x ? ubound(*states[0]).x : i;
+                 jx = j > ubound(*states[0]).y ? ubound(*states[0]).y-1 : j;
+
+                 ie = i < lbound(*states[3]).x ? lbound(*states[3]).x : i;
+                 je = j < lbound(*states[3]).y ? lbound(*states[3]).y : j;
+                 ie = i > ubound(*states[3]).x ? ubound(*states[3]).x : i;
+                 je = j > ubound(*states[3]).y ? ubound(*states[3]).y-1 : j;
+
+                 velx  = 0.5*((*states[0])(ix,jx,lo)+(*states[0])(ix,jx+1,lo));
+                 vely  = (*states[1])(i,j,lo);
+                 rho   = 0.5*((*states[4])(i,j,lo,Rho_comp)+(*states[4])(i,j+1,lo,Rho_comp));
+                 eta   = 0.5*((*states[3])(ie,je,lo)+(*states[3])(ie,je+1,lo));
+                 Real vmag  = sqrt(velx*velx+vely*vely);
+                 Real vgx   = ((velx-most.vel_mean[0])*most.vmag_mean + vmag*most.vel_mean[0])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+                 Real vgy   = ((vely-most.vel_mean[1])*most.vmag_mean + vmag*most.vel_mean[1])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+
+                 //printf("i=%d,j=%d,k=%d,vy=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgy,rho,eta,most.utau,vgy*rho/eta);
+                 if (!is_derived) {
+                    data(i,j,k,n) = data(i,j,lo,n) - vgy*rho/eta;
+                 } else {
+                    data(i,j,k,n) = data(i,j,lo,n) - vgy/eta;
+                 }
+              } else { // other variables
+                 data(i,j,k,n) = (lo-k+1)*data(i,j,lo,n) - (lo-k)*data(i,j,lo+1,n);
               }
             }
           });
+        }
+      }
     }
 
     static inline void
@@ -1589,30 +1622,179 @@ namespace math_bcs {
 
  };
 
+
+
   template<int IDIR>
   struct ablmostwall<IDIR, BCBound::upper> {
     using self = ablmostwall<IDIR, BCBound::upper>;
 
-    static inline void
-    apply_cell_based(const amrex::Geometry& /*geom*/, const Box& /*b*/,
-                     amrex::Vector<Array4<Real>*>& /*states*/, Array4<Real>& /*data*/,
-                     const ABLMost& /*most*/, int /*vartype*/, int ncomp=1) {};
+    static inline void apply_cell_based(const amrex::Geometry& geom, const Box& b, amrex::Vector<Array4<Real>*>& states, Array4<Real>& data, const ABLMost& most, bool is_derived, int ncomp=1) {
+      int hi = geom.Domain().bigEnd(IDIR);
+      auto type = b.type();
+      const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
+
+      if(b.bigEnd(IDIR) > hi) {
+        if (IDIR == 0) {
+           amrex::Print() << " ABLMost not available for x-dimension " << std::endl;
+
+        } else if (IDIR == 1) {
+           amrex::Print() << " ABLMost not available for y-dimension " << std::endl;
+
+        } else if (IDIR == 2) {
+          amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            // Not tested yet, FIX ME if you find bugs
+            if (k > hi) {
+              Real velx, vely, rho, theta, eta;
+              int ix, jx, iy, jy, ie, je;
+              if (type == IntVect(AMREX_D_DECL(0, 0, 0)) && n == RhoTheta_comp) {
+                 /**
+                   * for zone centered variables, the face centered velocity need to be interpolated to
+                   * zone center.
+                   * NOTE: the number of ghost zone for state variables are different from face centered
+                   *       variables in the new version.
+                   */
+                 ix = i < lbound(*states[0]).x ? lbound(*states[0]).x : i;
+                 jx = j < lbound(*states[0]).y ? lbound(*states[0]).y : j;
+                 ix = i > ubound(*states[0]).x ? ubound(*states[0]).x-1 : i;
+                 jx = j > ubound(*states[0]).y ? ubound(*states[0]).y : j;
+
+                 iy = i < lbound(*states[1]).x ? lbound(*states[1]).x : i;
+                 jy = j < lbound(*states[1]).y ? lbound(*states[1]).y : j;
+                 iy = i > ubound(*states[1]).x ? ubound(*states[1]).x : i;
+                 jy = j > ubound(*states[1]).y ? ubound(*states[1]).y-1 : j;
+
+                 ie = i < lbound(*states[3]).x ? lbound(*states[3]).x : i;
+                 je = j < lbound(*states[3]).y ? lbound(*states[3]).y : j;
+                 ie = i > ubound(*states[3]).x ? ubound(*states[3]).x : i;
+                 je = j > ubound(*states[3]).y ? ubound(*states[3]).y : j;
+
+                 velx  = 0.5*((*states[0])(ix,jx,hi)+(*states[0])(ix+1,jx,hi));
+                 vely  = 0.5*((*states[1])(iy,jy,hi)+(*states[0])(iy,jy+1,hi));
+                 rho   = (*states[4])(i,j,hi,Rho_comp);
+                 theta = (*states[4])(i,j,hi,RhoTheta_comp)/rho;
+                 eta   = (*states[3])(ie,je,hi);
+
+                 Real vmag    = sqrt(velx*velx+vely*vely);
+                 Real num1    = (theta-most.theta_mean)*most.vmag_mean;
+                 Real num2    = (most.theta_mean-most.surf_temp)*vmag;
+                 Real motheta = (num1+num2)*most.utau*most.kappa/most.phi_h();
+
+                 //printf("i=%d,j=%d,k=%d,theta=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,motheta,rho,(*states[3])(60,10,1),most.utau,motheta*rho/eta);
+                 if (!is_derived) {
+                    data(i,j,k,n) = rho*(data(i,j,hi,n) - motheta*rho/eta);
+                 } else {
+                    data(i,j,k,n) = data(i,j,hi,n) - motheta/eta;
+                 }
+
+              } else if (type == IntVect(AMREX_D_DECL(1, 0, 0))) { //for velx
+                 iy = i < lbound(*states[1]).x ? lbound(*states[1]).x : i;
+                 jy = j < lbound(*states[1]).y ? lbound(*states[1]).y : j;
+                 iy = i > ubound(*states[1]).x ? ubound(*states[1]).x : i;
+                 jy = j > ubound(*states[1]).y ? ubound(*states[1]).y-1 : j;
+
+                 ie = i < lbound(*states[3]).x ? lbound(*states[3]).x : i;
+                 je = j < lbound(*states[3]).y ? lbound(*states[3]).y : j;
+                 ie = i > ubound(*states[3]).x ? ubound(*states[3]).x-1 : i;
+                 je = j > ubound(*states[3]).y ? ubound(*states[3]).y : j;
+
+                 velx  = (*states[0])(i,j,hi);
+                 vely  = 0.5*((*states[1])(iy,jy,hi)+(*states[1])(iy,jy+1,hi));
+                 rho   = 0.5*((*states[4])(i,j,hi,Rho_comp)+(*states[4])(i+1,j,hi,Rho_comp));
+                 eta   = 0.5*((*states[3])(ie,je,hi)+(*states[3])(ie+1,je,hi));
+                 Real vmag  = sqrt(velx*velx+vely*vely);
+                 Real vgx   = ((velx-most.vel_mean[0])*most.vmag_mean + vmag*most.vel_mean[0])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+                 Real vgy   = ((vely-most.vel_mean[1])*most.vmag_mean + vmag*most.vel_mean[1])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+
+                 //printf("i=%d,j=%d,k=%d,vx=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgx,rho,eta,most.utau,vgx*rho/eta);
+
+                if (!is_derived) {
+                    data(i,j,k,n) = data(i,j,hi,n) + vgx*rho/eta;
+                 } else {
+                    data(i,j,k,n) = data(i,j,hi,n) + vgx/eta;
+                 }
+
+              } else if (type == IntVect(AMREX_D_DECL(0, 1, 0))) { //for vely
+                 ix = i < lbound(*states[0]).x ? lbound(*states[0]).x : i;
+                 jx = j < lbound(*states[0]).y ? lbound(*states[0]).y : j;
+                 ix = i > ubound(*states[0]).x ? ubound(*states[0]).x : i;
+                 jx = j > ubound(*states[0]).y ? ubound(*states[0]).y-1 : j;
+
+                 ie = i < lbound(*states[3]).x ? lbound(*states[3]).x : i;
+                 je = j < lbound(*states[3]).y ? lbound(*states[3]).y : j;
+                 ie = i > ubound(*states[3]).x ? ubound(*states[3]).x : i;
+                 je = j > ubound(*states[3]).y ? ubound(*states[3]).y-1 : j;
+
+                 velx  = 0.5*((*states[0])(ix,jx,hi)+(*states[0])(ix,jx+1,hi));
+                 vely  = (*states[1])(i,j,hi);
+                 rho   = 0.5*((*states[4])(i,j,hi,Rho_comp)+(*states[4])(i,j+1,hi,Rho_comp));
+                 eta   = 0.5*((*states[3])(ie,je,hi)+(*states[3])(ie,je+1,hi));
+                 Real vmag  = sqrt(velx*velx+vely*vely);
+                 Real vgx   = ((velx-most.vel_mean[0])*most.vmag_mean + vmag*most.vel_mean[0])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+                 Real vgy   = ((vely-most.vel_mean[1])*most.vmag_mean + vmag*most.vel_mean[1])/(most.vmag_mean*most.vmag_mean)*most.utau*most.utau;
+
+                 //printf("i=%d,j=%d,k=%d,vy=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgy,rho,eta,most.utau,vgy*rho/eta);
+                 if (!is_derived) {
+                    data(i,j,k,n) = data(i,j,hi,n) + vgy*rho/eta;
+                 } else {
+                    data(i,j,k,n) = data(i,j,hi,n) + vgy/eta;
+                 }
+              } else { // other variables
+                 data(i,j,k,n) = (k-hi+1)*data(i,j,hi,n) - (k-hi)*data(i,j,hi-1,n);
+              }
+            }
+          });
+        }
+      }
+    }
+
 
     static inline void
-    apply_face_based(const amrex::Geometry& /*geom*/, const Box& /*b*/, Array4<Real>& /*data*/, int ncomp=1) {}
+    apply_face_based(const amrex::Geometry& geom, const Box& b, Array4<Real>& data, int ncomp=1) {
+      int lo = geom.Domain().smallEnd(IDIR);
+      if(b.smallEnd(IDIR) < lo) {
+        if (IDIR == 0) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (i < lo) {
+              data(i,j,k,n) = 0.0;
+            }
+           });
+        } else if (IDIR == 1) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (j < lo) {
+              data(i,j,k,n) = 0.0;
+            }
+           });
+        } else if (IDIR == 2) {
+           amrex::ParallelFor(b, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+            if (k < lo) {
+              data(i,j,k,n) = 0.0;
+            }
+           });
+        }
+      }
+    }
+
  };
-
-  /****************************************************************************************************************/
-
+/****************************************************************************************************************/
 }
 
 namespace phys_bcs {
 
 class BCBase {
   public:
-  virtual void applyBC (const amrex::Geometry /*geom*/, amrex::Vector<MultiFab*>& /*vars*/, const SolverChoice& /*solverChoice*/) = 0;
-  virtual bool isInterior() { return false; }
-  virtual bool isNoSlipWall() { return false; }
+    explicit BCBase(ERF& erf_) : erf(erf_) {}
+    virtual ~BCBase() {};
+
+    virtual void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, const SolverChoice& solverChoice, bool is_derived) = 0;
+    virtual bool isInterior() { return false; }
+    virtual bool isNoSlipWall() { return false; }
+  protected:
+    // ERF class that bcbase belongs to
+    ERF& erf;
 };
 
 }

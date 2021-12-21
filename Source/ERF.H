@@ -22,6 +22,7 @@
 #include "IndexDefines.H"
 #include "IOManager.H"
 
+#include "BC/ABLMost.H"
 #include "BC/BCBase.H"
 #include "BC/BCDummy.H"
 #include "BC/BCInterior.H"
@@ -113,6 +114,12 @@ public:
 
   IOManager& get_io_manager() { return *io_mgr; }
   const IOManager& get_io_manager() const { return *io_mgr; }
+
+  // get function
+  ABLMost& get_most() { return most; }
+  const ABLMost& get_most() const { return most; }
+
+  void setupABLMost();
 
   //! Define data descriptors.
   static void variableSetUp();
@@ -251,9 +258,9 @@ public:
     amrex::MultiFab& mf,
     int dcomp) override;
 
-  static void applyBCs( const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars) {
+  static void applyBCs( const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, bool is_derived=false) {
     for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
-      bc_recs[dir]->applyBC(geom, vars, solverChoice);
+      bc_recs[dir]->applyBC(geom, vars, solverChoice, is_derived);
     }
   }
 
@@ -300,6 +307,9 @@ protected:
   // io manager
   std::unique_ptr<IOManager> io_mgr;
 
+  // Most class
+  ABLMost most;
+
   // Build a mask that ghost cells overlapping with interior cells in the same
   // multifab are set to 0, whereas others are set to 1.
   amrex::Vector<std::unique_ptr<amrex::iMultiFab>> ib_mask;
@@ -310,7 +320,7 @@ protected:
   static void read_params();
 
   template<int DIM, math_bcs::BCBound Bound>
-  static std::unique_ptr<phys_bcs::BCBase> initialize_bcs(const std::string& bc_char);
+  std::unique_ptr<phys_bcs::BCBase> initialize_bcs(const std::string& bc_char);
 
   ERF& getLevel(int lev);
 
@@ -363,6 +373,9 @@ protected:
   static amrex::Real init_shrink;
   static amrex::Real change_max;
   static amrex::Real cfl;
+  static amrex::Real surf_temp;
+  static amrex::Real zref;
+  static std::string bc_type_names[2*AMREX_SPACEDIM];
   static amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > bc_recs;
 
   /** for keeping track of the amount of CPU time used -- this will persist

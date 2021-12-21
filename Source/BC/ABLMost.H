@@ -43,7 +43,7 @@ struct ABLMost
     amrex::Real beta_m{16.0};
     amrex::Real beta_h{16.0};
 
-    ThetaCalcType alg_type{SURFACE_TEMPERATURE};
+    ThetaCalcType alg_type{HEAT_FLUX};
 
     AMREX_GPU_DEVICE AMREX_FORCE_INLINE
     amrex::Real phi_m() const
