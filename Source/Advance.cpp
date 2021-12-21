@@ -2,6 +2,7 @@
 
 #include <AMReX_FluxRegister.H>
 #include "ERF.H"
+#include "SpatialStencils.H"
 #include "TimeIntegration.H"
 #include "IndexDefines.H"
 

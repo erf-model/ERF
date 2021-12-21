@@ -59,21 +59,20 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/PlotFile.H
        ${SRC_DIR}/IO/PlotFile.cpp
        ${SRC_DIR}/IO/IOManager.cpp
-       ${SRC_DIR}/TimeIntegration/EddyViscosity.H
-       ${SRC_DIR}/TimeIntegration/ExpansionRate.H
+       ${SRC_DIR}/SpatialStencils/Advection.cpp
+       ${SRC_DIR}/SpatialStencils/Diffusion.cpp
+       ${SRC_DIR}/SpatialStencils/EddyViscosity.H
+       ${SRC_DIR}/SpatialStencils/ExpansionRate.H
+       ${SRC_DIR}/SpatialStencils/StrainRate.H
+       ${SRC_DIR}/SpatialStencils/StressTerm.H
+       ${SRC_DIR}/SpatialStencils/TKEProduction.H
+       ${SRC_DIR}/SpatialStencils/Interpolation.cpp
+       ${SRC_DIR}/SpatialStencils/MomentumToVelocity.cpp
+       ${SRC_DIR}/SpatialStencils/VelocityToMomentum.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration.H
-       ${SRC_DIR}/TimeIntegration/StrainRate.H
-       ${SRC_DIR}/TimeIntegration/StressTerm.H
-       ${SRC_DIR}/TimeIntegration/TKEProduction.H
-       ${SRC_DIR}/TimeIntegration/Interpolation.cpp
-       ${SRC_DIR}/TimeIntegration/MomentumToVelocity.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_rhs.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_fast.cpp
-       ${SRC_DIR}/TimeIntegration/TimeIntegration_utils.cpp
-       ${SRC_DIR}/TimeIntegration/VelocityToMomentum.cpp
-       ${SRC_DIR}/TimeIntegration/Advection.cpp
-       ${SRC_DIR}/TimeIntegration/Diffusion.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
@@ -101,6 +100,7 @@ function(build_erf_lib erf_lib_name)
 
   #ERF include directories
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR})
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/SpatialStencils)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})
