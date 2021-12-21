@@ -31,7 +31,7 @@ class BCMostWall : public BCBase {
   explicit BCMostWall(ERF& erf) : BCBase(erf) {}
   using Dir = DirectionSelector<IDIR>;
 
-  // we need all velocity variables and temperature/theta as input 
+  // we need all velocity variables and temperature/theta as input
   void applyBC (const Geometry geom, Vector<MultiFab*>& vars, const SolverChoice& solverChoice, bool is_derived=false) override {
     if ((geom.isPeriodic(IDIR)) || (vars.size() == 0)) return;
 

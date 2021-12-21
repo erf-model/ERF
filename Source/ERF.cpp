@@ -385,7 +385,7 @@ ERF::initData()
 
   // init boundary condition
   auto f = [&] (std::string const& bcid, Orientation ori)
-  {     
+  {
      int dir = ori.coordDir();
      if (ori.isLow() && dir == 0)
         bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(bc_type_names[ori]);
@@ -439,11 +439,11 @@ ERF::initData()
                     << " but not periodic\n";
           amrex::Error();
         }
-    } 
+    }
  }
 }
 
-void 
+void
 ERF::setupABLMost()
 {
 
