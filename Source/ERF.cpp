@@ -17,7 +17,6 @@
 #include "ERF_Constants.H"
 #include "Derive.H"
 #include "EOS.H"
-//#include "Tagging.H"
 #include "IndexDefines.H"
 
 using namespace amrex;

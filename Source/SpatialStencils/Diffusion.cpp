@@ -1,4 +1,4 @@
-#include <TimeIntegration.H>
+#include <SpatialStencils.H>
 #include <EddyViscosity.H>
 #include <ExpansionRate.H>
 #include <StrainRate.H>

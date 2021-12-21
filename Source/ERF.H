@@ -450,6 +450,34 @@ void erf_nullfill(
 //
 
 AMREX_FORCE_INLINE
+int
+ComputeGhostCells(const int& spatial_order) {
+  int nGhostCells;
+
+  switch (spatial_order) {
+    case 2:
+      nGhostCells = 1;
+      break;
+    case 3:
+      nGhostCells = 2;
+      break;
+    case 4:
+      nGhostCells = 2;
+      break;
+    case 5:
+      nGhostCells = 2;
+      break;
+    case 6:
+      nGhostCells = 3;
+      break;
+    default:
+      amrex::Error("Must specify spatial order to be 2,3,4,5 or 6");
+  }
+
+  return nGhostCells;
+}
+
+AMREX_FORCE_INLINE
 amrex::MultiFab*
 ERF::Area()
 {

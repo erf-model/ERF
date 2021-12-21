@@ -4,6 +4,7 @@
 #include <AMReX_BC_TYPES.H>
 #include <ERF_Constants.H>
 #include <TKEProduction.H>
+#include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 #include <ERF.H>
