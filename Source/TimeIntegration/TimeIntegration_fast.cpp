@@ -3,6 +3,7 @@
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
 #include <ERF_Constants.H>
+#include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 

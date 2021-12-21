@@ -2,6 +2,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
+#include <SpatialStencils.H>
 #include <AMReX_TimeIntegrator.H>
 #include <TimeIntegration.H>
 #include <ERF.H>
@@ -223,7 +224,7 @@ void erf_advance(int level,
         // Apply BC on velocity data on faces
         // Note that the BC was already applied on momentum
         amrex::Vector<MultiFab*> vel_vars{&xvel_new, &yvel_new, &zvel_new};
-        ERF::applyBCs(fine_geom, vel_vars);
+        ERF::applyBCs(fine_geom, vel_vars, true);
     };
 
     interpolate_coarse_fine_faces(state_old);
@@ -608,9 +609,11 @@ void erf_advance(int level,
     zvel_new.FillBoundary(fine_geom.periodicity());
 
     // One final application of non-periodic BCs
-    amrex::Vector<MultiFab*> vars{&cons_new, &xvel_new, &yvel_new, &zvel_new};
-    ERF::applyBCs(fine_geom, vars);
+    amrex::Vector<MultiFab*> cons_vars{&cons_new};
+    ERF::applyBCs(fine_geom, cons_vars);
 
+    amrex::Vector<MultiFab*> vel_vars{&xvel_new, &yvel_new, &zvel_new};
+    ERF::applyBCs(fine_geom, vel_vars, true);
 }
 
 #ifdef AMREX_USE_SUNDIALS

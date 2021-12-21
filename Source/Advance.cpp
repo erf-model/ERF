@@ -2,6 +2,7 @@
 
 #include <AMReX_FluxRegister.H>
 #include "ERF.H"
+#include "SpatialStencils.H"
 #include "TimeIntegration.H"
 #include "IndexDefines.H"
 
@@ -73,6 +74,12 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   U_old.FillBoundary(geom.periodicity());
   V_old.FillBoundary(geom.periodicity());
   W_old.FillBoundary(geom.periodicity());
+
+  // configure ABLMost params if used MostWall boundary condition
+  for (OrientationIter oitr; oitr; ++oitr) {
+     const Orientation face = oitr();
+     if (bc_type_names[face] == "MostWall") setupABLMost();
+  }
 
   const auto& ref_ratio = (level > 0) ? parent->refRatio(level-1) : IntVect(1,1,1);
 

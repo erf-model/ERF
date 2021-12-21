@@ -17,7 +17,6 @@
 #include "ERF_Constants.H"
 #include "Derive.H"
 #include "EOS.H"
-//#include "Tagging.H"
 #include "IndexDefines.H"
 
 using namespace amrex;
@@ -36,6 +35,8 @@ amrex::Real ERF::initial_dt  = -1.0;
 amrex::Real ERF::fixed_dt    = -1.0;
 amrex::Real ERF::max_dt      =  1.e20;
 amrex::Real ERF::dt_cutoff   =  0.0;
+amrex::Real ERF::surf_temp   = 300.0;
+amrex::Real ERF::zref        = 64.0;
 
 std::string ERF::coupling_type = "OneWay";
 int         ERF::do_reflux     = 0;
@@ -59,6 +60,7 @@ bool        ERF::init_abl      = false;
 int ERF::ng_dens_hse = 1;
 int ERF::ng_pres_hse = 1;
 
+std::string ERF::bc_type_names[2*AMREX_SPACEDIM];
 amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2);
 int ERF::NumAdv = 0;
 int ERF::FirstAdv = -1;
@@ -100,17 +102,17 @@ std::unique_ptr<phys_bcs::BCBase>
 ERF::initialize_bcs(const std::string& bc_char) {
   if (!bc_char.compare("Interior")) {
     amrex::Print() <<" DOING INTERIOR " << std::endl;
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCInterior());
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCInterior(*this));
     return bc_rec;
   } else if (!bc_char.compare("Outflow")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCOutflow<DIM, Bound>());
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCOutflow<DIM, Bound>(*this));
     return bc_rec;
   } else if (!bc_char.compare("Symmetry")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>(*this));
     return bc_rec;
   } else if (!bc_char.compare("SlipWall")) {
     amrex::Print() <<" DOING SLIP " << std::endl;
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>());
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>(*this));
     return bc_rec;
   } else if (!bc_char.compare("NoSlipWall")) {
     amrex::ParmParse bcinp(getBCName<DIM, Bound>());
@@ -123,13 +125,13 @@ ERF::initialize_bcs(const std::string& bc_char) {
     else if (Bound == 1)
       amrex::Print() << "NOTE: z-hi face has no-slip with specified vel = ";
     amrex::Print()   << uvec[0] << " " << uvec[1] << " " << uvec[2] << std::endl;
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCNoSlipWall<DIM, Bound>(uvec));
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCNoSlipWall<DIM, Bound>(*this, uvec));
     return bc_rec;
   } else if (!bc_char.compare("SimSlipWall")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSimSlipWall<DIM, Bound>());
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSimSlipWall<DIM, Bound>(*this));
     return bc_rec;
   } else if (!bc_char.compare("MostWall")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCMostWall<DIM, Bound>());
+    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCMostWall<DIM, Bound>(*this));
     return bc_rec;
   } else {
     amrex::Abort("Wrong boundary condition word, please use: "
@@ -190,28 +192,30 @@ ERF::read_params()
     pp.query("max_dt", max_dt);
     pp.query("dt_cutoff", dt_cutoff);
 
-    int bc_tmp[2*AMREX_SPACEDIM];
+//    int bc_tmp[2*AMREX_SPACEDIM];
 
-    auto f = [&bc_tmp] (std::string const& bcid, Orientation ori)
+    auto f = [&] (std::string const& bcid, Orientation ori)
     {
           ParmParse pbc(bcid);
           std::string bc_type_in = "Interior";
           pbc.query("type", bc_type_in);
           std::string bc_type = amrex::toLower(bc_type_in);
+          bc_type_names[ori] = bc_type_in;
 
           if (bc_type_in == "NoSlipWall")
-              bc_tmp[ori] = PhysBCType::noslipwall;
+              bc_type[ori] = PhysBCType::noslipwall;
           else if (bc_type_in == "SlipWall")
-              bc_tmp[ori] = PhysBCType::slipwall;
+              bc_type[ori] = PhysBCType::slipwall;
           else if (bc_type_in == "Inflow")
-              bc_tmp[ori] = PhysBCType::inflow;
+              bc_type[ori] = PhysBCType::inflow;
           else if (bc_type_in == "Outflow")
-              bc_tmp[ori] = PhysBCType::outflow;
+              bc_type[ori] = PhysBCType::outflow;
           else if (bc_type_in == "Symmetry")
-              bc_tmp[ori] = PhysBCType::symmetry;
+              bc_type[ori] = PhysBCType::symmetry;
 //        else if (bc_type_in == "ReflectOdd")
 //            bc_tmp[ori] = PhysBCType::reflectodd;
 
+#if 0
           int dir = ori.coordDir();
           if (ori.isLow() && dir == 0)
              bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(bc_type_in);
@@ -231,6 +235,7 @@ ERF::read_params()
              bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>(bc_type_in);
              if (bc_type_in == "NoSlipWall") hi_z_is_dirichlet = true;
           }
+#endif
     };
 
     f("xlo", Orientation(Direction::x,Orientation::low ));
@@ -247,6 +252,7 @@ ERF::read_params()
     //
     // Do idiot check.  Periodic means interior in those directions.
     //
+#if 0
     for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
         if (amrex::DefaultGeometry().isPeriodic(dir)) {
           if (
@@ -277,6 +283,7 @@ ERF::read_params()
               }
         }
     }
+#endif
 
     // Sanity check
     if (cfl <= 0.0 || cfl > 1.0) {
@@ -374,6 +381,111 @@ ERF::initData()
   {
       initRayleigh();
   }
+
+  // init boundary condition
+  auto f = [&] (std::string const& bcid, Orientation ori)
+  {
+     int dir = ori.coordDir();
+     if (ori.isLow() && dir == 0)
+        bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(bc_type_names[ori]);
+     else if (!ori.isLow() && dir == 0)
+        bc_recs[1] = ERF::initialize_bcs<0, math_bcs::BCBound::upper>(bc_type_names[ori]);
+     if (ori.isLow() && dir == 1)
+        bc_recs[2] = ERF::initialize_bcs<1, math_bcs::BCBound::lower>(bc_type_names[ori]);
+     else if (!ori.isLow() && dir == 1)
+        bc_recs[3] = ERF::initialize_bcs<1, math_bcs::BCBound::upper>(bc_type_names[ori]);
+     else if (ori.isLow() && dir == 2)
+     {
+        bc_recs[4] = ERF::initialize_bcs<2, math_bcs::BCBound::lower>(bc_type_names[ori]);
+        if (bc_type_names[ori] == "NoSlipWall") lo_z_is_dirichlet = true;
+     }
+     else if (!ori.isLow() && dir == 2)
+     {
+        bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>(bc_type_names[ori]);
+        if (bc_type_names[ori] == "NoSlipWall") hi_z_is_dirichlet = true;
+     }
+ };
+
+ f("xlo", Orientation(Direction::x,Orientation::low ));
+ f("xhi", Orientation(Direction::x,Orientation::high));
+ f("ylo", Orientation(Direction::y,Orientation::low ));
+ f("yhi", Orientation(Direction::y,Orientation::high));
+ f("zlo", Orientation(Direction::z,Orientation::low ));
+ f("zhi", Orientation(Direction::z,Orientation::high));
+
+ for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
+     if (amrex::DefaultGeometry().isPeriodic(dir)) {
+       if (
+         !(bc_recs[2*dir]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
+         std::cerr << "ERF::read_params:periodic in direction " << dir
+                   << " but low BC is not Interior\n";
+         amrex::Error();
+       }
+       if (
+         !(bc_recs[2*dir+1]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
+         std::cerr << "ERF::read_params:periodic in direction " << dir
+                   << " but high BC is not Interior\n";
+         amrex::Error();
+       }
+     } else {
+        if (bc_recs[2*dir]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
+          std::cerr << "ERF::read_params:interior bc in direction " << dir
+                    << " but not periodic\n";
+          amrex::Error();
+        }
+        if (bc_recs[2*dir+1]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
+          std::cerr << "ERF::read_params:interior bc in direction " << dir
+                    << " but not periodic\n";
+          amrex::Error();
+        }
+    }
+ }
+}
+
+void
+ERF::setupABLMost()
+{
+
+  amrex::ParmParse pp("erf");
+
+  pp.query("most.surf_temp", surf_temp);
+  pp.query("most.zref", zref);
+
+  MultiFab& S_old = get_old_data(State_Type);
+  MultiFab& U_old = get_old_data(X_Vel_Type);
+  MultiFab& V_old = get_old_data(Y_Vel_Type);
+  MultiFab& W_old = get_old_data(Z_Vel_Type);
+
+  S_old.FillBoundary(geom.periodicity());
+  U_old.FillBoundary(geom.periodicity());
+  V_old.FillBoundary(geom.periodicity());
+  W_old.FillBoundary(geom.periodicity());
+
+  PlaneAverage save (&S_old, geom, 2, true);
+  PlaneAverage vxave(&U_old, geom, 2, true);
+  PlaneAverage vyave(&V_old, geom, 2, true);
+  PlaneAverage vzave(&W_old, geom, 2, true);
+  VelPlaneAverage vmagave({&U_old,&V_old,&W_old}, geom, 2, true);
+
+  save. compute_averages(ZDir(), save.field());
+  vxave.compute_averages(ZDir(), vxave.field());
+  vyave.compute_averages(ZDir(), vyave.field());
+  vzave.compute_averages(ZDir(), vzave.field());
+  vmagave.compute_hvelmag_averages(ZDir(), 0, 1, vmagave.field());
+
+  const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
+
+  most.surf_temp   = surf_temp;
+  most.zref        = zref;
+  most.vel_mean[0] = vxave.line_average_interpolated(most.zref, 0);
+  most.vel_mean[1] = vyave.line_average_interpolated(most.zref, 0);
+  most.vel_mean[2] = vzave.line_average_interpolated(most.zref, 0);
+  most.vmag_mean   = vmagave.line_hvelmag_average_interpolated(most.zref);
+  most.theta_mean  = save.line_average_interpolated(most.zref, RhoTheta_comp);
+
+printf("vmag_mean=%13.6e,theta_mean=%13.6e, zref=%13.6e, dx=%13.6e\n",most.vmag_mean,most.theta_mean,most.zref,dx[2]);
+
+  most.update_fluxes();
 }
 
 void
