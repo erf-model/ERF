@@ -475,7 +475,6 @@ ERF::setupABLMost()
   vmagave.compute_hvelmag_averages(ZDir(), 0, 1, vmagave.field());
 
   const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
-//  const GpuArray<Real, AMREX_SPACEDIM> probLo = geom.ProbLo();
 
   most.surf_temp   = surf_temp;
   most.zref        = zref;
@@ -485,7 +484,7 @@ ERF::setupABLMost()
   most.vmag_mean   = vmagave.line_hvelmag_average_interpolated(most.zref);
   most.theta_mean  = save.line_average_interpolated(most.zref, RhoTheta_comp);
 
-printf("vmag_mean=%13.6e,theta_mean=%13.6e, zref=%13.6e\n",most.vmag_mean,most.theta_mean,most.zref);
+printf("vmag_mean=%13.6e,theta_mean=%13.6e, zref=%13.6e, dx=%13.6e\n",most.vmag_mean,most.theta_mean,most.zref,dx[2]);
 
   most.update_fluxes();
 }
