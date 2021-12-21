@@ -68,7 +68,7 @@ void erf_rhs (int level,
                                       lo_z_is_dirichlet, klo, hi_z_is_dirichlet, khi);
         eddyViscosity.FillBoundary(geom.periodicity());
         amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};
-        ERF::applyBCs(geom, eddyvisc_update);
+        ERF::applyBCs(geom, eddyvisc_update, true);
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;

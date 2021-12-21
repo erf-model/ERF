@@ -15,12 +15,10 @@ class BCNoSlipWall : public BCBase {
   bool isNoSlipWall() override { return true; }
 
   public:
-  BCNoSlipWall(const amrex::Vector<amrex::Real> inputvel)
-  {
-    vel = inputvel;
-  }
+  explicit BCNoSlipWall(ERF& erf) : BCBase(erf) {}
+  explicit BCNoSlipWall(ERF& erf, const amrex::Vector<amrex::Real> inputvel) : BCBase(erf), vel(inputvel) {}
 
-  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, const SolverChoice& solverChoice) override {
+  void applyBC (const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, const SolverChoice& solverChoice, bool is_derived=false) override {
     if ((geom.isPeriodic(IDIR)) || (vars.size() == 0)) return;
 
     // setup boundary conditions

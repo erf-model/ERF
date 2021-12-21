@@ -74,6 +74,12 @@ ERF::advance(Real time, Real dt, int /*amr_iteration*/, int /*amr_ncycle*/)
   V_old.FillBoundary(geom.periodicity());
   W_old.FillBoundary(geom.periodicity());
 
+  // configure ABLMost params if used MostWall boundary condition
+  for (OrientationIter oitr; oitr; ++oitr) {
+     const Orientation face = oitr();
+     if (bc_type_names[face] == "MostWall") setupABLMost();
+  }
+
   const auto& ref_ratio = (level > 0) ? parent->refRatio(level-1) : IntVect(1,1,1);
 
   InterpFaceRegister ifr;
