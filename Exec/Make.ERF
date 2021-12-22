@@ -1,5 +1,7 @@
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 
+EBASE = ERF
+
 ERF_SOURCE_DIR = $(ERF_HOME)/Source
 include $(ERF_SOURCE_DIR)/Make.package
 
