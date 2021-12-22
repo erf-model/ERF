@@ -20,4 +20,57 @@
 #define PrimScalar_comp  2
 #define NUM_PRIM         2 + NUM_ADV // (assumes NUM_ADV >= 1)
 
+namespace BCVars {
+    enum {
+        cons = 0,
+        vels,
+        NumTypes
+    };
+}
+
+namespace Vars {
+    enum {
+        cons = 0,
+        xvel,
+        yvel,
+        zvel,
+        NumTypes
+    };
+}
+
+namespace Cons {
+    enum {
+        Rho = 0,
+        RhoTheta,
+        RhoKE,
+        RhoScalar,
+        NumVars
+    };
+}
+
+namespace Prim {
+    enum {
+        Theta = 0,
+        KE,
+        Scalar,
+        NumVars
+    };
+}
+
+// NOTE: the first of these must match up with the BCType enum
+//     in amrex/Src/Base/AMReX_BC_TYPES.H.  We had extras at 
+//     the end to use locally
+namespace ERFBCType {
+enum mathematicalBndryTypes : int { bogus        = -666,
+    reflect_odd  = -1,
+    int_dir      =  0,
+    reflect_even =  1,
+    foextrap     =  2,
+    ext_dir      =  3,
+    hoextrap     =  4,
+    hoextrapcc   =  5,
+    MOST         =  101
+};
+}
+
 #endif

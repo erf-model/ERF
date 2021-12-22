@@ -3,6 +3,7 @@
 
 #include <ERF_Constants.H>
 #include <AMReX.H>
+#include <cmath>
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta)

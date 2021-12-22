@@ -2,75 +2,56 @@
  * \file ERF.cpp
  */
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
-#include <AMReX_Vector.H>
-#include <AMReX_Utility.H>
-#include <AMReX_CONSTANTS.H>
-#include <AMReX_VisMF.H>
-#include <AMReX_TagBox.H>
-#include <AMReX_ParmParse.H>
-
-#include "ERF.H"
-#include "ERF_Constants.H"
-#include "Derive.H"
-#include "EOS.H"
-#include "IndexDefines.H"
+#include <ERF.H>
+#include <prob_common.H>
 
 using namespace amrex;
 
-bool ERF::signalStopJob = false;
-bool ERF::dump_old = false;
-int ERF::verbose = 0;
+bool ERF::lo_z_is_dirichlet = false;
+bool ERF::hi_z_is_dirichlet = false;
+
+amrex::Real ERF::startCPUTime        = 0.0;
+amrex::Real ERF::previousCPUTimeUsed = 0.0;
+
+Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 ABLFieldInit ERF::ablinit;
-
-amrex::Real ERF::cfl         = 0.8;
-amrex::Real ERF::init_shrink = 1.0;
-amrex::Real ERF::change_max  = 1.1;
-amrex::Real ERF::initial_dt  = -1.0;
-amrex::Real ERF::fixed_dt    = -1.0;
-amrex::Real ERF::max_dt      =  1.e20;
-amrex::Real ERF::dt_cutoff   =  0.0;
-amrex::Real ERF::surf_temp   = 300.0;
-amrex::Real ERF::zref        = 64.0;
-
-std::string ERF::coupling_type = "OneWay";
-int         ERF::do_reflux     = 0;
-int         ERF::do_avg_down   = 0;
-int         ERF::sum_interval  = -1;
-amrex::Real ERF::sum_per       = -1.0;
-
-std::string ERF::plotfile_type   = "amrex";
-std::string ERF::checkpoint_type = "amrex";
-
-int         ERF::output_1d_column = 0;
-amrex::Real ERF::column_interval  = -1;
-amrex::Real ERF::column_per       = -1.0;
-amrex::Real ERF::column_loc_x     = 0.0;
-amrex::Real ERF::column_loc_y     = 0.0;
-std::string ERF::column_file_name = "column_data.nc";
-
-bool        ERF::init_abl      = false;
+bool         ERF::init_abl = false;
 
 // Create dens_hse and pres_hse with one ghost cell
 int ERF::ng_dens_hse = 1;
 int ERF::ng_pres_hse = 1;
 
-std::string ERF::bc_type_names[2*AMREX_SPACEDIM];
-amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > ERF::bc_recs(AMREX_SPACEDIM*2);
-int ERF::NumAdv = 0;
-int ERF::FirstAdv = -1;
+// Time step control
+amrex::Real ERF::cfl         =  0.8;
+amrex::Real ERF::fixed_dt    = -1.0;
+amrex::Real ERF::init_shrink =  1.0;
+amrex::Real ERF::change_max  =  1.1;
 
-bool ERF::lo_z_is_dirichlet = false;
-bool ERF::hi_z_is_dirichlet = false;
+// Type of mesh refinement algorithm
+std::string ERF::coupling_type = "OneWay";
+int         ERF::do_reflux     = 0;
+int         ERF::do_avg_down   = 0;
 
-Vector<AMRErrorTag> ERF::ref_tags;
+// Dictate verbosity in screen output
+int         ERF::verbose       = 0;
 
-amrex::Vector<int> ERF::src_list;
+// Frequency of diagnostic output
+int         ERF::sum_interval  = -1;
+amrex::Real ERF::sum_per       = -1.0;
+
+// Native AMReX vs NetCDF
+std::string ERF::plotfile_type   = "amrex";
+std::string ERF::checkpoint_type = "amrex";
+
+// 1D NetCDF output (for ingestion by AMR-Wind)
+int         ERF::output_1d_column = 0;
+int         ERF::column_interval  = -1;
+amrex::Real ERF::column_per       = -1.0;
+amrex::Real ERF::column_loc_x     = 0.0;
+amrex::Real ERF::column_loc_y     = 0.0;
+std::string ERF::column_file_name = "column_data.nc";
 
 amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_dens_hse(0);
 amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_pres_hse(0);
@@ -86,1187 +67,488 @@ amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_ubar(0);
 amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_vbar(0);
 amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_thetabar(0);
 
-// this will be reset upon restart
-amrex::Real ERF::previousCPUTimeUsed = 0.0;
-amrex::Real ERF::startCPUTime = 0.0;
-int ERF::num_state_type = 0;
-
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
-template<int IDIR, math_bcs::BCBound Bound> std::string getBCName() {
-    return BCNames[IDIR + 3*Bound];
-}
-
-template<int DIM, math_bcs::BCBound Bound>
-std::unique_ptr<phys_bcs::BCBase>
-ERF::initialize_bcs(const std::string& bc_char) {
-  if (!bc_char.compare("Interior")) {
-    amrex::Print() <<" DOING INTERIOR " << std::endl;
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCInterior(*this));
-    return bc_rec;
-  } else if (!bc_char.compare("Outflow")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCOutflow<DIM, Bound>(*this));
-    return bc_rec;
-  } else if (!bc_char.compare("Symmetry")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>(*this));
-    return bc_rec;
-  } else if (!bc_char.compare("SlipWall")) {
-    amrex::Print() <<" DOING SLIP " << std::endl;
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSlipWall<DIM, Bound>(*this));
-    return bc_rec;
-  } else if (!bc_char.compare("NoSlipWall")) {
-    amrex::ParmParse bcinp(getBCName<DIM, Bound>());
-    AMREX_ALWAYS_ASSERT( DIM == 2);
-    amrex::Vector<amrex::Real> uvec; uvec.resize(AMREX_SPACEDIM);
-    bool read_value = bcinp.queryarr("velocity", uvec, 0, AMREX_SPACEDIM);
-    if (!read_value) for (int i = 0; i < AMREX_SPACEDIM; i++) uvec[i] = 0.;
-    if (Bound == 0)
-      amrex::Print() << "NOTE: z-lo face has no-slip with specified vel = ";
-    else if (Bound == 1)
-      amrex::Print() << "NOTE: z-hi face has no-slip with specified vel = ";
-    amrex::Print()   << uvec[0] << " " << uvec[1] << " " << uvec[2] << std::endl;
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCNoSlipWall<DIM, Bound>(*this, uvec));
-    return bc_rec;
-  } else if (!bc_char.compare("SimSlipWall")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCSimSlipWall<DIM, Bound>(*this));
-    return bc_rec;
-  } else if (!bc_char.compare("MostWall")) {
-    std::unique_ptr<phys_bcs::BCBase> bc_rec(new phys_bcs::BCMostWall<DIM, Bound>(*this));
-    return bc_rec;
-  } else {
-    amrex::Abort("Wrong boundary condition word, please use: "
-                 "Interior, Inflow, Outflow, Symmetry, SimSlipWall, SlipWall, NoSlipWall");
-    return NULL;
-  }
-}
-
-void
-ERF::read_params()
+// constructor - reads in parameters from inputs file
+//             - sizes multilevel arrays and data structures
+//             - initializes BCRec boundary condition object
+ERF::ERF ()
 {
-  static bool read_params_done = false;
+    ReadParameters();
+    setPlotVariables();
 
-  if (read_params_done)
-    return;
+    amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
-  read_params_done = true;
+    // Geometry on all levels has been defined already.
 
-  amrex::ParmParse pp("erf");
+    // No valid BoxArray and DistributionMapping have been defined.
+    // But the arrays for them have been resized.
 
-  pp.query("v", verbose);
-  pp.query("sum_interval", sum_interval);
-  pp.query("dump_old", dump_old);
+    int nlevs_max = max_level + 1;
 
-  pp.query("plotfile_type", plotfile_type);
-  pp.query("checkpoint_type", checkpoint_type);
-
-  pp.query("output_1d_column", output_1d_column);
-  pp.query("column_per", column_per);
-  pp.query("column_interval", column_interval);
-  pp.query("column_loc_x", column_loc_x);
-  pp.query("column_loc_y", column_loc_y);
-  pp.query("column_file_name", column_file_name);
-
-  pp.query("coupling_type",coupling_type);
-  if (coupling_type == "OneWay")
-  {
-      do_reflux = 0;
-      do_avg_down = 0;
-  }
-  else if (coupling_type == "TwoWay")
-  {
-      do_reflux = 1;
-      do_avg_down = 1;
-  } else {
-      amrex::Error("Unknown coupling type");
-  }
-
-    // This defaults to false; is only true if we want to call ABLFieldInit::init_params
-    pp.query("init_abl", init_abl);
-
-    // Time step controls
-    pp.query("cfl", cfl);
-    pp.query("init_shrink", init_shrink);
-    pp.query("change_max", change_max);
-    pp.query("initial_dt", initial_dt);
-    pp.query("fixed_dt", fixed_dt);
-    pp.query("max_dt", max_dt);
-    pp.query("dt_cutoff", dt_cutoff);
-
-//    int bc_tmp[2*AMREX_SPACEDIM];
-
-    auto f = [&] (std::string const& bcid, Orientation ori)
-    {
-          ParmParse pbc(bcid);
-          std::string bc_type_in = "Interior";
-          pbc.query("type", bc_type_in);
-          std::string bc_type = amrex::toLower(bc_type_in);
-          bc_type_names[ori] = bc_type_in;
-
-          if (bc_type_in == "NoSlipWall")
-              bc_type[ori] = PhysBCType::noslipwall;
-          else if (bc_type_in == "SlipWall")
-              bc_type[ori] = PhysBCType::slipwall;
-          else if (bc_type_in == "Inflow")
-              bc_type[ori] = PhysBCType::inflow;
-          else if (bc_type_in == "Outflow")
-              bc_type[ori] = PhysBCType::outflow;
-          else if (bc_type_in == "Symmetry")
-              bc_type[ori] = PhysBCType::symmetry;
-//        else if (bc_type_in == "ReflectOdd")
-//            bc_tmp[ori] = PhysBCType::reflectodd;
-
-#if 0
-          int dir = ori.coordDir();
-          if (ori.isLow() && dir == 0)
-             bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(bc_type_in);
-          else if (!ori.isLow() && dir == 0)
-             bc_recs[1] = ERF::initialize_bcs<0, math_bcs::BCBound::upper>(bc_type_in);
-          if (ori.isLow() && dir == 1)
-             bc_recs[2] = ERF::initialize_bcs<1, math_bcs::BCBound::lower>(bc_type_in);
-          else if (!ori.isLow() && dir == 1)
-             bc_recs[3] = ERF::initialize_bcs<1, math_bcs::BCBound::upper>(bc_type_in);
-          else if (ori.isLow() && dir == 2)
-          {
-             bc_recs[4] = ERF::initialize_bcs<2, math_bcs::BCBound::lower>(bc_type_in);
-             if (bc_type_in == "NoSlipWall") lo_z_is_dirichlet = true;
-          }
-          else if (!ori.isLow() && dir == 2)
-          {
-             bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>(bc_type_in);
-             if (bc_type_in == "NoSlipWall") hi_z_is_dirichlet = true;
-          }
-#endif
-    };
-
-    f("xlo", Orientation(Direction::x,Orientation::low ));
-    f("xhi", Orientation(Direction::x,Orientation::high));
-    f("ylo", Orientation(Direction::y,Orientation::low ));
-    f("yhi", Orientation(Direction::y,Orientation::high));
-    f("zlo", Orientation(Direction::z,Orientation::low ));
-    f("zhi", Orientation(Direction::z,Orientation::high));
-
-    //
-    // Check bc_recs against possible periodic geometry
-    // if periodic, must have internal BC marked.
-    //
-    //
-    // Do idiot check.  Periodic means interior in those directions.
-    //
-#if 0
-    for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-        if (amrex::DefaultGeometry().isPeriodic(dir)) {
-          if (
-            !(bc_recs[2*dir]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
-            std::cerr << "ERF::read_params:periodic in direction " << dir
-                      << " but low BC is not Interior\n";
-            amrex::Error();
-          }
-          if (
-            !(bc_recs[2*dir+1]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
-            std::cerr << "ERF::read_params:periodic in direction " << dir
-                      << " but high BC is not Interior\n";
-            amrex::Error();
-          }
-        } else {
-          //
-          // Do idiot check. If not periodic, should not be interior.
-          //
-          if (bc_recs[2*dir]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
-            std::cerr << "ERF::read_params:interior bc in direction " << dir
-                      << " but not periodic\n";
-            amrex::Error();
-          }
-          if (bc_recs[2*dir+1]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
-            std::cerr << "ERF::read_params:interior bc in direction " << dir
-                      << " but not periodic\n";
-            amrex::Error();
-              }
-        }
+    istep.resize(nlevs_max, 0);
+    nsubsteps.resize(nlevs_max, 1);
+    for (int lev = 1; lev <= max_level; ++lev) {
+        nsubsteps[lev] = MaxRefRatio(lev-1);
     }
+
+    t_new.resize(nlevs_max, 0.0);
+    t_old.resize(nlevs_max, -1.e100);
+    dt.resize(nlevs_max, 1.e100);
+
+    vars_new.resize(nlevs_max);
+    vars_old.resize(nlevs_max);
+
+    for (int lev = 0; lev < nlevs_max; ++lev) {
+        vars_new[lev].resize(Vars::NumTypes);
+        vars_old[lev].resize(Vars::NumTypes);
+    }
+
+    integrator.resize(nlevs_max);
+
+    flux_registers.resize(nlevs_max);
+
+    // Map the words in the inputs file to BC types, then translate
+    //     those types into what they mean for each variable
+    init_bcs();
+
+    // For now we hard-wire interpolation type between levels
+    mapper = &cell_cons_interp;
+
+    // Initialize tagging criteria for mesh refinement
+    refinement_criteria_setup();
+}
+
+ERF::~ERF ()
+{
+}
+
+// advance solution to final time
+void
+ERF::Evolve ()
+{
+    Real cur_time = t_new[0];
+    int last_plot_file_step = 0;
+    int last_check_file_step = 0;
+
+    // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
+    //      for finer levels (with or without subcycling)
+    for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
+    {
+        amrex::Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
+
+        ComputeDt();
+
+        int lev = 0;
+        int iteration = 1;
+        timeStep(lev, cur_time, iteration);
+
+        cur_time += dt[0];
+
+        amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
+                       << " DT = " << dt[0]  << std::endl;
+
+        // sync up time
+        for (lev = 0; lev <= finest_level; ++lev) {
+            t_new[lev] = cur_time;
+        }
+
+        if (plot_int > 0 && (step+1) % plot_int == 0) {
+            last_plot_file_step = step+1;
+            WritePlotFile();
+        }
+
+        if (check_int > 0 && (step+1) % check_int == 0) {
+            last_check_file_step = step+1;
+            WriteCheckpointFile();
+        }
+
+        post_timestep(step, cur_time, dt[0]);
+
+#ifdef AMREX_MEM_PROFILING
+        {
+            std::ostringstream ss;
+            ss << "[STEP " << step+1 << "]";
+            MemProfiler::report(ss.str());
+        }
 #endif
 
-    // Sanity check
-    if (cfl <= 0.0 || cfl > 1.0) {
-      amrex::Error("Invalid CFL factor; must be between zero and one.");
+        if (cur_time >= stop_time - 1.e-6*dt[0]) break;
     }
 
-    if (max_dt < fixed_dt) {
-      amrex::Error("Cannot have max_dt < fixed_dt");
+    if (plot_int > 0 && istep[0] > last_plot_file_step) {
+        WritePlotFile();
     }
 
-    solverChoice.init_params();
+    if (check_int > 0 && istep[0] > last_check_file_step) {
+        WriteCheckpointFile();
+    }
+    
 }
 
-ERF::ERF()
-  : io_mgr(new IOManager(*this))
-{
-  flux_reg = 0;
-}
-
-ERF::ERF(
-  amrex::Amr& papa,
-  int lev,
-  const amrex::Geometry& level_geom,
-  const amrex::BoxArray& bl,
-  const amrex::DistributionMapping& dm,
-  amrex::Real time)
-  : AmrLevel(papa, lev, level_geom, bl, dm, time),
-    io_mgr(new IOManager(*this))
-{
-  buildMetrics();
-
-  flux_reg = 0;
-  if (level > 0 && do_reflux)
-      flux_reg = new FluxRegister(grids, dmap, crse_ratio, level, NVAR);
-}
-
-ERF::~ERF()
-{
-   delete flux_reg;
-}
-
+// Called after every coarse timestep
 void
-ERF::buildMetrics()
+ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 {
-  int ngrow = ComputeGhostCells(solverChoice.spatial_order);
+    BL_PROFILE("ERF::post_timestep()");
 
-  volume.clear();
-  volume.define(
-    grids, dmap, 1, ngrow, amrex::MFInfo(), amrex::FArrayBoxFactory());
-  geom.GetVolume(volume);
-
-  for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-    area[dir].clear();
-    area[dir].define(
-      getEdgeBoxArray(dir), dmap, 1, ngrow, amrex::MFInfo(),
-      amrex::FArrayBoxFactory());
-    geom.GetFaceArea(area[dir], dir);
-  }
-}
-
-void
-ERF::setTimeLevel(amrex::Real time, amrex::Real dt_old, amrex::Real dt_new)
-{
-  AmrLevel::setTimeLevel(time, dt_old, dt_new);
-}
-
-void
-ERF::initData()
-{
-  BL_PROFILE("ERF::initData()");
-
-  amrex::MultiFab& S_new = get_new_data(State_Type);
-  amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
-  amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
-  amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
-
-  // For now we initialize rho_KE to 0
-  S_new.setVal(0.0,RhoKE_comp,1,0);
-
-  if (level == 0) {
-
-    init1DArrays();
-
-    if (init_abl)
+    if (do_reflux)
     {
-        ablinit.init_params();
-    }
-  }
+        for (int lev = finest_level-1; lev >= 0; lev--)
+        {
+            // This call refluxes from the lev/lev+1 interface onto lev
+            get_flux_reg(lev+1).Reflux(vars_new[lev][Vars::cons],1.0, 0, 0, NVAR, geom[lev]);
 
-  initDataProb(S_new, U_new, V_new, W_new);
-
-  initHSE();
-
-  if (solverChoice.use_rayleigh_damping)
-  {
-      initRayleigh();
-  }
-
-  // init boundary condition
-  auto f = [&] (std::string const& bcid, Orientation ori)
-  {
-     int dir = ori.coordDir();
-     if (ori.isLow() && dir == 0)
-        bc_recs[0] = ERF::initialize_bcs<0, math_bcs::BCBound::lower>(bc_type_names[ori]);
-     else if (!ori.isLow() && dir == 0)
-        bc_recs[1] = ERF::initialize_bcs<0, math_bcs::BCBound::upper>(bc_type_names[ori]);
-     if (ori.isLow() && dir == 1)
-        bc_recs[2] = ERF::initialize_bcs<1, math_bcs::BCBound::lower>(bc_type_names[ori]);
-     else if (!ori.isLow() && dir == 1)
-        bc_recs[3] = ERF::initialize_bcs<1, math_bcs::BCBound::upper>(bc_type_names[ori]);
-     else if (ori.isLow() && dir == 2)
-     {
-        bc_recs[4] = ERF::initialize_bcs<2, math_bcs::BCBound::lower>(bc_type_names[ori]);
-        if (bc_type_names[ori] == "NoSlipWall") lo_z_is_dirichlet = true;
-     }
-     else if (!ori.isLow() && dir == 2)
-     {
-        bc_recs[5] = ERF::initialize_bcs<2, math_bcs::BCBound::upper>(bc_type_names[ori]);
-        if (bc_type_names[ori] == "NoSlipWall") hi_z_is_dirichlet = true;
-     }
- };
-
- f("xlo", Orientation(Direction::x,Orientation::low ));
- f("xhi", Orientation(Direction::x,Orientation::high));
- f("ylo", Orientation(Direction::y,Orientation::low ));
- f("yhi", Orientation(Direction::y,Orientation::high));
- f("zlo", Orientation(Direction::z,Orientation::low ));
- f("zhi", Orientation(Direction::z,Orientation::high));
-
- for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-     if (amrex::DefaultGeometry().isPeriodic(dir)) {
-       if (
-         !(bc_recs[2*dir]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
-         std::cerr << "ERF::read_params:periodic in direction " << dir
-                   << " but low BC is not Interior\n";
-         amrex::Error();
-       }
-       if (
-         !(bc_recs[2*dir+1]->isInterior()) && amrex::ParallelDescriptor::IOProcessor()) {
-         std::cerr << "ERF::read_params:periodic in direction " << dir
-                   << " but high BC is not Interior\n";
-         amrex::Error();
-       }
-     } else {
-        if (bc_recs[2*dir]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
-          std::cerr << "ERF::read_params:interior bc in direction " << dir
-                    << " but not periodic\n";
-          amrex::Error();
-        }
-        if (bc_recs[2*dir+1]->isInterior() && amrex::ParallelDescriptor::IOProcessor()) {
-          std::cerr << "ERF::read_params:interior bc in direction " << dir
-                    << " but not periodic\n";
-          amrex::Error();
+            // We need to do this before anything else because refluxing changes the
+            // values of coarse cells underneath fine grids with the assumption they'll 
+            // be over-written by averaging down
+            AverageDownTo(lev);
         }
     }
- }
-}
 
-void
-ERF::setupABLMost()
-{
-
-  amrex::ParmParse pp("erf");
-
-  pp.query("most.surf_temp", surf_temp);
-  pp.query("most.zref", zref);
-
-  MultiFab& S_old = get_old_data(State_Type);
-  MultiFab& U_old = get_old_data(X_Vel_Type);
-  MultiFab& V_old = get_old_data(Y_Vel_Type);
-  MultiFab& W_old = get_old_data(Z_Vel_Type);
-
-  S_old.FillBoundary(geom.periodicity());
-  U_old.FillBoundary(geom.periodicity());
-  V_old.FillBoundary(geom.periodicity());
-  W_old.FillBoundary(geom.periodicity());
-
-  PlaneAverage save (&S_old, geom, 2, true);
-  PlaneAverage vxave(&U_old, geom, 2, true);
-  PlaneAverage vyave(&V_old, geom, 2, true);
-  PlaneAverage vzave(&W_old, geom, 2, true);
-  VelPlaneAverage vmagave({&U_old,&V_old,&W_old}, geom, 2, true);
-
-  save. compute_averages(ZDir(), save.field());
-  vxave.compute_averages(ZDir(), vxave.field());
-  vyave.compute_averages(ZDir(), vyave.field());
-  vzave.compute_averages(ZDir(), vzave.field());
-  vmagave.compute_hvelmag_averages(ZDir(), 0, 1, vmagave.field());
-
-  const GpuArray<Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
-
-  most.surf_temp   = surf_temp;
-  most.zref        = zref;
-  most.vel_mean[0] = vxave.line_average_interpolated(most.zref, 0);
-  most.vel_mean[1] = vyave.line_average_interpolated(most.zref, 0);
-  most.vel_mean[2] = vzave.line_average_interpolated(most.zref, 0);
-  most.vmag_mean   = vmagave.line_hvelmag_average_interpolated(most.zref);
-  most.theta_mean  = save.line_average_interpolated(most.zref, RhoTheta_comp);
-
-printf("vmag_mean=%13.6e,theta_mean=%13.6e, zref=%13.6e, dx=%13.6e\n",most.vmag_mean,most.theta_mean,most.zref,dx[2]);
-
-  most.update_fluxes();
-}
-
-void
-ERF::init1DArrays()
-{
-    AMREX_ALWAYS_ASSERT(level == 0);
-    //
-    // Setup Base State Arrays
-    //
-    const int max_level = parent->maxLevel();
-    h_dens_hse.resize(max_level+1, amrex::Vector<Real>(0));
-    h_pres_hse.resize(max_level+1, amrex::Vector<Real>(0));
-    d_dens_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-    d_pres_hse.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-
-    if (solverChoice.use_rayleigh_damping)
-    {
-        h_rayleigh_tau.resize(max_level+1, amrex::Vector<Real>(0));
-        h_rayleigh_ubar.resize(max_level+1, amrex::Vector<Real>(0));
-        h_rayleigh_vbar.resize(max_level+1, amrex::Vector<Real>(0));
-        h_rayleigh_thetabar.resize(max_level+1, amrex::Vector<Real>(0));
-        d_rayleigh_tau.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-        d_rayleigh_ubar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-        d_rayleigh_vbar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-        d_rayleigh_thetabar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-    }
-}
-
-void
-ERF::init(AmrLevel& old)
-{
-  BL_PROFILE("ERF::init(old)");
-
-  ERF* oldlev = (ERF*)&old;
-
-  //
-  // Create new grid data by fillpatching from old.
-  //
-  amrex::Real dt_new = parent->dtLevel(level);
-  amrex::Real cur_time = oldlev->state[State_Type].curTime();
-  amrex::Real prev_time = oldlev->state[State_Type].prevTime();
-  amrex::Real dt_old = cur_time - prev_time;
-  setTimeLevel(cur_time, dt_old, dt_new);
-
-  amrex::MultiFab& S_new = get_new_data(State_Type);
-  amrex::MultiFab& U_new = get_new_data(X_Vel_Type);
-  amrex::MultiFab& V_new = get_new_data(Y_Vel_Type);
-  amrex::MultiFab& W_new = get_new_data(Z_Vel_Type);
-
-  FillPatch(old, S_new, 0, cur_time, State_Type, 0, NVAR);
-  FillPatch(old, U_new, 0, cur_time, X_Vel_Type, 0, 1);
-  FillPatch(old, V_new, 0, cur_time, Y_Vel_Type, 0, 1);
-  FillPatch(old, W_new, 0, cur_time, Z_Vel_Type, 0, 1);
-}
-
-/**
- * This version inits the data on a new level that did not
- * exist before regridding.
- */
-void
-ERF::init()
-{
-  BL_PROFILE("ERF::init()");
-
-  amrex::Real dt = parent->dtLevel(level);
-  amrex::Real cur_time = getLevel(level - 1).state[State_Type].curTime();
-  amrex::Real prev_time = getLevel(level - 1).state[State_Type].prevTime();
-
-  amrex::Real dt_old =
-    (cur_time - prev_time) / (amrex::Real)parent->MaxRefRatio(level - 1);
-
-  setTimeLevel(cur_time, dt_old, dt);
-  amrex::MultiFab& S_new = get_new_data(State_Type);
-  FillCoarsePatch(S_new, 0, cur_time, State_Type, 0, NVAR);
-}
-
-amrex::Real
-ERF::initialTimeStep()
-{
-  BL_PROFILE("ERF::initialTimeStep()");
-
-  amrex::Real dummy_dt = 0.0;
-  amrex::Real init_dt = 0.0;
-
-  if (initial_dt > 0.0) {
-    init_dt = initial_dt;
-  } else {
-    init_dt = init_shrink * estTimeStep(dummy_dt);
-  }
-
-  return init_dt;
-}
-
-amrex::Real
-ERF::estTimeStep(amrex::Real /*dt_old*/)
-{
-  BL_PROFILE("ERF::estTimeStep()");
-
-  if (fixed_dt > 0.0)
-    return fixed_dt;
-
-  amrex::Real estdt = max_dt;
-
-  std::string limiter = "erf.max_dt";
-
-  // Start the hydro with the max_dt value, but divide by CFL
-  // to account for the fact that we multiply by it at the end.
-  // This ensures that if max_dt is more restrictive than the hydro
-  // criterion, we will get exactly max_dt for a timestep.
-
-  amrex::Real estdt_hydro = max_dt / cfl;
-
-  auto const dxinv = geom.InvCellSizeArray();
-
-  MultiFab& S_new = get_new_data(State_Type);
-
-  MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
-  MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
-  MultiFab const& z_vel_on_face = get_new_data(Z_Vel_Type);
-
-  MultiFab ccvel(grids,dmap,3,0);
-
-  average_face_to_cellcenter(ccvel,0,
-      Array<const MultiFab*,3>{&x_vel_on_face, &y_vel_on_face, &z_vel_on_face});
-
-  // Initialize to large value since we are taking min below
-  // Real estdt_hydro_inv = 1.e100;
-
-  Real estdt_hydro_inv = amrex::ReduceMax(S_new, ccvel, 0,
-       [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                  Array4<Real const> const& s,
-                                  Array4<Real const> const& u) -> Real
-       {
-           Real dt = -1.e100;
-           amrex::Loop(b, [=,&dt] (int i, int j, int k) noexcept
-           {
-               const amrex::Real rho      = s(i, j, k, Rho_comp);
-               const amrex::Real rhotheta = s(i, j, k, RhoTheta_comp);
-
-               amrex::Real pressure = getPgivenRTh(rhotheta);
-               amrex::Real c = std::sqrt(Gamma * pressure / rho);
-
-               dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                               ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                               ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv[2]), dt);
-           });
-           return dt;
-       });
-
-   amrex::ParallelDescriptor::ReduceRealMax(estdt_hydro_inv);
-   estdt_hydro = cfl / estdt_hydro_inv;;
-
-   if (verbose) {
-     amrex::Print() << "...estimated hydro-limited timestep at level " << level
-                    << ": " << estdt_hydro << std::endl;
-   }
-
-    // Determine if this is more restrictive than the maximum timestep limiting
-    if (estdt_hydro < estdt) {
-      limiter = "hydro";
-      estdt = estdt_hydro;
+    if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
+        sum_integrated_quantities(time);
     }
 
-  if (verbose) {
-    amrex::Print() << "ERF::estTimeStep (" << limiter << "-limited) at level "
-                   << level << ":  estdt = " << estdt << '\n';
-  }
-
-  return estdt;
-}
-
-void
-ERF::computeNewDt(
-  int finest_level,
-  int /*sub_cycle*/,
-  amrex::Vector<int>& n_cycle,
-  const amrex::Vector<amrex::IntVect>& /*ref_ratio*/,
-  amrex::Vector<amrex::Real>& dt_min,
-  amrex::Vector<amrex::Real>& dt_level,
-  amrex::Real stop_time,
-  int post_regrid_flag)
-{
-  BL_PROFILE("ERF::computeNewDt()");
-
-  //
-  // We are at the start of a coarse grid timecycle.
-  // Compute the timesteps for the next iteration.
-  //
-  if (level > 0)
-    return;
-
-  amrex::Real dt_0 = 1.0e+100;
-  int n_factor = 1;
-  for (int i = 0; i <= finest_level; i++) {
-    ERF& adv_level = getLevel(i);
-    dt_min[i] = adv_level.estTimeStep(dt_level[i]);
-  }
-
-  if (fixed_dt <= 0.0) {
-    if (post_regrid_flag == 1) {
-      // Limit dt's by pre-regrid dt
-      for (int i = 0; i <= finest_level; i++) {
-        dt_min[i] = amrex::min(dt_min[i], dt_level[i]);
-      }
-    } else {
-      // Limit dt's by change_max * old dt
-      for (int i = 0; i <= finest_level; i++) {
-        if (verbose && amrex::ParallelDescriptor::IOProcessor()) {
-          if (dt_min[i] > change_max * dt_level[i]) {
-            amrex::Print() << "ERF::compute_new_dt : limiting dt at level "
-                           << i << '\n';
-            amrex::Print() << " ... new dt computed: " << dt_min[i] << '\n';
-            amrex::Print() << " ... but limiting to: "
-                           << change_max * dt_level[i] << " = " << change_max
-                           << " * " << dt_level[i] << '\n';
-          }
-        }
-        dt_min[i] = amrex::min(dt_min[i], change_max * dt_level[i]);
-      }
-    }
-  }
-
-  // Find the minimum over all levels
-  for (int i = 0; i <= finest_level; i++) {
-    n_factor *= n_cycle[i];
-    dt_0 = amrex::min(dt_0, n_factor * dt_min[i]);
-  }
-
-  // Limit dt's by the value of stop_time.
-  const amrex::Real dt_eps = 0.001 * dt_0;
-  amrex::Real cur_time = state[State_Type].curTime();
-  if (stop_time >= 0.0) {
-    if ((cur_time + dt_0) > (stop_time - dt_eps)) {
-      dt_0 = stop_time - cur_time;
-    }
-  }
-
-  n_factor = 1;
-  for (int i = 0; i <= finest_level; i++) {
-    n_factor *= n_cycle[i];
-    dt_level[i] = dt_0 / n_factor;
-  }
-}
-
-void
-ERF::computeInitialDt(
-  int finest_level,
-  int /*sub_cycle*/,
-  amrex::Vector<int>& n_cycle,
-  const amrex::Vector<amrex::IntVect>& /*ref_ratio*/,
-  amrex::Vector<amrex::Real>& dt_level,
-  amrex::Real stop_time)
-{
-  BL_PROFILE("ERF::computeInitialDt()");
-
-  // Grids have been constructed, compute dt for all levels.
-  if (level > 0)
-    return;
-
-  amrex::Real dt_0 = 1.0e+100;
-  int n_factor = 1;
-  for (int i = 0; i <= finest_level; i++) {
-    dt_level[i] = getLevel(i).initialTimeStep();
-    n_factor *= n_cycle[i];
-    dt_0 = amrex::min(dt_0, n_factor * dt_level[i]);
-  }
-
-  // Limit dt's by the value of stop_time.
-  const amrex::Real dt_eps = 0.001 * dt_0;
-  amrex::Real cur_time = state[State_Type].curTime();
-  if (stop_time >= 0.0) {
-    if ((cur_time + dt_0) > (stop_time - dt_eps)) {
-      dt_0 = stop_time - cur_time;
-    }
-  }
-
-  n_factor = 1;
-  for (int i = 0; i <= finest_level; i++) {
-    n_factor *= n_cycle[i];
-    dt_level[i] = dt_0 / n_factor;
-  }
-}
-
-void
-ERF::post_timestep(int /*iteration*/)
-{
-  BL_PROFILE("ERF::post_timestep()");
-
-  const int finest_level = parent->finestLevel();
-//  const int ncycle = parent->nCycle(level);
-
-  if (do_reflux && level < finest_level) {
-
-    reflux();
-
-    // We need to do this before anything else because refluxing changes the
-    // values of coarse cells
-    //    underneath fine grids with the assumption they'll be over-written by
-    //    averaging down
-    if (level < finest_level) {
-      avgDown();
-    }
-
-    // Clean up any aberrant state data generated by the reflux.
-//    amrex::MultiFab& S_new_crse = get_new_data(State_Type);
-    // clean_state(S_new_crse);
-  }
-
-  // Re-compute temperature after all the other updates.
-//  amrex::MultiFab& S_new = get_new_data(State_Type);
-//  int ng_pts = 0;
-
-#ifdef DO_PROBLEM_POST_TIMESTEP
-
-  problem_post_timestep();
-
-#endif
-
-  if (level == 0) {
-    if (is_it_time_for_action(sum_interval, sum_per)) {
-      sum_integrated_quantities();
-    }
     if (output_1d_column) {
 #ifdef ERF_USE_NETCDF
-      if (is_it_time_for_action(column_interval, column_per)) {
-        io_mgr->writeToNCColumnFile(column_file_name, column_loc_x, column_loc_y);
+      if (is_it_time_for_action(nstep, time, dt_lev0, column_interval, column_per)) 
+      {
+         int lev_column = 0;
+         for (int lev = finest_level; lev >= 0; lev--)
+         {
+            Real dx_lev = geom[lev].CellSize(0);
+            Real dy_lev = geom[lev].CellSize(1);
+            int i_lev = static_cast<int>(std::floor(column_loc_x / dx_lev));
+            int j_lev = static_cast<int>(std::floor(column_loc_y / dy_lev));
+            if (grids[lev].contains(IntVect(i_lev,j_lev,0))) lev_column = lev; 
+         }
+         writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
       }
 #else
       amrex::Abort("To output 1D column files ERF must be compiled with NetCDF");
 #endif
     }
-  }
 }
 
+// initializes multilevel data
 void
-ERF::post_restart()
+ERF::InitData ()
 {
-  BL_PROFILE("ERF::post_restart()");
+    // Initialize the start time for our CPU-time tracker
+    startCPUTime = amrex::ParallelDescriptor::second();
 
-  if (level == 0) {
+    // For now we initialize rho_KE to 0
+    for (int lev = finest_level-1; lev >= 0; --lev)
+        vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
 
-    init1DArrays();
+    // This defaults to false; is only true if we want to call ABLFieldInit::init_params
+    ParmParse pp("erf");
+    pp.query("init_abl", init_abl);
 
     if (init_abl)
     {
         ablinit.init_params();
     }
-  }
 
-  initHSE();
+    if (restart_chkfile == "") {
+        // start simulation from the beginning
+        const Real time = 0.0;
+        InitFromScratch(time);
+        AverageDown();
 
-  if (solverChoice.use_rayleigh_damping)
-  {
-      initRayleigh();
-  }
+        if (check_int > 0) {
+            WriteCheckpointFile();
+        }
 
-#ifdef DO_PROBLEM_POST_RESTART
-  problem_post_restart();
-#endif
+    } else {
+        // restart from a checkpoint
+        ReadCheckpointFile();
 
-  //TODO: handle post restart dumping of column data
-}
-
-void
-ERF::postCoarseTimeStep(amrex::Real cumtime)
-{
-  BL_PROFILE("ERF::postCoarseTimeStep()");
-  AmrLevel::postCoarseTimeStep(cumtime);
-}
-
-void
-ERF::post_regrid(int /*lbase*/, int /*new_finest*/)
-{
-  BL_PROFILE("ERF::post_regrid()");
-  fine_mask.clear();
-}
-
-void
-ERF::post_init(amrex::Real /*stop_time*/)
-{
-  BL_PROFILE("ERF::post_init()");
-
-  if (level > 0)
-    return;
-
-  //
-  // Average data down from finer levels
-  // so that conserved data is consistent between levels.
-  //
-  if (do_avg_down != 0) {
-    int finest_level = parent->finestLevel();
-    for (int k = finest_level - 1; k >= 0; k--) {
-      getLevel(k).avgDown();
+        // Create the time integrator for this level
+        for (int lev = 0; lev <= finest_level; lev++) {
+            integrator[lev] = std::make_unique<TimeIntegrator<Vector<MultiFab> > >(vars_old[lev]);
+        }
     }
-  }
 
-#ifdef DO_PROBLEM_POST_INIT
-  //
-  // Allow the user to define their own post_init functions.
-  //
-  problem_post_init();
-#endif
-
-  if (is_it_time_for_action(sum_interval, sum_per)) {
-    sum_integrated_quantities();
-  }
-
-  if (output_1d_column) {
-#ifdef ERF_USE_NETCDF
-    io_mgr->createNCColumnFile(column_file_name, column_loc_x, column_loc_y);
-    if (is_it_time_for_action(column_interval, column_per)) {
-      io_mgr->writeToNCColumnFile(column_file_name, column_loc_x, column_loc_y);
+    // Initialize flux registers (whether we start from scratch or restart)
+    if (do_reflux) {
+        flux_registers[0] = 0;
+        for (int lev = 1; lev <= finest_level; lev++) 
+        {
+            flux_registers[lev] = new FluxRegister(grids[lev], dmap[lev], ref_ratio[lev-1], lev, NVAR);
+        }
     }
-#else
-    amrex::Abort("To output 1D column files ERF must be compiled with NetCDF");
-#endif
-  }
-}
 
-int
-ERF::okToContinue()
-{
-  if (level > 0) {
-    return 1;
-  }
+    initHSE();
 
-  int test = 1;
+    for (int lev = finest_level-1; lev >= 0; --lev)
+        vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
 
-  if (signalStopJob) {
-    test = 0;
-
-    amrex::Print()
-      << " Signalling a stop of the run due to signalStopJob = true."
-      << std::endl;
-  } else if (parent->dtLevel(0) < dt_cutoff) {
-    test = 0;
-
-    amrex::Print() << " Signalling a stop of the run because dt < dt_cutoff."
-                   << std::endl;
-  }
-
-  return test;
-}
-
-void
-ERF::reflux()
-{
-  BL_PROFILE("ERF::reflux()");
-
-  AMREX_ASSERT(level < parent->finestLevel());
-
-  get_flux_reg(level+1).Reflux(get_new_data(State_Type),1.0, 0, 0, NVAR, geom);
-}
-
-void
-ERF::avgDown()
-{
-  BL_PROFILE("ERF::avgDown()");
-
-  if (level == parent->finestLevel())
-    return;
-
-  avgDown(State_Type);
-}
-
-void
-ERF::avgDown(int state_indx)
-{
-  BL_PROFILE("ERF::avgDown(state_indx)");
-
-  if (level == parent->finestLevel())
-    return;
-
-  amrex::MultiFab& S_crse = get_new_data(state_indx);
-  amrex::MultiFab& S_fine = getLevel(level + 1).get_new_data(state_indx);
-
-  const amrex::Geometry& fgeom = getLevel(level + 1).geom;
-  const amrex::Geometry& cgeom = geom;
-
-  amrex::average_down(
-    S_fine, S_crse, fgeom, cgeom, 0, S_fine.nComp(), fine_ratio);
-}
-
-void
-ERF::allocOldData()
-{
-  for (int k = 0; k < num_state_type; k++) {
-    state[k].allocOldData();
-  }
-}
-
-void
-ERF::removeOldData()
-{
-  AmrLevel::removeOldData();
-}
-
-std::unique_ptr<amrex::MultiFab>
-ERF::derive(const std::string& name, amrex::Real time, int ngrow)
-{
-  if (name == "x_velocity")
-  {
-      MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
-      MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
-      MultiFab const& z_vel_on_face = get_new_data(Z_Vel_Type);
-
-      MultiFab ccvel(grids,dmap,3,0);
-
-      average_face_to_cellcenter(ccvel,0,
-          Array<const MultiFab*,3>{&x_vel_on_face, &y_vel_on_face, &z_vel_on_face});
-
-      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
-      MultiFab::Copy(*derive_dat, ccvel, 0, 0, 1, 0);
-
-      return derive_dat;
-  }
-  else if (name == "y_velocity")
-  {
-      MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
-      MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
-      MultiFab const& z_vel_on_face = get_new_data(Z_Vel_Type);
-
-      MultiFab ccvel(grids,dmap,3,0);
-
-      average_face_to_cellcenter(ccvel,0,
-          Array<const MultiFab*,3>{&x_vel_on_face, &y_vel_on_face, &z_vel_on_face});
-
-      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
-      MultiFab::Copy(*derive_dat, ccvel, 1, 0, 1, 0);
-
-      return derive_dat;
-  }
-  else if (name == "z_velocity")
-  {
-      MultiFab const& x_vel_on_face = get_new_data(X_Vel_Type);
-      MultiFab const& y_vel_on_face = get_new_data(Y_Vel_Type);
-      MultiFab const& z_vel_on_face = get_new_data(Z_Vel_Type);
-
-      MultiFab ccvel(grids,dmap,3,0);
-
-      average_face_to_cellcenter(ccvel,0,
-          Array<const MultiFab*,3>{&x_vel_on_face, &y_vel_on_face, &z_vel_on_face});
-
-      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
-      MultiFab::Copy(*derive_dat, ccvel, 2, 0, 1, 0);
-
-      return derive_dat;
-  }
-  else if (name == "pres_hse")
-  {
-      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
-      auto d_pres_hse_lev = d_pres_hse[level].dataPtr();
-      for ( amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-      {
-          const Box& bx = mfi.tilebox();
-          const Array4<Real>& derdat = (*derive_dat).array(mfi);
-          amrex::ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-              derdat(i, j, k) = d_pres_hse_lev[k+ng_pres_hse];
-          });
-      }
-
-      return derive_dat;
-  }
-  else if (name == "dens_hse")
-  {
-      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
-      auto d_dens_hse_lev = d_dens_hse[level].dataPtr();
-      for (amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-      {
-          const Box& bx = mfi.tilebox();
-          const Array4<Real>& derdat = (*derive_dat).array(mfi);
-          amrex::ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-              derdat(i, j, k) = d_dens_hse_lev[k+ng_dens_hse];
-          });
-      }
-
-      return derive_dat;
-  }
-  else if (name == "pert_pres")
-  {
-      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
-      MultiFab const& S_new = get_new_data(State_Type);
-      auto d_pres_hse_lev = d_pres_hse[level].dataPtr();
-      for ( amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-      {
-          const Box& bx = mfi.tilebox();
-          const Array4<Real const>& sdat = S_new.array(mfi);
-          const Array4<Real>& derdat = (*derive_dat).array(mfi);
-          amrex::ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-              const Real rhotheta = sdat(i,j,k,RhoTheta_comp);
-              derdat(i, j, k) = getPgivenRTh(rhotheta) - d_pres_hse_lev[k+ng_pres_hse];
-          });
-      }
-
-      return derive_dat;
-  }
-  else if (name == "pert_dens")
-  {
-      std::unique_ptr<MultiFab> derive_dat (new MultiFab(grids, dmap, 1, 0));
-      MultiFab const& S_new = get_new_data(State_Type);
-      auto d_dens_hse_lev = d_dens_hse[level].dataPtr();
-      for (amrex::MFIter mfi(*derive_dat,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-      {
-          const Box& bx = mfi.tilebox();
-          const Array4<Real const>& sdat = S_new.array(mfi);
-          const Array4<Real>& derdat = (*derive_dat).array(mfi);
-          amrex::ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-              derdat(i, j, k) = sdat(i, j, k, Rho_comp) - d_dens_hse_lev[k+ng_dens_hse];
-          });
-      }
-
-      return derive_dat;
-  }
-  else {
-     return AmrLevel::derive(name, time, ngrow);
-  }
-}
-
-void
-ERF::derive(
-  const std::string& name, amrex::Real time, amrex::MultiFab& mf, int dcomp)
-{
-  {
-    AmrLevel::derive(name, time, mf, dcomp);
-  }
-}
-
-amrex::Real
-ERF::getCPUTime()
-{
-  int numCores = amrex::ParallelDescriptor::NProcs();
-#ifdef _OPENMP
-  numCores = numCores * omp_get_max_threads();
-#endif
-
-  amrex::Real T =
-    numCores * (amrex::ParallelDescriptor::second() - startCPUTime) +
-    previousCPUTimeUsed;
-
-  return T;
-}
-
-amrex::MultiFab&
-ERF::build_fine_mask()
-{
-  // Mask for zeroing covered cells
-  AMREX_ASSERT(level > 0);
-
-  if (!fine_mask.empty())
-    return fine_mask;
-
-  const amrex::BoxArray& cba = parent->boxArray(level - 1);
-  const amrex::DistributionMapping& cdm = parent->DistributionMap(level - 1);
-
-  fine_mask.define(cba, cdm, 1, 0, amrex::MFInfo(), amrex::FArrayBoxFactory());
-  fine_mask.setVal(1.0);
-
-  amrex::BoxArray fba = parent->boxArray(level);
-  amrex::iMultiFab ifine_mask = makeFineMask(cba, cdm, fba, crse_ratio, 1, 0);
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-  for (amrex::MFIter mfi(fine_mask, amrex::TilingIfNotGPU()); mfi.isValid();
-       ++mfi) {
-    auto& fab = fine_mask[mfi];
-    auto& ifab = ifine_mask[mfi];
-    const auto arr = fab.array();
-    const auto iarr = ifab.array();
-    amrex::ParallelFor(
-      fab.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-#ifdef _OPENMP
-#pragma omp atomic write
-#endif
-        arr(i, j, k) = iarr(i, j, k);
-      });
-  }
-
-  return fine_mask;
-}
-
-const amrex::iMultiFab*
-ERF::build_interior_boundary_mask(int ng)
-{
-  for (int i = 0; i < ib_mask.size(); ++i) {
-    if (ib_mask[i]->nGrow() == ng) {
-      return ib_mask[i].get();
+    if (solverChoice.use_rayleigh_damping)
+    {
+        initRayleigh();
     }
-  }
 
-  //  If we got here, we need to build a new one
-  if (ib_mask.size() == 0) {
-    ib_mask.resize(0);
-  }
+    if (plot_int > 0) {
+        WritePlotFile();
+    }
 
-  ib_mask.push_back(std::unique_ptr<amrex::iMultiFab>(new amrex::iMultiFab(
-    grids, dmap, 1, ng, amrex::MFInfo(),
-    amrex::DefaultFabFactory<amrex::IArrayBox>())));
-
-  amrex::iMultiFab* imf = ib_mask.back().get();
-  int ghost_covered_by_valid = 0;
-  int other_cells =
-    1; // uncovered ghost, valid, and outside domain cells are set to 1
-
-  imf->BuildMask(
-    geom.Domain(), geom.periodicity(), ghost_covered_by_valid, other_cells,
-    other_cells, other_cells);
-
-  return imf;
+    int  init_nstep = 0;
+    Real init_time = 0.;
+    if (is_it_time_for_action(init_nstep, init_time, dt[0], sum_interval, sum_per)) {
+        sum_integrated_quantities(init_time);
+    }
 }
 
-void ERF::restart(amrex::Amr& papa, istream& is, bool bReadSpecial)
+// Make a new level using provided BoxArray and DistributionMapping and
+// fill with interpolated coarse level data.
+// overrides the pure virtual function in AmrCore
+void
+ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
+				                    const DistributionMapping& dm)
 {
-  if (checkpoint_type == "amrex") {
-    AmrLevel::restart(papa, is, bReadSpecial);
-    io_mgr->restart(papa, is, bReadSpecial);
-  }
-#ifdef ERF_USE_NETCDF
-  else if (checkpoint_type == "NetCDF") {
-    io_mgr->ncrestart(papa, is, bReadSpecial);
-  }
+    const auto& crse_new = vars_new[lev-1];
+    auto& lev_new = vars_new[lev];
+    auto& lev_old = vars_old[lev];
+
+    lev_new[Vars::cons].define(ba, dm, crse_new[Vars::cons].nComp(), crse_new[Vars::cons].nGrowVect());
+    lev_old[Vars::cons].define(ba, dm, crse_new[Vars::cons].nComp(), crse_new[Vars::cons].nGrowVect());
+
+    lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
+    lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
+
+    lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
+    lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
+
+    lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
+    lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
+
+    t_new[lev] = time;
+    t_old[lev] = time - 1.e200;
+
+    FillCoarsePatchAllVars(lev, time, vars_new[lev]);
+
+    // also create the time integrator for this level
+    integrator[lev] = std::make_unique<TimeIntegrator<Vector<MultiFab> > >(vars_old[lev]);
+}
+
+// Remake an existing level using provided BoxArray and DistributionMapping and
+// fill with existing fine and coarse data.
+// overrides the pure virtual function in AmrCore
+void
+ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
+{
+    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
+        const     int ncomp  = vars_new[lev][var_idx].nComp();
+        const IntVect nghost = vars_new[lev][var_idx].nGrowVect();
+
+        MultiFab new_v(ba, dm, ncomp, nghost);
+        MultiFab old_v(ba, dm, ncomp, nghost);
+
+        FillPatch(lev, time, new_v, 0, ncomp, var_idx);
+
+        std::swap(new_v, vars_new[lev][var_idx]);
+        std::swap(old_v, vars_old[lev][var_idx]);
+    }
+
+    t_new[lev] = time;
+    t_old[lev] = time - 1.e200;
+
+    // also recreate the time integrator for this level
+    integrator[lev] = std::make_unique<TimeIntegrator<Vector<MultiFab> > >(vars_old[lev]);
+}
+
+// Delete level data
+// overrides the pure virtual function in AmrCore
+void
+ERF::ClearLevel (int lev)
+{
+    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
+        vars_new[lev][var_idx].clear();
+        vars_old[lev][var_idx].clear();
+    }
+}
+
+// Make a new level from scratch using provided BoxArray and DistributionMapping.
+// Only used during initialization.
+// overrides the pure virtual function in AmrCore
+void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
+                                          const DistributionMapping& dm)
+{
+    // The number of ghost cells for density must be 1 greater than that for velocity
+    //     so that we can go back in forth betwen velocity and momentum on all faces
+    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
+
+    auto& lev_new = vars_new[lev];
+    auto& lev_old = vars_old[lev];
+
+    lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
+    lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
+
+    lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+    lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+
+    lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+    lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+
+    lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+    lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+
+    t_new[lev] = time;
+    t_old[lev] = time - 1.e200;
+
+    // Loop over grids at this level to initialize our grid data
+#ifdef _OPENMP
+#pragma omp parallel
 #endif
-  else {
-    amrex::Abort("Invalid checkpoint_type specified");
-  }
+    lev_new[Vars::cons].setVal(1.e20);
+    lev_new[Vars::xvel].setVal(1.e20);
+    lev_new[Vars::yvel].setVal(1.e20);
+    lev_new[Vars::zvel].setVal(1.e20);
 
-  BL_ASSERT(flux_reg == 0);
-  if (level > 0 && do_reflux)
-      flux_reg = new FluxRegister(grids, dmap, crse_ratio, level, NVAR);
+    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+      const Box& bx = mfi.tilebox();
+      const auto& cons_arr = lev_new[Vars::cons].array(mfi);
+      const auto& xvel_arr = lev_new[Vars::xvel].array(mfi);
+      const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
+      const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
+
+      erf_init_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+    }
+
+    FillIntermediatePatch(lev, time, lev_new[Vars::cons], 0, Cons::NumVars, Vars::cons);
+    FillIntermediatePatch(lev, time, lev_new[Vars::xvel], 0, 1, Vars::xvel);
+    FillIntermediatePatch(lev, time, lev_new[Vars::yvel], 0, 1, Vars::yvel);
+    FillIntermediatePatch(lev, time, lev_new[Vars::zvel], 0, 1, Vars::zvel);
+
+    // Copy from new into old just in case
+    int ngs   = lev_new[Vars::cons].nGrow();
+    int ngvel = lev_new[Vars::xvel].nGrow();
+    MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,ngs);
+    MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
+    MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
+    MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,ngvel);
+
+    // also create the time integrator for this level
+    integrator[lev] = std::make_unique<TimeIntegrator<Vector<MultiFab> > >(vars_old[lev]);
 }
 
-void ERF::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
+
+// read in some parameters from inputs file
+void
+ERF::ReadParameters ()
 {
-  io_mgr->set_state_in_checkpoint(state_in_checkpoint);
+    {
+        ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
+        pp.query("max_step", max_step);
+        pp.query("stop_time", stop_time);
+    }
+
+    {
+        ParmParse pp("amr"); // Traditionally, these have prefix, amr.
+
+        pp.query("interpolation_type", interpolation_type);
+
+        pp.query("regrid_int", regrid_int);
+        pp.query("plot_file", plot_file);
+        pp.query("plot_int", plot_int);
+        pp.query("check_file", check_file);
+        pp.query("check_int", check_int);
+
+        pp.query("restart", restart_chkfile);
+
+        if (pp.contains("data_log"))
+        {
+            int num_datalogs = pp.countval("data_log");
+            datalog.resize(num_datalogs);
+            datalogname.resize(num_datalogs);
+            pp.queryarr("data_log",datalogname,0,num_datalogs);
+            for (int i = 0; i < num_datalogs; i++)
+                setRecordDataInfo(i,datalogname[i]);
+        }
+    }
+
+    {
+        ParmParse pp("erf");
+
+        // Verbosity 
+        pp.query("v", verbose);
+
+        // Frequency of diagnostic output
+        pp.query("sum_interval", sum_interval);
+        pp.query("sum_period"  , sum_per);
+
+        // Time step controls
+        pp.query("cfl", cfl);
+        pp.query("init_shrink", init_shrink);
+        pp.query("change_max", change_max);
+
+        pp.query("fixed_dt", fixed_dt);
+
+        AMREX_ASSERT(cfl > 0. || fixed_dt > 0.);
+    }
+
+    {  // Mesh refinement
+        ParmParse pp("erf");
+
+        pp.query("coupling_type",coupling_type);
+        if (coupling_type == "OneWay")
+        {
+            do_reflux = 0;
+            do_avg_down = 0;
+        }
+        else if (coupling_type == "TwoWay")
+        {
+            do_reflux = 1;
+            do_avg_down = 1;
+        } else {
+            amrex::Error("Unknown coupling type");
+        }
+    }
+    {  // Output format
+        ParmParse pp("erf");
+        pp.query("plotfile_type", plotfile_type);
+
+        pp.query("output_1d_column", output_1d_column);
+        pp.query("column_per", column_per);
+        pp.query("column_interval", column_interval);
+        pp.query("column_loc_x", column_loc_x);
+        pp.query("column_loc_y", column_loc_y);
+        pp.query("column_file_name", column_file_name);
+    }
+
+
+    //!don: set these properly
+    lo_z_is_dirichlet = false;
+    hi_z_is_dirichlet = false;
+
+    solverChoice.init_params();
 }
 
-void ERF::checkPoint(const std::string& dir, std::ostream& os,
-                     amrex::VisMF::How how, bool dump_old_default)
+// Set covered coarse cells to be the average of overlying fine cells for all levels
+void
+ERF::AverageDown ()
 {
-  if (checkpoint_type == "amrex") {
-    AmrLevel::checkPoint(dir, os, how, dump_old);
-    io_mgr->checkPoint(dir, os, how, dump_old_default);
-  }
-#ifdef ERF_USE_NETCDF
-  else if (checkpoint_type == "NetCDF") {
-    io_mgr->NCWriteCheckpointFile (dir, os, dump_old);
-  }
-#endif
-  else {
-    amrex::Abort("Invalid checkpoint_type specified");
-  }
+    for (int lev = finest_level-1; lev >= 0; --lev)
+    {
+        AverageDownTo(lev);
+    }
 }
 
-void ERF::setPlotVariables()
+// Set covered coarse cells to be the average of overlying fine cells at level crse_lev
+void
+ERF::AverageDownTo (int crse_lev)
 {
-  amrex::AmrLevel::setPlotVariables();
-  io_mgr->setPlotVariables();
+    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
+        const BoxArray& ba(vars_new[crse_lev][var_idx].boxArray());
+        if (ba[0].type() == IntVect::TheZeroVector())
+            amrex::average_down(vars_new[crse_lev+1][var_idx], vars_new[crse_lev][var_idx],
+                                0, vars_new[crse_lev][var_idx].nComp(), refRatio(crse_lev));
+        else // We assume the arrays are face-centered if not cell-centered
+            amrex::average_down_faces(vars_new[crse_lev+1][var_idx], vars_new[crse_lev][var_idx],
+                                      refRatio(crse_lev),geom[crse_lev]);
+    }
 }
-
-void ERF::writeJobInfo(const std::string& dir)
-{
-  io_mgr->writeJobInfo(dir);
-}
-
-void ERF::writePlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
-{
-  if (plotfile_type == "amrex") {
-    io_mgr->writePlotFile(dir, os, how);
-  }
-  #ifdef ERF_USE_NETCDF
-  else if (plotfile_type == "NetCDF") {
-    io_mgr->writeNCPlotFile(dir, os);
-  }
-  #endif
-  else {
-    amrex::Abort("Invalid plotfile_type specified");
-  }
-}
-
-void ERF::writeSmallPlotFile(const std::string& dir, ostream& os, amrex::VisMF::How how)
-{
-  io_mgr->writeSmallPlotFile(dir, os, how);
-}
-

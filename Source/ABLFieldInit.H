@@ -3,6 +3,8 @@
 
 #include "AMReX_Gpu.H"
 #include "AMReX_MultiFab.H"
+#include "ERF_Constants.H"
+#include "IndexDefines.H"
 
 /** Initialize ABL fields: The contents of this file were copied almost verbatim from amr-wind:
     https://github.com/Exawind/amr-wind

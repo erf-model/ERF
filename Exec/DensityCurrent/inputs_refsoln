@@ -30,16 +30,14 @@ amr.v              = 1       # verbosity in Amr.cpp
 amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
-amr.checkpoint_files_output = 0
 amr.check_file      = chk        # root name of checkpoint file
 amr.check_int       = 57600      # number of timesteps between checkpoints
 
 # PLOTFILES
-amr.plot_files_output = 1
 amr.plot_file         = plt        # root name of plotfile
 amr.plot_int          = 3840       # number of timesteps between plotfiles
-amr.plot_vars         = density
-amr.derive_plot_vars  = pressure theta x_velocity y_velocity z_velocity pres_hse dens_hse pert_pres pert_dens
+amr.plot_vars         = density x_velocity y_velocity z_velocity
+amr.derive_plot_vars  = pressure theta pres_hse dens_hse pert_pres pert_dens
 
 # SOLVER CHOICE
 erf.use_gravity = true

@@ -1,4 +1,9 @@
 #include "prob.H"
+#include "prob_common.H"
+
+#include "IndexDefines.H"
+#include "AMReX_ParmParse.H"
+#include "AMReX_Geometry.H"
 
 ProbParm parms;
 
@@ -65,16 +70,7 @@ erf_init_prob(
 }
 
 void
-erf_prob_close()
-{
-}
-
-extern "C" {
-void
 amrex_probinit(
-  const int* /*init*/,
-  const int* /*name*/,
-  const int* /*namelen*/,
   const amrex_real* /*problo*/,
   const amrex_real* /*probhi*/)
 {
@@ -85,5 +81,4 @@ amrex_probinit(
   pp.query("u_0", parms.u_0);
   pp.query("v_0", parms.v_0);
   pp.query("w_0", parms.w_0);
-}
 }

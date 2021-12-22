@@ -1,0 +1,5 @@
+CEXE_sources += TimeIntegration_driver.cpp
+CEXE_sources += TimeIntegration_rhs.cpp
+CEXE_sources += TimeIntegration_fast.cpp
+CEXE_headers += TimeIntegration.H
+

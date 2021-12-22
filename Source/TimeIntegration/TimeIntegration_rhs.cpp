@@ -52,7 +52,7 @@ void erf_rhs (int level,
     // Notes:
     // 1. Need to apply BC on velocity field so that ComputeStrainRate works
     //    properly
-    // 2. Need to call FillBoundary and applyBCs to set ghost values on all
+    // 2. Need to call FillBoundary (FillPatch??) to set ghost values on all
     //    boundaries so that InterpolateTurbulentViscosity works properly
     // *************************************************************************
     MultiFab eddyViscosity(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
@@ -68,8 +68,6 @@ void erf_rhs (int level,
                                       eddyViscosity, dxInv, solverChoice,
                                       lo_z_is_dirichlet, klo, hi_z_is_dirichlet, khi);
         eddyViscosity.FillBoundary(geom.periodicity());
-        amrex::Vector<MultiFab*> eddyvisc_update{&eddyViscosity};
-        ERF::applyBCs(geom, eddyvisc_update, true);
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;

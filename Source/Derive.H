@@ -4,6 +4,8 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
 
+namespace derived {
+
 void erf_dernull(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
@@ -58,4 +60,6 @@ void erf_dertheta(
   amrex::Real time,
   const int* bcrec,
   const int level);
+
+}
 #endif

@@ -47,25 +47,25 @@ static int PostStoreStage(realtype t, N_Vector y_data, void *user_data);
 static int ProcessStage(realtype t, N_Vector y_data, void *user_data);
 #endif
 
-void erf_advance(int level,
-                 MultiFab& cons_old,  MultiFab& cons_new,
-                 MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
-                 MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
-                 MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
-                 MultiFab& source,
-                 std::array< MultiFab, AMREX_SPACEDIM>& flux,
-                 const amrex::Geometry crse_geom,
-                 const amrex::Geometry fine_geom,
-                 const amrex::IntVect ref_ratio,
-                 const amrex::Real dt, const amrex::Real time,
-                 amrex::InterpFaceRegister* ifr,
-                 const SolverChoice& solverChoice,
-                 const amrex::Real* dptr_dens_hse,
-                 const amrex::Real* dptr_pres_hse,
-                 const amrex::Real* dptr_rayleigh_tau,
-                 const amrex::Real* dptr_rayleigh_ubar,
-                 const amrex::Real* dptr_rayleigh_vbar,
-                 const amrex::Real* dptr_rayleigh_thetabar)
+void ERF::erf_advance(int level,
+                      MultiFab& cons_old,  MultiFab& cons_new,
+                      MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
+                      MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
+                      MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
+                      MultiFab& source,
+                      std::array< MultiFab, AMREX_SPACEDIM>& flux,
+                      const amrex::Geometry crse_geom,
+                      const amrex::Geometry fine_geom,
+                      const amrex::IntVect ref_ratio,
+                      const amrex::Real dt, const amrex::Real time,
+                      amrex::InterpFaceRegister* ifr,
+                      const SolverChoice& solverChoice,
+                      const amrex::Real* dptr_dens_hse,
+                      const amrex::Real* dptr_pres_hse,
+                      const amrex::Real* dptr_rayleigh_tau,
+                      const amrex::Real* dptr_rayleigh_ubar,
+                      const amrex::Real* dptr_rayleigh_vbar,
+                      const amrex::Real* dptr_rayleigh_thetabar)
 {
     BL_PROFILE_VAR("erf_advance()",erf_advance);
 
@@ -121,30 +121,30 @@ void erf_advance(int level,
     // **************************************************************************************
     // Initial solution
     amrex::Vector<amrex::MultiFab> state_old;
-    state_old.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
-    state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
-    state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
+    state_old.push_back(MultiFab(ba, dm, nvars, cons_old.nGrowVect())); // cons
+    state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrowVect())); // xmom
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrowVect())); // ymom
+    state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrowVect())); // zmom
     state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
     state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
     state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
     // Final solution
     amrex::Vector<amrex::MultiFab> state_new;
-    state_new.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
-    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
-    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
+    state_new.push_back(MultiFab(ba, dm, nvars, cons_old.nGrowVect())); // cons
+    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrowVect())); // xmom
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrowVect())); // ymom
+    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrowVect())); // zmom
     state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
     state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
     state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
     // Temporary data
     amrex::Vector<amrex::MultiFab> state_store;
-    state_store.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
-    state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
-    state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
-    state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
+    state_store.push_back(MultiFab(ba, dm, nvars, cons_old.nGrowVect())); // cons
+    state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrowVect())); // xmom
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrowVect())); // ymom
+    state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrowVect())); // zmom
     state_store.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
     state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
     state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
@@ -164,14 +164,7 @@ void erf_advance(int level,
                        state_old[IntVar::xmom],
                        state_old[IntVar::ymom],
                        state_old[IntVar::zmom],
-                       solverChoice.spatial_order,
-                       xvel_old.nGrow());
-
-    // Apply BC on old momentum data on faces before integration
-    // **************************************************************************************
-    state_old[IntVar::xmom].FillBoundary(fine_geom.periodicity());
-    state_old[IntVar::ymom].FillBoundary(fine_geom.periodicity());
-    state_old[IntVar::zmom].FillBoundary(fine_geom.periodicity());
+                       xvel_old.nGrowVect());
 
     // **************************************************************************************
     // Initialize the fluxes to zero
@@ -201,34 +194,30 @@ void erf_advance(int level,
         }
     };
 
-    auto apply_bcs = [&](Vector<MultiFab>& S_data) {
-        amrex::Vector<MultiFab*> state_p{&S_data[IntVar::cons],
-                                         &S_data[IntVar::xmom],
-                                         &S_data[IntVar::ymom],
-                                         &S_data[IntVar::zmom]};
-
-        ERF::applyBCs(fine_geom, state_p);
+    auto apply_bcs = [&](Vector<MultiFab>& S_data, const Real time) {
+        FillIntermediatePatch(level, time, S_data[IntVar::cons], 0, Cons::NumVars, Vars::cons);
 
         MomentumToVelocity(xvel_new, yvel_new, zvel_new,
                            S_data[IntVar::cons],
                            S_data[IntVar::xmom],
                            S_data[IntVar::ymom],
                            S_data[IntVar::zmom],
-                           solverChoice.spatial_order,
-                           xvel_new.nGrow());
+                           xvel_new.nGrowVect());
 
-        xvel_new.FillBoundary(fine_geom.periodicity());
-        yvel_new.FillBoundary(fine_geom.periodicity());
-        zvel_new.FillBoundary(fine_geom.periodicity());
+        FillIntermediatePatch(level, time, xvel_new, 0, 1, Vars::xvel);
+        FillIntermediatePatch(level, time, yvel_new, 0, 1, Vars::yvel);
+        FillIntermediatePatch(level, time, zvel_new, 0, 1, Vars::zvel);
 
-        // Apply BC on velocity data on faces
-        // Note that the BC was already applied on momentum
-        amrex::Vector<MultiFab*> vel_vars{&xvel_new, &yvel_new, &zvel_new};
-        ERF::applyBCs(fine_geom, vel_vars, true);
+        VelocityToMomentum(xvel_new, yvel_new, zvel_new,
+                           S_data[IntVar::cons],
+                           S_data[IntVar::xmom],
+                           S_data[IntVar::ymom],
+                           S_data[IntVar::zmom],
+                           xvel_new.nGrowVect());
     };
 
     interpolate_coarse_fine_faces(state_old);
-    apply_bcs(state_old);
+    apply_bcs(state_old, time);
     cons_to_prim(state_old[IntVar::cons], S_prim);
 
     // **************************************************************************************
@@ -293,19 +282,16 @@ void erf_advance(int level,
     N_Vector nv_store = N_VClone(nv_S);
 #endif
 
-    //Create function lambdas
     bool l_lo_z_is_dirichlet = ERF::lo_z_is_dirichlet;
     bool l_hi_z_is_dirichlet = ERF::hi_z_is_dirichlet;
 
+    //Create function lambdas
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
                        const Vector<MultiFab>& S_data, const Real time) {
         erf_rhs(level, S_rhs, S_data, S_prim,
                 xvel_new, yvel_new, zvel_new,
-                source,
-                advflux, diffflux,
-                fine_geom, dt,
-                ifr,
-                solverChoice,
+                source, advflux, diffflux,
+                fine_geom, dt, ifr, solverChoice,
                 l_lo_z_is_dirichlet,
                 l_hi_z_is_dirichlet,
                 dptr_dens_hse, dptr_pres_hse,
@@ -317,25 +303,20 @@ void erf_advance(int level,
                             const Vector<MultiFab>& S_stage_data,
                             const Vector<MultiFab>& S_data, const Real time) {
         erf_fast_rhs(level, S_rhs, S_stage_data, S_data,
-                     advflux, diffflux,
-                     fine_geom, dt,
-                     ifr,
-                     solverChoice,
-                     dptr_dens_hse, dptr_pres_hse,
-                     dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                     dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+                     advflux, fine_geom, ifr, solverChoice,
+                     dptr_dens_hse, dptr_pres_hse);
     };
 
     auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time) {
         // Apply BC on updated state and momentum data
-        for (auto& mfp : S_data) {
-            mfp.FillBoundary(fine_geom.periodicity());
-        }
+        // for (auto& mfp : S_data) {
+        //     mfp.FillBoundary(fine_geom.periodicity());
+        // }
 
         // TODO: we should interpolate coarse data in time first, so that this interplation
         // in space is at the correct time indicated by the `time` function argument.
         interpolate_coarse_fine_faces(S_data);
-        apply_bcs(S_data);
+        apply_bcs(S_data, time);
         cons_to_prim(S_data[IntVar::cons], S_prim);
     };
 
@@ -591,7 +572,7 @@ void erf_advance(int level,
                        state_new[IntVar::xmom],
                        state_new[IntVar::ymom],
                        state_new[IntVar::zmom],
-                       solverChoice.spatial_order, 0);
+                       IntVect::TheZeroVector());
 
     // **************************************************************************************
     // Get the final cell centered variables after the step
@@ -603,17 +584,11 @@ void erf_advance(int level,
     std::swap(flux[1], state_new[IntVar::yflux]);
     std::swap(flux[2], state_new[IntVar::zflux]);
 
-    // One final application of internal and periodic ghost cell filling
-    xvel_new.FillBoundary(fine_geom.periodicity());
-    yvel_new.FillBoundary(fine_geom.periodicity());
-    zvel_new.FillBoundary(fine_geom.periodicity());
-
-    // One final application of non-periodic BCs
-    amrex::Vector<MultiFab*> cons_vars{&cons_new};
-    ERF::applyBCs(fine_geom, cons_vars);
-
-    amrex::Vector<MultiFab*> vel_vars{&xvel_new, &yvel_new, &zvel_new};
-    ERF::applyBCs(fine_geom, vel_vars, true);
+    // One final BC fill
+    FillIntermediatePatch(level, time+dt, cons_new, 0, Cons::NumVars, Vars::cons);
+    FillIntermediatePatch(level, time+dt, xvel_new, 0, 1, Vars::xvel);
+    FillIntermediatePatch(level, time+dt, yvel_new, 0, 1, Vars::yvel);
+    FillIntermediatePatch(level, time+dt, zvel_new, 0, 1, Vars::zvel);
 }
 
 #ifdef AMREX_USE_SUNDIALS

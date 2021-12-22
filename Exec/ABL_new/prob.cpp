@@ -1,6 +1,9 @@
 #include "prob.H"
-#include "ABLFieldInit.H"
+#include "prob_common.H"
+
+#include "AMReX_ParmParse.H"
 #include "ERF.H"
+#include "ABLFieldInit.H"
 
 ProbParm parms;
 
@@ -52,17 +55,8 @@ erf_init_prob(
 }
 
 void
-erf_prob_close()
-{
-}
-
-extern "C" {
-void
 amrex_probinit(
-  const int* /*init*/,
-  const int* /*name*/,
-  const int* /*namelen*/,
-  const amrex_real* /*problo*/,
+  const amrex_real* /**problo*/,
   const amrex_real* /*probhi*/)
 {
   // Parse params
@@ -77,5 +71,4 @@ amrex_probinit(
   pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
-}
 }

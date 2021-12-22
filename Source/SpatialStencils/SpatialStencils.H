@@ -13,12 +13,12 @@ using namespace amrex;
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         const MultiFab& cons_in,
                         const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,
-                        const int l_spatial_order, const int ngrow);
+                        const IntVect& ngrow);
 
 void VelocityToMomentum(const MultiFab& xvel_in , const MultiFab& yvel_in, const MultiFab& zvel_in,
                         const MultiFab& cons_in,
                         MultiFab& xmom_out, MultiFab& ymom_out, MultiFab& zmom_out,
-                        const int l_spatial_order, const int ngrow);
+                        const IntVect& ngrow);
 
 
 AMREX_GPU_DEVICE

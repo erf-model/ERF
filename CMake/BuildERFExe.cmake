@@ -31,34 +31,25 @@ function(build_erf_lib erf_lib_name)
  
   target_sources(${erf_lib_name}
      PRIVATE
-       ${SRC_DIR}/Advance.cpp
-       ${SRC_DIR}/Bld.cpp
        ${SRC_DIR}/DataStruct.H
        ${SRC_DIR}/ERF_Constants.H
        ${SRC_DIR}/Derive.H
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/IndexDefines.H
+       ${SRC_DIR}/prob_common.H
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
-       ${SRC_DIR}/Problem.H
-       ${SRC_DIR}/ProblemDerive.H
+       ${SRC_DIR}/ERF_init1d.cpp
        ${SRC_DIR}/utils.H
-       ${SRC_DIR}/SumIQ.cpp
-       ${SRC_DIR}/SumUtils.cpp
-       ${SRC_DIR}/Tagging.cpp
-       ${SRC_DIR}/Utils.cpp
-       ${SRC_DIR}/BC/BCBase.H
-       ${SRC_DIR}/BC/BCDummy.H
-       ${SRC_DIR}/BC/BCInterior.H
-       ${SRC_DIR}/BC/BCMostWall.H
-       ${SRC_DIR}/BC/BCOutflow.H
-       ${SRC_DIR}/BC/BCSlipWall.H
-       ${SRC_DIR}/BC/BCSimSlipWall.H
-       ${SRC_DIR}/BC/BCNoSlipWall.H
-       ${SRC_DIR}/IO/IOManager.H
-       ${SRC_DIR}/IO/PlotFile.H
-       ${SRC_DIR}/IO/PlotFile.cpp
-       ${SRC_DIR}/IO/IOManager.cpp
+       ${SRC_DIR}/ERF_SumIQ.cpp
+       ${SRC_DIR}/ERF_Tagging.cpp
+       ${SRC_DIR}/ERF_ComputeTimestep.cpp
+       ${SRC_DIR}/ERF_FillPatch.cpp
+       ${SRC_DIR}/ERF_TimeStepping.cpp
+       ${SRC_DIR}/ERF_Utils.cpp
+       ${SRC_DIR}/IO/Checkpoint.cpp
+       ${SRC_DIR}/IO/Plotfile.cpp
+       ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/SpatialStencils/Advection.cpp
        ${SRC_DIR}/SpatialStencils/Diffusion.cpp
        ${SRC_DIR}/SpatialStencils/EddyViscosity.H
@@ -146,9 +137,7 @@ function(build_erf_exe erf_exe_name)
 
   target_sources(${erf_exe_name}
      PRIVATE
-       ${SRC_DIR}/BCfill.cpp
-       ${SRC_DIR}/Setup.cpp
-       ${SRC_DIR}/Cleanup.cpp
+       ${SRC_DIR}/ERF_init_bcs.cpp
 
   )
   if(ERF_ENABLE_CUDA)

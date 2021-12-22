@@ -2,6 +2,8 @@
 #include "EOS.H"
 #include "IndexDefines.H"
 
+namespace derived {
+
 void
 erf_dernull(
   const amrex::Box& /*bx*/,
@@ -102,4 +104,6 @@ erf_dertheta(
     const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
     thetafab(i,j,k) = rhotheta / rho;
   });
+}
+
 }

@@ -1,4 +1,9 @@
 #include "prob.H"
+#include "prob_common.H"
+
+#include "AMReX_ParmParse.H"
+#include "ERF_Constants.H"
+#include "IndexDefines.H"
 
 ProbParm parms;
 
@@ -42,6 +47,7 @@ erf_init_prob(
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata)
 {
+  amrex::Print() << "HERE DOING INIT " << bx << std::endl;
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
     const amrex::Real* prob_lo = geomdata.ProbLo();
@@ -98,7 +104,6 @@ erf_init_prob(
 
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real*      dx = geomdata.CellSize();
-    const amrex::Real        y = prob_lo[1] + (j + 0.5) * dx[1];
     const amrex::Real        z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
@@ -112,10 +117,6 @@ erf_init_prob(
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-    const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real*      dx = geomdata.CellSize();
-    const amrex::Real        x = prob_lo[0] + (i + 0.5) * dx[0];
-
     y_vel(i, j, k) = parms.v_0;
   });
 
@@ -128,19 +129,10 @@ erf_init_prob(
 }
 
 void
-erf_prob_close()
-{
-}
-
-extern "C" {
-void
 amrex_probinit(
-  const int* /*init*/,
-  const int* /*name*/,
-  const int* /*namelen*/,
   const amrex_real* /*problo*/,
   const amrex_real* /*probhi*/)
-  {
+{
     // Parse params
     amrex::ParmParse pp("prob");
     pp.query("rho_0", parms.rho_0);
@@ -158,6 +150,5 @@ amrex_probinit(
     pp.query("yc_frac", parms.yc_frac);
     pp.query("zc_frac", parms.zc_frac);
 
-    pp.query("prob_type", parms.prob_type);
-  }
+   pp.query("prob_type", parms.prob_type);
 }
