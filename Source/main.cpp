@@ -62,16 +62,16 @@ int main(int argc, char* argv[])
         // constructor - reads in parameters from inputs file
         //             - sizes multilevel arrays and data structures
         ERF erf;
-	
+
         // initialize AMR data
         erf.InitData();
 
         // advance solution to final time
         erf.Evolve();
-	
+
         // wallclock time
         Real end_total = amrex::second() - strt_total;
-	
+
         // print wallclock time
         ParallelDescriptor::ReduceRealMax(end_total ,ParallelDescriptor::IOProcessorNumber());
         if (erf.Verbose()) {

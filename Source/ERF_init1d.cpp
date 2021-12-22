@@ -82,7 +82,7 @@ ERF::initHSE()
 }
 
 void
-ERF::erf_enforce_hse(int lev, 
+ERF::erf_enforce_hse(int lev,
                      amrex::Vector<amrex::Real>& dens,
                      amrex::Vector<amrex::Real>& pres)
 {

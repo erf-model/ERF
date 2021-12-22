@@ -95,7 +95,7 @@ public:
       const amrex::MultiFab& mf, int comp, bool local, bool finemask);
 
     // Decide if it is time to take an action
-    bool is_it_time_for_action(int nstep, amrex::Real time, amrex::Real dt, 
+    bool is_it_time_for_action(int nstep, amrex::Real time, amrex::Real dt,
                                int action_interval, amrex::Real action_per);
 
     // Make a new level using provided BoxArray and DistributionMapping and
@@ -226,7 +226,7 @@ private:
                          const Vector<int> level_steps, const Real time) const;
 
     //! Create 1D vertical column output for coupling
-    void createNCColumnFile(const int lev, 
+    void createNCColumnFile(const int lev,
                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
 
     //! Write a timestep to 1D vertical column output for coupling
@@ -285,7 +285,7 @@ private:
     amrex::Vector           <amrex::Vector           <amrex::BCRec>> bcs;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::BCRec>> bcs_d;
 
-    // These hold the Dirichlet values at walls which need them ...   
+    // These hold the Dirichlet values at walls which need them ...
     amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>
                                                , AMREX_SPACEDIM*2> m_bc_vels;
     amrex::GpuArray<amrex::GpuArray<amrex::Real, NVAR>

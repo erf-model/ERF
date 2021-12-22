@@ -19,7 +19,7 @@ void rescale_state (MultiFab& state_mf)
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
 	// for example:
-        
+
 
 	});
   }

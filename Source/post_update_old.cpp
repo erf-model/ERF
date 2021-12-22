@@ -21,7 +21,7 @@ void rescale_state (MultiFab& state_mf)
 	// for example:
 	amrex::Real det = state_fab(i, j, k, Idx::gambar00)*state_fab(i, j, k, Idx::gambar11)*state_fab(i, j, k, Idx::gambar22) - state_fab(i, j, k, Idx::gambar00)*std::pow(state_fab(i, j, k, Idx::gambar12), 2) - std::pow(state_fab(i, j, k, Idx::gambar01), 2)*state_fab(i, j, k, Idx::gambar22) + 2*state_fab(i, j, k, Idx::gambar01)*state_fab(i, j, k, Idx::gambar02)*state_fab(i, j, k, Idx::gambar12) - std::pow(state_fab(i, j, k, Idx::gambar02), 2)*state_fab(i, j, k, Idx::gambar11);
 	amrex::Real scale_factor = 1.0/std::pow(det,1.0/3.0);
-	
+
 	state_fab(i, j, k, Idx::gambar00) = state_fab(i, j, k, Idx::gambar00) * scale_factor;
 	state_fab(i, j, k, Idx::gambar01) = state_fab(i, j, k, Idx::gambar01) * scale_factor;
 	state_fab(i, j, k, Idx::gambar02) = state_fab(i, j, k, Idx::gambar02) * scale_factor;
@@ -37,7 +37,7 @@ void rescale_state (MultiFab& state_mf)
         amrex::Real gambar12 = state_fab(i, j, k, Idx::gambar12);
         amrex::Real gambar20 = state_fab(i, j, k, Idx::gambar02);
         amrex::Real gambar21 = state_fab(i, j, k, Idx::gambar12);
-        amrex::Real gambar22 = state_fab(i, j, k, Idx::gambar22);	
+        amrex::Real gambar22 = state_fab(i, j, k, Idx::gambar22);
 
 	amrex::Real Abar00 = state_fab(i, j, k, Idx::Abar00);
         amrex::Real Abar01 = state_fab(i, j, k, Idx::Abar01);
@@ -58,7 +58,7 @@ void rescale_state (MultiFab& state_mf)
         amrex::Real gambarinv20 = (gambar10*gambar21 - gambar11*gambar20)/(gambar00*gambar11*gambar22 - gambar00*gambar12*gambar21 - gambar01*gambar10*gambar22 + gambar01*gambar12*gambar20 + gambar02*gambar10*gambar21 - gambar02*gambar11*gambar20);
         amrex::Real gambarinv21 = -gambar00*(gambar00*gambar21 - gambar01*gambar20)/((gambar00*gambar11 - gambar01*gambar10)*(gambar00*gambar22 - gambar02*gambar20) - (gambar00*gambar12 - gambar02*gambar10)*(gambar00*gambar21 - gambar01*gambar20));
         amrex::Real gambarinv22 = gambar00*(gambar00*gambar11 - gambar01*gambar10)/((gambar00*gambar11 - gambar01*gambar10)*(gambar00*gambar22 - gambar02*gambar20) - (gambar00*gambar12 - gambar02*gambar10)*(gambar00*gambar21 - gambar01*gambar20));
-    
+
 	amrex::Real TrAbar = Abar00*gambarinv00 + Abar01*gambarinv01 + Abar02*gambarinv02 + Abar10*gambarinv10 + Abar11*gambarinv11 + Abar12*gambarinv12 + Abar20*gambarinv20 + Abar21*gambarinv21 + Abar22*gambarinv22;
 
 	state_fab(i, j, k, Idx::Abar00) = Abar00 - 1.0/3.0*gambar00*TrAbar;

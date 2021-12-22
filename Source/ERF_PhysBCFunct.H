@@ -30,7 +30,7 @@ class ERFPhysBCFunct
 {
 public:
     ERFPhysBCFunct (const Geometry& geom, const Vector<BCRec>& bcr, const int var_idx, TimeInterpolatedData& data,
-                    GpuArray<GpuArray<Real, NVAR          >,AMREX_SPACEDIM*2 >bc_cons_extdir, 
+                    GpuArray<GpuArray<Real, NVAR          >,AMREX_SPACEDIM*2 >bc_cons_extdir,
                     GpuArray<GpuArray<Real, AMREX_SPACEDIM>,AMREX_SPACEDIM*2 >bc_vels_extdir)
         : m_geom(geom), m_var_idx(var_idx), m_bcr(bcr), m_data(data), m_bc_cons(bc_cons_extdir), m_bc_vels(bc_vels_extdir)
         {}
@@ -103,7 +103,7 @@ public:
                     // zhi: ori = 5
 
                     // Fill here all the "generic" ext_dir bc's
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) 
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                     {
                         if (m_var_idx == Vars::cons) {
                             if (i < dom_lo.x && bcrs[n].lo(0) == ERFBCType::ext_dir)
@@ -114,7 +114,7 @@ public:
                                 dest_array(i,j,k,n) = m_bc_cons[2][n];
                             if (i > dom_hi.x && bcrs[n].hi(0) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_cons[3][n];
-                            if (j > dom_hi.y && bcrs[n].hi(1) == ERFBCType::ext_dir) 
+                            if (j > dom_hi.y && bcrs[n].hi(1) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_cons[4][n];
                             if (k > dom_hi.z && bcrs[n].hi(2) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_cons[5][n];
@@ -128,7 +128,7 @@ public:
                                 dest_array(i,j,k,n) = m_bc_vels[2][0];
                             if (i > dom_hi.x   && bcrs[n].hi(0) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_vels[3][0];
-                            if (j > dom_hi.y   && bcrs[n].hi(1) == ERFBCType::ext_dir) 
+                            if (j > dom_hi.y   && bcrs[n].hi(1) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_vels[4][0];
                             if (k > dom_hi.z   && bcrs[n].hi(2) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_vels[5][0];
@@ -142,7 +142,7 @@ public:
                                 dest_array(i,j,k,n) = m_bc_vels[2][1];
                             if (i > dom_hi.x   && bcrs[n].hi(0) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_vels[3][1];
-                            if (j > dom_hi.y   && bcrs[n].hi(1) == ERFBCType::ext_dir) 
+                            if (j > dom_hi.y   && bcrs[n].hi(1) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_vels[4][1];
                             if (k > dom_hi.z   && bcrs[n].hi(2) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_vels[5][1];
@@ -157,7 +157,7 @@ public:
                                 dest_array(i,j,k,n) = m_bc_vels[2][2];
                             if (i > dom_hi.x   && bcrs[n].hi(0) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_vels[3][2];
-                            if (j > dom_hi.y   && bcrs[n].hi(1) == ERFBCType::ext_dir) 
+                            if (j > dom_hi.y   && bcrs[n].hi(1) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_vels[4][2];
                             if (k > dom_hi.z && bcrs[n].hi(2) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,n) = m_bc_vels[5][2];

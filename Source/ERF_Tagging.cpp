@@ -7,7 +7,7 @@ ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
-    for (int j=0; j < ref_tags.size(); ++j) 
+    for (int j=0; j < ref_tags.size(); ++j)
     {
         std::unique_ptr<MultiFab> mf;
 

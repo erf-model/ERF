@@ -183,7 +183,7 @@ ERF::Evolve ()
     if (check_int > 0 && istep[0] > last_check_file_step) {
         WriteCheckpointFile();
     }
-    
+
 }
 
 // Called after every coarse timestep
@@ -200,7 +200,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             get_flux_reg(lev+1).Reflux(vars_new[lev][Vars::cons],1.0, 0, 0, NVAR, geom[lev]);
 
             // We need to do this before anything else because refluxing changes the
-            // values of coarse cells underneath fine grids with the assumption they'll 
+            // values of coarse cells underneath fine grids with the assumption they'll
             // be over-written by averaging down
             AverageDownTo(lev);
         }
@@ -212,7 +212,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (output_1d_column) {
 #ifdef ERF_USE_NETCDF
-      if (is_it_time_for_action(nstep, time, dt_lev0, column_interval, column_per)) 
+      if (is_it_time_for_action(nstep, time, dt_lev0, column_interval, column_per))
       {
          int lev_column = 0;
          for (int lev = finest_level; lev >= 0; lev--)
@@ -221,7 +221,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
             Real dy_lev = geom[lev].CellSize(1);
             int i_lev = static_cast<int>(std::floor(column_loc_x / dx_lev));
             int j_lev = static_cast<int>(std::floor(column_loc_y / dy_lev));
-            if (grids[lev].contains(IntVect(i_lev,j_lev,0))) lev_column = lev; 
+            if (grids[lev].contains(IntVect(i_lev,j_lev,0))) lev_column = lev;
          }
          writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
       }
@@ -274,7 +274,7 @@ ERF::InitData ()
     // Initialize flux registers (whether we start from scratch or restart)
     if (do_reflux) {
         flux_registers[0] = 0;
-        for (int lev = 1; lev <= finest_level; lev++) 
+        for (int lev = 1; lev <= finest_level; lev++)
         {
             flux_registers[lev] = new FluxRegister(grids[lev], dmap[lev], ref_ratio[lev-1], lev, NVAR);
         }
@@ -474,7 +474,7 @@ ERF::ReadParameters ()
     {
         ParmParse pp("erf");
 
-        // Verbosity 
+        // Verbosity
         pp.query("v", verbose);
 
         // Frequency of diagnostic output

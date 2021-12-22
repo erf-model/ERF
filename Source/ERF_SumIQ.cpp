@@ -34,7 +34,7 @@ ERF::sum_integrated_quantities(Real time)
             int i = 0;
             mass   = foo[i++];
             scalar = foo[i++];
-    
+
             amrex::Print() << '\n';
             amrex::Print() << "TIME= " << time << " MASS        = " << mass   << '\n';
             amrex::Print() << "TIME= " << time << " SCALAR      = " << scalar << '\n';
@@ -48,7 +48,7 @@ ERF::sum_integrated_quantities(Real time)
                         data_log1 << std::setw(datwidth) << "        scalar";
                         data_log1 << std::endl;
                     }
-  
+
                   // Write the quantities at this time
                   data_log1 << std::setw(datwidth) << time;
                   data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
@@ -111,7 +111,7 @@ ERF::build_fine_mask(int level)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (amrex::MFIter mfi(fine_mask, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+    for (amrex::MFIter mfi(fine_mask, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         auto& fab = fine_mask[mfi];
         auto& ifab = ifine_mask[mfi];

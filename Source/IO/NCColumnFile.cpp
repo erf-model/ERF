@@ -2,7 +2,7 @@
 #include "NCInterface.H"
 #include "IndexDefines.H"
 
-void 
+void
 ERF::createNCColumnFile(int lev,
                         const std::string& colfile_name,
                         const amrex::Real xloc,
@@ -42,13 +42,13 @@ ERF::createNCColumnFile(int lev,
   }
 }
 
-void 
+void
 ERF::writeToNCColumnFile(const int lev,
                          const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
                          const amrex::Real cumtime)
 {
   //
-  // This routine assumes that we can grab the whole column of data from the MultiFabs at  
+  // This routine assumes that we can grab the whole column of data from the MultiFabs at
   //     a single level, "lev".  This assumption is true as long as we don't refine only
   //     partway up a column, which is the plan.
   //

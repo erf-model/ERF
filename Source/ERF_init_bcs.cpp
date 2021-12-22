@@ -45,7 +45,7 @@ void ERF::init_bcs ()
             m_bc_type[ori] = BC::inflow;
 
             std::vector<Real> v;
-            if (pp.queryarr("velocity", v, 0, AMREX_SPACEDIM)) 
+            if (pp.queryarr("velocity", v, 0, AMREX_SPACEDIM))
             {
                for (int i=0; i<AMREX_SPACEDIM; i++)
                {
@@ -113,7 +113,7 @@ void ERF::init_bcs ()
         }
 
         if (geom[0].isPeriodic(ori.coordDir())) {
-            if (m_bc_type[ori] == BC::undefined) 
+            if (m_bc_type[ori] == BC::undefined)
             {
                 m_bc_type[ori] = BC::periodic;
             } else {
@@ -121,7 +121,7 @@ void ERF::init_bcs ()
             }
         }
 
-        if (m_bc_type[ori] == BC::undefined) 
+        if (m_bc_type[ori] == BC::undefined)
         {
              amrex::Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
              amrex::Abort("This type is unknown");
@@ -135,12 +135,12 @@ void ERF::init_bcs ()
     f("zlo", Orientation(Direction::z,Orientation::low));
     f("zhi", Orientation(Direction::z,Orientation::high));
 
-    // ***************************************************************************** 
-    // 
+    // *****************************************************************************
+    //
     // Here we translate the physical boundary conditions -- one type per face --
     //     into logical boundary conditions for each velocity component
-    // 
-    // ***************************************************************************** 
+    //
+    // *****************************************************************************
     {
         int nvar_cc  = Cons::NumVars;
         int nvar_vel = AMREX_SPACEDIM;
@@ -238,12 +238,12 @@ void ERF::init_bcs ()
         (bcs_d[BCVars::vels].data(), bcs[BCVars::vels].data(), sizeof(BCRec)*AMREX_SPACEDIM);
     }
 
-    // ***************************************************************************** 
-    // 
+    // *****************************************************************************
+    //
     // Here we translate the physical boundary conditions -- one type per face --
     //     into logical boundary conditions for each cell-centered variable
-    // 
-    // ***************************************************************************** 
+    //
+    // *****************************************************************************
     {
         for (OrientationIter oit; oit; ++oit) {
             Orientation ori = oit();

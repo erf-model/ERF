@@ -58,7 +58,7 @@ namespace Prim {
 }
 
 // NOTE: the first of these must match up with the BCType enum
-//     in amrex/Src/Base/AMReX_BC_TYPES.H.  We had extras at 
+//     in amrex/Src/Base/AMReX_BC_TYPES.H.  We had extras at
 //     the end to use locally
 namespace ERFBCType {
 enum mathematicalBndryTypes : int { bogus        = -666,

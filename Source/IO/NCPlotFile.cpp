@@ -25,9 +25,9 @@ ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plot
                      const Vector<std::string> &plot_var_names,
                      const Vector<int> level_steps, const Real time) const
 {
-  // 
+  //
   // TODO: Right now this appears to be hard-wired for single-level so we'll leave it that way
-  // 
+  //
   int lev = 0;
 
   // number of grid points at this block
