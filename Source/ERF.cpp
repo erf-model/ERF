@@ -306,7 +306,7 @@ ERF::InitData ()
 // overrides the pure virtual function in AmrCore
 void
 ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
-				                    const DistributionMapping& dm)
+                                    const DistributionMapping& dm)
 {
     const auto& crse_new = vars_new[lev-1];
     auto& lev_new = vars_new[lev];
