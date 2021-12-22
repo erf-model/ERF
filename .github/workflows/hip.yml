@@ -71,7 +71,6 @@ jobs:
           -DERF_ENABLE_MASA:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_SUNDIALS:BOOL=${{matrix.sundials_state}} \
-          -DERF_ENABLE_AMREX_EB:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
           -DCODECOV:BOOL=ON \
           -DCMAKE_C_COMPILER=$(which clang)             \

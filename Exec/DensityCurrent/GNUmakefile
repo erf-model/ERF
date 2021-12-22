@@ -19,10 +19,10 @@ USE_DPCPP = FALSE
 
 # Debugging
 DEBUG = FALSE
-DEBUG = TRUE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DensityCurrent
 include $(ERF_HOME)/Exec/Make.ERF

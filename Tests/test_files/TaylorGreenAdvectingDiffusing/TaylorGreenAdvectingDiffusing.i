@@ -27,16 +27,14 @@ amr.data_log         = datlog
 amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
-amr.checkpoint_files_output = 0
 amr.check_file      = chk        # root name of checkpoint file
 amr.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
-amr.plot_files_output = 1
 amr.plot_file       = plt        # root name of plotfile
 amr.plot_int        = 10        # number of timesteps between plotfiles
-amr.plot_vars        =  density
-amr.derive_plot_vars = pressure temp theta x_velocity y_velocity z_velocity
+amr.plot_vars        =  density x_velocity y_velocity z_velocity
+amr.derive_plot_vars = pressure temp theta
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0

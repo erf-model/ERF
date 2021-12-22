@@ -1,5 +1,9 @@
 #include "prob.H"
+#include "prob_common.H"
+
 #include "EOS.H"
+#include "AMReX_ParmParse.H"
+#include "IndexDefines.H"
 
 ProbParm parms;
 
@@ -25,8 +29,8 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
       r[k0] = r_sfc;
       p[k0] = getPgivenRTh(r[k0]*theta);
 
-      Real p_eos = getPgivenRTh(r[k0]*theta);
-      Real p_hse;
+      amrex::Real p_eos = getPgivenRTh(r[k0]*theta);
+      amrex::Real p_hse;
 
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
@@ -35,11 +39,11 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
 
           //amrex::Print() << "PHSE PEOS " << p_hse << " " << p_eos << std::endl;
 
-          Real A = p_hse - p_eos;
+          amrex::Real A = p_hse - p_eos;
 
-          Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
+          amrex::Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
 
-          Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
+          amrex::Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
 
           //amrex::Print() << "DRHO " << drho << std::endl;
 
@@ -73,20 +77,20 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
 
       r[k] = r[k-1];
 
-      Real p_eos = getPgivenRTh(r[k]*theta);
-      Real p_hse;
+      amrex::Real p_eos = getPgivenRTh(r[k]*theta);
+      amrex::Real p_hse;
 
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
           p_hse = p[k-1] -  dz * 0.5 * (r[k-1]+r[k]) * CONST_GRAV;
           p_eos = getPgivenRTh(r[k]*theta);
 
-          Real A = p_hse - p_eos;
+          amrex::Real A = p_hse - p_eos;
 
-          Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
+          amrex::Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
           // Gamma * p_0 * std::pow( (R_d * theta / p_0), Gamma) * std::pow(r[k], Gamma-1.0) ;
 
-          Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
+          amrex::Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
 
           r[k] = std::max(0.9*r[k-1], std::min(r[k] + drho, 1.1*r[k-1]));
           p[k] = getPgivenRTh(r[k]*theta);
@@ -114,9 +118,9 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
                   amrex::GeometryData const& geomdata,
                   const int /*ng_dens_hse*/)
 {
-  const Real& prob_lo = geomdata.ProbLo()[2];
-  const Real& dz      = geomdata.CellSize()[2];
-  const int khi       = geomdata.Domain().bigEnd()[2];
+  const amrex::Real& prob_lo = geomdata.ProbLo()[2];
+  const amrex::Real& dz      = geomdata.CellSize()[2];
+  const int khi              = geomdata.Domain().bigEnd()[2];
 
   const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
   const amrex::Real& Thetabar = parms.T_0;
@@ -173,8 +177,8 @@ erf_init_prob(
 
   amrex::Gpu::DeviceVector<amrex::Real> d_r;
   amrex::Gpu::DeviceVector<amrex::Real> d_p;
-  d_r.resize(khi+1, 0.0_rt);
-  d_p.resize(khi+1, 0.0_rt);
+  d_r.resize(khi+1, 0.0);
+  d_p.resize(khi+1, 0.0);
 
   init_isentropic_hse(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
@@ -205,15 +209,15 @@ erf_init_prob(
     }
 
     // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
-    Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
+    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
 
     // This version perturbs p but not rho
     state(i, j, k, Rho_comp) = r[k];
     state(i, j, k, RhoTheta_comp) = state(i,j,k,Rho_comp) * theta_perturbed;
 
     // This version perturbs rho but not p
-    // state(i, j, k, RhoTheta_comp) = std::pow(p[k]/p_0,1.0/Gamma) * p_0 / R_d;
-    // state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
+    //state(i, j, k, RhoTheta_comp) = std::pow(p[k]/p_0,1.0/Gamma) * p_0 / R_d;
+    //state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
@@ -252,16 +256,7 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
 }
 
 void
-erf_prob_close()
-{
-}
-
-extern "C" {
-void
 amrex_probinit(
-  const int* /*init*/,
-  const int* /*name*/,
-  const int* /*namelen*/,
   const amrex_real* /*problo*/,
   const amrex_real* /*probhi*/)
 {
@@ -274,5 +269,4 @@ amrex_probinit(
   pp.query("x_r", parms.x_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
-}
 }

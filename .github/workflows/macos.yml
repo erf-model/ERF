@@ -30,7 +30,6 @@ jobs:
           -DERF_ENABLE_MPI:BOOL=TRUE \
           -DERF_ENABLE_TESTS:BOOL=TRUE \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=TRUE \
-          -DERF_ENABLE_AMREX_EB:BOOL=TRUE \
           -DERF_ENABLE_FCOMPARE:BOOL=TRUE \
           ${{github.workspace}};
 

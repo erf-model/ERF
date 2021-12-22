@@ -89,12 +89,9 @@ void erf_fast_rhs(int level,
                   const Vector<MultiFab >& S_stage_data,
                   const Vector<MultiFab >& S_data,
                   std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
-                  std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
-                  const amrex::Geometry geom, const amrex::Real dt,
+                  const amrex::Geometry geom,
                         amrex::InterpFaceRegister* ifr,
                   const SolverChoice& solverChoice,
-                  const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
-                  const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-                  const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar);
+                  const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse);
 
 #endif

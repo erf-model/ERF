@@ -1,24 +1,20 @@
 #include "ERF.H"
-#include "IOManager.H"
 #include "NCInterface.H"
 #include "IndexDefines.H"
 
-void IOManager::createNCColumnFile(const std::string& colfile_name,
-                                   const amrex::Real xloc,
-                                   const amrex::Real yloc)
+void
+ERF::createNCColumnFile(int lev,
+                        const std::string& colfile_name,
+                        const amrex::Real xloc,
+                        const amrex::Real yloc)
 {
-  // TODO: Relax assumption of only a single level
-  if (erf.parent->finestLevel() > 0) {
-    amrex::Error("Cannot createNCColumnFile: present implementation assumes only a single level is present");
-  }
-
   // Create file to which column data will be written every timestep
   if (amrex::ParallelDescriptor::IOProcessor()) {
     auto ncf = ncutils::NCFile::create(colfile_name, NC_CLOBBER | NC_NETCDF4);
     const std::string nt_name = "ntime";
     const std::string nh_name = "nheight";
     // Use one grow cell (on either side) to allow interpolation to boundaries
-    const int nheights = erf.geom.Domain().length(2) + 2;
+    const int nheights = geom[lev].Domain().length(2) + 2;
     ncf.enter_def_mode();
     ncf.put_attr("title", "ERF NetCDF Vertical Column Output");
     ncf.put_attr("units", "mks");
@@ -35,8 +31,8 @@ void IOManager::createNCColumnFile(const std::string& colfile_name,
     ncf.exit_def_mode();
 
     // Put in the Z grid, but not any actual data yet
-    amrex::Real zmin = erf.geom.ProbLo(2);
-    amrex::Real dz = erf.geom.CellSize(2);
+    amrex::Real zmin = geom[lev].ProbLo(2);
+    amrex::Real dz = geom[lev].CellSize(2);
     amrex::Vector<amrex::Real> zvalues(nheights, zmin-0.5*dz);
     for (int ii = 0; ii < nheights; ++ii) {
       zvalues[ii] += ii * dz;
@@ -46,15 +42,19 @@ void IOManager::createNCColumnFile(const std::string& colfile_name,
   }
 }
 
-void IOManager::writeToNCColumnFile(const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc)
+void
+ERF::writeToNCColumnFile(const int lev,
+                         const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
+                         const amrex::Real cumtime)
 {
-  // TODO: Relax assumption of only a single level
-  if (erf.parent->finestLevel() > 0) {
-    amrex::Error("Cannot writeToNCColumnFile: present implementation assumes only a single level is present");
-  }
+  //
+  // This routine assumes that we can grab the whole column of data from the MultiFabs at
+  //     a single level, "lev".  This assumption is true as long as we don't refine only
+  //     partway up a column, which is the plan.
+  //
 
   // All processors: look for the requested column and get data if it's there
-  amrex::Box probBox = erf.geom.Domain();
+  amrex::Box probBox = geom[lev].Domain();
   const size_t nheights = probBox.length(2) + 2;
   amrex::Gpu::DeviceVector<amrex::Real> d_column_data(nheights*3, 0.0);
   amrex::Vector<amrex::Real> h_column_data(nheights*3, 0.0);
@@ -63,14 +63,14 @@ void IOManager::writeToNCColumnFile(const std::string& colfile_name, const amrex
   amrex::Real* thetacol = &d_column_data[nheights*2];
 
   // Requested point must be inside problem domain
-  if (xloc < erf.geom.ProbLo(0) || xloc > erf.geom.ProbHi(0) ||
-      yloc < erf.geom.ProbLo(1) || yloc > erf.geom.ProbHi(1)) {
+  if (xloc < geom[0].ProbLo(0) || xloc > geom[0].ProbHi(0) ||
+      yloc < geom[0].ProbLo(1) || yloc > geom[0].ProbHi(1)) {
     amrex::Error("Invalid xy location to save column data - outside of domain");
   }
 
   // get indices and interpolation coefficients
-  const amrex::Real x_cell_loc = probBox.smallEnd(0) + (xloc - erf.geom.ProbLo(0))* erf.geom.InvCellSize(0);
-  const amrex::Real y_cell_loc = probBox.smallEnd(1) + (yloc - erf.geom.ProbLo(1))* erf.geom.InvCellSize(1);
+  const amrex::Real x_cell_loc = probBox.smallEnd(0) + (xloc - geom[lev].ProbLo(0))* geom[lev].InvCellSize(0);
+  const amrex::Real y_cell_loc = probBox.smallEnd(1) + (yloc - geom[lev].ProbLo(1))* geom[lev].InvCellSize(1);
   const int iloc = floor(x_cell_loc - 0.5);
   const int jloc = floor(y_cell_loc - 0.5);
   const amrex::Real alpha_x = x_cell_loc - 0.5 - iloc;
@@ -101,20 +101,18 @@ void IOManager::writeToNCColumnFile(const std::string& colfile_name, const amrex
                               IntVect{iloc+1, jloc+1, kend});
 
   //  Need to get these valid in one grow cell for interpolation
-  amrex::MultiFab& S_new = erf.get_new_data(State_Type);
-  amrex::MultiFab& U_new = erf.get_new_data(X_Vel_Type);
-  amrex::MultiFab& V_new = erf.get_new_data(Y_Vel_Type);
-  S_new.FillBoundary(erf.geom.periodicity());
-  U_new.FillBoundary(erf.geom.periodicity());
-  V_new.FillBoundary(erf.geom.periodicity());
-  amrex::Vector<MultiFab*> all_vars{&S_new, &U_new, &V_new};
-  ERF::applyBCs(erf.geom,all_vars);
+  amrex::MultiFab& S_new = vars_new[lev][Vars::cons];
+  amrex::MultiFab& U_new = vars_new[lev][Vars::xvel];
+  amrex::MultiFab& V_new = vars_new[lev][Vars::yvel];
+  FillPatch(lev, t_new[lev], S_new, 0, Cons::NumVars, Vars::cons);
+  FillPatch(lev, t_new[lev], U_new, 0, 1, Vars::xvel);
+  FillPatch(lev, t_new[lev], V_new, 0, 1, Vars::yvel);
 
   // No tiling - we're just interested in one location
   for ( MFIter mfi(S_new); mfi.isValid(); ++mfi){
     const amrex::Array4<Real const> & state = S_new.array(mfi);
-    const amrex::Array4<Real const> & velx = U_new.array(mfi);
-    const amrex::Array4<Real const> & vely = V_new.array(mfi);
+    const amrex::Array4<Real const> & velx  = U_new.array(mfi);
+    const amrex::Array4<Real const> & vely  = V_new.array(mfi);
 
     // we want to include data at physical boundary ghost cells
     // for interpolation (i,j) or saving (k)
@@ -156,7 +154,6 @@ void IOManager::writeToNCColumnFile(const std::string& colfile_name, const amrex
     size_t putloc = ncf.dim("ntime").len();
 
     // Time
-    amrex::Real cumtime = erf.parent->cumTime();
     amrex::Vector<size_t> start_t {putloc};
     amrex::Vector<size_t> count_t {1};
     ncf.var("times").put(&cumtime, start_t, count_t);

@@ -1,528 +1,501 @@
-/**
- * \file ERF.H
- */
+#ifndef ERF_H_
+#define ERF_H_
 
-#ifndef _ERF_H_
-#define _ERF_H_
+#include <string>
+#include <limits>
+#include <memory>
 
-#include <iostream>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
-#include <AMReX_BC_TYPES.H>
-#include <AMReX_AmrLevel.H>
-#include <AMReX_iMultiFab.H>
+#include <AMReX_AmrCore.H>
+#include <AMReX_BCRec.H>
+
+#include <AMReX_ParallelDescriptor.H>
+#include <AMReX_ParmParse.H>
+#include <AMReX_MultiFabUtil.H>
+#include <AMReX_FillPatchUtil.H>
+#include <AMReX_PlotFileUtil.H>
+#include <AMReX_VisMF.H>
+#include <AMReX_PhysBCFunct.H>
+#include <AMReX_FluxRegister.H>
 #include <AMReX_ErrorList.H>
 
-#include <AMReX_FluxRegister.H>
+#ifdef AMREX_MEM_PROFILING
+#include <AMReX_MemProfiler.H>
+#endif
+
+#include <IndexDefines.H>
+#include <TimeInterpolatedData.H>
+#include <ERF_PhysBCFunct.H>
+#include <AMReX_TimeIntegrator.H>
+#include <TimeIntegration.H>
+#include <DataStruct.H>
+#include <ABLFieldInit.H>
+#include <Derive.H>
+//#include <prob.H>
+
+#include <iostream>
 
 #ifdef AMREX_LAZY
 #include <AMReX_Lazy.H>
 #endif
 
-#include "DataStruct.H"
-#include "IndexDefines.H"
-#include "IOManager.H"
+using namespace amrex;
 
-#include "BC/ABLMost.H"
-#include "BC/BCBase.H"
-#include "BC/BCDummy.H"
-#include "BC/BCInterior.H"
-#include "BC/BCOutflow.H"
-#include "BC/BCSlipWall.H"
-#include "BC/BCNoSlipWall.H"
-#include "BC/BCSimSlipWall.H"
-#include "BC/BCMostWall.H"
+namespace InterpType {
+    enum {
+        PCInterp = 0,
+        NodeBilinear,
+        CellConservativeLinear,
+        CellBilinear,
+        CellQuadratic,
+        CellConservativeProtected,
+        CellConservativeQuartic
+    };
+}
 
-#include "ABLFieldInit.H"
+template<typename V, typename T>
+bool containerHasElement(const V& iterable, const T& query) {
+    return std::find(iterable.begin(), iterable.end(), query) != iterable.end();
+}
 
-using std::istream;
-using std::ostream;
-
-#define ENUM_BUILDER(name, ...) enum name { __VA_ARGS__ }; \
-inline std::string EnumToString(name value) {              \
-std::string str = #__VA_ARGS__;                            \
-std::string rs;                                            \
-int len = str.length();                                    \
-std::vector<std::string> strings;                          \
-std::ostringstream ss;                                     \
-for(int i = 0; i < len; i ++) {                            \
-    if(isspace(str[i])) continue;                          \
-    else if(str[i] == ',') {                               \
-        strings.push_back(ss.str());                       \
-        ss.str(std::string());                             \
-        }                                                  \
-    else ss<<str[i];                                       \
-}                                                          \
-strings.push_back(ss.str());                               \
-rs = strings[static_cast<int>(value)];                     \
-return rs; }
-
-
-ENUM_BUILDER(StateType,
-             State_Type,
-             X_Vel_Type,
-             Y_Vel_Type,
-             Z_Vel_Type,
-             Work_Estimate_Type)
-
-/**
- * AmrLevel-derived class for solving equations for atmospheric flows
- */
-class ERF : public amrex::AmrLevel
+class ERF
+    : public amrex::AmrCore
 {
 public:
-  //! Default constructor.  Builds invalid object.
-  ERF();
 
-  static SolverChoice solverChoice;
-  static ABLFieldInit ablinit;
+    ////////////////
+    // public member functions
 
-  //! The basic constructor.
-  ERF(
-    amrex::Amr& papa,
-    int lev,
-    const amrex::Geometry& level_geom,
-    const amrex::BoxArray& bl,
-    const amrex::DistributionMapping& dm,
-    amrex::Real time);
+    // constructor - reads in parameters from inputs file
+    //             - sizes multilevel arrays and data structures
+    ERF ();
+    virtual ~ERF();
 
-  //! The destructor.
-  virtual ~ERF();
+    // Advance solution to final time
+    void Evolve ();
 
-  //! Restart from a checkpoint file.
-  virtual void
-  restart(amrex::Amr& papa, istream& is, bool bReadSpecial = false) override;
+    // Tag cells for refinement
+    virtual void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
-  //! This is called only when we restart from an old checkpoint.
-  virtual void
-  set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint) override;
+    // Initialize multilevel data
+    void InitData ();
 
-  //! Call AmrLevel::checkPoint and then add radiation info
-  virtual void checkPoint(
-    const std::string& dir,
-    std::ostream& os,
-    amrex::VisMF::How how,
-    bool dump_old) override;
+    // Called after every level 0 timestep
+    void post_timestep (int nstep, Real time, Real dt_lev);
 
-  virtual void setPlotVariables() override;
+    // Diagnostics
+    void sum_integrated_quantities(Real time);
 
-  //! Write a plotfile to specified directory.
-  virtual void writePlotFile(
-    const std::string& dir, ostream& os, amrex::VisMF::How how) override;
-  virtual void writeSmallPlotFile(
-    const std::string& dir, ostream& os, amrex::VisMF::How how) override;
-  void writeJobInfo(const std::string& dir);
+    // Perform the volume-weighted sum
+    amrex::Real
+    volWgtSumMF(int lev,
+      const amrex::MultiFab& mf, int comp, bool local, bool finemask);
 
-  IOManager& get_io_manager() { return *io_mgr; }
-  const IOManager& get_io_manager() const { return *io_mgr; }
+    // Decide if it is time to take an action
+    bool is_it_time_for_action(int nstep, amrex::Real time, amrex::Real dt,
+                               int action_interval, amrex::Real action_per);
 
-  // get function
-  ABLMost& get_most() { return most; }
-  const ABLMost& get_most() const { return most; }
+    // Make a new level using provided BoxArray and DistributionMapping and
+    // fill with interpolated coarse level data.
+    // overrides the pure virtual function in AmrCore
+    virtual void MakeNewLevelFromCoarse (int lev, amrex::Real time, const amrex::BoxArray& ba,
+                     const amrex::DistributionMapping& dm) override;
 
-  void setupABLMost();
+    // Remake an existing level using provided BoxArray and DistributionMapping and
+    // fill with existing fine and coarse data.
+    // overrides the pure virtual function in AmrCore
+    virtual void RemakeLevel (int lev, amrex::Real time, const amrex::BoxArray& ba,
+                  const amrex::DistributionMapping& dm) override;
 
-  //! Define data descriptors.
-  static void variableSetUp();
+    // Delete level data
+    // overrides the pure virtual function in AmrCore
+    virtual void ClearLevel (int lev) override;
 
-  //! Cleanup data descriptors at end of run.
-  static void variableCleanUp();
+    // Make a new level from scratch using provided BoxArray and DistributionMapping.
+    // Only used during initialization.
+    // overrides the pure virtual function in AmrCore
+    virtual void MakeNewLevelFromScratch (int lev, amrex::Real time, const amrex::BoxArray& ba,
+                      const amrex::DistributionMapping& dm) override;
 
-  static bool init_abl;
+private:
 
-  static int ng_dens_hse;
-  static int ng_pres_hse;
+    ////////////////
+    // private member functions
 
-  //! Initialize HSE
-  void initHSE();
-  void erf_enforce_hse(amrex::Vector<amrex::Real>& dens,
-                       amrex::Vector<amrex::Real>& pres);
+    // read in some parameters from inputs file
+    void ReadParameters();
 
-  //! Initialize Rayleigh damping profiles
-  void initRayleigh();
+    // set covered coarse cells to be the average of overlying fine cells
+    void AverageDown ();
 
-  //! Initialize grid data at problem start-up.
-  virtual void initData() override;
-  void initDataProb(amrex::MultiFab& S_new,
-                    amrex::MultiFab& U_new,
-                    amrex::MultiFab& V_new,
-                    amrex::MultiFab& W_new);
+    void init1DArrays();
 
-  //! Get problem metrics.
-  amrex::MultiFab* Area();
-  amrex::MultiFab& Area(int dir);
+    void init_bcs();
 
-  //! The volume of the multifab.
-  amrex::MultiFab& Volume();
+    // more flexible version of AverageDown() that lets you average down across multiple levels
+    void AverageDownTo (int crse_lev);
 
-  //! Set time levels of state data.
-  virtual void setTimeLevel(
-    amrex::Real time, amrex::Real dt_old, amrex::Real dt_new) override;
+    // compute a new multifab by coping in phi from valid region and filling ghost cells
+    // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
+    void FillPatch (int lev, amrex::Real time, amrex::MultiFab& mf, int icomp, int ncomp, int var_idx);
 
-  //! Initialize data on this level from another ERF (during regrid).
-  virtual void init(amrex::AmrLevel& old) override;
+    // compute a new multifab by coping in data from valid region and filling ghost cells
+    // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
+    // unlike FillPatch, FillIntermediatePatch will use the supplied multifab instead of fine level data.
+    // This is to support filling boundary cells at an intermediate time between old/new times
+    // on the fine level when valid data at a specific time is already available (such as
+    // at each RK stage when integrating between initial and final times at a given level).
+    void FillIntermediatePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx);
 
-  /** Initialize data on this level after regridding if old level did not
-   *  previously exist
-   */
-  virtual void init() override;
+    // fill an entire multifab by interpolating from the coarser level
+    // this comes into play when a new level of refinement appears
+    void FillCoarsePatch (int lev, amrex::Real time, amrex::MultiFab& mf, int icomp, int ncomp, int var_idx);
 
-  //! for the Amr class to do timed load balances.
-  virtual int WorkEstType() override { return Work_Estimate_Type; }
+    // fill all multifabs (and all components) in a vector of multifabs corresponding to the
+    // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
+    void FillCoarsePatchAllVars (int lev, Real time, Vector<MultiFab>& vmf);
 
-  //! Proceed with next timestep?
-  virtual int okToContinue() override;
+    // utility to copy in data from old and/or new state into another multifab
+    TimeInterpolatedData GetDataAtTime (int lev, Real time);
 
-  //! Advance grids at this level in time.
-  virtual amrex::Real
-  advance(amrex::Real time, amrex::Real dt, int iteration, int ncycle) override;
+    // get a vector of BCRec that we can pass to FillPatch depending on what type of variable we want to fill
+    Vector<BCRec> GetBCVarVector (int var_idx);
 
-  //! Estimate time step.
-  amrex::Real estTimeStep(amrex::Real dt_old);
+    // advance a level by dt
+    // includes a recursive call for finer levels
+    void timeStep (int lev, amrex::Real time, int iteration);
 
-  //! Compute initial time step.
-  amrex::Real initialTimeStep();
+    // advance a single level for a single time step
+    void Advance (int lev, amrex::Real time, amrex::Real dt_lev, int iteration, int ncycle);
 
-  //! Compute initial `dt'.
-  virtual void computeInitialDt(
-    int finest_level,
-    int sub_cycle,
-    amrex::Vector<int>& n_cycle,
-    const amrex::Vector<amrex::IntVect>& ref_ratio,
-    amrex::Vector<amrex::Real>& dt_level,
-    amrex::Real stop_time) override;
+    void erf_advance(int level,
+                      MultiFab& cons_old,  MultiFab& cons_new,
+                      MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
+                      MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
+                      MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
+                      MultiFab& source,
+                      std::array< MultiFab, AMREX_SPACEDIM>& flux,
+                      const amrex::Geometry crse_geom,
+                      const amrex::Geometry fine_geom,
+                      const amrex::IntVect ref_ratio,
+                      const amrex::Real dt, const amrex::Real time,
+                      amrex::InterpFaceRegister* ifr,
+                      const SolverChoice& solverChoice,
+                      const amrex::Real* dptr_dens_hse,
+                      const amrex::Real* dptr_pres_hse,
+                      const amrex::Real* dptr_rayleigh_tau,
+                      const amrex::Real* dptr_rayleigh_ubar,
+                      const amrex::Real* dptr_rayleigh_vbar,
+                      const amrex::Real* dptr_rayleigh_thetabar);
 
-  //! Decide if it is time to take an action
-  bool is_it_time_for_action(int action_interval, amrex::Real action_per);
+    //! Initialize HSE
+    void initHSE();
+    void erf_enforce_hse(int lev,
+                         amrex::Vector<amrex::Real>& dens,
+                         amrex::Vector<amrex::Real>& pres);
 
-  //! Compute new `dt'.
-  virtual void computeNewDt(
-    int finest_level,
-    int sub_cycle,
-    amrex::Vector<int>& n_cycle,
-    const amrex::Vector<amrex::IntVect>& ref_ratio,
-    amrex::Vector<amrex::Real>& dt_min,
-    amrex::Vector<amrex::Real>& dt_level,
-    amrex::Real stop_time,
-    int post_regrid_flag) override;
+    //! Initialize Rayleigh damping profiles
+    void initRayleigh();
 
-  //! Allocate data at old time.
-  virtual void allocOldData() override;
+    // a wrapper for estTimeStep()
+    void ComputeDt ();
 
-  //! Remove data at old time.
-  virtual void removeOldData() override;
+    // compute dt from CFL considerations
+    Real estTimeStep (int lev) const;
 
-  //! Passes some data about the grid to a Fortran module.
-  void setGridInfo();
+    // get plotfile name
+    std::string PlotFileName (int lev) const;
 
-  // Print information about energy budget.
-  //void do_energy_diagnostics();
+    // set plotfile variables names
+    amrex::Vector<std::string> PlotFileVarNames () const;
 
-  //! Do work after timestep().
-  virtual void post_timestep(int iteration) override;
+    // set which variables and derived quantities go into plotfiles
+    void setPlotVariables ();
 
-  //! Contains operations to be done only after a full coarse timestep.
-  virtual void postCoarseTimeStep(amrex::Real cumtime) override;
+    // write plotfile to disk
+    void WritePlotFile () const;
 
-  //! Do work after regrid().
-  virtual void post_regrid(int lbase, int new_finest) override;
+#ifdef ERF_USE_NETCDF
+    //! Write plotfile using NETCDF
+    void writeNCPlotFile(const std::string& dir,
+                         const Vector<const MultiFab*> &mf,
+                         const Vector<std::string> &varnames,
+                         const Vector<int> level_steps, const Real time) const;
 
-  //! Do work after a restart().
-  virtual void post_restart() override;
+    //! Create 1D vertical column output for coupling
+    void createNCColumnFile(const int lev,
+                            const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
 
-  //! Do work after init().
-  virtual void post_init(amrex::Real stop_time) override;
+    //! Write a timestep to 1D vertical column output for coupling
+    void writeToNCColumnFile(const int lev,
+                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
+                             const amrex::Real time);
+#endif
 
-  //! Error estimation for regridding.
-  virtual void errorEst(
-    amrex::TagBoxArray& tb,
-    int clearval,
-    int tagval,
-    amrex::Real time,
-    int n_error_buf = 0,
-    int ngrow = 0) override;
+    // write checkpoint file to disk
+    void WriteCheckpointFile () const;
 
-  /** Returns a MultiFab containing the derived data for this level.
-   * The user is responsible for deleting this pointer when done
-   * with it.  If ngrow>0 the MultiFab is built on the appropriately
-   * grown BoxArray.
-   */
-  virtual std::unique_ptr<amrex::MultiFab>
-  derive(const std::string& name, amrex::Real time, int ngrow) override;
+    // read checkpoint file from disk
+    void ReadCheckpointFile ();
 
-  /** This version of derive() fills the dcomp'th component of mf with the
-   * derived quantity.
-   */
-  virtual void derive(
-    const std::string& name,
-    amrex::Real time,
-    amrex::MultiFab& mf,
-    int dcomp) override;
+    // Read the file passed to amr.restart and use it as an initial condition for
+    // the current simulation. Supports a different number of components and
+    // ghost cells.
+    void InitializeFromFile ();
 
-  static void applyBCs( const amrex::Geometry geom, amrex::Vector<MultiFab*>& vars, bool is_derived=false) {
-    for (int dir = 0; dir < 2*AMREX_SPACEDIM; dir++) {
-      bc_recs[dir]->applyBC(geom, vars, solverChoice, is_derived);
+    // Initialize the new-time data at a level from the initial_data MultiFab
+    void InitializeLevelFromData (int lev, const amrex::MultiFab& initial_data);
+
+    // utility to skip to next line in Header
+    static void GotoNextLine (std::istream& is);
+
+    // Single level functions called by advance()
+    void post_update (amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
+    void fill_rhs (amrex::MultiFab& rhs_mf, const amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
+
+    ////////////////
+    // private data members
+
+    amrex::Vector<int> istep;      // which step?
+    amrex::Vector<int> nsubsteps;  // how many substeps on each level?
+
+    // keep track of old time, new time, and time step at each level
+    amrex::Vector<amrex::Real> t_new;
+    amrex::Vector<amrex::Real> t_old;
+    amrex::Vector<amrex::Real> dt;
+
+    // array of multifabs to store the solution at each level of refinement
+    // after advancing a level we use "swap".
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+
+    // array of time integrator objects at each level of refinement
+    amrex::Vector<std::unique_ptr<TimeIntegrator<Vector<MultiFab> > > > integrator;
+
+    // array of flux registers
+    amrex::Vector<amrex::FluxRegister*> flux_registers;
+
+    // A BCRec is essentially a 2*DIM integer array storing the boundary
+    // condition type at each lo/hi walls in each direction
+    // Here bcs[0]/bcs_d[0] correspond to bcs for velocity
+    //      bcs[1]/bcs_d[1] correspond to bcs for cell-centered quantities
+    amrex::Vector           <amrex::Vector           <amrex::BCRec>> bcs;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::BCRec>> bcs_d;
+
+    // These hold the Dirichlet values at walls which need them ...
+    amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>
+                                               , AMREX_SPACEDIM*2> m_bc_vels;
+    amrex::GpuArray<amrex::GpuArray<amrex::Real, NVAR>
+                                               , AMREX_SPACEDIM*2> m_bc_cons;
+
+    enum struct BC {
+        symmetry, inflow, outflow, no_slip_wall, slip_wall, periodic, MOST, undefined
+    };
+
+    // These are the "physical" boundary condition types (e.g. "inflow")
+    amrex::GpuArray<BC, AMREX_SPACEDIM*2> m_bc_type;
+
+    // Interpolater to use between levels
+    amrex::Interpolater* mapper = nullptr;
+
+    ////////////////
+    // runtime parameters
+
+    // maximum number of steps and stop time
+    int max_step = std::numeric_limits<int>::max();
+    amrex::Real stop_time = std::numeric_limits<amrex::Real>::max();
+
+    // if >= 0 we restart from a checkpoint
+    std::string restart_chkfile = "";
+
+    // Time step controls
+    static amrex::Real cfl;
+    static amrex::Real init_shrink;
+    static amrex::Real change_max;
+
+    // Fixed dt for level 0 timesteps (only used if positive)
+    static amrex::Real fixed_dt;
+
+    // how often each level regrids the higher levels of refinement
+    // (after a level advances that many time steps)
+    int regrid_int = 2;
+
+    // plotfile prefix and frequency
+    std::string plot_file {"plt"};
+    int plot_int = -1;
+
+    // checkpoint prefix and frequency
+    std::string check_file {"chk"};
+    int check_int = -1;
+
+    amrex::Vector<std::string> plot_state_names;
+    amrex::Vector<std::string> plot_deriv_names;
+    const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
+    const amrex::Vector<std::string> cons_names {"density", "rhotheta", "rhoKE", "rhoadv_0"};
+    const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta",
+                                                    "pres_hse", "dens_hse", "pert_pres", "pert_dens"};
+
+    // interpolation type between levels
+    int interpolation_type = 0;
+
+    // algorithm choices
+    static SolverChoice solverChoice;
+
+    static int verbose;
+
+    // mesh refinement
+    static std::string coupling_type;
+    static int do_reflux;
+    static int do_avg_down;
+
+    // Diagnostic output interval
+    static int sum_interval;
+    static amrex::Real sum_per;
+
+    // Native or NetCDF
+    static std::string plotfile_type;
+    static std::string checkpoint_type;
+
+    // 1D CDF output (for ingestion in AMR-Wind)
+    static int         output_1d_column;
+    static int         column_interval;
+    static amrex::Real column_per;
+    static amrex::Real column_loc_x;
+    static amrex::Real column_loc_y;
+    static std::string column_file_name;
+
+    // Base state quantities: density and pressure, 1 array per AMR level
+    static amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
+    static amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
+    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
+    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
+
+    static int ng_dens_hse;
+    static int ng_pres_hse;
+
+    // Mean quantities and tau for Rayleigh damping
+    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
+    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
+    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
+    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
+    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
+    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
+    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
+    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
+
+    static void refinement_criteria_setup();
+
+    //
+    // Holds info for dynamically generated tagging criteria
+    //
+    static amrex::Vector<amrex::AMRErrorTag> ref_tags;
+
+    //
+    // Build a mask that zeroes out values on a coarse level underlying
+    //     grids on the next finest level
+    //
+    amrex::MultiFab& build_fine_mask(int lev);
+    amrex::MultiFab fine_mask;
+
+    AMREX_FORCE_INLINE
+    int
+    ComputeGhostCells(const int& spatial_order) {
+      int nGhostCells;
+
+      switch (spatial_order) {
+        case 2:
+          nGhostCells = 1;
+          break;
+        case 3:
+          nGhostCells = 2;
+          break;
+        case 4:
+          nGhostCells = 2;
+          break;
+        case 5:
+          nGhostCells = 2;
+          break;
+        case 6:
+          nGhostCells = 3;
+          break;
+        default:
+          amrex::Error("Must specify spatial order to be 2,3,4,5 or 6");
+      }
+
+      return nGhostCells;
     }
-  }
 
-  static bool lo_z_is_dirichlet;
-  static bool hi_z_is_dirichlet;
+    AMREX_FORCE_INLINE
+    amrex::FluxRegister&
+    get_flux_reg(int lev)
+    {
+      return *flux_registers[lev];
+    }
 
-  amrex::Real volWgtSum( const std::string& name,
-                         amrex::Real time,
-                         bool local = false,
-                         bool finemask = true);
+    AMREX_FORCE_INLINE
+    std::ostream&
+    DataLog (int i)
+    {
+        return *datalog[i];
+    }
 
-  amrex::Real volWgtSquaredSum( const std::string& name, amrex::Real time, bool local = false);
+    AMREX_FORCE_INLINE
+    int
+    NumDataLogs () noexcept
+    {
+        return datalog.size();
+    }
 
-  amrex::Real volWgtSumMF( const amrex::MultiFab& mf,
-                           int comp,
-                           bool local = false,
-                           bool finemask = false);
+    static amrex::Real startCPUTime;
+    static amrex::Real previousCPUTimeUsed;
 
-  amrex::Real volWgtSquaredSumDiff( int comp, amrex::Real time, bool local = false);
-  amrex::Real maxDerive( const std::string& name, amrex::Real time, bool local = false);
+    amrex::Real
+    getCPUTime() const
+    {
+      int numCores = amrex::ParallelDescriptor::NProcs();
+#ifdef _OPENMP
+      numCores = numCores * omp_get_max_threads();
+#endif
 
-  static int FirstAdv, NumAdv;
+      amrex::Real T =
+        numCores * (amrex::ParallelDescriptor::second() - startCPUTime) +
+        previousCPUTimeUsed;
 
-  // This MultiFab is on the coarser level.  This is useful for the coarser
-  // level to mask out the finer level.  We only build this when it is needed.
-  // This coarse MultiFab has to live on the fine level because it must be
-  // updated even when only the fine level changes.
-  amrex::MultiFab fine_mask;
-  amrex::MultiFab& build_fine_mask();
+      return T;
+    }
 
-  amrex::FluxRegister* flux_reg;
+    void setRecordDataInfo (int i, const std::string& filename)
+    {
+        if (ParallelDescriptor::IOProcessor())
+        {
+            datalog[i] = std::make_unique<std::fstream>();
+            datalog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+            if (!datalog[i]->good()) {
+                amrex::FileOpenFailed(filename);
+            }
+        }
+        ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
+    }
 
-  amrex::FluxRegister& get_flux_reg();
-  amrex::FluxRegister& get_flux_reg(int lev);
+    Vector<std::unique_ptr<std::fstream> > datalog;
+    Vector<std::string> datalogname;
 
-  void avgDown();
-  void avgDown(int state_indx);
+    //! The filename of the ith datalog file.
+    const std::string DataLogName (int i) const noexcept { return datalogname[i]; }
 
-  void init1DArrays();
+public:
+    // ABL Initialization (from amr-wind)
+    static ABLFieldInit ablinit;
 
-protected:
-  friend class IOManager;
+    static bool lo_z_is_dirichlet;
+    static bool hi_z_is_dirichlet;
+    static bool init_abl;
 
-  // io manager
-  std::unique_ptr<IOManager> io_mgr;
-
-  // Most class
-  ABLMost most;
-
-  // Build a mask that ghost cells overlapping with interior cells in the same
-  // multifab are set to 0, whereas others are set to 1.
-  amrex::Vector<std::unique_ptr<amrex::iMultiFab>> ib_mask;
-  const amrex::iMultiFab* build_interior_boundary_mask(int ng);
-
-  static void clear_prob();
-
-  static void read_params();
-
-  template<int DIM, math_bcs::BCBound Bound>
-  std::unique_ptr<phys_bcs::BCBase> initialize_bcs(const std::string& bc_char);
-
-  ERF& getLevel(int lev);
-
-  void reflux();
-
-  void buildMetrics();
-
-  /// integrate derived quantities over domain
-  amrex::Real
-  sumDerive(const std::string& name, amrex::Real time, bool local = false);
-
-  void sum_integrated_quantities();
-
-  //void write_info();
-
-  void stopJob();
-
-  // ***************************************************************************
-  // The data or the member variables
-  amrex::MultiFab volume;
-  amrex::MultiFab area[AMREX_SPACEDIM];
-
-  // ***************************************************************************
-  // Static data members.
-  static bool signalStopJob;
-  static bool dump_old;
-  static int verbose;
-
-  static std::string coupling_type;
-  static int do_reflux;
-  static int do_avg_down;
-
-  static int sum_interval;
-  static amrex::Real sum_per;
-
-  static std::string plotfile_type;
-  static std::string checkpoint_type;
-
-  static int         output_1d_column;
-  static amrex::Real column_interval;
-  static amrex::Real column_per;
-  static amrex::Real column_loc_x;
-  static amrex::Real column_loc_y;
-  static std::string column_file_name;
-
-  static amrex::Real initial_dt;
-  static amrex::Real fixed_dt;
-  static amrex::Real max_dt;
-  static amrex::Real dt_cutoff;
-  static amrex::Real init_shrink;
-  static amrex::Real change_max;
-  static amrex::Real cfl;
-  static amrex::Real surf_temp;
-  static amrex::Real zref;
-  static std::string bc_type_names[2*AMREX_SPACEDIM];
-  static amrex::Vector<std::unique_ptr<phys_bcs::BCBase> > bc_recs;
-
-  /** for keeping track of the amount of CPU time used -- this will persist
-   * after restarts
-   */
-  static amrex::Real previousCPUTimeUsed;
-  static amrex::Real startCPUTime;
-
-  static amrex::Real getCPUTime();
-
-  bool FillPatchedOldState_ok;
-
-  /// There can be only one Diffusion object, it covers all levels.
-  static class Diffusion* diffusion;
-
-  static int num_state_type;
-
-  static amrex::Vector<int> src_list;
-
-  // Base state quantities: density and pressure, 1 array per AMR level
-  static amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
-  static amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
-  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
-  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
-
-  // Mean quantities and tau for Rayleigh damping
-  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
-  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
-  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
-  static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
-  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
-  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
-  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
-  static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
-
-  static void refinement_criteria_setup();
-
-  //
-  // Holds info for dynamically generated tagging criteria
-  //
-  static amrex::Vector<amrex::AMRErrorTag> ref_tags;
-
-/* problem-specific includes */
-#include <Problem.H>
-
+    void writeJobInfo(const std::string& dir) const;
+    static void writeBuildInfo(std::ostream& os);
 };
 
-void erf_bcfill_hyp(
-  amrex::Box const& bx,
-  amrex::FArrayBox& data,
-  const int dcomp,
-  const int numcomp,
-  amrex::Geometry const& geom,
-  const amrex::Real time,
-  const amrex::Vector<amrex::BCRec>& bcr,
-  const int bcomp,
-  const int scomp);
-
-void erf_nullfill(
-  amrex::Box const& bx,
-  amrex::FArrayBox& data,
-  const int dcomp,
-  const int numcomp,
-  amrex::Geometry const& geom,
-  const amrex::Real time,
-  const amrex::Vector<amrex::BCRec>& bcr,
-  const int bcomp,
-  const int scomp);
-
-// *****************************************************************************
-// Inlines.
-//
-
-AMREX_FORCE_INLINE
-int
-ComputeGhostCells(const int& spatial_order) {
-  int nGhostCells;
-
-  switch (spatial_order) {
-    case 2:
-      nGhostCells = 1;
-      break;
-    case 3:
-      nGhostCells = 2;
-      break;
-    case 4:
-      nGhostCells = 2;
-      break;
-    case 5:
-      nGhostCells = 2;
-      break;
-    case 6:
-      nGhostCells = 3;
-      break;
-    default:
-      amrex::Error("Must specify spatial order to be 2,3,4,5 or 6");
-  }
-
-  return nGhostCells;
-}
-
-AMREX_FORCE_INLINE
-amrex::MultiFab*
-ERF::Area()
-{
-  return area;
-}
-
-AMREX_FORCE_INLINE
-amrex::MultiFab&
-ERF::Area(int dir)
-{
-  return area[dir];
-}
-
-AMREX_FORCE_INLINE
-amrex::MultiFab&
-ERF::Volume()
-{
-  return volume;
-}
-
-AMREX_FORCE_INLINE
-ERF&
-ERF::getLevel(int lev)
-{
-  return *(ERF*)&parent->getLevel(lev);
-}
-
-AMREX_FORCE_INLINE
-void
-ERF::stopJob()
-{
-  signalStopJob = true;
-}
-
-AMREX_FORCE_INLINE
-amrex::FluxRegister&
-ERF::get_flux_reg()
-{
-  return *flux_reg;
-}
-
-AMREX_FORCE_INLINE
-amrex::FluxRegister&
-ERF::get_flux_reg(int lev)
-{
-  return getLevel(lev).get_flux_reg();
-}
 #endif

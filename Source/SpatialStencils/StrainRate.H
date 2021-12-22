@@ -14,9 +14,10 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
 {
 
   // Note:  if dirichlet_lo/dirichlet_hi is true, it means that the velocity is fixed
-  //        on the z-face, so we use a special stencil that understands the value is
-  //        at the z-face, not at dz/2 above/below the face.   The stencils below also
-  //        allow for the Dirichlet value to be non-zero
+  //        on that face, so we use a special stencil that understands the value is
+  //        at the face, not at half a grid cell away from the face.   The stencils below also
+  //        allow for the Dirichlet value to be non-zero.  A wall boundary condition will generate
+  //        Dirichlet bc in the z-direction; inflow will generate Dirichlet bc in the lateral directions.
 
   Real dx_inv = cellSizeInv[0];
   Real dy_inv = cellSizeInv[1];
@@ -31,19 +32,25 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       strainRate = (u(i, j, k) - u(i-1, j, k))*dx_inv;
       break;
     case DiffusionDir::y: // S12
-      strainRate  = (u(i, j, k) - u(i, j-1, k))*dy_inv + (v(i, j, k) - v(i-1, j, k)) * dx_inv;
+//    if (dirichlet_lo) {
+//        strainRate =   (-(8./3.) * u(i,j-1,k) + 3. * u(i,j,k) - (1./3.) * u(i,j+1,k))*dy_inv;
+//    } else if (dirichlet_hi) {
+//        strainRate =  -(-(8./3.) * u(i,j,k) + 3. * u(i,j-1,k) - (1./3.) * u(i,j-2,k))*dy_inv;
+//    } else {
+          strainRate  = (u(i, j, k) - u(i, j-1, k))*dy_inv;
+//    }
+      strainRate += (v(i, j, k) - v(i-1, j, k)) * dx_inv;
       strainRate *= 0.5;
       break;
     case DiffusionDir::z: // S13
       if (dirichlet_lo) {
-          strainRate =   (-(8./3.) * u(i,j,k-1) + 3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dz_inv
-                       + (w(i, j, k) - w(i-1, j, k))*dx_inv;
+          strainRate =   (-(8./3.) * u(i,j,k-1) + 3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dz_inv;
       } else if (dirichlet_hi) {
-          strainRate =  -(-(8./3.) * u(i,j,k) + 3. * u(i,j,k-1) - (1./3.) * u(i,j,k-2))*dz_inv
-                       + (w(i, j, k-1) - w(i-1, j, k-1))*dx_inv;
+          strainRate =  -(-(8./3.) * u(i,j,k) + 3. * u(i,j,k-1) - (1./3.) * u(i,j,k-2))*dz_inv;
       } else {
-          strainRate = (u(i, j, k) - u(i, j, k-1))*dz_inv + (w(i, j, k) - w(i-1, j, k))*dx_inv;
+          strainRate = (u(i, j, k) - u(i, j, k-1))*dz_inv;
       }
+      strainRate += (w(i, j, k) - w(i-1, j, k))*dx_inv;
       strainRate *= 0.5;
       break;
     default:
@@ -53,7 +60,14 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
   case MomentumEqn::y:
     switch (diffDir) {
     case DiffusionDir::x: // S21
-      strainRate = (u(i, j, k) - u(i, j-1, k))*dy_inv + (v(i, j, k) - v(i-1, j, k)) * dx_inv;
+//    if (dirichlet_lo) {
+//        strainRate =  (-(8./3.) * v(i-1,j,k) + 3. * v(i  ,j,k) - (1./3.) * v(i+1,j,k))*dx_inv;
+//    } else if (dirichlet_hi) {
+//        strainRate = -(-(8./3.) * v(i  ,j,k) + 3. * v(i-1,j,k) - (1./3.) * v(i-2,j,k))*dx_inv;
+//    } else {
+          strainRate = (v(i, j, k) - v(i-1, j, k)) * dx_inv;
+//    }
+      strainRate += (u(i, j, k) - u(i, j-1, k))*dy_inv;
       strainRate *= 0.5;
       break;
     case DiffusionDir::y: // S22
@@ -61,14 +75,13 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       break;
     case DiffusionDir::z: // S23
       if (dirichlet_lo) {
-          strainRate =   (-(8./3.) * v(i,j,k-1) + 3. * v(i,j,k) - (1./3.) * v(i,j,k+1))*dz_inv
-                       + (w(i, j, k) - w(i, j-1, k))*dy_inv;
+          strainRate =   (-(8./3.) * v(i,j,k-1) + 3. * v(i,j,k  ) - (1./3.) * v(i,j,k+1))*dz_inv;
       } else if (dirichlet_hi) {
-          strainRate =  -(-(8./3.) * v(i,j,k) + 3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dz_inv
-                       + (w(i, j, k) - w(i, j-1, k))*dy_inv;
+          strainRate =  -(-(8./3.) * v(i,j,k  ) + 3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dz_inv;
       } else {
-          strainRate = (v(i, j, k) - v(i, j, k-1))*dz_inv + (w(i, j, k) - w(i, j-1, k))*dy_inv;
+          strainRate = (v(i, j, k) - v(i, j, k-1))*dz_inv;
       }
+      strainRate += (w(i, j, k) - w(i, j-1, k))*dy_inv;
       strainRate *= 0.5;
       break;
     default:
@@ -78,11 +91,25 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
   case MomentumEqn::z:
     switch (diffDir) {
     case DiffusionDir::x: // S31
-      strainRate = (u(i, j, k) - u(i, j, k-1))*dz_inv + (w(i, j, k) - w(i-1, j, k)) * dx_inv;
+//    if (dirichlet_lo) {
+//        strainRate =  (-(8./3.) * w(i-1,j,k) + 3. * w(i  ,j,k) - (1./3.) * w(i+1,j,k))*dx_inv;
+//    } else if (dirichlet_hi) {
+//        strainRate = -(-(8./3.) * w(i  ,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dx_inv;
+//    } else {
+          strainRate = (w(i, j, k) - w(i-1, j, k)) * dx_inv;
+//    }
+      strainRate += (u(i, j, k) - u(i, j, k-1))*dz_inv;
       strainRate *= 0.5;
       break;
     case DiffusionDir::y: // S32
-      strainRate = (v(i, j, k) - v(i, j, k-1))*dz_inv + (w(i, j, k) - w(i, j-1, k)) * dy_inv;
+//    if (dirichlet_lo) {
+//        strainRate =  (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dy_inv;
+//    } else if (dirichlet_hi) {
+//        strainRate = -(-(8./3.) * w(i,j  ,k) + 3. * w(i,j-1,k) - (1./3.) * w(i,j-2,k))*dy_inv;
+//    } else {
+          strainRate = (w(i, j, k) - w(i, j-1, k)) * dy_inv;
+//    }
+      strainRate += (v(i, j, k) - v(i, j, k-1))*dz_inv;
       strainRate *= 0.5;
       break;
     case DiffusionDir::z: // S33
@@ -95,6 +122,7 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
   default:
     amrex::Abort("Error: Momentum equation is unrecognized");
   }
+
 
   return strainRate;
 }

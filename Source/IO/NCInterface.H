@@ -168,18 +168,6 @@ public:
     //! Identifier used with NetCDF API calls
     const int ncid;
 
-    //! Is this the NetCDF file (root group)?
-    bool is_root() const { return (m_parent != nullptr); }
-
-    //! Return parent group, for root it just returns itself
-    const NCGroup& parent() const { return (is_root() ? *this : *m_parent); }
-
-    //! Return the root (file instance)
-    const NCGroup& root() const
-    {
-        return (is_root() ? *this : m_parent->root());
-    }
-
     //! Name of this group
     std::string name() const;
 
@@ -273,9 +261,7 @@ public:
 
 protected:
     NCGroup(const int id) : ncid(id) {}
-    NCGroup(const int id, const NCGroup* par) : ncid(id), m_parent(par) {}
-
-    const NCGroup* m_parent{nullptr};
+    NCGroup(const int id, const NCGroup* par) : ncid(id) {}
 };
 
 /** Representation of a NetCDF file

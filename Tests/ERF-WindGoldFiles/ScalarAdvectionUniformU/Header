@@ -2,14 +2,14 @@ HyperCLaw-V1.1
 8
 density
 rhoadv_0
-pressure
-temp
-theta
 x_velocity
 y_velocity
 z_velocity
+pressure
+temp
+theta
 3
-0.0173429044387128
+0.017342904438712826
 0
 0 0 0 
 1 1 1 
@@ -19,9 +19,18 @@ z_velocity
 0.015625 0.015625 0.25 
 0
 0
-0 1 0.0173429044387128
+0 4 0.017342904438712826
 20
+0 0.5
+0 0.5
 0 1
+0.5 1
+0 0.5
 0 1
+0 0.5
+0.5 1
+0 1
+0.5 1
+0.5 1
 0 1
 Level_0/Cell

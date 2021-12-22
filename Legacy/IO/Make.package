@@ -1,0 +1,16 @@
+
+CEXE_sources += PlotFile.cpp
+CEXE_sources += IOManager.cpp
+ifeq ($(USE_NETCDF), TRUE)
+  CEXE_sources += NCInterface.cpp
+  CEXE_sources += NCPlotFile.cpp
+  CEXE_sources += NCColumnFile.cpp
+endif
+
+CEXE_headers += PlotFile.H
+CEXE_headers += IOManager.H
+ifeq ($(USE_NETCDF), TRUE)
+  CEXE_headers += NCInterface.H
+  CEXE_headers += NCPlotFile.H
+endif
+

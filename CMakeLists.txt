@@ -10,7 +10,6 @@ include(CMakePackageConfigHelpers)
 #General options for all executables in the project
 set(ERF_DIM "3" CACHE STRING "Number of physical dimensions")
 option(ERF_ENABLE_DOCUMENTATION "Build documentation" OFF)
-option(ERF_ENABLE_AMREX_EB "Enable EB in AMReX library" OFF)
 option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
