@@ -4,6 +4,7 @@
 
 #include <ERF.H>
 #include <prob_common.H>
+#include <AMReX_buildInfo.H>
 
 using namespace amrex;
 
@@ -73,6 +74,26 @@ amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 //             - initializes BCRec boundary condition object
 ERF::ERF ()
 {
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        const char* erf_hash = amrex::buildInfoGetGitHash(1);
+        const char* amrex_hash = amrex::buildInfoGetGitHash(2);
+        const char* buildgithash = amrex::buildInfoGetBuildGitHash();
+        const char* buildgitname = amrex::buildInfoGetBuildGitName();
+
+        if (strlen(erf_hash) > 0) {
+          amrex::Print() << "\n"
+                         << "ERF git hash: " << erf_hash << "\n";
+        }
+        if (strlen(amrex_hash) > 0) {
+          amrex::Print() << "AMReX git hash: " << amrex_hash << "\n";
+        }
+        if (strlen(buildgithash) > 0) {
+          amrex::Print() << buildgitname << " git hash: " << buildgithash << "\n";
+        }
+
+        amrex::Print() << "\n";
+    }
+
     ReadParameters();
     setPlotVariables();
 
