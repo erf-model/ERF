@@ -4,31 +4,51 @@
 
 .. _sec:domainBCs:
 
-Domain Boundary Conditions
+Filling Ghost Values
 --------------------------
+ERF uses an operation called ``FillPatch`` to fill the ghost cells/faces for each grid of data.
+The data is filled outside the valid region with a combination of three operations: interpolation
+from coarser level, copy from same level, and enforcement of physical boundary conditions.
 
-ERF allows users to specify boundary condition with keywords.
-For a more detailed discussion of boundaries, see :ref:`sec:boundaries`
+Interpolation from Coarser level
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Domain Boundary Conditions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Interpolation is controlled by which interpolater we choose to use.  The default is
+conservative interpolation for cell-centered quantities, and analogous for faces.
+The paradigm is that fine faces on a coarse-fine boundary are filled as Dirichlet
+boundary conditions from the coarser level; all faces outside the valid region are
+similarly filled, while fine faces inside the valid region are not over-written.
 
-To specify boundary conditions with keywords, we use the following options
-preceded by “xlo”, “xhi”, “ylo”, “yhi”, “zlo”, and “zhi”:
+Copy from other grids at same level (includes periodic boundaries)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-+--------------------+---------------------------------------------------------------------------+-------------+-----------+
-|                    | Description                                                               |   Type      | Default   |
-+====================+===========================================================================+=============+===========+
-| type               | Used to define boundary type. Available options include:                  |  String     |  None     |
-|                    |                                                                           |             |           |
-|                    | * 'Outflow'                                                               |             |           |
-|                    | * 'Inflow'                                                                |             |           |
-|                    | * 'SlipWall'                                                              |             |           |
-|                    | * 'NoSlipWall'                                                            |             |           |
-|                    | * 'MostWall'                                                              |             |           |
-+--------------------+---------------------------------------------------------------------------+-------------+-----------+
+This is part of the ``FillPatch`` operation, but can also be applied independently,
+e.g. by the call
 
-To use the same example problem as above, the following:
+::
+
+    mf.FillBoundary(geom[lev].periodicity());
+
+would fill all the ghost cells/faces of the grids in MultiFab ``mf``, including those
+that occur at periodic boundaries.
+
+In the ``FillPatch`` operation, ``FillBoundary`` always overrides any interpolated values, i.e. if
+there is fine data available (except at coarse-fine boundary) we always use it.
+
+Imposition of physical/domain boundary conditions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There are two primary types of physical/domain boundary conditions: those which rely only on the
+data in the valid regions, and those which rely on externally specified values.
+
+ERF allows users to specify types of boundary condition with keywords in the inputs file.
+The information for each face is preceded by “xlo”, “xhi”, “ylo”, “yhi”, “zlo”, or “zhi”:
+
+Currently available type of boundary conditions are
+``inflow``, ``outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``MOST``.
+(Spelling of the type matters; capitalization does not.)
+
+For example, setting
 
 ::
 
@@ -43,7 +63,10 @@ would define a problem with inflow in the low-\ :math:`x` direction,
 outflow in the high-\ :math:`x` direction, periodic in the :math:`y`-direction,
 and slip wall on the low and high :math:`y`-faces, and
 Note that no keyword is needed for a periodic boundary, here only the
-specification in ``geometry.is\_periodic`` is needed.
+specification in ``geometry.is_periodic`` is needed.
+
+Each of these types of physical boundary condition has a mapping to a mathematical boundary condition
+for each type; this is summarized in the table below.
 
 .. _sec:dirichlet:
 
@@ -51,121 +74,93 @@ Dirichlet Boundary Conditions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ERF provides the ability to specify constant Dirichlet BCs in the inputs file. We use the following options
-preceded by “xlo”, “xhi”, “ylo”, “yhi”, “zlo”, and “zhi”:
+preceded by
+``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, and ``zhi``:
 
-+--------------------+---------------------------------------------------------------------------+-------------+-----------+
-|                    | Description                                                               |   Type      | Default   |
-+====================+===========================================================================+=============+===========+
-| velocity           | Sets boundary velocity for mass inflows                                   |    Real     |  None     |
-+--------------------+---------------------------------------------------------------------------+-------------+-----------+
-| density            | Sets boundary density for mass inflows                                    |    Real     |  None     |
-+--------------------+---------------------------------------------------------------------------+-------------+-----------+
-| tracer             | Sets boundary tracer concentration at inflow faces                        |    Real     |  None     |
-+--------------------+---------------------------------------------------------------------------+-------------+-----------+
-| theta              | Sets potential temperature at inflow faces                                |    Real     |  None     |
-+--------------------+---------------------------------------------------------------------------+-------------+-----------+
++------------+--------------+----------------+----------------+------------------+---------------+
+| Type       | Normal vel   | Tangential vel | Density        | Theta            | Scalar        |
++============+==============+================+================+==================+===============+
+| inflow     | ext_dir      | ext_dir        | ext_dir        | ext_dir          | ext_dir       |
++------------+--------------+----------------+----------------+------------------+---------------+
+| outflow    | foextrap     | foextrap       | foextrap       | foextrap         | foextrap      |
++------------+--------------+----------------+----------------+------------------+---------------+
+| slipwall   | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap | foextrap      |
++------------+--------------+----------------+----------------+------------------+---------------+
+| noslipwall | ext_dir      | ext_dir        | foextrap       | ext_dir/foextrap | foextrap      |
++------------+--------------+----------------+----------------+------------------+---------------+
+| symmetry   | reflect_odd  | reflect_even   | reflect_even   | reflect_even     | reflect_even  |
++------------+--------------+----------------+----------------+------------------+---------------+
+| MOST       |              |                |                |                  |               |
++------------+--------------+----------------+----------------+------------------+---------------+
 
+Here ``ext_dir``, ``foextrap``, and ``reflect_even`` refer to AMReX keywords.   The ``ext_dir`` type
+refers to an "external Dirichlet" boundary, which means the values must be specified by the user.
+The ``foextrap`` type refers to "first order extrapolation" which sets all the ghost values to the
+same value in the last valid cell/face.  (AMReX also has a ``hoextrap``, or "higher order extrapolation"
+option, which does a linear extrapolation from the two nearest valid values.)
 
 As an example,
 
 ::
 
     xlo.type                =   "Inflow"
-    xlo.velocity            =   1.  0.  0.
+    xlo.velocity            =   1. 0.9  0.
     xlo.density             =   1.
-    xlo.tracer              =   0.
-    xlo.theta               =   1.
+    xlo.theta               =   300.
+    xlo.scalar              =   2.
 
-sets the boundary condtion type at the low x face to be an inflow with
-xlo.type = “Inflow”.
-Then xlo.velocity = 1. 0. 0. sets the inflow velocity,
-xlo.density = 1. sets the inflow density,
-xlo.tracer = 0. sets the inflow tracer value, and
-xlo.theta = 1. sets the inflow potential temperature.
+sets the boundary condtion type at the low x face to be an inflow with xlo.type = “Inflow”.
 
-Users can create more complex Dirichlet boundary condtions by writing
-their own fill function in ``BCFill.H``, then using that function to create
-an ``amrex::StateDescriptor::BndryFunc`` object and specifying which variables
-will use it in ``Setup.cpp``. More information on boundary conditions is in
-the section :ref:`sec:physicalBCs` below.
+xlo.velocity = 1. 0. 0. sets all three componentns the inflow velocity,
+xlo.density       = 1. sets the inflow density,
+xlo.theta         = 300. sets the inflow potential temperature,
+xlo.scalar        = 2. sets the inflow value of the advected scalar
 
-.. _sec:physicalBCs:
+* The "slipwall" and "noslipwall" types have options for adiabatic vs Dirichlet boundary conditions.
+If a value for theta is given for a face with type "slipwall" or "noslipwall" then the boundary
+condition for theta is assumed to be "ext_dir", i.e. theta is specified on the boundary.
+If not value is specified then the wall is assumed to be adiabiatc, i.e. there is no temperature
+flux at the boundary.  This is enforced with the "foextrap" designation.
 
-Physical Boundaries
--------------------
+For example
 
-Physical boundaries are special for several reasons.  There are a number of
-standard types typical of PDE problems (reflecting, extrapolated, etc),
-and a special one that indicates external Dirichlet. In the case of Dirichlet,
-the user supplies data to fill grow cells.
+::
 
-ERF provides the ability to specify constant Dirichlet BCs
-in the inputs file (see section :ref:`sec:dirichlet`).
-Users can create more complex Dirichlet boundary condtions by writing
-their own fill function in ``BCFill.H``, then using that function to create
-an ``amrex::StateDescriptor::BndryFunc`` object and specifying which variables
-will use it in ``Setup.cpp``.
+    zlo.type  = "NoSlipWall"
+    zhi.type  = "NoSlipWall"
 
-It is important to note that external Dirichlet boundary data is to be specified as
-if applied on the face of the cell bounding the domain, even for cell-centered
-state data. For cell-centered data, the array passed into the
-boundary condition code is filled with cell-centered values in the valid
-region and in fine-fine, and coarse-fine grow cells. Additionally, grow cells
-for standard extrapolation and reflecting boundaries are pre-filled. The
-differential operators throughout ERF are aware of the special boundaries
-that are Dirichlet and wall-centered, and the stencils are adjusted accordingly.
+    zlo.theta = 301.0
 
-For convenience, ERF provides a limited set of mappings from a physics-based boundary condition
-specification to a mathematical one that the code can apply. This set
-(See ``AMReX/Src/Base/AMReX_BC_TYPES.H`` for more detail):
-includes
+would designate theta = 301. at the bottom (zlo) boundary, while
+the top boundary condition would be a zero gradient, aka adiabatic
+because no value is specified for ``zhi.theta``
 
--  *Outflow*:
+* We note that "noslipwall" allows for non-zero tangential velocities to be specified, as in the
+Couette regression test example, in which we specify
 
-   -  velocity: FOEXTRAP
+::
 
-   -  temperature: FOEXTRAP
+    geometry.is_periodic = 1 1 0
 
-   -  scalars: FOEXTRAP
+    zlo.type = "NoSlipWall"
+    zhi.type = "NoSlipWall"
 
--  *No Slip Wall with Adiabatic Temp*:
+    zlo.velocity    = 0.0 0.0 0.0
+    zhi.velocity    = 2.0 0.0 0.0
 
-   -  velocity: EXT_DIR, :math:`u=v=0`
+* We also note that in the case of a "slipwall" boundary condition in a simulation with non-zero
+viscosity specified, the "foextrap" boundary condition enforces zero strain at the wall.
 
-   -  temperature: REFLECT_EVEN, :math:`dT/dt=0`
+The keywork "MOST" is an ERF-specific boundary type and the mapping is described below.
 
-   -  scalars: HOEXTRAP
 
--  *Slip Wall with Adiabatic Temp*:
+It is important to note that external Dirichlet boundary data should be specified
+as the value on the face of the cell bounding the domain, even for cell-centered
+state data.
 
-   -  velocity: EXT_DIR, :math:`u_n=0`; HOEXTRAP, :math:`u_t`
-
-   -  temperature: REFLECT_EVEN, :math:`dT/dn=0`
-
-   -  scalars: HOEXTRAP
-
--  *Most Wall with Adiabatic Temp*:
-
-   -  velocity: EXT_DIR, :math:`u_n=0`; EXT_DIR, :math:`u_{most}`
-
-   -  temperature: EXT_DIR, :math:`T=T_{most}`
-
-   -  scalars: HOEXTRAP
-
-The keywords used above are defined:
-
--  INT_DIR: data taken from other grids or interpolated
-
--  EXT_DIR: data specified on EDGE (FACE) of bndry
-
--  HOEXTRAP: higher order extrapolation to EDGE of bndry
-
--  FOEXTRAP: first order extrapolation from last cell in interior
-
--  REFLECT_EVEN: :math:`F(-n) = F(n)` true reflection from interior cells
-
--  REFLECT_ODD: :math:`F(-n) = -F(n)` true reflection from interior cells
-
+More general boundary types are a WIP; one type that will be supported soon is the ability
+to read in a time sequence of data at a domain boundary and impose this data as "ext_dir"
+boundary values using ``FillPatch``.
 
 MOST Boundaries
 -------------------
