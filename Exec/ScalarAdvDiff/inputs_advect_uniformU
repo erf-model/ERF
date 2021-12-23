@@ -1,6 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 100
-max_step = 0
 
 amrex.fpe_trap_invalid = 1
 
@@ -9,15 +8,11 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  1     1     1
 amr.n_cell           = 64     64    4
-amr.n_cell           = 8 8 4
 
-geometry.is_periodic = 1 1 1
+geometry.is_periodic = 1 1 0
 
-#zlo.type = "SlipWall"
-#zhi.type = "SlipWall"
-
-domain_lo_bc_types = 0 0 0
-domain_hi_bc_types = 0 0 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 amr.interpolation_type = 2
 

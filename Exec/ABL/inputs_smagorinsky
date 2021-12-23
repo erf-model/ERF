@@ -15,9 +15,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-#TODO: Need to play around with time step to get rid of ringing
 erf.fixed_dt       = 2.0e-2  # fixed time step depending on grid resolution
-#erf.cfl            = 0.9     # cfl number for hyperbolic system
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
