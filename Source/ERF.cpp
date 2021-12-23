@@ -257,9 +257,6 @@ ERF::InitData ()
 
         last_plot_file_step = -1;
         last_check_file_step = -1;
-
-        if (plot_int > 0 && plot_file_on_restart) {
-            WritePlotFile();
         }
 
         if (check_int > 0) {
@@ -272,6 +269,9 @@ ERF::InitData ()
     } else {
         // restart from a checkpoint
         ReadCheckpointFile();
+
+        if (plot_int > 0 && plot_file_on_restart) {
+            WritePlotFile();
 
         // Create the time integrator for this level
         for (int lev = 0; lev <= finest_level; lev++) {
