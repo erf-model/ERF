@@ -11,8 +11,9 @@ void ERF::init_bcs ()
     auto f = [this] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
-        m_bc_cons[ori][Rho_comp]       = 1.0;
-        m_bc_cons[ori][RhoTheta_comp]  = 300.0;
+        m_bc_cons[ori][Rho_comp]       =  1.0;
+        m_bc_cons[ori][RhoTheta_comp]  = -1.0  // It is important to set this negative
+                                               // because the sign is tested on below
         m_bc_cons[ori][RhoKE_comp]     = 0.0;
         m_bc_cons[ori][RhoScalar_comp] = 0.0;
         AMREX_D_TERM(m_bc_vels[ori][0] = 0.0;, // default
@@ -45,30 +46,30 @@ void ERF::init_bcs ()
             m_bc_type[ori] = BC::inflow;
 
             std::vector<Real> v;
-            if (pp.queryarr("velocity", v, 0, AMREX_SPACEDIM))
+            if (pp.getarr("velocity", v, 0, AMREX_SPACEDIM))
             {
                for (int i=0; i<AMREX_SPACEDIM; i++)
                {
                    m_bc_vels[ori][i] = v[i];
                }
             }
-            Real rho_in = 1.;
-            if (pp.query("density", rho_in))
+            Real rho_in;
+            if (pp.get("density", rho_in))
             {
                m_bc_cons[ori][Rho_comp] = rho_in;
             }
-            Real theta_in = 0.;
-            if (pp.query("theta", theta_in))
+            Real theta_in;
+            if (pp.get("theta", theta_in))
             {
                m_bc_cons[ori][RhoTheta_comp] = rho_in*theta_in;
             }
             Real KE_in = 0.;
-            if (pp.query("KE", KE_in))
+            if (pp.get("KE", KE_in))
             {
                m_bc_cons[ori][RhoKE_comp] = rho_in*KE_in;
             }
             Real scalar_in = 0.;
-            if (pp.query("scalar", scalar_in))
+            if (pp.get("scalar", scalar_in))
             {
                m_bc_cons[ori][RhoScalar_comp] = rho_in*scalar_in;
             }
@@ -92,12 +93,24 @@ void ERF::init_bcs ()
                     m_bc_vels[ori][i] = v[i];
                 }
             }
+
+            Real theta_in;
+            if (pp.query("theta", theta_in))
+            {
+               m_bc_cons[ori][RhoTheta_comp] = rho_in*theta_in;
+            }
         }
         else if (bc_type == "slipwall")
         {
             amrex::Print() << bcid <<" set to slip wall.\n";
 
             m_bc_type[ori] = BC::slip_wall;
+
+            Real theta_in;
+            if (pp.query("theta", theta_in))
+            {
+               m_bc_cons[ori][RhoTheta_comp] = rho_in*theta_in;
+            }
 
         }
         else if (bc_type == "most")
@@ -260,8 +273,7 @@ void ERF::init_bcs ()
                         bcs[BCVars::cons][i].setHi(dir, ERFBCType::reflect_even);
                 }
             }
-            else if ( bct == BC::outflow ||
-                      bct == BC::no_slip_wall)
+            else if ( bct == BC::outflow )
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR; i++)
@@ -271,14 +283,32 @@ void ERF::init_bcs ()
                         bcs[BCVars::cons][i].setHi(dir, ERFBCType::foextrap);
                 }
             }
+            else if ( bct == BC::no_slip_wall)
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < NVAR; i++)
+                        bcs[BCVars::cons][i].setLo(dir, ERFBCType::foextrap);
+                    if (m_bc_cons[ori][RhoTheta_comp] > 0.)
+                        bcs[BCVars::cons][i].setLo(dir, ERFBCType::ext_dir);
+                } else {
+                    for (int i = 0; i < NVAR; i++)
+                        bcs[BCVars::cons][i].setHi(dir, ERFBCType::foextrap);
+                    if (m_bc_cons[ori][RhoTheta_comp] > 0.)
+                        bcs[BCVars::cons][i].setHi(dir, ERFBCType::ext_dir);
+                }
+            }
             else if (bct == BC::slip_wall)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR; i++)
                         bcs[BCVars::cons][i].setLo(dir, ERFBCType::foextrap);
+                    if (m_bc_cons[ori][RhoTheta_comp] > 0.)
+                        bcs[BCVars::cons][i].setLo(dir, ERFBCType::ext_dir);
                 } else {
                     for (int i = 0; i < NVAR; i++)
                         bcs[BCVars::cons][i].setHi(dir, ERFBCType::foextrap);
+                    if (m_bc_cons[ori][RhoTheta_comp] > 0.)
+                        bcs[BCVars::cons][i].setHi(dir, ERFBCType::ext_dir);
                 }
             }
             else if (bct == BC::inflow)

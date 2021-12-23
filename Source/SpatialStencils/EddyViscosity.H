@@ -107,6 +107,13 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
                                 std::sqrt(cell_data(i,j,k,RhoKE_comp));
         });
 
+        // This is a complete hack for now
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (dirichlet_at_lo_k && k < klo) K(i,j,k,0) = K(i,j,0,0);
+            if (dirichlet_at_hi_k && k > khi) K(i,j,k,0) = K(i,j,khi,0);
+        });
+
       } //mfi
     }
 } // function call
