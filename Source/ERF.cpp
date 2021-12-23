@@ -266,21 +266,12 @@ ERF::InitData ()
             last_check_file_step = 0;
         }
 
-        if (plot_int > 0)
-        {
-            WritePlotFile();
-            last_plot_file_step = 1;
-        }
-
     } else { // Restart from a checkpoint
 
         ReadCheckpointFile();
 
-        if (plot_int > 0 && plot_file_on_restart)
-        {
-            WritePlotFile();
-            last_plot_file_step = istep[0];
-        }
+        // We set this here so that we don't over-write the checkpoint file we just started from
+        last_check_file_step = istep[0];
 
         // Create the time integrator for this level
         for (int lev = 0; lev <= finest_level; lev++) {
@@ -298,6 +289,16 @@ ERF::InitData ()
     }
 
     initHSE();
+
+    if (plot_int > 0)
+    {
+        if ( (restart_chkfile == "") || 
+             (restart_chkfile != "" && plot_file_on_restart) )
+        {
+            WritePlotFile();
+            last_plot_file_step = istep[0];
+        }
+    }
 
     if (solverChoice.use_rayleigh_damping)
     {
