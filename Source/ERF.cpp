@@ -419,6 +419,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
       erf_init_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
     }
 
+    // Ensure that the face-based data are the same on both sides of a periodic domain.
+    // The data associated with the lower grid ID is considered the correct value.
+    lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
+    lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
+    lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
+
     FillIntermediatePatch(lev, time, lev_new[Vars::cons], 0, Cons::NumVars, Vars::cons);
     FillIntermediatePatch(lev, time, lev_new[Vars::xvel], 0, 1, Vars::xvel);
     FillIntermediatePatch(lev, time, lev_new[Vars::yvel], 0, 1, Vars::yvel);
