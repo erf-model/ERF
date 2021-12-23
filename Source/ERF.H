@@ -301,6 +301,10 @@ private:
     // Interpolater to use between levels
     amrex::Interpolater* mapper = nullptr;
 
+    int last_plot_file_step;
+    int last_check_file_step;
+    int plot_file_on_restart = 1;
+
     ////////////////
     // runtime parameters
 
