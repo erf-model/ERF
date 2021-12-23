@@ -407,7 +407,7 @@ private:
 
       switch (spatial_order) {
         case 2:
-          nGhostCells = 1;
+          nGhostCells = 2; // We need this many to compute the eddy viscosity in the ghost cells
           break;
         case 3:
           nGhostCells = 2;

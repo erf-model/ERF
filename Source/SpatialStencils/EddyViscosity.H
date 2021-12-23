@@ -28,7 +28,7 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 
       for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box &bx = mfi.tilebox();
+        const Box &bx = mfi.growntilebox(1);
 
         const Array4<Real const > &cell_data = cons_in.array(mfi);
         const Array4<Real> &K = eddyViscosity.array(mfi);
