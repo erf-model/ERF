@@ -49,11 +49,9 @@ void erf_rhs (int level,
     // *************************************************************************
     // Calculate cell-centered eddy viscosity
     //
-    // Notes:
-    // 1. Need to apply BC on velocity field so that ComputeStrainRate works
-    //    properly
-    // 2. Need to call FillBoundary (FillPatch??) to set ghost values on all
-    //    boundaries so that InterpolateTurbulentViscosity works properly
+    // Notes -- we fill all the data in ghost cells before calling this so
+    //    that we can fill the eddy viscosity in the ghost regions and
+    //    not have to call a boundary filler on this data itself
     // *************************************************************************
     MultiFab eddyViscosity(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
     if (solverChoice.les_type == LESType::Smagorinsky ||
@@ -67,7 +65,6 @@ void erf_rhs (int level,
             ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
                                       eddyViscosity, dxInv, solverChoice,
                                       lo_z_is_dirichlet, klo, hi_z_is_dirichlet, khi);
-        eddyViscosity.FillBoundary(geom.periodicity());
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
