@@ -96,7 +96,7 @@ ERF::WriteCheckpointFile () const
    }
 
    // write the MultiFab data to, e.g., chk00010/Level_0/
-   // Here we make copies of the MultiFab with no ghost cells 
+   // Here we make copies of the MultiFab with no ghost cells
    for (int lev = 0; lev <= finest_level; ++lev) {
 
        MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
@@ -234,7 +234,7 @@ ERF::ReadCheckpointFile ()
     }
 
     // read in the MultiFab data
-    for (int lev = 0; lev <= finest_level; ++lev) 
+    for (int lev = 0; lev <= finest_level; ++lev)
     {
 
         MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
