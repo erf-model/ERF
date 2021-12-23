@@ -249,29 +249,39 @@ ERF::InitData ()
         ablinit.init_params();
     }
 
+    last_plot_file_step = -1;
+    last_check_file_step = -1;
+
     if (restart_chkfile == "") {
         // start simulation from the beginning
         const Real time = 0.0;
         InitFromScratch(time);
         AverageDown();
 
-        last_plot_file_step = -1;
-        last_check_file_step = -1;
-        }
-
-        if (check_int > 0) {
-            WriteCheckpointFile();
-        }
-
         for (int lev = finest_level-1; lev >= 0; --lev)
             vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
 
-    } else {
-        // restart from a checkpoint
+        if (check_int > 0)
+        {
+            WriteCheckpointFile();
+            last_check_file_step = 0;
+        }
+
+        if (plot_int > 0)
+        {
+            WritePlotFile();
+            last_plot_file_step = 1;
+        }
+
+    } else { // Restart from a checkpoint
+
         ReadCheckpointFile();
 
-        if (plot_int > 0 && plot_file_on_restart) {
+        if (plot_int > 0 && plot_file_on_restart)
+        {
             WritePlotFile();
+            last_plot_file_step = istep[0];
+        }
 
         // Create the time integrator for this level
         for (int lev = 0; lev <= finest_level; lev++) {
@@ -295,12 +305,6 @@ ERF::InitData ()
         initRayleigh();
     }
 
-    if (plot_int > 0) {
-        WritePlotFile();
-        last_plot_file_step = istep[0];
-    }
-
-    amrex::Print() << "ISTEP[0] TIME " << istep[0] << " " << t_new[0] << std::endl;
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
     }
