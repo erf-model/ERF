@@ -14,9 +14,6 @@ geometry.is_periodic = 1 1 0
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
-domain_lo_bc_types = 0 0 0
-domain_hi_bc_types = 0 0 0
-
 amr.interpolation_type = 2
 
 # TIME STEP CONTROL
