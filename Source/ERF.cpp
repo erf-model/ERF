@@ -43,7 +43,6 @@ amrex::Real ERF::sum_per       = -1.0;
 
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type   = "amrex";
-std::string ERF::checkpoint_type = "amrex";
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
