@@ -292,7 +292,7 @@ ERF::InitData ()
 
     if (plot_int > 0)
     {
-        if ( (restart_chkfile == "") || 
+        if ( (restart_chkfile == "") ||
              (restart_chkfile != "" && plot_file_on_restart) )
         {
             WritePlotFile();
