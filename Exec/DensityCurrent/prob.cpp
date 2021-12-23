@@ -212,12 +212,12 @@ erf_init_prob(
     amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
 
     // This version perturbs p but not rho
-    state(i, j, k, Rho_comp) = r[k];
-    state(i, j, k, RhoTheta_comp) = state(i,j,k,Rho_comp) * theta_perturbed;
+    //state(i, j, k, Rho_comp) = r[k];
+    //state(i, j, k, RhoTheta_comp) = state(i,j,k,Rho_comp) * theta_perturbed;
 
     // This version perturbs rho but not p
-    //state(i, j, k, RhoTheta_comp) = std::pow(p[k]/p_0,1.0/Gamma) * p_0 / R_d;
-    //state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
+    state(i, j, k, RhoTheta_comp) = std::pow(p[k]/p_0,1.0/Gamma) * p_0 / R_d;
+    state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
