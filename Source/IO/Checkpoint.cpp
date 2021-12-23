@@ -96,15 +96,24 @@ ERF::WriteCheckpointFile () const
    }
 
    // write the MultiFab data to, e.g., chk00010/Level_0/
+   // Here we make copies of the MultiFab with no ghost cells 
    for (int lev = 0; lev <= finest_level; ++lev) {
-       VisMF::Write(vars_new[lev][Vars::cons],
-                    amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
-       VisMF::Write(vars_new[lev][Vars::xvel],
-                    amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "XFace"));
-       VisMF::Write(vars_new[lev][Vars::yvel],
-                    amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "YFace"));
-       VisMF::Write(vars_new[lev][Vars::zvel],
-                    amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
+
+       MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
+       MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,NVAR,0);
+       VisMF::Write(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
+
+       MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
+       MultiFab::Copy(xvel,vars_new[lev][Vars::xvel],0,0,1,0);
+       VisMF::Write(xvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "XFace"));
+
+       MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
+       MultiFab::Copy(yvel,vars_new[lev][Vars::yvel],0,0,1,0);
+       VisMF::Write(yvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "YFace"));
+
+       MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+       MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
+       VisMF::Write(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
    }
 }
 
@@ -187,7 +196,8 @@ ERF::ReadCheckpointFile ()
         }
     }
 
-    int nghost = ComputeGhostCells(solverChoice.spatial_order);
+    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
 
     for (int lev = 0; lev <= finest_level; ++lev) {
 
@@ -209,37 +219,44 @@ ERF::ReadCheckpointFile ()
         auto& lev_old = vars_old[lev];
         auto& lev_new = vars_new[lev];
 
-        lev_old[Vars::cons].define(grids[lev], dmap[lev], ncomp, nghost);
-        lev_new[Vars::cons].define(grids[lev], dmap[lev], ncomp, nghost);
+        lev_new[Vars::cons].define(grids[lev], dmap[lev], ncomp, ngrow_state);
+        lev_old[Vars::cons].define(grids[lev], dmap[lev], ncomp, ngrow_state);
 
         //!don: get the ghost cells right here
-        lev_new[Vars::xvel].define(convert(grids[lev], IntVect(1,0,0)), dmap[lev], 1, nghost);
-        lev_old[Vars::xvel].define(convert(grids[lev], IntVect(1,0,0)), dmap[lev], 1, nghost);
+        lev_new[Vars::xvel].define(convert(grids[lev], IntVect(1,0,0)), dmap[lev], 1, ngrow_vels);
+        lev_old[Vars::xvel].define(convert(grids[lev], IntVect(1,0,0)), dmap[lev], 1, ngrow_vels);
 
-        lev_new[Vars::yvel].define(convert(grids[lev], IntVect(0,1,0)), dmap[lev], 1, nghost);
-        lev_old[Vars::yvel].define(convert(grids[lev], IntVect(0,1,0)), dmap[lev], 1, nghost);
+        lev_new[Vars::yvel].define(convert(grids[lev], IntVect(0,1,0)), dmap[lev], 1, ngrow_vels);
+        lev_old[Vars::yvel].define(convert(grids[lev], IntVect(0,1,0)), dmap[lev], 1, ngrow_vels);
 
-        lev_new[Vars::zvel].define(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 1, nghost);
-        lev_old[Vars::zvel].define(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 1, nghost);
+        lev_new[Vars::zvel].define(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 1, ngrow_vels);
+        lev_old[Vars::zvel].define(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 1, ngrow_vels);
     }
 
     // read in the MultiFab data
-    for (int lev = 0; lev <= finest_level; ++lev) {
-        VisMF::Read(vars_new[lev][Vars::cons],
-                    amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
-        VisMF::Read(vars_new[lev][Vars::xvel],
-                    amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
-        VisMF::Read(vars_new[lev][Vars::yvel],
-                    amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
-        VisMF::Read(vars_new[lev][Vars::zvel],
-                    amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
+    for (int lev = 0; lev <= finest_level; ++lev) 
+    {
+
+        MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
+        VisMF::Read(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
+        MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,Cons::NumVars,0);
+
+        MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
+        VisMF::Read(xvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
+        MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
+
+        MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
+        VisMF::Read(yvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
+        MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
+
+        MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
+        VisMF::Read(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
+        MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
         // Copy from new into old just in case
-        int ngs   = vars_new[lev][Vars::cons].nGrow();
-        int ngvel = vars_new[lev][Vars::xvel].nGrow();
-        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,NVAR,ngs);
-        MultiFab::Copy(vars_old[lev][Vars::xvel],vars_new[lev][Vars::xvel],0,0,1,ngvel);
-        MultiFab::Copy(vars_old[lev][Vars::yvel],vars_new[lev][Vars::yvel],0,0,1,ngvel);
-        MultiFab::Copy(vars_old[lev][Vars::zvel],vars_new[lev][Vars::zvel],0,0,1,ngvel);
+        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,NVAR,0);
+        MultiFab::Copy(vars_old[lev][Vars::xvel],vars_new[lev][Vars::xvel],0,0,1,0);
+        MultiFab::Copy(vars_old[lev][Vars::yvel],vars_new[lev][Vars::yvel],0,0,1,0);
+        MultiFab::Copy(vars_old[lev][Vars::zvel],vars_new[lev][Vars::zvel],0,0,1,0);
     }
 }
