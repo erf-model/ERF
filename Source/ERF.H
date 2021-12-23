@@ -361,7 +361,6 @@ private:
 
     // Native or NetCDF
     static std::string plotfile_type;
-    static std::string checkpoint_type;
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
