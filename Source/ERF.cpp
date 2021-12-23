@@ -128,8 +128,6 @@ void
 ERF::Evolve ()
 {
     Real cur_time = t_new[0];
-    int last_plot_file_step = 0;
-    int last_check_file_step = 0;
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
     //      for finer levels (with or without subcycling)
@@ -257,9 +255,19 @@ ERF::InitData ()
         InitFromScratch(time);
         AverageDown();
 
+        last_plot_file_step = -1;
+        last_check_file_step = -1;
+
+        if (plot_int > 0 && plot_file_on_restart) {
+            WritePlotFile();
+        }
+
         if (check_int > 0) {
             WriteCheckpointFile();
         }
+
+        for (int lev = finest_level-1; lev >= 0; --lev)
+            vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
 
     } else {
         // restart from a checkpoint
@@ -282,9 +290,6 @@ ERF::InitData ()
 
     initHSE();
 
-    for (int lev = finest_level-1; lev >= 0; --lev)
-        vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
-
     if (solverChoice.use_rayleigh_damping)
     {
         initRayleigh();
@@ -292,12 +297,12 @@ ERF::InitData ()
 
     if (plot_int > 0) {
         WritePlotFile();
+        last_plot_file_step = istep[0];
     }
 
-    int  init_nstep = 0;
-    Real init_time = 0.;
-    if (is_it_time_for_action(init_nstep, init_time, dt[0], sum_interval, sum_per)) {
-        sum_integrated_quantities(init_time);
+    amrex::Print() << "ISTEP[0] TIME " << istep[0] << " " << t_new[0] << std::endl;
+    if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
+        sum_integrated_quantities(t_new[0]);
     }
 }
 
