@@ -6,6 +6,8 @@
 struct ProbParm {
   amrex::Real rho_0   = 1.0;
   amrex::Real Theta_0 = 300.0;
+
+  int prob_type = -1;
 }; // namespace ProbParm
 
 extern ProbParm parms;
