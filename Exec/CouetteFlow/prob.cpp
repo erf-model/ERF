@@ -60,7 +60,10 @@ erf_init_prob(
 
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    y_vel(i, j, k) = parms.v_0;
+    const auto prob_hi  = geomdata.ProbHi();
+    const auto dx       = geomdata.CellSize();
+    const amrex::Real z = (k + 0.5) * dx[2];
+    y_vel(i, j, k) = parms.v_0 * z / prob_hi[2];
   });
 
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
