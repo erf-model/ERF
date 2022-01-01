@@ -328,17 +328,17 @@ void ERF::init_bcs ()
 
 #ifdef AMREX_USE_GPU
     Gpu::htod_memcpy
-        (domain_bcs_type_d.data(), domain_bcs_type.data(), 
+        (domain_bcs_type_d.data(), domain_bcs_type.data(),
          sizeof(BCRec)*(NVAR+AMREX_SPACEDIM));
     Gpu::htod_memcpy
-        (m_bc_extdir_vals_d.data(), m_bc_extdir_vals.data(), 
+        (m_bc_extdir_vals_d.data(), m_bc_extdir_vals.data(),
          sizeof(amrex::Real)*(NVAR+AMREX_SPACEDIM)*AMREX_SPACEDIM*2);
 #else
     std::memcpy
-        (domain_bcs_type_d.data(), domain_bcs_type.data(), 
+        (domain_bcs_type_d.data(), domain_bcs_type.data(),
          sizeof(BCRec)*(NVAR+AMREX_SPACEDIM));
     std::memcpy
-        (m_bc_extdir_vals_d.data(), m_bc_extdir_vals.data(), 
+        (m_bc_extdir_vals_d.data(), m_bc_extdir_vals.data(),
          sizeof(amrex::Real)*(NVAR+AMREX_SPACEDIM)*AMREX_SPACEDIM*2);
 #endif
 }

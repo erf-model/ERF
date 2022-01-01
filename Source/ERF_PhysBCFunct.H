@@ -29,29 +29,29 @@ struct NullFill
 class ERFPhysBCFunct
 {
 public:
-    ERFPhysBCFunct (const Geometry& geom, const Vector<BCRec>& domain_bcs_type_bcr, 
+    ERFPhysBCFunct (const Geometry& geom, const Vector<BCRec>& domain_bcs_type_bcr,
                     const int& var_idx, TimeInterpolatedData& data,
                     GpuArray<GpuArray<Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals)
-        : m_geom(geom), m_var_idx(var_idx), m_domain_bcs_type_bcr(domain_bcs_type_bcr), 
+        : m_geom(geom), m_var_idx(var_idx), m_domain_bcs_type_bcr(domain_bcs_type_bcr),
           m_data(data), m_bc_extdir_vals_d(bc_extdir_vals)
         {}
 
     ~ERFPhysBCFunct () {}
 
-    // 
-    // Note that "bccomp" is used to index into m_domain_bcs_type_bcr, which is initialized from bcr, 
+    //
+    // Note that "bccomp" is used to index into m_domain_bcs_type_bcr, which is initialized from bcr,
     // which is passed in as domain_bcs_d
     // mf is the multifab to be filled
     // icomp is the index into the MultiFab -- if cell-centered this can be any value
     //       from 0 to NVAR-1, if face-centered this must be 0
     // ncomp is the number of components -- if cell-centered (var_idx = 0) this can be any value
-    //       from 1 to NVAR as long as icomp+ncomp <= NVAR-1.  If face-centered this 
+    //       from 1 to NVAR as long as icomp+ncomp <= NVAR-1.  If face-centered this
     //       must be 1
     // nghost is how many ghost cells to be filled
     // time is the time at which the data should be filled
-    // bccomp is the index into both domain_bcs and bc_extdir_vals for icomp = 0  -- 
+    // bccomp is the index into both domain_bcs and bc_extdir_vals for icomp = 0  --
     //     so this follows the BCVars enum
-    // 
+    //
     void operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,
                      Real time, int bccomp)
     {
