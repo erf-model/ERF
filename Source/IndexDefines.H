@@ -22,8 +22,14 @@
 
 namespace BCVars {
     enum {
-        cons = 0,
-        vels,
+        cons_bc = 0,
+        Rho_bc_comp = 0,
+        RhoTheta_bc_comp,
+        RhoKE_bc_comp,
+        RhoScalar_bc_comp,
+        xvel_bc = NVAR,
+        yvel_bc,
+        zvel_bc,
         NumTypes
     };
 }
