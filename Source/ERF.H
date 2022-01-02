@@ -285,9 +285,7 @@ private:
     amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d;
 
     // These hold the Dirichlet values at walls which need them ...
-    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2> , AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
-    amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>
-                                               , AMREX_SPACEDIM+NVAR> m_bc_extdir_vals_d;
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
 
     enum struct BC {
         symmetry, inflow, outflow, no_slip_wall, slip_wall, periodic, MOST, undefined
