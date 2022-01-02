@@ -31,9 +31,9 @@ class ERFPhysBCFunct
 public:
     ERFPhysBCFunct (const Geometry& geom, const Vector<BCRec>& domain_bcs_type_bcr,
                     const int& var_idx, TimeInterpolatedData& data,
-                    GpuArray<GpuArray<Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals)
+                    Array<Array<Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals)
         : m_geom(geom), m_var_idx(var_idx), m_domain_bcs_type_bcr(domain_bcs_type_bcr),
-          m_data(data), m_bc_extdir_vals_d(bc_extdir_vals)
+          m_data(data), m_bc_extdir_vals(bc_extdir_vals)
         {}
 
     ~ERFPhysBCFunct () {}
@@ -138,9 +138,9 @@ public:
                     amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>,
                                                                  AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
 
-                    for (int i = 0; i < NVAR+AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < ncomp; i++)
                         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-                            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals_d[i][ori];
+                            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
 
                     const amrex::BCRec* bc_ptr = bcrs_d.data();
 
@@ -148,32 +148,32 @@ public:
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                     {
                         if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[bccomp+n][0];
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
                         if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[bccomp+n][1];
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
                         if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[bccomp+n][2];
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
                         if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[bccomp+n][3];
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
                         if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[bccomp+n][4];
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
                         if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[bccomp+n][5];
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
 
                         if (bccomp == BCVars::xvel_bc)
                         {
-                            if (i == dom_lo.x   && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[bccomp+n][0];
+                            if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
+                                dest_array(i,j,k,n) = l_bc_extdir_vals_d[n][0];
                         }
                         if (bccomp == BCVars::yvel_bc)
                         {
-                            if (j == dom_lo.y   && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[bccomp+n][1];
+                            if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
+                                dest_array(i,j,k,n) = l_bc_extdir_vals_d[n][1];
                         }
                         if (bccomp == BCVars::zvel_bc)
                         {
-                            if (k == dom_lo.z   && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[bccomp+n][2];
+                            if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
+                                dest_array(i,j,k,n) = l_bc_extdir_vals_d[n][2];
                         }
                     });
 
@@ -204,7 +204,7 @@ private:
     int           m_var_idx;
     Vector<BCRec> m_domain_bcs_type_bcr;
     TimeInterpolatedData& m_data;
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals_d;
+    Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
 };
 
 #endif
