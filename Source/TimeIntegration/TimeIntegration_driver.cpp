@@ -197,17 +197,21 @@ void ERF::erf_advance(int level,
     auto apply_bcs = [&](Vector<MultiFab>& S_data, const Real time) {
         FillIntermediatePatch(level, time, S_data[IntVar::cons], 0, Cons::NumVars, Vars::cons);
 
+        // Here we don't use include any of the ghost region because we have only updated
+        //      momentum on valid faces
         MomentumToVelocity(xvel_new, yvel_new, zvel_new,
                            S_data[IntVar::cons],
                            S_data[IntVar::xmom],
                            S_data[IntVar::ymom],
                            S_data[IntVar::zmom],
-                           xvel_new.nGrowVect());
+                           IntVect::TheZeroVector());
 
         FillIntermediatePatch(level, time, xvel_new, 0, 1, Vars::xvel);
         FillIntermediatePatch(level, time, yvel_new, 0, 1, Vars::yvel);
         FillIntermediatePatch(level, time, zvel_new, 0, 1, Vars::zvel);
 
+        // Now we can convert back to momentum on valid+ghost since we have
+        //     filled the ghost regions for both velocity and density
         VelocityToMomentum(xvel_new, yvel_new, zvel_new,
                            S_data[IntVar::cons],
                            S_data[IntVar::xmom],
