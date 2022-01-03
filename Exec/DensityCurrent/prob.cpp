@@ -115,23 +115,20 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
 
 void
 erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::GeometryData const& geomdata,
+                  amrex::Geometry const& geom,
                   const int /*ng_dens_hse*/)
 {
-  const amrex::Real& prob_lo = geomdata.ProbLo()[2];
-  const amrex::Real& dz      = geomdata.CellSize()[2];
-  const int khi              = geomdata.Domain().bigEnd()[2];
+  const amrex::Real prob_lo_z = geom.ProbLo()[2];
+  const amrex::Real dz        = geom.CellSize()[2];
+  const int khi               = geom.Domain().bigEnd()[2];
 
   const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
   const amrex::Real& Thetabar = parms.T_0;
 
-  amrex::Vector<amrex::Real> r;
-  amrex::Vector<amrex::Real> p;
+  amrex::Vector<amrex::Real> r(khi+1);
+  amrex::Vector<amrex::Real> p(khi+1);
 
-  r.resize(khi+1);
-  p.resize(khi+1);
-
-  init_isentropic_hse(rho_sfc,Thetabar,r.data(),p.data(),dz,prob_lo,khi);
+  init_isentropic_hse(rho_sfc,Thetabar,r.data(),p.data(),dz,prob_lo_z,khi);
 
   for (int k = 0; k <= khi; k++)
   {
@@ -151,8 +148,6 @@ erf_init_prob(
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata)
 {
-  const auto prob_lo         = geomdata.ProbLo();
-  const auto dx              = geomdata.CellSize();
   const int khi              = geomdata.Domain().bigEnd()[2];
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
@@ -166,30 +161,30 @@ erf_init_prob(
 
   const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
   const amrex::Real& thetabar  = parms.T_0;
-  const amrex::Real& dz        = dx[2];
-  const amrex::Real& prob_lo_z = prob_lo[2];
+  const amrex::Real& dz        = geomdata.CellSize()[2];
+  const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
 
   // These are at cell centers (unstaggered)
-  amrex::Vector<amrex::Real> h_r;
-  amrex::Vector<amrex::Real> h_p;
-  h_r.resize(khi+1);
-  h_p.resize(khi+1);
+  amrex::Vector<amrex::Real> h_r(khi+1);
+  amrex::Vector<amrex::Real> h_p(khi+1);
 
-  amrex::Gpu::DeviceVector<amrex::Real> d_r;
-  amrex::Gpu::DeviceVector<amrex::Real> d_p;
-  d_r.resize(khi+1, 0.0);
-  d_p.resize(khi+1, 0.0);
+  amrex::Gpu::DeviceVector<amrex::Real> d_r(khi+1);
+  amrex::Gpu::DeviceVector<amrex::Real> d_p(khi+1);
 
   init_isentropic_hse(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
-  amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-  amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
+  amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
+  amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
 
   amrex::Real* r = d_r.data();
   amrex::Real* p = d_p.data();
 
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    // Geometry
+  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  {
+    // Geometry (note we must include these here to get the data on device)
+    const auto prob_lo         = geomdata.ProbLo();
+    const auto dx              = geomdata.CellSize();
+
     const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
@@ -243,6 +238,8 @@ erf_init_prob(
   amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     z_vel(i, j, k) = 0.0;
   });
+
+  amrex::Gpu::streamSynchronize();
 }
 
 void
@@ -250,7 +247,7 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
                   amrex::Vector<amrex::Real>& /*ubar*/,
                   amrex::Vector<amrex::Real>& /*vbar*/,
                   amrex::Vector<amrex::Real>& /*thetabar*/,
-                  amrex::GeometryData  const& /*geomdata*/)
+                  amrex::Geometry      const& /*geom*/)
 {
    amrex::Error("Should never get here for DensityCurrent problem");
 }
