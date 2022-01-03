@@ -367,23 +367,23 @@ private:
     static std::string column_file_name;
 
     // Base state quantities: density and pressure, 1 array per AMR level
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
 
     static int ng_dens_hse;
     static int ng_pres_hse;
 
     // Mean quantities and tau for Rayleigh damping
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
 
     static void refinement_criteria_setup();
 

@@ -53,20 +53,6 @@ amrex::Real ERF::column_loc_x     = 0.0;
 amrex::Real ERF::column_loc_y     = 0.0;
 std::string ERF::column_file_name = "column_data.nc";
 
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_dens_hse(0);
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_pres_hse(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_dens_hse(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_pres_hse(0);
-
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_tau(0);
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_ubar(0);
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_vbar(0);
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_thetabar(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_tau(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_ubar(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_vbar(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_thetabar(0);
-
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 // constructor - reads in parameters from inputs file
