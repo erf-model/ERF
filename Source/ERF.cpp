@@ -4,6 +4,7 @@
 
 #include <ERF.H>
 #include <prob_common.H>
+#include <AMReX_buildInfo.H>
 
 using namespace amrex;
 
@@ -52,20 +53,6 @@ amrex::Real ERF::column_loc_x     = 0.0;
 amrex::Real ERF::column_loc_y     = 0.0;
 std::string ERF::column_file_name = "column_data.nc";
 
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_dens_hse(0);
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_pres_hse(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_dens_hse(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_pres_hse(0);
-
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_tau(0);
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_ubar(0);
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_vbar(0);
-amrex::Vector<amrex::Vector<amrex::Real> > ERF::h_rayleigh_thetabar(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_tau(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_ubar(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_vbar(0);
-amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > ERF::d_rayleigh_thetabar(0);
-
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 // constructor - reads in parameters from inputs file
@@ -73,6 +60,26 @@ amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 //             - initializes BCRec boundary condition object
 ERF::ERF ()
 {
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        const char* erf_hash = amrex::buildInfoGetGitHash(1);
+        const char* amrex_hash = amrex::buildInfoGetGitHash(2);
+        const char* buildgithash = amrex::buildInfoGetBuildGitHash();
+        const char* buildgitname = amrex::buildInfoGetBuildGitName();
+
+        if (strlen(erf_hash) > 0) {
+          amrex::Print() << "\n"
+                         << "ERF git hash: " << erf_hash << "\n";
+        }
+        if (strlen(amrex_hash) > 0) {
+          amrex::Print() << "AMReX git hash: " << amrex_hash << "\n";
+        }
+        if (strlen(buildgithash) > 0) {
+          amrex::Print() << buildgitname << " git hash: " << buildgithash << "\n";
+        }
+
+        amrex::Print() << "\n";
+    }
+
     ReadParameters();
     setPlotVariables();
 

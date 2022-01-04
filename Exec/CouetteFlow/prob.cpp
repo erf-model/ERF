@@ -9,10 +9,10 @@ ProbParm parms;
 
 void
 erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::GeometryData const& geomdata,
+                  amrex::Geometry const& geom,
                   const int ng_dens_hse)
 {
-  const int khi = geomdata.Domain().bigEnd()[2];
+  const int khi = geom.Domain().bigEnd()[2];
   for (int k = -ng_dens_hse; k <= khi+ng_dens_hse; k++)
   {
       dens_hse_ptr[k] = parms.rho_0;
@@ -24,7 +24,7 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
                   amrex::Vector<amrex::Real>& /*ubar*/,
                   amrex::Vector<amrex::Real>& /*vbar*/,
                   amrex::Vector<amrex::Real>& /*thetabar*/,
-                  amrex::GeometryData  const& /*geomdata*/)
+                  amrex::Geometry      const& /*geom*/)
 {
    amrex::Error("Should never get here for CouetteFlow problem");
 }
@@ -60,7 +60,10 @@ erf_init_prob(
 
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    y_vel(i, j, k) = parms.v_0;
+    const auto prob_hi  = geomdata.ProbHi();
+    const auto dx       = geomdata.CellSize();
+    const amrex::Real z = (k + 0.5) * dx[2];
+    y_vel(i, j, k) = parms.v_0 * z / prob_hi[2];
   });
 
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);

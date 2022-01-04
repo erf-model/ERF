@@ -17,8 +17,6 @@ ERF::initRayleigh()
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        const auto geomdata = geom[lev].data();
-
         const int zlen_rayleigh = geom[lev].Domain().length(2);
         h_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
         d_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
@@ -30,7 +28,7 @@ ERF::initRayleigh()
         d_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
 
         erf_init_rayleigh(h_rayleigh_tau[lev], h_rayleigh_ubar[lev], h_rayleigh_vbar[lev],
-                          h_rayleigh_thetabar[lev], geomdata);
+                          h_rayleigh_thetabar[lev], geom[lev]);
 
         // Copy from host version to device version
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_tau[lev].begin(), h_rayleigh_tau[lev].end(),
@@ -65,11 +63,9 @@ ERF::initHSE()
         h_pres_hse[lev].resize(zlen_pres, p_0);
         d_pres_hse[lev].resize(zlen_pres, p_0);
 
-        const auto geomdata = geom[lev].data();
-
         Real* hptr_dens = h_dens_hse[lev].data() + ng_dens_hse;
 
-        erf_init_dens_hse(hptr_dens,geomdata,ng_dens_hse);
+        erf_init_dens_hse(hptr_dens,geom[lev],ng_dens_hse);
 
         erf_enforce_hse(lev,h_dens_hse[lev],h_pres_hse[lev]);
 

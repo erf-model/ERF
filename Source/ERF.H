@@ -120,6 +120,35 @@ public:
     virtual void MakeNewLevelFromScratch (int lev, amrex::Real time, const amrex::BoxArray& ba,
                       const amrex::DistributionMapping& dm) override;
 
+    // compute dt from CFL considerations
+    Real estTimeStep (int lev) const;
+
+    // Interface for advancing the data at one level by one "slow" timestep
+    void erf_advance(int level,
+                      MultiFab& cons_old,  MultiFab& cons_new,
+                      MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
+                      MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
+                      MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
+                      MultiFab& source,
+                      std::array< MultiFab, AMREX_SPACEDIM>& flux,
+                      const amrex::Geometry crse_geom,
+                      const amrex::Geometry fine_geom,
+                      const amrex::IntVect ref_ratio,
+                      const amrex::Real dt, const amrex::Real time,
+                      amrex::InterpFaceRegister* ifr,
+                      const SolverChoice& solverChoice,
+                      const amrex::Real* dptr_dens_hse,
+                      const amrex::Real* dptr_pres_hse,
+                      const amrex::Real* dptr_rayleigh_tau,
+                      const amrex::Real* dptr_rayleigh_ubar,
+                      const amrex::Real* dptr_rayleigh_vbar,
+                      const amrex::Real* dptr_rayleigh_thetabar);
+
+    amrex::MultiFab& build_fine_mask(int lev);
+
+    // write plotfile to disk
+    void WritePlotFile () const;
+
 private:
 
     ////////////////
@@ -161,35 +190,12 @@ private:
     // utility to copy in data from old and/or new state into another multifab
     TimeInterpolatedData GetDataAtTime (int lev, Real time);
 
-    // get a vector of BCRec that we can pass to FillPatch depending on what type of variable we want to fill
-    Vector<BCRec> GetBCVarVector (int var_idx);
-
     // advance a level by dt
     // includes a recursive call for finer levels
     void timeStep (int lev, amrex::Real time, int iteration);
 
     // advance a single level for a single time step
     void Advance (int lev, amrex::Real time, amrex::Real dt_lev, int iteration, int ncycle);
-
-    void erf_advance(int level,
-                      MultiFab& cons_old,  MultiFab& cons_new,
-                      MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
-                      MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
-                      MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
-                      MultiFab& source,
-                      std::array< MultiFab, AMREX_SPACEDIM>& flux,
-                      const amrex::Geometry crse_geom,
-                      const amrex::Geometry fine_geom,
-                      const amrex::IntVect ref_ratio,
-                      const amrex::Real dt, const amrex::Real time,
-                      amrex::InterpFaceRegister* ifr,
-                      const SolverChoice& solverChoice,
-                      const amrex::Real* dptr_dens_hse,
-                      const amrex::Real* dptr_pres_hse,
-                      const amrex::Real* dptr_rayleigh_tau,
-                      const amrex::Real* dptr_rayleigh_ubar,
-                      const amrex::Real* dptr_rayleigh_vbar,
-                      const amrex::Real* dptr_rayleigh_thetabar);
 
     //! Initialize HSE
     void initHSE();
@@ -203,9 +209,6 @@ private:
     // a wrapper for estTimeStep()
     void ComputeDt ();
 
-    // compute dt from CFL considerations
-    Real estTimeStep (int lev) const;
-
     // get plotfile name
     std::string PlotFileName (int lev) const;
 
@@ -214,9 +217,6 @@ private:
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables ();
-
-    // write plotfile to disk
-    void WritePlotFile () const;
 
 #ifdef ERF_USE_NETCDF
     //! Write plotfile using NETCDF
@@ -279,24 +279,20 @@ private:
     amrex::Vector<amrex::FluxRegister*> flux_registers;
 
     // A BCRec is essentially a 2*DIM integer array storing the boundary
-    // condition type at each lo/hi walls in each direction
-    // Here bcs[0]/bcs_d[0] correspond to bcs for velocity
-    //      bcs[1]/bcs_d[1] correspond to bcs for cell-centered quantities
-    amrex::Vector           <amrex::Vector           <amrex::BCRec>> bcs;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::BCRec>> bcs_d;
+    // condition type at each lo/hi walls in each direction. We have one BCRec
+    // for each component of the cell-centered variables and each velocity component.
+    amrex::Vector           <amrex::BCRec> domain_bcs_type;
+    amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d;
 
     // These hold the Dirichlet values at walls which need them ...
-    amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>
-                                               , AMREX_SPACEDIM*2> m_bc_vels;
-    amrex::GpuArray<amrex::GpuArray<amrex::Real, NVAR>
-                                               , AMREX_SPACEDIM*2> m_bc_cons;
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
 
     enum struct BC {
         symmetry, inflow, outflow, no_slip_wall, slip_wall, periodic, MOST, undefined
     };
 
     // These are the "physical" boundary condition types (e.g. "inflow")
-    amrex::GpuArray<BC, AMREX_SPACEDIM*2> m_bc_type;
+    amrex::GpuArray<BC, AMREX_SPACEDIM*2> phys_bc_type;
 
     // Interpolater to use between levels
     amrex::Interpolater* mapper = nullptr;
@@ -371,23 +367,23 @@ private:
     static std::string column_file_name;
 
     // Base state quantities: density and pressure, 1 array per AMR level
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
 
     static int ng_dens_hse;
     static int ng_pres_hse;
 
     // Mean quantities and tau for Rayleigh damping
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
-    static amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
-    static amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
 
     static void refinement_criteria_setup();
 
@@ -400,7 +396,6 @@ private:
     // Build a mask that zeroes out values on a coarse level underlying
     //     grids on the next finest level
     //
-    amrex::MultiFab& build_fine_mask(int lev);
     amrex::MultiFab fine_mask;
 
     AMREX_FORCE_INLINE

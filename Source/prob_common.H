@@ -10,7 +10,7 @@ void amrex_probinit (
 
 void
 erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::GeometryData const& geomdata,
+                  amrex::Geometry const& geom,
                   const int ng_dens_hse);
 
 void
@@ -18,7 +18,7 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
                   amrex::Vector<amrex::Real>& ubar,
                   amrex::Vector<amrex::Real>& vbar,
                   amrex::Vector<amrex::Real>& thetabar,
-                  amrex::GeometryData  const& geomdata);
+                  amrex::Geometry      const& geom);
 
 void
 erf_init_prob(

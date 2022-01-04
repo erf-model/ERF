@@ -8,10 +8,10 @@ ProbParm parms;
 
 void
 erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::GeometryData const& geomdata,
+                  amrex::Geometry const& geom,
                   const int ng_dens_hse)
 {
-  const int khi = geomdata.Domain().bigEnd()[2];
+  const int khi = geom.Domain().bigEnd()[2];
   for (int k = -ng_dens_hse; k <= khi+ng_dens_hse; k++)
   {
       dens_hse_ptr[k] = parms.rho_0;
@@ -23,7 +23,7 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
                   amrex::Vector<amrex::Real>& /*ubar*/,
                   amrex::Vector<amrex::Real>& /*vbar*/,
                   amrex::Vector<amrex::Real>& /*thetabar*/,
-                  amrex::GeometryData  const& /*geomdata*/)
+                  amrex::Geometry      const& /*geom*/)
 {
    amrex::Error("Should never get here for PoiseuilleFlow problem");
 }
@@ -58,14 +58,25 @@ erf_init_prob(
       const amrex::Real* dx      = geomdata.CellSize();
       const amrex::Real z_h = prob_lo[2] + (k + 0.5) *  dx[2];
 
-    // Set the x-velocity to be a parabolic profile with max 1 at z = 0 and 0 at z = +/-1
-    x_vel(i, j, k) = 1.0 - z_h * z_h;
+      // Set the x-velocity to be a parabolic profile with max 1 at z = 0 and 0 at z = +/-1
+      if (parms.prob_type == 10)
+          x_vel(i, j, k) = 1.0 - z_h * z_h;
+      else
+          x_vel(i, j, k) = 0.0;
   });
 
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-    y_vel(i, j, k) = 0.0;
+      const amrex::Real* prob_lo = geomdata.ProbLo();
+      const amrex::Real* dx      = geomdata.CellSize();
+      const amrex::Real z_h = prob_lo[2] + (k + 0.5) *  dx[2];
+
+      // Set the x-velocity to be a parabolic profile with max 1 at z = 0 and 0 at z = +/-1
+      if (parms.prob_type == 11)
+         y_vel(i, j, k) = 1.0 - z_h * z_h;
+      else
+         y_vel(i, j, k) = 0.0;
   });
 
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
@@ -84,4 +95,6 @@ amrex_probinit(
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.Theta_0);
+
+  pp.query("prob_type", parms.prob_type);
 }
