@@ -640,43 +640,60 @@ Diffusive Physics
 List of Parameters
 ------------------
 
-+----------------------------------+--------------------+-------------------+-------------+
-| Parameter                        | Definition         | Acceptable        | Default     |
-|                                  |                    | Values            |             |
-+==================================+====================+===================+=============+
-| **erf.alpha_T**                  | Diffusion coeff.   | Real              | 0.0         |
-|                                  | for temperature    |                   |             |
-+----------------------------------+--------------------+-------------------+-------------+
-| **erf.alpha_C**                  | Diffusion coeff.   | Real              | 0.0         |
-|                                  | for scalar         |                   |             |
-+----------------------------------+--------------------+-------------------+-------------+
-| **erf.rho0_trans**               | Reference density  | Real              | 1.0         |
-|                                  | to compute const.  |                   |             |
-|                                  | rho*Alpha          |                   |             |
-+----------------------------------+--------------------+-------------------+-------------+
-| **erf.les_type**                 | Using an LES       | "None",           | "None"      |
-|                                  | model, and if so,  | "Smagorinsky",    |             |
-|                                  | which type?        | "Deardorff"       |             |
-+----------------------------------+--------------------+-------------------+-------------+
-| **erf.molec_diff_type**          | Using molecular    | "None",           | "Constant", |
-|                                  | viscosity and      | "Constant"        | but "None"  |
-|                                  | diffusivity?       |                   | for LES     |
-+----------------------------------+--------------------+-------------------+-------------+
-| **erf.dynamicViscosity**         | Viscous coeff. if  | Real              | 0.0         |
-|                                  | DNS                |                   |             |
-+----------------------------------+--------------------+-------------------+-------------+
-| **erf.Cs**                       | Constant           | Real              | 0.0         |
-|                                  | Smagorinsky coeff. |                   |             |
-+----------------------------------+--------------------+-------------------+-------------+
-| **erf.Pr_t**                     | Turbulent Prandtl  | Real              | 1.0         |
-|                                  | Number             |                   |             |
-+----------------------------------+--------------------+-------------------+-------------+
-| **erf.Sc_t**                     | Turbulent Schmidt  | Real              | 1.0         |
-|                                  | Number             |                   |             |
-+----------------------------------+--------------------+-------------------+-------------+
-| **erf.spatial_order**            |                    | 1 / 2 / 4         | 2           |
-+----------------------------------+--------------------+-------------------+-------------+
++----------------------------------+--------------------+---------------------+-------------+
+| Parameter                        | Definition         | Acceptable          | Default     |
+|                                  |                    | Values              |             |
++==================================+====================+=====================+=============+
+| **erf.alpha_T**                  | Diffusion coeff.   | Real                | 0.0         |
+|                                  | for temperature    |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.alpha_C**                  | Diffusion coeff.   | Real                | 0.0         |
+|                                  | for scalar         |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.rho0_trans**               | Reference density  | Real                | 1.0         |
+|                                  | to compute const.  |                     |             |
+|                                  | rho*Alpha          |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.les_type**                 | Using an LES       | "None",             | "None"      |
+|                                  | model, and if so,  | "Smagorinsky",      |             |
+|                                  | which type?        | "Deardorff"         |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.molec_diff_type**          | Using molecular    | "None",             | "None"      |
+|                                  | viscosity and      | "Constant", or      |             |
+|                                  | diffusivity?       | "ConstantAlpha"     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.dynamicViscosity**         | Viscous coeff. if  | Real                | 0.0         |
+|                                  | DNS                |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.Cs**                       | Constant           | Real                | 0.0         |
+|                                  | Smagorinsky coeff. |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.Pr_t**                     | Turbulent Prandtl  | Real                | 1.0         |
+|                                  | Number             |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0         |
+|                                  | Number             |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.spatial_order**            |                    |  2 / 3 / 4 / 5 / 6  | 2           |
++----------------------------------+--------------------+---------------------+-------------+
 
+Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
+diffusion coefficients are written as :math:`\mu`, math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.
+
+If we set ``erf.molec_diff_type` to ``Constant``, then
+
+* the input ``erf.dynamicViscosity`` is used as the value of :math:`\mu` in the momentum equation, and
+
+* the input ``erf.alpha_T`` is multiplied by the input ``erf.rho0_trans`` to form the coefficient for potential temperature, and
+
+* the input ``erf.alpha_C`` is multiplied by the input ``erf.rho0_trans`` to form the coefficient for an advected scalar.
+
+If we set ``erf.molec_diff_type` to ``ConstantAlpha``, then
+
+* the input ``erf.dynamicViscosity`` is divided by the input ``erf.rho0_trans`` and multiplied by the current
+  density ::math:`\rho` to form the coefficient in the momentum equation, and
+* the input ``erf.alpha_T`` is multiplied by the current density ::math:`\rho` to form the coefficient for potential temperature, and
+* the input ``erf.alpha_C`` is multiplied by the current density ::math:`\rho` to form the coefficient for an advected scalar.
 
 Forcing Terms
 =============

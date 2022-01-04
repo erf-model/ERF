@@ -16,10 +16,6 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt       = 5e-5    # fixed time step #TODO: Need to play around with time step to get rid of ringing
-#erf.cfl            = 0.9     # cfl number for hyperbolic system
-erf.init_shrink    = 1.0     # scale back initial timestep
-erf.change_max     = 1.05    # scale back initial timestep
-erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

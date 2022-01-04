@@ -22,35 +22,22 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
                          amrex::Real strainRateDeviatoric)
 {
     Real mu_effective = 0.0;
-    //TODO: dynamic viscosity, mu, is assumed to be constant in the current implementation.
-    // Future implementations may account for mu = mu(T) computed at the coordinate of interest.
-    // That could be done with a new MolecDiffType
-    switch (solverChoice.molec_diff_type) {
-        case MolecDiffType::Constant:
-            mu_effective += 2.0 * solverChoice.dynamicViscosity; // 2*mu
-            break;
-        case MolecDiffType::ConstantAlpha:
-            // strain rate is calculated with rho*u, rho*v, rho*w instead of u,v,w
-            mu_effective += 2.0 * solverChoice.dynamicViscosity/solverChoice.rho0_trans; // 2*nu
-            break;
-        case MolecDiffType::None:
-            break;
-        default:
-            amrex::Abort("Error: Molecular diffusion/viscosity model is unrecognized");
+    //
+    // NOTE: we do not allow LES with MolecDiffType::ConstantAlpha so we don't have to worry about the
+    //       density-weighting of the LES term in this case.  When using MolecDiffType::ConstantAlpha,
+    //       we multiply the entire stress term by (rho / rho0_trans) in DiffusionContributionForMom
+    //       (which is calling this routine)
+    //
+    if ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
+         (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) ) {
+        mu_effective += 2.0 * solverChoice.dynamicViscosity; // 2*mu
     }
 
-    switch (solverChoice.les_type) {
-        case LESType::Smagorinsky:
-            // mu_effective = 2*mu + 2*mu_t if MolecDiffType::Constant else 2*mu_t
-            mu_effective += InterpolateTurbulentViscosity(i, j, k, momentumEqn, diffDir, K_LES); // 2*mu_t
-            break;
-        case LESType::Deardorff:
-            // mu_effective = 2*mu + 2*mu_t if MolecDiffType::Constant else 2*mu_t
-            mu_effective += InterpolateTurbulentViscosity(i, j, k, momentumEqn, diffDir, K_LES); // 2*mu_t
-        case LESType::None: // // mu_effective = 2*mu if MolecDiffType::Constant else 0
-            break;
-        default:
-            amrex::Abort("Error:  LES model is unrecognized");
+    if ( (solverChoice.les_type == LESType::Smagorinsky) ||
+         (solverChoice.les_type == LESType::Deardorff  ) ) {
+        mu_effective += InterpolateTurbulentViscosity(i, j, k, momentumEqn, diffDir, K_LES); // 2*mu_t
+    } else if (solverChoice.les_type != LESType::None) {
+        amrex::Abort("Error:  LES model is unrecognized");
     }
 
     Real stressTerm = mu_effective * strainRateDeviatoric; // tau_ij = mu_effective * sigma_ij

@@ -94,6 +94,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
                                  const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
+                                 const Array4<const Real>& cons,
                                  const enum MomentumEqn &momentumEqn,
                                  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                  const Array4<Real>& Ksmag,
