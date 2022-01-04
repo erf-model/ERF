@@ -29,7 +29,7 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
         case MolecDiffType::Constant:
             mu_effective += 2.0 * solverChoice.dynamicViscosity; // 2*mu
             break;
-        case MolecDiffType::ConstantDiffusivity:
+        case MolecDiffType::ConstantAlpha:
             // strain rate is calculated with rho*u, rho*v, rho*w instead of u,v,w
             mu_effective += 2.0 * solverChoice.dynamicViscosity/solverChoice.rho0_trans; // 2*nu
             break;
