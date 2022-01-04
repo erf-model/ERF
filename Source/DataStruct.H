@@ -37,7 +37,7 @@ enum class LESType {
 };
 
 enum class MolecDiffType {
-    None, Constant, ConstantDiffusivity
+    None, Constant, ConstantAlpha
 };
 
 struct SolverChoice {
@@ -78,8 +78,8 @@ struct SolverChoice {
 
         if (!molec_diff_type_string.compare("Constant")) {
             molec_diff_type = MolecDiffType::Constant;
-        } else if (!molec_diff_type_string.compare("ConstantDiffusivity")) {
-            molec_diff_type = MolecDiffType::ConstantDiffusivity;
+        } else if (!molec_diff_type_string.compare("ConstantAlpha")) {
+            molec_diff_type = MolecDiffType::ConstantAlpha;
         } else if (!molec_diff_type_string.compare("None")) {
             molec_diff_type = MolecDiffType::None;
         } else {
@@ -96,7 +96,7 @@ struct SolverChoice {
         pp.query("Sc_t", Sc_t);
         pp.query("rho0_trans", rho0_trans);
 
-        if (molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+        if (molec_diff_type == MolecDiffType::ConstantAlpha) {
             amrex::Print() << "Using constant kinematic diffusion coefficients" << std::endl;
             amrex::Print() << "  momentum : " << dynamicViscosity/rho0_trans << " m^2/s" << std::endl;
             amrex::Print() << "  temperature : " << alpha_T << " m^2/s" << std::endl;

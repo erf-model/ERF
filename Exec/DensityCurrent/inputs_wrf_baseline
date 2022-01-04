@@ -49,14 +49,9 @@ erf.les_type         = "None"
 #
 # diffusion coefficient from Straka, K = 75 m^2/s
 #
-# estimated rho0 = 1e5/(287*300)
-#erf.dynamicViscosity = 87.108013935 # [kg/(m-s)]
-#erf.rho0_trans = 1.1614401858 # [kg/m^3]
-#---
-erf.molec_diff_type = "ConstantDiffusivity"
+erf.molec_diff_type = "ConstantAlpha"
 erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
 erf.dynamicViscosity = 75.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-#---
 erf.alpha_T = 75.0 # [m^2/s]
 
 # PROBLEM PARAMETERS (optional)
