@@ -119,6 +119,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
         rhoAlpha_molec = rhoFace * solverChoice.alpha_T;
     } else {
+        // rhoAlpha_T == solverChoice.rho0_trans * solverChoice.alpha_T
         rhoAlpha_molec = solverChoice.rhoAlpha_T;
     }
     Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
@@ -127,6 +128,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
         rhoAlpha_molec = rhoFace * solverChoice.alpha_T;
     } else {
+        // rhoAlpha_T == solverChoice.rho0_trans * solverChoice.alpha_T
         rhoAlpha_molec = solverChoice.rhoAlpha_T;
     }
     Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
@@ -135,6 +137,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
         rhoAlpha_molec = rhoFace * solverChoice.alpha_C;
     } else {
+        // rhoAlpha_C == solverChoice.rho0_trans * solverChoice.alpha_C
         rhoAlpha_molec = solverChoice.rhoAlpha_C;
     }
     Pr_or_Sc_turb_inv = solverChoice.Sc_t_inv;
