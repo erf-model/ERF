@@ -111,12 +111,12 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   amrex::Real Pr_or_Sc_turb_inv;
 
   amrex::Real rhoFace;
-  if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+  if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) {
     rhoFace = (cell_data(il, jl, kl, Rho_comp) + cell_data(ir, jr, kr, Rho_comp)) * 0.5;
   }
   switch(prim_index) {
   case PrimTheta_comp: // Potential Temperature
-    if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+    if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) {
         rhoAlpha_molec = rhoFace * solverChoice.alpha_T;
     } else {
         // rhoAlpha_T == solverChoice.rho0_trans * solverChoice.alpha_T
@@ -125,7 +125,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
     break;
   case PrimKE_comp: // Turbulent KE
-    if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+    if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) {
         rhoAlpha_molec = rhoFace * solverChoice.alpha_T;
     } else {
         // rhoAlpha_T == solverChoice.rho0_trans * solverChoice.alpha_T
@@ -134,7 +134,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
     break;
   case PrimScalar_comp: // Scalar
-    if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity) {
+    if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) {
         rhoAlpha_molec = rhoFace * solverChoice.alpha_C;
     } else {
         // rhoAlpha_C == solverChoice.rho0_trans * solverChoice.alpha_C
@@ -149,7 +149,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   amrex::Real rhoAlpha = 0.0;
   switch (solverChoice.molec_diff_type) {
   case MolecDiffType::Constant:
-  case MolecDiffType::ConstantDiffusivity:
+  case MolecDiffType::ConstantAlpha:
     rhoAlpha += rhoAlpha_molec;
     break;
   case MolecDiffType::None:

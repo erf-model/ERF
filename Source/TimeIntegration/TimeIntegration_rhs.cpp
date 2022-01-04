@@ -233,7 +233,7 @@ void erf_rhs (int level,
             bool dirichlet_at_hi_k = ( (k == khi) && hi_z_is_dirichlet);
             Real diffContrib = DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::x, dxInv, K_LES, solverChoice,
                                                            dirichlet_at_lo_k, dirichlet_at_hi_k);
-            if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity)
+            if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
             {
                 // DiffusionContributionForMom calls ComputeStressTerm, which returns mu_effective * strainRateDeviatoric
                 // For "ConstantRhoK" in DNS mode (default), mu_effective is twice the _dynamic_ viscosity
@@ -297,7 +297,7 @@ void erf_rhs (int level,
             bool dirichlet_at_hi_k = ( (k == khi) && hi_z_is_dirichlet);
             Real diffContrib = DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::y, dxInv, K_LES, solverChoice,
                                                            dirichlet_at_lo_k, dirichlet_at_hi_k);
-            if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity)
+            if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
             {
                 // DiffusionContributionForMom calls ComputeStressTerm, which returns mu_effective * strainRateDeviatoric
                 // For "ConstantRhoK" in DNS mode (default), mu_effective is twice the _dynamic_ viscosity
@@ -356,7 +356,7 @@ void erf_rhs (int level,
             // Add diffusive terms
             Real diffContrib = DiffusionContributionForMom(i, j, k, u, v, w, MomentumEqn::z, dxInv, K_LES, solverChoice,
                                                               false, false);
-            if (solverChoice.molec_diff_type == MolecDiffType::ConstantDiffusivity)
+            if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
             {
                 // DiffusionContributionForMom calls ComputeStressTerm, which returns mu_effective * strainRateDeviatoric
                 // For "ConstantRhoK" in DNS mode (default), mu_effective is twice the _dynamic_ viscosity
