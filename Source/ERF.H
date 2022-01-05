@@ -284,6 +284,9 @@ private:
     amrex::Vector           <amrex::BCRec> domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d;
 
+    // We store these so that we can print them out in the job_info file
+    amrex::Array<std::string,2*AMREX_SPACEDIM> domain_bc_type;
+
     // These hold the Dirichlet values at walls which need them ...
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
 
