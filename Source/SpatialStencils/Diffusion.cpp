@@ -21,7 +21,7 @@ DiffusionContributionForMom(const int &i, const int &j, const int &k,
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real diffContrib = 0.0;
 
-    Real l_spatial_order = solverChoice.spatial_order;
+    int l_spatial_order = solverChoice.spatial_order;
 
     switch (momentumEqn) {
         case MomentumEqn::x:

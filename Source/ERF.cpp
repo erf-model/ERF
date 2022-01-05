@@ -419,10 +419,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
-    lev_new[Vars::cons].setVal(1.e20);
-    lev_new[Vars::xvel].setVal(1.e20);
-    lev_new[Vars::yvel].setVal(1.e20);
-    lev_new[Vars::zvel].setVal(1.e20);
+    lev_new[Vars::cons].setVal(0.0);
+    lev_new[Vars::xvel].setVal(0.0);
+    lev_new[Vars::yvel].setVal(0.0);
+    lev_new[Vars::zvel].setVal(0.0);
 
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
