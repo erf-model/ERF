@@ -678,22 +678,22 @@ List of Parameters
 +----------------------------------+--------------------+---------------------+-------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
-diffusion coefficients are written as :math:`\mu`, math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.
+diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.
 
-If we set ``erf.molec_diff_type` to ``Constant``, then
+If we set ``erf.molec_diff_type`` to ``Constant``, then
 
-* the input ``erf.dynamicViscosity`` is used as the value of :math:`\mu` in the momentum equation, and
+* ``erf.dynamicViscosity`` is used as the value of :math:`\mu` in the momentum equation, and
 
-* the input ``erf.alpha_T`` is multiplied by the input ``erf.rho0_trans`` to form the coefficient for potential temperature, and
+* ``erf.alpha_T`` is multiplied by ``erf.rho0_trans`` to form the coefficient for potential temperature, and
 
-* the input ``erf.alpha_C`` is multiplied by the input ``erf.rho0_trans`` to form the coefficient for an advected scalar.
+* ``erf.alpha_C`` is multiplied by ``erf.rho0_trans`` to form the coefficient for an advected scalar.
 
-If we set ``erf.molec_diff_type` to ``ConstantAlpha``, then
+If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 
-* the input ``erf.dynamicViscosity`` is divided by the input ``erf.rho0_trans`` and multiplied by the current
-  density ::math:`\rho` to form the coefficient in the momentum equation, and
-* the input ``erf.alpha_T`` is multiplied by the current density ::math:`\rho` to form the coefficient for potential temperature, and
-* the input ``erf.alpha_C`` is multiplied by the current density ::math:`\rho` to form the coefficient for an advected scalar.
+* ``erf.dynamicViscosity`` is divided by ``erf.rho0_trans`` and multiplied by :math:`\rho` 
+    to form the coefficient in the momentum equation, and
+* ``erf.alpha_T`` is multiplied by the current density :math:`\rho` to form the coefficient for potential temperature, and
+* ``erf.alpha_C`` is multiplied by the current density :math:`\rho` to form the coefficient for an advected scalar.
 
 Forcing Terms
 =============
