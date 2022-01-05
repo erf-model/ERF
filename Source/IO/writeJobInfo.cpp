@@ -112,42 +112,13 @@ ERF::writeJobInfo(const std::string& dir) const
   }
 
   jobInfoFile << " Boundary conditions\n";
-  amrex::Vector<std::string> lo_bc_out(AMREX_SPACEDIM);
-  amrex::Vector<std::string> hi_bc_out(AMREX_SPACEDIM);
-  amrex::ParmParse pp("erf");
-  //
-  // Check for integer BC type specification in inputs file (older style)
-  //
-  if ( pp.contains("lo_bc") )
-  {
-      pp.getarr("lo_bc", lo_bc_out, 0, AMREX_SPACEDIM);
-      pp.getarr("hi_bc", hi_bc_out, 0, AMREX_SPACEDIM);
-  }
 
-  if (geom[0].isPeriodic(0))
-  {
-      jobInfoFile << "   -x: " << "Interior" << "\n";
-      jobInfoFile << "   +x: " << "Interior" << "\n";
-  } else {
-      jobInfoFile << "   -x: " << lo_bc_out[0] << "\n";
-      jobInfoFile << "   +x: " << hi_bc_out[0] << "\n";
-  }
-  if (geom[0].isPeriodic(1))
-  {
-      jobInfoFile << "   -y: " << "Interior" << "\n";
-      jobInfoFile << "   +y: " << "Interior" << "\n";
-  } else {
-      jobInfoFile << "   -y: " << lo_bc_out[1] << "\n";
-      jobInfoFile << "   +y: " << hi_bc_out[1] << "\n";
-  }
-  if (geom[0].isPeriodic(2))
-  {
-      jobInfoFile << "   -z: " << "Interior" << "\n";
-      jobInfoFile << "   +z: " << "Interior" << "\n";
-  } else {
-      jobInfoFile << "   -z: " << lo_bc_out[2] << "\n";
-      jobInfoFile << "   +z: " << hi_bc_out[2] << "\n";
-  }
+  jobInfoFile << "   -x: " << domain_bc_type[0] << "\n";
+  jobInfoFile << "   +x: " << domain_bc_type[3] << "\n";
+  jobInfoFile << "   -y: " << domain_bc_type[1] << "\n";
+  jobInfoFile << "   +y: " << domain_bc_type[4] << "\n";
+  jobInfoFile << "   -z: " << domain_bc_type[2] << "\n";
+  jobInfoFile << "   +z: " << domain_bc_type[5] << "\n";
 
   jobInfoFile << "\n\n";
 

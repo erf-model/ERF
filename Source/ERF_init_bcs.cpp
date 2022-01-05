@@ -32,19 +32,22 @@ void ERF::init_bcs ()
         {
             // amrex::Print() << bcid << " set to symmetry.\n";
 
-           phys_bc_type[ori] = BC::symmetry;
+            phys_bc_type[ori] = BC::symmetry;
+            domain_bc_type[ori] = "Symmetry";
         }
         else if (bc_type == "outflow")
         {
             // amrex::Print() << bcid << " set to outflow.\n";
 
-           phys_bc_type[ori] = BC::outflow;
+            phys_bc_type[ori] = BC::outflow;
+            domain_bc_type[ori] = "Outflow";
         }
         else if (bc_type == "inflow")
         {
             // amrex::Print() << bcid << " set to inflow.\n";
 
             phys_bc_type[ori] = BC::inflow;
+            domain_bc_type[ori] = "Inflow";
 
             std::vector<Real> v;
             pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
@@ -79,6 +82,7 @@ void ERF::init_bcs ()
             // amrex::Print() << bcid <<" set to no-slip wall.\n";
 
             phys_bc_type[ori] = BC::no_slip_wall;
+            domain_bc_type[ori] = "NoSlipWall";
 
             std::vector<Real> v;
 
@@ -103,6 +107,7 @@ void ERF::init_bcs ()
             // amrex::Print() << bcid <<" set to slip wall.\n";
 
             phys_bc_type[ori] = BC::slip_wall;
+            domain_bc_type[ori] = "SlipWall";
 
             Real theta_in;
             if (pp.query("theta", theta_in))
@@ -116,6 +121,7 @@ void ERF::init_bcs ()
             // amrex::Print() << bcid <<" set to MOST.\n";
 
             phys_bc_type[ori] = BC::MOST;
+            domain_bc_type[ori] = "MOST";
 
         }
         else
@@ -124,6 +130,7 @@ void ERF::init_bcs ()
         }
 
         if (geom[0].isPeriodic(ori.coordDir())) {
+            domain_bc_type[ori] = "Periodic";
             if (phys_bc_type[ori] == BC::undefined)
             {
                 phys_bc_type[ori] = BC::periodic;
