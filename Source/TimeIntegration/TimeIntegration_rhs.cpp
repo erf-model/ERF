@@ -59,11 +59,11 @@ void erf_rhs (int level,
     {
         if (solverChoice.les_type == LESType::Smagorinsky)
             ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                      eddyViscosity, dxInv, solverChoice,
+                                      eddyViscosity, geom, solverChoice,
                                       lo_z_is_dirichlet, klo, hi_z_is_dirichlet, khi);
         else if (solverChoice.les_type == LESType::Deardorff)
             ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                      eddyViscosity, dxInv, solverChoice,
+                                      eddyViscosity, geom, solverChoice,
                                       lo_z_is_dirichlet, klo, hi_z_is_dirichlet, khi);
     }
 
