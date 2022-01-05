@@ -13,13 +13,19 @@ using namespace amrex;
 inline
 void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel,
                                const MultiFab& cons_in, MultiFab& eddyViscosity,
-                               const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                               const Geometry& geom,
                                const SolverChoice& solverChoice,
                                const bool& dirichlet_at_lo_k, const int& klo,
                                const bool& dirichlet_at_hi_k, const int& khi)
 {
+    const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
+
     const Real cellVol = 1.0 / (cellSizeInv[0] * cellSizeInv[1] * cellSizeInv[2]);
     const Real Delta = std::pow(cellVol,1.0/3.0);
+
+    const auto& domain = geom.Domain();
+    const auto& dom_lo = amrex::lbound(domain);
+    const auto& dom_hi = amrex::ubound(domain);
 
     if (solverChoice.les_type == LESType::Smagorinsky)
     {
@@ -80,13 +86,17 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
             K(i, j, k, 0) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
         });
 
-        // This is a complete hack for now
+        // Fill values outside the domain by straightforwad extrapolation.  Note this must be
+        // done separately from the loop above so all the interior values are filled
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (dirichlet_at_lo_k && k < klo) K(i,j,k,0) = K(i,j,0,0);
-            if (dirichlet_at_hi_k && k > khi) K(i,j,k,0) = K(i,j,khi,0);
+            if (i < dom_lo.x) K(i,j,k,0) = K(dom_lo.x,j,k,0);
+            if (j < dom_lo.y) K(i,j,k,0) = K(i,dom_lo.y,k,0);
+            if (k < dom_lo.z) K(i,j,k,0) = K(i,j,dom_lo.z,0);
+            if (i > dom_hi.x) K(i,j,k,0) = K(dom_hi.x,j,k,0);
+            if (j > dom_hi.y) K(i,j,k,0) = K(i,dom_hi.y,k,0);
+            if (k > dom_hi.z) K(i,j,k,0) = K(i,j,dom_hi.z,0);
         });
-
       } //mfi
     }
     else if (solverChoice.les_type == LESType::Deardorff)
@@ -106,15 +116,23 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
                                 std::sqrt(cell_data(i,j,k,RhoKE_comp));
         });
 
-        // This is a complete hack for now
+        // Fill values outside the domain by straightforwad extrapolation.  Note this must be
+        // done separately from the loop above so all the interior values are filled
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (dirichlet_at_lo_k && k < klo) K(i,j,k,0) = K(i,j,0,0);
-            if (dirichlet_at_hi_k && k > khi) K(i,j,k,0) = K(i,j,khi,0);
+            if (i < dom_lo.x) K(i,j,k,0) = K(dom_lo.x,j,k,0);
+            if (j < dom_lo.y) K(i,j,k,0) = K(i,dom_lo.y,k,0);
+            if (k < dom_lo.z) K(i,j,k,0) = K(i,j,dom_lo.z,0);
+            if (i > dom_hi.x) K(i,j,k,0) = K(dom_hi.x,j,k,0);
+            if (j > dom_hi.y) K(i,j,k,0) = K(i,dom_hi.y,k,0);
+            if (k > dom_hi.z) K(i,j,k,0) = K(i,j,dom_hi.z,0);
         });
-
       } //mfi
     }
+
+    // Fill interior ghost cells and any ghost cells outside a periodic domain
+    eddyViscosity.FillBoundary(geom.periodicity());
+
 } // function call
 
 /// Compute K_LES (i-1/2, j+1/2, k) etc given K_LES (i, j, k) is known
