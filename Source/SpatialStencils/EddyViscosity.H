@@ -86,7 +86,7 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
             K(i, j, k, 0) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
         });
 
-        // Fill values outside the domain by straightforwad extrapolation.  Note this must be 
+        // Fill values outside the domain by straightforwad extrapolation.  Note this must be
         // done separately from the loop above so all the interior values are filled
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -116,7 +116,7 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
                                 std::sqrt(cell_data(i,j,k,RhoKE_comp));
         });
 
-        // Fill values outside the domain by straightforwad extrapolation.  Note this must be 
+        // Fill values outside the domain by straightforwad extrapolation.  Note this must be
         // done separately from the loop above so all the interior values are filled
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -130,7 +130,7 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
       } //mfi
     }
 
-    // Fill interior ghost cells and any ghost cells outside a periodic domain 
+    // Fill interior ghost cells and any ghost cells outside a periodic domain
     eddyViscosity.FillBoundary(geom.periodicity());
 
 } // function call
