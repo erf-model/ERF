@@ -17,9 +17,6 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.5     # fixed time step
-erf.init_shrink    = 1.0     # scale back initial timestep
-erf.change_max     = 1.05    # scale back initial timestep
-erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

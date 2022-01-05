@@ -17,7 +17,6 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-#erf.fixed_dt       = 1.0     # fixed time step [s] -- from WRF
 erf.fixed_dt       = 1.5625e-2  # fixed time step [s] -- Straka et al 1993
 
 # DIAGNOSTICS & VERBOSITY
@@ -47,7 +46,7 @@ erf.use_rayleigh_damping = false
 erf.spatial_order = 2
 
 erf.les_type         = "None"
-erf.moledctype       = "Constant"
+erf.molec_diff_type  = "ConstantAlpha"
 # diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858
 erf.dynamicViscosity = 87.108013935 # kg/(m-s)
 
@@ -56,7 +55,6 @@ prob.T_0 = 300.0
 prob.U_0 = 0.0
 
 # SETTING THE TIME STEP
-erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 erf.change_max     = 1.05    # multiplier by which dt can change in one time step
 erf.init_shrink    = 1.0     # scale back initial timestep
 

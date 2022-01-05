@@ -86,6 +86,11 @@ struct SolverChoice {
             amrex::Error("Don't know this molec_diff_type");
         }
 
+        if ( (molec_diff_type == MolecDiffType::ConstantAlpha) &&
+             (les_type        != LESType::None) ) {
+            amrex::Error("We don't allow LES with MolecDiffType::ConstantAlpha");
+        }
+
         // Diffusive/viscous/LES constants...
         pp.query("alpha_T", alpha_T);
         pp.query("alpha_C", alpha_C);

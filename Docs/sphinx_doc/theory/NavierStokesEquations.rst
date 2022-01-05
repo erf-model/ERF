@@ -66,8 +66,11 @@ The assumptions involved in deriving these equations from first principles are:
 - Viscous heating is negligible
 - No chemical reactions, second order diffusive processes or radiative heat transfer
 - Newtonian viscous stress with no bulk viscosity contribution (i.e., :math:`\kappa S_{kk} \delta_{ij}`)
-- Though not required in the above form of the equations, we further assume  constant transport
-  coefficients :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T`.
+- Though not required in the above form of the equations, we further assume either
+    * constant transport coefficients :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T`, or
+    * constant :math:`nu = \mu / \rho `, :math:`\alpha_T` and constant :math:`\alpha_C`,
+      each of which is then multiplied by the density :math:`\rho` in the construction
+      of the diffusive terms.
   This is a good approximation for flows of interest because all are independent of density (or pressure),
   and only weakly dependent on temperature (:math:`T^{1/2}` scaling based on simple kinetic theory).
 
