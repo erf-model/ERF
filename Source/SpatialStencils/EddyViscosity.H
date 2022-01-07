@@ -8,39 +8,38 @@
 
 using namespace amrex;
 
-//AMREX_GPU_DEVICE
+AMREX_GPU_DEVICE
 inline
 Real ComputeSmnSmn(const int& i,const int& j,const int& k,
                    const Array4<Real const>& u,
                    const Array4<Real const>& v,
                    const Array4<Real const>& w,
                    const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const Box& domain,
-                   const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d)
+                   const Box& domain, const amrex::BCRec* bc_ptr)
 {
     Real S11 = ComputeS11(i+1, j, k, u, cellSizeInv);
     Real S22 = ComputeS22(i, j+1, k, v, cellSizeInv);
     Real S33 = ComputeS33(i, j, k+1, w, cellSizeInv);
 
     Real S12 = 0.25* (
-              ComputeS12(i  , j  , k, u, v, w, cellSizeInv, domain, domain_bcs_type_d)
-            + ComputeS12(i  , j+1, k, u, v, w, cellSizeInv, domain, domain_bcs_type_d)
-            + ComputeS12(i+1, j  , k, u, v, w, cellSizeInv, domain, domain_bcs_type_d)
-            + ComputeS12(i+1, j+1, k, u, v, w, cellSizeInv, domain, domain_bcs_type_d)
+              ComputeS12(i  , j  , k, u, v, w, cellSizeInv, domain, bc_ptr)
+            + ComputeS12(i  , j+1, k, u, v, w, cellSizeInv, domain, bc_ptr)
+            + ComputeS12(i+1, j  , k, u, v, w, cellSizeInv, domain, bc_ptr)
+            + ComputeS12(i+1, j+1, k, u, v, w, cellSizeInv, domain, bc_ptr)
             );
 
     Real S13 = 0.25* (
-              ComputeS13(i  , j, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
-            + ComputeS13(i  , j, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
-            + ComputeS13(i+1, j, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
-            + ComputeS13(i+1, j, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
+              ComputeS13(i  , j, k  , u, v, w,  cellSizeInv, domain, bc_ptr)
+            + ComputeS13(i  , j, k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
+            + ComputeS13(i+1, j, k  , u, v, w,  cellSizeInv, domain, bc_ptr)
+            + ComputeS13(i+1, j, k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
             );
 
     Real S23 = 0.25* (
-              ComputeS23(i, j  , k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
-            + ComputeS23(i, j  , k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
-            + ComputeS23(i, j+1, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
-            + ComputeS23(i, j+1, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
+              ComputeS23(i, j  , k  , u, v, w,  cellSizeInv, domain, bc_ptr)
+            + ComputeS23(i, j  , k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
+            + ComputeS23(i, j+1, k  , u, v, w,  cellSizeInv, domain, bc_ptr)
+            + ComputeS23(i, j+1, k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
             );
 
     Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
@@ -82,9 +81,11 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
         const Array4<Real const> &v = yvel.array(mfi);
         const Array4<Real const> &w = zvel.array(mfi);
 
+        const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
+
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real SmnSmn = ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,domain_bcs_type_d);
+            Real SmnSmn = ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 
             // Note the positive sign, which aligns well with the positive sign in the diffusion term for momentum equation
             K(i, j, k, 0) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
@@ -146,10 +147,9 @@ ComputeTKEProduction (const int &i, const int &j, const int &k,
                       const Array4<Real>& K_LES,
                       const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                       const SolverChoice &solverChoice,
-                      const Box& domain,
-                      const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d)
+                      const Box& domain, const amrex::BCRec* bc_ptr)
 {
-    amrex::Real TKE_production = K_LES(i,j,k) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,domain_bcs_type_d);
+    amrex::Real TKE_production = K_LES(i,j,k) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 
     return TKE_production;
 }

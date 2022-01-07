@@ -32,6 +32,8 @@ void erf_rhs (int level,
 
     const int l_spatial_order = solverChoice.spatial_order;
 
+    const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
+
     const Box& domain = geom.Domain();
 
     const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
@@ -171,7 +173,7 @@ void erf_rhs (int level,
 
             if (l_use_deardorff && n == RhoKE_comp)
             {
-                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,solverChoice,domain,domain_bcs_type_d)
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,solverChoice,domain,bc_ptr)
                                      +  cell_data(i,j,k,Rho_comp) * l_C_e *
                     std::pow(cell_prim(i,j,k,PrimKE_comp),1.5) / l_Delta;
             }
@@ -224,7 +226,7 @@ void erf_rhs (int level,
             // Add diffusive terms
             rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
                                                               MomentumEqn::x, dxInv, K_LES, solverChoice,
-                                                              domain, domain_bcs_type_d);
+                                                              domain, bc_ptr);
 
             // Add pressure gradient
             rho_u_rhs(i, j, k) += (-dxInv[0]) *
@@ -278,7 +280,7 @@ void erf_rhs (int level,
             // Add diffusive terms
             rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
                                                               MomentumEqn::y, dxInv, K_LES, solverChoice,
-                                                              domain, domain_bcs_type_d);
+                                                              domain, bc_ptr);
 
             // Add pressure gradient
             rho_v_rhs(i, j, k) += (-dxInv[1]) *
@@ -330,7 +332,7 @@ void erf_rhs (int level,
             // Add diffusive terms
             rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
                                                               MomentumEqn::z, dxInv, K_LES, solverChoice,
-                                                              domain, domain_bcs_type_d);
+                                                              domain, bc_ptr);
 
             // Add pressure gradient
             rho_w_rhs(i, j, k) += (-dxInv[2]) *

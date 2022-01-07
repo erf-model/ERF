@@ -54,13 +54,12 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
                    const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                    const Array4<Real>& K_LES,
                    const SolverChoice &solverChoice,
-                   const Box& domain,
-                   const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d)
+                   const Box& domain, const amrex::BCRec* bc_ptr)
 {
 
     // Here, we have computed strain rate on the fly.
     // TODO: It may be better to store S11, S12 etc. at all the (m+1/2) and (m-1/2) grid points (edges) and use them here.
-    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv, domain, domain_bcs_type_d);
+    Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv, domain, bc_ptr);
 
     // D_ij term
     Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
