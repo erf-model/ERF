@@ -1,9 +1,8 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
-#include <AMReX_BC_TYPES.H>
 #include <ERF_Constants.H>
-#include <TKEProduction.H>
+#include <EddyViscosity.H>
 #include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
@@ -24,7 +23,7 @@ void erf_rhs (int level,
               const amrex::Geometry geom, const amrex::Real dt,
                     amrex::InterpFaceRegister* ifr,
               const SolverChoice& solverChoice,
-              const bool lo_z_is_dirichlet, const bool hi_z_is_dirichlet,
+              const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
               const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
               const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
               const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
@@ -33,8 +32,9 @@ void erf_rhs (int level,
 
     const int l_spatial_order = solverChoice.spatial_order;
 
-    int klo = geom.Domain().smallEnd()[2];
-    int khi = geom.Domain().bigEnd()[2];
+    const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
+
+    const Box& domain = geom.Domain();
 
     const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -59,12 +59,10 @@ void erf_rhs (int level,
     {
         if (solverChoice.les_type == LESType::Smagorinsky)
             ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                      eddyViscosity, geom, solverChoice,
-                                      lo_z_is_dirichlet, klo, hi_z_is_dirichlet, khi);
+                                      eddyViscosity, geom, solverChoice, domain_bcs_type_d);
         else if (solverChoice.les_type == LESType::Deardorff)
             ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                      eddyViscosity, geom, solverChoice,
-                                      lo_z_is_dirichlet, klo, hi_z_is_dirichlet, khi);
+                                      eddyViscosity, geom, solverChoice, domain_bcs_type_d);
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
@@ -175,10 +173,7 @@ void erf_rhs (int level,
 
             if (l_use_deardorff && n == RhoKE_comp)
             {
-                bool dirichlet_at_lo_k = ( (k == klo) && lo_z_is_dirichlet );
-                bool dirichlet_at_hi_k = ( (k == khi) && hi_z_is_dirichlet );
-                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,dxInv,K_LES,solverChoice,
-                                                             dirichlet_at_lo_k, dirichlet_at_hi_k)
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,solverChoice,domain,bc_ptr)
                                      +  cell_data(i,j,k,Rho_comp) * l_C_e *
                     std::pow(cell_prim(i,j,k,PrimKE_comp),1.5) / l_Delta;
             }
@@ -229,12 +224,9 @@ void erf_rhs (int level,
                                                                 dxInv, l_spatial_order);
 
             // Add diffusive terms
-            bool dirichlet_at_lo_k = ( (k == klo) && lo_z_is_dirichlet);
-            bool dirichlet_at_hi_k = ( (k == khi) && hi_z_is_dirichlet);
-
             rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
                                                               MomentumEqn::x, dxInv, K_LES, solverChoice,
-                                                              dirichlet_at_lo_k, dirichlet_at_hi_k);
+                                                              domain, bc_ptr);
 
             // Add pressure gradient
             rho_u_rhs(i, j, k) += (-dxInv[0]) *
@@ -286,11 +278,9 @@ void erf_rhs (int level,
                                                                 dxInv, l_spatial_order);
 
             // Add diffusive terms
-            bool dirichlet_at_lo_k = ( (k == klo) && lo_z_is_dirichlet);
-            bool dirichlet_at_hi_k = ( (k == khi) && hi_z_is_dirichlet);
             rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
                                                               MomentumEqn::y, dxInv, K_LES, solverChoice,
-                                                              dirichlet_at_lo_k, dirichlet_at_hi_k);
+                                                              domain, bc_ptr);
 
             // Add pressure gradient
             rho_v_rhs(i, j, k) += (-dxInv[1]) *
@@ -342,7 +332,7 @@ void erf_rhs (int level,
             // Add diffusive terms
             rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
                                                               MomentumEqn::z, dxInv, K_LES, solverChoice,
-                                                              false, false);
+                                                              domain, bc_ptr);
 
             // Add pressure gradient
             rho_w_rhs(i, j, k) += (-dxInv[2]) *

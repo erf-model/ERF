@@ -3,7 +3,7 @@
 
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_ArrayLim.H>
+#include <AMReX_BCRec.H>
 #include <AMReX_InterpFaceRegister.H>
 #include "DataStruct.H"
 #include "IndexDefines.H"
@@ -89,7 +89,8 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const enum DiffusionDir &diffDir,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                         const Array4<Real>& Ksmag,
-                        const SolverChoice &solverChoice);
+                        const SolverChoice &solverChoice,
+                        const Box& domain, const amrex::BCRec* bc_ptr);
 
 AMREX_GPU_DEVICE
 Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
@@ -99,8 +100,7 @@ Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
                                  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                  const Array4<Real>& Ksmag,
                                  const SolverChoice &solverChoice,
-                                 bool dirichlet_at_lo_k,
-                                 bool dirichlet_at_hi_k);
+                                 const Box& domain, const amrex::BCRec* bc_ptr);
 
 AMREX_GPU_DEVICE
 Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,

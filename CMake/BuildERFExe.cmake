@@ -56,7 +56,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SpatialStencils/ExpansionRate.H
        ${SRC_DIR}/SpatialStencils/StrainRate.H
        ${SRC_DIR}/SpatialStencils/StressTerm.H
-       ${SRC_DIR}/SpatialStencils/TKEProduction.H
        ${SRC_DIR}/SpatialStencils/Interpolation.cpp
        ${SRC_DIR}/SpatialStencils/MomentumToVelocity.cpp
        ${SRC_DIR}/SpatialStencils/VelocityToMomentum.cpp

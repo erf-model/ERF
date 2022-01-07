@@ -286,9 +286,6 @@ void ERF::erf_advance(int level,
     N_Vector nv_store = N_VClone(nv_S);
 #endif
 
-    bool l_lo_z_is_dirichlet = ERF::lo_z_is_dirichlet;
-    bool l_hi_z_is_dirichlet = ERF::hi_z_is_dirichlet;
-
     //Create function lambdas
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
                        const Vector<MultiFab>& S_data, const Real time) {
@@ -296,8 +293,7 @@ void ERF::erf_advance(int level,
                 xvel_new, yvel_new, zvel_new,
                 source, advflux, diffflux,
                 fine_geom, dt, ifr, solverChoice,
-                l_lo_z_is_dirichlet,
-                l_hi_z_is_dirichlet,
+                domain_bcs_type_d,
                 dptr_dens_hse, dptr_pres_hse,
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);

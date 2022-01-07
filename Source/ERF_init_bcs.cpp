@@ -195,11 +195,9 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::ext_dir);
-                    if (dir == 2) lo_z_is_dirichlet = true;
                 } else {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::ext_dir);
-                    if (dir == 2) hi_z_is_dirichlet = true;
                 }
             }
             else if (bct == BC::slip_wall)

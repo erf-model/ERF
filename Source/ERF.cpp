@@ -8,9 +8,6 @@
 
 using namespace amrex;
 
-bool ERF::lo_z_is_dirichlet = false;
-bool ERF::hi_z_is_dirichlet = false;
-
 amrex::Real ERF::startCPUTime        = 0.0;
 amrex::Real ERF::previousCPUTimeUsed = 0.0;
 
@@ -541,11 +538,6 @@ ERF::ReadParameters ()
         pp.query("column_loc_y", column_loc_y);
         pp.query("column_file_name", column_file_name);
     }
-
-
-    //!don: set these properly
-    lo_z_is_dirichlet = false;
-    hi_z_is_dirichlet = false;
 
     solverChoice.init_params();
 }

@@ -491,8 +491,6 @@ public:
     // ABL Initialization (from amr-wind)
     static ABLFieldInit ablinit;
 
-    static bool lo_z_is_dirichlet;
-    static bool hi_z_is_dirichlet;
     static bool init_abl;
 
     void writeJobInfo(const std::string& dir) const;
