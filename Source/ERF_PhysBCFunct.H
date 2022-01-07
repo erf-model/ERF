@@ -39,8 +39,6 @@ public:
     ~ERFPhysBCFunct () {}
 
     //
-    // Note that "bccomp" is used to index into m_domain_bcs_type_bcr, which is initialized from bcr,
-    // which is passed in as domain_bcs_d
     // mf is the multifab to be filled
     // icomp is the index into the MultiFab -- if cell-centered this can be any value
     //       from 0 to NVAR-1, if face-centered this must be 0
@@ -49,7 +47,7 @@ public:
     //       must be 1
     // nghost is how many ghost cells to be filled
     // time is the time at which the data should be filled
-    // bccomp is the index into both domain_bcs and bc_extdir_vals for icomp = 0  --
+    // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
     //     so this follows the BCVars enum
     //
     void operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,

@@ -8,6 +8,46 @@
 
 using namespace amrex;
 
+//AMREX_GPU_DEVICE
+inline
+Real ComputeSmnSmn(const int& i,const int& j,const int& k,
+                   const Array4<Real const>& u,
+                   const Array4<Real const>& v,
+                   const Array4<Real const>& w,
+                   const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                   const Box& domain,
+                   const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d)
+{
+    Real S11 = ComputeS11(i+1, j, k, u, cellSizeInv);
+    Real S22 = ComputeS22(i, j+1, k, v, cellSizeInv);
+    Real S33 = ComputeS33(i, j, k+1, w, cellSizeInv);
+
+    Real S12 = 0.25* (
+              ComputeS12(i  , j  , k, u, v, w, cellSizeInv, domain, domain_bcs_type_d) 
+            + ComputeS12(i  , j+1, k, u, v, w, cellSizeInv, domain, domain_bcs_type_d) 
+            + ComputeS12(i+1, j  , k, u, v, w, cellSizeInv, domain, domain_bcs_type_d) 
+            + ComputeS12(i+1, j+1, k, u, v, w, cellSizeInv, domain, domain_bcs_type_d) 
+            );
+
+    Real S13 = 0.25* (
+              ComputeS13(i  , j, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+            + ComputeS13(i  , j, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+            + ComputeS13(i+1, j, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+            + ComputeS13(i+1, j, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+            );
+
+    Real S23 = 0.25* (
+              ComputeS23(i, j  , k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+            + ComputeS23(i, j  , k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+            + ComputeS23(i, j+1, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+            + ComputeS23(i, j+1, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+            );
+
+    Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
+
+    return SmnSmn;
+}
+
 /** Compute Eddy Viscosity */
 //AMREX_GPU_DEVICE
 inline
@@ -15,8 +55,7 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
                                const MultiFab& cons_in, MultiFab& eddyViscosity,
                                const Geometry& geom,
                                const SolverChoice& solverChoice,
-                               const bool& dirichlet_at_lo_k, const int& klo,
-                               const bool& dirichlet_at_hi_k, const int& khi)
+                               const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
 
@@ -27,7 +66,7 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
-    if (solverChoice.les_type == LESType::Smagorinsky)
+    if (solverChoice.les_type == LESType::Smagorinsky) 
     {
       Real Cs = solverChoice.Cs;
       Real CsDeltaSqr = Cs*Cs*Delta*Delta;
@@ -45,43 +84,8 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real S11 = ComputeStrainRate(i+1, j, k, u, v, w, MomentumEqn::x, DiffusionDir::x, cellSizeInv, false, false);
-            Real S22 = ComputeStrainRate(i, j+1, k, u, v, w, MomentumEqn::y, DiffusionDir::y, cellSizeInv, false, false);
-            Real S33 = ComputeStrainRate(i, j, k+1, u, v, w, MomentumEqn::z, DiffusionDir::z, cellSizeInv, false, false);
+            Real SmnSmn = ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,domain_bcs_type_d);
 
-            Real S12 = 0.25* (
-                      ComputeStrainRate(i  , j  , k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSizeInv, false, false)
-                    + ComputeStrainRate(i  , j+1, k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSizeInv, false, false)
-                    + ComputeStrainRate(i+1, j  , k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSizeInv, false, false)
-                    + ComputeStrainRate(i+1, j+1, k, u, v, w, MomentumEqn::x, DiffusionDir::y, cellSizeInv, false, false)
-                    );
-
-            bool dirichlet_lo = (dirichlet_at_lo_k && (k == klo));
-            bool dirichlet_hi = (dirichlet_at_hi_k && (k == khi));
-
-            Real S13 = 0.25* (
-                      ComputeStrainRate(i  , j, k  , u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
-                                       dirichlet_lo, false)
-                    + ComputeStrainRate(i  , j, k+1, u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
-                                       false, dirichlet_hi)
-                    + ComputeStrainRate(i+1, j, k  , u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
-                                       dirichlet_lo, false)
-                    + ComputeStrainRate(i+1, j, k+1, u, v, w, MomentumEqn::x, DiffusionDir::z, cellSizeInv,
-                                       false, dirichlet_hi)
-                    );
-
-            Real S23 = 0.25* (
-                      ComputeStrainRate(i, j  , k  , u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
-                                       dirichlet_lo, false)
-                    + ComputeStrainRate(i, j  , k+1, u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
-                                       false, dirichlet_hi)
-                    + ComputeStrainRate(i, j+1, k  , u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
-                                       dirichlet_lo, false)
-                    + ComputeStrainRate(i, j+1, k+1, u, v, w, MomentumEqn::y, DiffusionDir::z, cellSizeInv,
-                                       false, dirichlet_hi)
-                    );
-
-            Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
             // Note the positive sign, which aligns well with the positive sign in the diffusion term for momentum equation
             K(i, j, k, 0) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
         });
@@ -134,6 +138,21 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     eddyViscosity.FillBoundary(geom.periodicity());
 
 } // function call
+
+AMREX_GPU_DEVICE
+inline Real
+ComputeTKEProduction (const int &i, const int &j, const int &k,
+                      const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
+                      const Array4<Real>& K_LES,
+                      const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                      const SolverChoice &solverChoice,
+                      const Box& domain,
+                      const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d)
+{
+    amrex::Real TKE_production = K_LES(i,j,k) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,domain_bcs_type_d);
+
+    return TKE_production;
+}
 
 /// Compute K_LES (i-1/2, j+1/2, k) etc given K_LES (i, j, k) is known
 // Note: This should be at edges for momEqnDir != diffDir, cell centers otherwise

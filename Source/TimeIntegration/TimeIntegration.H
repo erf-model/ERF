@@ -1,9 +1,8 @@
 #ifndef _INTEGRATION_H_
 #define _INTEGRATION_H_
 
-#include <AMReX.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_ArrayLim.H>
+#include <AMReX_BCRec.H>
 #include <AMReX_InterpFaceRegister.H>
 #include "DataStruct.H"
 #include "IndexDefines.H"
@@ -75,8 +74,7 @@ void erf_rhs(int level,
              const amrex::Geometry geom, const amrex::Real dt,
                    amrex::InterpFaceRegister* ifr,
              const SolverChoice& solverChoice,
-             const bool lo_z_is_dirichlet,
-             const bool hi_z_is_dirichlet,
+             const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
              const amrex::Real* dptr_dens_hse,
              const amrex::Real* dptr_pres_hse,
              const amrex::Real* dptr_rayleigh_tau,

@@ -3,7 +3,7 @@
 
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_ArrayLim.H>
+#include <AMReX_BCRec.H>
 #include <AMReX_InterpFaceRegister.H>
 #include "DataStruct.H"
 #include "IndexDefines.H"
@@ -99,8 +99,8 @@ Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
                                  const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                  const Array4<Real>& Ksmag,
                                  const SolverChoice &solverChoice,
-                                 bool dirichlet_at_lo_k,
-                                 bool dirichlet_at_hi_k);
+                                 const Box& domain,
+                                 const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d);
 
 AMREX_GPU_DEVICE
 Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
