@@ -23,24 +23,24 @@ Real ComputeSmnSmn(const int& i,const int& j,const int& k,
     Real S33 = ComputeS33(i, j, k+1, w, cellSizeInv);
 
     Real S12 = 0.25* (
-              ComputeS12(i  , j  , k, u, v, w, cellSizeInv, domain, domain_bcs_type_d) 
-            + ComputeS12(i  , j+1, k, u, v, w, cellSizeInv, domain, domain_bcs_type_d) 
-            + ComputeS12(i+1, j  , k, u, v, w, cellSizeInv, domain, domain_bcs_type_d) 
-            + ComputeS12(i+1, j+1, k, u, v, w, cellSizeInv, domain, domain_bcs_type_d) 
+              ComputeS12(i  , j  , k, u, v, w, cellSizeInv, domain, domain_bcs_type_d)
+            + ComputeS12(i  , j+1, k, u, v, w, cellSizeInv, domain, domain_bcs_type_d)
+            + ComputeS12(i+1, j  , k, u, v, w, cellSizeInv, domain, domain_bcs_type_d)
+            + ComputeS12(i+1, j+1, k, u, v, w, cellSizeInv, domain, domain_bcs_type_d)
             );
 
     Real S13 = 0.25* (
-              ComputeS13(i  , j, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
-            + ComputeS13(i  , j, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
-            + ComputeS13(i+1, j, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
-            + ComputeS13(i+1, j, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+              ComputeS13(i  , j, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
+            + ComputeS13(i  , j, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
+            + ComputeS13(i+1, j, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
+            + ComputeS13(i+1, j, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
             );
 
     Real S23 = 0.25* (
-              ComputeS23(i, j  , k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
-            + ComputeS23(i, j  , k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
-            + ComputeS23(i, j+1, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
-            + ComputeS23(i, j+1, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d) 
+              ComputeS23(i, j  , k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
+            + ComputeS23(i, j  , k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
+            + ComputeS23(i, j+1, k  , u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
+            + ComputeS23(i, j+1, k+1, u, v, w,  cellSizeInv, domain, domain_bcs_type_d)
             );
 
     Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
@@ -66,7 +66,7 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
-    if (solverChoice.les_type == LESType::Smagorinsky) 
+    if (solverChoice.les_type == LESType::Smagorinsky)
     {
       Real Cs = solverChoice.Cs;
       Real CsDeltaSqr = Cs*Cs*Delta*Delta;
