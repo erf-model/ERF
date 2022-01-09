@@ -94,6 +94,8 @@ erf_init_prob(
         }
     }
 
+    state(i, j, k, RhoScalar_comp) *= parms.rho_0;
+
   });
 
   // Construct a box that is on x-faces

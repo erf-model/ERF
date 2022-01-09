@@ -106,4 +106,26 @@ erf_dertheta(
   });
 }
 
+void
+erf_derscalar(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+  auto const dat = datfab.array();
+  auto adv0fab   = derfab.array();
+
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const amrex::Real rho      = dat(i, j, k, Rho_comp);
+    const amrex::Real rho_adv0 = dat(i, j, k, RhoScalar_comp);
+    adv0fab(i,j,k) = rho_adv0 / rho;
+  });
+}
+
 }
