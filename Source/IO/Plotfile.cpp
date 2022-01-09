@@ -185,6 +185,7 @@ ERF::WritePlotFile () const
         calculate_derived("soundspeed",  derived::erf_dersoundspeed);
         calculate_derived("temp",        derived::erf_dertemp);
         calculate_derived("theta",       derived::erf_dertheta);
+        calculate_derived("scalar",      derived::erf_derscalar);
 
         if (containerHasElement(plot_deriv_names, "pres_hse"))
         {
