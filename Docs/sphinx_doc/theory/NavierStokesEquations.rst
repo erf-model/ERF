@@ -8,10 +8,10 @@
 
 .. _Equations:
 
-Compressible Navier-Stokes Equations (Dry)
-==========================================
+Prognostic Equations (Dry)
+=============================
 
-The following partial differential equations (prognostic equations) governing dry compressible flow
+The following partial differential equations governing dry compressible flow
 are solved in ERF for mass, momentum, potential temperature, and scalars:
 
 .. math::
@@ -93,27 +93,28 @@ and are defined on faces.
 :math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively,
 and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
 
-Compressible Navier-Stokes Equations (Moist)
-============================================
+Prognostic Equations (Moist)
+===============================
 
-When solving for moist atmospheric flow, we evolve two additional variables: :math:`q_v` and :math:`q_c`, 
+When solving for moist atmospheric flow, we evolve two additional variables: :math:`q_v` and :math:`q_c`,
 the mixing ratios of water vapor and cloud water, respectively.
 
 .. math::
-  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}),
+  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
 
-  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) - \nabla p^\prime +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
+  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) - 
+  \frac{\rho_d}{\rho_m} \nabla p^\prime +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
 
-  \frac{\partial (\rho_d \theta_m)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_m) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_{\rho_d \theta},
+  \frac{\partial (\rho_d \theta_m)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_m) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q 
 
   \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
 
-  \frac{\partial (\rho_d q_v)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_v) - Q, 
+  \frac{\partial (\rho_d q_v)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_v) - Q
 
   \frac{\partial (\rho_d q_c)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_c) + Q
 
-where :math:`\rho_d` refers specifically to the density of the dry air (as in the dry equations), and
-:math:`Q` represents the transformation of water vapor to cloud water through condensation.
+where :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_v + q_c)` is the total mass density,
+and :math:`Q` represents the transformation of water vapor to cloud water through condensation.
 
 .. math::
 
