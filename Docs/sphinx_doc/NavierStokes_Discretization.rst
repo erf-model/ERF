@@ -180,26 +180,13 @@ Differencing of Different Orders
 .. math::
 
    \begin{array}{lll}
-   \left. q_{m + \frac{1}{2}} \right|^{2nd} = \frac{1}{2}\left( q_{m + 1} + q_{m} \right)   & & \\
-   \left. q_{m + \frac{1}{2}} \right|^{4th} = \frac{7}{12}\left( q_{m + 1} + q_{m} \right)  & \hspace{-5pt} - \frac{1}{12}\left( q_{m + 2} + q_{m - 1} \right)                                                        & \\
-   \left. q_{m + \frac{1}{2}} \right|^{6th} = \frac{37}{60}\left( q_{m + 1} + q_{m} \right) & \hspace{-5pt} - \frac{2}{15}\left( q_{m + 2} + q_{m - 1} \right)                                                        & \hspace{-5pt}+ \frac{1}{60}\left( q_{m + 3} + q_{m - 2} \right)          \\
-                                                                                            & & \\
-   \left. q_{m + \frac{1}{2}} \right|^{3rd} = \left. q_{m + \frac{1}{2}} \right|^{4th}      & \hspace{-5pt} + \frac{U_{d}}{\left| U_{d} \right|}\frac{1}{12}\left\lbrack \left( q_{m + 2} + q_{m - 1} \right) \right. & \hspace{-5pt}- 3\left. \left( q_{m + 1} + q_{m} \right) \right\rbrack    \\
-                                                                                            & & \\
-   \left. q_{m + \frac{1}{2}} \right|^{5th} = \left. q_{m + \frac{1}{2}} \right|^{6th}      & \hspace{-5pt} - \frac{U_{d}}{\left| U_{d} \right|}\frac{1}{60}\left\lbrack \left( q_{m + 3} + q_{m - 2} \right) \right. & \hspace{-5pt}- 5\left( q_{m + 2} + q_{m - 1} \right)                     + 10\left. \left( q_{m + 1} + q_{m} \right) \right\rbrack \\
-   \end{array}
-
-
-.. math::
-
-   \begin{array}{lll}
    \left. q_{m - \frac{1}{2}} \right|^{2nd} = \frac{1}{2}\left( q_{m} + q_{m - 1} \right)   & & \\
    \left. q_{m - \frac{1}{2}} \right|^{4th} = \frac{7}{12}\left( q_{m} + q_{m - 1} \right)  & \hspace{-5pt} - \frac{1}{12}\left( q_{m + 1} + q_{m - 2} \right)                                                          & \\
    \left. q_{m - \frac{1}{2}} \right|^{6th} = \frac{37}{60}\left( q_{m} + q_{m - 1} \right) & \hspace{-5pt} - \frac{2}{15}\left( q_{m + 1} + q_{m - 2} \right)                                                          & \hspace{-5pt} + \frac{1}{60}\left( q_{m + 2} + q_{m - 3} \right) \\
     & & \\
-   \left. q_{m - \frac{1}{2}} \right|^{3rd} = \left. q_{m - \frac{1}{2}} \right|^{4th}      & \hspace{-5pt} + \frac{U_{d}}{\left| U_{d} \right|}\frac{1}{12}\left\lbrack \left( q_{m + 1} + q_{m - 2} \right) \right.\  & \hspace{-5pt} - 3\left. \ \left( q_{m} + q_{m - 1} \right) \right\rbrack \\
+   \left. q_{m - \frac{1}{2}} \right|^{3rd} = \left. q_{m - \frac{1}{2}} \right|^{4th}      & \hspace{-5pt} + \frac{U_{d}}{\left| U_{d} \right|}\frac{1}{12}\left\lbrack \left( q_{m + 1} - q_{m - 2} \right) \right.\  & \hspace{-5pt} - 3\left. \ \left( q_{m} - q_{m - 1} \right) \right\rbrack \\
     & & \\
-   \left. q_{m - \frac{1}{2}} \right|^{5th} = \left. q_{m - \frac{1}{2}} \right|^{6th}      & \hspace{-5pt} - \frac{U_{d}}{\left| U_{d} \right|}\frac{1}{60}\left\lbrack \left( q_{m + 2} + q_{m - 1} \right) \right.\  & \hspace{-5pt} - 5\left( q_{m + 1} + q_{m - 2} \right) + 10\left. \left( q_{m} + q_{m - 1} \right) \right\rbrack
+   \left. q_{m - \frac{1}{2}} \right|^{5th} = \left. q_{m - \frac{1}{2}} \right|^{6th}      & \hspace{-5pt} - \frac{U_{d}}{\left| U_{d} \right|}\frac{1}{60}\left\lbrack \left( q_{m + 2} - q_{m - 1} \right) \right.\  & \hspace{-5pt} - 5\left( q_{m + 1} - q_{m - 2} \right) + 10\left. \left( q_{m} - q_{m - 1} \right) \right\rbrack
    \end{array}
 
 
