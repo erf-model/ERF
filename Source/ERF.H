@@ -417,7 +417,7 @@ private:
           nGhostCells = 2;
           break;
         case 5:
-          nGhostCells = 2;
+          nGhostCells = 3;
           break;
         case 6:
           nGhostCells = 3;
