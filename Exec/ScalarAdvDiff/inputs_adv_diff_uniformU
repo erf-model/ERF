@@ -8,18 +8,15 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  1     1     1    
-amr.n_cell           = 32     32     32 #TODO: Need to play around with resolution to get rid of ringing
+amr.n_cell           = 32     32     32
 
 geometry.is_periodic = 1 1 0
 
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
-amr.interpolation_type = 2
-
 # TIME STEP CONTROL
-erf.fixed_dt       = 5e-5    # fixed time step #TODO: Need to play around with time step to get rid of ringing
-#erf.cfl            = 0.9     # cfl number for hyperbolic system
+erf.fixed_dt       = 5e-5    # fixed time step
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

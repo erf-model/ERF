@@ -14,8 +14,6 @@ geometry.is_periodic = 1 1 0
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
-amr.interpolation_type = 2
-
 # TIME STEP CONTROL
 erf.cfl            = 0.9     # cfl number for hyperbolic system
 

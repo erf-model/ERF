@@ -469,8 +469,6 @@ ERF::ReadParameters ()
     {
         ParmParse pp("amr"); // Traditionally, these have prefix, amr.
 
-        pp.query("interpolation_type", interpolation_type);
-
         pp.query("regrid_int", regrid_int);
         pp.query("plot_file", plot_file);
         pp.query("plot_int", plot_int);
