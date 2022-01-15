@@ -9,10 +9,18 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_extent =  1     1     1    
 amr.n_cell           = 16     16     16 #TODO: Need to play around with resolution to get rid of ringing
 
-geometry.is_periodic = 1 1 0
+geometry.is_periodic = 0 1 0
 
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
+
+xlo.type = "Inflow"
+xhi.type = "Outflow"
+
+xlo.velocity = 100. 0. 0.
+xlo.density = 1.
+xlo.theta = 1.
+xlo.scalar = 0.
 
 # TIME STEP CONTROL
 erf.fixed_dt       = 5e-5    # fixed time step #TODO: Need to play around with time step to get rid of ringing
@@ -31,10 +39,10 @@ amr.check_file      = chk        # root name of checkpoint file
 amr.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
-amr.plot_file       = plt        # root name of plotfile
-amr.plot_int        = 20        # number of timesteps between plotfiles
-amr.plot_vars        =  density rhoadv_0 x_velocity y_velocity z_velocity
-amr.derive_plot_vars = pressure temp theta
+amr.plot_file        = plt        # root name of plotfile
+amr.plot_int         = 20        # number of timesteps between plotfiles
+amr.plot_vars        = density x_velocity y_velocity z_velocity
+amr.derive_plot_vars = scalar
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0

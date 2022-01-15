@@ -341,9 +341,6 @@ private:
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "scalar",
                                                     "pres_hse", "dens_hse", "pert_pres", "pert_dens"};
 
-    // interpolation type between levels
-    int interpolation_type = 0;
-
     // algorithm choices
     static SolverChoice solverChoice;
 

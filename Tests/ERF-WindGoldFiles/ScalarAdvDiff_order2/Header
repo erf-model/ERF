@@ -1,13 +1,10 @@
 HyperCLaw-V1.1
-8
+5
 density
-rhoadv_0
 x_velocity
 y_velocity
 z_velocity
-pressure
-temp
-theta
+scalar
 3
 0.0010000000000000002
 0

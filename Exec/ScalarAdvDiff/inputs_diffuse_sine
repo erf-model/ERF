@@ -15,11 +15,8 @@ geometry.is_periodic = 1 1 0
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
-amr.interpolation_type = 2
-
 # TIME STEP CONTROL
 erf.fixed_dt       = 1e-3    # fixed time step
-#erf.cfl            = 0.9     # cfl number for hyperbolic system
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
