@@ -103,7 +103,7 @@ jobs:
         os: [ubuntu-latest]
         include:
         - os: ubuntu-latest
-          install_deps: sudo apt-get install mpich libmpich-dev gcovr
+          install_deps: sudo apt-get install mpich libmpich-dev
           comp: gnu
           procs: $(nproc)
 
