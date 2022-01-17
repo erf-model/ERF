@@ -19,31 +19,88 @@ Results from the nightly GPU tests can be found here: `GPU tests`_
 
 The following problems are currently tested in the CI:
 
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| Test                          | nx ny nz | xbc      | ybc      | zbc        | Ext   | Other                 |
++===============================+==========+==========+==========+============+=======+=======================+
+| CouetteFlow                   | 32 4  16 | Periodic | Periodic | SlipWall   | None  | inhomogeneous         |
+|                               |          |          |          | SlipWall   |       | bc at zhi             |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| DensityCurrent                | 256 4 64 | Outflow  | Periodic | SlipWall   | None  | +gravity              |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| EkmanSpiral                   | 4 4 400  | Periodic | Periodic | NoSlipWall | Geo   | +Coriolis             |
+|                               |          |          |          | SlipWall   |       | +gravity              |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| IsentropicVortexAdvecting     | 48 48  4 | Periodic | Periodic | SlipWall   | None  |                       |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| IsentropicVortexStationary    | 48 48  4 | Periodic | Periodic | SlipWall   | None  |                       |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| PoiseuilleFlow                | 32 4  16 | Periodic | Periodic | NoSlipWall | GradP |                       |
+|                               |          |          |          | NoSlipWall | in x  |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| RayleighDamping               | 64  4 64 | Periodic | Periodic | SlipWall   | None  | Rayleigh damping      |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| ScalarAdvectionUniformU       | 64 64  4 | Periodic | Periodic | SlipWall   | None  |                       |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| ScalarAdvectionShearedU       | 64  4 64 | Periodic | Periodic | SlipWall   | None  |                       |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| ScalarAdvDiff_order2          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
+|                               |          |          |          | SlipWall   |       | spatial_order = 2     |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| ScalarAdvDiff_order3          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
+|                               |          |          |          | SlipWall   |       | spatial_order = 3     |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| ScalarAdvDiff_order4          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
+|                               |          |          |          | SlipWall   |       | spatial_order = 4     |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| ScalarAdvDiff_order5          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
+|                               |          |          |          | SlipWall   |       | spatial_order = 4     |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| ScalarAdvDiff_order6          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
+|                               |          |          |          | SlipWall   |       | spatial_order = 6     |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| ScalarDiffusionGaussian       | 16 16 16 | Periodic | Periodic | SlipWall   | None  |                       |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| ScalarDiffusionSine           | 16 16  4 | Periodic | Periodic | SlipWall   | None  |                       |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| TaylorGreenAdvecting          | 16 16 16 | Periodic | Periodic | SlipWall   | None  |                       |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| TaylorGreenAdvectingDiffusing | 16 16 16 | Periodic | Periodic | SlipWall   | None  |                       |
+|                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+
+while the following tests are run nightly:
+
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
 | Test                          | nx ny nz | xbc      | ybc      | zbc        | Ext   | Other            |
 +===============================+==========+==========+==========+============+=======+==================+
-| ScalarAdvectionUniformU       | 64 64  4 | Periodic | Periodic | SlipWall   | None  |                  |
+| ABL-Deardorff                 | 64 64 64 | Periodic | Periodic | NoSlipWall | None  | LES              |
 |                               |          |          |          | SlipWall   |       |                  |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvectionShearedU       | 64  4 64 | Periodic | Periodic | SlipWall   | None  |                  |
+| ABL-Smag                      | 64 64 64 | Periodic | Periodic | NoSlipWall | None  | LES              |
 |                               |          |          |          | SlipWall   |       |                  |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvectionDiffusion      | 32 32 32 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
+| CouetteFlow-x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous    |
+|                               |          |          |          | NoSlipWall |       | bc at zhi        |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvecDiffDoubleDen      | 32 32 32 | Periodic | Periodic | SlipWall   | None  | Density = 2      |
-|                               |          |          |          | SlipWall   |       |                  |
+| CouetteFlow-y                 | 4  32 16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous    |
+|                               |          |          |          | NoSlipWall |       | bc at zhi        |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarAdvDiffInflowOutflow    | 32 32 32 | Inflow   | Periodic | SlipWall   | None  |                  |
+| DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity         |
 |                               |          | Outflow  |          | SlipWall   |       |                  |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarDiffusionGaussian       | 16 16 16 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
+| EkmanSpiral                   | 4 4 400  | Periodic | Periodic | NoSlipWall | Geo   | +Coriolis        |
+|                               |          |          |          | SlipWall   |       | +gravity         |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
-| ScalarDiffusionSine           | 16 16  4 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| RayleighDamping               | 64  4 64 | Periodic | Periodic | SlipWall   | None  | Rayleigh damping |
+| EkmanSpiral_restart           | 4 4 400  | Periodic | Periodic | NoSlipWall | Geo   | restart test     |
 |                               |          |          |          | SlipWall   |       |                  |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
 | IsentropicVortexAdvecting     | 48 48  4 | Periodic | Periodic | SlipWall   | None  |                  |
@@ -52,37 +109,48 @@ The following problems are currently tested in the CI:
 | IsentropicVortexStationary    | 48 48  4 | Periodic | Periodic | SlipWall   | None  |                  |
 |                               |          |          |          | SlipWall   |       |                  |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
-| TaylorGreenAdvecting          | 16 16 16 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| TaylorGreenAdvectingDiffusing | 16 16 16 | Periodic | Periodic | SlipWall   | None  |                  |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| TaylorGreenAdvDiffDoubleDen   | 16 16 16 | Periodic | Periodic | SlipWall   | None  | Density = 2      |
-|                               |          |          |          | SlipWall   |       |                  |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| CouetteFlow-x                 | 32 4  16 | Periodic | Periodic | SlipWall   | None  | inhomogeneous    |
-|                               |          |          |          | SlipWall   |       | bc at zhi        |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
-| CouetteFlow-y                 | 4  32 16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous    |
-|                               |          |          |          | NoSlipWall |       | bc at zhi        |
-+-------------------------------+----------+----------+----------+------------+-------+------------------+
 | PoiseuilleFlow-x              | 32 4  16 | Periodic | Periodic | NoSlipWall | GradP |                  |
 |                               |          |          |          | NoSlipWall | in x  |                  |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
 | PoiseuilleFlow-y              | 4  32 16 | Periodic | Periodic | NoSlipWall | GradP |                  |
 |                               |          |          |          | NoSlipWall | in y  |                  |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
-| DensityCurrent                | 512 4 64 | Periodic | Periodic | SlipWall   | None  | +gravity         |
+| ScalarAdvecDiffDoubleDen      | 32 32 32 | Periodic | Periodic | SlipWall   | None  | Density = 2      |
 |                               |          |          |          | SlipWall   |       |                  |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
-| EkmanSpiral                   | 4 4 400  | Periodic | Periodic | NoSlipWall | Geo   | +Coriolis        |
-|                               |          |          |          | SlipWall   |       | +gravity         |
+| ScalarAdvDiffInflowOutflow    | 32 32 32 | Inflow   | Periodic | SlipWall   | None  |                  |
+|                               |          | Outflow  |          | SlipWall   |       |                  |
 +-------------------------------+----------+----------+----------+------------+-------+------------------+
+| ScalarAdvecDiffUniformU       | 32 32 32 | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |          |          |          | SlipWall   |       |                  |
++-------------------------------+----------+----------+----------+------------+-------+------------------+
+| ScalarAdvecUniformU           | 64 64  4 | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |          |          |          | SlipWall   |       |                  |
++-------------------------------+----------+----------+----------+------------+-------+------------------+
+| ScalarAdvecShearedU           | 64  4 64 | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |          |          |          | SlipWall   |       |                  |
++-------------------------------+----------+----------+----------+------------+-------+------------------+
+| ScalarAdvecUniformU           | 64 64  4 | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |          |          |          | SlipWall   |       |                  |
++-------------------------------+----------+----------+----------+------------+-------+------------------+
+| ScalarDiffusionGaussian       | 64 64 64 | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |          |          |          | SlipWall   |       |                  |
++-------------------------------+----------+----------+----------+------------+-------+------------------+
+| ScalarDiffusionSine           | 64 64 4  | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |          |          |          | SlipWall   |       |                  |
++-------------------------------+----------+----------+----------+------------+-------+------------------+
+| TaylorGreenAdvecting          | 64 64 64 | Periodic | Periodic | SlipWall   | None  |                  |
+|                               |          |          |          | SlipWall   |       |                  |
++-------------------------------+----------+----------+----------+------------+-------+------------------+
+| TaylorGreenAdvDiffDoubleDen   | 64 64 64 | Periodic | Periodic | SlipWall   | None  | Density = 2      |
+|                               |          |          |          | SlipWall   |       |                  |
++-------------------------------+----------+----------+----------+------------+-------+------------------+
+
+More details about the CI tests are given below.
 
 Scalar Advection by Uniform Flow in XY Plane
 ------------------------------------------------
-This tests scalar advection with triply periodic boundaries.
+This tests scalar advection with periodic boundaries in the lateral directions and slip walls at low and high z.
 
 Test Location: `Tests/test_files/ScalarAdvectionUniformU`_
 
@@ -110,7 +178,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 Scalar Advection by Sheared Flow
 ------------------------------------------------
-This tests scalar advection in horizontal flow in the x-direction with triply periodic boundaries.
+This tests scalar advection with periodic boundaries in the lateral directions and slip walls at low and high z.
 
 Test Location: `Tests/test_files/ScalarAdvectionShearedU`_
 
@@ -139,7 +207,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 Scalar Diffusion: Sphere of Scalar
 ------------------------------------------------
-This tests scalar diffusion with triply periodic boundaries.
+This tests scalar diffusion with periodic boundaries in the lateral directions and slip walls at low and high z.
 
 Test Location: `Tests/test_files/ScalarDiffusionGaussian`_
 
@@ -167,7 +235,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 Scalar Diffusion: Sinusoidal Variation of Scalar
 ------------------------------------------------
-This tests scalar diffusion with triply periodic boundaries.
+This tests scalar diffusion with periodic boundaries in the lateral directions and slip walls at low and high z.
 
 Test Location: `Tests/test_files/ScalarDiffusionSine`_
 
@@ -194,9 +262,9 @@ Problem Location: `Exec/ScalarAdvDiff`_
    +-----------------------------------------------------+------------------------------------------------------+
 
 
-Scalar Advection/Diffusion by Uniform Flow
-------------------------------------------------
-This tests scalar advection and diffusion with triply periodic boundaries.
+Scalar Advection/Diffusion by Uniform Flow With Different Spatial Orders
+------------------------------------------------------------------------
+This tests scalar advection and diffusion with periodic boundaries in the lateral directions and slip walls at low and high z.
 
 Test Location: `Tests/test_files/ScalarAdvectionDiffusionUniformU`_
 
@@ -301,33 +369,11 @@ Problem Location: `Exec/TaylorGreenVortex`_
    |   Flow field at t=0.                                |   Flow field at 10 steps (t = 1.6).                  |
    +-----------------------------------------------------+------------------------------------------------------+
 
-Channel Flow: DNS
-------------------------
-
-This tests DNS flow in a channel which is periodic in x and z, and no-slip-wall on both y-faces
-
-Test Location:
-
-Problem Location: `Exec/ChannelFlow`_
-
-.. _`Exec/ChannelFlow`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelFlow
-
-Channel Flow: LES
-------------------------
-
-This tests LES flow in a channel which is periodic in x and z, and no-slip-wall on both y-faces
-
-Test Location:
-
-Problem Location: `Exec/ChannelFlow`_
-
-.. _`Exec/ChannelFlow`: https://github.com/erf-model/ERF/tree/development/Exec/ChannelFlow
-
 Couette Flow
 ------------
 
 This tests Couette flow in a channel.  The domain is periodic in the x- and y-directions, and has
-NoSlipWall bc's on the low-z face and Dirichlet bc's on the high-z face.  At the high-z boundary
+NoSlipWall bc's on the low-z and high-z faces.  At the high-z boundary
 the velocity is specified to be :math:`U = (2,0,0)`.   The steady solution for this problem is
 :math:`U = (z/8,0,0)` in the domain which is 16 units high in z.
 

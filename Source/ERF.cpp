@@ -120,6 +120,19 @@ ERF::ERF ()
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
+
+    // We have already read in the ref_Ratio (via amr.ref_ratio =) but we need to enforce
+    //     that there is no refinement in the vertical so we test on that here.
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+       amrex::Print() << "Refinement ratio at level " << lev << " set to be " <<
+          ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
+
+       if (ref_ratio[lev][2] != 1)
+       {
+           amrex::Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
+       }
+    }
 }
 
 ERF::~ERF ()
@@ -509,6 +522,7 @@ ERF::ReadParameters ()
     }
 
     {  // Mesh refinement
+
         ParmParse pp("erf");
 
         pp.query("coupling_type",coupling_type);
