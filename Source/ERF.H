@@ -272,9 +272,6 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 
-    // array of time integrator objects at each level of refinement
-    amrex::Vector<std::unique_ptr<TimeIntegrator<Vector<MultiFab> > > > integrator;
-
     // array of flux registers
     amrex::Vector<amrex::FluxRegister*> flux_registers;
 

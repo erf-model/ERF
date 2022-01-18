@@ -107,8 +107,6 @@ ERF::ERF ()
         vars_old[lev].resize(Vars::NumTypes);
     }
 
-    integrator.resize(nlevs_max);
-
     flux_registers.resize(nlevs_max);
 
     // Map the words in the inputs file to BC types, then translate
@@ -290,10 +288,6 @@ ERF::InitData ()
         // We set this here so that we don't over-write the checkpoint file we just started from
         last_check_file_step = istep[0];
 
-        // Create the time integrator for this level
-        for (int lev = 0; lev <= finest_level; lev++) {
-            integrator[lev] = std::make_unique<TimeIntegrator<Vector<MultiFab> > >(vars_old[lev]);
-        }
     }
 
     // Initialize flux registers (whether we start from scratch or restart)
@@ -354,9 +348,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     t_old[lev] = time - 1.e200;
 
     FillCoarsePatchAllVars(lev, time, vars_new[lev]);
-
-    // also create the time integrator for this level
-    integrator[lev] = std::make_unique<TimeIntegrator<Vector<MultiFab> > >(vars_old[lev]);
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -380,9 +371,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
-
-    // also recreate the time integrator for this level
-    integrator[lev] = std::make_unique<TimeIntegrator<Vector<MultiFab> > >(vars_old[lev]);
 }
 
 // Delete level data
@@ -463,9 +451,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
     MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
     MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,ngvel);
-
-    // also create the time integrator for this level
-    integrator[lev] = std::make_unique<TimeIntegrator<Vector<MultiFab> > >(vars_old[lev]);
 }
 
 
