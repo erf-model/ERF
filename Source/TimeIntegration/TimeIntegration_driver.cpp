@@ -227,7 +227,7 @@ void ERF::erf_advance(int level,
     // **************************************************************************************
     // Setup the integrator
     // **************************************************************************************
-    TimeIntegrator<amrex::Vector<amrex::MultiFab> > integrator(state_old);
+    TimeIntegrator<Vector<MultiFab> > lev_integrator(state_old);
 
 #ifdef AMREX_USE_SUNDIALS
 
@@ -322,8 +322,8 @@ void ERF::erf_advance(int level,
 
     // define rhs and 'post update' utility function that is called after calculating
     // any state data (e.g. at RK stages or at the end of a timestep)
-    integrator.set_rhs(rhs_fun);
-    integrator.set_post_update(post_update_fun);
+    lev_integrator.set_rhs(rhs_fun);
+    lev_integrator.set_post_update(post_update_fun);
 
 #ifdef AMREX_USE_SUNDIALS
     bool use_erk3 = true;
@@ -389,7 +389,7 @@ void ERF::erf_advance(int level,
     ARKStepSetFixedStep(inner_mem, hfixed_mri);            // Specify fixed time step size
 
     FastRhsData fast_userdata;
-    fast_userdata.integrator = &integrator;
+    fast_userdata.integrator = &lev_integrator;
     fast_userdata.rhs_fun_fast = rhs_fun_fast;
     //For the sundials solve, use state_new as temporary data;
     fast_userdata.S_stage_data = &state_store;
@@ -540,7 +540,7 @@ void ERF::erf_advance(int level,
     // **************************************************************************************
     // Integrate for a single timestep
     // **************************************************************************************
-    integrator.advance(state_old, state_new, time, dt);
+    lev_integrator.advance(state_old, state_new, time, dt);
     }
 
 #ifdef AMREX_USE_SUNDIALS
