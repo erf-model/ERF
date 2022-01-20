@@ -45,21 +45,37 @@ ERF::GetDataAtTime (int lev, Real time)
 
     return data;
 }
-
-// compute a new multifab by copying in data from valid region and filling ghost cells
-// works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
+//
+// Fill valid and ghost data in the MultiFab "mf"
+// This version fills the MultiFab mf in valid regions with the "state data" at the given time;
+// values in mf when it is passed in are *not* used.
+//
 void
 ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx)
 {
     int bccomp;
+    amrex::Interpolater* mapper;
+
     if (var_idx == Vars::cons)
+    {
         bccomp = 0;
+        mapper = &cell_cons_interp;
+    }
     else if (var_idx == Vars::xvel)
+    {
         bccomp = NVAR;
+        mapper = &face_linear_interp;
+    }
     else if (var_idx == Vars::yvel)
+    {
         bccomp = NVAR+1;
+        mapper = &face_linear_interp;
+    }
     else if (var_idx == Vars::zvel)
+    {
         bccomp = NVAR+2;
+        mapper = &face_linear_interp;
+    }
 
     if (lev == 0)
     {
@@ -91,24 +107,37 @@ ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_
     }
 }
 
-// Compute a new multifab by copying in data from valid region and filling ghost cells
-// works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-// unlike FillPatch, FillIntermediatePatch will use the supplied multifab instead of fine level data.
-// This is to support filling boundary cells at an intermediate time between old/new times
-// on the fine level when valid data at a specific time is already available (such as
-// at each RK stage when integrating between initial and final times at a given level).
+//
+// Fill valid and ghost data in the MultiFab "mf"
+// This version fills the MultiFab mf in valid regions with the values in "mf" when it is passed in;
+// it is used only to compute ghost values for interemediate stages of a time integrator.
+//
 void
 ERF::FillIntermediatePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx)
 {
     int bccomp;
+    amrex::Interpolater* mapper;
+
     if (var_idx == Vars::cons)
+    {
         bccomp = 0;
+        mapper = &cell_cons_interp;
+    }
     else if (var_idx == Vars::xvel)
+    {
         bccomp = NVAR;
+        mapper = &face_linear_interp;
+    }
     else if (var_idx == Vars::yvel)
+    {
         bccomp = NVAR+1;
+        mapper = &face_linear_interp;
+    }
     else if (var_idx == Vars::zvel)
+    {
         bccomp = NVAR+2;
+        mapper = &face_linear_interp;
+    }
 
     if (lev == 0)
     {
@@ -145,22 +174,37 @@ ERF::FillIntermediatePatch (int lev, Real time, MultiFab& mf, int icomp, int nco
     }
 }
 
-// fill an entire multifab by interpolating from the coarser level
-// this comes into play when a new level of refinement appears
+// Fill an entire multifab by interpolating from the coarser level -- this is used
+//     only when a new level of refinement is being created during a run (i.e not at initialization)
+//     This will never be used with static refinement.
 void
 ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx)
 {
     AMREX_ASSERT(lev > 0);
 
     int bccomp;
+    amrex::Interpolater* mapper;
+
     if (var_idx == Vars::cons)
+    {
         bccomp = 0;
+        mapper = &cell_cons_interp;
+    }
     else if (var_idx == Vars::xvel)
+    {
         bccomp = NVAR;
+        mapper = &face_linear_interp;
+    }
     else if (var_idx == Vars::yvel)
+    {
         bccomp = NVAR+1;
+        mapper = &face_linear_interp;
+    }
     else if (var_idx == Vars::zvel)
+    {
         bccomp = NVAR+2;
+        mapper = &face_linear_interp;
+    }
 
     TimeInterpolatedData cdata = GetDataAtTime(lev-1, time);
     TimeInterpolatedData fdata = GetDataAtTime(lev  , time);

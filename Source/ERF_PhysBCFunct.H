@@ -82,8 +82,9 @@ public:
                 const Box& bx = mfi.fabbox();
 
                 // make a cell-centered box for our state data
-                const Box& ccbx = m_data.get_var(Vars::cons)[mfi].box();
+                //const Box& ccbx = m_data.get_var(Vars::cons)[mfi].box();
 
+/*
                 // make a vector of Array4's for our cell-centered & velocity data
                 Gpu::DeviceVector<Array4<const Real> > vars_arrays_h;
                 for (int i = 0; i < m_data.num_vars(); ++i) {
@@ -93,6 +94,7 @@ public:
                 vars_arrays_d.resize(vars_arrays_h.size());
                 Gpu::copy(amrex::Gpu::hostToDevice, vars_arrays_h.begin(), vars_arrays_h.end(), vars_arrays_d.begin());
                 Array4<const Real>* vars_arrays_p = vars_arrays_d.data();
+*/
 
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here

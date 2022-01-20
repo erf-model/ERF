@@ -54,12 +54,9 @@ void ERF::erf_advance(int level,
                       MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                       MultiFab& source,
                       std::array< MultiFab, AMREX_SPACEDIM>& flux,
-                      const amrex::Geometry crse_geom,
                       const amrex::Geometry fine_geom,
-                      const amrex::IntVect ref_ratio,
-                      const amrex::Real dt, const amrex::Real time,
+                      const amrex::Real dt_advance, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
-                      const SolverChoice& solverChoice,
                       const amrex::Real* dptr_dens_hse,
                       const amrex::Real* dptr_pres_hse,
                       const amrex::Real* dptr_rayleigh_tau,
@@ -149,16 +146,16 @@ void ERF::erf_advance(int level,
     state_store.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
     state_store.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
 
-    // **************************************************************************************
+    // ***********************************************************************************************
     // Prepare the old-time data for calling the integrator
-    // **************************************************************************************
-
     // Note that we have filled the ghost cells of cons_old and we are copying the ghost cell values
-    //      so we don't need to enforce BCs again here
+    //      so we don't need to enforce BCs again here before calling VelocityToMomentum
+    // ***********************************************************************************************
     MultiFab::Copy(state_old[IntVar::cons], cons_old, 0, 0, cons_old.nComp(), cons_old.nGrow());
 
+    // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
-    // **************************************************************************************
+    // ***********************************************************************************************
     VelocityToMomentum(xvel_old, yvel_old, zvel_old,
                        state_old[IntVar::cons],
                        state_old[IntVar::xmom],
@@ -166,36 +163,39 @@ void ERF::erf_advance(int level,
                        state_old[IntVar::zmom],
                        xvel_old.nGrowVect());
 
-    // **************************************************************************************
+    // ***********************************************************************************************
     // Initialize the fluxes to zero
-    // **************************************************************************************
+    // ***********************************************************************************************
     state_old[IntVar::xflux].setVal(0.0_rt);
     state_old[IntVar::yflux].setVal(0.0_rt);
     state_old[IntVar::zflux].setVal(0.0_rt);
 
-    auto interpolate_coarse_fine_faces = [&](Vector<MultiFab>& S_data) {
-        if (level > 0)
-        {
-            amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
-            amrex::Array<MultiFab*,3> fmf{&S_data[IntVar::xmom],
-                                          &S_data[IntVar::ymom],
-                                          &S_data[IntVar::zmom]};
+    // ***************************************************************************************
+    // This routine is called before the first step of the time integration, *and* in the case
+    //  of a multi-stage method like RK3, this is called from "post_update_fun" which is called
+    //  before every subsequent stage.  Since we advance the variables in conservative form,
+    //  we must convert momentum to velocity before imposing the bcs.
+    // ***************************************************************************************
+    auto apply_bcs = [&](Vector<MultiFab>& S_data, const Real time_for_fp)
+    {
+        amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
+        amrex::Array<MultiFab*,3> fmf{&S_data[IntVar::xmom],
+                                      &S_data[IntVar::ymom],
+                                      &S_data[IntVar::zmom]};
 
-            // Interpolate from coarse faces to fine faces *only* on the coarse-fine boundary
-            ifr->interp(fmf,cmf_const,0,1);
+        // ***************************************************************************************
+        // Interpolate momentum from coarse faces to fine faces *only* on the coarse-fine boundary
+        // ***************************************************************************************
+        ifr->interp(fmf,cmf_const,0,1);
 
-            amrex::Array<MultiFab*,3> cmf{&xmom_crse, &ymom_crse, &zmom_crse};
-
-            int nGrow = 1;
-            BoxArray fine_grids(cons_old.boxArray());
-
-            // Interpolate from coarse faces on fine faces outside the fine region
-            create_umac_grown(level, nGrow, fine_grids, crse_geom, fine_geom, cmf, fmf, ref_ratio);
-        }
-    };
-
-    auto apply_bcs = [&](Vector<MultiFab>& S_data, const Real time) {
-        FillIntermediatePatch(level, time, S_data[IntVar::cons], 0, Cons::NumVars, Vars::cons);
+        // ***************************************************************************************
+        // Call the FillPatch routines for cell-centered variables only.
+        // This fills ghost cells/faces from
+        //     1) coarser level if lev > 0
+        //     2) physical boundaries
+        //     3) other grids at the same level
+        // ***************************************************************************************
+        FillIntermediatePatch(level, time_for_fp, S_data[IntVar::cons], 0, Cons::NumVars, Vars::cons);
 
         // Here we don't use include any of the ghost region because we have only updated
         //      momentum on valid faces
@@ -206,6 +206,13 @@ void ERF::erf_advance(int level,
                            S_data[IntVar::zmom],
                            IntVect::TheZeroVector());
 
+        // **************************************************************************************
+        // Call the FillPatch routines for face-centered velocity components only.
+        // This fills ghost cells/faces from
+        //     1) coarser level if lev > 0
+        //     2) physical boundaries
+        //     3) other grids at the same level
+        // **************************************************************************************
         FillIntermediatePatch(level, time, xvel_new, 0, 1, Vars::xvel);
         FillIntermediatePatch(level, time, yvel_new, 0, 1, Vars::yvel);
         FillIntermediatePatch(level, time, zvel_new, 0, 1, Vars::zvel);
@@ -220,11 +227,10 @@ void ERF::erf_advance(int level,
                            xvel_new.nGrowVect());
     };
 
-    interpolate_coarse_fine_faces(state_old);
     apply_bcs(state_old, time);
     cons_to_prim(state_old[IntVar::cons], S_prim);
 
-    // **************************************************************************************
+    // ***************************************************************************************
     // Setup the integrator
     // **************************************************************************************
     TimeIntegrator<Vector<MultiFab> > lev_integrator(state_old);
@@ -260,10 +266,10 @@ void ERF::erf_advance(int level,
     Real reltol          = 1e-4;
     Real abstol          = 1e-4;
     Real t               = time;
-    Real tout            = time+dt;
-    Real hfixed          = dt;
+    Real tout            = time+dt_advance;
+    Real hfixed          = dt_advance;
     Real m               = 2;
-    Real hfixed_mri      = dt / m;
+    Real hfixed_mri      = dt_advance / m;
     N_Vector nv_cons     = amrex::sundials::N_VMake_MultiFab(length, &state_old[IntVar::cons]);
     N_Vector nv_xmom     = amrex::sundials::N_VMake_MultiFab(length_mx, &state_old[IntVar::xmom]);
     N_Vector nv_ymom     = amrex::sundials::N_VMake_MultiFab(length_my, &state_old[IntVar::ymom]);
@@ -288,11 +294,11 @@ void ERF::erf_advance(int level,
 
     //Create function lambdas
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
-                       const Vector<MultiFab>& S_data, const Real time) {
+                       const Vector<MultiFab>& S_data, const Real /*time*/) {
         erf_rhs(level, S_rhs, S_data, S_prim,
                 xvel_new, yvel_new, zvel_new,
                 source, advflux, diffflux,
-                fine_geom, dt, ifr, solverChoice,
+                fine_geom, ifr, solverChoice,
                 domain_bcs_type_d,
                 dptr_dens_hse, dptr_pres_hse,
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
@@ -301,22 +307,15 @@ void ERF::erf_advance(int level,
 
     auto rhs_fun_fast = [&](      Vector<MultiFab>& S_rhs,
                             const Vector<MultiFab>& S_stage_data,
-                            const Vector<MultiFab>& S_data, const Real time) {
+                            const Vector<MultiFab>& S_data, const Real /*time*/) {
         erf_fast_rhs(level, S_rhs, S_stage_data, S_data,
                      advflux, fine_geom, ifr, solverChoice,
                      dptr_dens_hse, dptr_pres_hse);
     };
 
-    auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time) {
-        // Apply BC on updated state and momentum data
-        // for (auto& mfp : S_data) {
-        //     mfp.FillBoundary(fine_geom.periodicity());
-        // }
-
-        // TODO: we should interpolate coarse data in time first, so that this interplation
-        // in space is at the correct time indicated by the `time` function argument.
-        interpolate_coarse_fine_faces(S_data);
-        apply_bcs(S_data, time);
+    auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp)
+    {
+        apply_bcs(S_data, time_for_fp);
         cons_to_prim(S_data[IntVar::cons], S_prim);
     };
 
@@ -540,7 +539,7 @@ void ERF::erf_advance(int level,
     // **************************************************************************************
     // Integrate for a single timestep
     // **************************************************************************************
-    lev_integrator.advance(state_old, state_new, time, dt);
+    lev_integrator.advance(state_old, state_new, time, dt_advance);
     }
 
 #ifdef AMREX_USE_SUNDIALS
@@ -585,10 +584,10 @@ void ERF::erf_advance(int level,
     std::swap(flux[2], state_new[IntVar::zflux]);
 
     // One final BC fill
-    FillIntermediatePatch(level, time+dt, cons_new, 0, Cons::NumVars, Vars::cons);
-    FillIntermediatePatch(level, time+dt, xvel_new, 0, 1, Vars::xvel);
-    FillIntermediatePatch(level, time+dt, yvel_new, 0, 1, Vars::yvel);
-    FillIntermediatePatch(level, time+dt, zvel_new, 0, 1, Vars::zvel);
+    FillIntermediatePatch(level, time+dt_advance, cons_new, 0, Cons::NumVars, Vars::cons);
+    FillIntermediatePatch(level, time+dt_advance, xvel_new, 0, 1, Vars::xvel);
+    FillIntermediatePatch(level, time+dt_advance, yvel_new, 0, 1, Vars::yvel);
+    FillIntermediatePatch(level, time+dt_advance, zvel_new, 0, 1, Vars::zvel);
 }
 
 #ifdef AMREX_USE_SUNDIALS
