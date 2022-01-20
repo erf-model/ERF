@@ -186,7 +186,9 @@ void ERF::erf_advance(int level,
         // ***************************************************************************************
         // Interpolate momentum from coarse faces to fine faces *only* on the coarse-fine boundary
         // ***************************************************************************************
-        ifr->interp(fmf,cmf_const,0,1);
+        if (level > 0) {
+            ifr->interp(fmf,cmf_const,0,1);
+        }
 
         // ***************************************************************************************
         // Call the FillPatch routines for cell-centered variables only.
