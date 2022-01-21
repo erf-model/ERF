@@ -690,9 +690,9 @@ If we set ``erf.molec_diff_type`` to ``Constant``, then
 
 If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 
-- the dynamic viscosity in the momentum equation is assumed to have the form :math:`\mu = \rho \alpha_M` 
-  where :math:`\alpha_M` is a momentum diffusivity constant with units of kinematic viscosity, calculated as 
-  ``erf.dynamicViscosity`` divided by ``erf.rho0_trans``; 
+- the dynamic viscosity in the momentum equation is assumed to have the form :math:`\mu = \rho \alpha_M`
+  where :math:`\alpha_M` is a momentum diffusivity constant with units of kinematic viscosity, calculated as
+  ``erf.dynamicViscosity`` divided by ``erf.rho0_trans``;
   this diffusivity is multiplied by the current density :math:`\rho` to form the coefficient in the momentum equation; and
 
 - ``erf.alpha_T`` is multiplied by the current density :math:`\rho` to form the coefficient for potential temperature, and
