@@ -690,8 +690,13 @@ If we set ``erf.molec_diff_type`` to ``Constant``, then
 
 If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 
-- ``erf.dynamicViscosity`` is divided by ``erf.rho0_trans`` and multiplied by :math:`\rho` to form the coefficient in the momentum equation, and
+- the dynamic viscosity in the momentum equation is assumed to have the form :math:`\mu = \rho \alpha_M` 
+  where :math:`\alpha_M` is a momentum diffusivity constant with units of kinematic viscosity, calculated as 
+  ``erf.dynamicViscosity`` divided by ``erf.rho0_trans``; 
+  this diffusivity is multiplied by the current density :math:`\rho` to form the coefficient in the momentum equation; and
+
 - ``erf.alpha_T`` is multiplied by the current density :math:`\rho` to form the coefficient for potential temperature, and
+
 - ``erf.alpha_C`` is multiplied by the current density :math:`\rho` to form the coefficient for an advected scalar.
 
 Forcing Terms
@@ -730,7 +735,7 @@ List of Parameters
 | **erf.use_coriolis**             | Include Coriolis  | true / false      | false       |
 |                                  | forcing           |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_rayleigh_damping **    | Include explicit  | true / false      | false       |
+| **erf.use_rayleigh_damping**     | Include explicit  | true / false      | false       |
 |                                  | Rayleigh damping  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 
