@@ -131,12 +131,9 @@ public:
                       MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                       MultiFab& source,
                       std::array< MultiFab, AMREX_SPACEDIM>& flux,
-                      const amrex::Geometry crse_geom,
                       const amrex::Geometry fine_geom,
-                      const amrex::IntVect ref_ratio,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
-                      const SolverChoice& solverChoice,
                       const amrex::Real* dptr_dens_hse,
                       const amrex::Real* dptr_pres_hse,
                       const amrex::Real* dptr_rayleigh_tau,
@@ -294,9 +291,6 @@ private:
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<BC, AMREX_SPACEDIM*2> phys_bc_type;
 
-    // Interpolater to use between levels
-    amrex::Interpolater* mapper = nullptr;
-
     int last_plot_file_step;
     int last_check_file_step;
     int plot_file_on_restart = 1;
@@ -334,7 +328,7 @@ private:
     amrex::Vector<std::string> plot_state_names;
     amrex::Vector<std::string> plot_deriv_names;
     const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
-    const amrex::Vector<std::string> cons_names {"density", "rhotheta", "rhoKE", "rhoadv_0"};
+    const amrex::Vector<std::string> cons_names {"density", "rhotheta", "rhoKE", "rhoadv_0", "rhoQv", "rhoQc"};
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "scalar",
                                                     "pres_hse", "dens_hse", "pert_pres", "pert_dens"};
 

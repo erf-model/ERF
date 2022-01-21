@@ -39,7 +39,7 @@ ComputeS33(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 inline Real
 ComputeS12(const int &i, const int &j, const int &k,
-           const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& w,
+           const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& /*w*/,
            const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
            const Box& domain, const amrex::BCRec* bc_ptr)
 {
@@ -69,7 +69,7 @@ ComputeS12(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 inline Real
 ComputeS13(const int &i, const int &j, const int &k,
-           const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& w,
+           const Array4<Real const>& u, const Array4<Real const>& /*v*/, const Array4<Real const>& w,
            const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
            const Box& domain, const amrex::BCRec* bc_ptr)
 {
@@ -100,7 +100,7 @@ ComputeS13(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 inline Real
 ComputeS23(const int &i, const int &j, const int &k,
-           const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& w,
+           const Array4<Real const>& /*u*/, const Array4<Real const>& v, const Array4<Real const>& w,
            const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
            const Box& domain, const amrex::BCRec* bc_ptr)
 {

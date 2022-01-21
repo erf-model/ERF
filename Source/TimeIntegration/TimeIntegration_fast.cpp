@@ -21,9 +21,6 @@ void erf_fast_rhs (int level,
 {
     BL_PROFILE_VAR("erf_rhs()",erf_rhs);
 
-    int klo = geom.Domain().smallEnd()[2];
-    int khi = geom.Domain().bigEnd()[2];
-
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const auto& ba = S_data[IntVar::cons].boxArray();
     const auto& dm = S_data[IntVar::cons].DistributionMap();

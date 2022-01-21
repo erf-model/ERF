@@ -113,9 +113,6 @@ ERF::ERF ()
     //     those types into what they mean for each variable
     init_bcs();
 
-    // For now we hard-wire interpolation type between levels
-    mapper = &cell_cons_interp;
-
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -287,7 +284,6 @@ ERF::InitData ()
 
         // We set this here so that we don't over-write the checkpoint file we just started from
         last_check_file_step = istep[0];
-
     }
 
     // Initialize flux registers (whether we start from scratch or restart)
@@ -439,10 +435,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
 
-    FillIntermediatePatch(lev, time, lev_new[Vars::cons], 0, Cons::NumVars, Vars::cons);
-    FillIntermediatePatch(lev, time, lev_new[Vars::xvel], 0, 1, Vars::xvel);
-    FillIntermediatePatch(lev, time, lev_new[Vars::yvel], 0, 1, Vars::yvel);
-    FillIntermediatePatch(lev, time, lev_new[Vars::zvel], 0, 1, Vars::zvel);
+    // Fill ghost cells/faces
+    FillPatch(lev, time, lev_new[Vars::cons], 0, Cons::NumVars, Vars::cons);
+    FillPatch(lev, time, lev_new[Vars::xvel], 0, 1, Vars::xvel);
+    FillPatch(lev, time, lev_new[Vars::yvel], 0, 1, Vars::yvel);
+    FillPatch(lev, time, lev_new[Vars::zvel], 0, 1, Vars::zvel);
 
     // Copy from new into old just in case
     int ngs   = lev_new[Vars::cons].nGrow();
@@ -452,7 +449,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
     MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,ngvel);
 }
-
 
 // read in some parameters from inputs file
 void

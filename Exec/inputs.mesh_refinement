@@ -1,5 +1,14 @@
+
+# This file is meant to serve as an example of how to specify parameters
+#    that are only relevant when running with mesh refinement
+
 # REFINEMENT / REGRIDDING
-amr.max_level       = 2           # maximum level number allowed
+amr.max_level       = 1           # maximum level number allowed
 amr.ref_ratio_vect  = 2 2 1 3 3 1 # refinement ratio written as lev0_x lev0_y lev0_z lev1_x lev1_y lev1_z ...
 amr.regrid_int      = 2 2 2 2     # how often to regrid
 amr.n_error_buf     = 2 2 2 2     # number of buffer cells in error est
+
+# How to specify a region for static refinement
+amr.refinement_indicators = box1
+amr.box1.in_box_lo = .15 .25
+amr.box1.in_box_hi = .55 .65

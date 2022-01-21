@@ -20,7 +20,7 @@ void erf_rhs (int level,
               MultiFab& source,
               std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
               std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
-              const amrex::Geometry geom, const amrex::Real dt,
+              const amrex::Geometry geom,
                     amrex::InterpFaceRegister* ifr,
               const SolverChoice& solverChoice,
               const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
@@ -38,8 +38,6 @@ void erf_rhs (int level,
 
     const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-    const auto& ba = S_data[IntVar::cons].boxArray();
-    const auto& dm = S_data[IntVar::cons].DistributionMap();
 
     // *************************************************************************
     // Set gravity as a vector
@@ -173,7 +171,7 @@ void erf_rhs (int level,
 
             if (l_use_deardorff && n == RhoKE_comp)
             {
-                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,solverChoice,domain,bc_ptr)
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,domain,bc_ptr)
                                      +  cell_data(i,j,k,Rho_comp) * l_C_e *
                     std::pow(cell_prim(i,j,k,PrimKE_comp),1.5) / l_Delta;
             }

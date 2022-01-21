@@ -159,7 +159,6 @@ ComputeTKEProduction (const int &i, const int &j, const int &k,
                       const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                       const Array4<Real>& K_LES,
                       const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                      const SolverChoice &solverChoice,
                       const Box& domain, const amrex::BCRec* bc_ptr)
 {
     amrex::Real TKE_production = K_LES(i,j,k) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
