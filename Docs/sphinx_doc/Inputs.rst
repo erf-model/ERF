@@ -735,7 +735,7 @@ List of Parameters
 | **erf.use_coriolis**             | Include Coriolis  | true / false      | false       |
 |                                  | forcing           |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
-| **erf.use_rayleigh_damping**    | Include explicit  | true / false      | false       |
+| **erf.use_rayleigh_damping**     | Include explicit  | true / false      | false       |
 |                                  | Rayleigh damping  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 
