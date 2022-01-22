@@ -114,42 +114,56 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.growntilebox(1);
-        const Array4<Real> &K = eddyViscosity.array(mfi);
 
-        // Fill values outside the domain by straightforwad extrapolation.  Note this must be
-        // done separately from the loop above so all the interior values are filled.  We also
-        // do this in three separate loops so that we don't have any race conditions.
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (i < dom_lo.x) {
-                if (j < dom_lo.y)
-                    K(i,j,k,0) = K(dom_lo.x,dom_lo.y,k,0);
-                else if (j > dom_hi.y)
-                    K(i,j,k,0) = K(dom_lo.x,dom_hi.y,k,0);
-                else
-                   K(i,j,k,0) = K(dom_lo.x,j,k,0);
-            } else if (i > dom_hi.x) {
-                if (j < dom_lo.y)
-                    K(i,j,k,0) = K(dom_hi.x,dom_lo.y,k,0);
-                else if (j > dom_hi.y)
-                    K(i,j,k,0) = K(dom_hi.x,dom_hi.y,k,0);
-                else
-                    K(i,j,k,0) = K(dom_hi.x,j,k,0);
-            } else if (j < dom_lo.y) {
-                    K(i,j,k,0) = K(i,dom_lo.y,k,0);
-            } else if (j > dom_hi.y) {
-                    K(i,j,k,0) = K(i,dom_hi.y,k,0);
-            }
-        });
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            if (k < dom_lo.z) K(i,j,k,0) = K(i,j,dom_lo.z,0);
-            if (k > dom_hi.z) K(i,j,k,0) = K(i,j,dom_hi.z,0);
-        });
+        if (!(domain.contains(bx))) {
+            // Fill values outside the domain by straightforward extrapolation.  Note this must be
+            // done separately from the loop above so all the interior values are filled.  We also
+            // do this in three separate loops so that we don't have any race conditions.
+            const Array4<Real> &K = eddyViscosity.array(mfi);
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (i < dom_lo.x) {
+                    if (j < dom_lo.y)
+                        K(i,j,k,0) = K(dom_lo.x,dom_lo.y,k,0);
+                    else if (j > dom_hi.y)
+                        K(i,j,k,0) = K(dom_lo.x,dom_hi.y,k,0);
+                    else
+                       K(i,j,k,0) = K(dom_lo.x,j,k,0);
+                } else if (i > dom_hi.x) {
+                    if (j < dom_lo.y)
+                        K(i,j,k,0) = K(dom_hi.x,dom_lo.y,k,0);
+                    else if (j > dom_hi.y)
+                        K(i,j,k,0) = K(dom_hi.x,dom_hi.y,k,0);
+                    else
+                        K(i,j,k,0) = K(dom_hi.x,j,k,0);
+                } else if (j < dom_lo.y) {
+                        K(i,j,k,0) = K(i,dom_lo.y,k,0);
+                } else if (j > dom_hi.y) {
+                        K(i,j,k,0) = K(i,dom_hi.y,k,0);
+                }
+           });
+        }
     } //mfi
 
     // Fill interior ghost cells and any ghost cells outside a periodic domain
     eddyViscosity.FillBoundary(geom.periodicity());
+
+    // Now extend to low and high in vertical (assuming not periodic in z)
+    if (!geom.isPeriodic(2))
+    {
+        for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+            const Box &bx = mfi.growntilebox(1);
+
+            if (!(domain.contains(bx))) {
+                const Array4<Real> &K = eddyViscosity.array(mfi);
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (k < dom_lo.z) K(i,j,k,0) = K(i,j,dom_lo.z,0);
+                        if (k > dom_hi.z) K(i,j,k,0) = K(i,j,dom_hi.z,0);
+                });
+            }
+        } //mfi
+    }
 
 } // function call
 
