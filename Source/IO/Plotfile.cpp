@@ -275,7 +275,7 @@ ERF::WritePlotFile () const
         MultiFab::Copy(mf2[0],mf[0],0,0,mf[0].nComp(),0);
 
         // Define a new multi-level array of Geometry's so that we pass the new "domain" at lev > 0
-        Array<int,AMREX_SPACEDIM> periodicity = 
+        Array<int,AMREX_SPACEDIM> periodicity =
                      {Geom()[0].isPeriodic(0),Geom()[0].isPeriodic(1),Geom()[0].isPeriodic(2)};
         g2[0].define(Geom()[0].Domain(),&(Geom()[0].ProbDomain()),0,periodicity.data());
 
