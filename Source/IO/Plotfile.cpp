@@ -1,5 +1,6 @@
 #include <EOS.H>
 #include <ERF.H>
+#include "AMReX_Interp_3D_C.H"
 
 // get plotfile name
 std::string
@@ -250,13 +251,73 @@ ERF::WritePlotFile () const
     const std::string& plotfilename = PlotFileName(istep[0]);
     amrex::Print() << "Writing plotfile " << plotfilename << "\n";
 
-    if (plotfile_type == "amrex") {
-        amrex::WriteMultiLevelPlotfile(plotfilename, finest_level+1, GetVecOfConstPtrs(mf), varnames,
-                                       Geom(), t_new[0], istep, refRatio());
-        writeJobInfo(plotfilename);
+    if (finest_level == 0)
+    {
+        if (plotfile_type == "amrex") {
+            amrex::WriteMultiLevelPlotfile(plotfilename, finest_level+1, GetVecOfConstPtrs(mf), varnames,
+                                           Geom(), t_new[0], istep, refRatio());
+            writeJobInfo(plotfilename);
 #ifdef ERF_USE_NETCDF
-    } else {
-         writeNCPlotFile(plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
+        } else {
+             writeNCPlotFile(plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
 #endif
-    }
+        }
+
+    } else {
+
+        amrex::Vector<IntVect>   r2(finest_level);
+        amrex::Vector<Geometry>  g2(finest_level+1);
+        amrex::Vector<MultiFab> mf2(finest_level+1);
+
+        mf2[0].define(grids[0], dmap[0], ncomp_mf, 0);
+
+        // Copy level 0 as is
+        MultiFab::Copy(mf2[0],mf[0],0,0,mf[0].nComp(),0);
+
+        // Define a new multi-level array of Geometry's so that we pass the new "domain" at lev > 0
+        Array<int,AMREX_SPACEDIM> periodicity =
+                     {Geom()[0].isPeriodic(0),Geom()[0].isPeriodic(1),Geom()[0].isPeriodic(2)};
+        g2[0].define(Geom()[0].Domain(),&(Geom()[0].ProbDomain()),0,periodicity.data());
+
+        r2[0] = IntVect(1,1,ref_ratio[0][0]);
+        for (int lev = 1; lev <= finest_level; ++lev) {
+            if (lev > 1) {
+                r2[lev-1][0] = 1;
+                r2[lev-1][1] = 1;
+                r2[lev-1][2] = r2[lev-2][2] * ref_ratio[lev-1][0];
+            }
+
+            mf2[lev].define(amrex::refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
+
+            // Set the new problem domain
+            Box d2(Geom()[lev].Domain());
+            d2.refine(r2[lev-1]);
+
+            g2[lev].define(d2,&(Geom()[lev].ProbDomain()),0,periodicity.data());
+        }
+
+        // Do piecewise interpolation of mf into mf2
+        for (int lev = 1; lev <= finest_level; ++lev) {
+            for (MFIter mfi(mf2[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                pcinterp_interp(bx,mf2[lev].array(mfi), 0, mf[lev].nComp(), mf[lev].const_array(mfi),0,r2[lev-1]);
+            }
+        }
+
+        // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
+        amrex::Vector<IntVect> rr(finest_level);
+        for (int lev = 0; lev < finest_level; ++lev) {
+            rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
+        }
+
+        if (plotfile_type == "amrex") {
+            amrex::WriteMultiLevelPlotfile(plotfilename, finest_level+1, GetVecOfConstPtrs(mf2), varnames,
+                                           g2, t_new[0], istep, rr);
+            writeJobInfo(plotfilename);
+#ifdef ERF_USE_NETCDF
+        } else {
+             writeNCPlotFile(plotfilename, GetVecOfConstPtrs(mf2), varnames, istep, t_new[0]);
+#endif
+        }
+    } // end multi-level
 }
