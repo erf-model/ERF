@@ -591,9 +591,9 @@ This section is yet to be implemented in the code.
     K_{{M}_{i,j,k}} = 0.1\mathcal{l}e_{i,j,k}^{\frac{1}{2}}
     \end{array}
 
-For convective or neutral cases, :math:`\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1} <0`, :math:`\mathcal{l} = \Delta s = \sqrt[3]{\Delta x \Delta y \Delta z}`
+For convective or neutral cases, :math:`\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1} < 0`, :math:`\mathcal{l} = \Delta s = \sqrt[3]{\Delta x \Delta y \Delta z}`
 
-For stable cases, :math:`\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1} <0`, :math:`\mathcal{l} = 0.76 e^{\frac{1}{2}}_{i,j,k} [\frac{g}{\Theta} \frac{1}{2 \Delta z}(\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1})]`
+For stable cases, :math:`\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1} > 0`, :math:`\mathcal{l} = 0.76 e^{\frac{1}{2}}_{i,j,k} [\frac{g}{\Theta} \frac{1}{2 \Delta z}(\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1})]`
 
 .. math::
 
