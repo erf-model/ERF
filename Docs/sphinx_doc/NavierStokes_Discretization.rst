@@ -543,14 +543,14 @@ Energy Conservation- Subgrid heat flux
 .. math::
 
    \begin{align}
-   \left( \rho \theta \right)_{i,j,k}^{n + 1}  =  \left( \rho \theta \right)_{i,j,k}^{n}  - \Delta t & \\
-      & \left\{   \frac{1}{\Delta x^2} \left\lbrack {
+   \left( \rho \theta \right)_{i,j,k}^{n + 1}  =  \left( \rho \theta \right)_{i,j,k}^{n}  - & \\
+      & \Delta t \left\{   \frac{1}{\Delta x^2} \left\lbrack  
                  K_{i+\frac{1}{2},j,k} (\theta_{i+1,j,k}^{n} - \theta_{i  ,j,k}^{n}) -
                  K_{i-\frac{1}{2},j,k} (\theta_{i  ,j,k}^{n} - \theta_{i-1,j,k}^{n}) \right\rbrack \right.  \\
               &         + \frac{1}{\Delta y^2} \left\lbrack
                  K_{i,j+\frac{1}{2},k} (\theta_{i,j+1,k}^{n} - \theta_{i,j  ,k}^{n}) -
                  K_{i,j-\frac{1}{2},k} (\theta_{i,j  ,k}^{n} - \theta_{i,j-1,k}^{n})  \right\rbrack \right.  \\
-              &         + \frac{1}{\Delta z^2} \left\lbrack
+              &  \left. + \frac{1}{\Delta z^2} \left\lbrack
                  K_{i,j,k-\frac{1}{2}} (\theta_{i,j,k+1}^{n} - \theta_{i,j,k  }^{n})
                  K_{i,j,k-\frac{1}{2}} (\theta_{i,j,k  }^{n} - \theta_{i,j,k-1}^{n}) \right\rbrack \right\}
    \end{align}
