@@ -540,8 +540,6 @@ W Momentum - subfilter stress divergence
 Energy Conservation- Subgrid heat flux
 --------------------------------------
 
-This section is yet to be implemented in the code.
-
 .. math::
 
    \begin{align}
@@ -551,22 +549,20 @@ This section is yet to be implemented in the code.
               & + \left.  \frac{1}{\Delta z} \left\lbrack {\vartheta_{3}}_{i,j,k + \frac{1}{2}}^{n} - {\vartheta_{3}}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\}
    \end{align}
 
+where
+
 .. math::
 
    \begin{array}{lcl}
-   \vartheta_{1i,j,k}               & = & K_{i,j,k}\frac{1}{2\Delta x}\ \left\lbrack \theta_{i + 1,j,k}^{n} - \theta_{i - 1,j,k}^{n} \right\rbrack \\
-   \vartheta_{2i,j,k}               & = & K_{i,j,k}\frac{1}{2\Delta y}\ \left\lbrack \theta_{i,j + 1,k}^{n} - \theta_{i,j - 1,k}^{n} \right\rbrack \\
-   \vartheta_{3i,jk}                & = & K_{i,j,k}\frac{1}{2\Delta z}\ \left\lbrack \theta_{i,j,k + 1}^{n} - \theta_{i,j,k - 1}^{n} \right\rbrack \\
-   \vartheta_{1i + \frac{1}{2},j,k} & = & \frac{1}{2}\left( \vartheta_{1i + 1,j,k} + \vartheta_{1i,j,k} \right) \\
-   \vartheta_{1i - \frac{1}{2},j,k} & = & \frac{1}{2}\left( \vartheta_{1i,j,k}     + \vartheta_{1i - 1,j,k} \right) \\
-   \vartheta_{1i,j + \frac{1}{2},k} & = & \frac{1}{2}\left( \vartheta_{1i,j + 1,k} + \vartheta_{1i,j,k} \right) \\
-   \vartheta_{1i,j - \frac{1}{2},k} & = & \frac{1}{2}\left( \vartheta_{1i,j,k}     + \vartheta_{1i1,j - 1,k} \right) \\
-   \vartheta_{1i,j,k + \frac{1}{2}} & = & \frac{1}{2}\left( \vartheta_{1i,j,k +}   + \vartheta_{1i,j,k} \right) \\
-   \vartheta_{1i,j,k - \frac{1}{2}} & = & \frac{1}{2}\left( \vartheta_{1i,j,k}     + \vartheta_{1i1,j,k - 1} \right)
+   \vartheta_{1,i + \frac{1}{2},j,k} & = & K_{i+\frac{1}{2},j,k} (\theta_{i+1,j,k}^{n} - \theta_{i  ,j,k}^{n}) \\
+   \vartheta_{1,i - \frac{1}{2},j,k} & = & K_{i-\frac{1}{2},j,k} (\theta_{i  ,j,k}^{n} - \theta_{i-1,j,k}^{n}) \\
+   \vartheta_{2,i,j + \frac{1}{2},k} & = & K_{i,j+\frac{1}{2},k} (\theta_{i,j+1,k}^{n} - \theta_{i,j  ,k}^{n}) \\
+   \vartheta_{2,i,j - \frac{1}{2},k} & = & K_{i,j-\frac{1}{2},k} (\theta_{i,j  ,k}^{n} - \theta_{i,j-1,k}^{n}) \\
+   \vartheta_{3,i,j,k + \frac{1}{2}} & = & K_{i,j,k-\frac{1}{2}} (\theta_{i,j,k+1}^{n} - \theta_{i,j,k  }^{n}) \\
+   \vartheta_{3,i,j,k - \frac{1}{2}} & = & K_{i,j,k-\frac{1}{2}} (\theta_{i,j,k  }^{n} - \theta_{i,j,k-1}^{n})
    \end{array}
 
-Subgrid scalar flux
-----------------------------------------
+Analogous formulae apply for the subgrid scalar flux.
 
 Prognostic Equation for Subgrid Kinetic Energy
 ----------------------------------------------
@@ -575,16 +571,16 @@ Prognostic Equation for Subgrid Kinetic Energy
 
    \begin{align}
    \left( \rho e \right)_{i,j,k}^{n + 1} = \left( \rho e \right)_{i,j,k}^{n} - & \\
-     \Delta t & \left\{  \frac{1}{\Delta x}\left\lbrack \left( \rho u \right)_{i+1,j,k}^{n}e_{i+\frac{1}{2},j,k}^{n} 
+     \Delta t & \left\{  \frac{1}{\Delta x}\left\lbrack \left( \rho u \right)_{i+1,j,k}^{n}e_{i+\frac{1}{2},j,k}^{n}
                                                       - \left( \rho u \right)_{i  ,j,k}^{n}e_{i-\frac{1}{2},j,k}^{n} \right\rbrack \right. \\
-              & +        \frac{1}{\Delta y}\left\lbrack \left( \rho v \right)_{i,j+1,k}^{n}e_{i,j+\frac{1}{2},k}^{n} 
+              & +        \frac{1}{\Delta y}\left\lbrack \left( \rho v \right)_{i,j+1,k}^{n}e_{i,j+\frac{1}{2},k}^{n}
                                                       - \left( \rho v \right)_{i,j  ,k}^{n}e_{i,j-\frac{1}{2},k}^{n} \right\rbrack \\
-              & +       \frac{1}{\Delta z}\left\lbrack \left( \rho w \right)_{i,j,k+1}^{n}e_{i,j,k+\frac{1}{2}}^{n} 
+              & +       \frac{1}{\Delta z}\left\lbrack \left( \rho w \right)_{i,j,k+1}^{n}e_{i,j,k+\frac{1}{2}}^{n}
                                                      - \left( \rho w \right)_{i,j,k  }^{n}e_{i,j,k-\frac{1}{2}}^{n} \right\rbrack  \\
-              & + \left. \rho_{i,j,k} \left( \frac{g}{\Theta}\vartheta_{3} 
-                                           - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}} 
-                                           - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} 
-                                           - \epsilon \right) \right\}
+              & + \left. \rho_{i,j,k} K_H \frac{g}{\Theta} \frac{\partial\theta}{\partial z}
+                        - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}}
+                        - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}}
+                        - \rho_{i,j,k} C_{\epsilon} \frac{\left( e_{i,j,k} \right)^{\frac{3}{2}}}{\mathcal{l}}  \right\}
    \end{align}
 
 where
@@ -592,7 +588,7 @@ where
 .. math::
 
    \begin{array}{l}
-   \vartheta_{3} = K_{H}\frac{\partial\theta}{\partial z} \\
+   C_{\epsilon} = 0.19 + 0.51\frac{\mathcal{l}}{\Delta s} \\
     K_{H}        = \left( 1 + 2\frac{\mathcal{l}}{\Delta s} \right)K_{M} \\
     K_{M}        = 0.1  \mathcal{l}  e^{\frac{1}{2}}
     \end{array}
@@ -613,32 +609,20 @@ The second to last term on the right hand side takes the form
 .. math::
 
    \begin{align}
-   \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} & = \\
-          K_{i,j,k} & \left\{  \frac{1}{2\Delta x}\left\lbrack e_{i + 1,j,k}^{n} - e_{i - 1,j,k}^{n} \right\rbrack \right. \\
-                    &        + \frac{1}{2\Delta y}\left\lbrack e_{i,j + 1,k}^{n} - e_{i,j - 1,k}^{n} \right\rbrack  \\
-                    & + \left. \frac{1}{2\Delta z}\left\lbrack e_{i,j,k + 1}^{n} - e_{i,j,k - 1}^{n} \right\rbrack \right\}
+  -\frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} & = \\
+          K_{i,j,k} & \left\{  \frac{1}{2\Delta x}\left\lbrack e_{i+1,j,k}^{n} - 2 e_{i,j,k} + e_{i-1,j,k}^{n} \right\rbrack \right. \\
+                    &        + \frac{1}{2\Delta y}\left\lbrack e_{i,j 1,k}^{n} - 2 e_{i,j,k} + e_{i,j-1,k}^{n} \right\rbrack  \\
+                    & + \left. \frac{1}{2\Delta z}\left\lbrack e_{i,j,k+1}^{n} - 2 e_{i,j,k} + e_{i,j,k-1}^{n} \right\rbrack \right\}
    \end{align}
-
-while :math:`\epsilon` is defined as
-
-.. math::
-
-   \epsilon = C_{\epsilon} \frac{\left( e_{i,j,k} \right)^{\frac{3}{2}}}{\mathcal{l}}
-
-where
-
-.. math::
-
-   C_{\epsilon} = 0.19 + 0.51\frac{\mathcal{l}}{\Delta s}
 
 Finally,
 
 .. math::
 
    \begin{align}
-   \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}} & = KS_{mn}\frac{\partial u_{m}}{\partial x_{n}} \\
-                                                  & = KS_{mn}S_{mn} \\
-                                                  & = K(S_{11}^{2} + S_{22}^{2} + S_{33}^{2} + S_{12}^{2} + S_{13}^{2} + S_{23}^{2} + S_{21}^{2} + S_{31}^{2} + S_{32}^{2})
+   \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}} & = K S_{mn}\frac{\partial u_{m}}{\partial x_{n}} \\
+                                                  & = K S_{mn}S_{mn} \\
+                                                  & = K (S_{11}^{2} + S_{22}^{2} + S_{33}^{2} + S_{12}^{2} + S_{13}^{2} + S_{23}^{2} + S_{21}^{2} + S_{31}^{2} + S_{32}^{2})
    \end{align}
 
 
