@@ -177,7 +177,7 @@ void erf_rhs (int level,
                 Real E         = cell_prim(i,j,k,PrimKE_comp);
                 Real delta_s   = std::sqrt(dx[0]*dx[0]+dx[1]*dx[1]+dx[2]*dx[2]);
                 Real length;
-                if (dtheta <= 0.) {
+                if (dtheta_dz <= 0.) {
                    length = delta_s;
                 } else {
                    length = 0.76*std::sqrt(E)*(grav_gpu[2]/theta)*dtheta_dz;
