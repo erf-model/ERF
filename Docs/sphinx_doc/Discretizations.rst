@@ -609,7 +609,7 @@ The second to last term on the right hand side takes the form
                  K_{i,j+\frac{1}{2},k} (e_{i,j+1,k}^{n} - e_{i,j  ,k}^{n}) -
                  K_{i,j-\frac{1}{2},k} (e_{i,j  ,k}^{n} - e_{i,j-1,k}^{n})  \right\rbrack + \\
               &  \frac{1}{\Delta z^2} \left\lbrack
-                 K_{i,j,k-\frac{1}{2}} (e_{i,j,k+1}^{n} - e_{i,j,k  }^{n})
+                 K_{i,j,k-\frac{1}{2}} (e_{i,j,k+1}^{n} - e_{i,j,k  }^{n}) -
                  K_{i,j,k-\frac{1}{2}} (e_{i,j,k  }^{n} - e_{i,j,k-1}^{n}) \right\rbrack
    \end{align}
 
