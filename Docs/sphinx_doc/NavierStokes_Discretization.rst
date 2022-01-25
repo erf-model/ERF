@@ -594,7 +594,7 @@ where
    \begin{array}{l}
    \vartheta_{3} = K_{H}\frac{\partial\theta}{\partial z} \\
     K_{H}        = \left( 1 + 2\frac{\mathcal{l}}{\Delta s} \right)K_{M} \\
-    K_{M}        = 0.1 /; \mathcal{l} /; e^{\frac{1}{2}}
+    K_{M}        = 0.1  \mathcal{l}  e^{\frac{1}{2}}
     \end{array}
 
 For convective or neutral cases, :math:`\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1} < 0`, :math:`\mathcal{l} = \Delta s = \sqrt[3]{\Delta x \Delta y \Delta z}`
