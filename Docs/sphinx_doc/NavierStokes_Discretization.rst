@@ -543,24 +543,17 @@ Energy Conservation- Subgrid heat flux
 .. math::
 
    \begin{align}
-   \left( \rho \theta \right)_{i,j,k}^{n + 1}  =  \left( \rho \theta \right)_{i,j,k}^{n}  - & \\
-     \Delta t & \left\{   \frac{1}{\Delta x} \left\lbrack {\vartheta_{1}}_{i + \frac{1}{2},j,k}^{n} - {\vartheta_{1}}_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right.  \\
-              &         + \frac{1}{\Delta y} \left\lbrack {\vartheta_{2}}_{i,j + \frac{1}{2},k}^{n} - {\vartheta_{2}}_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-              & + \left.  \frac{1}{\Delta z} \left\lbrack {\vartheta_{3}}_{i,j,k + \frac{1}{2}}^{n} - {\vartheta_{3}}_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\}
+   \left( \rho \theta \right)_{i,j,k}^{n + 1}  =  \left( \rho \theta \right)_{i,j,k}^{n}  - \Delta t & \\
+      & \left\{   \frac{1}{\Delta x^2} \left\lbrack {
+                 K_{i+\frac{1}{2},j,k} (\theta_{i+1,j,k}^{n} - \theta_{i  ,j,k}^{n}) -
+                 K_{i-\frac{1}{2},j,k} (\theta_{i  ,j,k}^{n} - \theta_{i-1,j,k}^{n}) \right\rbrack \right.  \\
+              &         + \frac{1}{\Delta y^2} \left\lbrack
+                 K_{i,j+\frac{1}{2},k} (\theta_{i,j+1,k}^{n} - \theta_{i,j  ,k}^{n}) -
+                 K_{i,j-\frac{1}{2},k} (\theta_{i,j  ,k}^{n} - \theta_{i,j-1,k}^{n})  \right\rbrack \right.  \\
+              &         + \frac{1}{\Delta z^2} \left\lbrack
+                 K_{i,j,k-\frac{1}{2}} (\theta_{i,j,k+1}^{n} - \theta_{i,j,k  }^{n})
+                 K_{i,j,k-\frac{1}{2}} (\theta_{i,j,k  }^{n} - \theta_{i,j,k-1}^{n}) \right\rbrack \right\}
    \end{align}
-
-where
-
-.. math::
-
-   \begin{array}{lcl}
-   \vartheta_{1,i + \frac{1}{2},j,k} & = & K_{i+\frac{1}{2},j,k} (\theta_{i+1,j,k}^{n} - \theta_{i  ,j,k}^{n}) \\
-   \vartheta_{1,i - \frac{1}{2},j,k} & = & K_{i-\frac{1}{2},j,k} (\theta_{i  ,j,k}^{n} - \theta_{i-1,j,k}^{n}) \\
-   \vartheta_{2,i,j + \frac{1}{2},k} & = & K_{i,j+\frac{1}{2},k} (\theta_{i,j+1,k}^{n} - \theta_{i,j  ,k}^{n}) \\
-   \vartheta_{2,i,j - \frac{1}{2},k} & = & K_{i,j-\frac{1}{2},k} (\theta_{i,j  ,k}^{n} - \theta_{i,j-1,k}^{n}) \\
-   \vartheta_{3,i,j,k + \frac{1}{2}} & = & K_{i,j,k-\frac{1}{2}} (\theta_{i,j,k+1}^{n} - \theta_{i,j,k  }^{n}) \\
-   \vartheta_{3,i,j,k - \frac{1}{2}} & = & K_{i,j,k-\frac{1}{2}} (\theta_{i,j,k  }^{n} - \theta_{i,j,k-1}^{n})
-   \end{array}
 
 Analogous formulae apply for the subgrid scalar flux.
 
@@ -577,7 +570,7 @@ Prognostic Equation for Subgrid Kinetic Energy
                                                       - \left( \rho v \right)_{i,j  ,k}^{n}e_{i,j-\frac{1}{2},k}^{n} \right\rbrack \\
               & +       \frac{1}{\Delta z}\left\lbrack \left( \rho w \right)_{i,j,k+1}^{n}e_{i,j,k+\frac{1}{2}}^{n}
                                                      - \left( \rho w \right)_{i,j,k  }^{n}e_{i,j,k-\frac{1}{2}}^{n} \right\rbrack  \\
-              & + \left. \rho_{i,j,k} K_H \frac{g}{\Theta} \frac{\partial\theta}{\partial z}
+              & + \left. \rho_{i,j,k} K_H \frac{g}{\theta_{i,j,k}} (\frac{\partial\theta}{\partial z})_{i,j,k}
                         - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}}
                         - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}}
                         - \rho_{i,j,k} C_{\epsilon} \frac{\left( e_{i,j,k} \right)^{\frac{3}{2}}}{\mathcal{l}}  \right\}
