@@ -570,7 +570,6 @@ Subgrid scalar flux
 
 Prognostic Equation for Subgrid Kinetic Energy
 ----------------------------------------------
-This section is yet to be implemented in the code.
 
 .. math::
 
@@ -578,37 +577,32 @@ This section is yet to be implemented in the code.
    \left( \rho e \right)_{i,j,k}^{n + 1} = \left( \rho e \right)_{i,j,k}^{n} - & \\
      \Delta t & \left\{  \frac{1}{\Delta x}\left\lbrack \left( \rho u \right)_{i + 1,j,k}^{n}e_{i + \frac{1}{2},j,k}^{n} - \left( \rho u \right)_{i,j,k}^{n}e_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right. \\
               & +        \frac{1}{\Delta y}\left\lbrack \left( \rho v \right)_{i,j + 1,k}^{n}e_{i,j + \frac{1}{2},k}^{n} - \left( \rho v \right)_{i,j,k}^{n}e_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-              & + \left. \frac{1}{\Delta z}\left\lbrack \left( \rho w \right)_{i,j,k + 1}^{n}e_{i,j,k + \frac{1}{2}}^{n} - \left( \rho w \right)_{i,j,k}^{n}e_{i,j,k - \frac{1}{2}}^{n} \right\rbrack \right\} \\
-              & + \frac{g}{\Theta}\vartheta_{3} - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}} - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} - \epsilon
+              & + \left. \frac{1}{\Delta z}\left\lbrack \left( \rho w \right)_{i,j,k + 1}^{n}e_{i,j,k + \frac{1}{2}}^{n} - \left( \rho w \right)_{i,j,k}^{n}e_{i,j,k - \frac{1}{2}}^{n} \right\rbrack  \\
+              & + \rho_{i,j,k} \left( \frac{g}{\Theta}\vartheta_{3} - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}} - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} - \epsilon \right) \right\}
    \end{align}
+
+where
 
 .. math::
 
    \begin{array}{l}
-   \vartheta_{i} = K_{H}\frac{\partial\theta}{\partial x_{i}} \\
-    K_{H} = \left( 1 + 2\frac{\mathcal{l}}{\Delta s} \right)K_{M} \\
-    K_{M} = 0.1\mathcal{l}e^{\frac{1}{2}} = 0.1\mathcal{l}e_{i,j,k}^{\frac{1}{2}} \\
-    K_{{M}_{i,j,k}} = 0.1\mathcal{l}e_{i,j,k}^{\frac{1}{2}}
+   \vartheta_{3} = K_{H}\frac{\partial\theta}{\partial z} \\
+    K_{H}        = \left( 1 + 2\frac{\mathcal{l}}{\Delta s} \right)K_{M} \\
+    K_{M}        = 0.1 /; \mathcal{l} /; e^{\frac{1}{2}}
     \end{array}
 
 For convective or neutral cases, :math:`\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1} < 0`, :math:`\mathcal{l} = \Delta s = \sqrt[3]{\Delta x \Delta y \Delta z}`
 
-For stable cases, :math:`\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1} > 0`, :math:`\mathcal{l} = 0.76 e^{\frac{1}{2}}_{i,j,k} [\frac{g}{\Theta} \frac{1}{2 \Delta z}(\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1})]`
+For stable cases, :math:`\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1} > 0`,
 
 .. math::
 
    \begin{align}
-   \mathcal{l} & = 0.76\ e^{\frac{1}{2}}\left( \frac{g}{\Theta}\frac{\partial\theta}{\partial z} \right) \\
-               & = 0.76e_{i,j,k}^{\frac{1}{2}}\left\lbrack \frac{g}{\Theta}\frac{1}{2\Delta z}\left( \theta_{i,j,k + 1}^{n} - \theta_{i,j,k - 1}^{n} \right) \right\rbrack
+   \mathcal{l} & = 0.76\ e^{\frac{1}{2}}\left( \frac{g}{\theta}\frac{\partial\theta}{\partial z} \right) \\
+               & = 0.76e_{i,j,k}^{\frac{1}{2}}\left\lbrack \frac{g}{\theta_{i,j,k}}\frac{1}{2\Delta z}\left( \theta_{i,j,k + 1}^{n} - \theta_{i,j,k - 1}^{n} \right) \right\rbrack
    \end{align}
 
-.. math::
-
-   \begin{align}
-   \vartheta_{1} = {K_{H}}_{i,j,k}\frac{1}{2\Delta x} \left\lbrack \theta_{i + 1,j,k}^{n} - \theta_{i - 1,j,k}^{n} \right\rbrack \\
-   \vartheta_{2} = {K_{H}}_{i,j,k}\frac{1}{2\Delta y} \left\lbrack \theta_{i,j + 1,k}^{n} - \theta_{i,j - 1,k}^{n} \right\rbrack \\
-   \vartheta_{3} = {K_{H}}_{i,j,k}\frac{1}{2\Delta z} \left\lbrack \theta_{i,j,k + 1}^{n} - \theta_{i,j,k - 1}^{n} \right\rbrack
-   \end{align}
+The second to last term on the right hand side takes the form
 
 .. math::
 
@@ -619,13 +613,19 @@ For stable cases, :math:`\theta^{n}_{i,j,k+1}-\theta^{n}_{i,j,k-1} > 0`, :math:`
                     & + \left. \frac{1}{2\Delta z}\left\lbrack e_{i,j,k + 1}^{n} - e_{i,j,k - 1}^{n} \right\rbrack \right\}
    \end{align}
 
+while :math:`\epsilon` is defined as
+
 .. math::
 
-   \epsilon = C_{\epsilon}\rho_{i,j,k}\frac{\left( e_{i,j,k} \right)^{\frac{3}{2}}}{\mathcal{l}}
+   \epsilon = C_{\epsilon} \frac{\left( e_{i,j,k} \right)^{\frac{3}{2}}}{\mathcal{l}}
+
+where
 
 .. math::
 
    C_{\epsilon} = 0.19 + 0.51\frac{\mathcal{l}}{\Delta s}
+
+Finally,
 
 .. math::
 
