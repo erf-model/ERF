@@ -575,10 +575,16 @@ Prognostic Equation for Subgrid Kinetic Energy
 
    \begin{align}
    \left( \rho e \right)_{i,j,k}^{n + 1} = \left( \rho e \right)_{i,j,k}^{n} - & \\
-     \Delta t & \left\{  \frac{1}{\Delta x}\left\lbrack \left( \rho u \right)_{i + 1,j,k}^{n}e_{i + \frac{1}{2},j,k}^{n} - \left( \rho u \right)_{i,j,k}^{n}e_{i - \frac{1}{2},j,k}^{n} \right\rbrack \right. \\
-              & +        \frac{1}{\Delta y}\left\lbrack \left( \rho v \right)_{i,j + 1,k}^{n}e_{i,j + \frac{1}{2},k}^{n} - \left( \rho v \right)_{i,j,k}^{n}e_{i,j - \frac{1}{2},k}^{n} \right\rbrack \\
-              & + \left. \frac{1}{\Delta z}\left\lbrack \left( \rho w \right)_{i,j,k + 1}^{n}e_{i,j,k + \frac{1}{2}}^{n} - \left( \rho w \right)_{i,j,k}^{n}e_{i,j,k - \frac{1}{2}}^{n} \right\rbrack  \\
-              & + \rho_{i,j,k} \left( \frac{g}{\Theta}\vartheta_{3} - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}} - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} - \epsilon \right) \right\}
+     \Delta t & \left\{  \frac{1}{\Delta x}\left\lbrack \left( \rho u \right)_{i+1,j,k}^{n}e_{i+\frac{1}{2},j,k}^{n} 
+                                                      - \left( \rho u \right)_{i  ,j,k}^{n}e_{i-\frac{1}{2},j,k}^{n} \right\rbrack \right. \\
+              & +        \frac{1}{\Delta y}\left\lbrack \left( \rho v \right)_{i,j+1,k}^{n}e_{i,j+\frac{1}{2},k}^{n} 
+                                                      - \left( \rho v \right)_{i,j  ,k}^{n}e_{i,j-\frac{1}{2},k}^{n} \right\rbrack \\
+              & +       \frac{1}{\Delta z}\left\lbrack \left( \rho w \right)_{i,j,k+1}^{n}e_{i,j,k+\frac{1}{2}}^{n} 
+                                                     - \left( \rho w \right)_{i,j,k  }^{n}e_{i,j,k-\frac{1}{2}}^{n} \right\rbrack  \\
+              & + \left. \rho_{i,j,k} \left( \frac{g}{\Theta}\vartheta_{3} 
+                                           - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}} 
+                                           - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} 
+                                           - \epsilon \right) \right\}
    \end{align}
 
 where
