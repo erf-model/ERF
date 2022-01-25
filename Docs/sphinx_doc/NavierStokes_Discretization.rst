@@ -572,7 +572,7 @@ Prognostic Equation for Subgrid Kinetic Energy
                                                      - \left( \rho w \right)_{i,j,k  }^{n}e_{i,j,k-\frac{1}{2}}^{n} \right\rbrack  \\
               & + \left. \rho_{i,j,k} K_H \frac{g}{\theta_{i,j,k}} (\frac{\partial\theta}{\partial z})_{i,j,k}
                         - \tau_{mn}\frac{\partial u_{m}}{\partial x_{n}}
-                        - \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}}
+                        + (\nabla \cdot (K \nabla e))_{i,j,k}
                         - \rho_{i,j,k} C_{\epsilon} \frac{\left( e_{i,j,k} \right)^{\frac{3}{2}}}{\mathcal{l}}  \right\}
    \end{align}
 
@@ -602,10 +602,15 @@ The second to last term on the right hand side takes the form
 .. math::
 
    \begin{align}
-  -\frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} & = \\
-          K_{i,j,k} & \left\{  \frac{1}{2\Delta x}\left\lbrack e_{i+1,j,k}^{n} - 2 e_{i,j,k} + e_{i-1,j,k}^{n} \right\rbrack \right. \\
-                    &        + \frac{1}{2\Delta y}\left\lbrack e_{i,j 1,k}^{n} - 2 e_{i,j,k} + e_{i,j-1,k}^{n} \right\rbrack  \\
-                    & + \left. \frac{1}{2\Delta z}\left\lbrack e_{i,j,k+1}^{n} - 2 e_{i,j,k} + e_{i,j,k-1}^{n} \right\rbrack \right\}
+              & \frac{1}{\Delta x^2} \left\lbrack
+                 K_{i+\frac{1}{2},j,k} (e_{i+1,j,k}^{n} - e_{i  ,j,k}^{n}) -
+                 K_{i-\frac{1}{2},j,k} (e_{i  ,j,k}^{n} - e_{i-1,j,k}^{n}) \right\rbrack + \\
+              &  \frac{1}{\Delta y^2} \left\lbrack
+                 K_{i,j+\frac{1}{2},k} (e_{i,j+1,k}^{n} - e_{i,j  ,k}^{n}) -
+                 K_{i,j-\frac{1}{2},k} (e_{i,j  ,k}^{n} - e_{i,j-1,k}^{n})  \right\rbrack + \\
+              &  \frac{1}{\Delta z^2} \left\lbrack
+                 K_{i,j,k-\frac{1}{2}} (e_{i,j,k+1}^{n} - e_{i,j,k  }^{n})
+                 K_{i,j,k-\frac{1}{2}} (e_{i,j,k  }^{n} - e_{i,j,k-1}^{n}) \right\rbrack
    \end{align}
 
 Finally,
