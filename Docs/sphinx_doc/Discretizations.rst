@@ -1,5 +1,5 @@
 #########################################
-Discretization of Navier-Stokes Equations
+Discretizations
 #########################################
 Last update: 2021-11-24
 

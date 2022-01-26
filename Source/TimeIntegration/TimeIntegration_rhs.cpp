@@ -184,10 +184,14 @@ void erf_rhs (int level,
                 Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
                 cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
-                // Add TKE production and dissipation terms
-                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,domain,bc_ptr)
-                                     +  cell_data(i,j,k,Rho_comp) * l_C_e *
-                    std::pow(cell_prim(i,j,k,PrimKE_comp),1.5) / length;
+                // Add TKE production
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,domain,bc_ptr);
+
+                // Add dissipation
+                if (std::abs(E) > 0.) {
+                    cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * l_C_e *
+                        std::pow(E,1.5) / length;
+                }
             }
 
             // Add source terms. TODO: Put this under an if condition when we implement source term
