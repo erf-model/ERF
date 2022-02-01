@@ -1,5 +1,5 @@
 # Note this setup file expects to be used after AMReX options are set and before any targets are linked
-set(SUNDIALS_MINIMUM_VERSION 5.8.0 CACHE INTERNAL "Minimum required SUNDIALS version")
+set(SUNDIALS_MINIMUM_VERSION 6.0 CACHE INTERNAL "Minimum required SUNDIALS version")
 
 # We first check if we can find an AMReX installation.
 # If so, we proceed with STANDALONE mode
@@ -108,7 +108,7 @@ else ()
      EXPORT sundials)
    endif ()
 
-   export(EXPORT sundials)
+   #export(EXPORT sundials)
    set(SUNDIALS_FOUND TRUE)
 
 endif ()
