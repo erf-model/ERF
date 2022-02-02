@@ -1,14 +1,16 @@
 # SETTING THE TIME STEP
+erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 erf.change_max     = 1.05    # multiplier by which dt can change in one time step
 erf.init_shrink    = 1.0     # scale back initial timestep
 
 # INTEGRATION
 ## integration.type can take on the following values:
-## 0 = Forward Euler
-## 1 = Explicit Runge Kutta
-integration.type = 1
+## 0 or "ForwardEuler" => Native AMReX Forward Euler integrator
+## 1 or "RungeKutta"   => Native AMReX Explicit Runge Kutta controlled by integration.rk.type
+## 2 or "SUNDIALS"     => SUNDIALS backend controlled by integration.sundials.strategy
+integration.type = RungeKutta
 
-## Explicit Runge-Kutta parameters
+## Native AMReX Explicit Runge-Kutta parameters
 #
 ## integration.rk.type can take the following values:
 ### 0 = User-specified Butcher Tableau
@@ -18,23 +20,12 @@ integration.type = 1
 ### 4 = RK4 Method
 integration.rk.type = 3
 
-## If using a user-specified Butcher Tableau, then
-## set nodes, weights, and table entries here:
-#
-## The Butcher Tableau is read as a flattened,
-## lower triangular matrix (but including the diagonal)
-## in row major format.
-integration.rk.weights = 1
-integration.rk.nodes = 0
-integration.rk.tableau = 0.0
-
 ## If using the SUNDIALS Submodule, then
 ## compile with USE_SUNDIALS=TRUE or AMReX_SUNDIALS=ON and
 ## set strategy here:
 #
 ## integration.sundials.strategy can take the following values:
-### NATIVE  = Runge Kutta method controlled by integration.rk
 ### ERK     = ERKStep from ARKode with SSPRK3 Method
 ### MRI     = MRIStep from ARKode with Explict Trapezoid Method
 ### MRITEST = MRIStep from ARKode modified to use no-op inner f0
-integration.sundials.strategy = NATIVE
+integration.sundials.strategy = ERK
