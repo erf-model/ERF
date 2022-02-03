@@ -7,7 +7,9 @@
 
 #include <AMReX_MultiFab.H>
 //#include "IO/NCInterface.H" // Uncomment when implementing NetCDF
-
+// Can use NetCDF to Multifab conversion from AMR-wind
+// Fore each MPI_rank, look for only it's (i, j, k) and fill them instead of filling entire Multifab by each MPI rank
+// Parallel NetCDF to have each MPI rank read a portion ...particle to mesh redistribution
 using namespace amrex;
 
 class Metgrid_Output {
