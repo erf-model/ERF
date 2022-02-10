@@ -84,6 +84,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
+    FillPatch(lev, time, S_old, 0, Cons::NumVars, Vars::cons);
     FillPatch(lev, time, U_old, 0, 1, Vars::xvel);
     FillPatch(lev, time, V_old, 0, 1, Vars::yvel);
     FillPatch(lev, time, W_old, 0, 1, Vars::zvel);
@@ -104,6 +105,12 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
         rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, W_crse.nGrow());
 
         VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,U_crse.nGrowVect());
+    }
+
+    // configure ABLMost params if used MostWall boundary condition
+    for (OrientationIter oitr; oitr; ++oitr) {
+        const Orientation face = oitr();
+        if (phys_bc_type[face] == BC::MOST && lev == 0) setupABLMost(lev);
     }
 
     const auto& local_ref_ratio = (lev > 0) ? ref_ratio[lev-1] : IntVect(1,1,1);

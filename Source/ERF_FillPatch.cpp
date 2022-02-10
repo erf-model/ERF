@@ -61,17 +61,17 @@ ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_
         bccomp = 0;
         mapper = &cell_cons_interp;
     }
-    else if (var_idx == Vars::xvel)
+    else if (var_idx == Vars::xvel || var_idx == Vars::xmom)
     {
         bccomp = NVAR;
         mapper = &face_linear_interp;
     }
-    else if (var_idx == Vars::yvel)
+    else if (var_idx == Vars::yvel || var_idx == Vars::ymom)
     {
         bccomp = NVAR+1;
         mapper = &face_linear_interp;
     }
-    else if (var_idx == Vars::zvel)
+    else if (var_idx == Vars::zvel || var_idx == Vars::zmom)
     {
         bccomp = NVAR+2;
         mapper = &face_linear_interp;
@@ -80,10 +80,10 @@ ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_
     if (lev == 0)
     {
         TimeInterpolatedData sdata = GetDataAtTime(lev, time);
-        Vector<MultiFab*> smf = {&sdata.get_var(var_idx)};
+        Vector<MultiFab*> smf = {&sdata.get_var(var_idx)}; // todo: if var_idx is momentum, then all instances of get_var(var_idx) will have to get velocity & cons and then convert to momentum
         Vector<Real> stime = {sdata.get_time()};
 
-        ERFPhysBCFunct physbc(geom[lev],domain_bcs_type,var_idx,sdata,m_bc_extdir_vals);
+        ERFPhysBCFunct physbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,sdata,m_bc_extdir_vals,solverChoice,get_most());
         amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
                                     geom[lev], physbc, bccomp);
 
@@ -97,8 +97,8 @@ ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_
         Vector<Real> ctime = {cdata.get_time()};
         Vector<Real> ftime = {fdata.get_time()};
 
-        ERFPhysBCFunct cphysbc(geom[lev-1],domain_bcs_type,var_idx,cdata,m_bc_extdir_vals);
-        ERFPhysBCFunct fphysbc(geom[lev  ],domain_bcs_type,var_idx,fdata,m_bc_extdir_vals);
+        ERFPhysBCFunct cphysbc(geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,get_most());
+        ERFPhysBCFunct fphysbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,get_most());
 
         amrex::FillPatchTwoLevels(mf, time, cmf, ctime, fmf, ftime,
                                   0, icomp, ncomp, geom[lev-1], geom[lev],
@@ -123,17 +123,17 @@ ERF::FillIntermediatePatch (int lev, Real time, MultiFab& mf, int icomp, int nco
         bccomp = 0;
         mapper = &cell_cons_interp;
     }
-    else if (var_idx == Vars::xvel)
+    else if (var_idx == Vars::xvel || var_idx == Vars::xmom)
     {
         bccomp = NVAR;
         mapper = &face_linear_interp;
     }
-    else if (var_idx == Vars::yvel)
+    else if (var_idx == Vars::yvel || var_idx == Vars::ymom)
     {
         bccomp = NVAR+1;
         mapper = &face_linear_interp;
     }
-    else if (var_idx == Vars::zvel)
+    else if (var_idx == Vars::zvel || var_idx == Vars::zmom)
     {
         bccomp = NVAR+2;
         mapper = &face_linear_interp;
@@ -146,7 +146,7 @@ ERF::FillIntermediatePatch (int lev, Real time, MultiFab& mf, int icomp, int nco
         Vector<MultiFab*> smf { &mf };
         Vector<Real> stime { time };
 
-        ERFPhysBCFunct physbc(geom[lev],domain_bcs_type,var_idx,sdata,m_bc_extdir_vals);
+        ERFPhysBCFunct physbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,sdata,m_bc_extdir_vals,solverChoice,get_most());
         amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
                                     geom[lev], physbc, bccomp);
     }
@@ -161,8 +161,8 @@ ERF::FillIntermediatePatch (int lev, Real time, MultiFab& mf, int icomp, int nco
         Vector<Real> ctime = {cdata.get_time()};
         Vector<Real> ftime = {fdata.get_time()};
 
-        ERFPhysBCFunct cphysbc(geom[lev-1],domain_bcs_type,var_idx,cdata,m_bc_extdir_vals);
-        ERFPhysBCFunct fphysbc(geom[lev  ],domain_bcs_type,var_idx,fdata,m_bc_extdir_vals);
+        ERFPhysBCFunct cphysbc(geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,get_most());
+        ERFPhysBCFunct fphysbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,get_most());
 
         amrex::FillPatchTwoLevels(mf_temp, time, cmf, ctime, fmf, ftime,
                                   0, icomp, ncomp, geom[lev-1], geom[lev],
@@ -190,17 +190,17 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
         bccomp = 0;
         mapper = &cell_cons_interp;
     }
-    else if (var_idx == Vars::xvel)
+    else if (var_idx == Vars::xvel || var_idx == Vars::xmom)
     {
         bccomp = NVAR;
         mapper = &face_linear_interp;
     }
-    else if (var_idx == Vars::yvel)
+    else if (var_idx == Vars::yvel || var_idx == Vars::ymom)
     {
         bccomp = NVAR+1;
         mapper = &face_linear_interp;
     }
-    else if (var_idx == Vars::zvel)
+    else if (var_idx == Vars::zvel || var_idx == Vars::zmom)
     {
         bccomp = NVAR+2;
         mapper = &face_linear_interp;
@@ -213,8 +213,8 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
     Vector<Real> ctime = {cdata.get_time()};
     Vector<Real> ftime = {fdata.get_time()};
 
-    ERFPhysBCFunct cphysbc(geom[lev-1],domain_bcs_type,var_idx,cdata,m_bc_extdir_vals);
-    ERFPhysBCFunct fphysbc(geom[lev  ],domain_bcs_type,var_idx,fdata,m_bc_extdir_vals);
+    ERFPhysBCFunct cphysbc(geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,get_most());
+    ERFPhysBCFunct fphysbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,get_most());
 
     amrex::InterpFromCoarseLevel(mf, time, *cmf[0], 0, icomp, ncomp, geom[lev-1], geom[lev],
                                     cphysbc, 0, fphysbc, 0, refRatio(lev-1),

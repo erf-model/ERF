@@ -559,3 +559,46 @@ ERF::AverageDownTo (int crse_lev)
                                       refRatio(crse_lev),geom[crse_lev]);
     }
 }
+
+void
+ERF::setupABLMost(int lev)
+{
+    amrex::ParmParse pp("erf");
+
+    amrex::Real surf_temp = 0.0_rt;
+    amrex::Real zref = 0.0_rt;
+
+    pp.query("most.surf_temp", surf_temp);
+    pp.query("most.zref", zref);
+
+    MultiFab& S_old = vars_old[lev][Vars::cons];
+    MultiFab& U_old = vars_old[lev][Vars::xvel];
+    MultiFab& V_old = vars_old[lev][Vars::yvel];
+    MultiFab& W_old = vars_old[lev][Vars::zvel];
+
+    PlaneAverage save (&S_old, geom[0], 2, true);
+    PlaneAverage vxave(&U_old, geom[0], 2, true);
+    PlaneAverage vyave(&V_old, geom[0], 2, true);
+    PlaneAverage vzave(&W_old, geom[0], 2, true);
+    VelPlaneAverage vmagave({&U_old,&V_old,&W_old}, geom[0], 2, true);
+
+    save. compute_averages(ZDir(), save.field());
+    vxave.compute_averages(ZDir(), vxave.field());
+    vyave.compute_averages(ZDir(), vyave.field());
+    vzave.compute_averages(ZDir(), vzave.field());
+    vmagave.compute_hvelmag_averages(ZDir(), 0, 1, vmagave.field());
+
+    const GpuArray<Real, AMREX_SPACEDIM> dx = geom[0].CellSizeArray();
+
+    most.surf_temp   = surf_temp;
+    most.zref        = zref;
+    most.vel_mean[0] = vxave.line_average_interpolated(most.zref, 0);
+    most.vel_mean[1] = vyave.line_average_interpolated(most.zref, 0);
+    most.vel_mean[2] = vzave.line_average_interpolated(most.zref, 0);
+    most.vmag_mean   = vmagave.line_hvelmag_average_interpolated(most.zref);
+    most.theta_mean  = save.line_average_interpolated(most.zref, Cons::RhoTheta);
+
+    printf("vmag_mean=%13.6e,theta_mean=%13.6e, zref=%13.6e, dx=%13.6e\n",most.vmag_mean,most.theta_mean,most.zref,dx[2]);
+
+    most.update_fluxes();
+}

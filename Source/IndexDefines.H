@@ -43,7 +43,10 @@ namespace Vars {
         xvel,
         yvel,
         zvel,
-        NumTypes
+        NumTypes,
+        xmom,
+        ymom,
+        zmom
     };
 }
 
@@ -69,6 +72,10 @@ namespace Prim {
         NumVars
     };
 }
+
+enum struct BC {
+    symmetry, inflow, outflow, no_slip_wall, slip_wall, periodic, MOST, undefined
+};
 
 // NOTE: the first of these must match up with the BCType enum
 //     in amrex/Src/Base/AMReX_BC_TYPES.H.  We had extras at
