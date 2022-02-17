@@ -435,8 +435,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
 
-    if (lev == 0) {
-        setupABLMost(lev);
+    // configure ABLMost params if used MostWall boundary condition
+    for (OrientationIter oitr; oitr; ++oitr) {
+        const Orientation face = oitr();
+        if (phys_bc_type[face] == BC::MOST && lev == 0) setupABLMost(lev);
     }
 
     // Fill ghost cells/faces
