@@ -45,6 +45,27 @@ struct ABLMost
 
     ThetaCalcType alg_type{HEAT_FLUX};
 
+    void print() const
+    {
+        amrex::Print() << "ABLMost struct:\n";
+        amrex::Print() << "  zref: " << zref << "\n";
+        amrex::Print() << "    z0: " << z0 << "\n";
+        amrex::Print() << "  utau: " << utau << "\n";
+        amrex::Print() << " kappa: " << kappa << "\n";
+        amrex::Print() << " gravity: " << gravity << "\n";
+        amrex::Print() << " obukhov_len: " << obukhov_len << "\n";
+        amrex::Print() << " vel_mean: " << vel_mean[0] << " " << vel_mean[1] << " " << vel_mean[2] << "\n";
+        amrex::Print() << " vmag_mean: " << vmag_mean << "\n";
+        amrex::Print() << " theta_mean: " << theta_mean << "\n";
+        amrex::Print() << " surf_temp_flux: " << surf_temp_flux << "\n";
+        amrex::Print() << " surf_temp: " << surf_temp << "\n";
+        amrex::Print() << " ref_temp: " << ref_temp << "\n";
+        amrex::Print() << " gamma_m: " << gamma_m << "\n";
+        amrex::Print() << " gamma_h: " << gamma_h << "\n";
+        amrex::Print() << " beta_m: " << beta_m << "\n";
+        amrex::Print() << " beta_h: " << beta_h << "\n";
+    }
+
     AMREX_GPU_DEVICE AMREX_FORCE_INLINE
     amrex::Real phi_m() const
     {
