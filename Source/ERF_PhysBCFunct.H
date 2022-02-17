@@ -44,9 +44,9 @@ public:
         {
             m_has_most_bcs = false;
             for (const auto& bcr : domain_bcs_type) {
-                for (OrientationIter oiter; oiter.isValid() && !m_has_most_bcs; oiter++) {
+                for (OrientationIter oiter; oiter && !m_has_most_bcs; ++oiter) {
                     int side = (int) oiter();
-                    if (bcr.data()[side] == static_cast<int>(BC::MOST)) {
+                    if (bcr.data()[side] == static_cast<int>(ERFBCType::MOST)) {
                         m_has_most_bcs = true;
                     }
                 }
@@ -109,19 +109,6 @@ public:
                 const Array4<Real>& dest_array = mf.array(mfi);
                 const Box& bx = mfi.fabbox();
 
-                // make a cell-centered box for our state data
-                //const Box& ccbx = m_data.get_var(Vars::cons)[mfi].box();
-
-                // make a vector of Array4's for our cell-centered & velocity data
-                // Gpu::DeviceVector<Array4<const Real> > vars_arrays_h;
-                // for (int i = 0; i < m_data.num_vars(); ++i) {
-                //     vars_arrays_h.push_back(m_data.get_var(i)[mfi].array());
-                // }
-                // Gpu::DeviceVector<Array4<const Real> > vars_arrays_d;
-                // vars_arrays_d.resize(vars_arrays_h.size());
-                // Gpu::copy(amrex::Gpu::hostToDevice, vars_arrays_h.begin(), vars_arrays_h.end(), vars_arrays_d.begin());
-                // Array4<const Real>* vars_arrays_p = vars_arrays_d.data();
-
                 // make Array4's for our data
                 const auto cons_arr = m_data.get_var(Vars::cons)[mfi].array();
                 const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
@@ -143,7 +130,7 @@ public:
                     // on which variables we are working with and in which directions we fill BCs.
                     for (int i = 0; i < bcrs.size(); i++) {
                         for (int iface = 0; iface <= 2*AMREX_SPACEDIM; iface++) {
-                            if (bcrs[i].data()[iface] == static_cast<int>(BC::MOST)) {
+                            if (bcrs[i].data()[iface] == static_cast<int>(ERFBCType::MOST)) {
                                 const int idir = iface % AMREX_SPACEDIM;
                                 if (((m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) && idir == 0) ||
                                     ((m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) && idir == 1) ||
@@ -218,17 +205,17 @@ public:
                         if (bccomp == BCVars::xvel_bc)
                         {
                             if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                                dest_array(i,j,k,n) = l_bc_extdir_vals_d[n][0];
+                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
                         }
                         if (bccomp == BCVars::yvel_bc)
                         {
                             if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                                dest_array(i,j,k,n) = l_bc_extdir_vals_d[n][1];
+                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
                         }
                         if (bccomp == BCVars::zvel_bc)
                         {
                             if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                                dest_array(i,j,k,n) = l_bc_extdir_vals_d[n][2];
+                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
                         }
 
                         bool var_is_derived = false;
@@ -275,9 +262,9 @@ public:
 
                                 //printf("i=%d,j=%d,k=%d,theta=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,motheta,rho,(eta_arr)(60,10,1),m_most.utau,motheta*rho/eta);
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,n) = rho*(m_most.surf_temp + motheta*rho/eta);
+                                    dest_array(i,j,k,icomp+n) = rho*(m_most.surf_temp + motheta*rho/eta);
                                 } else {
-                                    dest_array(i,j,k,n) = m_most.surf_temp + motheta/eta;
+                                    dest_array(i,j,k,icomp+n) = m_most.surf_temp + motheta/eta;
                                 }
 
                             } else if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) { //for velx
@@ -301,9 +288,9 @@ public:
 
                                 //printf("i=%d,j=%d,k=%d,vx=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgx,rho,eta,m_most.utau,vgx*rho/eta);
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,n) = dest_array(i,j,zlo,n) - vgx*rho/eta;
+                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgx*rho/eta;
                                 } else {
-                                    dest_array(i,j,k,n) = dest_array(i,j,zlo,n) - vgx/eta;
+                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgx/eta;
                                 }
 
                             } else if (m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) { //for vely
@@ -327,12 +314,12 @@ public:
 
                                 //printf("i=%d,j=%d,k=%d,vy=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgy,rho,eta,m_most.utau,vgy*rho/eta);
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,n) = dest_array(i,j,zlo,n) - vgy*rho/eta;
+                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgy*rho/eta;
                                 } else {
-                                    dest_array(i,j,k,n) = dest_array(i,j,zlo,n) - vgy/eta;
+                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgy/eta;
                                 }
                             } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) { //for velz
-                                dest_array(i,j,k,n) = (zlo-k+1)*dest_array(i,j,zlo,n) - (zlo-k)*dest_array(i,j,zlo+1,n);
+                                dest_array(i,j,k,icomp+n) = (zlo-k+1)*dest_array(i,j,zlo,icomp+n) - (zlo-k)*dest_array(i,j,zlo+1,icomp+n);
                             }
                             }
                         }
@@ -377,9 +364,9 @@ public:
 
                                 //printf("i=%d,j=%d,k=%d,theta=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,motheta,rho,(eta_arr)(60,10,1),m_most.utau,motheta*rho/eta);
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,n) = rho*(dest_array(i,j,zhi,n) - motheta*rho/eta);
+                                    dest_array(i,j,k,icomp+n) = rho*(dest_array(i,j,zhi,icomp+n) - motheta*rho/eta);
                                 } else {
-                                    dest_array(i,j,k,n) = dest_array(i,j,zhi,n) - motheta/eta;
+                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zhi,icomp+n) - motheta/eta;
                                 }
 
                             } else if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) { //for velx
@@ -404,9 +391,9 @@ public:
                                 //printf("i=%d,j=%d,k=%d,vx=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgx,rho,eta,m_most.utau,vgx*rho/eta);
 
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,n) = dest_array(i,j,zhi,n) + vgx*rho/eta;
+                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zhi,icomp+n) + vgx*rho/eta;
                                 } else {
-                                    dest_array(i,j,k,n) = dest_array(i,j,zhi,n) + vgx/eta;
+                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zhi,icomp+n) + vgx/eta;
                                 }
 
                             } else if (m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) { //for vely
@@ -430,12 +417,12 @@ public:
 
                                 //printf("i=%d,j=%d,k=%d,vy=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgy,rho,eta,m_most.utau,vgy*rho/eta);
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,n) = dest_array(i,j,zhi,n) + vgy*rho/eta;
+                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zhi,icomp+n) + vgy*rho/eta;
                                 } else {
-                                    dest_array(i,j,k,n) = dest_array(i,j,zhi,n) + vgy/eta;
+                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zhi,icomp+n) + vgy/eta;
                                 }
                             } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) { //for velz
-                                dest_array(i,j,k,n) = (k-zhi+1)*dest_array(i,j,zhi,n) - (k-zhi)*dest_array(i,j,zhi-1,n);
+                                dest_array(i,j,k,icomp+n) = (k-zhi+1)*dest_array(i,j,zhi,icomp+n) - (k-zhi)*dest_array(i,j,zhi-1,icomp+n);
                             }
                             }
                         }
