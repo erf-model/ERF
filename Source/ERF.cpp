@@ -435,6 +435,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
 
+    if (lev == 0) {
+        setupABLMost(lev);
+    }
+
     // Fill ghost cells/faces
     FillPatch(lev, time, lev_new[Vars::cons], 0, Cons::NumVars, Vars::cons);
     FillPatch(lev, time, lev_new[Vars::xvel], 0, 1, Vars::xvel);
@@ -561,7 +565,7 @@ ERF::AverageDownTo (int crse_lev)
 }
 
 void
-ERF::setupABLMost(int lev)
+ERF::setupABLMost (int lev)
 {
     amrex::ParmParse pp("erf");
 
@@ -571,16 +575,16 @@ ERF::setupABLMost(int lev)
     pp.query("most.surf_temp", surf_temp);
     pp.query("most.zref", zref);
 
-    MultiFab& S_old = vars_old[lev][Vars::cons];
-    MultiFab& U_old = vars_old[lev][Vars::xvel];
-    MultiFab& V_old = vars_old[lev][Vars::yvel];
-    MultiFab& W_old = vars_old[lev][Vars::zvel];
+    MultiFab& S_new = vars_new[lev][Vars::cons];
+    MultiFab& U_new = vars_new[lev][Vars::xvel];
+    MultiFab& V_new = vars_new[lev][Vars::yvel];
+    MultiFab& W_new = vars_new[lev][Vars::zvel];
 
-    PlaneAverage save (&S_old, geom[0], 2, true);
-    PlaneAverage vxave(&U_old, geom[0], 2, true);
-    PlaneAverage vyave(&V_old, geom[0], 2, true);
-    PlaneAverage vzave(&W_old, geom[0], 2, true);
-    VelPlaneAverage vmagave({&U_old,&V_old,&W_old}, geom[0], 2, true);
+    PlaneAverage save (&S_new, geom[0], 2, true);
+    PlaneAverage vxave(&U_new, geom[0], 2, true);
+    PlaneAverage vyave(&V_new, geom[0], 2, true);
+    PlaneAverage vzave(&W_new, geom[0], 2, true);
+    VelPlaneAverage vmagave({&U_new,&V_new,&W_new}, geom[0], 2, true);
 
     save. compute_averages(ZDir(), save.field());
     vxave.compute_averages(ZDir(), vxave.field());
