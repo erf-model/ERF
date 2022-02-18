@@ -20,6 +20,9 @@ CEXE_sources += ERF_Utils.cpp
 
 CEXE_headers += ERF.H
 CEXE_headers += ABLFieldInit.H
+CEXE_headers += PlaneAverage.H
+CEXE_headers += VelPlaneAverage.H
+CEXE_headers += DirectionSelector.H
 
 CEXE_sources += Derive.cpp
 CEXE_headers += Derive.H

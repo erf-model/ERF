@@ -322,8 +322,13 @@ void ERF::init_bcs ()
             else if ( bct == BC::MOST )
             {
                 if (dir == 2 && side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++)
-                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::MOST);
+                    for (int i = 0; i < NVAR; i++) {
+                        if (i != Cons::RhoTheta) {
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                        } else {
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::MOST);
+                        }
+                    }
                 } else {
                     amrex::Error("MOST bc can only be applied on low z-face");
                 }

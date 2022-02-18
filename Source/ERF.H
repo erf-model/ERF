@@ -34,6 +34,8 @@
 #include <DataStruct.H>
 #include <ABLFieldInit.H>
 #include <Derive.H>
+#include <PlaneAverage.H>
+#include <VelPlaneAverage.H>
 //#include <prob.H>
 
 #include <iostream>
@@ -253,6 +255,11 @@ private:
     void post_update (amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
     void fill_rhs (amrex::MultiFab& rhs_mf, const amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
 
+    ABLMost& get_most() { return most; }
+    const ABLMost& get_most() const { return most; }
+
+    void setupABLMost(int lev);
+
     ////////////////
     // private data members
 
@@ -284,16 +291,14 @@ private:
     // These hold the Dirichlet values at walls which need them ...
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
 
-    enum struct BC {
-        symmetry, inflow, outflow, no_slip_wall, slip_wall, periodic, MOST, undefined
-    };
-
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<BC, AMREX_SPACEDIM*2> phys_bc_type;
 
     int last_plot_file_step;
     int last_check_file_step;
     int plot_file_on_restart = 1;
+
+    ABLMost most;
 
     ////////////////
     // runtime parameters
