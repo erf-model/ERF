@@ -25,6 +25,8 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/IO/NCInterface.H
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp
+                   ${SRC_DIR}/IO/NCCheckpoint.cpp
+                   ${SRC_DIR}/IO/NCMultiFabFile.cpp
                    ${SRC_DIR}/IO/NCColumnFile.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()

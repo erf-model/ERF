@@ -7,7 +7,11 @@ ifeq ($(USE_NETCDF), TRUE)
   CEXE_sources += NCInterface.cpp
   CEXE_sources += NCPlotFile.cpp
   CEXE_sources += NCColumnFile.cpp
+  CEXE_sources += NCCheckpoint.cpp
+  CEXE_sources += NCMultiFabFile.cpp
+  CEXE_sources += NCWpsFile.cpp 
   CEXE_headers += NCInterface.H
   CEXE_headers += NCPlotFile.H
+  CEXE_headers += NCWpsFile.H
 endif
 
