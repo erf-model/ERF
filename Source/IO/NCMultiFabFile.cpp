@@ -68,7 +68,7 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
 
            for (int k(0); k < ncomp; ++k) {
                auto dataPtr = mf.get(mfi).dataPtr(k);
-               ncf.var(plt_var_names[mfi.index()+k]).get(dataPtr, {mfi.index(), 0}, {1, num_pts});
+               ncf.var(plt_var_names[mfi.index()*ncomp+k]).get(dataPtr, {0}, {num_pts});
             }
       }
 
@@ -133,7 +133,7 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
 
         for (int k = 0; k < nvar; ++k) {
           ncf.def_dim(npts_names[k], num_pts[k]);
-          ncf.def_var(plt_var_names[k], ncutils::NCDType::Real, {1, npts_names[k]});
+          ncf.def_var(plt_var_names[k], ncutils::NCDType::Real, {npts_names[k]});
         }
 
         for (int nb = 0; nb < nbox; ++nb) {
@@ -159,7 +159,7 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
 
             for (int k(0); k < ncomp; ++k) {
                 auto dataPtr = fab.get(mfi).dataPtr(k);
-                ncf.var(plt_var_names[mfi.index()+k]).put(dataPtr, {0, 0}, {1, num_pts});
+                ncf.var(plt_var_names[mfi.index()*ncomp+k]).put(dataPtr, {0}, {num_pts});
              }
         }
         ncf.close();

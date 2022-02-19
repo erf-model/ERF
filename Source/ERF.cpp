@@ -169,7 +169,11 @@ ERF::Evolve ()
 
         if (check_int > 0 && (step+1) % check_int == 0) {
             last_check_file_step = step+1;
+#ifdef ERF_USE_NETCDF
+            WriteNCCheckpointFile();
+#else
             WriteCheckpointFile();
+#endif
         }
 
         post_timestep(step, cur_time, dt[0]);
@@ -190,7 +194,11 @@ ERF::Evolve ()
     }
 
     if (check_int > 0 && istep[0] > last_check_file_step) {
-        WriteCheckpointFile();
+#ifdef ERF_USE_NETCDF
+       WriteNCCheckpointFile();
+#else
+       WriteCheckpointFile();
+#endif
     }
 
 }
