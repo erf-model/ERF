@@ -25,8 +25,10 @@ struct NCDType
     static constexpr nc_type Int = NC_INT;
 #ifdef AMREX_USE_FLOAT
     static constexpr nc_type Real = NC_FLOAT;
+    using RType = float;
 #else
     static constexpr nc_type Real = NC_DOUBLE;
+    using RType = double;
 #endif
 };
 
