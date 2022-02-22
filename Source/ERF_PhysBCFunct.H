@@ -185,7 +185,7 @@ public:
                     int zhi = m_geom.Domain().bigEnd(2);
 
                     // Fill here all the "generic" ext_dir bc's
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+                    ParallelFor(bx, ncomp, [=,m_var_idx=m_var_idx,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                     {
                         if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
