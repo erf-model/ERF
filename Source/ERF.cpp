@@ -159,18 +159,18 @@ ERF::Evolve ()
 
         int lev = 0;
 
-        if (input_2d_planes) 
+        if (input_2d_planes)
         {
 #if 0
             Box domain = geom[lev].Domain();
             Box xlo_plane_bx(domain); xlo_plane_bx.setBig(0,domain.smallEnd(0));
-            FArrayBox xlo_plane(xlo_plane_bx,1); 
+            FArrayBox xlo_plane(xlo_plane_bx,1);
             Box ylo_plane_bx(domain); ylo_plane_bx.setBig(1,domain.smallEnd(1));
-            FArrayBox ylo_plane(ylo_plane_bx,1); 
+            FArrayBox ylo_plane(ylo_plane_bx,1);
             Box xhi_plane_bx(domain); xhi_plane_bx.setSmall(0,domain.bigEnd(0));
-            FArrayBox xhi_plane(xhi_plane_bx,1); 
+            FArrayBox xhi_plane(xhi_plane_bx,1);
             Box yhi_plane_bx(domain); yhi_plane_bx.setSmall(1,domain.bigEnd(1));
-            FArrayBox yhi_plane(yhi_plane_bx,1); 
+            FArrayBox yhi_plane(yhi_plane_bx,1);
 
             //m_r2d->read_input_files(cur_time,dt[0]);
 #endif
@@ -266,7 +266,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 #endif
     }
 
-    if (output_2d_planes) 
+    if (output_2d_planes)
     {
       if (is_it_time_for_action(istep[0], time, dt_lev0, bndry_output_planes_interval, bndry_output_planes_per) &&
           time >= bndry_output_planes_start_time)
@@ -359,7 +359,7 @@ ERF::InitData ()
         // Read the "time.dat" file to know what data is available
         m_r2d->read_header();
     }
- 
+
     // We only write the file at level 0 for now
     if (output_2d_planes)
     {

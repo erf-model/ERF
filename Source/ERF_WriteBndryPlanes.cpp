@@ -45,7 +45,7 @@ WriteBndryPlanes::WriteBndryPlanes(amrex::Vector<amrex::BoxArray>& grids,
         }
     }
 
-    // The folder "m_filename" will contain the time series of data and the time.dat file 
+    // The folder "m_filename" will contain the time series of data and the time.dat file
     pp.get("bndry_output_planes_file", m_filename);
 
     m_time_file = m_filename + "/time.dat";
@@ -91,7 +91,7 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
         std::string var_name = m_var_names[i];
         amrex::Print() << "Writing  " << var_name << std::endl;
 
-        if (var_name == "density") 
+        if (var_name == "density")
         {
             int ncomp = 1;
             amrex::BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
@@ -144,7 +144,7 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
                 }
             }
         } else {
-            amrex::Print() << "Trying to write planar output for " << var_name << std::endl; 
+            amrex::Print() << "Trying to write planar output for " << var_name << std::endl;
             amrex::Error("Don't know how to output this variable");
         }
     } // loop over num_vars

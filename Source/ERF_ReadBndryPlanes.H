@@ -23,7 +23,7 @@ class ReadBndryPlanes
     using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
 public:
-    explicit ReadBndryPlanes(const amrex::Geometry& geom); 
+    explicit ReadBndryPlanes(const amrex::Geometry& geom);
 
     void read_header();
 

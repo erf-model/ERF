@@ -36,7 +36,7 @@ void ReadBndryPlanes::define_level_data(
     m_data_interp[ori]->push_back(amrex::FArrayBox(bx, nc));
 }
 
-void ReadBndryPlanes::read_data_native(amrex::FArrayBox& xlo_plane, amrex::FArrayBox& ylo_plane, 
+void ReadBndryPlanes::read_data_native(amrex::FArrayBox& xlo_plane, amrex::FArrayBox& ylo_plane,
                                  amrex::FArrayBox& xhi_plane, amrex::FArrayBox& yhi_plane)
 {
 #if 0
@@ -259,7 +259,7 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
     bndryn.setVal(1.0e13);
 
     // The first time we enter this routine we read the first three files
-    if (last_file_read == -1) 
+    if (last_file_read == -1)
     {
         int idx_init = 0;
         read_file(idx_init);
@@ -305,11 +305,11 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
 
 #if 0
     // Go ahead and interpolate in time if we have already read the files we need
-    if ((tn() <= time) && (time+dt <= tnp2())) 
+    if ((tn() <= time) && (time+dt <= tnp2()))
     {
         interpolate(time);
         return;
-    } else 
+    } else
 
         amrex::Print() << "TIME " << time << std::endl;
         amrex::Print() << "MTIME " << m_in_timesteps[0] << " " << m_in_timesteps[1] << std::endl;

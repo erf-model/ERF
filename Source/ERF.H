@@ -373,7 +373,7 @@ private:
     static amrex::Real bndry_output_planes_per;
     static amrex::Real bndry_output_planes_start_time;
 
-    // 2D BndryRegister input 
+    // 2D BndryRegister input
     static int          input_2d_planes;
 
     // Base state quantities: density and pressure, 1 array per AMR level
@@ -397,8 +397,8 @@ private:
 
     static void refinement_criteria_setup();
 
-    std::unique_ptr<WriteBndryPlanes> m_w2d; 
-    std::unique_ptr<ReadBndryPlanes>  m_r2d; 
+    std::unique_ptr<WriteBndryPlanes> m_w2d;
+    std::unique_ptr<ReadBndryPlanes>  m_r2d;
 
     //
     // Holds info for dynamically generated tagging criteria
