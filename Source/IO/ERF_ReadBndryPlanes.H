@@ -5,15 +5,7 @@
 #include "AMReX_AmrCore.H"
 #include <AMReX_BndryRegister.H>
 
-struct BufferData
-{
-    amrex::Gpu::ManagedVector<amrex::Real> data;
-    amrex::Vector<size_t> start{0, 0, 0, 0};
-    amrex::Vector<size_t> count{0, 0, 0, 0};
-};
-
 /** Collection of data structures and operations for reading data
- *  \ingroup we_abl
  *
  *  This class contains the inlet data structures and operations to
  *  read and interpolate inflow data.
@@ -25,23 +17,15 @@ class ReadBndryPlanes
 public:
     explicit ReadBndryPlanes(const amrex::Geometry& geom);
 
-    void read_header();
+    void read_time_file();
 
     void read_input_files(amrex::Real time, amrex::Real dt);
 
     void populate_data(const int, const amrex::Real, amrex::MultiFab&, amrex::MultiFab&) const;
 
-    bool is_initialized() const { return m_is_initialized; }
+    void define_level_data();
 
-    bool box_intersects_boundary(
-        const amrex::Box&, const int, const amrex::Orientation) const;
-
-    amrex::Real m_time;
-
-    void define_level_data(
-        const amrex::Orientation, const amrex::Box&, const size_t);
-
-    void read_file(const int idx);
+    void read_file(const int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill);
 
     void read_data_native(amrex::FArrayBox& xlo_plane, amrex::FArrayBox& ylo_plane,
                           amrex::FArrayBox& xhi_plane, amrex::FArrayBox& yhi_plane);
@@ -65,50 +49,29 @@ public:
         return (*m_data_interp[ori])[lev];
     }
 
-    int& component(const int id) { return m_components[id]; }
-
-    int component(const int id) const { return m_components.at(id); }
-
-    int nlevels(const amrex::Orientation ori) const
-    {
-        return (*m_data_interp[ori]).size();
-    }
-
-    amrex::Real tn() const { return m_tn; }
-    amrex::Real tnp1() const { return m_tnp1; }
-    amrex::Real tnp2() const { return m_tnp2; }
     amrex::Real tinterp() const { return m_tinterp; }
 
 private:
+
+    //! The times for which we currently have data
+    amrex::Real m_tn;
+    amrex::Real m_tnp1;
+    amrex::Real m_tnp2;
+
+    //! Data at time m_tn
     amrex::Vector<std::unique_ptr<PlaneVector>> m_data_n;
+
+    //! Data at time m_tnp1
     amrex::Vector<std::unique_ptr<PlaneVector>> m_data_np1;
+
+    //! Data at time m_tnp2
     amrex::Vector<std::unique_ptr<PlaneVector>> m_data_np2;
+
+    //! Data interpolated to the time requested
     amrex::Vector<std::unique_ptr<PlaneVector>> m_data_interp;
-
-    //! Time for plane at n
-    amrex::Real m_tn{-1.0};
-
-    //! Time for plane at n + 1
-    amrex::Real m_tnp1{-1.0};
-
-    //! Time for plane at n + 2
-    amrex::Real m_tnp2{-1.0};
 
     //! Time for plane at interpolation
     amrex::Real m_tinterp{-1.0};
-
-    //! Map of `{variableId : component}`
-    std::unordered_map<int, int> m_components;
-
-    //! Plane names
-    amrex::Vector<std::string> m_plane_names{
-        {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"}};
-
-    //! IO boundary planes
-    amrex::Vector<std::string> m_planes;
-
-    //! IO output box region
-    amrex::Box target_box;
 
     //! Geometry at level 0
     amrex::Geometry m_geom;
@@ -116,18 +79,15 @@ private:
     //! File name for IO
     std::string m_filename{""};
 
-    //! File name for Native time file
+    //! File name for file holding timesteps and times
     std::string m_time_file{""};
 
-    //! Variables for IO
-    amrex::Vector<std::string> m_var_names;
-
-    //! NetCDF input level time
+    //! The timesteps / times that we read from time.dat
     amrex::Vector<amrex::Real> m_in_times;
     amrex::Vector<int> m_in_timesteps;
 
-    //! Flag indicating if this capability is available
-    bool m_is_initialized{false};
+    //! Variables to be read in
+    amrex::Vector<std::string> m_var_names;
 
     //! controls extents on native bndry output
     const int m_in_rad = 1;

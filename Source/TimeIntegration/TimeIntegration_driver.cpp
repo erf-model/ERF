@@ -6,7 +6,6 @@
 #include <AMReX_TimeIntegrator.H>
 #include <TimeIntegration.H>
 #include <ERF.H>
-#include <utils.H>
 
 using namespace amrex;
 

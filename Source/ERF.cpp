@@ -159,21 +159,10 @@ ERF::Evolve ()
 
         int lev = 0;
 
+        // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_2d_planes)
         {
-#if 0
-            Box domain = geom[lev].Domain();
-            Box xlo_plane_bx(domain); xlo_plane_bx.setBig(0,domain.smallEnd(0));
-            FArrayBox xlo_plane(xlo_plane_bx,1);
-            Box ylo_plane_bx(domain); ylo_plane_bx.setBig(1,domain.smallEnd(1));
-            FArrayBox ylo_plane(ylo_plane_bx,1);
-            Box xhi_plane_bx(domain); xhi_plane_bx.setSmall(0,domain.bigEnd(0));
-            FArrayBox xhi_plane(xhi_plane_bx,1);
-            Box yhi_plane_bx(domain); yhi_plane_bx.setSmall(1,domain.bigEnd(1));
-            FArrayBox yhi_plane(yhi_plane_bx,1);
-
-            //m_r2d->read_input_files(cur_time,dt[0]);
-#endif
+            m_r2d->read_input_files(cur_time,dt[0]);
         }
 
         int iteration = 1;
@@ -357,7 +346,7 @@ ERF::InitData ()
         m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
 
         // Read the "time.dat" file to know what data is available
-        m_r2d->read_header();
+        m_r2d->read_time_file();
     }
 
     // We only write the file at level 0 for now

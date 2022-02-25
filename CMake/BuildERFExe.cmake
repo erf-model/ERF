@@ -40,13 +40,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/ERF_init1d.cpp
-       ${SRC_DIR}/utils.H
        ${SRC_DIR}/ERF_SumIQ.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/ERF_FillPatch.cpp
        ${SRC_DIR}/ERF_TimeStepping.cpp
-       ${SRC_DIR}/ERF_Utils.cpp
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.H
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
