@@ -48,6 +48,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_TimeStepping.cpp
        ${SRC_DIR}/ERF_Utils.cpp
        ${SRC_DIR}/IO/Checkpoint.cpp
+       ${SRC_DIR}/IO/ERF_ReadBndryPlanes.H
+       ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
+       ${SRC_DIR}/IO/ERF_WriteBndryPlanes.H
+       ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/SpatialStencils/Advection.cpp

@@ -18,7 +18,6 @@ CEXE_headers += utils_K.H
 CEXE_headers += utils.H
 CEXE_sources += ERF_Utils.cpp
 
-CEXE_headers += ERF.H
 CEXE_headers += ABLFieldInit.H
 CEXE_headers += PlaneAverage.H
 CEXE_headers += VelPlaneAverage.H

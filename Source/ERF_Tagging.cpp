@@ -11,12 +11,6 @@ ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
     {
         std::unique_ptr<MultiFab> mf;
 
-        // If we want to refine based on variables, we will need to
-        // supply a "derive"-type routine here
-        //if (ref_tags[j].Field() != std::string()) {
-        //  mf = derive(ref_tags[j].Field(), time, ref_tags[j].NGrow());
-        //}
-
         // This will work for static refinement
         ref_tags[j](tags,mf.get(),clearval,tagval,time,level,geom[level]);
   }

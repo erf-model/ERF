@@ -36,6 +36,8 @@
 #include <Derive.H>
 #include <PlaneAverage.H>
 #include <VelPlaneAverage.H>
+#include <ERF_ReadBndryPlanes.H>
+#include <ERF_WriteBndryPlanes.H>
 //#include <prob.H>
 
 #include <iostream>
@@ -147,6 +149,9 @@ public:
 
     // write plotfile to disk
     void WritePlotFile () const;
+
+    const WriteBndryPlanes& w2d() const {return *m_w2d;}
+    const  ReadBndryPlanes& r2d() const {return *m_r2d;}
 
 private:
 
@@ -362,6 +367,15 @@ private:
     static amrex::Real column_loc_y;
     static std::string column_file_name;
 
+    // 2D BndryRegister output (for ingestion in AMR-Wind)
+    static int         output_2d_planes;
+    static int         bndry_output_planes_interval;
+    static amrex::Real bndry_output_planes_per;
+    static amrex::Real bndry_output_planes_start_time;
+
+    // 2D BndryRegister input
+    static int          input_2d_planes;
+
     // Base state quantities: density and pressure, 1 array per AMR level
     amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
     amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
@@ -382,6 +396,9 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
 
     static void refinement_criteria_setup();
+
+    std::unique_ptr<WriteBndryPlanes> m_w2d;
+    std::unique_ptr<ReadBndryPlanes>  m_r2d;
 
     //
     // Holds info for dynamically generated tagging criteria

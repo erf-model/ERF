@@ -50,6 +50,15 @@ amrex::Real ERF::column_loc_x     = 0.0;
 amrex::Real ERF::column_loc_y     = 0.0;
 std::string ERF::column_file_name = "column_data.nc";
 
+// 2D BndryRegister output (for ingestion by AMR-Wind)
+int         ERF::output_2d_planes               = 0;
+int         ERF::bndry_output_planes_interval   = -1;
+amrex::Real ERF::bndry_output_planes_per        = -1.0;
+amrex::Real ERF::bndry_output_planes_start_time =  0.0;
+
+// 2D BndryRegister input
+int         ERF::input_2d_planes        = 0;
+
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 // constructor - reads in parameters from inputs file
@@ -149,6 +158,24 @@ ERF::Evolve ()
         ComputeDt();
 
         int lev = 0;
+
+        if (input_2d_planes)
+        {
+#if 0
+            Box domain = geom[lev].Domain();
+            Box xlo_plane_bx(domain); xlo_plane_bx.setBig(0,domain.smallEnd(0));
+            FArrayBox xlo_plane(xlo_plane_bx,1);
+            Box ylo_plane_bx(domain); ylo_plane_bx.setBig(1,domain.smallEnd(1));
+            FArrayBox ylo_plane(ylo_plane_bx,1);
+            Box xhi_plane_bx(domain); xhi_plane_bx.setSmall(0,domain.bigEnd(0));
+            FArrayBox xhi_plane(xhi_plane_bx,1);
+            Box yhi_plane_bx(domain); yhi_plane_bx.setSmall(1,domain.bigEnd(1));
+            FArrayBox yhi_plane(yhi_plane_bx,1);
+
+            //m_r2d->read_input_files(cur_time,dt[0]);
+#endif
+        }
+
         int iteration = 1;
         timeStep(lev, cur_time, iteration);
 
@@ -238,6 +265,15 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       amrex::Abort("To output 1D column files ERF must be compiled with NetCDF");
 #endif
     }
+
+    if (output_2d_planes)
+    {
+      if (is_it_time_for_action(istep[0], time, dt_lev0, bndry_output_planes_interval, bndry_output_planes_per) &&
+          time >= bndry_output_planes_start_time)
+      {
+         m_w2d->write_planes(istep[0], time, vars_new);
+      }
+    }
 }
 
 // initializes multilevel data
@@ -314,6 +350,27 @@ ERF::InitData ()
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
+    }
+
+    if (input_2d_planes) {
+        // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
+        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
+
+        // Read the "time.dat" file to know what data is available
+        m_r2d->read_header();
+    }
+
+    // We only write the file at level 0 for now
+    if (output_2d_planes)
+    {
+        // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
+        m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
+
+        amrex::Real time = 0.;
+        if (time >= bndry_output_planes_start_time) {
+            int istep = 0;
+            m_w2d->write_planes(istep, time, vars_new);
+        }
     }
 }
 
@@ -536,6 +593,15 @@ ERF::ReadParameters ()
         pp.query("column_loc_x", column_loc_x);
         pp.query("column_loc_y", column_loc_y);
         pp.query("column_file_name", column_file_name);
+
+        // Specify information about outputting planes of data
+        pp.query("output_2d_planes", output_2d_planes);
+        pp.query("bndry_output_planes_interval", bndry_output_planes_interval);
+        pp.query("bndry_output_planes_per", bndry_output_planes_per);
+        pp.query("bndry_output_start_time", bndry_output_planes_start_time);
+
+        // Specify whether ingest boundary planes of data
+        pp.query("input_2d_planes", input_2d_planes);
     }
 
     solverChoice.init_params();
