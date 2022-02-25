@@ -5,12 +5,17 @@
 #include <ctime>
 
 #include "NCInterface.H"
+#include "NCWpsFile.H"
 #include <ERF.H>
 
-void ReadNCWpsFile(const std::string  &fname) {
+template<typename DType>
+void ReadNCWpsFile(const std::string  &fname, amrex::Vector<NDArray<DType> >& arrays, 
+                  amrex::Vector<std::string> names ) {
 
     amrex::Print() << "Reading NetCDF WPS file: " << fname << "\n";
-   
+  
+    AMREX_ASSERT(arrays.size() == names.size()); 
+
     if (amrex::ParallelDescriptor::IOProcessor())
     {
       auto ncf = ncutils::NCFile::create(fname, NC_CLOBBER | NC_NETCDF4);
@@ -29,29 +34,13 @@ void ReadNCWpsFile(const std::string  &fname) {
       int z_dimension0016    = static_cast<int>(ncf.dim("z-dimension0016").len());
       int z_dimension0024    = static_cast<int>(ncf.dim("z-dimension0024").len());
 
-      // get the pressure
-      std::vector<size_t> pshape = ncf.var("PRES").shape();
-      auto pressure = new typename ncutils::NCDType::RType[pshape.size()];
-      ncf.var("PRES").get(pressure, {0}, {pshape.size()});
-
-      // get uu
-      std::vector<size_t> ushape = ncf.var("UU").shape();
-      auto uu = new typename ncutils::NCDType::RType[ushape.size()];
-      ncf.var("UU").get(uu, {0}, {ushape.size()});
-
-      // get vv
-      std::vector<size_t> vshape = ncf.var("VV").shape();
-      auto vv = new typename ncutils::NCDType::RType[vshape.size()];
-      ncf.var("VV").get(vv, {0}, {vshape.size()});
-
-      // get tt
-      std::vector<size_t> tshape = ncf.var("TT").shape();
-      auto tt = new typename ncutils::NCDType::RType[tshape.size()];
-      ncf.var("TT").get(tt, {0}, {tshape.size()});
-
-      // get psfc
-      std::vector<size_t> psshape = ncf.var("PSFC").shape();
-      auto psfc = new typename ncutils::NCDType::RType[psshape.size()];
-      ncf.var("PSFC").get(psfc, {0}, {psshape.size()});
+      for (auto n=0; n<arrays.size(); ++n) {
+         // get the pressure
+         std::vector<size_t> shape = ncf.var(names[n]).shape();
+         arrays[n] = NDArray<DType>(names[n],shape);
+         DType* dataPtr = arrays[n].get_data();
+         ncf.var(names[n]).get(dataPtr, {0}, {shape.size()});
+      }
+     ncf.close();
    }
 }
