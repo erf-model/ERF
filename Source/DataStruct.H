@@ -40,6 +40,10 @@ enum class MolecDiffType {
     None, Constant, ConstantAlpha
 };
 
+enum class IC_BC_Type {
+    Ideal, Real
+};
+
 struct SolverChoice {
   public:
     void init_params()
@@ -153,6 +157,17 @@ struct SolverChoice {
         {
             build_coriolis_forcings();
         }
+
+        static std::string ic_bc_type_string = "Ideal";
+        pp.query("ic_bc_type", ic_bc_type_string);
+
+        if (!ic_bc_type_string.compare("Ideal")) {
+            icBcType = IC_BC_Type::Ideal;
+        } else if (!ic_bc_type_string.compare("Real")) {
+            icBcType = IC_BC_Type::Real;
+        } else {
+            amrex::Error("Don't know this ic_bc_type");
+        }
     }
 
     void display()
@@ -206,6 +221,12 @@ struct SolverChoice {
             << std::endl;
         }
 
+        if (icBcType == IC_BC_Type::Ideal) {
+            amrex::Print() << "Using idealized initial and boundary conditions (No mesoscale forcing!)" << std::endl;
+        }
+        else if (icBcType == IC_BC_Type::Real) {
+            amrex::Print() << "Using REAL initial and boundary conditions (Mesoscale forcing!)" << std::endl;
+        }
     }
 
     void build_coriolis_forcings()
@@ -293,6 +314,9 @@ struct SolverChoice {
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
+
+    // IC and BC Type: "Ideal" or "Real"
+    IC_BC_Type icBcType;
 };
 
 #endif
