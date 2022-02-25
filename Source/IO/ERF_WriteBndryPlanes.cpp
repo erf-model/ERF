@@ -76,7 +76,7 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
     const std::string chkname =
         m_filename + amrex::Concatenate("/bndry_output", t_step);
 
-    amrex::Print() << "Writing boundary planes at time " << time << std::endl;
+    //amrex::Print() << "Writing boundary planes at time " << time << std::endl;
 
     const std::string level_prefix = "Level_";
     amrex::PreBuildDirectorHierarchy(chkname, level_prefix, 1, true);
@@ -89,7 +89,6 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
     for (int i = 0; i < m_var_names.size(); i++)
     {
         std::string var_name = m_var_names[i];
-        amrex::Print() << "Writing  " << var_name << std::endl;
 
         if (var_name == "density")
         {
@@ -144,7 +143,7 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
                 }
             }
         } else {
-            amrex::Print() << "Trying to write planar output for " << var_name << std::endl;
+            //amrex::Print() << "Trying to write planar output for " << var_name << std::endl;
             amrex::Error("Don't know how to output this variable");
         }
     } // loop over num_vars

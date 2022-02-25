@@ -23,11 +23,6 @@ CEXE_headers += PlaneAverage.H
 CEXE_headers += VelPlaneAverage.H
 CEXE_headers += DirectionSelector.H
 
-CEXE_headers += ERF_WriteBndryPlanes.H
-CEXE_headers += ERF_ReadBndryPlanes.H
-CEXE_sources += ERF_WriteBndryPlanes.cpp
-CEXE_sources += ERF_ReadBndryPlanes.cpp
-
 CEXE_sources += Derive.cpp
 CEXE_headers += Derive.H
 

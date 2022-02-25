@@ -170,7 +170,6 @@ void ReadBndryPlanes::read_header()
     if (amrex::ParallelDescriptor::IOProcessor()) {
 
         std::string line;
-        amrex::Print() <<" TRYING TO READ TIME FILE " << m_time_file << std::endl;
         std::ifstream time_file(m_time_file);
         if (!time_file.good()) {
             amrex::Abort("Cannot find time file: " + m_time_file);
@@ -208,10 +207,6 @@ void ReadBndryPlanes::read_header()
         amrex::ParallelDescriptor::IOProcessorNumber(),
         amrex::ParallelDescriptor::Communicator());
 
-
-    amrex::Print() << "First time in time.dat: " << m_in_times[0] << std::endl;
-    amrex::Print() << "Last  time in time.dat: " << m_in_times.back() << std::endl;
-
     // *********************************************************
     // Allocate space for all of the boundary planes we may need
     // *********************************************************
@@ -243,8 +238,6 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
 {
     BL_PROFILE("ERF::ReadBndryPlanes::read_input_files");
 
-    amrex::Print() << "TIME " << time << " " << std::endl;
-
     // Assert that both the current time and the next time are within the bounds
     // of the data that we can read
     AMREX_ALWAYS_ASSERT((m_in_times[0] <= time) && (time <= m_in_times.back()));
@@ -263,18 +256,15 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
     {
         int idx_init = 0;
         read_file(idx_init);
-
-        amrex::Print() << "Reading file with tstep " << m_in_timesteps[idx_init] << std::endl;
+        //amrex::Print() << "Reading file with tstep " << m_in_timesteps[idx_init] << std::endl;
 
         idx_init = 1;
         read_file(idx_init);
-
-        amrex::Print() << "Reading file with tstep " << m_in_timesteps[idx_init] << std::endl;
+        //amrex::Print() << "Reading file with tstep " << m_in_timesteps[idx_init] << std::endl;
 
         idx_init = 2;
         read_file(idx_init);
-
-        amrex::Print() << "Reading file with tstep " << m_in_timesteps[idx_init] << std::endl;
+        //amrex::Print() << "Reading file with tstep " << m_in_timesteps[idx_init] << std::endl;
 
         last_file_read = idx_init;
     }
@@ -288,19 +278,11 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
     amrex::Real tnp1 = m_in_times[idx+1];
     amrex::Real tnp2 = m_in_times[idx+2];
 
-    amrex::Print() << " IDX IS " << idx << std::endl;
-    amrex::Print() << " TIMES GIVEN IDX " << tn << " " << tnp1 << " " << tnp2 << std::endl;
-    amrex::Print() << " idx / last_file_read: " << idx << " " << last_file_read << std::endl;
-
     // Now we need to read another file
     if (idx >= last_file_read-1 && last_file_read != m_in_times.size()-1) {
         int new_read = last_file_read+1;
-        amrex::Print() << "Reading file with idx / tstep " << new_read << " " << m_in_timesteps[new_read] << std::endl;
         read_file(new_read);
         last_file_read = new_read;
-        amrex::Print() << "Now setting last_file_read to " << new_read << std::endl;
-    } else {
-        amrex::Print() << " idx < last_file_read: " << idx << " " << last_file_read << std::endl;
     }
 
 #if 0
@@ -311,8 +293,6 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
         return;
     } else
 
-        amrex::Print() << "TIME " << time << std::endl;
-        amrex::Print() << "MTIME " << m_in_timesteps[0] << " " << m_in_timesteps[1] << std::endl;
         const int index = closest_index(m_in_times, time);
         const int t_step1 = m_in_timesteps[index];
         //const int t_step2 = t_step1 + 1;
