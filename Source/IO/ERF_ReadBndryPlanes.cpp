@@ -2,6 +2,7 @@
 #include "AMReX_ParmParse.H"
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_ReadBndryPlanes.H"
+#include "IndexDefines.H"
 #include "AMReX_MultiFabUtil.H"
 
 //! Return closest index (from lower) of value in vector
@@ -27,100 +28,46 @@ AMREX_FORCE_INLINE amrex::IntVect offset(const int face_dir, const int normal)
     return offset;
 }
 
-void ReadBndryPlanes::define_level_data(
-    const amrex::Orientation ori, const amrex::Box& bx, const size_t nc)
+void ReadBndryPlanes::define_level_data()
 {
-    m_data_n[ori]->push_back(amrex::FArrayBox(bx, nc));
-    m_data_np1[ori]->push_back(amrex::FArrayBox(bx, nc));
-    m_data_np2[ori]->push_back(amrex::FArrayBox(bx, nc));
-    m_data_interp[ori]->push_back(amrex::FArrayBox(bx, nc));
-}
+    // *********************************************************
+    // Allocate space for all of the boundary planes we may need
+    // *********************************************************
+    const int lev = 0;
+    int ncomp = BCVars::NumTypes;
+    const amrex::Box& domain = m_geom.Domain();
+    for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
+        auto ori = oit();
 
-void ReadBndryPlanes::read_data_native(amrex::FArrayBox& xlo_plane, amrex::FArrayBox& ylo_plane,
-                                 amrex::FArrayBox& xhi_plane, amrex::FArrayBox& yhi_plane)
-{
-#if 0
-    const amrex::OrientationIter oit,
-    amrex::BndryRegister& bndry_n,
-    amrex::BndryRegister& bndry_np1,
-    const int lev,
-    const amrex::MultiFab* fld,
-    const amrex::Real time,
-    const amrex::Vector<amrex::Real>& times)
-    const size_t nc = fld->nComp();
-    const int nstart = 0;  //  = m_components[fld->id()];
+        m_data_n[ori]      = std::make_unique<PlaneVector>();
+        m_data_np1[ori]    = std::make_unique<PlaneVector>();
+        m_data_np2[ori]    = std::make_unique<PlaneVector>();
+        m_data_interp[ori] = std::make_unique<PlaneVector>();
 
-    const int idx = closest_index(times, time);
-    const int idxp1 = idx + 1;
+        const auto& lo = domain.loVect();
+        const auto& hi = domain.hiVect();
 
-    m_tn   = times[idx];
-    m_tnp1 = times[idx+1];
-    m_tnp2 = times[idx+2];
-
-    auto ori = oit();
-
-    //AMREX_ALWAYS_ASSERT(((m_tn <= time) && (time <= m_tnp1)));
-    //AMREX_ALWAYS_ASSERT(fld->num_comp() == bndry_n[ori].nComp());
-    //AMREX_ASSERT(bndry_n[ori].boxArray() == bndry_np1[ori].boxArray());
-
-    const int normal = ori.coordDir();
-    const auto& bbx = (*m_data_n[ori])[lev].box();
-    const amrex::IntVect v_offset = offset(ori.faceDir(), normal);
-
-    amrex::MultiFab bndry(
-        bndry_n[ori].boxArray(), bndry_n[ori].DistributionMap(),
-        bndry_n[ori].nComp(), 0, amrex::MFInfo());
-
-    for (amrex::MFIter mfi(bndry); mfi.isValid(); ++mfi) {
-
-        const auto& vbx = mfi.validbox();
-        const auto& bndry_n_arr = bndry_n[ori].array(mfi);
-        const auto& bndry_arr = bndry.array(mfi);
-
-        const auto& bx = bbx & vbx;
-        if (bx.isEmpty()) {
-            continue;
-        }
-
-        amrex::ParallelFor(
-            bx, nc, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                bndry_arr(i, j, k, n) =
-                    0.5 *
-                    (bndry_n_arr(i, j, k, n) +
-                     bndry_n_arr(
-                         i + v_offset[0], j + v_offset[1], k + v_offset[2], n));
-            });
+        amrex::IntVect plo(lo);
+        amrex::IntVect phi(hi);
+        const int normal = ori.coordDir();
+        plo[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
+        phi[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
+        const amrex::Box pbx(plo, phi);
+        m_data_n[ori]->push_back(amrex::FArrayBox(pbx, ncomp));
+        m_data_np1[ori]->push_back(amrex::FArrayBox(pbx, ncomp));
+        m_data_np2[ori]->push_back(amrex::FArrayBox(pbx, ncomp));
+        m_data_interp[ori]->push_back(amrex::FArrayBox(pbx, ncomp));
     }
 
-    bndry.copyTo((*m_data_n[ori])[lev], 0, nstart, nc);
-
-    for (amrex::MFIter mfi(bndry); mfi.isValid(); ++mfi) {
-        const auto& vbx = mfi.validbox();
-        const auto& bndry_np1_arr = bndry_np1[ori].array(mfi);
-        const auto& bndry_arr = bndry.array(mfi);
-
-        const auto& bx = bbx & vbx;
-        if (bx.isEmpty()) {
-            continue;
-        }
-
-        amrex::ParallelFor(
-            bx, nc, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                bndry_arr(i, j, k, n) =
-                    0.5 *
-                    (bndry_np1_arr(i, j, k, n) +
-                     bndry_np1_arr(
-                         i + v_offset[0], j + v_offset[1], k + v_offset[2], n));
-            });
-    }
-
-    bndry.copyTo((*m_data_np1[ori])[lev], 0, nstart, nc);
-#endif
 }
 
 void ReadBndryPlanes::interpolate(const amrex::Real time)
 {
     m_tinterp = time;
+
+    // Compute the index such that time falls between times[idx] and times[idx+1]
+    const int idx = closest_index(m_in_times, time);
+
     for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
         auto ori = oit();
 
@@ -146,13 +93,15 @@ ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
     // What folder will the time series of planes be read from
     pp.get("bndry_file", m_filename);
 
+    if (pp.contains("bndry_input_var_names"))
+    {
+        int num_vars = pp.countval("bndry_input_var_names");
+        m_var_names.resize(num_vars);
+        pp.queryarr("bndry_input_var_names",m_var_names,0,num_vars);
+    }
+
     // time.dat will be in the same folder as the time series of data
     m_time_file = m_filename + "/time.dat";
-}
-
-void ReadBndryPlanes::read_header()
-{
-    BL_PROFILE("ERF::ReadBndryPlanes::read_header");
 
     // each pointer (at at given time) has 6 components, one for each orientation
     // TODO: we really only need 4 not 6
@@ -161,6 +110,11 @@ void ReadBndryPlanes::read_header()
     m_data_np1.resize(size);
     m_data_np2.resize(size);
     m_data_interp.resize(size);
+}
+
+void ReadBndryPlanes::read_time_file()
+{
+    BL_PROFILE("ERF::ReadBndryPlanes::read_time_file");
 
     // *********************************************************
     // Read the time.data file and store the timesteps and times
@@ -207,31 +161,9 @@ void ReadBndryPlanes::read_header()
         amrex::ParallelDescriptor::IOProcessorNumber(),
         amrex::ParallelDescriptor::Communicator());
 
-    // *********************************************************
-    // Allocate space for all of the boundary planes we may need
-    // *********************************************************
-    const int lev = 0;
-    int ncomp = 1;
-    const amrex::Box& domain = m_geom.Domain();
-    for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
-        auto ori = oit();
-
-        m_data_n[ori]      = std::make_unique<PlaneVector>();
-        m_data_np1[ori]    = std::make_unique<PlaneVector>();
-        m_data_np2[ori]    = std::make_unique<PlaneVector>();
-        m_data_interp[ori] = std::make_unique<PlaneVector>();
-
-        const auto& lo = domain.loVect();
-        const auto& hi = domain.hiVect();
-
-        amrex::IntVect plo(lo);
-        amrex::IntVect phi(hi);
-        const int normal = ori.coordDir();
-        plo[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
-        phi[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
-        const amrex::Box pbx(plo, phi);
-        define_level_data(ori, pbx, ncomp);
-    }
+    // Allocate data we will need
+    define_level_data();
+    amrex::Print() << "Successfully read time file and allocated data" << std::endl;
 }
 
 void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
@@ -255,16 +187,16 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
     if (last_file_read == -1)
     {
         int idx_init = 0;
-        read_file(idx_init);
-        //amrex::Print() << "Reading file with tstep " << m_in_timesteps[idx_init] << std::endl;
+        read_file(idx_init,m_data_n);
+        m_tn = m_in_times[idx_init];
 
         idx_init = 1;
-        read_file(idx_init);
-        //amrex::Print() << "Reading file with tstep " << m_in_timesteps[idx_init] << std::endl;
+        read_file(idx_init,m_data_np1);
+        m_tnp1 = m_in_times[idx_init];
 
         idx_init = 2;
-        read_file(idx_init);
-        //amrex::Print() << "Reading file with tstep " << m_in_timesteps[idx_init] << std::endl;
+        read_file(idx_init,m_data_np2);
+        m_tnp1 = m_in_times[idx_init];
 
         last_file_read = idx_init;
     }
@@ -281,33 +213,30 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
     // Now we need to read another file
     if (idx >= last_file_read-1 && last_file_read != m_in_times.size()-1) {
         int new_read = last_file_read+1;
-        read_file(new_read);
+
+        // We need to change which data the pointers point to before we read in the new data
+        // This doesn't actually move the data, just swaps the pointers
+        for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
+            auto ori = oit();
+            std::swap(m_data_n[ori]  ,m_data_np1[ori]);
+            std::swap(m_data_np1[ori],m_data_np2[ori]);
+        }
+
+        // Set the times corresponding to the post-swap pointers
+        m_tn   = m_tnp1;
+        m_tnp1 = m_tnp2;
+        m_tnp2 = m_in_times[new_read];
+
+        read_file(new_read,m_data_np2);
         last_file_read = new_read;
     }
 
-#if 0
-    // Go ahead and interpolate in time if we have already read the files we need
-    if ((tn() <= time) && (time+dt <= tnp2()))
-    {
-        interpolate(time);
-        return;
-    } else
-
-        const int index = closest_index(m_in_times, time);
-        const int t_step1 = m_in_timesteps[index];
-        //const int t_step2 = t_step1 + 1;
-        const int t_step2 = m_in_timesteps[index+1];
-
-        AMREX_ALWAYS_ASSERT(
-            (m_in_times[index] <= time) && (time <= m_in_times[index + 1]));
-#endif
-
-    //interpolate(time);
+    AMREX_ASSERT(time    >= m_tn && time    <= m_tnp2);
+    AMREX_ASSERT(time+dt >= m_tn && time+dt <= m_tnp2);
 }
 
-void ReadBndryPlanes::read_file(const int idx)
+void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill)
 {
-#if 0
     const int t_step = m_in_timesteps[idx];
     const std::string chkname1 = m_filename + amrex::Concatenate("/bndry_output", t_step);
 
@@ -317,55 +246,70 @@ void ReadBndryPlanes::read_file(const int idx)
     const amrex::Box& domain = m_geom.Domain();
     amrex::BoxArray ba(domain);
     amrex::DistributionMapping dm{ba};
-    amrex::BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
-    bndry.setVal(1.0e13);
 
-    std::string state_name = "temperature";
-    std::string filename1 = amrex::MultiFabFileFullPrefix(lev, chkname1, level_prefix, state_name);
+    for (int i = 0; i < m_var_names.size(); i++)
+    {
+        std::string var_name = m_var_names[i];
 
-    int nstart = 0;
-    int ncomp  = 1;
+        std::string filename1 = amrex::MultiFabFileFullPrefix(lev, chkname1, level_prefix, var_name);
+        amrex::Print() << "Reading " << chkname1 << std::endl;
 
-    // *********************************************************
-    // Read in the BndryReg for all non-z faces
-    // *********************************************************
-    for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
-        auto ori = oit();
-        if (ori.coordDir() < 2) {
+        int nstart = 0;
+        int ncomp  = 1;
+
+        if (var_name == "velocity") {
+            ncomp = AMREX_SPACEDIM;
+        }
+
+        amrex::BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
+        bndry.setVal(1.0e13);
+
+        // *********************************************************
+        // Read in the BndryReg for all non-z faces
+        // *********************************************************
+        for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
+          auto ori = oit();
+          if (ori.coordDir() < 2) {
 
             std::string facename1 = amrex::Concatenate(filename1 + '_', ori, 1);
             bndry[ori].read(facename1);
-        }
-    }
 
-    // *********************************************************
-    // Copy from the BndryReg into a MultiFab then use copyTo
-    //     to write from the MultiFab to a single FAB for each face
-    // *********************************************************
-    amrex::MultiFab bndryMF(
-        bndry_n[ori].boxArray(), bndry_n[ori].DistributionMap(),
-        bndry_n[ori].nComp(), 0, amrex::MFInfo());
+            const int normal = ori.coordDir();
+            const amrex::IntVect v_offset = offset(ori.faceDir(), normal);
 
-    for (amrex::MFIter mfi(bndry); mfi.isValid(); ++mfi) {
+            const auto& bbx = (*data_to_fill[ori])[lev].box();
 
-        const auto& vbx = mfi.validbox();
-        const auto& bndry_n_arr = bndry_n[ori].array(mfi);
-        const auto& bndry_arr = bndryMF.array(mfi);
+            // *********************************************************
+            // Copy from the BndryReg into a MultiFab then use copyTo
+            //     to write from the MultiFab to a single FAB for each face
+            // *********************************************************
+            amrex::MultiFab bndryMF(
+                bndry[ori].boxArray(), bndry[ori].DistributionMap(),
+                ncomp, 0, amrex::MFInfo());
 
-        const auto& bx = bbx & vbx;
-        if (bx.isEmpty()) {
-            continue;
-        }
+            for (amrex::MFIter mfi(bndryMF); mfi.isValid(); ++mfi) {
 
-        amrex::ParallelFor(
-            bx, nc, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                bndry_arr(i, j, k, n) =
-                    0.5 *
-                    (bndry_n_arr(i, j, k, n) +
-                     bndry_n_arr(
-                         i + v_offset[0], j + v_offset[1], k + v_offset[2], n));
-            });
-    }
-    bndry.copyTo((*m_data_n[ori])[lev], 0, nstart, nc);
-#endif
+                const auto& vbx = mfi.validbox();
+                const auto& bndry_read_arr = bndry[ori].array(mfi);
+                const auto& bndry_mf_arr   = bndryMF.array(mfi);
+
+                const auto& bx = bbx & vbx;
+                if (bx.isEmpty()) {
+                    continue;
+                }
+
+                // We average the two cell-centered data points in the normal direction
+                //    to define a Dirichlet value on the face itself
+                amrex::ParallelFor(
+                    bx, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                        bndry_mf_arr(i, j, k, n) = 0.5 *
+                          (bndry_read_arr(i, j, k, n) +
+                           bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], n));
+                });
+
+            } // mfi
+            bndryMF.copyTo((*data_to_fill[ori])[lev], 0, nstart, ncomp);
+          } // coordDir < 2
+        } // ori
+    } // var_name
 }

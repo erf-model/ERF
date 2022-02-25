@@ -181,11 +181,8 @@ public:
 
                     const amrex::BCRec* bc_ptr = bcrs_d.data();
 
-                    int zlo = m_geom.Domain().smallEnd(2);
-                    int zhi = m_geom.Domain().bigEnd(2);
-
                     // Fill here all the "generic" ext_dir bc's
-                    ParallelFor(bx, ncomp, [=,m_var_idx=m_var_idx,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                     {
                         if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
@@ -200,7 +197,6 @@ public:
                         if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
 
-                        // check m_var_idx to distinguish between Vars::Dvel and Vars::Dmom (in Legacy this was controlled by the is_derived flag)
                         // check the bc_ptr for ERFBCType::MOST
                         if (bccomp == BCVars::xvel_bc)
                         {
@@ -217,7 +213,53 @@ public:
                             if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
                                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
                         }
+                    });
 
+#if 0
+                    // Fill here all the boundary conditions which are supplied by
+                    // planes we have read in and are interpolating in time
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+                    {
+                        if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+                        if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+                        if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                        if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
+                        if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir_ingested)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
+                        if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
+
+                        // check the bc_ptr for ERFBCType::MOST
+                        if (bccomp == BCVars::xvel_bc)
+                        {
+                            if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested)
+                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+                        }
+                        if (bccomp == BCVars::yvel_bc)
+                        {
+                            if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested)
+                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+                        }
+                        if (bccomp == BCVars::zvel_bc)
+                        {
+                            if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested)
+                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                        }
+                    });
+#endif
+
+                    int zlo = m_geom.Domain().smallEnd(2);
+                    int zhi = m_geom.Domain().bigEnd(2);
+
+                    // Now handle the MOST bc if we have any
+                    ParallelFor(bx, ncomp, [=,m_var_idx=m_var_idx,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+                    {
+                        // check m_var_idx to distinguish between Vars::Dvel and Vars::Dmom
+                        // (in Legacy this was controlled by the is_derived flag)
                         bool var_is_derived = false;
                         if (m_var_idx == Vars::xvel || m_var_idx == Vars::yvel || m_var_idx == Vars::zvel) {
                             var_is_derived = true;
@@ -260,7 +302,6 @@ public:
                                 Real num2    = (m_most.theta_mean-m_most.surf_temp)*vmag;
                                 Real motheta = (num1+num2)*m_most.utau*m_most.kappa/m_most.phi_h();
 
-                                //printf("i=%d,j=%d,k=%d,theta=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,motheta,rho,(eta_arr)(60,10,1),m_most.utau,motheta*rho/eta);
                                 if (!var_is_derived) {
                                     dest_array(i,j,k,icomp+n) = rho*(m_most.surf_temp + motheta*rho/eta);
                                 } else {
@@ -283,10 +324,11 @@ public:
                                 rho   = 0.5*(cons_arr(i,j,zlo,Rho_comp)+cons_arr(i+1,j,zlo,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zlo)+eta_arr(ie+1,je,zlo));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/(m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
-                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1])/(m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
+                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1])/
+                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 
-                                //printf("i=%d,j=%d,k=%d,vx=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgx,rho,eta,m_most.utau,vgx*rho/eta);
                                 if (!var_is_derived) {
                                     dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgx*rho/eta;
                                 } else {
@@ -309,17 +351,19 @@ public:
                                 rho   = 0.5*(cons_arr(i,j,zlo,Rho_comp)+cons_arr(i,j+1,zlo,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zlo)+eta_arr(ie,je+1,zlo));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/(m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
-                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1])/(m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0]) /
+                                             (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
+                                             (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 
-                                //printf("i=%d,j=%d,k=%d,vy=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgy,rho,eta,m_most.utau,vgy*rho/eta);
                                 if (!var_is_derived) {
                                     dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgy*rho/eta;
                                 } else {
                                     dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgy/eta;
                                 }
                             } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) { //for velz
-                                dest_array(i,j,k,icomp+n) = (zlo-k+1)*dest_array(i,j,zlo,icomp+n) - (zlo-k)*dest_array(i,j,zlo+1,icomp+n);
+                                dest_array(i,j,k,icomp+n) = (zlo-k+1)*dest_array(i,j,zlo  ,icomp+n) -
+                                                            (zlo-k  )*dest_array(i,j,zlo+1,icomp+n);
                             }
                             }
                         }
@@ -362,7 +406,6 @@ public:
                                 Real num2    = (m_most.theta_mean-m_most.surf_temp)*vmag;
                                 Real motheta = (num1+num2)*m_most.utau*m_most.kappa/m_most.phi_h();
 
-                                //printf("i=%d,j=%d,k=%d,theta=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,motheta,rho,(eta_arr)(60,10,1),m_most.utau,motheta*rho/eta);
                                 if (!var_is_derived) {
                                     dest_array(i,j,k,icomp+n) = rho*(dest_array(i,j,zhi,icomp+n) - motheta*rho/eta);
                                 } else {
@@ -385,10 +428,10 @@ public:
                                 rho   = 0.5*(cons_arr(i,j,zhi,Rho_comp)+cons_arr(i+1,j,zhi,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zhi)+eta_arr(ie+1,je,zhi));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/(m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
-                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1])/(m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
-
-                                //printf("i=%d,j=%d,k=%d,vx=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgx,rho,eta,m_most.utau,vgx*rho/eta);
+                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
+                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1])/
+                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 
                                 if (!var_is_derived) {
                                     dest_array(i,j,k,icomp+n) = dest_array(i,j,zhi,icomp+n) + vgx*rho/eta;
@@ -412,17 +455,19 @@ public:
                                 rho   = 0.5*(cons_arr(i,j,zhi,Rho_comp)+cons_arr(i,j+1,zhi,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zhi)+eta_arr(ie,je+1,zhi));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/(m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
-                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1])/(m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0]) /
+                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
+                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 
-                                //printf("i=%d,j=%d,k=%d,vy=%13.6e,rho=%13.6e,eta=%13.6e,tau=%13.6e,val=%13.6e\n",i,j,k,vgy,rho,eta,m_most.utau,vgy*rho/eta);
                                 if (!var_is_derived) {
                                     dest_array(i,j,k,icomp+n) = dest_array(i,j,zhi,icomp+n) + vgy*rho/eta;
                                 } else {
                                     dest_array(i,j,k,icomp+n) = dest_array(i,j,zhi,icomp+n) + vgy/eta;
                                 }
                             } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) { //for velz
-                                dest_array(i,j,k,icomp+n) = (k-zhi+1)*dest_array(i,j,zhi,icomp+n) - (k-zhi)*dest_array(i,j,zhi-1,icomp+n);
+                                dest_array(i,j,k,icomp+n) = (k-zhi+1)*dest_array(i,j,zhi  ,icomp+n) -
+                                                            (k-zhi  )*dest_array(i,j,zhi-1,icomp+n);
                             }
                             }
                         }

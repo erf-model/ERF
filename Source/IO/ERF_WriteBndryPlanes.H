@@ -21,12 +21,6 @@ public:
                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new);
 
 private:
-    //! Plane names
-    amrex::Vector<std::string> m_plane_names{
-        {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"}};
-
-    //! IO boundary planes
-    amrex::Vector<std::string> m_planes;
 
     //! IO output box region
     amrex::Box target_box;
