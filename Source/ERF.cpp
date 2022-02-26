@@ -163,14 +163,8 @@ ERF::Evolve ()
             m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
         }
 
-        int iteration = 1;
-
-        for (int ilev = 0; ilev <= finest_level; ++ilev) {
-            t_old[ilev] = cur_time;
-            t_new[ilev] = cur_time+dt[0];
-        }
-
         int lev = 0;
+        int iteration = 1;
         timeStep(lev, cur_time, iteration);
 
         cur_time  += dt[0];
