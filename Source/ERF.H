@@ -150,9 +150,6 @@ public:
     // write plotfile to disk
     void WritePlotFile () const;
 
-    const WriteBndryPlanes& w2d() const {return *m_w2d;}
-    const  ReadBndryPlanes& r2d() const {return *m_r2d;}
-
 private:
 
     ////////////////
@@ -397,8 +394,8 @@ private:
 
     static void refinement_criteria_setup();
 
-    std::unique_ptr<WriteBndryPlanes> m_w2d;
-    std::unique_ptr<ReadBndryPlanes>  m_r2d;
+    std::unique_ptr<WriteBndryPlanes> m_w2d = nullptr;
+    std::unique_ptr<ReadBndryPlanes>  m_r2d = nullptr;
 
     //
     // Holds info for dynamically generated tagging criteria

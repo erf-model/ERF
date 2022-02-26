@@ -11,12 +11,15 @@
 #include <AMReX_FilFC_C.H>
 #include <AMReX_TypeTraits.H>
 #include <AMReX_Orientation.H>
+#include <ERF_ReadBndryPlanes.H>
 
 #include <TimeInterpolatedData.H>
 #include <IndexDefines.H>
 #include <DataStruct.H>
 #include <EddyViscosity.H>
 #include <ABLMost.H>
+
+using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
 struct NullFill
 {
@@ -38,9 +41,9 @@ public:
                     const int& var_idx, TimeInterpolatedData& data,
                     Array<Array<Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
                     const SolverChoice& solverChoice,
-                    ABLMost& most)
+                    ABLMost& most, std::unique_ptr<ReadBndryPlanes>& r2d)
         : m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
-          m_var_idx(var_idx), m_data(data), m_bc_extdir_vals(bc_extdir_vals), m_most(most)
+          m_var_idx(var_idx), m_data(data), m_bc_extdir_vals(bc_extdir_vals), m_most(most), m_r2d(r2d)
         {
             m_has_most_bcs = false;
             for (const auto& bcr : domain_bcs_type) {
@@ -220,42 +223,56 @@ public:
                         }
                     });
 
-#if 0
-                    // Fill here all the boundary conditions which are supplied by
-                    // planes we have read in and are interpolating in time
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
-                    {
-                        if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
-                        if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
-                        if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-                        if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
-                        if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir_ingested)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
-                        if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
+                    int lev = 0;
+                    if (m_r2d) {
+                        amrex::Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+                        const auto& bdatxlo = (*bndry_data[0])[lev].const_array();
+                        const auto& bdatylo = (*bndry_data[1])[lev].const_array();
+                        const auto& bdatzlo = (*bndry_data[2])[lev].const_array();
+                        const auto& bdatxhi = (*bndry_data[3])[lev].const_array();
+                        const auto& bdatyhi = (*bndry_data[4])[lev].const_array();
+                        const auto& bdatzhi = (*bndry_data[5])[lev].const_array();
 
-                        // check the bc_ptr for ERFBCType::MOST
-                        if (bccomp == BCVars::xvel_bc)
+                        // Fill here all the boundary conditions which are supplied by
+                        // planes we have read in and are interpolating in time
+                        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                         {
-                            if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested)
-                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
-                        }
-                        if (bccomp == BCVars::yvel_bc)
-                        {
-                            if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested)
-                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
-                        }
-                        if (bccomp == BCVars::zvel_bc)
-                        {
-                            if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested)
-                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-                        }
-                    });
-#endif
+                            if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
+                                dest_array(i,j,k,icomp+n) = bdatxlo(i,j,k,bccomp+n);
+                            }
+                            if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
+                                dest_array(i,j,k,icomp+n) = bdatylo(i,j,k,bccomp+n);
+                            }
+                            if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
+                                dest_array(i,j,k,icomp+n) = bdatzlo(i,j,k,bccomp+n);
+                            }
+                            if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested) {
+                                dest_array(i,j,k,icomp+n) = bdatxhi(i,j,k,bccomp+n);
+                            }
+                            if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir_ingested) {
+                                dest_array(i,j,k,icomp+n) = bdatyhi(i,j,k,bccomp+n);
+                            }
+                            if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested) {
+                                dest_array(i,j,k,icomp+n) = bdatzhi(i,j,k,bccomp+n);
+                            }
+
+                            if (bccomp == BCVars::xvel_bc)
+                            {
+                                if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested)
+                                    dest_array(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,j,k,bccomp+n);
+                            }
+                            if (bccomp == BCVars::yvel_bc)
+                            {
+                                if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested)
+                                    dest_array(i,j,k,icomp+n) = bdatylo(i,dom_lo.y-1,k,bccomp+n);
+                            }
+                            if (bccomp == BCVars::zvel_bc)
+                            {
+                                if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested)
+                                    dest_array(i,j,k,icomp+n) = bdatylo(i,j,dom_lo.z-1,bccomp+n);
+                            }
+                        });
+                    }
 
                     int zlo = m_geom.Domain().smallEnd(2);
                     int zhi = m_geom.Domain().bigEnd(2);
@@ -502,6 +519,7 @@ private:
     MultiFab m_viscosity;
     bool m_has_most_bcs;
     ABLMost m_most;
+    std::unique_ptr<ReadBndryPlanes>& m_r2d;
 };
 
 #endif

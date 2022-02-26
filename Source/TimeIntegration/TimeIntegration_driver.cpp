@@ -167,9 +167,9 @@ void ERF::erf_advance(int level,
         //     2) physical boundaries
         //     3) other grids at the same level
         // **************************************************************************************
-        FillIntermediatePatch(level, time, xvel_new, 0, 1, Vars::xvel);
-        FillIntermediatePatch(level, time, yvel_new, 0, 1, Vars::yvel);
-        FillIntermediatePatch(level, time, zvel_new, 0, 1, Vars::zvel);
+        FillIntermediatePatch(level, time_for_fp, xvel_new, 0, 1, Vars::xvel);
+        FillIntermediatePatch(level, time_for_fp, yvel_new, 0, 1, Vars::yvel);
+        FillIntermediatePatch(level, time_for_fp, zvel_new, 0, 1, Vars::zvel);
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density

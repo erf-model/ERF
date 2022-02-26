@@ -29,8 +29,9 @@ AMREX_FORCE_INLINE amrex::IntVect offset(const int face_dir, const int normal)
     return offset;
 }
 
-void ReadBndryPlanes::define_level_data()
+void ReadBndryPlanes::define_level_data(int lev)
 {
+    amrex::Print() << "ReadBndryPlanes::define_level_data" << std::endl;
     // *********************************************************
     // Allocate space for all of the boundary planes we may need
     // *********************************************************
@@ -57,30 +58,59 @@ void ReadBndryPlanes::define_level_data()
         m_data_np1[ori]->push_back(amrex::FArrayBox(pbx, ncomp));
         m_data_np2[ori]->push_back(amrex::FArrayBox(pbx, ncomp));
         m_data_interp[ori]->push_back(amrex::FArrayBox(pbx, ncomp));
+
+        // We need to initialize all the components because we may not fill all of them from files
+        (*m_data_n[ori])[lev].setVal(0.);
+        (*m_data_np1[ori])[lev].setVal(0.);
+        (*m_data_np2[ori])[lev].setVal(0.);
+        (*m_data_interp[ori])[lev].setVal(0.);
     }
 }
 
-void ReadBndryPlanes::interpolate(const amrex::Real time)
+amrex::Vector<std::unique_ptr<PlaneVector>>&
+ReadBndryPlanes::interp_in_time(const amrex::Real& time)
 {
-    m_tinterp = time;
+    AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
 
-    // Compute the index such that time falls between times[idx] and times[idx+1]
-    const int idx = closest_index(m_in_times, time);
+    // amrex::Print() << "interp_in_time at time " << time << " given " << m_tn << " " << m_tnp1 << " " << m_tnp2 << std::endl;
 
-    for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
-        auto ori = oit();
+    if (time == m_tinterp) {
+        // We have already interpolated to this time
+        return m_data_interp;
 
-        const int nlevels = m_data_n[ori]->size();
-        for (int lev = 0; lev < nlevels; ++lev) {
+    } else {
 
-            const auto& datn = (*m_data_n[ori])[lev];
-            const auto& datnp1 = (*m_data_np1[ori])[lev];
-            auto& dati = (*m_data_interp[ori])[lev];
-            dati.linInterp<amrex::RunOn::Device>(
-                datn, 0, datnp1, 0, m_tn, m_tnp1, m_tinterp, datn.box(), 0,
-                dati.nComp());
+        // We must now interpolate to a new time
+        m_tinterp = time;
+
+        if (time < m_tnp1) {
+            for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
+                auto ori = oit();
+                const int nlevels = m_data_n[ori]->size();
+                for (int lev = 0; lev < nlevels; ++lev) {
+                    const auto& datn   = (*m_data_n[ori])[lev];
+                    const auto& datnp1 = (*m_data_np1[ori])[lev];
+                    auto& dati = (*m_data_interp[ori])[lev];
+                    dati.linInterp<amrex::RunOn::Device>(
+                        datn, 0, datnp1, 0, m_tn, m_tnp1, m_tinterp, datn.box(), 0, dati.nComp());
+                }
+            }
+        } else {
+            for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
+                auto ori = oit();
+                const int nlevels = m_data_n[ori]->size();
+                for (int lev = 0; lev < nlevels; ++lev) {
+                    const auto& datnp1 = (*m_data_np1[ori])[lev];
+                    const auto& datnp2 = (*m_data_np2[ori])[lev];
+                    auto& dati = (*m_data_interp[ori])[lev];
+                    dati.linInterp<amrex::RunOn::Device>(
+                        datnp1, 0, datnp2, 0, m_tnp1, m_tnp2, m_tinterp, datnp1.box(), 0,
+                        dati.nComp());
+                }
+            }
         }
     }
+    return m_data_interp;
 }
 
 ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
@@ -88,6 +118,8 @@ ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
     amrex::ParmParse pp("erf");
 
     last_file_read = -1;
+
+    m_tinterp = -1.;
 
     // What folder will the time series of planes be read from
     pp.get("bndry_file", m_filename);
@@ -174,8 +206,9 @@ void ReadBndryPlanes::read_time_file()
         amrex::ParallelDescriptor::IOProcessorNumber(),
         amrex::ParallelDescriptor::Communicator());
 
-    // Allocate data we will need
-    define_level_data();
+    // Allocate data we will need -- for now just at one level
+    int lev = 0;
+    define_level_data(lev);
     amrex::Print() << "Successfully read time file and allocated data" << std::endl;
 }
 
@@ -202,6 +235,7 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt,
     {
         int idx_init = 0;
         read_file(idx_init,m_data_n,m_bc_extdir_vals);
+        read_file(idx_init,m_data_interp,m_bc_extdir_vals); // We want to start with this filled
         m_tn = m_in_times[idx_init];
 
         idx_init = 1;
@@ -210,19 +244,13 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt,
 
         idx_init = 2;
         read_file(idx_init,m_data_np2,m_bc_extdir_vals);
-        m_tnp1 = m_in_times[idx_init];
+        m_tnp2 = m_in_times[idx_init];
 
         last_file_read = idx_init;
     }
 
     // Compute the index such that time falls between times[idx] and times[idx+1]
     const int idx = closest_index(m_in_times, time);
-
-    // These are the times that we need in order to ensure we have the necessary data
-    //   for this timestep
-    amrex::Real tn   = m_in_times[idx];
-    amrex::Real tnp1 = m_in_times[idx+1];
-    amrex::Real tnp2 = m_in_times[idx+2];
 
     // Now we need to read another file
     if (idx >= last_file_read-1 && last_file_read != m_in_times.size()-1) {
@@ -293,7 +321,7 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
         } else {
             ncomp = 1;
         }
- 
+
         int n_offset;
         if (var_name == "density")     n_offset = BCVars::Rho_bc_comp;
         if (var_name == "theta")       n_offset = BCVars::RhoTheta_bc_comp;
@@ -343,7 +371,7 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
                 }
 
                 // We average the two cell-centered data points in the normal direction
-                //    to define a Dirichlet value on the face itself.  
+                //    to define a Dirichlet value on the face itself.
 
                 // This is the scalars -- they all get multiplied by rho, and in the case of
                 //   reading in temperature, we must convert to theta first
@@ -364,9 +392,16 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              amrex::Real R1 =  bndry_read_arr(i, j, k, n_for_density);
                              amrex::Real R2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],n_for_density);
-                             bndry_mf_arr(i, j, k, 0) = 0.5 *  
+                             bndry_mf_arr(i, j, k, 0) = 0.5 *
                                   ( R1 * bndry_read_arr(i, j, k, 0) +
                                     R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
+                        });
+                   } else if (var_name == "density") {
+                    amrex::ParallelFor(
+                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                             bndry_mf_arr(i, j, k, 0) = 0.5 *
+                                  ( bndry_read_arr(i, j, k, 0) +
+                                    bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
                         });
                    }
                 } else if (!ingested_density()) {

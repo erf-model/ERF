@@ -157,8 +157,6 @@ ERF::Evolve ()
 
         ComputeDt();
 
-        int lev = 0;
-
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_2d_planes)
         {
@@ -166,17 +164,19 @@ ERF::Evolve ()
         }
 
         int iteration = 1;
+
+        for (int ilev = 0; ilev <= finest_level; ++ilev) {
+            t_old[ilev] = cur_time;
+            t_new[ilev] = cur_time+dt[0];
+        }
+
+        int lev = 0;
         timeStep(lev, cur_time, iteration);
 
-        cur_time += dt[0];
+        cur_time  += dt[0];
 
         amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                        << " DT = " << dt[0]  << std::endl;
-
-        // sync up time
-        for (lev = 0; lev <= finest_level; ++lev) {
-            t_new[lev] = cur_time;
-        }
 
         if (plot_int > 0 && (step+1) % plot_int == 0) {
             last_plot_file_step = step+1;
@@ -285,6 +285,15 @@ ERF::InitData ()
         ablinit.init_params();
     }
 
+    if (input_2d_planes) {
+        // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
+        amrex::Print() << "Defining r2d for the first time " << std::endl;
+        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
+
+        // Read the "time.dat" file to know what data is available
+        m_r2d->read_time_file();
+    }
+
     last_plot_file_step = -1;
     last_check_file_step = -1;
 
@@ -339,14 +348,6 @@ ERF::InitData ()
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
-    }
-
-    if (input_2d_planes) {
-        // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
-        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
-
-        // Read the "time.dat" file to know what data is available
-        m_r2d->read_time_file();
     }
 
     // We only write the file at level 0 for now
@@ -429,7 +430,7 @@ ERF::ClearLevel (int lev)
 // Only used during initialization.
 // overrides the pure virtual function in AmrCore
 void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
-                                          const DistributionMapping& dm)
+                                   const DistributionMapping& dm)
 {
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
@@ -453,6 +454,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
+
+    // Read enough of the boundary plane data to make it through the FillPatch at this time
+    if (input_2d_planes)
+    {
+        amrex::Real dt_dummy = 1.e-200;
+        m_r2d->read_input_files(time,dt_dummy,m_bc_extdir_vals);
+    }
 
     // Loop over grids at this level to initialize our grid data
 #ifdef _OPENMP

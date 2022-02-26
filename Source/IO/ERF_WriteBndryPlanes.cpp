@@ -104,7 +104,7 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
     amrex::IntVect new_hi = target_box.bigEnd() - target_box.smallEnd();
     amrex::Box target_box_shifted(amrex::IntVect(0,0,0),new_hi);
     amrex::BoxArray ba_shifted(target_box_shifted);
-    
+
     for (int i = 0; i < m_var_names.size(); i++)
     {
         std::string var_name = m_var_names[i];

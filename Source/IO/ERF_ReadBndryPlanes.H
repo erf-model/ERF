@@ -6,6 +6,8 @@
 #include <AMReX_BndryRegister.H>
 #include "IndexDefines.H"
 
+using PlaneVector = amrex::Vector<amrex::FArrayBox>;
+
 /** Collection of data structures and operations for reading data
  *
  *  This class contains the inlet data structures and operations to
@@ -13,30 +15,22 @@
  */
 class ReadBndryPlanes
 {
-    using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
 public:
     explicit ReadBndryPlanes(const amrex::Geometry& geom);
+
+    void define_level_data(int lev);
 
     void read_time_file();
 
     void read_input_files(amrex::Real time, amrex::Real dt,
         amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals);
 
-    void populate_data(const int, const amrex::Real, amrex::MultiFab&, amrex::MultiFab&) const;
-
-    void define_level_data();
-
     void read_file(const int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
         amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals);
 
-    void interpolate(const amrex::Real);
-    bool is_populated(amrex::Orientation) const;
-    const amrex::FArrayBox&
-    interpolate_data(const amrex::Orientation ori, const int lev) const
-    {
-        return (*m_data_interp[ori])[lev];
-    }
+    // Return the pointer to PlaneVectors at time "time"
+    amrex::Vector<std::unique_ptr<PlaneVector>>& interp_in_time(const amrex::Real& time);
 
     amrex::Real tinterp() const { return m_tinterp; }
 
@@ -90,7 +84,7 @@ private:
     const int m_in_rad = 1;
     const int m_out_rad = 1;
     const int m_extent_rad = 0;
-   
+
     int is_velocity_read;
     int is_density_read;
     int is_temperature_read;
