@@ -308,7 +308,7 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
        if (m_var_names[i] == "density") n_for_density = i;
     }
 
-    // We need to initialize all the components because we may not fill all of them from files, 
+    // We need to initialize all the components because we may not fill all of them from files,
     //    but the loop in the interpolate routine goes over all the components anyway
     int ncomp = BCVars::NumTypes;
     for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
