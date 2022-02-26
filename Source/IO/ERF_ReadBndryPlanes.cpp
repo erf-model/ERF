@@ -4,6 +4,7 @@
 #include "ERF_ReadBndryPlanes.H"
 #include "IndexDefines.H"
 #include "AMReX_MultiFabUtil.H"
+#include "EOS.H"
 
 //! Return closest index (from lower) of value in vector
 AMREX_FORCE_INLINE int
@@ -33,7 +34,6 @@ void ReadBndryPlanes::define_level_data()
     // *********************************************************
     // Allocate space for all of the boundary planes we may need
     // *********************************************************
-    const int lev = 0;
     int ncomp = BCVars::NumTypes;
     const amrex::Box& domain = m_geom.Domain();
     for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
@@ -58,7 +58,6 @@ void ReadBndryPlanes::define_level_data()
         m_data_np2[ori]->push_back(amrex::FArrayBox(pbx, ncomp));
         m_data_interp[ori]->push_back(amrex::FArrayBox(pbx, ncomp));
     }
-
 }
 
 void ReadBndryPlanes::interpolate(const amrex::Real time)
@@ -93,11 +92,25 @@ ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
     // What folder will the time series of planes be read from
     pp.get("bndry_file", m_filename);
 
+    is_velocity_read = 0;
+    is_density_read  = 0;
+    is_temperature_read  = 0;
+    is_theta_read  = 0;
+
     if (pp.contains("bndry_input_var_names"))
     {
         int num_vars = pp.countval("bndry_input_var_names");
         m_var_names.resize(num_vars);
         pp.queryarr("bndry_input_var_names",m_var_names,0,num_vars);
+        for (int i = 0; i < m_var_names.size(); i++) {
+            if (m_var_names[i] == "velocity")     is_velocity_read = 1;
+            if (m_var_names[i] == "density")      is_density_read = 1;
+            if (m_var_names[i] == "temperature")  is_temperature_read = 1;
+            if (m_var_names[i] == "theta")        is_theta_read = 1;
+            if (m_var_names[i] == "scalar")       is_scalar_read = 1;
+            if (m_var_names[i] == "qv")           is_qv_read = 1;
+            if (m_var_names[i] == "qc")           is_qc_read = 1;
+        }
     }
 
     // time.dat will be in the same folder as the time series of data
@@ -166,7 +179,8 @@ void ReadBndryPlanes::read_time_file()
     amrex::Print() << "Successfully read time file and allocated data" << std::endl;
 }
 
-void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
+void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt,
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals)
 {
     BL_PROFILE("ERF::ReadBndryPlanes::read_input_files");
 
@@ -187,15 +201,15 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
     if (last_file_read == -1)
     {
         int idx_init = 0;
-        read_file(idx_init,m_data_n);
+        read_file(idx_init,m_data_n,m_bc_extdir_vals);
         m_tn = m_in_times[idx_init];
 
         idx_init = 1;
-        read_file(idx_init,m_data_np1);
+        read_file(idx_init,m_data_np1,m_bc_extdir_vals);
         m_tnp1 = m_in_times[idx_init];
 
         idx_init = 2;
-        read_file(idx_init,m_data_np2);
+        read_file(idx_init,m_data_np2,m_bc_extdir_vals);
         m_tnp1 = m_in_times[idx_init];
 
         last_file_read = idx_init;
@@ -227,7 +241,7 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
         m_tnp1 = m_tnp2;
         m_tnp2 = m_in_times[new_read];
 
-        read_file(new_read,m_data_np2);
+        read_file(new_read,m_data_np2,m_bc_extdir_vals);
         last_file_read = new_read;
     }
 
@@ -235,7 +249,8 @@ void ReadBndryPlanes::read_input_files(amrex::Real time, amrex::Real dt)
     AMREX_ASSERT(time+dt >= m_tn && time+dt <= m_tnp2);
 }
 
-void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill)
+void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals)
 {
     const int t_step = m_in_timesteps[idx];
     const std::string chkname1 = m_filename + amrex::Concatenate("/bndry_output", t_step);
@@ -247,19 +262,48 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
     amrex::BoxArray ba(domain);
     amrex::DistributionMapping dm{ba};
 
+    amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>,
+                                                 AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+
+    for (int i = 0; i < BCVars::NumTypes; i++)
+    {
+        for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
+            auto ori = oit();
+            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[i][ori];
+        }
+    }
+
+    int n_for_density = -1;
     for (int i = 0; i < m_var_names.size(); i++)
     {
-        std::string var_name = m_var_names[i];
+       if (m_var_names[i] == "density") n_for_density = i;
+    }
+
+    for (int ivar = 0; ivar < m_var_names.size(); ivar++)
+    {
+        std::string var_name = m_var_names[ivar];
 
         std::string filename1 = amrex::MultiFabFileFullPrefix(lev, chkname1, level_prefix, var_name);
         amrex::Print() << "Reading " << chkname1 << std::endl;
 
-        int nstart = 0;
-        int ncomp  = 1;
+        int ncomp;
 
         if (var_name == "velocity") {
             ncomp = AMREX_SPACEDIM;
+        } else {
+            ncomp = 1;
         }
+ 
+        int n_offset;
+        if (var_name == "density")     n_offset = BCVars::Rho_bc_comp;
+        if (var_name == "theta")       n_offset = BCVars::RhoTheta_bc_comp;
+        if (var_name == "temperature") n_offset = BCVars::RhoTheta_bc_comp;
+        if (var_name == "scalar")      n_offset = BCVars::RhoScalar_bc_comp;
+        if (var_name == "qv")          n_offset = BCVars::RhoQv_bc_comp;
+        if (var_name == "qc")          n_offset = BCVars::RhoQc_bc_comp;
+        if (var_name == "velocity")    n_offset = BCVars::xvel_bc;
+
+        // amrex::Print() << "Reading " << var_name << " with n_offset == " << n_offset << std::endl;
 
         amrex::BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
         bndry.setVal(1.0e13);
@@ -299,16 +343,68 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
                 }
 
                 // We average the two cell-centered data points in the normal direction
-                //    to define a Dirichlet value on the face itself
-                amrex::ParallelFor(
-                    bx, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                        bndry_mf_arr(i, j, k, n) = 0.5 *
-                          (bndry_read_arr(i, j, k, n) +
-                           bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], n));
-                });
+                //    to define a Dirichlet value on the face itself.  
+
+                // This is the scalars -- they all get multiplied by rho, and in the case of
+                //   reading in temperature, we must convert to theta first
+                if (n_for_density >= 0) {
+                  if (var_name == "temperature") {
+                    amrex::ParallelFor(
+                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                             amrex::Real R1 =  bndry_read_arr(i, j, k, n_for_density);
+                             amrex::Real R2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],n_for_density);
+                             amrex::Real T1 =  bndry_read_arr(i, j, k, 0);
+                             amrex::Real T2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
+                             amrex::Real Th1 = getThgivenRandT(R1,T1);
+                             amrex::Real Th2 = getThgivenRandT(R2,T2);
+                             bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
+                        });
+                  } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc") {
+                    amrex::ParallelFor(
+                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                             amrex::Real R1 =  bndry_read_arr(i, j, k, n_for_density);
+                             amrex::Real R2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],n_for_density);
+                             bndry_mf_arr(i, j, k, 0) = 0.5 *  
+                                  ( R1 * bndry_read_arr(i, j, k, 0) +
+                                    R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
+                        });
+                   }
+                } else if (!ingested_density()) {
+                  if (var_name == "temperature") {
+                    amrex::ParallelFor(
+                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                             amrex::Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
+                             amrex::Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
+                             amrex::Real T1  = bndry_read_arr(i, j, k, 0);
+                             amrex::Real T2  = bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0);
+                             amrex::Real Th1 = getThgivenRandT(R1,T1);
+                             amrex::Real Th2 = getThgivenRandT(R2,T2);
+                             bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
+                        });
+                  } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc") {
+                      amrex::ParallelFor(
+                        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                             amrex::Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
+                             amrex::Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
+                             bndry_mf_arr(i, j, k, 0) = 0.5 *
+                                (R1 * bndry_read_arr(i, j, k, 0) +
+                                 R2 * bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0));
+                        });
+                  }
+                }
+
+                // This is velocity
+                if (var_name == "velocity") {
+                    amrex::ParallelFor(
+                        bx, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                                bndry_mf_arr(i, j, k, n) = 0.5 *
+                                  (bndry_read_arr(i, j, k, n) +
+                                   bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], n));
+                        });
+                }
 
             } // mfi
-            bndryMF.copyTo((*data_to_fill[ori])[lev], 0, nstart, ncomp);
+            bndryMF.copyTo((*data_to_fill[ori])[lev], 0, n_offset, ncomp);
           } // coordDir < 2
         } // ori
     } // var_name

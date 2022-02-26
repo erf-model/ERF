@@ -13,6 +13,13 @@ amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta)
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real getThgivenRandT(const amrex::Real rho, const amrex::Real T)
+{
+    amrex::Real p_loc = rho * R_d * T;
+    return T * std::pow((p_0/p_loc),(R_d/c_p));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getPgivenRTh(const amrex::Real rhotheta)
 {
     // diagnostic relation for the full pressure

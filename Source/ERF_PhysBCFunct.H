@@ -113,7 +113,6 @@ public:
                 const auto cons_arr = m_data.get_var(Vars::cons)[mfi].array();
                 const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
                 const auto vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
-                const auto velz_arr = m_data.get_var(Vars::zvel)[mfi].array();
                 const auto eta_arr = m_has_most_bcs ? m_viscosity[mfi].array() : Array4<Real>();
 
                 //! if there are cells not in the valid + periodic grown box
@@ -129,13 +128,19 @@ public:
                     // in the case of MOST BCs, use reflect_odd in special cases depending
                     // on which variables we are working with and in which directions we fill BCs.
                     for (int i = 0; i < bcrs.size(); i++) {
-                        for (int iface = 0; iface <= 2*AMREX_SPACEDIM; iface++) {
-                            if (bcrs[i].data()[iface] == static_cast<int>(ERFBCType::MOST)) {
-                                const int idir = iface % AMREX_SPACEDIM;
+                        for (OrientationIter oit; oit; ++oit) {
+                            Orientation ori = oit();
+                            if (bcrs[i].data()[ori] == static_cast<int>(ERFBCType::MOST)) {
+                                const int idir = ori.coordDir();
+                                Orientation::Side side = ori.faceDir();
                                 if (((m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) && idir == 0) ||
                                     ((m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) && idir == 1) ||
                                     ((m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) && idir == 2)) {
-                                    bcrs[i].data()[iface] == ERFBCType::reflect_odd;
+                                    if (side == Orientation::low) {
+                                        bcrs[i].setLo(idir, ERFBCType::reflect_odd);
+                                    } else {
+                                        bcrs[i].setHi(idir, ERFBCType::reflect_odd);
+                                    }
                                 }
                             }
                         }
@@ -326,8 +331,6 @@ public:
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
                                               (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
-                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1])/
-                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 
                                 if (!var_is_derived) {
                                     dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgx*rho/eta;
@@ -351,8 +354,6 @@ public:
                                 rho   = 0.5*(cons_arr(i,j,zlo,Rho_comp)+cons_arr(i,j+1,zlo,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zlo)+eta_arr(ie,je+1,zlo));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0]) /
-                                             (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
                                 Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 
@@ -430,8 +431,6 @@ public:
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
                                               (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
-                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1])/
-                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 
                                 if (!var_is_derived) {
                                     dest_array(i,j,k,icomp+n) = dest_array(i,j,zhi,icomp+n) + vgx*rho/eta;
@@ -455,8 +454,6 @@ public:
                                 rho   = 0.5*(cons_arr(i,j,zhi,Rho_comp)+cons_arr(i,j+1,zhi,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zhi)+eta_arr(ie,je+1,zhi));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0]) /
-                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
                                 Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
                                               (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 

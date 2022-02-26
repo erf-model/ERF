@@ -162,7 +162,7 @@ ERF::Evolve ()
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_2d_planes)
         {
-            m_r2d->read_input_files(cur_time,dt[0]);
+            m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
         }
 
         int iteration = 1;
@@ -357,8 +357,7 @@ ERF::InitData ()
 
         amrex::Real time = 0.;
         if (time >= bndry_output_planes_start_time) {
-            int istep = 0;
-            m_w2d->write_planes(istep, time, vars_new);
+            m_w2d->write_planes(0, time, vars_new);
         }
     }
 }

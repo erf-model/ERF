@@ -4,6 +4,7 @@
 #include "AMReX_Gpu.H"
 #include "AMReX_AmrCore.H"
 #include <AMReX_BndryRegister.H>
+#include "IndexDefines.H"
 
 /** Collection of data structures and operations for reading data
  *
@@ -19,27 +20,15 @@ public:
 
     void read_time_file();
 
-    void read_input_files(amrex::Real time, amrex::Real dt);
+    void read_input_files(amrex::Real time, amrex::Real dt,
+        amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals);
 
     void populate_data(const int, const amrex::Real, amrex::MultiFab&, amrex::MultiFab&) const;
 
     void define_level_data();
 
-    void read_file(const int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill);
-
-    void read_data_native(amrex::FArrayBox& xlo_plane, amrex::FArrayBox& ylo_plane,
-                          amrex::FArrayBox& xhi_plane, amrex::FArrayBox& yhi_plane);
-#if 0
-    void read_data_native(
-        const amrex::OrientationIter oit,
-        amrex::BndryRegister& bndry_n,
-        amrex::BndryRegister& bndry_np1,
-        amrex::BndryRegister& bndry_np2,
-        const int lev,
-        const amrex::MultiFab*,
-        const amrex::Real time,
-        const amrex::Vector<amrex::Real>&);
-#endif
+    void read_file(const int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
+        amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals);
 
     void interpolate(const amrex::Real);
     bool is_populated(amrex::Orientation) const;
@@ -50,6 +39,14 @@ public:
     }
 
     amrex::Real tinterp() const { return m_tinterp; }
+
+    int ingested_velocity() const {return is_velocity_read;}
+    int ingested_theta()    const {return (is_temperature_read || is_theta_read);}
+    int ingested_density()  const {return is_density_read;}
+    int ingested_scalar()   const {return is_scalar_read;}
+    int ingested_qv()       const {return is_qv_read;}
+    int ingested_qc()       const {return is_qc_read;}
+
 
 private:
 
@@ -93,6 +90,14 @@ private:
     const int m_in_rad = 1;
     const int m_out_rad = 1;
     const int m_extent_rad = 0;
+   
+    int is_velocity_read;
+    int is_density_read;
+    int is_temperature_read;
+    int is_theta_read;
+    int is_scalar_read;
+    int is_qv_read;
+    int is_qc_read;
 
     int last_file_read;
 };
