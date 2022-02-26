@@ -228,10 +228,10 @@ public:
                         amrex::Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
                         const auto& bdatxlo = (*bndry_data[0])[lev].const_array();
                         const auto& bdatylo = (*bndry_data[1])[lev].const_array();
-                        const auto& bdatzlo = (*bndry_data[2])[lev].const_array();
+                        // const auto& bdatzlo = (*bndry_data[2])[lev].const_array();
                         const auto& bdatxhi = (*bndry_data[3])[lev].const_array();
                         const auto& bdatyhi = (*bndry_data[4])[lev].const_array();
-                        const auto& bdatzhi = (*bndry_data[5])[lev].const_array();
+                        // const auto& bdatzhi = (*bndry_data[5])[lev].const_array();
 
                         // Fill here all the boundary conditions which are supplied by
                         // planes we have read in and are interpolating in time
@@ -244,7 +244,7 @@ public:
                                 dest_array(i,j,k,icomp+n) = bdatylo(i,j,k,bccomp+n);
                             }
                             if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
-                                dest_array(i,j,k,icomp+n) = bdatzlo(i,j,k,bccomp+n);
+                                // dest_array(i,j,k,icomp+n) = bdatzlo(i,j,k,bccomp+n);
                             }
                             if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested) {
                                 dest_array(i,j,k,icomp+n) = bdatxhi(i,j,k,bccomp+n);
@@ -253,23 +253,26 @@ public:
                                 dest_array(i,j,k,icomp+n) = bdatyhi(i,j,k,bccomp+n);
                             }
                             if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested) {
-                                dest_array(i,j,k,icomp+n) = bdatzhi(i,j,k,bccomp+n);
+                                // dest_array(i,j,k,icomp+n) = bdatzhi(i,j,k,bccomp+n);
                             }
 
                             if (bccomp == BCVars::xvel_bc)
                             {
-                                if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested)
+                                if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
                                     dest_array(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,j,k,bccomp+n);
+                                }
                             }
                             if (bccomp == BCVars::yvel_bc)
                             {
-                                if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested)
+                                if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
                                     dest_array(i,j,k,icomp+n) = bdatylo(i,dom_lo.y-1,k,bccomp+n);
+                                }
                             }
                             if (bccomp == BCVars::zvel_bc)
                             {
-                                if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested)
-                                    dest_array(i,j,k,icomp+n) = bdatylo(i,j,dom_lo.z-1,bccomp+n);
+                                if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
+                                    // dest_array(i,j,k,icomp+n) = bdatzlo(i,j,dom_lo.z-1,bccomp+n);
+                                }
                             }
                         });
                     }

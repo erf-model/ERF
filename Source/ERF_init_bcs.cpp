@@ -195,14 +195,14 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::ext_dir);
-                        if (input_2d_planes && dir < 2 && m_r2d->ingested_velocity()) {
+                        if (input_bndry_planes && dir < 2 && m_r2d->ingested_velocity()) {
                             domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
                         }
                     }
                 } else {
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::ext_dir);
-                        if (input_2d_planes && dir < 2) {
+                        if (input_bndry_planes && dir < 2 && m_r2d->ingested_velocity()) {
                             domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
                         }
                     }
@@ -322,7 +322,7 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
-                        if (input_2d_planes && dir < 2 && (
+                        if (input_bndry_planes && dir < 2 && (
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
@@ -334,7 +334,7 @@ void ERF::init_bcs ()
                 } else {
                     for (int i = 0; i < NVAR; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
-                        if (input_2d_planes && dir < 2 && (
+                        if (input_bndry_planes && dir < 2 && (
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||

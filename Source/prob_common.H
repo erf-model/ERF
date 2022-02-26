@@ -29,5 +29,14 @@ erf_init_prob(
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata);
 
+void
+erf_init_from_metdata(
+  const amrex::Box& bx,
+  amrex::Array4<amrex::Real> const& state,
+  amrex::Array4<amrex::Real> const& x_vel,
+  amrex::Array4<amrex::Real> const& y_vel,
+  amrex::Array4<amrex::Real> const& z_vel,
+  amrex::GeometryData const& geomdata);
+
 #endif
 

@@ -9,16 +9,26 @@
 void br_shift(amrex::OrientationIter oit, const amrex::BndryRegister& b1, amrex::BndryRegister& b2)
 {
     auto ori = oit();
+    int ncomp = b1[ori].nComp();
+    if (ori.coordDir() < 2) {
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (amrex::FabSetIter bfsi(b1[ori]); bfsi.isValid(); ++bfsi) {
-        int idx = bfsi.index();
-        const amrex::Box& bx1 = b1[ori].boxArray()[idx];
-        const amrex::Box& bx2 = b2[ori].boxArray()[idx];
+        for (amrex::FabSetIter bfsi(b1[ori]); bfsi.isValid(); ++bfsi) {
+            int idx = bfsi.index();
+            const amrex::Box& bx1 = b1[ori].boxArray()[idx];
+            const amrex::Box& bx2 = b2[ori].boxArray()[idx];
 
-        // Copy onto a boundary register based on a box starting at (0,0,0)
-        b2[ori][idx].copy(b1[ori][idx], bx1, 0, bx2, 0, b1[ori].nComp());
+            // Copy onto a boundary register based on a box starting at (0,0,0)
+            amrex::Array4<amrex::Real>       dest_arr = b2[ori][idx].array();
+            amrex::Array4<amrex::Real const>  src_arr = b1[ori][idx].const_array();
+            int ioff = bx1.smallEnd(0) - bx2.smallEnd(0);
+            int joff = bx1.smallEnd(1) - bx2.smallEnd(1);
+            amrex::ParallelFor(
+                bx2, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                dest_arr(i,j,k,n) = src_arr(i+ioff,j+joff,k,n);
+            });
+        }
     }
 }
 
