@@ -227,7 +227,7 @@ private:
 
     //! Read checkpointFile for restart
     void ReadNCCheckpointFile ();
-    
+
     //! Write MultiFab in NetCDF format
     void WriteNCMultiFab (const FabArray<FArrayBox> &fab,
                           const std::string& name,

@@ -23,10 +23,10 @@ struct NDArray
    using DType = typename std::remove_const<DataType>::type;
 
    // constructor
-   explicit NDArray (const std::string vname, const std::vector<size_t>& vshape) 
+   explicit NDArray (const std::string vname, const std::vector<size_t>& vshape)
                     : name{vname}, shape{vshape}, ref_counted{1}, owned{true} {
       data = new DType [this->ndim()];
-   } 
+   }
 
    // default constructor
    NDArray() : name{"null"}, data{nullptr}, ref_counted{1}, owned{false} {}
@@ -61,7 +61,7 @@ struct NDArray
      ref_counted.fetch_add(1, std::memory_order_relaxed);
      return data;
    }
- 
+
    // get the variable name
    std::string get_vname() {
      return name;
@@ -76,7 +76,7 @@ struct NDArray
    size_t ndim() {
      size_t num = 1;
      for (auto i=0; i<shape.size(); ++i) num *= shape[i];
-     return num; 
+     return num;
    }
 
    // set the data shape information
@@ -94,16 +94,16 @@ struct NDArray
 
 //
 // This function read NetCDF file.
-// 
+//
 // inputs:
 //   fname is the NetCDF filename
 //   names is the variables names that read from the NetCDF file
 //
-// output: 
+// output:
 //   arrays is the vector of NDArray that stores the data read from the NetCDF file.
 //
 template<typename DType>
-void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names, 
+void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names,
                   amrex::Vector<NDArray<DType> >& arrays) {
 
     amrex::Print() << "Reading NetCDF WPS file: " << fname << "\n";
@@ -150,16 +150,16 @@ void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names,
 }
 
 //
-// This is the example function that demonstrate how to build the MultiFab using the 
+// This is the example function that demonstrate how to build the MultiFab using the
 // NetCDF variables.
 //
 void BuildMultiFabFromNCFile(const std::string &fname) {
-   
+
    using RARRAY = NDArray<float>;
    amrex::Vector<RARRAY> arrays(1);
    ReadNCWpsFile(fname, {"PRES"}, arrays);
 
-   // 
+   //
    // build the box first using the shape information
    //
    amrex::IntVect smallEnd{0,0,0};
@@ -194,7 +194,7 @@ void BuildMultiFabFromNCFile(const std::string &fname) {
           }
        }
   }
-   
+
 }
 
 #endif

@@ -292,7 +292,7 @@ ERF::InitData ()
 
     } else { // Restart from a checkpoint
 #ifdef ERF_USE_NETCDF
-        ReadNCCheckpointFile(); 
+        ReadNCCheckpointFile();
 #else
         ReadCheckpointFile();
 #endif

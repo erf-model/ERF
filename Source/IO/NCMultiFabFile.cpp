@@ -40,11 +40,11 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
       BoxList boxlist;
       amrex::Vector<std::string> plt_var_names;
 
-      for (int nb(0); nb < nbox; ++nb) { 
+      for (int nb(0); nb < nbox; ++nb) {
           amrex::IntVect smallend(AMREX_SPACEDIM);
           amrex::IntVect bigend(AMREX_SPACEDIM);
           amrex::IntVect btype(AMREX_SPACEDIM);
-        
+
           ncf.var("SmallEnd").get(smallend.begin(), {0}, {nb, AMREX_SPACEDIM});
           ncf.var("BigEnd"  ).get(bigend.begin()  , {0}, {nb, AMREX_SPACEDIM});
           ncf.var("BoxType" ).get(btype.begin()   , {0}, {nb, AMREX_SPACEDIM});
@@ -110,7 +110,7 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
               num_pts.push_back(num_points);
            }
         }
-           
+
         auto box_array = fab.boxArray();
         auto nvar      = plt_var_names.size();
         auto nbox      = fab.local_size();

@@ -57,7 +57,7 @@ ERF::WriteNCCheckpointFile () const
        ncf.def_dim(nl_name,    nlevels);
        ncf.def_dim(ndt_name,   ndt);
        ncf.def_dim(nstep_name, nstep);
-       ncf.def_dim(ntime_name, ntime);       
+       ncf.def_dim(ntime_name, ntime);
 
        for (auto lev{0}; lev <= finest_level; ++lev) {
            ncf.def_dim(nbox_name[lev], nbox[lev]);
@@ -113,7 +113,7 @@ ERF::WriteNCCheckpointFile () const
    }
 }
 
-// 
+//
 // read NetCDF checkpoint to restart ERF
 //
 void
@@ -138,7 +138,7 @@ ERF::ReadNCCheckpointFile ()
     const int nstep        = static_cast<int>(ncf.dim(nstep_name).len());
     const int ntime        = static_cast<int>(ncf.dim(ntime_name).len());
     const int finest_level = static_cast<int>(ncf.dim(nl_name).len());
- 
+
     // output headfile in NetCDF format
     ncf.var("istep").get(istep.data(), {0}, {nstep});
     ncf.var("dt")   .get(dt.data(),    {0}, {ndt});
