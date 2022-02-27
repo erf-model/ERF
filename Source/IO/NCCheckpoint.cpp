@@ -1,5 +1,6 @@
 #include <ERF.H>
 #include "IO/NCInterface.H"
+#include "IO/NCWpsFile.H"
 
 void
 ERF::WriteNCCheckpointFile () const
@@ -123,7 +124,7 @@ ERF::ReadNCCheckpointFile ()
     // Header
     std::string HeaderFileName(restart_chkfile + "/Header.nc");
 
-    auto ncf = ncutils::NCFile::create(HeaderFileName, NC_CLOBBER | NC_NETCDF4);
+    auto ncf = ncutils::NCFile::open(HeaderFileName, NC_CLOBBER | NC_NETCDF4);
 
     const std::string nl_name    = "finest_levels";
     const std::string ng_name    = "num_grids";
