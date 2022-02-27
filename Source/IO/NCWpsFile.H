@@ -53,7 +53,7 @@ struct NDArray
    // destructor
    ~NDArray() {
      ref_counted.fetch_sub(1, std::memory_order_acq_rel);
-     if (ref_counted == 1 && owned) delete data;
+     if (ref_counted == 1 && owned) delete[] data;
    }
 
    // get the data pointer
