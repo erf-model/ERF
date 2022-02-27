@@ -10,7 +10,7 @@
 #include <ERF.H>
 
 //
-// NDArray is the datatype the designed to hold any data, including scalars, multidimensional
+// NDArray is the datatype designed to hold any data, including scalars, multidimensional
 // arrays, that read from the NetCDF file.
 //
 // The data read from NetCDF file are stored in a continuous memory, and the data layout is descriped
@@ -124,6 +124,11 @@ void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names,
       int num_sm_layers      = static_cast<int>(ncf.dim("num_sm_layers").len());
       int south_north_stag   = static_cast<int>(ncf.dim("south_north_stag").len());
       int west_east_stag     = static_cast<int>(ncf.dim("west_east_stag").len());
+
+     // This following dimension defined based on different timestep, the dimensional name
+     // varies at different NetCDF output.
+     // TODO: should we keep reading this information from the NetCDF file? we actually don't use it.
+     //
      // int z_dimension0012    = static_cast<int>(ncf.dim("z-dimension0012").len());
      // int z_dimension0016    = static_cast<int>(ncf.dim("z-dimension0016").len());
      // int z_dimension0024    = static_cast<int>(ncf.dim("z-dimension0024").len());
