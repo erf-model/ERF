@@ -150,9 +150,6 @@ public:
     // write plotfile to disk
     void WritePlotFile () const;
 
-    const WriteBndryPlanes& w2d() const {return *m_w2d;}
-    const  ReadBndryPlanes& r2d() const {return *m_r2d;}
-
 private:
 
     ////////////////
@@ -359,6 +356,9 @@ private:
     // Native or NetCDF
     static std::string plotfile_type;
 
+    // 2D BndryRegister input
+    static std::string init_type;
+
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
     static int         column_interval;
@@ -368,13 +368,13 @@ private:
     static std::string column_file_name;
 
     // 2D BndryRegister output (for ingestion in AMR-Wind)
-    static int         output_2d_planes;
+    static int         output_bndry_planes;
     static int         bndry_output_planes_interval;
     static amrex::Real bndry_output_planes_per;
     static amrex::Real bndry_output_planes_start_time;
 
     // 2D BndryRegister input
-    static int          input_2d_planes;
+    static int          input_bndry_planes;
 
     // Base state quantities: density and pressure, 1 array per AMR level
     amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
@@ -397,8 +397,8 @@ private:
 
     static void refinement_criteria_setup();
 
-    std::unique_ptr<WriteBndryPlanes> m_w2d;
-    std::unique_ptr<ReadBndryPlanes>  m_r2d;
+    std::unique_ptr<WriteBndryPlanes> m_w2d = nullptr;
+    std::unique_ptr<ReadBndryPlanes>  m_r2d = nullptr;
 
     //
     // Holds info for dynamically generated tagging criteria

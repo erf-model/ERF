@@ -6,6 +6,32 @@
 #include "IndexDefines.H"
 #include "Derive.H"
 
+void br_shift(amrex::OrientationIter oit, const amrex::BndryRegister& b1, amrex::BndryRegister& b2)
+{
+    auto ori = oit();
+    int ncomp = b1[ori].nComp();
+    if (ori.coordDir() < 2) {
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (amrex::FabSetIter bfsi(b1[ori]); bfsi.isValid(); ++bfsi) {
+            int idx = bfsi.index();
+            const amrex::Box& bx1 = b1[ori].boxArray()[idx];
+            const amrex::Box& bx2 = b2[ori].boxArray()[idx];
+
+            // Copy onto a boundary register based on a box starting at (0,0,0)
+            amrex::Array4<amrex::Real>       dest_arr = b2[ori][idx].array();
+            amrex::Array4<amrex::Real const>  src_arr = b1[ori][idx].const_array();
+            int ioff = bx1.smallEnd(0) - bx2.smallEnd(0);
+            int joff = bx1.smallEnd(1) - bx2.smallEnd(1);
+            amrex::ParallelFor(
+                bx2, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                dest_arr(i,j,k,n) = src_arr(i+ioff,j+joff,k,n);
+            });
+        }
+    }
+}
+
 // Default to level 0
 int WriteBndryPlanes::bndry_lev = 0;
 
@@ -63,7 +89,6 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
 {
     BL_PROFILE("ERF::WriteBndryPlanes::write_planes");
 
-    auto& lev_new = vars_new[bndry_lev];
     amrex::MultiFab& S    = vars_new[bndry_lev][Vars::cons];
     amrex::MultiFab& xvel = vars_new[bndry_lev][Vars::xvel];
     amrex::MultiFab& yvel = vars_new[bndry_lev][Vars::yvel];
@@ -86,66 +111,60 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
     amrex::BoxArray ba(target_box);
     amrex::DistributionMapping dm{ba};
 
+    amrex::IntVect new_hi = target_box.bigEnd() - target_box.smallEnd();
+    amrex::Box target_box_shifted(amrex::IntVect(0,0,0),new_hi);
+    amrex::BoxArray ba_shifted(target_box_shifted);
+
     for (int i = 0; i < m_var_names.size(); i++)
     {
         std::string var_name = m_var_names[i];
+        std::string filename = amrex::MultiFabFileFullPrefix(bndry_lev, chkname, level_prefix, var_name);
+
+        int ncomp;
+        if (var_name == "velocity") {
+            ncomp = AMREX_SPACEDIM;
+        } else {
+            ncomp = 1;
+        }
+
+        amrex::BndryRegister bndry        (ba        , dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
+        amrex::BndryRegister bndry_shifted(ba_shifted, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
 
         if (var_name == "density")
         {
-            int ncomp = 1;
-            amrex::BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
             bndry.copyFrom(S, Cons::Rho, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-            std::string filename = amrex::MultiFabFileFullPrefix(bndry_lev, chkname, level_prefix, m_var_names[i]);
-            for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
-                auto ori = oit();
-                if (ori.coordDir() < 2) {
-                    std::string facename = amrex::Concatenate(filename + '_', ori, 1);
-                    bndry[ori].write(facename);
-                }
-            }
 
         } else if (var_name == "temperature") {
 
-            int ncomp = 1;
             amrex::MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
             for (amrex::MFIter mfi(Temp, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const amrex::Box& bx = mfi.tilebox();
-                auto& dfab    = Temp[mfi];
-                auto& sfab    = S[mfi];
-                derived::erf_dertemp(bx, dfab, 0, 1, sfab, m_geom[bndry_lev], time, nullptr, bndry_lev);
+                derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
             }
-            amrex::BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
             bndry.copyFrom(Temp, 0, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-            std::string filename = amrex::MultiFabFileFullPrefix(bndry_lev, chkname, level_prefix, m_var_names[i]);
-            for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
-                auto ori = oit();
-                if (ori.coordDir() < 2) {
-                    std::string facename = amrex::Concatenate(filename + '_', ori, 1);
-                    bndry[ori].write(facename);
-                }
-            }
 
         } else if (var_name == "velocity") {
 
             amrex::MultiFab Vel(S.boxArray(), S.DistributionMap(), 3, m_out_rad);
-            int ncomp_V = Vel.nComp();
             average_face_to_cellcenter(Vel,0,amrex::Array<const amrex::MultiFab*,3>{&xvel,&yvel,&zvel});
 
-            amrex::BndryRegister bndry_V(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp_V);
-            bndry_V.copyFrom(Vel, 0, 0, 0, ncomp_V, m_geom[bndry_lev].periodicity());
-            std::string filename = amrex::MultiFabFileFullPrefix(bndry_lev, chkname, level_prefix, m_var_names[i]);
-            for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
-                auto ori = oit();
-                if (ori.coordDir() < 2) {
-                    std::string facename = amrex::Concatenate(filename + '_', ori, 1);
-                    bndry_V[ori].write(facename);
-                }
-            }
+            bndry.copyFrom(Vel, 0, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+
         } else {
             //amrex::Print() << "Trying to write planar output for " << var_name << std::endl;
             amrex::Error("Don't know how to output this variable");
         }
+
+        for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
+            auto ori = oit();
+            if (ori.coordDir() < 2) {
+                std::string facename = amrex::Concatenate(filename + '_', ori, 1);
+                br_shift(oit, bndry, bndry_shifted);
+                bndry_shifted[ori].write(facename);
+            }
+        }
+
     } // loop over num_vars
 
     // Writing time.dat
@@ -155,4 +174,3 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
         oftime.close();
     }
 }
-

@@ -40,7 +40,10 @@ int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
 
 // Native AMReX vs NetCDF
-std::string ERF::plotfile_type   = "amrex";
+std::string ERF::plotfile_type    = "amrex";
+
+// init_type:  "ideal" vs "real"
+std::string ERF::init_type        = "ideal";
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
@@ -51,13 +54,13 @@ amrex::Real ERF::column_loc_y     = 0.0;
 std::string ERF::column_file_name = "column_data.nc";
 
 // 2D BndryRegister output (for ingestion by AMR-Wind)
-int         ERF::output_2d_planes               = 0;
+int         ERF::output_bndry_planes            = 0;
 int         ERF::bndry_output_planes_interval   = -1;
 amrex::Real ERF::bndry_output_planes_per        = -1.0;
 amrex::Real ERF::bndry_output_planes_start_time =  0.0;
 
 // 2D BndryRegister input
-int         ERF::input_2d_planes        = 0;
+int         ERF::input_bndry_planes             = 0;
 
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
@@ -157,26 +160,20 @@ ERF::Evolve ()
 
         ComputeDt();
 
-        int lev = 0;
-
         // Make sure we have read enough of the boundary plane data to make it through this timestep
-        if (input_2d_planes)
+        if (input_bndry_planes)
         {
-            m_r2d->read_input_files(cur_time,dt[0]);
+            m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
         }
 
+        int lev = 0;
         int iteration = 1;
         timeStep(lev, cur_time, iteration);
 
-        cur_time += dt[0];
+        cur_time  += dt[0];
 
         amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                        << " DT = " << dt[0]  << std::endl;
-
-        // sync up time
-        for (lev = 0; lev <= finest_level; ++lev) {
-            t_new[lev] = cur_time;
-        }
 
         if (plot_int > 0 && (step+1) % plot_int == 0) {
             last_plot_file_step = step+1;
@@ -255,7 +252,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 #endif
     }
 
-    if (output_2d_planes)
+    if (output_bndry_planes)
     {
       if (is_it_time_for_action(istep[0], time, dt_lev0, bndry_output_planes_interval, bndry_output_planes_per) &&
           time >= bndry_output_planes_start_time)
@@ -283,6 +280,15 @@ ERF::InitData ()
     if (init_abl)
     {
         ablinit.init_params();
+    }
+
+    if (input_bndry_planes) {
+        // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
+        amrex::Print() << "Defining r2d for the first time " << std::endl;
+        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
+
+        // Read the "time.dat" file to know what data is available
+        m_r2d->read_time_file();
     }
 
     last_plot_file_step = -1;
@@ -341,24 +347,15 @@ ERF::InitData ()
         sum_integrated_quantities(t_new[0]);
     }
 
-    if (input_2d_planes) {
-        // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
-        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
-
-        // Read the "time.dat" file to know what data is available
-        m_r2d->read_time_file();
-    }
-
     // We only write the file at level 0 for now
-    if (output_2d_planes)
+    if (output_bndry_planes)
     {
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
         amrex::Real time = 0.;
         if (time >= bndry_output_planes_start_time) {
-            int istep = 0;
-            m_w2d->write_planes(istep, time, vars_new);
+            m_w2d->write_planes(0, time, vars_new);
         }
     }
 }
@@ -430,7 +427,7 @@ ERF::ClearLevel (int lev)
 // Only used during initialization.
 // overrides the pure virtual function in AmrCore
 void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
-                                          const DistributionMapping& dm)
+                                   const DistributionMapping& dm)
 {
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
@@ -455,6 +452,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
+    // Read enough of the boundary plane data to make it through the FillPatch at this time
+    if (input_bndry_planes)
+    {
+        amrex::Real dt_dummy = 1.e-200;
+        m_r2d->read_input_files(time,dt_dummy,m_bc_extdir_vals);
+    }
+
     // Loop over grids at this level to initialize our grid data
 #ifdef _OPENMP
 #pragma omp parallel
@@ -464,15 +468,28 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
 
-    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-      const Box& bx = mfi.tilebox();
-      const auto& cons_arr = lev_new[Vars::cons].array(mfi);
-      const auto& xvel_arr = lev_new[Vars::xvel].array(mfi);
-      const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
-      const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
+    if (init_type == "ideal") {
+        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+          const Box& bx = mfi.tilebox();
+          const auto& cons_arr = lev_new[Vars::cons].array(mfi);
+          const auto& xvel_arr = lev_new[Vars::xvel].array(mfi);
+          const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
+          const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
 
-      erf_init_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+          erf_init_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+        }
+    } else if (init_type == "real") {
+        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+          const Box& bx = mfi.tilebox();
+          const auto& cons_arr = lev_new[Vars::cons].array(mfi);
+          const auto& xvel_arr = lev_new[Vars::xvel].array(mfi);
+          const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
+          const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
+
+          erf_init_from_metdata(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+        }
     }
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
@@ -554,6 +571,15 @@ ERF::ReadParameters ()
         AMREX_ASSERT(cfl > 0. || fixed_dt > 0.);
     }
 
+    {  // How to initialize
+        ParmParse pp("erf");
+        pp.query("init_type",init_type);
+        if (init_type != "ideal" && init_type != "real")
+        {
+            amrex::Error("init_type must be ideal or real");
+        }
+    }
+
     {  // Mesh refinement
 
         ParmParse pp("erf");
@@ -572,6 +598,7 @@ ERF::ReadParameters ()
             amrex::Error("Unknown coupling type");
         }
     }
+
     {  // Output format
         ParmParse pp("erf");
         pp.query("plotfile_type", plotfile_type);
@@ -584,13 +611,13 @@ ERF::ReadParameters ()
         pp.query("column_file_name", column_file_name);
 
         // Specify information about outputting planes of data
-        pp.query("output_2d_planes", output_2d_planes);
+        pp.query("output_bndry_planes", output_bndry_planes);
         pp.query("bndry_output_planes_interval", bndry_output_planes_interval);
         pp.query("bndry_output_planes_per", bndry_output_planes_per);
         pp.query("bndry_output_start_time", bndry_output_planes_start_time);
 
         // Specify whether ingest boundary planes of data
-        pp.query("input_2d_planes", input_2d_planes);
+        pp.query("input_bndry_planes", input_bndry_planes);
     }
 
     solverChoice.init_params();
@@ -662,4 +689,16 @@ ERF::setupABLMost (int lev)
     printf("vmag_mean=%13.6e,theta_mean=%13.6e, zref=%13.6e, dx=%13.6e\n",most.vmag_mean,most.theta_mean,most.zref,dx[2]);
 
     most.update_fluxes();
+}
+
+void
+erf_init_from_metdata(
+  const amrex::Box& bx,
+  amrex::Array4<amrex::Real> const& state,
+  amrex::Array4<amrex::Real> const& x_vel,
+  amrex::Array4<amrex::Real> const& y_vel,
+  amrex::Array4<amrex::Real> const& z_vel,
+  amrex::GeometryData const& geomdata)
+{
+   // This is just a placeholder
 }

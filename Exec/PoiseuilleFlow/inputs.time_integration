@@ -1,5 +1,4 @@
 # SETTING THE TIME STEP
-erf.dt_cutoff      = 5.e-20  # level 0 timestep below which we halt
 erf.change_max     = 1.05    # multiplier by which dt can change in one time step
 erf.init_shrink    = 1.0     # scale back initial timestep
 

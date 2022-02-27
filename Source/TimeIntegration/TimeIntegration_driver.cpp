@@ -17,7 +17,7 @@ void ERF::erf_advance(int level,
                       MultiFab& source,
                       std::array< MultiFab, AMREX_SPACEDIM>& flux,
                       const amrex::Geometry fine_geom,
-                      const amrex::Real dt_advance, const amrex::Real time,
+                      const amrex::Real dt_advance, const amrex::Real old_time,
                       amrex::InterpFaceRegister* ifr,
                       const amrex::Real* dptr_dens_hse,
                       const amrex::Real* dptr_pres_hse,
@@ -167,9 +167,9 @@ void ERF::erf_advance(int level,
         //     2) physical boundaries
         //     3) other grids at the same level
         // **************************************************************************************
-        FillIntermediatePatch(level, time, xvel_new, 0, 1, Vars::xvel);
-        FillIntermediatePatch(level, time, yvel_new, 0, 1, Vars::yvel);
-        FillIntermediatePatch(level, time, zvel_new, 0, 1, Vars::zvel);
+        FillIntermediatePatch(level, time_for_fp, xvel_new, 0, 1, Vars::xvel);
+        FillIntermediatePatch(level, time_for_fp, yvel_new, 0, 1, Vars::yvel);
+        FillIntermediatePatch(level, time_for_fp, zvel_new, 0, 1, Vars::zvel);
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density
@@ -181,7 +181,7 @@ void ERF::erf_advance(int level,
                            xvel_new.nGrowVect());
     };
 
-    apply_bcs(state_old, time);
+    apply_bcs(state_old, old_time);
     cons_to_prim(state_old[IntVar::cons], S_prim);
 
     // ***************************************************************************************
@@ -226,7 +226,7 @@ void ERF::erf_advance(int level,
     // **************************************************************************************
     // Integrate for a single timestep
     // **************************************************************************************
-    lev_integrator.advance(state_old, state_new, time, dt_advance);
+    lev_integrator.advance(state_old, state_new, old_time, dt_advance);
 
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after we have taken a timestep
@@ -249,8 +249,9 @@ void ERF::erf_advance(int level,
     std::swap(flux[2], state_new[IntVar::zflux]);
 
     // One final BC fill
-    FillIntermediatePatch(level, time+dt_advance, cons_new, 0, Cons::NumVars, Vars::cons);
-    FillIntermediatePatch(level, time+dt_advance, xvel_new, 0, 1, Vars::xvel);
-    FillIntermediatePatch(level, time+dt_advance, yvel_new, 0, 1, Vars::yvel);
-    FillIntermediatePatch(level, time+dt_advance, zvel_new, 0, 1, Vars::zvel);
+    amrex::Real new_time = old_time + dt_advance;
+    FillIntermediatePatch(level, new_time, cons_new, 0, Cons::NumVars, Vars::cons);
+    FillIntermediatePatch(level, new_time, xvel_new, 0, 1, Vars::xvel);
+    FillIntermediatePatch(level, new_time, yvel_new, 0, 1, Vars::yvel);
+    FillIntermediatePatch(level, new_time, zvel_new, 0, 1, Vars::zvel);
 }
