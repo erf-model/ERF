@@ -343,10 +343,12 @@ private:
 
     // plotfile prefix and frequency
     std::string plot_file {"plt"};
+    std::string plot_type {"regular"};
     int plot_int = -1;
 
     // checkpoint prefix and frequency
     std::string check_file {"chk"};
+    std::string check_type {"regular"};
     int check_int = -1;
 
     amrex::Vector<std::string> plot_state_names;
