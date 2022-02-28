@@ -172,13 +172,15 @@ private:
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     void FillPatch (int lev, amrex::Real time, amrex::MultiFab& mf, int icomp, int ncomp, int var_idx);
 
-    // compute a new multifab by coping in data from valid region and filling ghost cells
+    // compute new multifabs by coping in data from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    // unlike FillPatch, FillIntermediatePatch will use the supplied multifab instead of fine level data.
+    // unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
     // This is to support filling boundary cells at an intermediate time between old/new times
     // on the fine level when valid data at a specific time is already available (such as
     // at each RK stage when integrating between initial and final times at a given level).
-    void FillIntermediatePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx);
+    // NOTE: mfs should always contain {cons, xvel, yvel, zvel} multifab data.
+    // if which_var is supplied, then only fill the specified variable in the vector of mfs
+    void FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<MultiFab> > mfs, int which_var = -1);
 
     // fill an entire multifab by interpolating from the coarser level
     // this comes into play when a new level of refinement appears

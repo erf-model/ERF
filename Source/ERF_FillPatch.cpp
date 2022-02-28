@@ -109,69 +109,88 @@ ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_
 }
 
 //
-// Fill valid and ghost data in the MultiFab "mf"
-// This version fills the MultiFab mf in valid regions with the values in "mf" when it is passed in;
+// Fill valid and ghost data in the MultiFabs in "mfs"
+// mfs is a Vector<std::reference_wrapper<MultiFab> > containing, in order: cons, xvel, yvel, and zvel data
+// This version fills the MultiFabs mfs in valid regions with the values in "mfs" when it is passed in;
 // it is used only to compute ghost values for interemediate stages of a time integrator.
 //
 void
-ERF::FillIntermediatePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx)
+ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<MultiFab> > mfs, int which)
 {
     int bccomp;
     amrex::Interpolater* mapper;
+    TimeInterpolatedData level_data;
 
-    if (var_idx == Vars::cons)
-    {
-        bccomp = 0;
-        mapper = &cell_cons_interp;
+    // We should always pass cons, xvel, yvel, and zvel (in that order) in the mfs vector
+    AMREX_ALWAYS_ASSERT(mfs.size() == Vars::NumTypes);
+
+    for (int imf = 0; imf < Vars::NumTypes; ++imf) {
+        level_data.add_var(&mfs[imf].get(), level_data.non_owning);
     }
-    else if (var_idx == Vars::xvel || var_idx == Vars::xmom)
-    {
-        bccomp = NVAR;
-        mapper = &face_linear_interp;
-    }
-    else if (var_idx == Vars::yvel || var_idx == Vars::ymom)
-    {
-        bccomp = NVAR+1;
-        mapper = &face_linear_interp;
-    }
-    else if (var_idx == Vars::zvel || var_idx == Vars::zmom)
-    {
-        bccomp = NVAR+2;
-        mapper = &face_linear_interp;
-    }
+    level_data.set_time(time);
 
-    if (lev == 0)
-    {
-        // on lev, use the mf data and time passed to FillIntermediatePatch().
-        TimeInterpolatedData sdata = GetDataAtTime(lev, time);
-        Vector<MultiFab*> smf { &mf };
-        Vector<Real> stime { time };
+    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
+        if (which >= 0 && which != var_idx) continue;
+        MultiFab& mf = mfs[var_idx].get();
+        const int icomp = 0;
+        const int ncomp = mf.nComp();
 
-        ERFPhysBCFunct physbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,sdata,m_bc_extdir_vals,solverChoice,get_most(),m_r2d);
-        amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
-                                    geom[lev], physbc, bccomp);
-    }
-    else
-    {
-        MultiFab mf_temp(mf.boxArray(), mf.DistributionMap(), mf.nComp(), mf.nGrowVect());
+        if (var_idx == Vars::cons)
+        {
+            bccomp = 0;
+            mapper = &cell_cons_interp;
+        }
+        else if (var_idx == Vars::xvel)
+        {
+            bccomp = NVAR;
+            mapper = &face_linear_interp;
+        }
+        else if (var_idx == Vars::yvel)
+        {
+            bccomp = NVAR+1;
+            mapper = &face_linear_interp;
+        }
+        else if (var_idx == Vars::zvel)
+        {
+            bccomp = NVAR+2;
+            mapper = &face_linear_interp;
+        }
+        else
+        {
 
-        TimeInterpolatedData cdata = GetDataAtTime(lev-1, time);
-        TimeInterpolatedData fdata = GetDataAtTime(lev  , time);
-        Vector<MultiFab*> cmf = {&cdata.get_var(var_idx)};
-        Vector<MultiFab*> fmf = {&mf};
-        Vector<Real> ctime = {cdata.get_time()};
-        Vector<Real> ftime = {fdata.get_time()};
+        }
 
-        ERFPhysBCFunct cphysbc(geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,get_most(),m_r2d);
-        ERFPhysBCFunct fphysbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,get_most(),m_r2d);
+        if (lev == 0)
+        {
+            // on lev, use the mf data and time passed to FillIntermediatePatch().
+            Vector<MultiFab*> smf { &mf };
+            Vector<Real> stime { time };
 
-        amrex::FillPatchTwoLevels(mf_temp, time, cmf, ctime, fmf, ftime,
-                                  0, icomp, ncomp, geom[lev-1], geom[lev],
-                                  cphysbc, 0, fphysbc, 0, refRatio(lev-1),
-                                  mapper, domain_bcs_type, bccomp);
+            ERFPhysBCFunct physbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,m_bc_extdir_vals,solverChoice,get_most(),m_r2d);
+            amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
+                                        geom[lev], physbc, bccomp);
+        }
+        else
+        {
+            MultiFab mf_temp(mf.boxArray(), mf.DistributionMap(), mf.nComp(), mf.nGrowVect());
 
-        // Replace mf with mf_temp
-        std::swap(mf_temp, mf);
+            TimeInterpolatedData cdata = GetDataAtTime(lev-1, time);
+            Vector<MultiFab*> cmf = {&cdata.get_var(var_idx)};
+            Vector<MultiFab*> fmf = {&mf};
+            Vector<Real> ctime = {cdata.get_time()};
+            Vector<Real> ftime = {level_data.get_time()};
+
+            ERFPhysBCFunct cphysbc(geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,get_most(),m_r2d);
+            ERFPhysBCFunct fphysbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,m_bc_extdir_vals,solverChoice,get_most(),m_r2d);
+
+            amrex::FillPatchTwoLevels(mf_temp, time, cmf, ctime, fmf, ftime,
+                                    0, icomp, ncomp, geom[lev-1], geom[lev],
+                                    cphysbc, 0, fphysbc, 0, refRatio(lev-1),
+                                    mapper, domain_bcs_type, bccomp);
+
+            // Replace mf with mf_temp
+            std::swap(mf_temp, mf);
+        }
     }
 }
 
