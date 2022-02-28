@@ -226,6 +226,23 @@ private:
                          const Vector<std::string> &varnames,
                          const Vector<int> level_steps, const Real time) const;
 
+    //! Write checkpointFile using NetCdf
+    void WriteNCCheckpointFile () const;
+
+    //! Read checkpointFile for restart
+    void ReadNCCheckpointFile ();
+
+    //! Write MultiFab in NetCDF format
+    void WriteNCMultiFab (const FabArray<FArrayBox> &fab,
+                          const std::string& name,
+                          bool set_ghost = false) const;
+
+    //! Read MultiFab in NetCDF format
+    void ReadNCMultiFab (FabArray<FArrayBox> &fab,
+                         const std::string &name,
+                         int coordinatorProc = ParallelDescriptor::IOProcessorNumber(),
+                         int allow_empty_mf = 0);
+
     //! Create 1D vertical column output for coupling
     void createNCColumnFile(const int lev,
                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);

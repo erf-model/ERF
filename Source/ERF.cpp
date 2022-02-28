@@ -182,7 +182,11 @@ ERF::Evolve ()
 
         if (check_int > 0 && (step+1) % check_int == 0) {
             last_check_file_step = step+1;
+#ifdef ERF_USE_NETCDF
+            WriteNCCheckpointFile();
+#else
             WriteCheckpointFile();
+#endif
         }
 
         post_timestep(step, cur_time, dt[0]);
@@ -203,7 +207,11 @@ ERF::Evolve ()
     }
 
     if (check_int > 0 && istep[0] > last_check_file_step) {
-        WriteCheckpointFile();
+#ifdef ERF_USE_NETCDF
+       WriteNCCheckpointFile();
+#else
+       WriteCheckpointFile();
+#endif
     }
 
 }
@@ -305,13 +313,20 @@ ERF::InitData ()
 
         if (check_int > 0)
         {
+#ifdef ERF_USE_NETCDF
+            WriteNCCheckpointFile();
+#else
             WriteCheckpointFile();
+#endif
             last_check_file_step = 0;
         }
 
     } else { // Restart from a checkpoint
-
+#ifdef ERF_USE_NETCDF
+        ReadNCCheckpointFile();
+#else
         ReadCheckpointFile();
+#endif
 
         // We set this here so that we don't over-write the checkpoint file we just started from
         last_check_file_step = istep[0];
