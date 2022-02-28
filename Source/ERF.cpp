@@ -183,10 +183,13 @@ ERF::Evolve ()
         if (check_int > 0 && (step+1) % check_int == 0) {
             last_check_file_step = step+1;
 #ifdef ERF_USE_NETCDF
-            WriteNCCheckpointFile();
-#else
-            WriteCheckpointFile();
+            if (check_type == "netcdf") {
+               WriteNCCheckpointFile();
+            }
 #endif
+            if (check_type == "regular") {
+               WriteCheckpointFile();
+            }
         }
 
         post_timestep(step, cur_time, dt[0]);
@@ -208,10 +211,13 @@ ERF::Evolve ()
 
     if (check_int > 0 && istep[0] > last_check_file_step) {
 #ifdef ERF_USE_NETCDF
-       WriteNCCheckpointFile();
-#else
-       WriteCheckpointFile();
+        if (check_type == "netcdf") {
+           WriteNCCheckpointFile();
+        }
 #endif
+        if (check_type == "regular") {
+           WriteCheckpointFile();
+        }
     }
 
 }
@@ -314,20 +320,25 @@ ERF::InitData ()
         if (check_int > 0)
         {
 #ifdef ERF_USE_NETCDF
-            WriteNCCheckpointFile();
-#else
-            WriteCheckpointFile();
+            if (check_type == "netcdf") {
+               WriteNCCheckpointFile();
+            }
 #endif
+            if (check_type == "regular") {
+               WriteCheckpointFile();
+            }
             last_check_file_step = 0;
         }
 
     } else { // Restart from a checkpoint
 #ifdef ERF_USE_NETCDF
-        ReadNCCheckpointFile();
-#else
-        ReadCheckpointFile();
+        if (plot_type == "netcdf") {
+           ReadNCCheckpointFile();
+        }
 #endif
-
+        if (plot_type == "regular") {
+           ReadCheckpointFile();
+        }
         // We set this here so that we don't over-write the checkpoint file we just started from
         last_check_file_step = istep[0];
     }
@@ -549,8 +560,10 @@ ERF::ReadParameters ()
 
         pp.query("regrid_int", regrid_int);
         pp.query("plot_file", plot_file);
+        pp.query("plot_type", plot_type);
         pp.query("plot_int", plot_int);
         pp.query("check_file", check_file);
+        pp.query("check_type", check_type);
         pp.query("check_int", check_int);
 
         pp.query("restart", restart_chkfile);
