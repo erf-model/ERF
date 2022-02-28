@@ -220,7 +220,7 @@ void ERF::erf_advance(int level,
     // any state data (e.g. at RK stages or at the end of a timestep)
     lev_integrator.set_rhs(rhs_fun);
     lev_integrator.set_fast_rhs(rhs_fun_fast);
-    lev_integrator.set_slow_fast_timestep_ratio(2);
+    lev_integrator.set_slow_fast_timestep_ratio(dt_mri_ratio[level]);
     lev_integrator.set_post_update(post_update_fun);
 
     // **************************************************************************************

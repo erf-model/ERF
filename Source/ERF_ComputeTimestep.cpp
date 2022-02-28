@@ -9,7 +9,7 @@ ERF::ComputeDt ()
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        dt_tmp[lev] = estTimeStep(lev);
+        dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev]);
     }
 
     ParallelDescriptor::ReduceRealMin(&dt_tmp[0], dt_tmp.size());
@@ -35,7 +35,7 @@ ERF::ComputeDt ()
 }
 
 Real
-ERF::estTimeStep(int level) const
+ERF::estTimeStep(int level, int& dt_fast_ratio) const
 {
   BL_PROFILE("ERF::estTimeStep()");
 
@@ -108,9 +108,13 @@ ERF::estTimeStep(int level) const
     }
   }
 
+    amrex::Print() << "ratio is: " << estdt_lowM / estdt_comp << "\n";
+   dt_fast_ratio = ceil(estdt_lowM / estdt_comp);
+
   if (fixed_dt > 0.0) {
     return fixed_dt;
   } else {
-    return estdt_comp;
+    // return estdt_comp;
+    return estdt_lowM;
   }
 }

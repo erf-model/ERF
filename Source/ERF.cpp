@@ -114,6 +114,7 @@ ERF::ERF ()
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
     dt.resize(nlevs_max, 1.e100);
+    dt_mri_ratio.resize(nlevs_max, 1);
 
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
