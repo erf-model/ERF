@@ -357,6 +357,8 @@ private:
 
     // Fixed dt for level 0 timesteps (only used if positive)
     static amrex::Real fixed_dt;
+    static int fixed_mri_dt_ratio;
+    static bool use_lowM_dt;
 
     // how often each level regrids the higher levels of refinement
     // (after a level advances that many time steps)

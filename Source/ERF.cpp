@@ -27,6 +27,8 @@ amrex::Real ERF::cfl         =  0.8;
 amrex::Real ERF::fixed_dt    = -1.0;
 amrex::Real ERF::init_shrink =  1.0;
 amrex::Real ERF::change_max  =  1.1;
+int         ERF::fixed_mri_dt_ratio = 0;
+bool        ERF::use_lowM_dt = false;
 
 // Type of mesh refinement algorithm
 std::string ERF::coupling_type = "OneWay";
@@ -614,6 +616,8 @@ ERF::ReadParameters ()
         pp.query("change_max", change_max);
 
         pp.query("fixed_dt", fixed_dt);
+        pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
+        pp.query("use_lowM_dt", use_lowM_dt);
 
         AMREX_ASSERT(cfl > 0. || fixed_dt > 0.);
     }
