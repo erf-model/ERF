@@ -187,7 +187,7 @@ ERF::Evolve ()
                WriteNCCheckpointFile();
             }
 #endif
-            if (check_type == "regular") {
+            if (check_type == "native") {
                WriteCheckpointFile();
             }
         }
@@ -215,7 +215,7 @@ ERF::Evolve ()
            WriteNCCheckpointFile();
         }
 #endif
-        if (check_type == "regular") {
+        if (check_type == "native") {
            WriteCheckpointFile();
         }
     }
@@ -296,6 +296,13 @@ ERF::InitData ()
         ablinit.init_params();
     }
 
+#ifdef ERF_USE_NETCDF
+    if (init_type == "real" ) {
+        std::string file_name = "nc_init_file";
+        BuildMultiFabFromNCFile(file_name);
+    }
+#endif
+
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
         amrex::Print() << "Defining r2d for the first time " << std::endl;
@@ -324,7 +331,7 @@ ERF::InitData ()
                WriteNCCheckpointFile();
             }
 #endif
-            if (check_type == "regular") {
+            if (check_type == "native") {
                WriteCheckpointFile();
             }
             last_check_file_step = 0;
@@ -336,7 +343,7 @@ ERF::InitData ()
            ReadNCCheckpointFile();
         }
 #endif
-        if (plot_type == "regular") {
+        if (plot_type == "native") {
            ReadCheckpointFile();
         }
         // We set this here so that we don't over-write the checkpoint file we just started from

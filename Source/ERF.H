@@ -38,7 +38,10 @@
 #include <VelPlaneAverage.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
-//#include <prob.H>
+
+#ifdef ERF_USE_NETCDF
+#include "NCWpsFile.H"
+#endif
 
 #include <iostream>
 
@@ -345,12 +348,12 @@ private:
 
     // plotfile prefix and frequency
     std::string plot_file {"plt"};
-    std::string plot_type {"regular"};
+    std::string plot_type {"native"};
     int plot_int = -1;
 
     // checkpoint prefix and frequency
     std::string check_file {"chk"};
-    std::string check_type {"regular"};
+    std::string check_type {"native"};
     int check_int = -1;
 
     amrex::Vector<std::string> plot_state_names;

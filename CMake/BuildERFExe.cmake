@@ -24,6 +24,7 @@ function(build_erf_lib erf_lib_name)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/NCInterface.H
                    ${SRC_DIR}/IO/NCWpsFile.H
+                   ${SRC_DIR}/IO/NCBuildMultiFab.cpp
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp
                    ${SRC_DIR}/IO/NCCheckpoint.cpp

@@ -1,6 +1,5 @@
 #include <ERF.H>
 #include "IO/NCInterface.H"
-#include "IO/NCWpsFile.H"
 
 void
 ERF::WriteNCCheckpointFile () const
@@ -75,18 +74,19 @@ ERF::WriteNCCheckpointFile () const
        ncf.exit_def_mode();
 
        // output headfile in NetCDF format
-       ncf.var("istep").put(istep.data(), {0}, {nstep});
-       ncf.var("dt")   .put(dt.data(),    {0}, {ndt});
-       ncf.var("tnew") .put(t_new.data(), {0}, {ntime});
+       ncf.var("istep").put(istep.data(), {0}, {static_cast<long unsigned int>(nstep)});
+       ncf.var("dt")   .put(dt.data(),    {0}, {static_cast<long unsigned int>(ndt)});
+       ncf.var("tnew") .put(t_new.data(), {0}, {static_cast<long unsigned int>(ntime)});
 //       ncf.var("nbox") .put(nbox.begin(),  {0}, {nstep});
 
        for (auto lev{0}; lev <= finest_level; ++lev) {
            auto box_array = boxArray(lev);
            for (int nb(0); nb < box_array.size(); ++nb) {
+              long unsigned int nbb = static_cast<long unsigned int>(nb);
               auto box = box_array[nb];
-              ncf.var(lo_names[lev][nb] ).put(box.smallEnd().begin(), {nb, 0}, {1, AMREX_SPACEDIM});
-              ncf.var(hi_names[lev][nb] ).put(box.bigEnd().begin()  , {nb, 0}, {1, AMREX_SPACEDIM});
-              ncf.var(typ_names[lev][nb]).put(box.type().begin()    , {nb, 0}, {1, AMREX_SPACEDIM});
+              ncf.var(lo_names[lev][nb] ).put(box.smallEnd().begin(), {nbb, 0}, {1, AMREX_SPACEDIM});
+              ncf.var(hi_names[lev][nb] ).put(box.bigEnd().begin()  , {nbb, 0}, {1, AMREX_SPACEDIM});
+              ncf.var(typ_names[lev][nb]).put(box.type().begin()    , {nbb, 0}, {1, AMREX_SPACEDIM});
            }
        }
    }
@@ -140,9 +140,9 @@ ERF::ReadNCCheckpointFile ()
     const int finest_level = static_cast<int>(ncf.dim(nl_name).len());
 
     // output headfile in NetCDF format
-    ncf.var("istep").get(istep.data(), {0}, {nstep});
-    ncf.var("dt")   .get(dt.data(),    {0}, {ndt});
-    ncf.var("t_new").get(t_new.data(), {0}, {ntime});
+    ncf.var("istep").get(istep.data(), {0}, {static_cast<long unsigned int>(nstep)});
+    ncf.var("dt")   .get(dt.data(),    {0}, {static_cast<long unsigned int>(ndt)});
+    ncf.var("t_new").get(t_new.data(), {0}, {static_cast<long unsigned int>(ntime)});
 
     int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
     int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
