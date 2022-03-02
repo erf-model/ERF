@@ -23,8 +23,12 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/NCInterface.H
+                   ${SRC_DIR}/IO/NCWpsFile.H
+                   ${SRC_DIR}/IO/NCBuildMultiFab.cpp
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp
+                   ${SRC_DIR}/IO/NCCheckpoint.cpp
+                   ${SRC_DIR}/IO/NCMultiFabFile.cpp
                    ${SRC_DIR}/IO/NCColumnFile.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
@@ -40,14 +44,16 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/ERF_init1d.cpp
-       ${SRC_DIR}/utils.H
        ${SRC_DIR}/ERF_SumIQ.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/ERF_FillPatch.cpp
        ${SRC_DIR}/ERF_TimeStepping.cpp
-       ${SRC_DIR}/ERF_Utils.cpp
        ${SRC_DIR}/IO/Checkpoint.cpp
+       ${SRC_DIR}/IO/ERF_ReadBndryPlanes.H
+       ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
+       ${SRC_DIR}/IO/ERF_WriteBndryPlanes.H
+       ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/SpatialStencils/Advection.cpp
@@ -63,6 +69,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_rhs.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_fast.cpp
+       ${SRC_DIR}/WPS_Interface.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")

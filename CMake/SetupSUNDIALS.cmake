@@ -1,5 +1,5 @@
 # Note this setup file expects to be used after AMReX options are set and before any targets are linked
-set(SUNDIALS_MINIMUM_VERSION 5.8.0 CACHE INTERNAL "Minimum required SUNDIALS version")
+set(SUNDIALS_MINIMUM_VERSION 6.0 CACHE INTERNAL "Minimum required SUNDIALS version")
 
 # We first check if we can find an AMReX installation.
 # If so, we proceed with STANDALONE mode
@@ -92,23 +92,14 @@ else ()
 
    if (AMReX_GPU_BACKEND STREQUAL CUDA)
       add_library(SUNDIALS::nveccuda ALIAS sundials_nveccuda_static)
-      install(TARGETS sundials_nveccuda_static
-      EXPORT sundials)
    elseif (AMReX_GPU_BACKEND STREQUAL HIP)
       add_library(SUNDIALS::nvechip ALIAS sundials_nvechip_static)
-      install(TARGETS sundials_nvechip_static
-      EXPORT sundials)
    elseif (AMReX_GPU_BACKEND STREQUAL SYCL)
       add_library(SUNDIALS::nvecsycl ALIAS sundials_nvecsycl_static)
-      install(TARGETS sundials_nvecsycl_static
-      EXPORT sundials)
    else ()
      add_library(SUNDIALS::nvecserial ALIAS sundials_nvecserial_static)
-     install(TARGETS sundials_nvecserial_static
-     EXPORT sundials)
    endif ()
 
-   export(EXPORT sundials)
    set(SUNDIALS_FOUND TRUE)
 
 endif ()

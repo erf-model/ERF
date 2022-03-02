@@ -56,7 +56,7 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
 
    ArakawaCGrid.rst
    TimeAdvance.rst
-   NavierStokes_Discretization.rst
+   Discretizations.rst
    MeshRefinement.rst
    BoundaryConditions.rst
    Derived.rst

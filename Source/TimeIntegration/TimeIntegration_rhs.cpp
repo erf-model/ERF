@@ -188,9 +188,27 @@ void erf_rhs (int level,
 
             if (l_use_deardorff && n == RhoKE_comp)
             {
-                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,domain,bc_ptr)
-                                     +  cell_data(i,j,k,Rho_comp) * l_C_e *
-                    std::pow(cell_prim(i,j,k,PrimKE_comp),1.5) / l_Delta;
+                // Add Buoyancy Source
+                Real theta     = cell_prim(i,j,k,PrimTheta_comp);
+                Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dxInv[2];
+                Real E         = cell_prim(i,j,k,PrimKE_comp);
+                Real length;
+                if (dtheta_dz <= 0.) {
+                   length = l_Delta;
+                } else {
+                   length = 0.76*std::sqrt(E)*(grav_gpu[2]/theta)*dtheta_dz;
+                }
+                Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
+                cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
+
+                // Add TKE production
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,domain,bc_ptr);
+
+                // Add dissipation
+                if (std::abs(E) > 0.) {
+                    cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * l_C_e *
+                        std::pow(E,1.5) / length;
+                }
             }
 
             // Add source terms. TODO: Put this under an if condition when we implement source term

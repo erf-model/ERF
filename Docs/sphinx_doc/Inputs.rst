@@ -369,11 +369,6 @@ List of Parameters
 |                     | calculation    |                |                |
 |                     | will abort     |                |                |
 +---------------------+----------------+----------------+----------------+
-| **erf.dt_cutoff**   | time step      | Real > 0       | 0.0            |
-|                     | below which    |                |                |
-|                     | calculation    |                |                |
-|                     | will abort     |                |                |
-+---------------------+----------------+----------------+----------------+
 
 .. _examples-of-usage-5:
 
@@ -401,12 +396,6 @@ Examples of Usage
    | sets the *initial* level-0 time step to be 1.e-4 regardless of
      **erf.cfl** or **erf.fixed_dt**. The time step can grow in
      subsequent steps by a factor of **erf.change_max** each step.
-
--  | **erf.dt_cutoff** = 1.e-20
-   | tells the code to abort if the time step ever gets below 1.e-20.
-     This is a safety mechanism so that if things go nuts you don’t burn
-     through your entire computer allocation because you don’t realize
-     the code is misbehaving.
 
 Restart Capability
 ==================

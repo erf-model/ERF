@@ -43,11 +43,11 @@ in that quantities are transported down their resolved gradients:
 
 .. math::
 
-   \overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} &= \frac{\mu_t}{Pr_t} \nabla \tilde{\theta}
+   \overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} &= -frac{\mu_t}{Pr_t} \nabla \tilde{\theta}
 
-   \overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} &= \frac{\mu_t}{Sc_t} \nabla \tilde{C}
+   \overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} &= -frac{\mu_t}{Sc_t} \nabla \tilde{C}
 
-   \overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}}  &=  \tau^{sfs}
+   \overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}} &= -\tau^{sfs}
 
 .. math::
 
@@ -99,16 +99,20 @@ for TKE is solved.  The turbulent viscosity is computed as:
 
    \mu_t = C_k \overline{\rho} \Delta (k^{sfs})^{1/2}.
 
-The equation solved to determine :math:`k^{sfs}`, the subfilter contribution to TKE, is:
+Then the equation solved to determine :math:`e^{sfs}`, the subfilter contribution to TKE, is:
 
 .. math::
 
-   \frac{\partial \overline{\rho} k^{sfs}}{\partial t} = - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{k}^{sfs})
-                                                         + \nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla k ^{sfs}  \right)
+   \frac{\partial \overline{\rho} e^{sfs}}{\partial t} = - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{e}^{sfs})
+                                                         + K_H \rho (\frac{g}{\theta} \frac{\partial\theta}{\partial z})
+                                                         + \nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla e^{sfs}  \right)
                                                          - \tau_{ij} \frac{\partial \tilde{u}_i}{\partial x_j}
-                                                         - \overline{\rho} C_\epsilon \frac{(k^{sfs})^{3/2}}{\overline{\Delta}}.
+                                                         - \overline{\rho} C_\epsilon \frac{(e^{sfs})^{3/2}}{\overline{\Delta}}.
 
 where :math:`\sigma_k` is a constant model coefficient representing the ratio of turbulent viscosity to turbulent diffusivity
-of TKE that should be order unity.
+of TKE that should be order unity, and we have used
 
-The current implementation of the Deardorff model in ERF neglects a buoyancy source term in this equation.
+.. math::
+
+   \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} =
+           -\nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla e^{sfs}  \right)

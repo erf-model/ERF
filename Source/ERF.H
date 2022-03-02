@@ -34,7 +34,14 @@
 #include <DataStruct.H>
 #include <ABLFieldInit.H>
 #include <Derive.H>
-//#include <prob.H>
+#include <PlaneAverage.H>
+#include <VelPlaneAverage.H>
+#include <ERF_ReadBndryPlanes.H>
+#include <ERF_WriteBndryPlanes.H>
+
+#ifdef ERF_USE_NETCDF
+#include "NCWpsFile.H"
+#endif
 
 #include <iostream>
 
@@ -168,13 +175,15 @@ private:
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     void FillPatch (int lev, amrex::Real time, amrex::MultiFab& mf, int icomp, int ncomp, int var_idx);
 
-    // compute a new multifab by coping in data from valid region and filling ghost cells
+    // compute new multifabs by coping in data from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    // unlike FillPatch, FillIntermediatePatch will use the supplied multifab instead of fine level data.
+    // unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
     // This is to support filling boundary cells at an intermediate time between old/new times
     // on the fine level when valid data at a specific time is already available (such as
     // at each RK stage when integrating between initial and final times at a given level).
-    void FillIntermediatePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx);
+    // NOTE: mfs should always contain {cons, xvel, yvel, zvel} multifab data.
+    // if which_var is supplied, then only fill the specified variable in the vector of mfs
+    void FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<MultiFab> > mfs, int which_var = -1);
 
     // fill an entire multifab by interpolating from the coarser level
     // this comes into play when a new level of refinement appears
@@ -222,6 +231,23 @@ private:
                          const Vector<std::string> &varnames,
                          const Vector<int> level_steps, const Real time) const;
 
+    //! Write checkpointFile using NetCdf
+    void WriteNCCheckpointFile () const;
+
+    //! Read checkpointFile for restart
+    void ReadNCCheckpointFile ();
+
+    //! Write MultiFab in NetCDF format
+    void WriteNCMultiFab (const FabArray<FArrayBox> &fab,
+                          const std::string& name,
+                          bool set_ghost = false) const;
+
+    //! Read MultiFab in NetCDF format
+    void ReadNCMultiFab (FabArray<FArrayBox> &fab,
+                         const std::string &name,
+                         int coordinatorProc = ParallelDescriptor::IOProcessorNumber(),
+                         int allow_empty_mf = 0);
+
     //! Create 1D vertical column output for coupling
     void createNCColumnFile(const int lev,
                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
@@ -252,6 +278,11 @@ private:
     // Single level functions called by advance()
     void post_update (amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
     void fill_rhs (amrex::MultiFab& rhs_mf, const amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
+
+    ABLMost& get_most() { return most; }
+    const ABLMost& get_most() const { return most; }
+
+    void setupABLMost(int lev);
 
     ////////////////
     // private data members
@@ -284,16 +315,14 @@ private:
     // These hold the Dirichlet values at walls which need them ...
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
 
-    enum struct BC {
-        symmetry, inflow, outflow, no_slip_wall, slip_wall, periodic, MOST, undefined
-    };
-
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<BC, AMREX_SPACEDIM*2> phys_bc_type;
 
     int last_plot_file_step;
     int last_check_file_step;
     int plot_file_on_restart = 1;
+
+    ABLMost most;
 
     ////////////////
     // runtime parameters
@@ -319,10 +348,12 @@ private:
 
     // plotfile prefix and frequency
     std::string plot_file {"plt"};
+    std::string plot_type {"native"};
     int plot_int = -1;
 
     // checkpoint prefix and frequency
     std::string check_file {"chk"};
+    std::string check_type {"native"};
     int check_int = -1;
 
     amrex::Vector<std::string> plot_state_names;
@@ -349,6 +380,9 @@ private:
     // Native or NetCDF
     static std::string plotfile_type;
 
+    // 2D BndryRegister input
+    static std::string init_type;
+
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
     static int         column_interval;
@@ -356,6 +390,15 @@ private:
     static amrex::Real column_loc_x;
     static amrex::Real column_loc_y;
     static std::string column_file_name;
+
+    // 2D BndryRegister output (for ingestion in AMR-Wind)
+    static int         output_bndry_planes;
+    static int         bndry_output_planes_interval;
+    static amrex::Real bndry_output_planes_per;
+    static amrex::Real bndry_output_planes_start_time;
+
+    // 2D BndryRegister input
+    static int          input_bndry_planes;
 
     // Base state quantities: density and pressure, 1 array per AMR level
     amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
@@ -377,6 +420,9 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
 
     static void refinement_criteria_setup();
+
+    std::unique_ptr<WriteBndryPlanes> m_w2d = nullptr;
+    std::unique_ptr<ReadBndryPlanes>  m_r2d = nullptr;
 
     //
     // Holds info for dynamically generated tagging criteria

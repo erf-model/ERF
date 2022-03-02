@@ -190,7 +190,25 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::foextrap);
                 }
             }
-            else if (bct == BC::inflow || bct == BC::no_slip_wall)
+            else if (bct == BC::inflow)
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                        domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::ext_dir);
+                        if (input_bndry_planes && dir < 2 && m_r2d->ingested_velocity()) {
+                            domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
+                        }
+                    }
+                } else {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
+                        domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::ext_dir);
+                        if (input_bndry_planes && dir < 2 && m_r2d->ingested_velocity()) {
+                            domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
+                        }
+                    }
+                }
+            }
+            else if (bct == BC::no_slip_wall)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
@@ -302,11 +320,29 @@ void ERF::init_bcs ()
             else if (bct == BC::inflow)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
+                        if (input_bndry_planes && dir < 2 && (
+                           ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQv_bc_comp)     && m_r2d->ingested_qv()     ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQc_bc_comp)     && m_r2d->ingested_qc()     ) ) ) {
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
+                           }
+                    }
                 } else {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
+                        if (input_bndry_planes && dir < 2 && (
+                           ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQv_bc_comp)     && m_r2d->ingested_qv()     ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQc_bc_comp)     && m_r2d->ingested_qc()     ) ) ) {
+                            domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
+                           }
+                    }
                 }
             }
             else if (bct == BC::periodic)
@@ -322,8 +358,13 @@ void ERF::init_bcs ()
             else if ( bct == BC::MOST )
             {
                 if (dir == 2 && side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++)
-                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::MOST);
+                    for (int i = 0; i < NVAR; i++) {
+                        if (i != Cons::RhoTheta) {
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                        } else {
+                            domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::MOST);
+                        }
+                    }
                 } else {
                     amrex::Error("MOST bc can only be applied on low z-face");
                 }

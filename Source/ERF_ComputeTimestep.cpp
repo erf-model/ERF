@@ -39,9 +39,6 @@ ERF::estTimeStep(int level) const
 {
   BL_PROFILE("ERF::estTimeStep()");
 
-  if (fixed_dt > 0.0)
-    return fixed_dt;
-
   amrex::Real estdt_comp = 1.e20;
   amrex::Real estdt_lowM = 1.e20;
 
@@ -98,8 +95,22 @@ ERF::estTimeStep(int level) const
    estdt_lowM = cfl / estdt_lowM_inv;;
 
   if (verbose) {
-    amrex::Print() << "ERF::estTimeStep fast/slow at level "
-                   << level << ":  estdt = " << estdt_comp << " " << estdt_lowM << '\n';
+    if (fixed_dt <= 0.0) {
+        amrex::Print() << "Using cfl = " << cfl << std::endl;
+        amrex::Print() << "Fast  dt at level " << level << ":  " << estdt_comp << std::endl;
+        amrex::Print() << "Slow  dt at level " << level << ":  " << estdt_lowM << std::endl;
+    }
+    if (fixed_dt > 0.0) {
+        amrex::Print() << "Based on cfl of 1.0 " << std::endl;
+        amrex::Print() << "Fast  dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
+        amrex::Print() << "Slow  dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
+        amrex::Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt << std::endl;
+    }
   }
-  return estdt_comp;
+
+  if (fixed_dt > 0.0) {
+    return fixed_dt;
+  } else {
+    return estdt_comp;
+  }
 }

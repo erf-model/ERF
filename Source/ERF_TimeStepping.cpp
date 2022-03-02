@@ -38,13 +38,17 @@ ERF::timeStep (int lev, Real time, int iteration)
         }
     }
 
+    // Update what we call "old" and "new" time
+    t_old[lev] = t_new[lev];
+    t_new[lev] += dt[lev];
+
     if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev]+1 << "] ";
-        amrex::Print() << "ADVANCE with time = " << t_new[lev]
-                       << " dt = " << dt[lev] << std::endl;
+        amrex::Print() << "ADVANCE from time = " << t_old[lev] << " to " << t_new[lev]
+                       << " with dt = " << dt[lev] << std::endl;
     }
 
-    // advance a single level for a single time step, updates flux registers
+    // Advance a single level for a single time step, updates flux registers
     Advance(lev, time, dt[lev], iteration, nsubsteps[lev]);
 
     ++istep[lev];
@@ -73,6 +77,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 {
     BL_PROFILE("ERF::Advance()");
 
+    // We must swap the pointers so the previous step's "new" is now this step's "old"
+    std::swap(vars_old[lev], vars_new[lev]);
+
     MultiFab& S_old = vars_old[lev][Vars::cons];
     MultiFab& S_new = vars_new[lev][Vars::cons];
 
@@ -84,6 +91,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
+    FillPatch(lev, time, S_old, 0, Cons::NumVars, Vars::cons);
     FillPatch(lev, time, U_old, 0, 1, Vars::xvel);
     FillPatch(lev, time, V_old, 0, 1, Vars::yvel);
     FillPatch(lev, time, W_old, 0, 1, Vars::zvel);
@@ -104,6 +112,12 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
         rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, W_crse.nGrow());
 
         VelocityToMomentum(U_crse,V_crse,W_crse,*S_crse,rU_crse,rV_crse,rW_crse,U_crse.nGrowVect());
+    }
+
+    // configure ABLMost params if used MostWall boundary condition
+    for (OrientationIter oitr; oitr; ++oitr) {
+        const Orientation face = oitr();
+        if (phys_bc_type[face] == BC::MOST && lev == 0) setupABLMost(lev);
     }
 
     const auto& local_ref_ratio = (lev > 0) ? ref_ratio[lev-1] : IntVect(1,1,1);
