@@ -124,7 +124,7 @@ ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plot
     {
       variable_names.push_back(plot_var_names[i].c_str());
     }
-    ncf.var("VARNAMES").put(variable_names.data(), {0}, {n_data_items});
+    ncf.var("VARNAMES").put(variable_names.data(), {0}, {static_cast<long unsigned int>(n_data_items)});
 
     ncf.put_attr("space_dimension", std::vector<int>{AMREX_SPACEDIM});
     ncf.put_attr("current_time", std::vector<double>{time});
@@ -159,8 +159,8 @@ ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plot
          smallend.push_back(geom[i].Domain().smallEnd(j));
            bigend.push_back(geom[i].Domain().bigEnd(j));
       }
-      ncf.var("Geom.smallend").put(smallend.data(), {i, 0}, {1, AMREX_SPACEDIM});
-      ncf.var("Geom.bigend").put(bigend.data(), {i, 0}, {1, AMREX_SPACEDIM});
+      ncf.var("Geom.smallend").put(smallend.data(), {static_cast<long unsigned int>(i), 0}, {1, AMREX_SPACEDIM});
+      ncf.var("Geom.bigend").put(bigend.data(), {static_cast<long unsigned int>(i), 0}, {1, AMREX_SPACEDIM});
     }
 
     amrex::Vector<amrex::Real> CellSize;
@@ -169,7 +169,7 @@ ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plot
       for (int j = 0; j < AMREX_SPACEDIM; j++) {
         CellSize.push_back(geom[lev].CellSize()[j]);
       }
-      ncf.var("CellSize").put(CellSize.data(), {i, 0}, {1, AMREX_SPACEDIM});
+      ncf.var("CellSize").put(CellSize.data(), {static_cast<long unsigned int>(i), 0}, {1, AMREX_SPACEDIM});
     }
 
     ncf.put_attr("DefaultGeometry", std::vector<int>{amrex::DefaultGeometry().Coord()});
@@ -203,9 +203,9 @@ ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plot
       auto xlen = static_cast<long unsigned int>(grids[lev][i].length(0));
       auto ylen = static_cast<long unsigned int>(grids[lev][i].length(1));
       auto zlen = static_cast<long unsigned int>(grids[lev][i].length(1));
-      ncf.var("x_grid").put(x_grid.data(), {i, 0}, {1, xlen});
-      ncf.var("y_grid").put(y_grid.data(), {i, 0}, {1, ylen});
-      ncf.var("z_grid").put(z_grid.data(), {i, 0}, {1, zlen});
+      ncf.var("x_grid").put(x_grid.data(), {static_cast<long unsigned int>(i), 0}, {1, xlen});
+      ncf.var("y_grid").put(y_grid.data(), {static_cast<long unsigned int>(i), 0}, {1, ylen});
+      ncf.var("z_grid").put(z_grid.data(), {static_cast<long unsigned int>(i), 0}, {1, zlen});
     }
   }
 

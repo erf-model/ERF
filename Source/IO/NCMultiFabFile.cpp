@@ -45,9 +45,10 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
           amrex::IntVect bigend(AMREX_SPACEDIM);
           amrex::IntVect btype(AMREX_SPACEDIM);
 
-          ncf.var("SmallEnd").get(smallend.begin(), {0}, {nb, AMREX_SPACEDIM});
-          ncf.var("BigEnd"  ).get(bigend.begin()  , {0}, {nb, AMREX_SPACEDIM});
-          ncf.var("BoxType" ).get(btype.begin()   , {0}, {nb, AMREX_SPACEDIM});
+          long unsigned int nbb = static_cast<unsigned long int>(nb);
+          ncf.var("SmallEnd").get(smallend.begin(), {0}, {nbb, AMREX_SPACEDIM});
+          ncf.var("BigEnd"  ).get(bigend.begin()  , {0}, {nbb, AMREX_SPACEDIM});
+          ncf.var("BoxType" ).get(btype.begin()   , {0}, {nbb, AMREX_SPACEDIM});
 
           std::stringstream ss;
           ss << btype;
@@ -64,7 +65,7 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
       for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
            auto ncomp   = mf.nComp();
            auto box     = mf.get(mfi).box();
-           auto num_pts = mf.get(mfi).numPts();
+           auto num_pts = static_cast<long unsigned int>(mf.get(mfi).numPts());
 
            for (int k(0); k < ncomp; ++k) {
                auto dataPtr = mf.get(mfi).dataPtr(k);
@@ -153,13 +154,14 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
             amrex::IntVect bigend   = box.bigEnd();
             amrex::IntVect itype    = box.type();
 
-            ncf.var(lo_names[mfi.index()] ).put(smallend.begin(), {mfi.index(), 0}, {1, AMREX_SPACEDIM});
-            ncf.var(hi_names[mfi.index()] ).put(bigend.begin()  , {mfi.index(), 0}, {1, AMREX_SPACEDIM});
-            ncf.var(typ_names[mfi.index()]).put(itype.begin()   , {mfi.index(), 0}, {1, AMREX_SPACEDIM});
+            auto index = static_cast<long unsigned int>(mfi.index());
+            ncf.var(lo_names[mfi.index()] ).put(smallend.begin(), {index, 0}, {1, AMREX_SPACEDIM});
+            ncf.var(hi_names[mfi.index()] ).put(bigend.begin()  , {index, 0}, {1, AMREX_SPACEDIM});
+            ncf.var(typ_names[mfi.index()]).put(itype.begin()   , {index, 0}, {1, AMREX_SPACEDIM});
 
             for (int k(0); k < ncomp; ++k) {
                 auto dataPtr = fab.get(mfi).dataPtr(k);
-                ncf.var(plt_var_names[mfi.index()*ncomp+k]).put(dataPtr, {0}, {num_pts});
+                ncf.var(plt_var_names[mfi.index()*ncomp+k]).put(dataPtr, {0}, {static_cast<long unsigned int>(num_pts)});
              }
         }
         ncf.close();
