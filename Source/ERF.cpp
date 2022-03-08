@@ -736,4 +736,19 @@ erf_init_from_metdata(
   amrex::GeometryData const& geomdata)
 {
    // This is just a placeholder
+    MultiFab x_vel_mf, y_vel_mf, z_vel_mf, rho_inv, theta_mf, pres_eta_mf, z_physical_mf;
+
+    std::string nc_file_name = "nc_init_file";  // Update to read from input file
+
+    BuildMultiFabFromNCFile(nc_file_name, "U", x_vel_mf);
+    BuildMultiFabFromNCFile(nc_file_name, "V", y_vel_mf);
+    BuildMultiFabFromNCFile(nc_file_name, "W", z_vel_mf);
+    BuildMultiFabFromNCFile(nc_file_name, "ALB", rho_inv);
+    BuildMultiFabFromNCFile(nc_file_name, "T_INIT", theta_mf);
+    BuildMultiFabFromNCFile(nc_file_name, "PB", pres_eta_mf);
+
+    // Convert from MultiFab to array4
+
+    //Construct physical z from pres_eta
+
 }

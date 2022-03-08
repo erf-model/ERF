@@ -9,6 +9,7 @@
 #include "NCInterface.H"
 
 void BuildMultiFabFromNCFile(const std::string &fname);
+void BuildMultiFabFromNCFile(const std::string &fname, const std::string &nc_var_name, MultiFab& mf_var);
 
 //
 // NDArray is the datatype designed to hold any data, including scalars, multidimensional
