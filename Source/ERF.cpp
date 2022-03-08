@@ -736,19 +736,55 @@ erf_init_from_metdata(
   amrex::GeometryData const& geomdata)
 {
    // This is just a placeholder
-    MultiFab x_vel_mf, y_vel_mf, z_vel_mf, rho_inv, theta_mf, pres_eta_mf, z_physical_mf;
+    MultiFab x_vel_mf, y_vel_mf, z_vel_mf, rho_inv_mf, theta_mf, p_base_mf, p_pert_mf, p_surf_mf, eta_mf, z_physical_mf;
 
+    amrex::Array4<amrex::Real> rho_inv, theta, p_base, p_pert, p_surf, pres_eta, eta, z, x, y;
+
+    // Establish correspondence between MultiFab and Array4 variables
+    // x_vel correspnds to x_vel_mf
+    // y_vel correspnds to y_vel_mf
+    // z_vel correspnds to z_vel_mf
+    // eta coresponds to eta_mf
+    // .... and so on
+
+    // The wrfinput_d01 will have these variables like U, V, T_INIT etc.
     std::string nc_file_name = "nc_init_file";  // Update to read from input file
 
+    // Read the NetCDF variables in the corresponding MultiFab's
     BuildMultiFabFromNCFile(nc_file_name, "U", x_vel_mf);
     BuildMultiFabFromNCFile(nc_file_name, "V", y_vel_mf);
     BuildMultiFabFromNCFile(nc_file_name, "W", z_vel_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "ALB", rho_inv);
+    BuildMultiFabFromNCFile(nc_file_name, "ALB", rho_inv_mf);
     BuildMultiFabFromNCFile(nc_file_name, "T_INIT", theta_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "PB", pres_eta_mf);
+    BuildMultiFabFromNCFile(nc_file_name, "PB", p_base_mf);
+    BuildMultiFabFromNCFile(nc_file_name, "P", p_pert_mf);
+    BuildMultiFabFromNCFile(nc_file_name, "PSSC", p_surf_mf);
+    BuildMultiFabFromNCFile(nc_file_name, "ZNU", eta_mf);
 
-    // Convert from MultiFab to array4
 
     //Construct physical z from pres_eta
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            // Geometry
+            pres_eta (i, j, k) = p_base (i, j, k) + p_pert (i, j, k);
+
+            // Compute z = f(eta, pres_eta, p_surf, theta)
+    });
+
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            // Geometry
+            // Fill up x, y, z coordinates
+            //const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            //const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
+            //const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+            // Set the density
+            state(i, j, k, Rho_comp) = 1.0/rho_inv(i, j, k);
+
+            // Initial potential temperature (Actually rho*theta)
+            state(i, j, k, RhoTheta_comp) = state(i, j, k, Rho_comp) * theta (i, j, k);
+
+            // Set scalar = 0 everywhere
+            state(i, j, k, RhoScalar_comp) = 0.0;
+
+    });
 
 }
