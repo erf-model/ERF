@@ -29,6 +29,8 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
    amrex::Error("Should never get here for Ekman Spiral problem");
 }
 
+// Shoudln't we get rid of this function when initializing with real atm data?
+///*
 void
 erf_init_prob(
   const amrex::Box& bx,
@@ -110,6 +112,7 @@ erf_init_prob(
     z_vel(i, j, k) = 0.0;
   });
 }
+//*/
 
 void
 amrex_probinit(

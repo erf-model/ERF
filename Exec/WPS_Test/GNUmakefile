@@ -27,5 +27,7 @@ DEBUG = FALSE
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/EkmanSpiral
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/WPS_Test
 include $(ERF_HOME)/Exec/Make.ERF
+
+ERF_ENABLE_NETCDF = TRUE
