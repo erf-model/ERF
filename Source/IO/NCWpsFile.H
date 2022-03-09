@@ -149,5 +149,6 @@ void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names,
       }
      ncf.close();
    }
+    amrex::Print() << "Succesfully read the NetCDF File " << fname << std::endl;
 }
 #endif

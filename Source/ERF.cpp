@@ -5,6 +5,7 @@
 #include <ERF.H>
 #include <prob_common.H>
 #include <AMReX_buildInfo.H>
+#include "ERF.H"
 
 using namespace amrex;
 
@@ -44,6 +45,9 @@ std::string ERF::plotfile_type    = "amrex";
 
 // init_type:  "ideal" vs "real"
 std::string ERF::init_type        = "ideal";
+
+// NetCDF initialization file
+std::string ERF::nc_init_file = " "; // Must provide via input
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
@@ -296,12 +300,12 @@ ERF::InitData ()
         ablinit.init_params();
     }
 
-#ifdef ERF_USE_NETCDF
-    if (init_type == "real" ) {
-        std::string file_name = "nc_init_file";
-        BuildMultiFabFromNCFile(file_name);
-    }
-#endif
+//#ifdef ERF_USE_NETCDF
+//    if (init_type == "real" ) {
+//        //nc_init_file = "/Users/jha3/Desktop/netcdf_files/metgrid_output/nc_init_metgrid";
+//        BuildMultiFabFromNCFile(nc_init_file);
+//    }
+//#endif
 
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
@@ -521,7 +525,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
           const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
           const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
 
-          erf_init_from_metdata(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+          erf_init_from_metdata(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), nc_init_file);
         }
     }
 
@@ -613,6 +617,9 @@ ERF::ReadParameters ()
         {
             amrex::Error("init_type must be ideal or real");
         }
+
+        // NetCDF initialization file
+        pp.query("nc_init_file", nc_init_file);
     }
 
     {  // Mesh refinement
@@ -733,8 +740,13 @@ erf_init_from_metdata(
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
-  amrex::GeometryData const& geomdata)
+  amrex::GeometryData const& geomdata,
+  const std::string nc_init_file)
 {
+    amrex::Print() << "Test if the metgrid output NetCDF file is read correctly" << std::endl;
+    BuildMultiFabFromNCFile(nc_init_file);
+    amrex::Print() << "Succesfully read the metgrid output NetCDF file" << std::endl;
+
    // This is just a placeholder
     MultiFab x_vel_mf, y_vel_mf, z_vel_mf, rho_inv_mf, theta_mf, p_base_mf, p_pert_mf, p_surf_mf, eta_mf, z_physical_mf;
 
@@ -751,6 +763,7 @@ erf_init_from_metdata(
     std::string nc_file_name = "nc_init_file";  // Update to read from input file
 
     // Read the NetCDF variables in the corresponding MultiFab's
+    amrex::Print() << "Test if the 'ideal.exe' output NetCDF file is read correctly" << std::endl;
     BuildMultiFabFromNCFile(nc_file_name, "U", x_vel_mf);
     BuildMultiFabFromNCFile(nc_file_name, "V", y_vel_mf);
     BuildMultiFabFromNCFile(nc_file_name, "W", z_vel_mf);
@@ -760,6 +773,7 @@ erf_init_from_metdata(
     BuildMultiFabFromNCFile(nc_file_name, "P", p_pert_mf);
     BuildMultiFabFromNCFile(nc_file_name, "PSSC", p_surf_mf);
     BuildMultiFabFromNCFile(nc_file_name, "ZNU", eta_mf);
+    amrex::Print() << "Succesfully read the 'ideal.exe' output NetCDF file is read correctly" << std::endl;
 
 
     //Construct physical z from pres_eta

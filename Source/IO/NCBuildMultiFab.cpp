@@ -12,7 +12,6 @@
 // NetCDF variables.
 //
 void BuildMultiFabFromNCFile(const std::string &fname) {
-   amrex::Print() << "Reading the NetCDF File: " << fname << std::endl;
 
    using RARRAY = NDArray<float>;
    amrex::Vector<RARRAY> arrays(1);
@@ -53,7 +52,6 @@ void BuildMultiFabFromNCFile(const std::string &fname) {
           }
        }
   }
-  amrex::Print() << "Succesfully read the NetCDF File" << std::endl;
 
 }
 
@@ -100,6 +98,5 @@ void BuildMultiFabFromNCFile(const std::string &fname, const std::string &nc_var
             }
         }
     }
-    amrex::Print() << "Succesfully read the NetCDF File" << std::endl;
 
 }
