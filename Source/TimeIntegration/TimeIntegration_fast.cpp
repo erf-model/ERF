@@ -134,7 +134,6 @@ void erf_fast_rhs (int level,
                                          advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
             } else if (n == RhoTheta_comp) {
                 // We use the most current momenta but the "lagged" theta here to update (rho theta)
-                // DW: not sure this is really taking the derivative grad(rho*U*theta) properly ...
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
                                          cell_stage_data, RhoTheta_comp,
                                          advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
@@ -249,7 +248,7 @@ void erf_fast_rhs (int level,
                 Real wadv = 0.0; // We will not use this since we are using 2nd order interpolation
                 rho_w_rhs(i, j, k) += grav_gpu[2] * (
                     InterpolateFromCellOrFace(i, j, k, delta_rho, 0, wadv, Coord::z, 2)
-                    - (R_d / (c_p - R_d)) * exner_pi_c * rhobar / pibar *                                               // DW: is this right??
+                    - (R_d / (c_p - R_d)) * exner_pi_c * rhobar / pibar *
                     InterpolateFromCellOrFace(i, j, k, delta_rho_theta,             0, wadv, Coord::z, 2) /
                     InterpolateFromCellOrFace(i, j, k, cell_stage_data, RhoTheta_comp, wadv, Coord::z, 2) );
 
