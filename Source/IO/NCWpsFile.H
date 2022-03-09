@@ -127,6 +127,7 @@ void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names,
       int south_north_stag   = static_cast<int>(ncf.dim("south_north_stag").len());
       int west_east_stag     = static_cast<int>(ncf.dim("west_east_stag").len());
 
+      amrex::Print() << "Read the dimensions from the netcdf file " << "\n";
      // This following dimension defined based on different timestep, the dimensional name
      // varies at different NetCDF output.
      // TODO: should we keep reading this information from the NetCDF file? we actually don't use it.
