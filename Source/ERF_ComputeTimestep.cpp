@@ -108,8 +108,8 @@ ERF::estTimeStep(int level, int& dt_fast_ratio) const
     }
   }
 
-    amrex::Print() << "ratio is: " << estdt_lowM / estdt_comp << "\n";
-   dt_fast_ratio = ceil(estdt_lowM / estdt_comp);
+  dt_fast_ratio = estdt_lowM_inv == 0.0_rt ? 1 : ceil(estdt_lowM / estdt_comp);
+  amrex::Print() << "ratio is: " << estdt_lowM / estdt_comp << "\n";
 
   if (fixed_dt > 0.0) {
     return fixed_dt;
