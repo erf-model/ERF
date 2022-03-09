@@ -357,6 +357,7 @@ private:
 
     // Fixed dt for level 0 timesteps (only used if positive)
     static amrex::Real fixed_dt;
+    static amrex::Real fixed_fast_dt;
     static int fixed_mri_dt_ratio;
     static bool use_lowM_dt;
 

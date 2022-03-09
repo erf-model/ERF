@@ -25,6 +25,7 @@ int ERF::ng_pres_hse = 1;
 // Time step control
 amrex::Real ERF::cfl         =  0.8;
 amrex::Real ERF::fixed_dt    = -1.0;
+amrex::Real ERF::fixed_fast_dt = -1.0;
 amrex::Real ERF::init_shrink =  1.0;
 amrex::Real ERF::change_max  =  1.1;
 int         ERF::fixed_mri_dt_ratio = 0;
@@ -616,6 +617,7 @@ ERF::ReadParameters ()
         pp.query("change_max", change_max);
 
         pp.query("fixed_dt", fixed_dt);
+        pp.query("fixed_fast_dt", fixed_fast_dt);
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
         pp.query("use_lowM_dt", use_lowM_dt);
 
