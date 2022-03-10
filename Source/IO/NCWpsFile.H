@@ -109,12 +109,17 @@ void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names,
                   amrex::Vector<NDArray<DType> >& arrays) {
 
     amrex::Print() << "Reading NetCDF WPS file: " << fname << "\n";
+    //amrex::Print() << "names.size(): " << names.size()<< "\n";
+    //amrex::Print() << "arrays.size(): " << arrays.size()<< "\n";
 
     AMREX_ASSERT(arrays.size() == names.size());
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
+      amrex::Print() << "opening netcdf file " << "\n";
+      // On PKJ's Mac, getting stuck here
       auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+      amrex::Print() << "Successfully opened netcdf file " << "\n";
 
       // get the dimension information
       int DateStrLen         = static_cast<int>(ncf.dim("DateStrLen").len());

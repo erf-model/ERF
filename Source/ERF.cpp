@@ -47,7 +47,7 @@ std::string ERF::plotfile_type    = "amrex";
 std::string ERF::init_type        = "ideal";
 
 // NetCDF initialization file
-std::string ERF::nc_init_file = " "; // Must provide via input
+std::string ERF::nc_init_file = ""; // Must provide via input
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
@@ -525,6 +525,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
           const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
           const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
 
+          if (nc_init_file.empty())
+              amrex::Error("NetCDF initialization file name must be provided via input");
           erf_init_from_metdata(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), nc_init_file);
         }
     }
