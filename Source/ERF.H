@@ -360,7 +360,7 @@ private:
     amrex::Vector<std::string> plot_deriv_names;
     const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
     const amrex::Vector<std::string> cons_names {"density", "rhotheta", "rhoKE", "rhoadv_0", "rhoQv", "rhoQc"};
-    const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "scalar",
+    const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "scalar",
                                                     "pres_hse", "dens_hse", "pert_pres", "pert_dens"};
 
     // algorithm choices
