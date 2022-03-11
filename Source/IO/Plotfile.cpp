@@ -67,6 +67,12 @@ ERF::setPlotVariables ()
         tmp_plot_names.push_back("y_velocity");
         tmp_plot_names.push_back("z_velocity");
     }
+    // check to see if we found all the requested vairables
+    for (auto plot_name : plot_state_names) {
+      if (!containerHasElement(tmp_plot_names, plot_name)) {
+    amrex::Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
+      }
+    }
     plot_state_names = tmp_plot_names;
 
     if (pp.contains("derive_plot_vars"))
@@ -110,6 +116,13 @@ ERF::setPlotVariables ()
             tmp_deriv_names.push_back(derived_names[i]);
         }
     }
+    // check to see if we found all the requested vairables
+    for (auto plot_name : plot_deriv_names) {
+        if (!containerHasElement(tmp_deriv_names, plot_name)) {
+            amrex::Warning("\nWARNING: Requested to plot derived variable '" + plot_name + "' but it is not available");
+        }
+    }
+
     plot_deriv_names = tmp_deriv_names;
 }
 
@@ -145,6 +158,7 @@ ERF::WritePlotFile () const
         int mf_comp = 0;
 
         // First, copy any of the conserved state variables into the output plotfile
+        AMREX_ALWAYS_ASSERT(cons_names.size() == Cons::NumVars);
         for (int i = 0; i < Cons::NumVars; ++i) {
             if (containerHasElement(plot_state_names, cons_names[i])) {
                 MultiFab::Copy(mf[lev],vars_new[lev][Vars::cons],i,mf_comp,1,0);
@@ -182,10 +196,12 @@ ERF::WritePlotFile () const
             }
         };
 
+        // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
         calculate_derived("pressure",    derived::erf_derpres);
         calculate_derived("soundspeed",  derived::erf_dersoundspeed);
         calculate_derived("temp",        derived::erf_dertemp);
         calculate_derived("theta",       derived::erf_dertheta);
+        calculate_derived("KE",          derived::erf_derKE);
         calculate_derived("scalar",      derived::erf_derscalar);
 
         if (containerHasElement(plot_deriv_names, "pres_hse"))
