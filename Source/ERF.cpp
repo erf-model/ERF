@@ -745,6 +745,7 @@ erf_init_from_metdata(
   amrex::GeometryData const& geomdata,
   const std::string nc_init_file)
 {
+#ifdef ERF_USE_NETCDF
     amrex::Print() << "Test if the metgrid output NetCDF file is read correctly" << std::endl;
     BuildMultiFabFromNCFile(nc_init_file);
     amrex::Print() << "Succesfully read the metgrid output NetCDF file" << std::endl;
@@ -802,5 +803,5 @@ erf_init_from_metdata(
             state(i, j, k, RhoScalar_comp) = 0.0;
 
     });
-
+#endif
 }
