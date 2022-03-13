@@ -750,7 +750,8 @@ erf_init_from_metdata(
     BuildMultiFabFromNCFile(nc_init_file);
     amrex::Print() << "Succesfully read the metgrid output NetCDF file" << std::endl;
 
-   // This is just a placeholder
+    /*
+    // This is just a placeholder
     MultiFab x_vel_mf, y_vel_mf, z_vel_mf, rho_inv_mf, theta_mf, p_base_mf, p_pert_mf, p_surf_mf, eta_mf, z_physical_mf;
 
     amrex::Array4<amrex::Real> rho_inv, theta, p_base, p_pert, p_surf, pres_eta, eta, z, x, y;
@@ -803,5 +804,6 @@ erf_init_from_metdata(
             state(i, j, k, RhoScalar_comp) = 0.0;
 
     });
+     */
 #endif
 }
