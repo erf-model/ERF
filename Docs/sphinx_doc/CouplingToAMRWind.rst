@@ -83,14 +83,48 @@ by setting `USE_NETCDF = TRUE` in the GNUMakefile for ERF.
 
 *  You should specify either **erf.output_int** or **erf.output_per**, but not both.
 
-.. note::
-
-    Everything below is a work in progress
-
 2D File-based coupling
 ----------------------
 
-In 2D file-based coupling, vertical planes will be saved from ERF to be used to define inlet
-boundary conditions for AMR-Wind. These files will also be NetCDF format and will comply
-with the file structure described in the
-`AMR-Wind documentation <https://exawind.github.io/amr-wind/user/abl_bndry_io.html>`_.
+For 2D file-based coupling to AMR-Wind, vertical planes are saved from ERF an ERF simulation
+to be used to define inflow boundary conditions for AMR-Wind.  These files are in native-AMReX format and
+contain the AMReX data structure known as a BndryRegister.  These files are specifically meant to be read
+by AMR-Wind, which is also AMReX-based, or ERF itself.
+
+To generate the boundary data files for each of the four planes,
+the following (or similar) should be added to the input file:
+
+.. code-block:: none
+
+  erf.output_bndry_planes = 1
+  erf.bndry_output_planes_interval = 2
+  erf.bndry_output_start_time = 0.0
+  erf.bndry_output_planes_file = "BndryFiles"
+  erf.bndry_output_var_names = temperature velocity density
+  erf.bndry_output_box_lo = 256. 256.
+  erf.bndry_output_box_hi = 768. 768.
+
+The above inputs will output boundary planes of data at :cpp:`xlo`, :cpp:`xhi`, :cpp:`ylo` and :cpp:`yhi`, where the locations of
+:cpp:`xlo` and :cpp:`ylo` are given by :cpp:`bndry_output_box_lo`, while the locations of
+:cpp:`xhi` and :cpp:`yhi` are given by :cpp:`bndry_output_box_hi`.  In this case the variables that are
+written are temperature, velocity and density, and they are written every 2 coarse time steps starting at
+:cpp:`bndry_output_start_time` which is 0 in this case.
+
+We also have the functionality in ERF to read in these types of files;
+for this one would add the following (or similar) line to the inputs file:
+
+.. code-block:: none
+
+  erf.input_bndry_planes = 1
+  erf.bndry_file = "BndryFiles"
+  erf.bndry_input_var_names = density temperature velocity
+
+When run with these inputs, ERF will read in the time sequence of files contained in the folder :cpp:`BndryFiles`,
+and perform time interpolation as necessary. The only assumption is that the start and end times of the current simulation
+lie in the time period covered by the files in :cpp:`BndryFiles`.  Within :cpp:`BndryFiles` there is an
+ascii file :cpp:`time.dat` which contains the (originating) timesteps and physical times associated with each of the files.
+
+It is assumed at this point that the physical domain of the simulation reading the files is exactly the physical
+domain specified by :cpp:`bndry_output_box_lo` and :cpp:`bndry_output_box_hi` when the files were written.  If not, ERF will
+abort with an error message.
+
