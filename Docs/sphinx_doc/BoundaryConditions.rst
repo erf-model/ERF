@@ -42,7 +42,8 @@ There are two primary types of physical/domain boundary conditions: those which 
 data in the valid regions, and those which rely on externally specified values.
 
 ERF allows users to specify types of boundary condition with keywords in the inputs file.
-The information for each face is preceded by “xlo”, “xhi”, “ylo”, “yhi”, “zlo”, or “zhi”:
+The information for each face is preceded by
+``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or ``zhi``.
 
 Currently available type of boundary conditions are
 ``inflow``, ``outflow``, ``slipwall``, ``noslipwall``, ``symmetry`` or ``MOST``.

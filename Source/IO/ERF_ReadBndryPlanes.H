@@ -40,6 +40,7 @@ public:
     int ingested_scalar()   const {return is_scalar_read;}
     int ingested_qv()       const {return is_qv_read;}
     int ingested_qc()       const {return is_qc_read;}
+    int ingested_KE()       const {return is_KE_read;}
 
 
 private:
@@ -92,6 +93,7 @@ private:
     int is_scalar_read;
     int is_qv_read;
     int is_qc_read;
+    int is_KE_read;
 
     int last_file_read;
 };

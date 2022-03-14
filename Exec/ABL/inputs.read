@@ -16,8 +16,10 @@ geometry.prob_lo = 256.  256.  0.
 geometry.prob_hi = 768.  768.  1024.
 amr.n_cell       = 16 16 32
 
-geometry.is_periodic = 1 1 0
+geometry.is_periodic = 0 1 0
 
+xlo.type = "Inflow"
+xhi.type = "Outflow"
 zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
