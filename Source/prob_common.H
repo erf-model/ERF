@@ -37,7 +37,7 @@ erf_init_from_metdata(
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata,
-  std::string nc_init_file);
+  const std::string &nc_init_file);
 
 #endif
 

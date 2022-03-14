@@ -300,13 +300,6 @@ ERF::InitData ()
         ablinit.init_params();
     }
 
-//#ifdef ERF_USE_NETCDF
-//    if (init_type == "real" ) {
-//        //nc_init_file = "/Users/jha3/Desktop/netcdf_files/metgrid_output/nc_init_metgrid";
-//        BuildMultiFabFromNCFile(nc_init_file);
-//    }
-//#endif
-
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
         amrex::Print() << "Defining r2d for the first time " << std::endl;
@@ -743,12 +736,12 @@ erf_init_from_metdata(
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata,
-  const std::string nc_init_file)
+  const std::string &nc_init_file)
 {
 #ifdef ERF_USE_NETCDF
     amrex::Print() << "Test if the metgrid output NetCDF file is read correctly" << std::endl;
     BuildMultiFabFromNCFile(nc_init_file);
-    amrex::Print() << "Succesfully read the metgrid output NetCDF file" << std::endl;
+    amrex::Print() << "Successfully read the metgrid output NetCDF file" << std::endl;
 
     /*
     // This is just a placeholder
