@@ -50,30 +50,58 @@ void ERF::init_bcs ()
             domain_bc_type[ori] = "Inflow";
 
             std::vector<Real> v;
-            pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
-            m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
-            m_bc_extdir_vals[BCVars::yvel_bc][ori] = v[1];
-            m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
+            if (input_bndry_planes && m_r2d->ingested_velocity()) {
+                m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.;
+                m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.;
+                m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.;
+            } else {
+                pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
+                m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
+                m_bc_extdir_vals[BCVars::yvel_bc][ori] = v[1];
+                m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
+            }
 
             Real rho_in;
-            pp.get("density", rho_in);
-            {
-               m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
+            if (input_bndry_planes && m_r2d->ingested_density()) {
+                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = 0.;
+            } else {
+                pp.get("density", rho_in);
+                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
             }
             Real theta_in;
-            pp.get("theta", theta_in);
-            {
-               m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = rho_in*theta_in;
-            }
-            Real KE_in = 0.;
-            if (pp.query("KE", KE_in))
-            {
-               m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
+            if (input_bndry_planes && m_r2d->ingested_theta()) {
+                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = 0.;
+            } else {
+                pp.get("theta", theta_in);
+                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = rho_in*theta_in;
             }
             Real scalar_in = 0.;
-            if (pp.query("scalar", scalar_in))
-            {
-               m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
+            if (input_bndry_planes && m_r2d->ingested_scalar()) {
+                m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.;
+            } else {
+                if (pp.query("scalar", scalar_in))
+                m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
+            }
+            Real qv_in = 0.;
+            if (input_bndry_planes && m_r2d->ingested_qv()) {
+                m_bc_extdir_vals[BCVars::RhoQv_bc_comp][ori] = 0.;
+            } else {
+                if (pp.query("qv", qv_in))
+                m_bc_extdir_vals[BCVars::RhoQv_bc_comp][ori] = rho_in*qv_in;
+            }
+            Real qc_in = 0.;
+            if (input_bndry_planes && m_r2d->ingested_qc()) {
+                m_bc_extdir_vals[BCVars::RhoQc_bc_comp][ori] = 0.;
+            } else {
+                if (pp.query("qc", qc_in))
+                m_bc_extdir_vals[BCVars::RhoQc_bc_comp][ori] = rho_in*qc_in;
+            }
+            Real KE_in = 0.;
+            if (input_bndry_planes && m_r2d->ingested_KE()) {
+                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = 0.;
+            } else {
+                if (pp.query("KE", KE_in))
+                m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
             }
 
         }

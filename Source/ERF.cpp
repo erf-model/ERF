@@ -121,10 +121,6 @@ ERF::ERF ()
 
     flux_registers.resize(nlevs_max);
 
-    // Map the words in the inputs file to BC types, then translate
-    //     those types into what they mean for each variable
-    init_bcs();
-
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -311,6 +307,10 @@ ERF::InitData ()
         // Read the "time.dat" file to know what data is available
         m_r2d->read_time_file();
     }
+
+    // Map the words in the inputs file to BC types, then translate
+    //     those types into what they mean for each variable
+    init_bcs();
 
     last_plot_file_step = -1;
     last_check_file_step = -1;

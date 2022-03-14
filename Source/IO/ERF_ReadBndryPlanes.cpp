@@ -125,10 +125,14 @@ ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
     // What folder will the time series of planes be read from
     pp.get("bndry_file", m_filename);
 
-    is_velocity_read = 0;
-    is_density_read  = 0;
+    is_velocity_read     = 0;
+    is_density_read      = 0;
     is_temperature_read  = 0;
-    is_theta_read  = 0;
+    is_theta_read        = 0;
+    is_scalar_read       = 0;
+    is_qv_read           = 0;
+    is_qc_read           = 0;
+    is_KE_read           = 0;
 
     if (pp.contains("bndry_input_var_names"))
     {
@@ -143,6 +147,7 @@ ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
             if (m_var_names[i] == "scalar")       is_scalar_read = 1;
             if (m_var_names[i] == "qv")           is_qv_read = 1;
             if (m_var_names[i] == "qc")           is_qc_read = 1;
+            if (m_var_names[i] == "KE")           is_KE_read = 1;
         }
     }
 
@@ -193,6 +198,13 @@ void ReadBndryPlanes::read_time_file()
         std::ifstream time_file(m_time_file);
         for (int i = 0; i < time_file_length; ++i) {
             time_file >> m_in_timesteps[i] >> m_in_times[i];
+        }
+        // Sanity check that there are no duplicates or mis-orderings
+        for (int i = 1; i < time_file_length; ++i) {
+            if (m_in_timesteps[i] <= m_in_timesteps[i-1])
+                amrex::Error("Bad timestep in time.dat file");
+            if (m_in_times[i] <= m_in_times[i-1])
+                amrex::Error("Bad time in time.dat file");
         }
         time_file.close();
     }

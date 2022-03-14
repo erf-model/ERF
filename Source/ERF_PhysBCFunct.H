@@ -238,40 +238,58 @@ public:
                         ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                         {
                             if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
-                                dest_array(i,j,k,icomp+n) = bdatxlo(i,j,k,bccomp+n);
+                                int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                dest_array(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
                             }
                             if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
-                                dest_array(i,j,k,icomp+n) = bdatylo(i,j,k,bccomp+n);
+                                int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                dest_array(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
                             }
                             if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
-                                // dest_array(i,j,k,icomp+n) = bdatzlo(i,j,k,bccomp+n);
+                                // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                // dest_array(i,j,k,icomp+n) = bdatzlo(ib,jb,dom_lo.z-1,bccomp+n);
                             }
                             if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested) {
-                                dest_array(i,j,k,icomp+n) = bdatxhi(i,j,k,bccomp+n);
+                                int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                dest_array(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bccomp+n);
                             }
                             if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir_ingested) {
-                                dest_array(i,j,k,icomp+n) = bdatyhi(i,j,k,bccomp+n);
+                                int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                dest_array(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bccomp+n);
                             }
                             if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested) {
-                                // dest_array(i,j,k,icomp+n) = bdatzhi(i,j,k,bccomp+n);
+                                // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                // dest_array(i,j,k,icomp+n) = bdatzhi(ib,jb,dom_hi.z+1,bccomp+n);
                             }
 
                             if (bccomp == BCVars::xvel_bc)
                             {
                                 if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
-                                    dest_array(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,j,k,bccomp+n);
+                                    int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                    int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                    dest_array(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
                                 }
                             }
                             if (bccomp == BCVars::yvel_bc)
                             {
                                 if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
-                                    dest_array(i,j,k,icomp+n) = bdatylo(i,dom_lo.y-1,k,bccomp+n);
+                                    int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                    int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                    dest_array(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
                                 }
                             }
                             if (bccomp == BCVars::zvel_bc)
                             {
                                 if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
-                                    // dest_array(i,j,k,icomp+n) = bdatzlo(i,j,dom_lo.z-1,bccomp+n);
+                                    // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                    // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                    // dest_array(i,j,k,icomp+n) = bdatzlo(ib,jb,dom_lo.z-1,bccomp+n);
                                 }
                             }
                         });
