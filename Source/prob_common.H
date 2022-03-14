@@ -30,7 +30,7 @@ erf_init_prob(
   amrex::GeometryData const& geomdata);
 
 void
-erf_init_from_metdata(
+erf_init_from_netcdf(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
   amrex::Array4<amrex::Real> const& x_vel,

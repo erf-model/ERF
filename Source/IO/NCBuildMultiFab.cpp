@@ -39,7 +39,9 @@ void BuildMultiFabFromNCFile(const std::string &fname) {
 
    amrex::Print() << "Creating distribution mapping. " << std::endl;
    // create a distribution mapping
-   DistributionMapping dm { ba, ParallelDescriptor::NProcs() };
+   //DistributionMapping dm { ba, ParallelDescriptor::NProcs() };
+   DistributionMapping dm (ba);
+   amrex::Print() << "Successfully created distribution mapping. " << std::endl;
 
    MultiFab pres;
    pres.define(convert(ba,IntVect(0,0,0)), dm, 1, 0);
@@ -89,7 +91,8 @@ void BuildMultiFabFromNCFile(const std::string &fname, const std::string &nc_var
     ba.define(box);
 
     // create a distribution mapping
-    DistributionMapping dm { ba, ParallelDescriptor::NProcs() };
+    //DistributionMapping dm { ba, ParallelDescriptor::NProcs() };
+    DistributionMapping dm { ba };
 
     mf_var.define(convert(ba,IntVect(0,0,0)), dm, 1, 0);
 

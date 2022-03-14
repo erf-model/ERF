@@ -520,7 +520,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
           if (nc_init_file.empty())
               amrex::Error("NetCDF initialization file name must be provided via input");
-          erf_init_from_metdata(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), nc_init_file);
+          erf_init_from_netcdf(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), nc_init_file);
         }
     }
 
@@ -729,7 +729,7 @@ ERF::setupABLMost (int lev)
 }
 
 void
-erf_init_from_metdata(
+erf_init_from_netcdf(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
   amrex::Array4<amrex::Real> const& x_vel,
@@ -799,6 +799,8 @@ erf_init_from_metdata(
     });
      */
 #endif
+    // NOTE: The code below will go away in the cleaned up version
+    // and state and velocity will be filled the NetCDF variables read from the file in MultiFab
 
     // The code piece below has been copied from erf_init_prob for Exec/EkmanSpriral
     //
