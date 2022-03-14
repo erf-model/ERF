@@ -356,6 +356,8 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
         if (var_name == "density")     n_offset = BCVars::Rho_bc_comp;
         if (var_name == "theta")       n_offset = BCVars::RhoTheta_bc_comp;
         if (var_name == "temperature") n_offset = BCVars::RhoTheta_bc_comp;
+        if (var_name == "KE")          n_offset = BCVars::RhoKE_bc_comp;
+        if (var_name == "QKE")         n_offset = BCVars::RhoQKE_bc_comp;
         if (var_name == "scalar")      n_offset = BCVars::RhoScalar_bc_comp;
         if (var_name == "qv")          n_offset = BCVars::RhoQv_bc_comp;
         if (var_name == "qc")          n_offset = BCVars::RhoQc_bc_comp;
@@ -417,7 +419,8 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
                              amrex::Real Th2 = getThgivenRandT(R2,T2);
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
-                  } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc") {
+                  } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||
+			     var_name == "KE" || var_name == "QKE") {
                     amrex::ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              amrex::Real R1 =  bndry_read_arr(i, j, k, n_for_density);
@@ -446,7 +449,8 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
                              amrex::Real Th2 = getThgivenRandT(R2,T2);
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
-                  } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc") {
+                  } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||
+			     var_name == "KE" || var_name == "QKE") {
                       amrex::ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              amrex::Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
