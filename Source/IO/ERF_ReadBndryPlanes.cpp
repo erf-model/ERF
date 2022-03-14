@@ -133,6 +133,7 @@ ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
     is_qv_read           = 0;
     is_qc_read           = 0;
     is_KE_read           = 0;
+    is_QKE_read           = 0;
 
     if (pp.contains("bndry_input_var_names"))
     {
@@ -148,6 +149,7 @@ ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
             if (m_var_names[i] == "qv")           is_qv_read = 1;
             if (m_var_names[i] == "qc")           is_qc_read = 1;
             if (m_var_names[i] == "KE")           is_KE_read = 1;
+            if (m_var_names[i] == "QKE")          is_QKE_read = 1;
         }
     }
 
