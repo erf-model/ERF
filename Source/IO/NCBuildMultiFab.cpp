@@ -36,7 +36,7 @@ void BuildMultiFabFromNCFile(const std::string &fname) {
 
    BoxArray ba;
    ba.define(box);
-    
+
    amrex::Print() << "Creating distribution mapping. " << std::endl;
    // create a distribution mapping
    DistributionMapping dm { ba, ParallelDescriptor::NProcs() };

@@ -802,12 +802,11 @@ erf_init_from_metdata(
 
     // The code piece below has been copied from erf_init_prob for Exec/EkmanSpriral
     //
-    struct ProbParm {
+    struct {
         amrex::Real rho_0 = 1.0;
         amrex::Real Theta_0 = 300.0;
         amrex::Real V_0 = 1.0;
-    };
-    ProbParm parms;
+    } parms;
 
     amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         // Geometry
