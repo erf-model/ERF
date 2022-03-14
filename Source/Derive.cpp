@@ -145,4 +145,19 @@ erf_derKE(
 {
   erf_derrhodivide(bx, derfab, datfab, RhoKE_comp);
 }
+
+void
+erf_derQKE(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+  erf_derrhodivide(bx, derfab, datfab, RhoQKE_comp);
+}
 }

@@ -15,6 +15,7 @@ void ERF::init_bcs ()
         m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = -1.0; // It is important to set this negative
                                                // because the sign is tested on below
         m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
+        m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori]     = 0.0;
         m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
 
         m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.0; // default
@@ -99,9 +100,11 @@ void ERF::init_bcs ()
             Real KE_in = 0.;
             if (input_bndry_planes && m_r2d->ingested_KE()) {
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = 0.;
+                m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori] = 0.;
             } else {
                 if (pp.query("KE", KE_in))
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = rho_in*KE_in;
+                m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori] = 2.0*rho_in*KE_in;
             }
 
         }
