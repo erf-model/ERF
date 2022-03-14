@@ -802,13 +802,11 @@ erf_init_from_metdata(
 
     // The code piece below has been copied from erf_init_prob for Exec/EkmanSpriral
     //
-    struct {
-        amrex::Real rho_0 = 1.0;
-        amrex::Real Theta_0 = 300.0;
-        amrex::Real V_0 = 1.0;
-    } parms;
 
-    amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    amrex::Real rho_0 = 1.0;
+    amrex::Real Theta_0 = 300.0;
+
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         // Geometry
         //const amrex::Real* prob_lo = geomdata.ProbLo();
         //const auto dx = geomdata.CellSize();
@@ -817,10 +815,10 @@ erf_init_from_metdata(
         //const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         // Set the density
-        state(i, j, k, Rho_comp) = parms.rho_0;
+        state(i, j, k, Rho_comp) = rho_0;
 
         // Initial potential temperature (Actually rho*theta)
-        state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
+        state(i, j, k, RhoTheta_comp) = rho_0 * Theta_0;
 
 
 
@@ -835,7 +833,7 @@ erf_init_from_metdata(
 
     amrex::Real Az;
     pp.get("dynamicViscosity", Az); // dynamic viscosity [kg-m/s]
-    Az = Az / parms.rho_0; // kinematic viscosity [m^2/s]
+    Az = Az / rho_0; // kinematic viscosity [m^2/s]
 
     amrex::Vector<amrex::Real> abl_geo_wind(3);
     pp.queryarr("abl_geo_wind",abl_geo_wind);
@@ -876,7 +874,7 @@ erf_init_from_metdata(
     // Construct a box that is on z-faces
     const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
     // Set the z-velocity
-    amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         z_vel(i, j, k) = 0.0;
     });
 }
