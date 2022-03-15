@@ -86,13 +86,13 @@ namespace EddyDiff {
         Mom_v,
         Theta_h,
         Theta_v,
-	KE_h,
-	KE_v,
+        KE_h,
+        KE_v,
         QKE_h,
         QKE_v,
         Scalar_h,
         Scalar_v,
-	NumDiffs
+        NumDiffs
     };
 }
 

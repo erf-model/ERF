@@ -420,7 +420,7 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||
-			     var_name == "KE" || var_name == "QKE") {
+                             var_name == "KE" || var_name == "QKE") {
                     amrex::ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              amrex::Real R1 =  bndry_read_arr(i, j, k, n_for_density);
@@ -450,7 +450,7 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||
-			     var_name == "KE" || var_name == "QKE") {
+                             var_name == "KE" || var_name == "QKE") {
                       amrex::ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                              amrex::Real R1  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];

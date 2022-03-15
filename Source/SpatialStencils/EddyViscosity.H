@@ -121,19 +121,19 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
       for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box &bx = mfi.growntilebox(1);
         const Array4<Real> &K = eddyViscosity.array(mfi);
-	amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-	  // Get eddy diffusivities from the eddy viscosity
-	  // Additional factor of 0.5 because K = 2 mu_t
-	  K(i,j,k,EddyDiff::Theta_v) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_Pr_t;
-	  K(i,j,k,EddyDiff::Scalar_v) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_Sc_t;
-	  K(i,j,k,EddyDiff::KE_v) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_sigma_k;
+      // Get eddy diffusivities from the eddy viscosity
+      // Additional factor of 0.5 because K = 2 mu_t
+      K(i,j,k,EddyDiff::Theta_v) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_Pr_t;
+      K(i,j,k,EddyDiff::Scalar_v) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_Sc_t;
+      K(i,j,k,EddyDiff::KE_v) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_sigma_k;
 
-	  // For LES: vertical and horizontal components are the same
-	  K(i,j,k,EddyDiff::Mom_v) = K(i,j,k,EddyDiff::Mom_h);
-	  K(i,j,k,EddyDiff::Theta_v) = K(i,j,k,EddyDiff::Theta_h);
-	  K(i,j,k,EddyDiff::KE_v) = K(i,j,k,EddyDiff::KE_h);
-	  K(i,j,k,EddyDiff::Scalar_v) = K(i,j,k,EddyDiff::Scalar_h);
+      // For LES: vertical and horizontal components are the same
+      K(i,j,k,EddyDiff::Mom_v) = K(i,j,k,EddyDiff::Mom_h);
+      K(i,j,k,EddyDiff::Theta_v) = K(i,j,k,EddyDiff::Theta_h);
+      K(i,j,k,EddyDiff::KE_v) = K(i,j,k,EddyDiff::KE_h);
+      K(i,j,k,EddyDiff::Scalar_v) = K(i,j,k,EddyDiff::Scalar_h);
         });
       }
     }
@@ -226,11 +226,11 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
       break;
     case DiffusionDir::y:
       turbViscInterpolated = 0.25*( K_turb(i-1, j, k, EddyDiff::Mom_h) + K_turb(i, j, k, EddyDiff::Mom_h)
-				    + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i, j-1, k, EddyDiff::Mom_h) );
+                    + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i, j-1, k, EddyDiff::Mom_h) );
       break;
     case DiffusionDir::z:
       turbViscInterpolated = 0.25*( K_turb(i-1, j, k, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-				    + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+                    + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -240,14 +240,14 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
     switch (diffDir) {
     case DiffusionDir::x:
       turbViscInterpolated = 0.25*( K_turb(i, j-1, k, EddyDiff::Mom_h) + K_turb(i, j, k, EddyDiff::Mom_h)
-				    + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i-1, j, k, EddyDiff::Mom_h) );
+                    + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i-1, j, k, EddyDiff::Mom_h) );
       break;
     case DiffusionDir::y:
       turbViscInterpolated = K_turb(i, j-1, k, EddyDiff::Mom_h);
       break;
     case DiffusionDir::z:
       turbViscInterpolated = 0.25*( K_turb(i, j-1, k, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-				    + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+                    + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -257,11 +257,11 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
     switch (diffDir) {
     case DiffusionDir::x:
       turbViscInterpolated = 0.25*( K_turb(i, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-				    + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i-1, j, k, EddyDiff::Mom_v) );
+                    + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i-1, j, k, EddyDiff::Mom_v) );
       break;
     case DiffusionDir::y:
       turbViscInterpolated = 0.25*( K_turb(i, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-				    + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j-1, k, EddyDiff::Mom_v) );
+                    + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j-1, k, EddyDiff::Mom_v) );
       break;
     case DiffusionDir::z:
       turbViscInterpolated = K_turb(i, j, k-1, EddyDiff::Mom_v);

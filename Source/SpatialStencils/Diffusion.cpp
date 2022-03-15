@@ -132,29 +132,29 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
           } else {
               rhoAlpha_molec = solverChoice.rhoAlpha_T;
           }
-	  if (coordDir == Coord::z) {
-	    eddy_diff_idx = EddyDiff::Theta_v;
-	  } else {
-	    eddy_diff_idx = EddyDiff::Theta_h;
-	  }
+          if (coordDir == Coord::z) {
+              eddy_diff_idx = EddyDiff::Theta_v;
+          } else {
+              eddy_diff_idx = EddyDiff::Theta_h;
+          }
           break;
 
       case PrimKE_comp: // Turbulent KE
           rhoAlpha_molec = 0.;
-	  if (coordDir == Coord::z) {
-	    eddy_diff_idx = EddyDiff::KE_v;
-	  } else {
-	    eddy_diff_idx = EddyDiff::KE_h;
-	  }
+          if (coordDir == Coord::z) {
+              eddy_diff_idx = EddyDiff::KE_v;
+          } else {
+              eddy_diff_idx = EddyDiff::KE_h;
+          }
           break;
 
       case PrimQKE_comp: // Turbulent QKE
           rhoAlpha_molec = 0.;
-	  if (coordDir == Coord::z) {
-	    eddy_diff_idx = EddyDiff::QKE_v;
-	  } else {
-	    eddy_diff_idx = EddyDiff::QKE_h;
-	  }
+          if (coordDir == Coord::z) {
+              eddy_diff_idx = EddyDiff::QKE_v;
+          } else {
+              eddy_diff_idx = EddyDiff::QKE_h;
+          }
           break;
 
       case PrimScalar_comp: // Scalar
@@ -163,14 +163,14 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
           } else {
               rhoAlpha_molec = solverChoice.rhoAlpha_C;
           }
-	  if (coordDir == Coord::z) {
-	    eddy_diff_idx = EddyDiff::Scalar_v;
-	  } else {
-	    eddy_diff_idx = EddyDiff::Scalar_h;
-	  }
+          if (coordDir == Coord::z) {
+              eddy_diff_idx = EddyDiff::Scalar_v;
+          } else {
+              eddy_diff_idx = EddyDiff::Scalar_h;
+          }
           break;
       default:
-        amrex::Abort("Error: Diffusion term for the data index isn't implemented");
+          amrex::Abort("Error: Diffusion term for the data index isn't implemented");
   }
 
   amrex::Real rhoAlpha = 0.0;
