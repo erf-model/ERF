@@ -58,7 +58,6 @@ prob.T_0 = 300.0
 
 # INITIALIZATION WITH ATM DATA
 erf.init_type = "real"
-erf.nc_init_file = "/home/pkjha/Desktop/netcdf_files/metgrid_output/nc_init_metgrid"
-#erf.nc_init_file = "/Users/jha3/Desktop/netcdf_files/ideal_output/nc_init_ideal"
+erf.nc_init_file = "/home/pkjha/Desktop/netcdf_files/ideal_output/wrfinput_d01"
 
 FILE = ./inputs.time_integration
