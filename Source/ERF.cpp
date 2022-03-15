@@ -739,15 +739,27 @@ erf_init_from_netcdf(
   const std::string &nc_init_file)
 {
 #ifdef ERF_USE_NETCDF
-    amrex::Print() << "Test if the metgrid output NetCDF file is read correctly" << std::endl;
-    BuildMultiFabFromNCFile(nc_init_file);
-    amrex::Print() << "Successfully read the metgrid output NetCDF file" << std::endl;
+//    amrex::Print() << "Test if the metgrid output NetCDF file is read correctly" << std::endl;
+//    BuildMultiFabFromMetgridOutputFileDemo(nc_init_file);
+//    amrex::Print() << "Successfully read the metgrid output NetCDF file" << std::endl;
 
-    /*
     // This is just a placeholder
     MultiFab x_vel_mf, y_vel_mf, z_vel_mf, rho_inv_mf, theta_mf, p_base_mf, p_pert_mf, p_surf_mf, eta_mf, z_physical_mf;
 
     amrex::Array4<amrex::Real> rho_inv, theta, p_base, p_pert, p_surf, pres_eta, eta, z, x, y;
+
+    // Read the NetCDF variables in the corresponding MultiFab's
+    amrex::Print() << "Test if the 'ideal.exe' output NetCDF file is read correctly" << std::endl;
+    BuildMultiFabFromIdealOutputFile(nc_init_file, "U", x_vel_mf, NC_Data_Dims_Type::Time_BT_SN_WE);
+    BuildMultiFabFromIdealOutputFile(nc_init_file, "V", y_vel_mf, NC_Data_Dims_Type::Time_BT_SN_WE);
+    BuildMultiFabFromIdealOutputFile(nc_init_file, "W", z_vel_mf, NC_Data_Dims_Type::Time_BT_SN_WE);
+    BuildMultiFabFromIdealOutputFile(nc_init_file, "ALB", rho_inv_mf, NC_Data_Dims_Type::Time_BT_SN_WE);
+    BuildMultiFabFromIdealOutputFile(nc_init_file, "T_INIT", theta_mf, NC_Data_Dims_Type::Time_BT_SN_WE);
+    BuildMultiFabFromIdealOutputFile(nc_init_file, "PB", p_base_mf, NC_Data_Dims_Type::Time_BT_SN_WE);
+    BuildMultiFabFromIdealOutputFile(nc_init_file, "P", p_pert_mf, NC_Data_Dims_Type::Time_BT_SN_WE);
+    BuildMultiFabFromIdealOutputFile(nc_init_file, "PSFC", p_surf_mf, NC_Data_Dims_Type::Time_SN_WE);
+    BuildMultiFabFromIdealOutputFile(nc_init_file, "ZNU", eta_mf, NC_Data_Dims_Type::Time_BT);
+    amrex::Print() << "Successfully read the 'ideal.exe' output NetCDF file is read correctly" << std::endl;
 
     // Establish correspondence between MultiFab and Array4 variables
     // x_vel correspnds to x_vel_mf
@@ -756,23 +768,8 @@ erf_init_from_netcdf(
     // eta coresponds to eta_mf
     // .... and so on
 
-    // The wrfinput_d01 will have these variables like U, V, T_INIT etc.
-    std::string nc_file_name = "nc_init_file";  // Update to read from input file
-
-    // Read the NetCDF variables in the corresponding MultiFab's
-    amrex::Print() << "Test if the 'ideal.exe' output NetCDF file is read correctly" << std::endl;
-    BuildMultiFabFromNCFile(nc_file_name, "U", x_vel_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "V", y_vel_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "W", z_vel_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "ALB", rho_inv_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "T_INIT", theta_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "PB", p_base_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "P", p_pert_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "PSSC", p_surf_mf);
-    BuildMultiFabFromNCFile(nc_file_name, "ZNU", eta_mf);
-    amrex::Print() << "Succesfully read the 'ideal.exe' output NetCDF file is read correctly" << std::endl;
-
-
+    // NOW, Fill up the initial condition
+    /*
     //Construct physical z from pres_eta
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             // Geometry
@@ -795,7 +792,6 @@ erf_init_from_netcdf(
 
             // Set scalar = 0 everywhere
             state(i, j, k, RhoScalar_comp) = 0.0;
-
     });
      */
 #endif
@@ -821,8 +817,6 @@ erf_init_from_netcdf(
 
         // Initial potential temperature (Actually rho*theta)
         state(i, j, k, RhoTheta_comp) = rho_0 * Theta_0;
-
-
 
         // Set scalar = 0 everywhere
         state(i, j, k, RhoScalar_comp) = 0.0;

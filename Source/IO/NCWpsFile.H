@@ -8,8 +8,25 @@
 
 #include "NCInterface.H"
 
-void BuildMultiFabFromNCFile(const std::string &fname);
-void BuildMultiFabFromNCFile(const std::string &fname, const std::string &nc_var_name, MultiFab& mf_var);
+/*
+ NetCDF variables of dimensions Time_BT_SN_WE: "AL", "ALB", "PB", "P", "T_INIT", "U", "V", "W" etc.
+ NetCDF variables of dimensions Time_SN_WE   : "XLAT", "XLONG", "PSFC" etc.
+ NetCDF variables of dimensions Time_BT      : "ZNU", "ZNW" etc.
+ NetCDF variables of dimensions Time         : "P_TOP" etc.
+*/
+enum class NC_Data_Dims_Type {
+    Time_BT_SN_WE,
+    Time_SN_WE,
+    Time_BT,
+    Time
+};
+
+void BuildMultiFabFromMetgridOutputFileDemo(const std::string &fname);
+
+void BuildMultiFabFromIdealOutputFile(const std::string &fname,
+                                      const std::string &nc_var_name,
+                                      MultiFab &mf_var,
+                                      const enum NC_Data_Dims_Type &nc_data_dims_type);
 
 //
 // NDArray is the datatype designed to hold any data, including scalars, multidimensional
@@ -105,10 +122,10 @@ struct NDArray
 //   arrays is the vector of NDArray that stores the data read from the NetCDF file.
 //
 template<typename DType>
-void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names,
-                  amrex::Vector<NDArray<DType> >& arrays) {
+void ReadMetgridOutputFile(const std::string  &fname, amrex::Vector<std::string> names,
+                           amrex::Vector<NDArray<DType> >& arrays) {
 
-    amrex::Print() << "Reading NetCDF WPS file: " << fname << "\n";
+    amrex::Print() << "Reading NetCDF Metgrid Output file: " << fname << "\n";
     //amrex::Print() << "names.size(): " << names.size()<< "\n";
     //amrex::Print() << "arrays.size(): " << arrays.size()<< "\n";
 
@@ -132,7 +149,7 @@ void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names,
       int south_north_stag   = static_cast<int>(ncf.dim("south_north_stag").len());
       int west_east_stag     = static_cast<int>(ncf.dim("west_east_stag").len());
 
-      amrex::Print() << "Read the dimensions from the netcdf file " << "\n";
+      amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
      // This following dimension defined based on different timestep, the dimensional name
      // varies at different NetCDF output.
      // TODO: should we keep reading this information from the NetCDF file? we actually don't use it.
@@ -150,11 +167,56 @@ void ReadNCWpsFile(const std::string  &fname, amrex::Vector<std::string> names,
          DType* dataPtr            = arrays[n].get_data();
 
          std::vector<size_t> start(shape.size(), 0);
-         std::cout << "name= " << vname << " ;numpts= " << numPts  << std::endl;
+         amrex::Print() << "Variable name= " << vname << " ; numPts read from NetCDF file= " << numPts  << std::endl;
          ncf.var(vname).get(dataPtr, start, shape);
       }
      ncf.close();
    }
-    amrex::Print() << "Succesfully read the NetCDF File " << fname << std::endl;
+    amrex::Print() << "Successfully read the NetCDF File " << fname << std::endl;
+}
+
+
+template<typename DType>
+void ReadIdealOutputFile(const std::string  &fname, amrex::Vector<std::string> names,
+                           amrex::Vector<NDArray<DType> >& arrays) {
+
+    amrex::Print() << "Reading NetCDF Ideal Output file: " << fname << "\n";
+    //amrex::Print() << "names.size(): " << names.size()<< "\n";
+    //amrex::Print() << "arrays.size(): " << arrays.size()<< "\n";
+
+    AMREX_ASSERT(arrays.size() == names.size());
+
+    if (amrex::ParallelDescriptor::IOProcessor())
+    {
+        amrex::Print() << "opening netcdf file " << "\n";
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        amrex::Print() << "Successfully opened netcdf file " << "\n";
+
+        // get the dimension information
+        int Time               = static_cast<int>(ncf.dim("Time").len());
+        int DateStrLen         = static_cast<int>(ncf.dim("DateStrLen").len());
+        int west_east          = static_cast<int>(ncf.dim("west_east").len());
+        int south_north        = static_cast<int>(ncf.dim("south_north").len());
+        int bottom_top         = static_cast<int>(ncf.dim("bottom_top").len());
+        int bottom_top_stag    = static_cast<int>(ncf.dim("bottom_top_stag").len());
+        int west_east_stag     = static_cast<int>(ncf.dim("west_east_stag").len());
+        int south_north_stag   = static_cast<int>(ncf.dim("south_north_stag").len());
+
+        amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
+        for (auto n=0; n<arrays.size(); ++n) {
+            // read the data from NetCDF file
+            std::string vname         = names[n];
+            std::vector<size_t> shape = ncf.var(vname).shape();
+            arrays[n]                 = NDArray<DType>(vname,shape);
+            auto numPts               = arrays[n].ndim();
+            DType* dataPtr            = arrays[n].get_data();
+
+            std::vector<size_t> start(shape.size(), 0);
+            amrex::Print() << "Variable name= " << vname << " ; numPts read from NetCDF file= " << numPts  << std::endl;
+            ncf.var(vname).get(dataPtr, start, shape);
+        }
+        ncf.close();
+    }
+    amrex::Print() << "Successfully read the NetCDF File " << fname << std::endl;
 }
 #endif
