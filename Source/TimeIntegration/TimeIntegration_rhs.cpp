@@ -137,7 +137,7 @@ void erf_rhs (int level,
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
-        const Array4<Real>& K_LES = eddyViscosity.array(mfi);
+        const Array4<Real>& K_turb = eddyViscosity.array(mfi);
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
@@ -154,13 +154,13 @@ void erf_rhs (int level,
             // Add diffusive terms.
             if (n == RhoTheta_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoTheta_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
             if (n == RhoScalar_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoScalar_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
             if (l_use_deardorff && n == RhoKE_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoKE_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
 
             // Add Rayleigh damping
             if (solverChoice.use_rayleigh_damping && n == RhoTheta_comp)
@@ -185,7 +185,7 @@ void erf_rhs (int level,
                 cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
                 // Add TKE production
-                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,domain,bc_ptr);
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_turb,dxInv,domain,bc_ptr);
 
                 // Add dissipation
                 if (std::abs(E) > 0.) {
@@ -241,7 +241,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
-                                                              MomentumEqn::x, dxInv, K_LES, solverChoice,
+                                                              MomentumEqn::x, dxInv, K_turb, solverChoice,
                                                               domain, bc_ptr);
 
             // Add pressure gradient
@@ -295,7 +295,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
-                                                              MomentumEqn::y, dxInv, K_LES, solverChoice,
+                                                              MomentumEqn::y, dxInv, K_turb, solverChoice,
                                                               domain, bc_ptr);
 
             // Add pressure gradient
@@ -347,7 +347,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
-                                                              MomentumEqn::z, dxInv, K_LES, solverChoice,
+                                                              MomentumEqn::z, dxInv, K_turb, solverChoice,
                                                               domain, bc_ptr);
 
             // Add pressure gradient

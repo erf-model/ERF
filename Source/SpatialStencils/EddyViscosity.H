@@ -171,37 +171,37 @@ AMREX_GPU_DEVICE
 inline Real
 ComputeTKEProduction (const int &i, const int &j, const int &k,
                       const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
-                      const Array4<Real>& K_LES,
+                      const Array4<Real>& K_turb,
                       const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                       const Box& domain, const amrex::BCRec* bc_ptr)
 {
-    amrex::Real TKE_production = K_LES(i,j,k) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
+    amrex::Real TKE_production = K_turb(i,j,k) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 
     return TKE_production;
 }
 
-/// Compute K_LES (i-1/2, j+1/2, k) etc given K_LES (i, j, k) is known
+/// Compute K_turb (i-1/2, j+1/2, k) etc given K_turb (i, j, k) is known
 // Note: This should be at edges for momEqnDir != diffDir, cell centers otherwise
 AMREX_GPU_DEVICE
 inline Real
 InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                               const enum MomentumEqn &momentumEqn,
                               const enum DiffusionDir &diffDir,
-                              const Array4<Real>& K_LES) {
-  // Assuming we already have 'K_LES' computed for all (i, j, k)
+                              const Array4<Real>& K_turb) {
+  // Assuming we already have 'K_turb' computed for all (i, j, k)
   Real turbViscInterpolated = 1.0;
 
   switch (momentumEqn) {
   case MomentumEqn::x: // Reference face is x-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      turbViscInterpolated = K_LES(i-1, j, k);
+      turbViscInterpolated = K_turb(i-1, j, k);
       break;
     case DiffusionDir::y:
-      turbViscInterpolated = 0.25*( K_LES(i-1, j, k) + K_LES(i, j, k) + K_LES(i-1, j-1, k) + K_LES(i, j-1, k) );
+      turbViscInterpolated = 0.25*( K_turb(i-1, j, k) + K_turb(i, j, k) + K_turb(i-1, j-1, k) + K_turb(i, j-1, k) );
       break;
     case DiffusionDir::z:
-      turbViscInterpolated = 0.25*( K_LES(i-1, j, k) + K_LES(i, j, k) + K_LES(i-1, j, k-1) + K_LES(i, j, k-1) );
+      turbViscInterpolated = 0.25*( K_turb(i-1, j, k) + K_turb(i, j, k) + K_turb(i-1, j, k-1) + K_turb(i, j, k-1) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -210,13 +210,13 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   case MomentumEqn::y: // Reference face is y-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      turbViscInterpolated = 0.25*( K_LES(i, j-1, k) + K_LES(i, j, k) + K_LES(i-1, j-1, k) + K_LES(i-1, j, k) );
+      turbViscInterpolated = 0.25*( K_turb(i, j-1, k) + K_turb(i, j, k) + K_turb(i-1, j-1, k) + K_turb(i-1, j, k) );
       break;
     case DiffusionDir::y:
-      turbViscInterpolated = K_LES(i, j-1, k);
+      turbViscInterpolated = K_turb(i, j-1, k);
       break;
     case DiffusionDir::z:
-      turbViscInterpolated = 0.25*( K_LES(i, j-1, k) + K_LES(i, j, k) + K_LES(i, j-1, k-1) + K_LES(i, j, k-1) );
+      turbViscInterpolated = 0.25*( K_turb(i, j-1, k) + K_turb(i, j, k) + K_turb(i, j-1, k-1) + K_turb(i, j, k-1) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -225,13 +225,13 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   case MomentumEqn::z: // Reference face is z-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      turbViscInterpolated = 0.25*( K_LES(i, j, k-1) + K_LES(i, j, k) + K_LES(i-1, j, k-1) + K_LES(i-1, j, k) );
+      turbViscInterpolated = 0.25*( K_turb(i, j, k-1) + K_turb(i, j, k) + K_turb(i-1, j, k-1) + K_turb(i-1, j, k) );
       break;
     case DiffusionDir::y:
-      turbViscInterpolated = 0.25*( K_LES(i, j, k-1) + K_LES(i, j, k) + K_LES(i, j-1, k-1) + K_LES(i, j-1, k) );
+      turbViscInterpolated = 0.25*( K_turb(i, j, k-1) + K_turb(i, j, k) + K_turb(i, j-1, k-1) + K_turb(i, j-1, k) );
       break;
     case DiffusionDir::z:
-      turbViscInterpolated = K_LES(i, j, k-1);
+      turbViscInterpolated = K_turb(i, j, k-1);
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
