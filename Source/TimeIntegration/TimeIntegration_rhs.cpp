@@ -51,16 +51,12 @@ void erf_rhs (int level,
     //    that we can fill the eddy viscosity in the ghost regions and
     //    not have to call a boundary filler on this data itself
     // *************************************************************************
-    MultiFab eddyViscosity(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
+    MultiFab eddyViscosity(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),EddyDiff::NumDiffs,1);
     if (solverChoice.les_type == LESType::Smagorinsky ||
         solverChoice.les_type == LESType::Deardorff)
     {
-        if (solverChoice.les_type == LESType::Smagorinsky)
-            ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                      eddyViscosity, geom, solverChoice, domain_bcs_type_d);
-        else if (solverChoice.les_type == LESType::Deardorff)
-            ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                      eddyViscosity, geom, solverChoice, domain_bcs_type_d);
+        ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
+                                  eddyViscosity, geom, solverChoice, domain_bcs_type_d);
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;

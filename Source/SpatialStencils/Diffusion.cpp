@@ -118,7 +118,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 
   // Get diffusion coefficients
   amrex::Real rhoAlpha_molec;
-  amrex::Real Pr_or_Sc_turb_inv;
+  int eddy_diff_idx;
 
   amrex::Real rhoFace;
   if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) {
@@ -132,12 +132,29 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
           } else {
               rhoAlpha_molec = solverChoice.rhoAlpha_T;
           }
-          Pr_or_Sc_turb_inv = solverChoice.Pr_t_inv;
+	  if (coordDir == Coord::z) {
+	    eddy_diff_idx = EddyDiff::Theta_v;
+	  } else {
+	    eddy_diff_idx = EddyDiff::Theta_h;
+	  }
           break;
 
       case PrimKE_comp: // Turbulent KE
           rhoAlpha_molec = 0.;
-          Pr_or_Sc_turb_inv = 1.0 / solverChoice.sigma_k;
+	  if (coordDir == Coord::z) {
+	    eddy_diff_idx = EddyDiff::KE_v;
+	  } else {
+	    eddy_diff_idx = EddyDiff::KE_h;
+	  }
+          break;
+
+      case PrimQKE_comp: // Turbulent QKE
+          rhoAlpha_molec = 0.;
+	  if (coordDir == Coord::z) {
+	    eddy_diff_idx = EddyDiff::QKE_v;
+	  } else {
+	    eddy_diff_idx = EddyDiff::QKE_h;
+	  }
           break;
 
       case PrimScalar_comp: // Scalar
@@ -146,7 +163,11 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
           } else {
               rhoAlpha_molec = solverChoice.rhoAlpha_C;
           }
-          Pr_or_Sc_turb_inv = solverChoice.Sc_t_inv;
+	  if (coordDir == Coord::z) {
+	    eddy_diff_idx = EddyDiff::Scalar_v;
+	  } else {
+	    eddy_diff_idx = EddyDiff::Scalar_h;
+	  }
           break;
       default:
         amrex::Abort("Error: Diffusion term for the data index isn't implemented");
@@ -161,8 +182,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 
   if ( (solverChoice.les_type == LESType::Smagorinsky) ||
        (solverChoice.les_type == LESType::Deardorff  ) ) {
-      // K_turb = 2*mu_t -> extra factor of 0.5 when computing rhoAlpha
-      rhoAlpha += 0.25*(K_turb(ir,jr,kr) + K_turb(il,jl,kl)) * Pr_or_Sc_turb_inv;
+    rhoAlpha += 0.5*(K_turb(ir,jr,kr,eddy_diff_idx) + K_turb(il,jl,kl,eddy_diff_idx));
   } else if (solverChoice.les_type != LESType::None) {
       amrex::Abort("Error:  LES model is unrecognized");
   }

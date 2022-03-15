@@ -78,6 +78,24 @@ namespace Prim {
     };
 }
 
+// We separate out horizontal and vertical turbulent diffusivities
+// These are the same for LES, but different for PBL models
+namespace EddyDiff {
+    enum {
+        Mom_h = 0,
+        Mom_v,
+        Theta_h,
+        Theta_v,
+	KE_h,
+	KE_v,
+        QKE_h,
+        QKE_v,
+        Scalar_h,
+        Scalar_v,
+	NumDiffs
+    };
+}
+
 enum struct BC {
     symmetry, inflow, outflow, no_slip_wall, slip_wall, periodic, MOST, undefined
 };
