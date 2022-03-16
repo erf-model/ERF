@@ -26,8 +26,8 @@ struct ABLMost
     amrex::Real zref{0.2};           ///< Reference height (m)
     amrex::Real z0{0.1};             ///< Roughness height (m)
     amrex::Real utau;                ///< Friction velocity (m/s)
-    amrex::Real kappa{0.41};         ///< von Karman constant
-    amrex::Real gravity{9.81};       ///< Acceleration due to gravity (m/s^2)
+    amrex::Real kappa{KAPPA};        ///< von Karman constant
+    amrex::Real gravity{CONST_GRAV}; ///< Acceleration due to gravity (m/s^2)
     amrex::Real obukhov_len{1.0e16}; ///< Non-dimensional Obukhov length
 
     amrex::Real vel_mean[AMREX_SPACEDIM]; ///< Mean velocity (at zref)
