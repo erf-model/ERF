@@ -7,8 +7,8 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 50. 50. 5000.
-amr.n_cell           = 4 4 400
+geometry.prob_extent = 150. 125. 5000.
+amr.n_cell           = 12 10 400
 
 geometry.is_periodic = 1 1 0
 
@@ -58,6 +58,6 @@ prob.T_0 = 300.0
 
 # INITIALIZATION WITH ATM DATA
 erf.init_type = "real"
-erf.nc_init_file = "/home/pkjha/Desktop/netcdf_files/ideal_output/wrfinput_d01"
+erf.nc_init_file = "/home/pkjha/Desktop/netcdf_files/ideal_output_ekman/wrfinput_d01"
 
 FILE = ./inputs.time_integration

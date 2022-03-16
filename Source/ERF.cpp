@@ -755,7 +755,7 @@ erf_init_from_netcdf(
     // Declare the MultiFabs which will hold the data read from the NetCDF file
     MultiFab x_vel_mf, y_vel_mf, z_vel_mf, rho_inv_mf, rho_inv_pert_mf, theta_mf, p_base_mf, p_pert_mf, p_surf_mf, eta_mf;
 
-    // Declare teh Array4 variables corresponding to the MultiFabs
+    // Declare the Array4 variables corresponding to the MultiFabs
     Array4<Real> x_vel_arr, y_vel_arr, z_vel_arr, rho_inv_arr, rho_inv_pert_arr, theta_arr, p_base_arr, p_pert_arr, p_surf_arr, eta_arr, eta, z, x, y;
 
     // Read the NetCDF variables in the corresponding MultiFab's
