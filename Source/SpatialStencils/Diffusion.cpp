@@ -181,10 +181,9 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
   }
 
   if ( (solverChoice.les_type == LESType::Smagorinsky) ||
-       (solverChoice.les_type == LESType::Deardorff  ) ) {
+       (solverChoice.les_type == LESType::Deardorff  ) ||
+       (solverChoice.pbl_type == PBLType::MYNN25     ) ) {
     rhoAlpha += 0.5*(K_turb(ir,jr,kr,eddy_diff_idx) + K_turb(il,jl,kl,eddy_diff_idx));
-  } else if (solverChoice.les_type != LESType::None) {
-      amrex::Abort("Error:  LES model is unrecognized");
   }
 
   // Compute the flux

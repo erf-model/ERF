@@ -34,10 +34,9 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
     }
 
     if ( (solverChoice.les_type == LESType::Smagorinsky) ||
-         (solverChoice.les_type == LESType::Deardorff  ) ) {
+         (solverChoice.les_type == LESType::Deardorff  ) ||
+         (solverChoice.pbl_type == PBLType::MYNN25     )  ) {
         mu_effective += InterpolateTurbulentViscosity(i, j, k, momentumEqn, diffDir, K_turb); // 2*mu_t
-    } else if (solverChoice.les_type != LESType::None) {
-        amrex::Abort("Error:  LES model is unrecognized");
     }
 
     Real stressTerm = mu_effective * strainRateDeviatoric; // tau_ij = mu_effective * sigma_ij

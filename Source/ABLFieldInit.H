@@ -36,6 +36,7 @@ struct ABLFieldInit {
         pp_abl.query("theta_amplitude", m_deltaT);
 
         pp_abl.query("init_tke", m_tke_init);
+        pp_abl.query("init_qke", m_qke_init);
 
         m_thht_d.resize(num_theta_values);
         m_thvv_d.resize(num_theta_values);
@@ -83,6 +84,7 @@ struct ABLFieldInit {
        const amrex::Real ref_height = m_ref_height;
 
        const amrex::Real tke_init = m_tke_init;
+       const amrex::Real qke_init = m_qke_init;
 
        const int ntvals = m_theta_heights.size();
        const amrex::Real* th = m_thht_d.data();
@@ -107,6 +109,7 @@ struct ABLFieldInit {
            state(i, j, k, RhoScalar_comp) = 0.;
 
            state(i, j, k, RhoKE_comp) = tke_init;
+           state(i, j, k, RhoQKE_comp) = qke_init;
        });
 
      if (add_temperature_perturbations())
@@ -245,6 +248,7 @@ struct ABLFieldInit {
 
     //! Initial value for tke field
     amrex::Real m_tke_init{0.1};
+    amrex::Real m_qke_init{0.2};
 
     //! Perturb initial velocity field with sinusoidal fluctuations
     bool m_perturb_vel{true};

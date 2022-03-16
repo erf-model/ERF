@@ -3,6 +3,7 @@
 #include <AMReX_ArrayLim.H>
 #include <ERF_Constants.H>
 #include <EddyViscosity.H>
+#include <PBLModels.H>
 #include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
@@ -45,18 +46,27 @@ void erf_rhs (int level,
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *************************************************************************
-    // Calculate cell-centered eddy viscosity
+    // Calculate cell-centered eddy viscosity & diffusivities
     //
     // Notes -- we fill all the data in ghost cells before calling this so
     //    that we can fill the eddy viscosity in the ghost regions and
     //    not have to call a boundary filler on this data itself
+    //
+    // LES - updates both horizontal and vertical eddy viscosity components
+    // PBL - only updates vertical eddy viscosity components so horizontal
+    //       components come from the LES model or are left as zero.
     // *************************************************************************
-    MultiFab eddyViscosity(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),EddyDiff::NumDiffs,1);
+    MultiFab eddyDiffs(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),EddyDiff::NumDiffs,1);
+    eddyDiffs.setVal(0.0);
     if (solverChoice.les_type == LESType::Smagorinsky ||
         solverChoice.les_type == LESType::Deardorff)
     {
         ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                  eddyViscosity, geom, solverChoice, domain_bcs_type_d);
+                                  eddyDiffs, geom, solverChoice, domain_bcs_type_d);
+    }
+    if (solverChoice.pbl_type != PBLType::None) {
+        ComputeTurbulentViscosityPBL(xvel, yvel, zvel, S_data[IntVar::cons],
+				     eddyDiffs, geom, solverChoice, domain_bcs_type_d);
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
@@ -133,13 +143,13 @@ void erf_rhs (int level,
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
-        const Array4<Real>& K_turb = eddyViscosity.array(mfi);
+        const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
         amrex::ParallelFor(bx, S_data[IntVar::cons].nComp(),
-       [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+		          [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
             // Add advection terms.
