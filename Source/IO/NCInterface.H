@@ -15,7 +15,7 @@
 #include <vector>
 
 #include <netcdf.h>
-#include <netcdf_par.h>
+//#include <netcdf_par.h> // Uncomment for parallel NetCDF
 
 namespace ncutils {
 
@@ -160,7 +160,7 @@ struct NCVar
     void get_attr(const std::string& name, std::vector<double>& value) const;
     void get_attr(const std::string& name, std::vector<float>& value) const;
     void get_attr(const std::string& name, std::vector<int>& value) const;
-    void par_access(const int cmode) const;
+    //void par_access(const int cmode) const; //Uncomment for parallel NetCDF
 };
 
 //! Representation of a NetCDF group
@@ -278,18 +278,21 @@ public:
 
     static NCFile open(const std::string& name, const int cmode = NC_NOWRITE);
 
+    //Uncomment for parallel NetCDF
+    /*
     static NCFile create_par(
         const std::string& name,
         const int cmode = NC_CLOBBER | NC_NETCDF4 | NC_MPIIO,
         MPI_Comm comm = MPI_COMM_WORLD,
         MPI_Info info = MPI_INFO_NULL);
 
+    //Uncomment for parallel NetCDF
     static NCFile open_par(
         const std::string& name,
         const int cmode = NC_NOWRITE,
         MPI_Comm comm = MPI_COMM_WORLD,
         MPI_Info info = MPI_INFO_NULL);
-
+    */
     ~NCFile();
 
     void close();

@@ -5,6 +5,7 @@
 #include <ERF.H>
 #include <prob_common.H>
 #include <AMReX_buildInfo.H>
+#include "ERF.H"
 
 using namespace amrex;
 
@@ -44,6 +45,9 @@ std::string ERF::plotfile_type    = "amrex";
 
 // init_type:  "ideal" vs "real"
 std::string ERF::init_type        = "ideal";
+
+// NetCDF initialization file
+std::string ERF::nc_init_file = ""; // Must provide via input
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
@@ -292,13 +296,6 @@ ERF::InitData ()
         ablinit.init_params();
     }
 
-#ifdef ERF_USE_NETCDF
-    if (init_type == "real" ) {
-        std::string file_name = "nc_init_file";
-        BuildMultiFabFromNCFile(file_name);
-    }
-#endif
-
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
         amrex::Print() << "Defining r2d for the first time " << std::endl;
@@ -521,7 +518,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
           const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
           const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
 
-          erf_init_from_metdata(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+          if (nc_init_file.empty())
+              amrex::Error("NetCDF initialization file name must be provided via input");
+          erf_init_from_netcdf(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), nc_init_file);
         }
     }
 
@@ -613,6 +612,9 @@ ERF::ReadParameters ()
         {
             amrex::Error("init_type must be ideal or real");
         }
+
+        // NetCDF initialization file
+        pp.query("nc_init_file", nc_init_file);
     }
 
     {  // Mesh refinement
@@ -727,13 +729,216 @@ ERF::setupABLMost (int lev)
 }
 
 void
-erf_init_from_metdata(
+erf_init_from_netcdf(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
-  amrex::GeometryData const& geomdata)
+  amrex::GeometryData const& geomdata,
+  const std::string &nc_init_file)
 {
-   // This is just a placeholder
+#ifdef ERF_USE_NETCDF
+ // This Metgrid stuff is for demo only as of now
+//    amrex::Print() << "Test if the metgrid output NetCDF file is read correctly" << std::endl;
+//    BuildMultiFabFromMetgridOutputFileDemo(nc_init_file);
+//    amrex::Print() << "Successfully read the metgrid output NetCDF file" << std::endl;
+
+    // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
+    const Real theta_ref = 300.0;
+
+    // Create the staggered boxes in x, y, and z directions
+    const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
+    const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
+    const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+
+    // Declare the MultiFabs which will hold the data read from the NetCDF file
+    MultiFab x_vel_mf, y_vel_mf, z_vel_mf, rho_inv_mf, rho_inv_pert_mf, theta_mf, p_base_mf, p_pert_mf, p_surf_mf, eta_mf, phb_mf, z_phy_mf;
+
+    // Declare the Array4 variables corresponding to the MultiFabs
+    Array4<Real> x_vel_arr, y_vel_arr, z_vel_arr, rho_inv_arr, rho_inv_pert_arr, theta_arr, p_base_arr, p_pert_arr, p_surf_arr, eta_arr, phb_arr, z_phy_arr, x, y;
+
+    // Read the NetCDF variables in the corresponding MultiFab's
+    Print() << "Test if the 'ideal.exe' output NetCDF file is read correctly" << std::endl << std::endl;
+
+    // Read x-velocity
+    auto ubox_nc = BuildMultiFabFromIdealOutputFile(nc_init_file, "U", x_vel_mf,
+                                                   x_vel_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (xbx.bigEnd() == ubox_nc.bigEnd() && xbx.smallEnd() == ubox_nc.smallEnd()),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(ubox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == ubox_nc.smallEnd()[0] || i == ubox_nc.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << x_vel_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read y-velocity
+    auto vbox_nc = BuildMultiFabFromIdealOutputFile(nc_init_file, "V", y_vel_mf,
+                                                    y_vel_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (ybx.bigEnd() == vbox_nc.bigEnd() && ybx.smallEnd() == vbox_nc.smallEnd()),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(vbox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == vbox_nc.smallEnd()[0] || i == vbox_nc.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << y_vel_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read z-velocity
+    auto wbox_nc = BuildMultiFabFromIdealOutputFile(nc_init_file, "W", z_vel_mf,
+                                                    z_vel_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (zbx.bigEnd() == wbox_nc.bigEnd() && zbx.smallEnd() == wbox_nc.smallEnd()),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(wbox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == wbox_nc.smallEnd()[0] || i == wbox_nc.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << z_vel_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read the base density inverse
+    auto alb_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "ALB", rho_inv_mf,
+                                                    rho_inv_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == alb_box.bigEnd() && bx.smallEnd() == alb_box.smallEnd()),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(alb_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == alb_box.smallEnd()[0] || i == alb_box.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << rho_inv_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read the perturbation density inverse
+    auto al_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "AL", rho_inv_pert_mf,
+                                                    rho_inv_pert_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == al_box.bigEnd() && bx.smallEnd() == al_box.smallEnd()),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(al_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == al_box.smallEnd()[0] || i == al_box.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << rho_inv_pert_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read the potential temperature
+    auto theta_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "T_INIT", theta_mf,
+                                                      theta_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == theta_box.bigEnd() && bx.smallEnd() == theta_box.smallEnd()),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(theta_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == theta_box.smallEnd()[0] || i == theta_box.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << theta_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read Base Pressure
+    auto pb_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "PB", p_base_mf,
+                                                   p_base_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == pb_box.bigEnd() && bx.smallEnd() == pb_box.smallEnd()),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(pb_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == pb_box.smallEnd()[0] || i == pb_box.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << p_base_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read Perturbation Pressure
+    auto p_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "P", p_pert_mf,
+                                                   p_pert_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == p_box.bigEnd() && bx.smallEnd() == p_box.smallEnd()),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(p_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == p_box.smallEnd()[0] || i == p_box.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << p_pert_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read Surface Pressure
+    auto psurf_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "PSFC", p_surf_mf,
+                                                  p_surf_arr, NC_Data_Dims_Type::Time_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd()[0] == psurf_box.bigEnd()[0] && bx.smallEnd()[0] == psurf_box.smallEnd()[0]) &&
+                                      (bx.bigEnd()[1] == psurf_box.bigEnd()[1] && bx.smallEnd()[1] == psurf_box.smallEnd()[1]),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(psurf_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == psurf_box.smallEnd()[0] || i == psurf_box.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << p_surf_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read eta at cell-center levels
+    // Likewise, we can read eta at z-stagger levels, but since pressure is defined at cell-centers we skip that
+    // eta = (p(z) - p_top)/(p_surf - p_top) => 1 at surface and 0 at top
+    auto eta_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "ZNU", eta_mf,
+                                                    eta_arr, NC_Data_Dims_Type::Time_BT);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( bx.bigEnd()[2] == eta_box.bigEnd()[2] && bx.smallEnd()[2] == eta_box.smallEnd()[2],
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(eta_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == eta_box.smallEnd()[0] || i == eta_box.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << eta_arr(i, j, k)  << std::endl;
+//    });
+
+    // Read base-state geopotential
+    auto phb_nc = BuildMultiFabFromIdealOutputFile(nc_init_file, "PHB", phb_mf,
+                                                    phb_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (zbx.bigEnd() == phb_nc.bigEnd() && zbx.smallEnd() == phb_nc.smallEnd()),
+                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
+//    amrex::ParallelFor(phb_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+//        if (i == phb_nc.smallEnd()[0] || i == phb_nc.bigEnd()[0])
+//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << phb_arr(i, j, k)  << std::endl;
+//    });
+
+
+
+    amrex::Print() << "Successfully read the 'ideal.exe' output NetCDF file" << std::endl << std::endl;
+
+    //*****************************************************************************************************************
+    // Read and X and Y coordinates as well from NetCDF file and assert that with ERF grid
+    //................
+
+    //Construct physical z from base-state geopotential. We can possibly include pertubation geopotential
+    BoxArray ba(phb_nc);
+    DistributionMapping dm { ba };
+    z_phy_mf.define(ba, dm, 1, 0);
+    for ( MFIter mfi(z_phy_mf); mfi.isValid(); ++mfi )
+    {
+        const Box& zbx = mfi.tilebox();
+        z_phy_arr = z_phy_mf.array(mfi);
+        amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            z_phy_arr(i, j, k) = phb_arr(i, j, k) / CONST_GRAV;
+//            if (i == zbx.smallEnd()[0] || i == zbx.bigEnd()[0])
+//                Print() << "z_physical (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << z_phy_arr(i, j, k) << std::endl;
+                       // << ", z (i, j, k) from ERF geom = " << geomdata.prob_domain << std::endl;
+        });
+        // Alternatively, we can compute z = f(eta, pb+p, p_surf, theta)
+    }
+
+    // The coordinates read/computed from the the NetCDF file can be used to construct a domain here
+    // instead of creating one based on ERF inputs
+
+
+    //*****************************************************************************************************************
+    // NOW, Fill up the initial condition
+
+    // Set the x-velocity
+    // x_vel = x_vel_arr // This is not allowed, but something like this would be better.
+    amrex::ParallelFor(ubox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        x_vel(i, j, k) = x_vel_arr(i, j, k);
+    });
+
+    // Set the y-velocity
+    amrex::ParallelFor(vbox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        y_vel(i, j, k) = y_vel_arr(i, j, k);
+    });
+
+    // Set the z-velocity
+    amrex::ParallelFor(wbox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        z_vel(i, j, k) = z_vel_arr(i, j , k);
+    });
+
+    // Set the state data
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+
+        // Set the density
+        // Add perturbation component as well later.
+//        const Real rho_const = 1.0;
+//        state(i, j, k, Rho_comp) = rho_const;
+        state(i, j, k, Rho_comp) = 1.0 / rho_inv_arr (i, j, k);
+
+        // Initial potential temperature (Actually rho*theta)
+//        state(i, j, k, RhoTheta_comp) = (theta_arr (i, j, k) + theta_ref) * rho_const;
+        state(i, j, k, RhoTheta_comp) = (theta_arr (i, j, k) + theta_ref) / rho_inv_arr (i, j, k);
+
+        // Set scalar = 0 everywhere
+        state(i, j, k, RhoScalar_comp) = 0.0;
+    });
+    //*****************************************************************************************************************
+
+#endif
 }

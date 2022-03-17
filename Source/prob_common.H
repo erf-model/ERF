@@ -30,13 +30,14 @@ erf_init_prob(
   amrex::GeometryData const& geomdata);
 
 void
-erf_init_from_metdata(
+erf_init_from_netcdf(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
-  amrex::GeometryData const& geomdata);
+  amrex::GeometryData const& geomdata,
+  const std::string &nc_init_file);
 
 #endif
 

@@ -380,8 +380,11 @@ private:
     // Native or NetCDF
     static std::string plotfile_type;
 
-    // 2D BndryRegister input
+    // init_type:  "ideal" vs "real"
     static std::string init_type;
+
+    // NetCDF initialization file
+    static std::string nc_init_file;
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
