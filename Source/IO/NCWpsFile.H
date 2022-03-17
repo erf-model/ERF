@@ -210,7 +210,11 @@ void ReadIdealOutputFile(const std::string  &fname, amrex::Vector<std::string> n
             DType* dataPtr            = arrays[n].get_data();
 
             std::vector<size_t> start(shape.size(), 0);
-            amrex::Print() << "Variable name= " << vname << " ; numPts read from NetCDF file= " << numPts  << std::endl;
+            amrex::Print() << "NetCDF Variable name = " << vname << "; numPts read from NetCDF file/var = " << numPts << std::endl;
+            amrex::Print()  << "Dims of the variable = (";
+            for (auto &dim:shape)
+                amrex::Print() << dim << ", " ;
+            amrex::Print()  << ")" << std::endl;
             ncf.var(vname).get(dataPtr, start, shape);
         }
         ncf.close();

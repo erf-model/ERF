@@ -68,7 +68,7 @@ void BuildMultiFabFromMetgridOutputFileDemo(const std::string &fname) {
   //amrex::Print() << "Done filling he MultiFab. " << std::endl;
 }
 
-// Function to read a NetCDF variable and fill a corresponding multifab
+// Function to read a NetCDF variable and fill a corresponding MultiFab and Array4
 Box BuildMultiFabFromIdealOutputFile(const std::string &fname, const std::string &nc_var_name, MultiFab &mf_var,
                                      Array4<Real> &array4_var, const enum NC_Data_Dims_Type &nc_data_dims_type) {
 
@@ -115,7 +115,7 @@ Box BuildMultiFabFromIdealOutputFile(const std::string &fname, const std::string
             amrex::Error("Unrecognized NetCDF data dimensions type");
     }
     int tot_size = (bigEnd[0] + 1) * (bigEnd[1] + 1) * (bigEnd[2] + 1);
-    amrex::Print() << "Total points in the box: " << tot_size << std::endl;
+    amrex::Print() << "Total points in the box constructed from netCDF variable: " << tot_size << std::endl;
 
     amrex::Box box = amrex::Box(smallEnd, bigEnd, boxType);
 
@@ -153,7 +153,7 @@ Box BuildMultiFabFromIdealOutputFile(const std::string &fname, const std::string
         }
         array4_var = mf_var.array(mfi);
     }
-    amrex::Print() << "Done filling he MultiFab. " << std::endl << std::endl;
+    amrex::Print() << "Done filling the MultiFab. " << std::endl << std::endl;
 
     return box_nc;
 }
