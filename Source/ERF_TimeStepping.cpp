@@ -119,6 +119,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
         const Orientation face = oitr();
         if (phys_bc_type[face] == BC::MOST && lev == 0) setupABLMost(lev);
     }
+    // Do an error check
+    if (solverChoice.pbl_type == PBLType::MYNN25 &&
+	phys_bc_type[Orientation(Direction::z,Orientation::low)] != BC::MOST) {
+      amrex::Error("Must use MOST BC for MYNN2.5 PBL model");
+    }
 
     const auto& local_ref_ratio = (lev > 0) ? ref_ratio[lev-1] : IntVect(1,1,1);
 
