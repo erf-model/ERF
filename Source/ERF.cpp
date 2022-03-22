@@ -700,7 +700,7 @@ ERF::MakeHorizontalAverages ()
         Elixir elx_reduce = fab_reduce.elixir();
         auto arr_reduce = fab_reduce.array();
 
-        ParallelFor(box, [&] AMREX_GPU_DEVICE (int i, int j, int k) {
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real dens = arr_cons(i, j, k, Cons::Rho);
             arr_reduce(i, j, k, 0) = dens;
             arr_reduce(i, j, k, 1) = arr_cons(i, j, k, Cons::RhoTheta) / dens;
