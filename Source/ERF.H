@@ -284,6 +284,8 @@ private:
 
     void setupABLMost(int lev);
 
+    void MakeHorizontalAverages();
+
     ////////////////
     // private data members
 
@@ -421,6 +423,17 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
+
+    amrex::Vector<amrex::Real> h_havg_density;
+    amrex::Vector<amrex::Real> h_havg_temperature;
+    amrex::Vector<amrex::Real> h_havg_pressure;
+    amrex::Vector<amrex::Real> h_havg_qv;
+    amrex::Vector<amrex::Real> h_havg_qc;
+    amrex::Gpu::DeviceVector<amrex::Real> d_havg_density;
+    amrex::Gpu::DeviceVector<amrex::Real> d_havg_temperature;
+    amrex::Gpu::DeviceVector<amrex::Real> d_havg_pressure;
+    amrex::Gpu::DeviceVector<amrex::Real> d_havg_qv;
+    amrex::Gpu::DeviceVector<amrex::Real> d_havg_qc;
 
     static void refinement_criteria_setup();
 
