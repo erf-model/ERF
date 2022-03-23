@@ -711,11 +711,11 @@ ERF::MakeHorizontalAverages ()
 
         for (int k=se[dir_z]; k <= be[dir_z]; ++k) {
             Box kbox(box); kbox.setSmall(dir_z,k); kbox.setBig(dir_z,k);
-            h_havg_density     [k-start_z] += fab_reduce.sum(kbox,0);
-            h_havg_temperature [k-start_z] += fab_reduce.sum(kbox,1);
-            h_havg_pressure    [k-start_z] += fab_reduce.sum(kbox,2);
-            h_havg_qv          [k-start_z] += fab_reduce.sum(kbox,3);
-            h_havg_qc          [k-start_z] += fab_reduce.sum(kbox,4);
+            h_havg_density     [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,0);
+            h_havg_temperature [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,1);
+            h_havg_pressure    [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,2);
+            h_havg_qv          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,3);
+            h_havg_qc          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,4);
         }
     }
 
