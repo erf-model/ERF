@@ -55,7 +55,7 @@ void
 ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx)
 {
     int bccomp;
-    amrex::Interpolater* mapper;
+    amrex::Interpolater* mapper = nullptr;
 
     if (var_idx == Vars::cons)
     {
