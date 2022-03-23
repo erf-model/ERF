@@ -11,8 +11,12 @@ amr.n_cell           =    64      64     64   # TODO: Enhance the resolution in 
 
 geometry.is_periodic = 1 1 0
 
-zlo.type = "MostWall"
+zlo.type = "Most"
 zhi.type = "SlipWall"
+
+erf.most.z0 = 100.0
+erf.most.zref = 200.0
+erf.most.surf_temp = 1.1
 
 # TIME STEP CONTROL
 #TODO: Need to play around with time step to get rid of ringing
@@ -51,6 +55,7 @@ erf.spatial_order = 2
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
+prob.T_0 = 1.0
 
 prob.U_0 = 10.0
 prob.V_0 = 0.0

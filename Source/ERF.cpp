@@ -780,11 +780,9 @@ ERF::setupABLMost (int lev)
 {
     amrex::ParmParse pp("erf");
 
-    amrex::Real surf_temp = 0.0_rt;
-    amrex::Real zref = 0.0_rt;
-
-    pp.query("most.surf_temp", surf_temp);
-    pp.query("most.zref", zref);
+    pp.query("most.surf_temp", most.surf_temp);
+    pp.query("most.zref", most.zref);
+    pp.query("most.z0", most.z0);
 
     MultiFab& S_new = vars_new[lev][Vars::cons];
     MultiFab& U_new = vars_new[lev][Vars::xvel];
@@ -805,8 +803,6 @@ ERF::setupABLMost (int lev)
 
     const GpuArray<Real, AMREX_SPACEDIM> dx = geom[0].CellSizeArray();
 
-    most.surf_temp   = surf_temp;
-    most.zref        = zref;
     most.vel_mean[0] = vxave.line_average_interpolated(most.zref, 0);
     most.vel_mean[1] = vyave.line_average_interpolated(most.zref, 0);
     most.vel_mean[2] = vzave.line_average_interpolated(most.zref, 0);
