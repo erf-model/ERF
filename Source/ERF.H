@@ -150,6 +150,8 @@ public:
 
     amrex::MultiFab& build_fine_mask(int lev);
 
+    void MakeHorizontalAverages();
+
     // write plotfile to disk
     void WritePlotFile () const;
 
@@ -283,8 +285,6 @@ private:
     const ABLMost& get_most() const { return most; }
 
     void setupABLMost(int lev);
-
-    void MakeHorizontalAverages();
 
     ////////////////
     // private data members
