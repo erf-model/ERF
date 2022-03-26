@@ -20,8 +20,8 @@
 void
 ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
                     const std::string  &mf_name,
-                    int coordinatorProc,
-                    int allow_empty_mf) {
+                    int /*coordinatorProc*/,
+                    int /*allow_empty_mf*/) {
 
     const std::string& FullPath = amrex::Concatenate(check_file,istep[0],5);
 
@@ -32,7 +32,7 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
       static const std::string Suffix(mf_name);
       auto ncf = ncutils::NCFile::create(FullPath+Suffix, NC_CLOBBER | NC_NETCDF4);
 
-      int num_pts = static_cast<int>(ncf.dim("num_points").len());
+      // int num_pts = static_cast<int>(ncf.dim("num_points").len());
       int ncomp   = static_cast<int>(ncf.dim("num_componts").len());
       int nbox    = static_cast<int>(ncf.dim("num_box").len());
       int ngrow   = 0;
@@ -63,13 +63,12 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
       mf.define(boxarray, dm, ncomp, ngrow, MFInfo(), FArrayBoxFactory());
 
       for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
-           auto ncomp   = mf.nComp();
-           auto box     = mf.get(mfi).box();
-           auto num_pts = static_cast<long unsigned int>(mf.get(mfi).numPts());
+           auto ncomp_mf   = mf.nComp();
+           auto num_pts_mf  = static_cast<long unsigned int>(mf.get(mfi).numPts());
 
-           for (int k(0); k < ncomp; ++k) {
+           for (int k(0); k < ncomp_mf; ++k) {
                auto dataPtr = mf.get(mfi).dataPtr(k);
-               ncf.var(plt_var_names[mfi.index()*ncomp+k]).get(dataPtr, {0}, {num_pts});
+               ncf.var(plt_var_names[mfi.index()*ncomp_mf+k]).get(dataPtr, {0}, {num_pts_mf});
             }
       }
 
@@ -81,7 +80,7 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
 void
 ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
                       const std::string& name,
-                      bool set_ghost) const {
+                      bool /*set_ghost*/) const {
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
@@ -146,9 +145,9 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
         ncf.exit_def_mode();
 
         for (amrex::MFIter mfi(fab); mfi.isValid(); ++mfi) {
-            auto ncomp   = fab.nComp();
-            auto box     = fab.get(mfi).box();
-            auto num_pts = fab.get(mfi).numPts();
+            auto ncomp_mf   = fab.nComp();
+            auto box        = fab.get(mfi).box();
+            auto num_pts_mf = fab.get(mfi).numPts();
 
             amrex::IntVect smallend = box.smallEnd();
             amrex::IntVect bigend   = box.bigEnd();
@@ -159,9 +158,9 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
             ncf.var(hi_names[mfi.index()] ).put(bigend.begin()  , {index, 0}, {1, AMREX_SPACEDIM});
             ncf.var(typ_names[mfi.index()]).put(itype.begin()   , {index, 0}, {1, AMREX_SPACEDIM});
 
-            for (int k(0); k < ncomp; ++k) {
+            for (int k(0); k < ncomp_mf; ++k) {
                 auto dataPtr = fab.get(mfi).dataPtr(k);
-                ncf.var(plt_var_names[mfi.index()*ncomp+k]).put(dataPtr, {0}, {static_cast<long unsigned int>(num_pts)});
+                ncf.var(plt_var_names[mfi.index()*ncomp_mf+k]).put(dataPtr, {0}, {static_cast<long unsigned int>(num_pts_mf)});
              }
         }
         ncf.close();
