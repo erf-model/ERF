@@ -139,7 +139,7 @@ ERF::ReadNCCheckpointFile ()
     const int nstep        = static_cast<int>(ncf.dim(nstep_name).len());
     const int ntime        = static_cast<int>(ncf.dim(ntime_name).len());
 
-    // Assert we are reading in data with the same finest_level as we have 
+    // Assert we are reading in data with the same finest_level as we have
     AMREX_ALWAYS_ASSERT(finest_level == static_cast<int>(ncf.dim(nl_name).len()));
 
     // output headfile in NetCDF format
