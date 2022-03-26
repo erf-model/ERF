@@ -974,11 +974,11 @@ erf_init_from_netcdf(
     z_phy_mf.define(ba, dm, 1, 0);
     for ( MFIter mfi(z_phy_mf); mfi.isValid(); ++mfi )
     {
-        const Box& zbx = mfi.tilebox();
+        const Box& z_tilebx = mfi.tilebox();
         z_phy_arr = z_phy_mf.array(mfi);
-        amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        amrex::ParallelFor(z_tilebx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             z_phy_arr(i, j, k) = phb_arr(i, j, k) / CONST_GRAV;
-//            if (i == zbx.smallEnd()[0] || i == zbx.bigEnd()[0])
+//            if (i == z_tilebx.smallEnd()[0] || i == z_tilebx.bigEnd()[0])
 //                Print() << "z_physical (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << z_phy_arr(i, j, k) << std::endl;
                        // << ", z (i, j, k) from ERF geom = " << geomdata.prob_domain << std::endl;
         });
