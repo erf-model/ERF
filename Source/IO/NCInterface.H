@@ -263,7 +263,7 @@ public:
 
 protected:
     NCGroup(const int id) : ncid(id) {}
-    NCGroup(const int id, const NCGroup* par) : ncid(id) {}
+    NCGroup(const int id, const NCGroup* /*par*/) : ncid(id) {}
 };
 
 /** Representation of a NetCDF file
