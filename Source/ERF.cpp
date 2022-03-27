@@ -314,6 +314,7 @@ ERF::InitData ()
 
     if (restart_chkfile == "") {
         // start simulation from the beginning
+
         const Real time = 0.0;
         InitFromScratch(time);
         AverageDown();
@@ -489,6 +490,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         m_r2d->read_input_files(time,dt_dummy,m_bc_extdir_vals);
     }
 
+#ifdef ERF_USE_NETCDF
+    // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
+    if (lev == 0) {
+        if (init_type == "real") {
+            if (nc_init_file.empty())
+                amrex::Error("NetCDF initialization file name must be provided via input");
+            read_from_netcdf();
+        }
+    }
+#endif
+
     // Loop over grids at this level to initialize our grid data
 #ifdef _OPENMP
 #pragma omp parallel
@@ -509,19 +521,19 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
           erf_init_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
         }
+#ifdef ERF_USE_NETCDF
     } else if (init_type == "real") {
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
         {
           const Box& bx = mfi.tilebox();
-          const auto& cons_arr = lev_new[Vars::cons].array(mfi);
-          const auto& xvel_arr = lev_new[Vars::xvel].array(mfi);
-          const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
-          const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
+          FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
+          FArrayBox& xvel_fab = lev_new[Vars::xvel][mfi];
+          FArrayBox& yvel_fab = lev_new[Vars::yvel][mfi];
+          FArrayBox& zvel_fab = lev_new[Vars::zvel][mfi];
 
-          if (nc_init_file.empty())
-              amrex::Error("NetCDF initialization file name must be provided via input");
-          erf_init_from_netcdf(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), nc_init_file);
+          init_from_netcdf(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
         }
+#endif
     }
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
@@ -814,160 +826,72 @@ ERF::setupABLMost (int lev)
     most.update_fluxes();
 }
 
-void
-erf_init_from_netcdf(
-  const amrex::Box& bx,
-  amrex::Array4<amrex::Real> const& state,
-  amrex::Array4<amrex::Real> const& x_vel,
-  amrex::Array4<amrex::Real> const& y_vel,
-  amrex::Array4<amrex::Real> const& z_vel,
-  amrex::GeometryData const& geomdata,
-  const std::string &nc_init_file)
-{
 #ifdef ERF_USE_NETCDF
- // This Metgrid stuff is for demo only as of now
-//    amrex::Print() << "Test if the metgrid output NetCDF file is read correctly" << std::endl;
-//    BuildMultiFabFromMetgridOutputFileDemo(nc_init_file);
-//    amrex::Print() << "Successfully read the metgrid output NetCDF file" << std::endl;
+void
+ERF::read_from_netcdf()
+{
+    auto domain = geom[0].Domain();
 
-    // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
-    const Real theta_ref = 300.0;
+    // We allocate these here so they exist on all ranks
+    Box ubx(domain); ubx.surroundingNodes(0); NC_xvel_fab.resize(ubx,1);
+    Box vbx(domain); vbx.surroundingNodes(1); NC_yvel_fab.resize(vbx,1);
+    Box wbx(domain); wbx.surroundingNodes(2); NC_zvel_fab.resize(wbx,1);
+    NC_rho_fab.resize(domain,1);
+    NC_rhotheta_fab.resize(domain,1);
 
-    // Create the staggered boxes in x, y, and z directions
-    const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
-    const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
-    const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+    if (ParallelDescriptor::IOProcessor())
+    {
+        Vector<FArrayBox*> NC_fabs;
+        Vector<std::string> NC_names;
 
-    // Declare the MultiFabs which will hold the data read from the NetCDF file
-    MultiFab x_vel_mf, y_vel_mf, z_vel_mf, rho_inv_mf, rho_inv_pert_mf, theta_mf, p_base_mf, p_pert_mf, p_surf_mf, eta_mf, phb_mf, z_phy_mf;
+        NC_fabs.push_back(&NC_xvel_fab    ); NC_names.push_back("U");
+        NC_fabs.push_back(&NC_yvel_fab)    ; NC_names.push_back("V");
+        NC_fabs.push_back(&NC_zvel_fab)    ; NC_names.push_back("W");
+        NC_fabs.push_back(&NC_rho_fab)     ; NC_names.push_back("ALB");
+        NC_fabs.push_back(&NC_rhotheta_fab); NC_names.push_back("T_INIT");
 
-    // Declare the Array4 variables corresponding to the MultiFabs
-    Array4<Real> x_vel_arr, y_vel_arr, z_vel_arr, rho_inv_arr, rho_inv_pert_arr, theta_arr, p_base_arr, p_pert_arr, p_surf_arr, eta_arr, phb_arr, z_phy_arr, x, y;
+        // Read the netcdf file and fill these FABs
+        BuildFABsFromIdealOutputFile(nc_init_file, NC_names, NC_fabs, NC_Data_Dims_Type::Time_BT_SN_WE);
 
-    // Read the NetCDF variables in the corresponding MultiFab's
-    Print() << "Test if the 'ideal.exe' output NetCDF file is read correctly" << std::endl << std::endl;
+        // Convert to rho by inverting
+        NC_rho_fab.invert(1.0);
 
-    // Read x-velocity
-    auto ubox_nc = BuildMultiFabFromIdealOutputFile(nc_init_file, "U", x_vel_mf,
-                                                   x_vel_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (xbx.bigEnd() == ubox_nc.bigEnd() && xbx.smallEnd() == ubox_nc.smallEnd()),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(ubox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == ubox_nc.smallEnd()[0] || i == ubox_nc.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << x_vel_arr(i, j, k)  << std::endl;
-//    });
+        // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
+        const Real theta_ref = 300.0;
+        NC_rhotheta_fab.plus(theta_ref);
 
-    // Read y-velocity
-    auto vbox_nc = BuildMultiFabFromIdealOutputFile(nc_init_file, "V", y_vel_mf,
-                                                    y_vel_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (ybx.bigEnd() == vbox_nc.bigEnd() && ybx.smallEnd() == vbox_nc.smallEnd()),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(vbox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == vbox_nc.smallEnd()[0] || i == vbox_nc.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << y_vel_arr(i, j, k)  << std::endl;
-//    });
+        // Now multiply by rho to get (rho theta) instead of theta
+        NC_rhotheta_fab.mult(NC_rho_fab,0,0,1);
 
-    // Read z-velocity
-    auto wbox_nc = BuildMultiFabFromIdealOutputFile(nc_init_file, "W", z_vel_mf,
-                                                    z_vel_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (zbx.bigEnd() == wbox_nc.bigEnd() && zbx.smallEnd() == wbox_nc.smallEnd()),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(wbox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == wbox_nc.smallEnd()[0] || i == wbox_nc.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << z_vel_arr(i, j, k)  << std::endl;
-//    });
+#if 0
+        // Read the perturbation density inverse
+        BuildFabFromIdealOutputFile(nc_init_file, "AL", NC_rho_inv_pert_fab,
+                                    NC_Data_Dims_Type::Time_BT_SN_WE);
 
-    // Read the base density inverse
-    auto alb_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "ALB", rho_inv_mf,
-                                                    rho_inv_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == alb_box.bigEnd() && bx.smallEnd() == alb_box.smallEnd()),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(alb_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == alb_box.smallEnd()[0] || i == alb_box.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << rho_inv_arr(i, j, k)  << std::endl;
-//    });
+        // Read Base Pressure
+        BuildFabFromIdealOutputFile(nc_init_file, "PB", NC_p_base_fab,
+                                    NC_Data_Dims_Type::Time_BT_SN_WE);
 
-    // Read the perturbation density inverse
-    auto al_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "AL", rho_inv_pert_mf,
-                                                    rho_inv_pert_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == al_box.bigEnd() && bx.smallEnd() == al_box.smallEnd()),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(al_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == al_box.smallEnd()[0] || i == al_box.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << rho_inv_pert_arr(i, j, k)  << std::endl;
-//    });
+        // Read Perturbation Pressure
+        BuildFabFromIdealOutputFile(nc_init_file, "P", NC_p_pert_fab,
+                                    NC_Data_Dims_Type::Time_BT_SN_WE);
 
-    // Read the potential temperature
-    auto theta_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "T_INIT", theta_mf,
-                                                      theta_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == theta_box.bigEnd() && bx.smallEnd() == theta_box.smallEnd()),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(theta_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == theta_box.smallEnd()[0] || i == theta_box.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << theta_arr(i, j, k)  << std::endl;
-//    });
+        // Read Surface Pressure
+        BuildFabFromIdealOutputFile(nc_init_file, "PSFC", NC_p_surf_fab,
+                                    NC_Data_Dims_Type::Time_SN_WE);
 
-    // Read Base Pressure
-    auto pb_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "PB", p_base_mf,
-                                                   p_base_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == pb_box.bigEnd() && bx.smallEnd() == pb_box.smallEnd()),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(pb_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == pb_box.smallEnd()[0] || i == pb_box.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << p_base_arr(i, j, k)  << std::endl;
-//    });
+        // Read eta at cell-center levels
+        // Likewise, we can read eta at z-stagger levels, but since pressure is defined at cell-centers we skip that
+        // eta = (p(z) - p_top)/(p_surf - p_top) => 1 at surface and 0 at top
+        BuildFabFromIdealOutputFile(nc_init_file, "ZNU", NC_eta_fab,
+                                    NC_Data_Dims_Type::Time_BT);
 
-    // Read Perturbation Pressure
-    auto p_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "P", p_pert_mf,
-                                                   p_pert_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd() == p_box.bigEnd() && bx.smallEnd() == p_box.smallEnd()),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(p_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == p_box.smallEnd()[0] || i == p_box.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << p_pert_arr(i, j, k)  << std::endl;
-//    });
+        // Read base-state geopotential
+        BuildFabFromIdealOutputFile(nc_init_file, "PHB", NC_phb_fab,
+                                    NC_Data_Dims_Type::Time_BT_SN_WE);
+#endif
 
-    // Read Surface Pressure
-    auto psurf_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "PSFC", p_surf_mf,
-                                                  p_surf_arr, NC_Data_Dims_Type::Time_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (bx.bigEnd()[0] == psurf_box.bigEnd()[0] && bx.smallEnd()[0] == psurf_box.smallEnd()[0]) &&
-                                      (bx.bigEnd()[1] == psurf_box.bigEnd()[1] && bx.smallEnd()[1] == psurf_box.smallEnd()[1]),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(psurf_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == psurf_box.smallEnd()[0] || i == psurf_box.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << p_surf_arr(i, j, k)  << std::endl;
-//    });
-
-    // Read eta at cell-center levels
-    // Likewise, we can read eta at z-stagger levels, but since pressure is defined at cell-centers we skip that
-    // eta = (p(z) - p_top)/(p_surf - p_top) => 1 at surface and 0 at top
-    auto eta_box = BuildMultiFabFromIdealOutputFile(nc_init_file, "ZNU", eta_mf,
-                                                    eta_arr, NC_Data_Dims_Type::Time_BT);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( bx.bigEnd()[2] == eta_box.bigEnd()[2] && bx.smallEnd()[2] == eta_box.smallEnd()[2],
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(eta_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == eta_box.smallEnd()[0] || i == eta_box.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << eta_arr(i, j, k)  << std::endl;
-//    });
-
-    // Read base-state geopotential
-    auto phb_nc = BuildMultiFabFromIdealOutputFile(nc_init_file, "PHB", phb_mf,
-                                                    phb_arr, NC_Data_Dims_Type::Time_BT_SN_WE);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE( (zbx.bigEnd() == phb_nc.bigEnd() && zbx.smallEnd() == phb_nc.smallEnd()),
-                                      "Dimensions of box defined in ERF and the box created with NC file/variable must match");
-//    amrex::ParallelFor(phb_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//        if (i == phb_nc.smallEnd()[0] || i == phb_nc.bigEnd()[0])
-//            Print() << "var (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << phb_arr(i, j, k)  << std::endl;
-//    });
-
-
-
-    amrex::Print() << "Successfully read the 'ideal.exe' output NetCDF file" << std::endl << std::endl;
-
-    //*****************************************************************************************************************
-    // Read and X and Y coordinates as well from NetCDF file and assert that with ERF grid
-    //................
-
+#if 0
     //Construct physical z from base-state geopotential. We can possibly include pertubation geopotential
     BoxArray ba(phb_nc);
     DistributionMapping dm { ba };
@@ -978,53 +902,70 @@ erf_init_from_netcdf(
         z_phy_arr = z_phy_mf.array(mfi);
         amrex::ParallelFor(z_tilebx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             z_phy_arr(i, j, k) = phb_arr(i, j, k) / CONST_GRAV;
-//            if (i == z_tilebx.smallEnd()[0] || i == z_tilebx.bigEnd()[0])
-//                Print() << "z_physical (i, j, k) =  var (" << i << ", " << j << ", " << k << ") = " << z_phy_arr(i, j, k) << std::endl;
-                       // << ", z (i, j, k) from ERF geom = " << geomdata.prob_domain << std::endl;
         });
         // Alternatively, we can compute z = f(eta, pb+p, p_surf, theta)
     }
+#endif
 
-    // The coordinates read/computed from the the NetCDF file can be used to construct a domain here
-    // instead of creating one based on ERF inputs
+    } // if ParalleDescriptor::IOProcessor()
 
+    // We put a barrier here so the rest of the processors wait to do anything until they have the data
+    amrex::ParallelDescriptor::Barrier();
 
-    //*****************************************************************************************************************
-    // NOW, Fill up the initial condition
+    // When an FArrayBox is built, space is allocated on every rank.  However, we only
+    //    filled the data in these FABs on the IOProcessor.  So here we broadcast
+    //    the data to every rank.
 
-    // Set the x-velocity
-    // x_vel = x_vel_arr // This is not allowed, but something like this would be better.
-    amrex::ParallelFor(ubox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        x_vel(i, j, k) = x_vel_arr(i, j, k);
-    });
+    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+    ParallelDescriptor::Bcast(NC_xvel_fab.dataPtr(),NC_xvel_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_yvel_fab.dataPtr(),NC_yvel_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_zvel_fab.dataPtr(),NC_zvel_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_rho_fab.dataPtr(),NC_rho_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_rhotheta_fab.dataPtr(),NC_rhotheta_fab.box().numPts(),ioproc);
 
-    // Set the y-velocity
-    amrex::ParallelFor(vbox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        y_vel(i, j, k) = y_vel_arr(i, j, k);
-    });
+#if 0
+    ParallelDescriptor::Bcast(NC_rho_inv_pert_fab.dataPtr(),NC_rho_inv_pert_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_p_base_fab.dataPtr(),NC_p_base_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_p_pert_fab.dataPtr(),NC_p_pert_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_p_surf_fab.dataPtr(),NC_p_surf_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_p_surf_fab.dataPtr(),NC_p_surf_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_eta_fab.dataPtr(),NC_eta_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_phb_fab.dataPtr(),NC_phb_fab.box().numPts(),ioproc);
+#endif
+    amrex::Print() << "Successfully loaded data from the 'ideal.exe' output NetCDF file" << std::endl << std::endl;
+}
 
-    // Set the z-velocity
-    amrex::ParallelFor(wbox_nc, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        z_vel(i, j, k) = z_vel_arr(i, j , k);
-    });
+void
+ERF::init_from_netcdf(const amrex::Box& bx, FArrayBox& state,
+                      FArrayBox& x_vel, FArrayBox& y_vel, FArrayBox& z_vel)
+{
+    //
+    // FArrayBox to FArrayBox copy does "copy on intersection"
+    // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
+    //
+    // This copies x-vel
+    x_vel.copy(NC_xvel_fab);
+
+    // This copies y-vel
+    y_vel.copy(NC_yvel_fab);
+
+    // This copies z-vel
+    z_vel.copy(NC_zvel_fab);
+
+    // We first initialize all state variables to zero
+    state.setVal(0.);
+
+    // This copies the density
+    state.copy(NC_rho_fab,0,Rho_comp,1);
+
+    // This copies (rho*theta)
+    state.copy(NC_rhotheta_fab,0,RhoTheta_comp,1);
 
     // Set the state data
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-
-        // Set the density
-        // Add perturbation component as well later.
-//        const Real rho_const = 1.0;
-//        state(i, j, k, Rho_comp) = rho_const;
-        state(i, j, k, Rho_comp) = 1.0 / rho_inv_arr (i, j, k);
-
         // Initial potential temperature (Actually rho*theta)
 //        state(i, j, k, RhoTheta_comp) = (theta_arr (i, j, k) + theta_ref) * rho_const;
-        state(i, j, k, RhoTheta_comp) = (theta_arr (i, j, k) + theta_ref) / rho_inv_arr (i, j, k);
-
-        // Set scalar = 0 everywhere
-        state(i, j, k, RhoScalar_comp) = 0.0;
+//      state(i, j, k, RhoTheta_comp) = (theta_arr (i, j, k) + theta_ref) / rho_inv_arr (i, j, k);
     });
-    //*****************************************************************************************************************
-
-#endif
 }
+#endif
