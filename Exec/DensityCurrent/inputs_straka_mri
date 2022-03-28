@@ -1,0 +1,98 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 99999
+stop_time = 900.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     =      0.   0.    0.
+geometry.prob_hi     =  25600. 400. 6400.
+
+amr.n_cell           =  2048   4    256   # dx=dy=dz=25 m, Straka et al 1993 / Xue et al 2000
+amr.n_cell           =   256   4     64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+
+# periodic in x to match WRF setup
+# - as an alternative, could use symmetry at x=0 and outflow at x=25600
+geometry.is_periodic = 0 1 0
+xlo.type = "Symmetry"
+xhi.type = "Outflow"
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt       = 1.0        # fixed time step [s] -- Straka et al 1993
+erf.fixed_fast_dt  = 0.25       # fixed time step [s] -- Straka et al 1993
+#erf.fixed_dt       = 0.2         # ~largest timestep w/o crashing so far ...
+#erf.fixed_fast_dt  = 0.05        # ~largest timestep w/o crashing so far ...
+#erf.fixed_dt = 0.0625
+#erf.fixed_fast_dt = 0.015625
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+amr.check_file      = chk        # root name of checkpoint file
+amr.check_int       = -57600      # number of timesteps between checkpoints
+
+# PLOTFILES
+amr.plot_file         = plt        # root name of plotfile
+amr.plot_int          = 1000       # number of timesteps between plotfiles
+amr.plot_vars         = density x_velocity y_velocity z_velocity
+amr.derive_plot_vars  = pressure theta pres_hse dens_hse pert_pres pert_dens
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.use_coriolis = false
+erf.use_rayleigh_damping = false
+erf.spatial_order = 2
+
+erf.les_type         = "None"
+#
+# diffusion coefficient from Straka, K = 75 m^2/s
+#
+erf.molec_diff_type = "ConstantAlpha"
+erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
+erf.dynamicViscosity = 75.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
+erf.alpha_T = 75.0 # [m^2/s]
+
+# PROBLEM PARAMETERS (optional)
+prob.T_0 = 300.0
+prob.U_0 = 0.0
+
+# INTEGRATION
+## integration.type can take on the following values:
+## 0 or "ForwardEuler" => Native AMReX Forward Euler integrator
+## 1 or "RungeKutta"   => Native AMReX Explicit Runge Kutta controlled by integration.rk.type
+## 2 or "SUNDIALS"     => SUNDIALS backend controlled by integration.sundials.strategy
+integration.type = SUNDIALS
+
+## Native AMReX Explicit Runge-Kutta parameters
+#
+## integration.rk.type can take the following values:
+### 0 = User-specified Butcher Tableau
+### 1 = Forward Euler
+### 2 = Trapezoid Method
+### 3 = SSPRK3 Method
+### 4 = RK4 Method
+integration.rk.type = 3
+
+## If using the SUNDIALS Submodule, then
+## compile with USE_SUNDIALS=TRUE or AMReX_SUNDIALS=ON and
+## set strategy here:
+#
+## integration.sundials.strategy can take the following values:
+### ERK     = ERKStep from ARKode with SSPRK3 Method
+### MRI     = MRIStep from ARKode with Explict Trapezoid Method
+### MRITEST = MRIStep from ARKode modified to use no-op inner f0
+integration.sundials.strategy = MRI
+
+integration.sundials.mri.outer_method = KnothWolke3
+integration.sundials.mri.inner_method = ForwardEuler
