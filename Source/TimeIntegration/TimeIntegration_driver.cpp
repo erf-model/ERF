@@ -191,7 +191,8 @@ void ERF::erf_advance(int level,
 
     //Create function lambdas
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
-                       const Vector<MultiFab>& S_data, const Real /*time*/) {
+                       const Vector<MultiFab>& S_data, const Real time) {
+        if (verbose) Print() << "SLOW RHS, time = " << time << std::endl;
         erf_rhs(level, S_rhs, S_data, S_prim,
                 xvel_new, yvel_new, zvel_new,
                 source, advflux, diffflux,
@@ -204,7 +205,8 @@ void ERF::erf_advance(int level,
 
     auto rhs_fun_fast = [&](      Vector<MultiFab>& S_rhs,
                             const Vector<MultiFab>& S_stage_data,
-                            const Vector<MultiFab>& S_data, const Real /*time*/) {
+                            const Vector<MultiFab>& S_data, const Real time) {
+        if (verbose) Print() << "FAST RHS, time = " << time << std::endl;
         erf_fast_rhs(level, S_rhs, S_stage_data, S_data,
                      advflux, fine_geom, ifr, solverChoice,
                      dptr_dens_hse, dptr_pres_hse);
