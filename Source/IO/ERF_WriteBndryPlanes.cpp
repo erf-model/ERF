@@ -63,15 +63,20 @@ WriteBndryPlanes::WriteBndryPlanes(amrex::Vector<amrex::BoxArray>& grids,
         target_box.setBig(amrex::IntVect(ihi,jhi,domain.bigEnd(2)));
 
         // Test if the target box at this level fits in the grids at this level
-        // If periodic, don't require additional grow cells
-        int growx = (geom[ilev].isPeriodic(0)) ? 0 : 1;
-        int growy = (geom[ilev].isPeriodic(1)) ? 0 : 1;
-        amrex::Box gbx = target_box; gbx.grow(amrex::IntVect(growx,growy,0));
-        if (grids[ilev].contains(gbx)) bndry_lev = ilev;
+        amrex::Box gbx = target_box; gbx.grow(amrex::IntVect(1,1,0));
 
+        // Ensure that the box is no larger than can fit in the (periodically grown) domain
+        // at level 0
         if (ilev == 0) {
-            AMREX_ALWAYS_ASSERT(grids[ilev].contains(gbx));
+            amrex::Box per_grown_domain(domain);
+            int growx = (geom[0].isPeriodic(0)) ? 1 : 0;
+            int growy = (geom[0].isPeriodic(1)) ? 1 : 0;
+            per_grown_domain.grow(amrex::IntVect(growx,growy,0));
+            if (!per_grown_domain.contains(gbx))
+                amrex::Error("WriteBndryPlanes: Requested box is too large to fill");
         }
+
+        if (grids[ilev].contains(gbx)) bndry_lev = ilev;
     }
 
     // The folder "m_filename" will contain the time series of data and the time.dat file
