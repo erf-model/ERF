@@ -71,8 +71,8 @@ ERF::writeToNCColumnFile(const int lev,
   // get indices and interpolation coefficients
   const amrex::Real x_cell_loc = probBox.smallEnd(0) + (xloc - geom[lev].ProbLo(0))* geom[lev].InvCellSize(0);
   const amrex::Real y_cell_loc = probBox.smallEnd(1) + (yloc - geom[lev].ProbLo(1))* geom[lev].InvCellSize(1);
-  const int iloc = floor(x_cell_loc - 0.5);
-  const int jloc = floor(y_cell_loc - 0.5);
+  const int iloc = static_cast<int>(floor(x_cell_loc - 0.5));
+  const int jloc = static_cast<int>(floor(y_cell_loc - 0.5));
   const amrex::Real alpha_x = x_cell_loc - 0.5 - iloc;
   const amrex::Real alpha_y = y_cell_loc - 0.5 - jloc;
   amrex::Array2D<amrex::Real, 0, 1, 0, 1> alpha_theta;
@@ -81,8 +81,8 @@ ERF::writeToNCColumnFile(const int lev,
   alpha_theta(0,1) = (1.0 - alpha_x) * (alpha_y);
   alpha_theta(1,1) = (alpha_x) * (alpha_y);
   // may need different indices for u,v due to not being collocated
-  const int iloc_shift = floor(x_cell_loc) - iloc;
-  const int jloc_shift = floor(y_cell_loc) - jloc;
+  const int iloc_shift = static_cast<int>(floor(x_cell_loc)) - iloc;
+  const int jloc_shift = static_cast<int>(floor(y_cell_loc)) - jloc;
   const amrex::Real alpha_x_u = x_cell_loc - iloc - iloc_shift;
   const amrex::Real alpha_y_v = y_cell_loc - jloc - jloc_shift;
   amrex::Array2D<amrex::Real, 0, 1, 0, 1> alpha_u;

@@ -44,11 +44,6 @@ INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
-#turn on NetCDF macro define
-ifeq ($(USE_NETCDF), TRUE)
-  DEFINES += -DERF_USE_NETCDF
-endif
-
 ifeq ($(USE_SUNDIALS),TRUE)
 SUNDIALS_ROOT ?= $(ERF_SOURCE_DIR)/../Submodules/SUNDIALS/instdir
 SUNDIALS_LIB_DIR ?= $(SUNDIALS_ROOT)/lib
@@ -63,6 +58,16 @@ LIBRARY_LOCATIONS += $(SUNDIALS_LIB_DIR)
 LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_cvode
 LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_arkode
 LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_nvecmanyvector
+endif
+
+#turn on NetCDF macro define
+ifeq ($(USE_NETCDF), TRUE)
+  DEFINES += -DERF_USE_NETCDF
+  NETCDF_DIR ?= $(NETCDF_HOME)
+  VPATH_LOCATIONS   += $(NETCDF_DIR)/bin
+  INCLUDE_LOCATIONS += $(NETCDF_DIR)/include
+  LIBRARY_LOCATIONS += $(NETCDF_DIR)/lib
+  LIBRARIES += -L$(NETCDF_DIR)/lib -lnetcdf
 endif
 
 all: $(executable)

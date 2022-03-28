@@ -258,6 +258,19 @@ private:
     void writeToNCColumnFile(const int lev,
                              const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
                              const amrex::Real time);
+
+    // Read the netcdf file once
+    void read_from_netcdf();
+
+    // Copy from the NC*fabs into the MultiFabs holding the initial data
+    void init_from_netcdf(const amrex::Box& bx,    amrex::FArrayBox& state,
+                          amrex::FArrayBox& x_vel, amrex::FArrayBox& y_vel,
+                          amrex::FArrayBox& z_vel);
+
+    // FArrayBoxs for holding the data read from the NetCDF file
+    amrex::FArrayBox NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
+    amrex::FArrayBox NC_rho_fab, NC_rhotheta_fab;
+    amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab, NC_p_surf_fab, NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
 #endif
 
     // write checkpoint file to disk

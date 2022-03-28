@@ -29,7 +29,6 @@ ERF::WriteNCCheckpointFile () const
        const std::string nstep_name = "num_istep";
        const std::string ntime_name = "num_newtime";
 
-       const int nvar  = Cons::NumVars;
        const int ndt   = dt.size();
        const int nstep = istep.size();
        const int ntime = t_new.size();
@@ -134,10 +133,14 @@ ERF::ReadNCCheckpointFile ()
     const std::string ntime_name = "num_newtime";
 
     const int nvar         = static_cast<int>(ncf.dim(nvar_name).len());
+    AMREX_ALWAYS_ASSERT(nvar == Cons::NumVars);
+
     const int ndt          = static_cast<int>(ncf.dim(ndt_name).len());
     const int nstep        = static_cast<int>(ncf.dim(nstep_name).len());
     const int ntime        = static_cast<int>(ncf.dim(ntime_name).len());
-    const int finest_level = static_cast<int>(ncf.dim(nl_name).len());
+
+    // Assert we are reading in data with the same finest_level as we have
+    AMREX_ALWAYS_ASSERT(finest_level == static_cast<int>(ncf.dim(nl_name).len()));
 
     // output headfile in NetCDF format
     ncf.var("istep").get(istep.data(), {0}, {static_cast<long unsigned int>(nstep)});
