@@ -63,9 +63,9 @@ WriteBndryPlanes::WriteBndryPlanes(amrex::Vector<amrex::BoxArray>& grids,
         target_box.setBig(amrex::IntVect(ihi,jhi,domain.bigEnd(2)));
 
         // Test if the target box at this level fits in the grids at this level
-	// If periodic, don't require additional grow cells
-	int growx = (geom[ilev].isPeriodic(0)) ? 0 : 1;
-	int growy = (geom[ilev].isPeriodic(1)) ? 0 : 1;
+        // If periodic, don't require additional grow cells
+        int growx = (geom[ilev].isPeriodic(0)) ? 0 : 1;
+        int growy = (geom[ilev].isPeriodic(1)) ? 0 : 1;
         amrex::Box gbx = target_box; gbx.grow(amrex::IntVect(growx,growy,0));
         if (grids[ilev].contains(gbx)) bndry_lev = ilev;
 
