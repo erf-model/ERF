@@ -200,7 +200,7 @@ void ERF::erf_advance(int level,
     };
 
     auto rhs_fun_fast = [&](      Vector<MultiFab>& S_rhs,
-                            const Vector<MultiFab>& S_stage_data,
+                                  Vector<MultiFab>& S_stage_data,
                             const Vector<MultiFab>& S_data, const Real time) {
         if (verbose) Print() << "FAST RHS, time = " << time << std::endl;
         erf_fast_rhs(level, S_rhs, S_stage_data, S_data,
