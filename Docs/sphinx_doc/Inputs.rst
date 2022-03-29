@@ -734,7 +734,7 @@ Initialization
 
 ERF can be initialzed in different ways. These are listed below:
 
-- Customized initialization: 
+- Customized initialization:
     Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are sort of ideal problems meant for demonstration.
 - Initialization using a NetCDF file:
     Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesocale data. This is a more realistic problem with real atmospheric data used for initialization.
