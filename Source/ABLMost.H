@@ -2,7 +2,6 @@
 #ifndef ABLMOST_H
 #define ABLMOST_H
 
-#include "ERF.H"
 using namespace amrex;
 
 /** Monin-Obukhov surface layer profile

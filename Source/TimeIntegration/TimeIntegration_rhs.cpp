@@ -66,7 +66,7 @@ void erf_rhs (int level,
     }
     if (solverChoice.pbl_type != PBLType::None) {
         ComputeTurbulentViscosityPBL(xvel, yvel, zvel, S_data[IntVar::cons],
-				     eddyDiffs, geom, solverChoice, domain_bcs_type_d);
+				     eddyDiffs, geom, solverChoice);
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
