@@ -104,7 +104,7 @@ struct SolverChoice {
         pp.query("pbl_type",pbl_type_string);
         if (pbl_type_string == "MYNN2.5") {
             pbl_type = PBLType::MYNN25;
-        } else if (les_type_string == "None") {
+        } else if (pbl_type_string == "None") {
             pbl_type = PBLType::None;
         } else {
             amrex::Error("Don't know this pbl_type");

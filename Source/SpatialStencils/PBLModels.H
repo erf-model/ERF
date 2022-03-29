@@ -24,7 +24,7 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
     const amrex::Real C4 = solverChoice.pbl_C4;
     const amrex::Real C5 = solverChoice.pbl_C5;
 
-      // add to datastruct -> Require MOST with MYNN
+      // TODO: add to datastruct -> Require MOST with MYNN
     
     for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       
@@ -57,7 +57,7 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
       {
 	const amrex::Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
 	const amrex::Real rho = cell_data(i,j,k,Rho_comp);
-	qvel(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
+	qvel(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / rho);
 	if (sbx.contains(i,j,k)) {
 	  Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k), handler);
 	  Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k), handler);
@@ -73,22 +73,23 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
 	// Compute some partial derivatives that we will need (1st order at domain boundary)
+	// U and V derivatives are interpolated to account for staggered grid
 	amrex::Real dthetadz, dudz, dvdz;
 	if (k == izmax) {
 	  dthetadz = (cell_data(i,j,k,RhoTheta_comp)/cell_data(i,j,k,Rho_comp) -
 		      cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
-	  dudz = (uvel(i,j,k) - uvel(i,j,k-1))*dz_inv;
-	  dvdz = (uvel(i,j,k) - uvel(i,j,k-1))*dz_inv;
+	  dudz = 0.5*(uvel(i,j,k) - uvel(i,j,k-1) + uvel(i+1,j,k) - uvel(i+1,j,k-1))*dz_inv;
+	  dvdz = 0.5*(vvel(i,j,k) - vvel(i,j,k-1) + vvel(i,j+1,k) - vvel(i,j+1,k-1))*dz_inv;
 	} else if (k == izmin){
 	  dthetadz = (cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp) -
 		      cell_data(i,j,k,RhoTheta_comp)/cell_data(i,j,k,Rho_comp))*dz_inv;
-	  dudz = (uvel(i,j,k+1) - uvel(i,j,k))*dz_inv;
-	  dvdz = (uvel(i,j,k+1) - uvel(i,j,k))*dz_inv;
+	  dudz = 0.5*(uvel(i,j,k+1) - uvel(i,j,k) + uvel(i+1,j,k+1) - uvel(i+1,j,k))*dz_inv;
+	  dvdz = 0.5*(vvel(i,j,k+1) - vvel(i,j,k) + vvel(i,j+1,k+1) - vvel(i,j+1,k))*dz_inv;
 	} else {
 	  dthetadz = 0.5*(cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp) -
 			  cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
-	  dudz = 0.5*(uvel(i,j,k+1) - uvel(i,j,k-1))*dz_inv;
-	  dvdz = 0.5*(uvel(i,j,k+1) - uvel(i,j,k-1))*dz_inv;
+	  dudz = 0.25*(uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1))*dz_inv;
+	  dvdz = 0.25*(vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1))*dz_inv;
 	}
 	  
 	// First Length Scale
@@ -131,7 +132,7 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
 	amrex::Real l_comb = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
 	
 	// Compute non-dimensional parameters
-	amrex::Real l2_over_q2 = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k))
+	amrex::Real l2_over_q2 = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
 	amrex::Real GM = l2_over_q2 * (dudz*dudz + dvdz*dvdz);
 	amrex::Real GH = -l2_over_q2 / theta0 * dthetadz;
 	
@@ -147,12 +148,13 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
 
 	// Finally, compute the eddy viscosity/diffusivities
 	// TODO: Factor of 2 for momentum?
-	K_turb(i,j,k,EddyDiff::Mom_v)   = rho * l_comb * qvel * SM;
-	K_turb(i,j,k,EddyDiff::Theta_v) = rho * l_comb * qvel * SH;
-	K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel * 3.0 * SQ;
+	const amrex::Real rho = cell_data(i,j,k,Rho_comp);
+	K_turb(i,j,k,EddyDiff::Mom_v)   = rho * l_comb * qvel(i,j,k) * SM;
+	K_turb(i,j,k,EddyDiff::Theta_v) = rho * l_comb * qvel(i,j,k) * SH;
+	K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel(i,j,k) * 3.0 * SQ;
 
 	// TODO: How should this be done for other components (scalars, moisture)
-	// Horizontal/LES component for QKE? 	
+	// TODO: Horizontal/LES component for QKE?
       });
     }
   }

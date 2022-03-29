@@ -178,7 +178,7 @@ void ERF::init_bcs ()
         if (phys_bc_type[ori] == BC::undefined)
         {
              // amrex::Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
-             amrex::Abort("This type is unknown");
+             amrex::Abort("This BC type is unknown");
         }
     };
 
