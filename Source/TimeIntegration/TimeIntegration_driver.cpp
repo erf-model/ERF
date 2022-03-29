@@ -214,6 +214,11 @@ void ERF::erf_advance(int level,
         cons_to_prim(S_data[IntVar::cons], S_prim);
     };
 
+    auto post_substep_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp)
+    {
+        apply_bcs(S_data, time_for_fp);
+    };
+
     // ***************************************************************************************
     // Setup the integrator
     // **************************************************************************************
@@ -226,6 +231,7 @@ void ERF::erf_advance(int level,
       lev_integrator.set_fast_rhs(rhs_fun_fast);
       lev_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
       lev_integrator.set_post_update(post_update_fun);
+      lev_integrator.set_post_substep(post_substep_fun);
 
       // **************************************************************************************
       // Integrate for a single timestep

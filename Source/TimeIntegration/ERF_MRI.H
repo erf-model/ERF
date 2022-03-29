@@ -14,6 +14,8 @@ class MRISplitIntegrator : public IntegratorBase<T>
 private:
     typedef IntegratorBase<T> BaseT;
 
+    std::function<void (T&, amrex::Real)> post_substep;
+
     amrex::Vector<std::unique_ptr<T> > T_store;
     T* S_pert;
     T* S_sum;
@@ -47,6 +49,16 @@ public:
     }
 
     virtual ~MRISplitIntegrator () {}
+
+    void set_post_substep (std::function<void (T&, amrex::Real)> F)
+    {
+        post_substep = F;
+    }
+
+    std::function<void (T&, amrex::Real)> get_post_substep ()
+    {
+        return post_substep;
+    }
 
     amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
     {
@@ -122,8 +134,8 @@ public:
             IntegratorOps<T>::Copy(*S_sum, S_new);
             IntegratorOps<T>::Saxpy(*S_sum, 1.0_rt, *S_pert);
 
-            // Call the post-update hook for S_sum at t = time + (k+1) * sub_dt
-            BaseT::post_update(*S_sum, time + (k+1) * sub_timestep);
+            // Call the post-substep hook for S_sum at t = time + (k+1) * sub_dt
+            post_substep(*S_sum, time + (k+1) * sub_timestep);
         }
 
         // calculate S** = S* + S_pert
@@ -161,8 +173,8 @@ public:
             IntegratorOps<T>::Copy(*S_sum, S_new);
             IntegratorOps<T>::Saxpy(*S_sum, 1.0_rt, *S_pert);
 
-            // Call the post-update hook for S_sum at t = time + (k+1) * sub_dt
-            BaseT::post_update(*S_sum, time + (k+1) * sub_timestep);
+            // Call the post-substep hook for S_sum at t = time + (k+1) * sub_dt
+            post_substep(*S_sum, time + (k+1) * sub_timestep);
         }
 
         // calculate S^(n+1) = S** + S_pert
