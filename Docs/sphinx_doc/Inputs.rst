@@ -728,3 +728,44 @@ List of Parameters
 |                                  | Rayleigh damping  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 
+
+Initialization
+==============
+
+ERF can be initialzed in different ways. These are listed below:
+
+- Customized initialization:
+    Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are sort of ideal problems meant for demonstration.
+- Initialization using a NetCDF file:
+    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesocale data. This is a more realistic problem with real atmospheric data used for initialization.
+
+List of Parameters
+------------------
+
++-----------------------------+------------------+------------------+-----------+
+| Parameter                   | Definition       | Acceptable       | Default   |
+|                             |                  | Values           |           |
++=============================+==================+==================+===========+
+| **erf.init_type**           | Initialization   | “*ideal*”,       | “*ideal*” |
+|                             | type             | “*real*”         |           |
++-----------------------------+------------------+------------------+-----------+
+| **erf.nc_init_file**        | NetCDF file with |  String          | NONE      |
+|                             | mesocale data    |                  |           |
++-----------------------------+------------------+------------------+-----------+
+
+
+Examples of Usage
+-----------------
+
+-  **erf.init_type**  = “*ideal*”
+    "*ideal*" type of initialization is for custom problems.
+
+    "*real*" type of initialization is for problems initialized with mesoscale data contained in a
+    NetCDF file, provided via *erf.nc_init_file*.
+
+-  **erf.nc_init_file**   = “*wrfinput_d01*”
+    The NetCDF file with mesoscale data if *erf.init_type* is "*real*".
+
+If ``erf.init_type`` is set to ``"ideal"``, then ``erf.nc_init_file`` need not be provided.
+
+If ``erf.init_type`` is set to ``"real"``, then ``erf.nc_init_file`` **must** be provided.
