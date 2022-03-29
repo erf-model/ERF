@@ -129,14 +129,14 @@ void erf_fast_rhs (int level,
             if (n == Rho_comp)
             {
                 // We use the most current momenta here to update rho
-                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
-                                         cell_data, Rho_comp,
-                                         advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
+                cell_rhs(i, j, k, n) = -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
+                                        cell_data, Rho_comp,
+                                        advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
             } else if (n == RhoTheta_comp) {
                 // We use the most current momenta but the "lagged" theta here to update (rho theta)
-                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
-                                         cell_stage_data, RhoTheta_comp,
-                                         advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
+                cell_rhs(i, j, k, n) = -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
+                                        cell_stage_data, RhoTheta_comp,
+                                        advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
             } else {
                 cell_rhs(i, j, k, n) = 0.0;
             }

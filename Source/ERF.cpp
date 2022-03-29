@@ -39,6 +39,9 @@ int         ERF::do_avg_down   = 0;
 // Dictate verbosity in screen output
 int         ERF::verbose       = 0;
 
+// Use the native ERF MRI integrator
+int         ERF::use_native_mri = 0;
+
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
@@ -606,6 +609,9 @@ ERF::ReadParameters ()
 
         // Verbosity
         pp.query("v", verbose);
+
+        // Use the native ERF MRI integrator
+        pp.query("use_native_mri", use_native_mri);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);

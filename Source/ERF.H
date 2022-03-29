@@ -386,6 +386,7 @@ private:
     static SolverChoice solverChoice;
 
     static int verbose;
+    static int use_native_mri;
 
     // mesh refinement
     static std::string coupling_type;

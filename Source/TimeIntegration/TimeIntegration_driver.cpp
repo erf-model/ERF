@@ -4,6 +4,7 @@
 #include <AMReX_BC_TYPES.H>
 #include <SpatialStencils.H>
 #include <AMReX_TimeIntegrator.H>
+#include <ERF_MRI.H>
 #include <TimeIntegration.H>
 #include <ERF.H>
 
@@ -184,11 +185,6 @@ void ERF::erf_advance(int level,
     apply_bcs(state_old, old_time);
     cons_to_prim(state_old[IntVar::cons], S_prim);
 
-    // ***************************************************************************************
-    // Setup the integrator
-    // **************************************************************************************
-    TimeIntegrator<Vector<MultiFab> > lev_integrator(state_old);
-
     //Create function lambdas
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
                        const Vector<MultiFab>& S_data, const Real time) {
@@ -218,20 +214,41 @@ void ERF::erf_advance(int level,
         cons_to_prim(S_data[IntVar::cons], S_prim);
     };
 
-    // define rhs and 'post update' utility function that is called after calculating
-    // any state data (e.g. at RK stages or at the end of a timestep)
-    lev_integrator.set_rhs(rhs_fun);
-    lev_integrator.set_fast_rhs(rhs_fun_fast);
-    if (fixed_fast_dt > 0.0)
-      lev_integrator.set_fast_timestep(fixed_fast_dt);
-    else
-      lev_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
-    lev_integrator.set_post_update(post_update_fun);
+    // ***************************************************************************************
+    // Setup the integrator
+    // **************************************************************************************
+    if (use_native_mri) {
+      MRISplitIntegrator<Vector<MultiFab> > lev_integrator(state_old);
 
-    // **************************************************************************************
-    // Integrate for a single timestep
-    // **************************************************************************************
-    lev_integrator.advance(state_old, state_new, old_time, dt_advance);
+      // define rhs and 'post update' utility function that is called after calculating
+      // any state data (e.g. at RK stages or at the end of a timestep)
+      lev_integrator.set_rhs(rhs_fun);
+      lev_integrator.set_fast_rhs(rhs_fun_fast);
+      lev_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
+      lev_integrator.set_post_update(post_update_fun);
+
+      // **************************************************************************************
+      // Integrate for a single timestep
+      // **************************************************************************************
+      lev_integrator.advance(state_old, state_new, old_time, dt_advance);
+    } else {
+      TimeIntegrator<Vector<MultiFab> > lev_integrator(state_old);
+
+      // define rhs and 'post update' utility function that is called after calculating
+      // any state data (e.g. at RK stages or at the end of a timestep)
+      lev_integrator.set_rhs(rhs_fun);
+      lev_integrator.set_fast_rhs(rhs_fun_fast);
+      if (fixed_fast_dt > 0.0)
+        lev_integrator.set_fast_timestep(fixed_fast_dt);
+      else
+        lev_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
+      lev_integrator.set_post_update(post_update_fun);
+
+      // **************************************************************************************
+      // Integrate for a single timestep
+      // **************************************************************************************
+      lev_integrator.advance(state_old, state_new, old_time, dt_advance);
+    }
 
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after we have taken a timestep
