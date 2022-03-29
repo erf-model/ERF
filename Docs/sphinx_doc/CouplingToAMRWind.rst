@@ -106,7 +106,10 @@ the following (or similar) should be added to the input file:
 
 The above inputs will output boundary planes of data at x=xlo, x=xhi, y=ylo and y=yhi, where
 xlo and ylo are defined by :cpp:`bndry_output_box_lo` and
-xhi and yhi are defined by :cpp:`bndry_output_box_hi`.
+xhi and yhi are defined by :cpp:`bndry_output_box_hi`. Note that the selected lo and hi values must
+be interior to the first and last cell centers on the coarse grid (i.e., at least one half cell width
+from the boundary). Except if the domain is periodic
+in that direction, any location up to and including the domain boundary may be chosen.
 In this case the variables that are
 written are temperature, velocity and density, and they are written every 2 coarse time steps starting at
 :cpp:`bndry_output_start_time` which is 0 in this case.

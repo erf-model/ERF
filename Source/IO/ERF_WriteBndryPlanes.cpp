@@ -64,11 +64,19 @@ WriteBndryPlanes::WriteBndryPlanes(amrex::Vector<amrex::BoxArray>& grids,
 
         // Test if the target box at this level fits in the grids at this level
         amrex::Box gbx = target_box; gbx.grow(amrex::IntVect(1,1,0));
-        if (grids[ilev].contains(gbx)) bndry_lev = ilev;
 
+        // Ensure that the box is no larger than can fit in the (periodically grown) domain
+        // at level 0
         if (ilev == 0) {
-            AMREX_ALWAYS_ASSERT(grids[ilev].contains(gbx));
+            amrex::Box per_grown_domain(domain);
+            int growx = (geom[0].isPeriodic(0)) ? 1 : 0;
+            int growy = (geom[0].isPeriodic(1)) ? 1 : 0;
+            per_grown_domain.grow(amrex::IntVect(growx,growy,0));
+            if (!per_grown_domain.contains(gbx))
+                amrex::Error("WriteBndryPlanes: Requested box is too large to fill");
         }
+
+        if (grids[ilev].contains(gbx)) bndry_lev = ilev;
     }
 
     // The folder "m_filename" will contain the time series of data and the time.dat file
@@ -130,9 +138,10 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
         amrex::BndryRegister bndry        (ba        , dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
         amrex::BndryRegister bndry_shifted(ba_shifted, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
 
+        int nghost = 0;
         if (var_name == "density")
         {
-            bndry.copyFrom(S, Cons::Rho, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            bndry.copyFrom(S, nghost, Cons::Rho, 0, ncomp, m_geom[bndry_lev].periodicity());
 
         } else if (var_name == "temperature") {
 
@@ -142,14 +151,14 @@ void WriteBndryPlanes::write_planes(const int t_step, const amrex::Real time,
                 const amrex::Box& bx = mfi.tilebox();
                 derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
             }
-            bndry.copyFrom(Temp, 0, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
 
         } else if (var_name == "velocity") {
 
             amrex::MultiFab Vel(S.boxArray(), S.DistributionMap(), 3, m_out_rad);
             average_face_to_cellcenter(Vel,0,amrex::Array<const amrex::MultiFab*,3>{&xvel,&yvel,&zvel});
 
-            bndry.copyFrom(Vel, 0, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            bndry.copyFrom(Vel, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
 
         } else {
             //amrex::Print() << "Trying to write planar output for " << var_name << std::endl;
