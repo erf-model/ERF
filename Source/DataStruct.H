@@ -129,6 +129,10 @@ struct SolverChoice {
 	  pp.query("pbl_C4", pbl_C4);
 	  pp.query("pbl_C5", pbl_C5);
 	}
+
+        // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
+	if (pbl_type == PBLType::MYNN25) use_QKE = true;
+	if (use_QKE) pp.query("diffuse_QKE_3D", diffuse_QKE_3D);
 	
         // Diffusive/viscous/LES constants...
         pp.query("alpha_T", alpha_T);
@@ -350,6 +354,9 @@ struct SolverChoice {
     amrex::Real pbl_C3 = 0.352;
     amrex::Real pbl_C4 = 0.0;
     amrex::Real pbl_C5 = 0.2;
+    // QKE stuff - default is not to use it, if MYNN2.5 PBL is used default is turb transport in Z-directioon only
+    bool use_QKE = false;
+    bool diffuse_QKE_3D = false;
   
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;
