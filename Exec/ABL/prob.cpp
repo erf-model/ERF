@@ -75,6 +75,9 @@ erf_init_prob(
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
+
+    // Set an initial value for QKE
+    state(i, j, k, RhoQKE_comp) = parms.QKE_0;
   });
 
   // Construct a box that is on x-faces
@@ -154,4 +157,6 @@ amrex_probinit(
   pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
+
+  pp.query("QKE_0", parms.QKE_0);
 }
