@@ -341,6 +341,7 @@ public:
                                 vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
                                 rho   = cons_arr(ie,je,zlo,Rho_comp);
                                 theta = cons_arr(ie,je,zlo,RhoTheta_comp)/rho;
+
                                 // TODO: Verify this is the correct Diff component
                                 eta   = eta_arr(ie,je,zlo,EddyDiff::Mom_h);
 
@@ -370,6 +371,7 @@ public:
                                 vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
                                 rho   = 0.5*(cons_arr(ie,je,zlo,Rho_comp)+cons_arr(ie+1,je,zlo,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zlo,EddyDiff::Mom_h)+eta_arr(ie+1,je,zlo,EddyDiff::Mom_h));
+
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
                                               (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
