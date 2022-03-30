@@ -932,7 +932,7 @@ ERF::read_from_netcdf()
     ParallelDescriptor::Bcast(NC_eta_fab.dataPtr(),NC_eta_fab.box().numPts(),ioproc);
     ParallelDescriptor::Bcast(NC_phb_fab.dataPtr(),NC_phb_fab.box().numPts(),ioproc);
 #endif
-    amrex::Print() << "Successfully loaded data from the 'ideal.exe' output NetCDF file" << std::endl << std::endl;
+    amrex::Print() << "Successfully loaded data from the 'ideal.exe' / 'real.exe' output NetCDF file" << std::endl << std::endl;
 }
 
 void
