@@ -52,4 +52,15 @@ void erf_fast_rhs(int level,
                   const SolverChoice& solverChoice,
                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse);
 
+void erf_implicit_fast_rhs (int level,
+                            Vector<MultiFab >& S_rhs,
+                            Vector<MultiFab >& S_slow_rhs,
+                            Vector<MultiFab >& S_stage_data,
+                            const Vector<MultiFab >& S_data,
+                            std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+                            const amrex::Geometry geom,
+                                  amrex::InterpFaceRegister* ifr,
+                            const SolverChoice& solverChoice,
+                            const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+                            const amrex::Real time, const amrex::Real fast_dt);
 #endif

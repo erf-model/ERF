@@ -15,6 +15,8 @@ private:
     typedef IntegratorBase<T> BaseT;
 
     std::function<void (T&, amrex::Real)> post_substep;
+    std::function<void(T&, T&, T&, const T&, const amrex::Real, const amrex::Real)> implicit_fast_rhs;
+    bool use_implicit_fast_rhs;
 
     amrex::Vector<std::unique_ptr<T> > T_store;
     T* S_pert;
@@ -33,12 +35,13 @@ private:
         F_bar = T_store[2].get();
         IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         F_pert = T_store[3].get();
+
     }
 
 public:
-    MRISplitIntegrator () {}
+    MRISplitIntegrator () : use_implicit_fast_rhs(false) {}
 
-    MRISplitIntegrator (const T& S_data)
+    MRISplitIntegrator (const T& S_data) : use_implicit_fast_rhs(false)
     {
         initialize_data(S_data);
     }
@@ -58,6 +61,17 @@ public:
     std::function<void (T&, amrex::Real)> get_post_substep ()
     {
         return post_substep;
+    }
+
+    void set_implicit_fast_rhs (std::function<void(T&, T&, T&, const T&, const amrex::Real, const amrex::Real)> F)
+    {
+        implicit_fast_rhs = F;
+        use_implicit_fast_rhs = true;
+    }
+
+    std::function<void(T&, T&, T&, const T&, const amrex::Real, const amrex::Real)> get_implicit_fast_rhs ()
+    {
+        return implicit_fast_rhs;
     }
 
     amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
@@ -95,7 +109,10 @@ public:
         BaseT::rhs(*F_bar, S_old, time);
 
         // Evaluate F_pert(S_pert, S_old)
-        BaseT::fast_rhs(*F_pert, S_old, *S_sum, time);
+        if (use_implicit_fast_rhs)
+            implicit_fast_rhs(*F_pert, *F_bar, S_old, *S_sum, time, BaseT::timestep / 3.0_rt);
+        else
+            BaseT::fast_rhs(*F_pert, S_old, *S_sum, time);
 
         // Calculate S* = S_old + (dt/3) * (Fbar(S_old) + Fpert(S_pert, S_old))
         IntegratorOps<T>::Copy(S_new, S_old);
@@ -124,7 +141,10 @@ public:
         for (int k = 0; k < substep_ratio/2; ++k) {
             // S_pert^(k+1) = S_pert^(k) + dtau * (F_bar + F_pert)
             // first, evaluate F_pert(S_pert, S_bar)
-            BaseT::fast_rhs(*F_pert, S_new, *S_sum, time + k * sub_timestep);
+            if (use_implicit_fast_rhs)
+                implicit_fast_rhs(*F_pert, *F_bar, S_new, *S_sum, time + k * sub_timestep, sub_timestep);
+            else
+                BaseT::fast_rhs(*F_pert, S_new, *S_sum, time + k * sub_timestep);
 
             // now, get the new S_pert
             IntegratorOps<T>::Saxpy(*S_pert, sub_timestep, *F_bar);
@@ -163,7 +183,10 @@ public:
         for (int k = 0; k < substep_ratio; ++k) {
             // S_pert^(k+1) = S_pert^(k) + dtau * (F_bar + F_pert)
             // first, evaluate F_pert(S_pert, S_bar)
-            BaseT::fast_rhs(*F_pert, S_new, *S_sum, time + k * sub_timestep);
+            if (use_implicit_fast_rhs)
+                implicit_fast_rhs(*F_pert, *F_bar, S_new, *S_sum, time + k * sub_timestep, sub_timestep);
+            else
+                BaseT::fast_rhs(*F_pert, S_new, *S_sum, time + k * sub_timestep);
 
             // now, get the new S_pert
             IntegratorOps<T>::Saxpy(*S_pert, sub_timestep, *F_bar);
