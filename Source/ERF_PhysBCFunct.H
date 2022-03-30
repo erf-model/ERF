@@ -321,23 +321,23 @@ public:
                                 */
                                 ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
                                 jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
-                                ix = i > ubound(velx_arr).x ? ubound(velx_arr).x-1 : i;
-                                jx = j > ubound(velx_arr).y ? ubound(velx_arr).y : j;
+                                ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
+                                jx = jx > ubound(velx_arr).y ? ubound(velx_arr).y : jx;
 
                                 iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
                                 jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-                                iy = i > ubound(vely_arr).x ? ubound(vely_arr).x : i;
-                                jy = j > ubound(vely_arr).y ? ubound(vely_arr).y-1 : j;
+                                iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
+                                jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
                                 ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
                                 je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                                ie = i > ubound(eta_arr).x ? ubound(eta_arr).x : i;
-                                je = j > ubound(eta_arr).y ? ubound(eta_arr).y : j;
+                                ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+                                je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
 
                                 velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix+1,jx,zlo));
-                                vely  = 0.5*(vely_arr(iy,jy,zlo)+velx_arr(iy,jy+1,zlo));
-                                rho   = cons_arr(i,j,zlo,Rho_comp);
-                                theta = cons_arr(i,j,zlo,RhoTheta_comp)/rho;
+                                vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
+                                rho   = cons_arr(ie,je,zlo,Rho_comp);
+                                theta = cons_arr(ie,je,zlo,RhoTheta_comp)/rho;
                                 eta   = eta_arr(ie,je,zlo);
 
                                 Real vmag    = sqrt(velx*velx+vely*vely);
@@ -354,17 +354,17 @@ public:
                             } else if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) { //for velx
                                 iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
                                 jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-                                iy = i > ubound(vely_arr).x ? ubound(vely_arr).x : i;
-                                jy = j > ubound(vely_arr).y ? ubound(vely_arr).y-1 : j;
+                                iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
+                                jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
                                 ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
                                 je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                                ie = i > ubound(eta_arr).x ? ubound(eta_arr).x-1 : i;
-                                je = j > ubound(eta_arr).y ? ubound(eta_arr).y : j;
+                                ie = ie > ubound(eta_arr).x-1 ? ubound(eta_arr).x-1 : ie;
+                                je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
 
                                 velx  = velx_arr(i,j,zlo);
                                 vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
-                                rho   = 0.5*(cons_arr(i,j,zlo,Rho_comp)+cons_arr(i+1,j,zlo,Rho_comp));
+                                rho   = 0.5*(cons_arr(ie,je,zlo,Rho_comp)+cons_arr(ie+1,je,zlo,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zlo)+eta_arr(ie+1,je,zlo));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
@@ -379,17 +379,17 @@ public:
                             } else if (m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) { //for vely
                                 ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
                                 jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
-                                ix = i > ubound(velx_arr).x ? ubound(velx_arr).x : i;
-                                jx = j > ubound(velx_arr).y ? ubound(velx_arr).y-1 : j;
+                                ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
+                                jx = jx > ubound(velx_arr).y-1 ? ubound(velx_arr).y-1 : jx;
 
                                 ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
                                 je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                                ie = i > ubound(eta_arr).x ? ubound(eta_arr).x : i;
-                                je = j > ubound(eta_arr).y ? ubound(eta_arr).y-1 : j;
+                                ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+                                je = je > ubound(eta_arr).y-1 ? ubound(eta_arr).y-1 : je;
 
                                 velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix,jx+1,zlo));
                                 vely  = vely_arr(i,j,zlo);
-                                rho   = 0.5*(cons_arr(i,j,zlo,Rho_comp)+cons_arr(i,j+1,zlo,Rho_comp));
+                                rho   = 0.5*(cons_arr(ie,je,zlo,Rho_comp)+cons_arr(ie,je+1,zlo,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zlo)+eta_arr(ie,je+1,zlo));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
@@ -421,23 +421,23 @@ public:
                                 */
                                 ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
                                 jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
-                                ix = i > ubound(velx_arr).x ? ubound(velx_arr).x-1 : i;
-                                jx = j > ubound(velx_arr).y ? ubound(velx_arr).y : j;
+                                ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
+                                jx = jx > ubound(velx_arr).y ? ubound(velx_arr).y : jx;
 
                                 iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
                                 jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-                                iy = i > ubound(vely_arr).x ? ubound(vely_arr).x : i;
-                                jy = j > ubound(vely_arr).y ? ubound(vely_arr).y-1 : j;
+                                iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
+                                jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
                                 ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
                                 je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                                ie = i > ubound(eta_arr).x ? ubound(eta_arr).x : i;
-                                je = j > ubound(eta_arr).y ? ubound(eta_arr).y : j;
+                                ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+                                je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
 
                                 velx  = 0.5*(velx_arr(ix,jx,zhi)+velx_arr(ix+1,jx,zhi));
-                                vely  = 0.5*(vely_arr(iy,jy,zhi)+velx_arr(iy,jy+1,zhi));
-                                rho   = cons_arr(i,j,zhi,Rho_comp);
-                                theta = cons_arr(i,j,zhi,RhoTheta_comp)/rho;
+                                vely  = 0.5*(vely_arr(iy,jy,zhi)+vely_arr(iy,jy+1,zhi));
+                                rho   = cons_arr(ie,je,zhi,Rho_comp);
+                                theta = cons_arr(ie,je,zhi,RhoTheta_comp)/rho;
                                 eta   = eta_arr(ie,je,zhi);
 
                                 Real vmag    = sqrt(velx*velx+vely*vely);
@@ -454,17 +454,17 @@ public:
                             } else if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) { //for velx
                                 iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
                                 jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-                                iy = i > ubound(vely_arr).x ? ubound(vely_arr).x : i;
-                                jy = j > ubound(vely_arr).y ? ubound(vely_arr).y-1 : j;
+                                iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
+                                jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
                                 ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
                                 je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                                ie = i > ubound(eta_arr).x ? ubound(eta_arr).x-1 : i;
-                                je = j > ubound(eta_arr).y ? ubound(eta_arr).y : j;
+                                ie = ie > ubound(eta_arr).x-1 ? ubound(eta_arr).x-1 : ie;
+                                je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
 
                                 velx  = velx_arr(i,j,zhi);
                                 vely  = 0.5*(vely_arr(iy,jy,zhi)+vely_arr(iy,jy+1,zhi));
-                                rho   = 0.5*(cons_arr(i,j,zhi,Rho_comp)+cons_arr(i+1,j,zhi,Rho_comp));
+                                rho   = 0.5*(cons_arr(ie,je,zhi,Rho_comp)+cons_arr(ie+1,je,zhi,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zhi)+eta_arr(ie+1,je,zhi));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
@@ -479,17 +479,17 @@ public:
                             } else if (m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) { //for vely
                                 ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
                                 jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
-                                ix = i > ubound(velx_arr).x ? ubound(velx_arr).x : i;
-                                jx = j > ubound(velx_arr).y ? ubound(velx_arr).y-1 : j;
+                                ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
+                                jx = jx > ubound(velx_arr).y-1 ? ubound(velx_arr).y-1 : jx;
 
                                 ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
                                 je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                                ie = i > ubound(eta_arr).x ? ubound(eta_arr).x : i;
-                                je = j > ubound(eta_arr).y ? ubound(eta_arr).y-1 : j;
+                                ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+                                je = je > ubound(eta_arr).y-1 ? ubound(eta_arr).y-1 : je;
 
                                 velx  = 0.5*(velx_arr(ix,jx,zhi)+velx_arr(ix,jx+1,zhi));
                                 vely  = vely_arr(i,j,zhi);
-                                rho   = 0.5*(cons_arr(i,j,zhi,Rho_comp)+cons_arr(i,j+1,zhi,Rho_comp));
+                                rho   = 0.5*(cons_arr(ie,je,zhi,Rho_comp)+cons_arr(ie,je+1,zhi,Rho_comp));
                                 eta   = 0.5*(eta_arr(ie,je,zhi)+eta_arr(ie,je+1,zhi));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
