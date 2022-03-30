@@ -113,7 +113,8 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     }
 
     // Fill in the rest of the turbulent diffusivities
-    if (solverChoice.les_type == LESType::Smagorinsky || solverChoice.les_type == LESType::Deardorff) {
+    if (solverChoice.les_type == LESType::Smagorinsky ||
+        solverChoice.les_type == LESType::Deardorff) {
       Real inv_Pr_t = solverChoice.Pr_t_inv;
       Real inv_Sc_t = solverChoice.Sc_t_inv;
       Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
@@ -125,15 +126,23 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
         {
       // Get eddy diffusivities from the eddy viscosity
       // Additional factor of 0.5 because K = 2 mu_t
-      K(i,j,k,EddyDiff::Theta_v) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_Pr_t;
-      K(i,j,k,EddyDiff::Scalar_v) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_Sc_t;
-      K(i,j,k,EddyDiff::KE_v) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_sigma_k;
+      K(i,j,k,EddyDiff::Theta_h) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_Pr_t;
+      K(i,j,k,EddyDiff::Scalar_h) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_Sc_t;
+      if (use_KE) {
+	K(i,j,k,EddyDiff::KE_h) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_sigma_k;
+      }
+      if (solverChoice.use_QKE && solverChoice.diffuse_QKE_3D) {
+	K(i,j,k,EddyDiff::QKE_h) = 0.5 * K(i,j,k,EddyDiff::Mom_h) * inv_sigma_k;
+      }
 
       // For LES: vertical and horizontal components are the same
       K(i,j,k,EddyDiff::Mom_v) = K(i,j,k,EddyDiff::Mom_h);
       K(i,j,k,EddyDiff::Theta_v) = K(i,j,k,EddyDiff::Theta_h);
-      K(i,j,k,EddyDiff::KE_v) = K(i,j,k,EddyDiff::KE_h);
       K(i,j,k,EddyDiff::Scalar_v) = K(i,j,k,EddyDiff::Scalar_h);
+      if (use_KE) {
+	K(i,j,k,EddyDiff::KE_v) = K(i,j,k,EddyDiff::KE_h);
+      }
+      // QKE: vertical diffusion from PBL model
         });
       }
     }

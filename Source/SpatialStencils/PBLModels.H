@@ -8,8 +8,7 @@ inline
 void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel,
                                   const MultiFab& cons_in, MultiFab& eddyViscosity,
                                   const Geometry& geom,
-                                  const SolverChoice& solverChoice/*,
-								    const ABLMost& most*/)
+                                  const SolverChoice& solverChoice, const ABLMost& most)
 {
   // MYNN Level 2.5 PBL Model
   if (solverChoice.pbl_type == PBLType::MYNN25) {
@@ -24,8 +23,6 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
     const amrex::Real C4 = solverChoice.pbl_C4;
     const amrex::Real C5 = solverChoice.pbl_C5;
 
-      // TODO: add to datastruct -> Require MOST with MYNN
-    
     for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       
       const Box &bx = mfi.growntilebox(1);
@@ -58,6 +55,8 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
 	const amrex::Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
 	const amrex::Real rho = cell_data(i,j,k,Rho_comp);
 	qvel(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / rho);
+	// We will divide by qvel later
+	AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
 	if (sbx.contains(i,j,k)) {
 	  Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k), handler);
 	  Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k), handler);
@@ -67,9 +66,9 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
       amrex::Real dz_inv = geom.InvCellSize(2);
       int izmin = geom.Domain().smallEnd(2);
       int izmax = geom.Domain().bigEnd(2);
-      const amrex::Real l_obukhov = 4;//most.obukhov_len;
-      const amrex::Real surface_heat_flux = 7;//most.surf_temp_flux;
-      const amrex::Real theta0 = 300.0;//most.theta_mean (TODO: IS THIS ACTUALLY RHOTHETA)
+      const amrex::Real l_obukhov = most.obukhov_len;
+      const amrex::Real surface_heat_flux = most.surf_temp_flux;
+      const amrex::Real theta0 = most.theta_mean; //(TODO: IS THIS ACTUALLY RHOTHETA)
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
 	// Compute some partial derivatives that we will need (1st order at domain boundary)
@@ -135,7 +134,6 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
 	amrex::Real l2_over_q2 = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
 	amrex::Real GM = l2_over_q2 * (dudz*dudz + dvdz*dvdz);
 	amrex::Real GH = -l2_over_q2 / theta0 * dthetadz;
-	
 	amrex::Real E1 = 1.0 + 6.0*A1*A1*GM - 9.0*A1*A2*(1.0-C2)*GH;
 	amrex::Real E2 = -3.0*A1*(4.0*A1 + 3.0*A2*(1.0-C5))*(1.0-C2)*GH;
 	amrex::Real E3 = 6.0*A2*A1*GM;
@@ -147,17 +145,59 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
 	amrex::Real SQ = 3.0 * SM;
 
 	// Finally, compute the eddy viscosity/diffusivities
-	// TODO: Factor of 2 for momentum?
 	const amrex::Real rho = cell_data(i,j,k,Rho_comp);
 	K_turb(i,j,k,EddyDiff::Mom_v)   = rho * l_comb * qvel(i,j,k) * SM;
 	K_turb(i,j,k,EddyDiff::Theta_v) = rho * l_comb * qvel(i,j,k) * SH;
 	K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel(i,j,k) * 3.0 * SQ;
 
+	K_turb(i,j,k,EddyDiff::PBL_lengthscale) = l_comb;
 	// TODO: How should this be done for other components (scalars, moisture)
-	// TODO: Horizontal/LES component for QKE?
       });
     }
   }
 }
 
+inline
+Real ComputeQKESourceTerms(int i, int j, int k,
+                           const Array4<const Real>& uvel, const Array4<const Real>& vvel,
+                           const Array4<const Real>& cell_data, const Array4<const Real>& cell_prim,
+                           const Array4<Real>& K_turb,
+                           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv, const Box& domain,
+                           const SolverChoice& solverChoice, const ABLMost& most)
+{
+  // Compute some relevant derivatives
+  amrex::Real dz_inv = cellSizeInv[2];
+  int izmin = domain.smallEnd(2);
+  int izmax = domain.bigEnd(2);
+  amrex::Real dthetadz, dudz, dvdz;
+  amrex::Real source_term = 0.0;
+  if (k == izmax) {
+    dthetadz = (cell_prim(i,j,k,PrimTheta_comp) - cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
+    dudz = 0.5*(uvel(i,j,k) - uvel(i,j,k-1) + uvel(i+1,j,k) - uvel(i+1,j,k-1))*dz_inv;
+    dvdz = 0.5*(vvel(i,j,k) - vvel(i,j,k-1) + vvel(i,j+1,k) - vvel(i,j+1,k-1))*dz_inv;
+  } else if (k == izmin){
+    dthetadz = (cell_prim(i,j,k+1,PrimTheta_comp) - cell_prim(i,j,k,PrimTheta_comp))*dz_inv;
+    dudz = 0.5*(uvel(i,j,k+1) - uvel(i,j,k) + uvel(i+1,j,k+1) - uvel(i+1,j,k))*dz_inv;
+    dvdz = 0.5*(vvel(i,j,k+1) - vvel(i,j,k) + vvel(i,j+1,k+1) - vvel(i,j+1,k))*dz_inv;
+  } else {
+    dthetadz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp) - cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
+    dudz = 0.25*(uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1))*dz_inv;
+    dvdz = 0.25*(vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1))*dz_inv;
+  }
+
+  // Bouyancy
+  source_term += 2*CONST_GRAV/most.theta_mean*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
+
+  // Production
+  source_term += K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
+
+  // Dissipation
+  amrex::Real qke = cell_prim(i,j,k,PrimQKE_comp);
+  if (std::abs(qke) > 0.0) {
+    source_term += 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
+      (solverChoice.pbl_B1 * K_turb(i,j,k,EddyDiff::PBL_lengthscale));
+  }
+
+  return source_term;
+}
 #endif

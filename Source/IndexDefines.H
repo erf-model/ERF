@@ -92,6 +92,7 @@ namespace EddyDiff {
         QKE_v,
         Scalar_h,
         Scalar_v,
+        PBL_lengthscale,
         NumDiffs
     };
 }
