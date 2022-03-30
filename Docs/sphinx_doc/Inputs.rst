@@ -688,10 +688,64 @@ If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 
 - ``erf.alpha_C`` is multiplied by the current density :math:`\rho` to form the coefficient for an advected scalar.
 
+
+PBL Scheme
+==========
+
+.. _list-of-parameters-13:
+
+List of Parameters
+------------------
+
++----------------------------------+--------------------+---------------------+-------------+
+| Parameter                        | Definition         | Acceptable          | Default     |
+|                                  |                    | Values              |             |
++==================================+====================+=====================+=============+
+| **erf.pbl_type**                 | Name of PBL Scheme | "None", "MYNN2.5"   | "None"      |
+|                                  | to be used         |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_A1**                   | MYNN Constant A1   | Real                | 1.18        |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_A2**                   | MYNN Constant A2   | Real                | 0.665       |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_B1**                   | MYNN Constant B1   | Real                | 24.0        |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_B2**                   | MYNN Constant B2   | Real                | 15.0        |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_C1**                   | MYNN Constant C1   | Real                | 0.137       |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_C2**                   | MYNN Constant C1   | Real                | 0.75        |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_C3**                   | MYNN Constant C3   | Real                | 0.352       |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_C4**                   | MYNN Constant C4   | Real                | 0.0         |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.pbl_C5**                   | MYNN Constant C5   | Real                | 0.2         |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.advect_QKE**               | Include advection  | bool                | 1           |
+|                                  | terms in QKE eqn   |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.diffuse_QKE_3D**           | Include horizontal | bool                | 0           |
+|                                  | turb. diffusion    |                     |             |
+|                                  | terms in QKE eqn.  |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+
+Note that the MYNN2.5 scheme must be used in conjunction with a MOST boundary condition
+at the surface (Zlo) boundary.
+
+If the PBL scheme is activated, it determines the turbulent diffusivity in the vertical
+direction. If an LES model is also specified, it determines only the horizontal turbulent
+diffusivity.
+
+Right now, the QKE equation is solved if and only if the MYNN2.5 PBL model is selected. In that
+transport equation, it is optional to advect QKE, and to apply LES diffusive transport for QKE
+in the horizontal directions (the veritcal component is always computed as part of the PBL
+scheme).
+
 Forcing Terms
 =============
 
-.. _list-of-parameters-13:
+.. _list-of-parameters-14:
 
 List of Parameters
 ------------------
