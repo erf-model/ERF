@@ -44,7 +44,7 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
 
       const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
       FArrayBox qintegral(xybx,2);
-      qintegral.setVal(0.0);
+      qintegral.setVal<RunOn::Device>(0.0);
       FArrayBox qturb(bx,1);
       const Array4<amrex::Real> qint = qintegral.array();
       const Array4<amrex::Real> qvel= qturb.array();
