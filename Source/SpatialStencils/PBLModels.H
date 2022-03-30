@@ -157,6 +157,7 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
   }
 }
 
+AMREX_GPU_DEVICE
 inline
 Real ComputeQKESourceTerms(int i, int j, int k,
                            const Array4<const Real>& uvel, const Array4<const Real>& vvel,
