@@ -60,14 +60,13 @@ void erf_rhs (int level,
     MultiFab eddyDiffs(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),EddyDiff::NumDiffs,1);
     eddyDiffs.setVal(0.0);
     if (solverChoice.les_type == LESType::Smagorinsky ||
-        solverChoice.les_type == LESType::Deardorff)
-    {
+        solverChoice.les_type == LESType::Deardorff) {
         ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
                                   eddyDiffs, geom, solverChoice, domain_bcs_type_d);
     }
     if (solverChoice.pbl_type != PBLType::None) {
         ComputeTurbulentViscosityPBL(xvel, yvel, zvel, S_data[IntVar::cons],
-				     eddyDiffs, geom, solverChoice, most);
+                                     eddyDiffs, geom, solverChoice, most);
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
@@ -151,13 +150,13 @@ void erf_rhs (int level,
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
         amrex::ParallelFor(bx, S_data[IntVar::cons].nComp(),
-		          [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                           [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
             // Add advection terms.
             if ((n != RhoKE_comp && n != RhoQKE_comp) ||
-		(l_use_deardorff && n == RhoKE_comp) ||
-		(l_use_QKE       && n == RhoQKE_comp))
+                (l_use_deardorff && n == RhoKE_comp) ||
+                (l_use_QKE       && n == RhoQKE_comp))
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
                                          advflux_x, advflux_y, advflux_z, dxInv, l_spatial_order);
 

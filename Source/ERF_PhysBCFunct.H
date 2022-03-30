@@ -341,7 +341,7 @@ public:
                                 vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
                                 rho   = cons_arr(ie,je,zlo,Rho_comp);
                                 theta = cons_arr(ie,je,zlo,RhoTheta_comp)/rho;
-				// TODO: Verify this is the correct Diff component
+                                // TODO: Verify this is the correct Diff component
                                 eta   = eta_arr(ie,je,zlo,EddyDiff::Mom_h);
 
                                 Real vmag    = sqrt(velx*velx+vely*vely);
@@ -369,7 +369,6 @@ public:
                                 velx  = velx_arr(i,j,zlo);
                                 vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
                                 rho   = 0.5*(cons_arr(ie,je,zlo,Rho_comp)+cons_arr(ie+1,je,zlo,Rho_comp));
-			        // TODO: Verify this is the correct Diff component
                                 eta   = 0.5*(eta_arr(ie,je,zlo,EddyDiff::Mom_h)+eta_arr(ie+1,je,zlo,EddyDiff::Mom_h));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
@@ -395,7 +394,6 @@ public:
                                 velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix,jx+1,zlo));
                                 vely  = vely_arr(i,j,zlo);
                                 rho   = 0.5*(cons_arr(ie,je,zlo,Rho_comp)+cons_arr(ie,je+1,zlo,Rho_comp));
-			        // TODO: Verify this is the correct Diff component
                                 eta   = 0.5*(eta_arr(ie,je,zlo,EddyDiff::Mom_h)+eta_arr(ie,je+1,zlo,EddyDiff::Mom_h));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
@@ -444,7 +442,6 @@ public:
                                 vely  = 0.5*(vely_arr(iy,jy,zhi)+vely_arr(iy,jy+1,zhi));
                                 rho   = cons_arr(ie,je,zhi,Rho_comp);
                                 theta = cons_arr(ie,je,zhi,RhoTheta_comp)/rho;
-			        // TODO: Verify this is the correct Diff component
                                 eta   = eta_arr(ie,je,zhi,EddyDiff::Mom_h);
 
                                 Real vmag    = sqrt(velx*velx+vely*vely);
@@ -472,7 +469,6 @@ public:
                                 velx  = velx_arr(i,j,zhi);
                                 vely  = 0.5*(vely_arr(iy,jy,zhi)+vely_arr(iy,jy+1,zhi));
                                 rho   = 0.5*(cons_arr(ie,je,zhi,Rho_comp)+cons_arr(ie+1,je,zhi,Rho_comp));
-			        // TODO: Verify this is the correct Diff component
                                 eta   = 0.5*(eta_arr(ie,je,zhi,EddyDiff::Mom_h)+eta_arr(ie+1,je,zhi,EddyDiff::Mom_h));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
@@ -498,7 +494,6 @@ public:
                                 velx  = 0.5*(velx_arr(ix,jx,zhi)+velx_arr(ix,jx+1,zhi));
                                 vely  = vely_arr(i,j,zhi);
                                 rho   = 0.5*(cons_arr(ie,je,zhi,Rho_comp)+cons_arr(ie,je+1,zhi,Rho_comp));
-			        // TODO: Verify this is the correct Diff component
                                 eta   = 0.5*(eta_arr(ie,je,zhi,EddyDiff::Mom_h)+eta_arr(ie,je+1,zhi,EddyDiff::Mom_h));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
