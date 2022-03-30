@@ -309,6 +309,12 @@ ERF::InitData ()
     //     those types into what they mean for each variable
     init_bcs();
 
+    // Verify BCs are compatible sith solver choice
+    if (solverChoice.pbl_type == PBLType::MYNN25 &&
+        phys_bc_type[Orientation(Direction::z,Orientation::low)] != BC::MOST) {
+        amrex::Abort("MYNN2.5 PBL Model requires MOST at lower boundary");
+    }
+
     last_plot_file_step = -1;
     last_check_file_step = -1;
 
