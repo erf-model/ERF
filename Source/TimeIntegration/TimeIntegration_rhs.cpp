@@ -24,6 +24,7 @@ void erf_rhs (int level,
               const amrex::Geometry geom,
                     amrex::InterpFaceRegister* ifr,
               const SolverChoice& solverChoice,
+              const ABLMost& most,
               const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
               const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
               const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
@@ -66,13 +67,14 @@ void erf_rhs (int level,
     }
     if (solverChoice.pbl_type != PBLType::None) {
         ComputeTurbulentViscosityPBL(xvel, yvel, zvel, S_data[IntVar::cons],
-				     eddyDiffs, geom, solverChoice);
+				     eddyDiffs, geom, solverChoice, most);
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
     const iMultiFab *mlo_mf_z, *mhi_mf_z;
 
+    bool l_use_QKE       = solverChoice.use_QKE;
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
     Real l_Delta         = std::pow(dx[0] * dx[1] * dx[2],1./3.);
     Real l_C_e           = solverChoice.Ce;
@@ -153,7 +155,9 @@ void erf_rhs (int level,
             cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
             // Add advection terms.
-            if ((n != RhoKE_comp) || l_use_deardorff)
+            if ((n != RhoKE_comp && n != RhoQKE_comp) ||
+		(l_use_deardorff && n == RhoKE_comp) ||
+		(l_use_QKE       && n == RhoQKE_comp))
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
                                          advflux_x, advflux_y, advflux_z, dxInv, l_spatial_order);
 
@@ -166,6 +170,9 @@ void erf_rhs (int level,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
             if (l_use_deardorff && n == RhoKE_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoKE_comp,
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
+            if (l_use_QKE && n == RhoQKE_comp)
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoQKE_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
 
             // Add Rayleigh damping
@@ -198,6 +205,11 @@ void erf_rhs (int level,
                     cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * l_C_e *
                         std::pow(E,1.5) / length;
                 }
+            }
+
+            // QKE : similar terms to TKE
+            if (l_use_QKE && n == RhoQKE_comp) {
+                cell_rhs(i,j,k,n) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,K_turb,dxInv,domain,solverChoice,most);
             }
 
             // Add source terms. TODO: Put this under an if condition when we implement source term

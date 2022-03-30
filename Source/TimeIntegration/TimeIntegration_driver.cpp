@@ -196,7 +196,7 @@ void ERF::erf_advance(int level,
                 xvel_new, yvel_new, zvel_new,
                 source, advflux, diffflux,
                 fine_geom, ifr, solverChoice,
-                domain_bcs_type_d,
+                get_most(), domain_bcs_type_d,
                 dptr_dens_hse, dptr_pres_hse,
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
