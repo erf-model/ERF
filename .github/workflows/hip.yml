@@ -24,7 +24,8 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        sundials_state: [ON, OFF]
+        sundials_state: [OFF]
+        #sundials_state: [ON, OFF]
 
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet
     # Have to have -Wno-gnu-zero-variadic-macro-arguments to avoid
