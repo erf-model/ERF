@@ -21,7 +21,7 @@ conjunction with an LES model that specifies horizontal turbulent transport, in
 which case the vertical component of the LES model is ignored.
 
 Right now, the only PBL scheme supported in ERF is the
-Mellor-Yamada-Nakanishi-Niino Level 2.5 model. 
+Mellor-Yamada-Nakanishi-Niino Level 2.5 model.
 
 MYNN Level 2.5 PBL Model
 ------------------------
@@ -42,7 +42,7 @@ for :math:`q^2 = \widetilde{u_i u_i} - \widetilde{u}_i\widetilde{u}_i` is
     + \beta g \widetilde{w'\theta'}
     - \frac{q^3}{B_1 l}
     \right)
-    
+
 where :math:`B_1` is a model parameter, :math:`\beta` is the thermal
 expansion coefficient and `l` is a lengthscale. The vertical turbulent transport
 coefficients are then computed:
