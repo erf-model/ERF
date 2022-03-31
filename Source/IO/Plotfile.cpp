@@ -202,6 +202,7 @@ ERF::WritePlotFile () const
         calculate_derived("temp",        derived::erf_dertemp);
         calculate_derived("theta",       derived::erf_dertheta);
         calculate_derived("KE",          derived::erf_derKE);
+        calculate_derived("QKE",         derived::erf_derQKE);
         calculate_derived("scalar",      derived::erf_derscalar);
 
         if (containerHasElement(plot_deriv_names, "pres_hse"))

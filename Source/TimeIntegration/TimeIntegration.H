@@ -6,6 +6,7 @@
 #include <AMReX_InterpFaceRegister.H>
 #include "DataStruct.H"
 #include "IndexDefines.H"
+#include "ABLMost.H"
 
 using namespace amrex;
 
@@ -34,6 +35,7 @@ void erf_rhs(int level,
              const amrex::Geometry geom,
                    amrex::InterpFaceRegister* ifr,
              const SolverChoice& solverChoice,
+             const ABLMost& most,
              const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
              const amrex::Real* dptr_dens_hse,
              const amrex::Real* dptr_pres_hse,

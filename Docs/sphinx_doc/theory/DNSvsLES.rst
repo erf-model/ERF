@@ -76,6 +76,7 @@ in the equation of state is weak for :math:`\gamma = 1.4`, so the subfilter cont
 
 ERF offers two LES options: Smagorinsky and Deardorff models, which differ in how :math:`\mu_{t}` is computed.
 
+.. _SmagorinskyModel:
 Smagorinsky Model
 ~~~~~~~~~~~~~~~~~~
 .. math::

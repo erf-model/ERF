@@ -7,15 +7,17 @@
 // Cell-centered state variables
 #define Rho_comp  0
 #define RhoTheta_comp  1
-#define RhoKE_comp     2
-#define RhoScalar_comp 3
-#define RhoQv_comp     4
-#define RhoQc_comp     5
-#define NVAR           6
+#define RhoKE_comp     2 // for Deardorff LES Model
+#define RhoQKE_comp    3 // for MYNN PBL Model
+#define RhoScalar_comp 4
+#define RhoQv_comp     5
+#define RhoQc_comp     6
+#define NVAR           7
 
 // Cell-centered primitive variables
 #define PrimTheta_comp   RhoTheta_comp -1
 #define PrimKE_comp      RhoKE_comp    -1
+#define PrimQKE_comp     RhoQKE_comp   -1
 #define PrimScalar_comp  RhoScalar_comp-1
 #define PrimQv_comp      RhoQv_comp-1
 #define PrimQc_comp      RhoQc_comp-1
@@ -27,6 +29,7 @@ namespace BCVars {
         Rho_bc_comp = 0,
         RhoTheta_bc_comp,
         RhoKE_bc_comp,
+        RhoQKE_bc_comp,
         RhoScalar_bc_comp,
         RhoQv_bc_comp,
         RhoQc_bc_comp,
@@ -55,6 +58,7 @@ namespace Cons {
         Rho = 0,
         RhoTheta,
         RhoKE,
+        RhoQKE,
         RhoScalar,
         RhoQv,
         RhoQc,
@@ -66,10 +70,30 @@ namespace Prim {
     enum {
         Theta = 0,
         KE,
+        QKE,
         Scalar,
         Qv,
         Qc,
         NumVars
+    };
+}
+
+// We separate out horizontal and vertical turbulent diffusivities
+// These are the same for LES, but different for PBL models
+namespace EddyDiff {
+    enum {
+        Mom_h = 0,
+        Mom_v,
+        Theta_h,
+        Theta_v,
+        KE_h,
+        KE_v,
+        QKE_h,
+        QKE_v,
+        Scalar_h,
+        Scalar_v,
+        PBL_lengthscale,
+        NumDiffs
     };
 }
 

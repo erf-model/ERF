@@ -3,6 +3,7 @@
 #include <AMReX_ArrayLim.H>
 #include <ERF_Constants.H>
 #include <EddyViscosity.H>
+#include <PBLModels.H>
 #include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
@@ -23,6 +24,7 @@ void erf_rhs (int level,
               const amrex::Geometry geom,
                     amrex::InterpFaceRegister* ifr,
               const SolverChoice& solverChoice,
+              const ABLMost& most,
               const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
               const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
               const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
@@ -45,28 +47,33 @@ void erf_rhs (int level,
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *************************************************************************
-    // Calculate cell-centered eddy viscosity
+    // Calculate cell-centered eddy viscosity & diffusivities
     //
     // Notes -- we fill all the data in ghost cells before calling this so
     //    that we can fill the eddy viscosity in the ghost regions and
     //    not have to call a boundary filler on this data itself
+    //
+    // LES - updates both horizontal and vertical eddy viscosity components
+    // PBL - only updates vertical eddy viscosity components so horizontal
+    //       components come from the LES model or are left as zero.
     // *************************************************************************
-    MultiFab eddyViscosity(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
+    MultiFab eddyDiffs(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),EddyDiff::NumDiffs,1);
+    eddyDiffs.setVal(0.0);
     if (solverChoice.les_type == LESType::Smagorinsky ||
-        solverChoice.les_type == LESType::Deardorff)
-    {
-        if (solverChoice.les_type == LESType::Smagorinsky)
-            ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                      eddyViscosity, geom, solverChoice, domain_bcs_type_d);
-        else if (solverChoice.les_type == LESType::Deardorff)
-            ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                      eddyViscosity, geom, solverChoice, domain_bcs_type_d);
+        solverChoice.les_type == LESType::Deardorff) {
+        ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
+                                  eddyDiffs, geom, solverChoice, domain_bcs_type_d);
+    }
+    if (solverChoice.pbl_type != PBLType::None) {
+        ComputeTurbulentViscosityPBL(xvel, yvel, zvel, S_data[IntVar::cons],
+                                     eddyDiffs, geom, solverChoice, most);
     }
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
     const iMultiFab *mlo_mf_z, *mhi_mf_z;
 
+    bool l_use_QKE       = solverChoice.use_QKE;
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
     Real l_Delta         = std::pow(dx[0] * dx[1] * dx[2],1./3.);
     Real l_C_e           = solverChoice.Ce;
@@ -137,30 +144,35 @@ void erf_rhs (int level,
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
-        const Array4<Real>& K_LES = eddyViscosity.array(mfi);
+        const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
         amrex::ParallelFor(bx, S_data[IntVar::cons].nComp(),
-       [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                           [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
             // Add advection terms.
-            if ((n != RhoKE_comp) || l_use_deardorff)
+            if ((n != RhoKE_comp && n != RhoQKE_comp) ||
+                (l_use_deardorff && n == RhoKE_comp) ||
+                (l_use_QKE       && n == RhoQKE_comp && solverChoice.advect_QKE))
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
                                          advflux_x, advflux_y, advflux_z, dxInv, l_spatial_order);
 
             // Add diffusive terms.
             if (n == RhoTheta_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoTheta_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
             if (n == RhoScalar_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoScalar_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
             if (l_use_deardorff && n == RhoKE_comp)
                 cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoKE_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_LES, solverChoice);
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
+            if (l_use_QKE && n == RhoQKE_comp)
+                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoQKE_comp,
+                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
 
             // Add Rayleigh damping
             if (solverChoice.use_rayleigh_damping && n == RhoTheta_comp)
@@ -185,13 +197,18 @@ void erf_rhs (int level,
                 cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
                 // Add TKE production
-                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_LES,dxInv,domain,bc_ptr);
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_turb,dxInv,domain,bc_ptr);
 
                 // Add dissipation
                 if (std::abs(E) > 0.) {
                     cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * l_C_e *
                         std::pow(E,1.5) / length;
                 }
+            }
+
+            // QKE : similar terms to TKE
+            if (l_use_QKE && n == RhoQKE_comp) {
+                cell_rhs(i,j,k,n) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,K_turb,dxInv,domain,solverChoice,most);
             }
 
             // Add source terms. TODO: Put this under an if condition when we implement source term
@@ -241,7 +258,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
-                                                              MomentumEqn::x, dxInv, K_LES, solverChoice,
+                                                              MomentumEqn::x, dxInv, K_turb, solverChoice,
                                                               domain, bc_ptr);
 
             // Add pressure gradient
@@ -295,7 +312,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
-                                                              MomentumEqn::y, dxInv, K_LES, solverChoice,
+                                                              MomentumEqn::y, dxInv, K_turb, solverChoice,
                                                               domain, bc_ptr);
 
             // Add pressure gradient
@@ -347,7 +364,7 @@ void erf_rhs (int level,
 
             // Add diffusive terms
             rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
-                                                              MomentumEqn::z, dxInv, K_LES, solverChoice,
+                                                              MomentumEqn::z, dxInv, K_turb, solverChoice,
                                                               domain, bc_ptr);
 
             // Add pressure gradient

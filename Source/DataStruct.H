@@ -36,6 +36,10 @@ enum class LESType {
     None, Smagorinsky, Deardorff
 };
 
+enum class PBLType {
+    None, MYNN25
+};
+
 enum class MolecDiffType {
     None, Constant, ConstantAlpha
 };
@@ -93,6 +97,44 @@ struct SolverChoice {
         if ( (molec_diff_type == MolecDiffType::ConstantAlpha) &&
              (les_type        != LESType::None) ) {
             amrex::Error("We don't allow LES with MolecDiffType::ConstantAlpha");
+        }
+
+        // Which PBL Closure
+        static std::string pbl_type_string = "None";
+        pp.query("pbl_type",pbl_type_string);
+        if (pbl_type_string == "MYNN2.5") {
+            pbl_type = PBLType::MYNN25;
+        } else if (pbl_type_string == "None") {
+            pbl_type = PBLType::None;
+        } else {
+            amrex::Error("Don't know this pbl_type");
+        }
+
+        // Do some more stuff for PBL Modeling
+        if (pbl_type != PBLType::None) {
+            // Check for compatibility between PBL, LES, Molec Transport
+            if (les_type != LESType::None) {
+                amrex::Print() << "Selected a PBL model and an LES model: " <<
+                "Using PBL for vertical transport, LES for horizontal" << std::endl;
+            } else {
+                amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
+            }
+            pp.query("pbl_A1", pbl_A1);
+            pp.query("pbl_A2", pbl_A2);
+            pp.query("pbl_B1", pbl_B1);
+            pp.query("pbl_B2", pbl_B2);
+            pp.query("pbl_C1", pbl_C1);
+            pp.query("pbl_C2", pbl_C2);
+            pp.query("pbl_C3", pbl_C3);
+            pp.query("pbl_C4", pbl_C4);
+            pp.query("pbl_C5", pbl_C5);
+        }
+
+        // Right now, solving the QKE equation is only supported when MYNN PBL is turned on
+        if (pbl_type == PBLType::MYNN25) use_QKE = true;
+        if (use_QKE) {
+            pp.query("diffuse_QKE_3D", diffuse_QKE_3D);
+            pp.query("advect_QKE", advect_QKE);
         }
 
         // Diffusive/viscous/LES constants...
@@ -302,6 +344,23 @@ struct SolverChoice {
     amrex::Real Ck = 0.0;
     // Deardorff sigma_k coefficient
     amrex::Real sigma_k = 1.0;
+
+    // PBL model
+    PBLType pbl_type;
+    // Model coefficients
+    amrex::Real pbl_A1 = 1.18;
+    amrex::Real pbl_A2 = 0.665;
+    amrex::Real pbl_B1 = 24.0;
+    amrex::Real pbl_B2 = 15.0;
+    amrex::Real pbl_C1 = 0.137;
+    amrex::Real pbl_C2 = 0.75;
+    amrex::Real pbl_C3 = 0.352;
+    amrex::Real pbl_C4 = 0.0;
+    amrex::Real pbl_C5 = 0.2;
+    // QKE stuff - default is not to use it, if MYNN2.5 PBL is used default is turb transport in Z-directioon only
+    bool use_QKE = false;
+    bool diffuse_QKE_3D = false;
+    bool advect_QKE = true;
 
     // Coriolis forcing
     amrex::Real coriolis_factor = 0.0;

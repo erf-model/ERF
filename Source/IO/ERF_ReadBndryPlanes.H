@@ -41,6 +41,7 @@ public:
     int ingested_qv()       const {return is_qv_read;}
     int ingested_qc()       const {return is_qc_read;}
     int ingested_KE()       const {return is_KE_read;}
+    int ingested_QKE()      const {return is_QKE_read;}
 
 
 private:
@@ -94,6 +95,7 @@ private:
     int is_qv_read;
     int is_qc_read;
     int is_KE_read;
+    int is_QKE_read;
 
     int last_file_read;
 };

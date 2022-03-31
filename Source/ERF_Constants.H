@@ -10,7 +10,7 @@ constexpr amrex::Real PI = 3.14159265358979323846264338327950288;
 #define c_p    1004.5 // specific heat at constant pressure for dry air [J/(kg-K)]
 #define p_0    1.0e5 // reference surface pressure [Pa]
 #define Gamma  1.4   // C_p/C_v [-]
-
+#define KAPPA  0.41  // von Karman constant
 #define CONST_GRAV 9.81
 
 #endif
