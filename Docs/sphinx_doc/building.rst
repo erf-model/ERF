@@ -113,3 +113,55 @@ An example CMake configure command to build ERF with MPI is listed below:
           .. && make
 
 Note that CMake is able to generate makefiles for the Ninja build system as well which will allow for faster building of the executable(s).
+
+
+Perlmutter (NERSC)
+~~~~~~~~~~~~~~~~~~
+
+Recall the GNU Make system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project.
+
+For Perlmutter at NERSC, look at the general instructions for building ERF using GNU Make, and then you can initialize your environment by loading these modules:
+
+::
+
+   module load PrgEnv-gnu
+   module load cudatoolkit
+
+Then build ERF as, for example (specify your own path to the AMReX submodule in `ERF/Submodules/AMReX`):
+
+::
+
+   make -j 4 COMP=gnu USE_MPI=TRUE USE_OMP=FALSE USE_CUDA=TRUE AMREX_HOME=/global/u2/d/dwillcox/dev-erf/ERF/Submodules/AMReX USE_SUNDIALS=FALSE
+
+Finally, you can prepare your SLURM job script, using the following as a guide:
+
+   .. code:: shell
+
+             #!/bin/bash
+
+             ## specify your allocation (with the _g) and that you want GPU nodes
+             #SBATCH -A m4106_g
+             #SBATCH -C gpu
+
+             ## the job will be named "ERF" in the queue and will save stdout to erf_[job ID].out
+             #SBATCH -J ERF
+             #SBATCH -o erf_%j.out
+
+             ## set the max walltime
+             #SBATCH -t 10
+
+             ## specify the number of nodes you want
+             #SBATCH -N 2
+
+             ## we use the same number of MPI ranks per node as GPUs per node
+             #SBATCH --ntasks-per-node=4
+
+             ## assign 1 MPI rank per GPU on each node
+             #SBATCH --gpus-per-task=1
+             #SBATCH --gpu-bind=map_gpu:0,1,2,3
+
+             # the -n argument is (--ntasks-per-node) * (-N) = (number of MPI ranks per node) * (number of nodes)
+             srun -n 8 ./ERF3d.gnu.MPI.CUDA.ex inputs_wrf_baseline max_step=100
+
+To submit your job script, do `sbatch [your job script]` and you can check its status by doing `squeue -u [your username]`.
+
