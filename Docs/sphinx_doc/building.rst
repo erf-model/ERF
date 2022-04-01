@@ -159,7 +159,7 @@ Finally, you can prepare your SLURM job script, using the following as a guide:
              ## assign 1 MPI rank per GPU on each node
              #SBATCH --gpus-per-task=1
              #SBATCH --gpu-bind=map_gpu:0,1,2,3
-             
+
              # the -n argument is (--ntasks-per-node) * (-N) = (number of MPI ranks per node) * (number of nodes)
              srun -n 8 ./ERF3d.gnu.MPI.CUDA.ex inputs_wrf_baseline max_step=100
 
