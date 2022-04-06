@@ -4,6 +4,7 @@
 #include <AMReX_Vector.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_IntegratorBase.H>
+#include <TimeIntegration.H>
 #include <functional>
 
 using namespace amrex;
@@ -15,27 +16,26 @@ private:
     typedef IntegratorBase<T> BaseT;
 
     std::function<void (T&, amrex::Real)> post_substep;
-    std::function<void(T&, T&, T&, const T&, const amrex::Real, const amrex::Real)> implicit_fast_rhs;
+    std::function<void(T&, T&, T&, const T&, const T&, const amrex::Real, const amrex::Real)> implicit_fast_rhs;
     bool use_implicit_fast_rhs;
 
     amrex::Vector<std::unique_ptr<T> > T_store;
-    T* S_pert;
     T* S_sum;
-    T* F_bar;
+    T* S_sum_old;
+    T* F_slow;
     T* F_pert;
 
     void initialize_data (const T& S_data)
     {
         const bool include_ghost = true;
         IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
-        S_pert = T_store[0].get();
+        S_sum = T_store[0].get();
         IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
-        S_sum = T_store[1].get();
+        S_sum_old = T_store[1].get();
         IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
-        F_bar = T_store[2].get();
+        F_slow = T_store[2].get();
         IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         F_pert = T_store[3].get();
-
     }
 
 public:
@@ -63,7 +63,7 @@ public:
         return post_substep;
     }
 
-    void set_implicit_fast_rhs (std::function<void(T&, T&, T&, const T&, const amrex::Real, const amrex::Real)> F)
+    void set_implicit_fast_rhs (std::function<void(T&, T&, T&, const T&, const T&, const amrex::Real, const amrex::Real)> F)
     {
         implicit_fast_rhs = F;
         use_implicit_fast_rhs = true;
@@ -79,7 +79,9 @@ public:
         BaseT::timestep = time_step;
 
         const int substep_ratio = BaseT::get_slow_fast_timestep_ratio();
-        AMREX_ALWAYS_ASSERT(substep_ratio >= 1 && substep_ratio % 2 == 0);
+
+        AMREX_ALWAYS_ASSERT(substep_ratio > 1 && substep_ratio % 2 == 0);
+
         const Real sub_timestep = BaseT::timestep / substep_ratio;
 
         // Assume before advance() that S_old is valid data at the current time ("time" argument)
@@ -89,122 +91,68 @@ public:
 
         // NOTE: In the following, we use S_new to hold S*, S**, and finally, S^(n+1) at the new time
         // DEFINITIONS:
-        // S_pert = S(t) - S_bar
-        // S_sum = S_pert + S_bar = S(t)
-        // F_bar = F(S_bar)
-        // F_pert = G(S_pert, S_bar)
+        // S_old  = S^n
+        // S_sum  = S(t)
+        // F_slow = F(S_stage)
+        // F_pert = G(S(t)-S_stage, S_stage)
 
-        /***********/
-        /* STEP 1: */
-        /***********/
+        /**********************************************/
+        /* RK3 Integration with Acoustuc Sub-stepping */
+        /**********************************************/
 
-        // S_pert = 0 since step 1 starts with S_bar = S_old
-        IntegratorOps<T>::Copy(*S_pert, S_old);
-        IntegratorOps<T>::Saxpy(*S_pert, -1.0_rt, S_old);
-
-        // S_sum = S_pert + S_bar = 0 + S_old = S_old
-        IntegratorOps<T>::Copy(*S_sum, S_old);
-
-        // Evaluate F_bar(S_old)
-        BaseT::rhs(*F_bar, S_old, time);
-
-        // Evaluate F_pert(S_pert, S_old)
-        if (use_implicit_fast_rhs)
-            implicit_fast_rhs(*F_pert, *F_bar, S_old, *S_sum, time, BaseT::timestep / 3.0_rt);
-        else
-            BaseT::fast_rhs(*F_pert, S_old, *S_sum, time);
-
-        // Calculate S* = S_old + (dt/3) * (Fbar(S_old) + Fpert(S_pert, S_old))
+        // Start with S_new (aka S_stage) holding S_old
         IntegratorOps<T>::Copy(S_new, S_old);
-        IntegratorOps<T>::Saxpy(S_new, BaseT::timestep / 3.0_rt, *F_bar);
-        IntegratorOps<T>::Saxpy(S_new, BaseT::timestep / 3.0_rt, *F_pert);
+        BaseT::post_update(S_new, time);
 
-        // Call the post-update hook for S_new=S* at t = time + dt/3
-        BaseT::post_update(S_new, time + BaseT::timestep/3.0_rt);
+        // Timestep taken by the fast integrator
+        amrex::Real dtau;
 
-        /***********/
-        /* STEP 2: */
-        /***********/
+        // How many timesteps taken by the fast integrator
+        int nsubsteps;
 
-        // step 2 starts with S_bar = S* and we start substepping at the old time so S_pert = S_old - S*
-        IntegratorOps<T>::Copy(*S_pert, S_old);
-        IntegratorOps<T>::Saxpy(*S_pert, -1.0_rt, S_new);
+        for (int nrk = 0; nrk < 3; nrk++)
+        {
+            amrex::Print() << "Starting RK3: Step " << nrk+1 << std::endl;
+            if (nrk == 0) { nsubsteps = 1;               dtau = BaseT::timestep / 3.0_rt; }
+            if (nrk == 1) { nsubsteps = substep_ratio/2; dtau = sub_timestep;}
+            if (nrk == 2) { nsubsteps = substep_ratio;   dtau = sub_timestep;}
 
-        // S_sum = S_pert + S_bar = (S_old - S*) + S* = S_old
-        IntegratorOps<T>::Copy(*S_sum, S_old);
+            // step 1 starts with S_stage = S^n  and we always start substepping at the old time
+            // step 2 starts with S_stage = S^*  and we always start substepping at the old time
+            // step 3 starts with S_stage = S^** and we always start substepping at the old time
+            IntegratorOps<T>::Copy(*S_sum    , S_old);
+            IntegratorOps<T>::Copy(*S_sum_old, S_old);
 
-        // Calculate F_bar = F(S_bar) = F(S*) at t = time + dt/3
-        BaseT::rhs(*F_bar, S_new, time + BaseT::timestep / 3.0_rt);
+            // Evaluate F_slow(S_stage)
+            BaseT::rhs(*F_slow, S_new, time);
 
-        // Do forward Euler substepping for the fast RHS
-        // from t = time to time + dt/2
-        for (int k = 0; k < substep_ratio/2; ++k) {
-            // S_pert^(k+1) = S_pert^(k) + dtau * (F_bar + F_pert)
-            // first, evaluate F_pert(S_pert, S_bar)
-            if (use_implicit_fast_rhs)
-                implicit_fast_rhs(*F_pert, *F_bar, S_new, *S_sum, time + k * sub_timestep, sub_timestep);
-            else
-                BaseT::fast_rhs(*F_pert, S_new, *S_sum, time + k * sub_timestep);
+            for (int k = 0; k < nsubsteps; ++k) 
+            {
+                // Evaluate F_pert(S_pert, S_old)
+                if (use_implicit_fast_rhs) {
+                    // S_sum is used in the fast RHS to internally define S_pert = (S_sum - S_stage)
+                    implicit_fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_sum_old, time + k*dtau, dtau);
+                } else {
+                    BaseT::fast_rhs(*F_pert, S_old, *S_sum, time + k*dtau);
+                }
 
-            // now, get the new S_pert
-            IntegratorOps<T>::Saxpy(*S_pert, sub_timestep, *F_bar);
-            IntegratorOps<T>::Saxpy(*S_pert, sub_timestep, *F_pert);
+                // Update S_sum = S_pert + S_stage 
+                IntegratorOps<T>::Saxpy(*S_sum, dtau, *F_slow);
+                IntegratorOps<T>::Saxpy(*S_sum, dtau, *F_pert);
 
-            // next, recalculate S_sum = S_pert + S_bar
-            IntegratorOps<T>::Copy(*S_sum, S_new);
-            IntegratorOps<T>::Saxpy(*S_sum, 1.0_rt, *S_pert);
+                IntegratorOps<T>::Copy(*S_sum_old, *S_sum);
+        
+                // Call the post-substep hook for S_sum at t = time + (k+1) * sub_dt
+                post_substep(*S_sum    , time + (k+1) * dtau);
+                post_substep(*S_sum_old, time + (k+1) * dtau);
+            }
 
-            // Call the post-substep hook for S_sum at t = time + (k+1) * sub_dt
-            post_substep(*S_sum, time + (k+1) * sub_timestep);
+            // Define the solution at the next stage
+            IntegratorOps<T>::Copy(S_new, *S_sum);
+
+            // Call the post-update hook for S_new after all the fine steps completed
+            BaseT::post_update(S_new, time + nsubsteps*dtau);
         }
-
-        // calculate S** = S* + S_pert
-        IntegratorOps<T>::Saxpy(S_new, 1.0_rt, *S_pert);
-
-        // Call the post-update hook for S_new=S** at t = time + dt/2
-        BaseT::post_update(S_new, time + BaseT::timestep/2.0_rt);
-
-        /***********/
-        /* STEP 3: */
-        /***********/
-
-        // step 3 starts with S_bar = S** and we start substepping at the old time so S_pert = S_old - S**
-        IntegratorOps<T>::Copy(*S_pert, S_old);
-        IntegratorOps<T>::Saxpy(*S_pert, -1.0_rt, S_new);
-
-        // S_sum = S_pert + S_bar = (S_old - S**) + S** = S_old
-        IntegratorOps<T>::Copy(*S_sum, S_old);
-
-        // Calculate F_bar = F(S_bar) = F(S**) at t = time + dt/2
-        BaseT::rhs(*F_bar, S_new, time + BaseT::timestep / 2.0_rt);
-
-        // Do forward Euler substepping for the fast RHS
-        // from t = time to time + dt
-        for (int k = 0; k < substep_ratio; ++k) {
-            // S_pert^(k+1) = S_pert^(k) + dtau * (F_bar + F_pert)
-            // first, evaluate F_pert(S_pert, S_bar)
-            if (use_implicit_fast_rhs)
-                implicit_fast_rhs(*F_pert, *F_bar, S_new, *S_sum, time + k * sub_timestep, sub_timestep);
-            else
-                BaseT::fast_rhs(*F_pert, S_new, *S_sum, time + k * sub_timestep);
-
-            // now, get the new S_pert
-            IntegratorOps<T>::Saxpy(*S_pert, sub_timestep, *F_bar);
-            IntegratorOps<T>::Saxpy(*S_pert, sub_timestep, *F_pert);
-
-            // next, recalculate S_sum = S_pert + S_bar
-            IntegratorOps<T>::Copy(*S_sum, S_new);
-            IntegratorOps<T>::Saxpy(*S_sum, 1.0_rt, *S_pert);
-
-            // Call the post-substep hook for S_sum at t = time + (k+1) * sub_dt
-            post_substep(*S_sum, time + (k+1) * sub_timestep);
-        }
-
-        // calculate S^(n+1) = S** + S_pert
-        IntegratorOps<T>::Saxpy(S_new, 1.0_rt, *S_pert);
-
-        // Call the post-update hook for S_new = S^(n+1) at t = time + dt
-        BaseT::post_update(S_new, time + BaseT::timestep);
 
         // Return timestep
         return BaseT::timestep;
