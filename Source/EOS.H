@@ -41,6 +41,12 @@ amrex::Real getPprimegivenRTh(const amrex::Real rhotheta, const amrex::Real pres
     return p_0 * std::pow(R_d * rhotheta / p_0, Gamma) - pres_hse_at_k;
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real getExnergivenRTh(const amrex::Real rhotheta)
+{
+    // Exner function pi in terms of (rho theta)
+    return std::pow(R_d * rhotheta / p_0, Gamma*R_d/c_p);
+}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getRhoThetagivenP(const amrex::Real p)
@@ -50,3 +56,4 @@ amrex::Real getRhoThetagivenP(const amrex::Real p)
     return std::pow(p*std::pow(p_0, Gamma-1), 1.0 / Gamma)/ R_d;
 }
 #endif
+

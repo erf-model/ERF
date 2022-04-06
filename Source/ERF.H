@@ -128,7 +128,7 @@ public:
                       const amrex::DistributionMapping& dm) override;
 
     // compute dt from CFL considerations
-    Real estTimeStep (int lev, int& dt_fast_ratio) const;
+    Real estTimeStep (int lev, long& dt_fast_ratio) const;
 
     // Interface for advancing the data at one level by one "slow" timestep
     void erf_advance(int level,
@@ -309,7 +309,7 @@ private:
     amrex::Vector<amrex::Real> t_new;
     amrex::Vector<amrex::Real> t_old;
     amrex::Vector<amrex::Real> dt;
-    amrex::Vector<int> dt_mri_ratio;
+    amrex::Vector<long> dt_mri_ratio;
 
     // array of multifabs to store the solution at each level of refinement
     // after advancing a level we use "swap".
@@ -387,7 +387,6 @@ private:
 
     static int verbose;
     static int use_native_mri;
-    static int use_implicit_native_mri;
 
     // mesh refinement
     static std::string coupling_type;

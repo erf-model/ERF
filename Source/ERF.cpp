@@ -42,9 +42,6 @@ int         ERF::verbose       = 0;
 // Use the native ERF MRI integrator
 int         ERF::use_native_mri = 0;
 
-// Use the implicit mode for the native ERF MRI integrator
-int         ERF::use_implicit_native_mri = 0;
-
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
@@ -615,7 +612,6 @@ ERF::ReadParameters ()
 
         // Use the native ERF MRI integrator
         pp.query("use_native_mri", use_native_mri);
-        pp.query("use_implicit_native_mri", use_implicit_native_mri);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
