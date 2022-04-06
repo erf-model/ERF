@@ -126,7 +126,7 @@ public:
             // Evaluate F_slow(S_stage)
             BaseT::rhs(*F_slow, S_new, time);
 
-            for (int k = 0; k < nsubsteps; ++k) 
+            for (int k = 0; k < nsubsteps; ++k)
             {
                 // Evaluate F_pert(S_pert, S_old)
                 if (use_implicit_fast_rhs) {
@@ -136,12 +136,12 @@ public:
                     BaseT::fast_rhs(*F_pert, S_old, *S_sum, time + k*dtau);
                 }
 
-                // Update S_sum = S_pert + S_stage 
+                // Update S_sum = S_pert + S_stage
                 IntegratorOps<T>::Saxpy(*S_sum, dtau, *F_slow);
                 IntegratorOps<T>::Saxpy(*S_sum, dtau, *F_pert);
 
                 IntegratorOps<T>::Copy(*S_sum_old, *S_sum);
-        
+
                 // Call the post-substep hook for S_sum at t = time + (k+1) * sub_dt
                 post_substep(*S_sum    , time + (k+1) * dtau);
                 post_substep(*S_sum_old, time + (k+1) * dtau);

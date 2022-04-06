@@ -246,7 +246,7 @@ void erf_implicit_fast_rhs (int level,
             Array1D<Real,0,255> gam;
 
             //Note we don't act on the bottom or top boundaries of the domain
-            for (int k = klo+1; k < khi; ++k) 
+            for (int k = klo+1; k < khi; ++k)
             {
                 Real rhobar_lo = dptr_dens_hse[k-1];
                 Real rhobar_hi = dptr_dens_hse[k];
@@ -254,7 +254,7 @@ void erf_implicit_fast_rhs (int level,
                 Real  pibar_hi = getExnergivenRTh(dptr_pres_hse[k  ]);
 
                 // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
-                // We set grav_gpu[2] to be the vector component which is negative 
+                // We set grav_gpu[2] to be the vector component which is negative
                 // We define halfg to match the notes (which is why we take the absolute value)
                 Real halfg = std::abs(0.5 * grav_gpu[2]);
 
@@ -312,8 +312,8 @@ void erf_implicit_fast_rhs (int level,
                    +pi_hi * rhobar_hi / pibar_hi * (old_drho_theta(i,j,k  ) / cell_stage(i,j,k  ,RhoTheta_comp)) );
 
                 // line 6
-                R_tmp += -(beta_2+beta_1) * halfg * ( 
-                         ( old_drho(i,j,k  ) + old_drho(i,j,k-1) ) 
+                R_tmp += -(beta_2+beta_1) * halfg * (
+                         ( old_drho(i,j,k  ) + old_drho(i,j,k-1) )
                          + dtau * (slow_rhs_cons(i,j,k,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp)) );
 
                 // lines 7-8
@@ -322,7 +322,7 @@ void erf_implicit_fast_rhs (int level,
                     + dxi * (new_drho_u(i+1,j,k-1) - new_drho_u(i,j,k-1))
                     + dyi * (new_drho_v(i,j+1,k  ) - new_drho_v(i,j,k  ))
                     + dyi * (new_drho_v(i,j+1,k-1) - new_drho_v(i,j,k-1))
-                    + dzi * (old_drho_w(i,j  ,k+1) - old_drho_w(i,j,k  )) * beta_1 
+                    + dzi * (old_drho_w(i,j  ,k+1) - old_drho_w(i,j,k  )) * beta_1
                     + dzi * (old_drho_w(i,j  ,k  ) - old_drho_w(i,j,k-1)) * beta_1 );
 
                 // line 1

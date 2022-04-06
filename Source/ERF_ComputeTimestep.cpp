@@ -92,14 +92,14 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
        });
 
    amrex::ParallelDescriptor::ReduceRealMax(estdt_lowM_inv);
-   if (estdt_lowM_inv > 0.0_rt) 
+   if (estdt_lowM_inv > 0.0_rt)
        estdt_lowM = cfl / estdt_lowM_inv;;
 
   if (verbose) {
     if (fixed_dt <= 0.0) {
         amrex::Print() << "Using cfl = " << cfl << std::endl;
         amrex::Print() << "Fast  dt at level " << level << ":  " << estdt_comp << std::endl;
-        if (estdt_lowM_inv > 0.0_rt) { 
+        if (estdt_lowM_inv > 0.0_rt) {
             amrex::Print() << "Slow  dt at level " << level << ":  " << estdt_lowM << std::endl;
         } else {
             amrex::Print() << "Slow  dt at level " << level << ": undefined " << std::endl;
