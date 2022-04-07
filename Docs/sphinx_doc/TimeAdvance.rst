@@ -12,11 +12,11 @@ Time Advance
 ============
 
 To advance the solution in time, ERF uses a 3rd order Runge-Kutta method with acoustic sub-stepping
-in each Runge-Kutta stage, following the approach of `Klemp, Skamarock and Dudhia (2007)`_ 
+in each Runge-Kutta stage, following the approach of `Klemp, Skamarock and Dudhia (2007)`_
 
 .. _`Klemp, Skamarock and Dudhia (2006)`: https://journals.ametsoc.org/view/journals/mwre/135/8/mwr3440.1.xml
 
-Specifically, for 
+Specifically, for
 
 .. math::
 
@@ -68,9 +68,9 @@ we can re-write the unapproximated momentum equations
                                                                               - g (\overline{\rho} \frac{\pi^\prime}{\overline{\pi}} - \rho^\prime) + F_w
 
 
-We then define new perturbational quantities, e.g., :math:`\mathbf{U}^{\prime \prime} = \mathbf{U} - \mathbf{U}^t` 
-where :math:`\mathbf{U}^t` is the momentum at the most recent time reached by the "large" time step, 
-which could be :math:`t^{n}` or one of the intermediate Runge-Kutta steps.  
+We then define new perturbational quantities, e.g., :math:`\mathbf{U}^{\prime \prime} = \mathbf{U} - \mathbf{U}^t`
+where :math:`\mathbf{U}^t` is the momentum at the most recent time reached by the "large" time step,
+which could be :math:`t^{n}` or one of the intermediate Runge-Kutta steps.
 Then the acoustic substepping evolves the equations in the form
 
 .. math::
