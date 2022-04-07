@@ -87,6 +87,7 @@ Then the acoustic substepping evolves the equations in the form
             -\gamma R_d \pi^t \frac{\partial (\beta_1 \Theta^{\prime \prime, \tau} +
                                               \beta_2 \Theta^{\prime \prime, \tau  + \delta \tau} ) }{\partial z} \\
           && - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
+
              \frac{ (\beta_1 \Theta^{\prime \prime, \tau}  +
                      \beta_2 \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t}
             + g (\beta_1 \rho^{\prime \prime, \tau} + \beta_2 \rho^{\prime \prime, \tau + \delta \tau } ) + R^t_W )
