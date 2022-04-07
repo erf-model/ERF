@@ -14,7 +14,7 @@ Time Advance
 To advance the solution in time, ERF uses a 3rd order Runge-Kutta method with acoustic sub-stepping
 in each Runge-Kutta stage, following the approach of `Klemp, Skamarock and Dudhia (2007)`_
 
-.. _`Klemp, Skamarock and Dudhia (2006)`: https://journals.ametsoc.org/view/journals/mwre/135/8/mwr3440.1.xml
+.. _`Klemp, Skamarock and Dudhia (2007)`: https://journals.ametsoc.org/view/journals/mwre/135/8/mwr3440.1.xml
 
 Specifically, for
 
@@ -26,11 +26,11 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 
 .. math::
 
-  \mathbf{S}^{(*)} &=& \mathbf{S}^n + \frac{1}{3} \Delta t f(\mathbf{S}^n)
+  \mathbf{S}^{*}   &=& \mathbf{S}^n + \frac{1}{3} \Delta t f(\mathbf{S}^n)
 
-  \mathbf{S}^{(**} &=& \mathbf{S}^n + \frac{1}{2} \Delta t f(\mathbf{S}^{(*)}) )
+  \mathbf{S}^{**}  &=& \mathbf{S}^n + \frac{1}{2} \Delta t f(\mathbf{S}^{*}) )
 
-  \mathbf{S}^{n+1} &=& \mathbf{S}^n +             \Delta t f(\mathbf{S}^{(**)}) )
+  \mathbf{S}^{n+1} &=& \mathbf{S}^n +             \Delta t f(\mathbf{S}^{**}) )
 
 .. _AcousticSubstep:
 
@@ -39,8 +39,8 @@ Acoustic Sub-stepping
 
 We sub-step the acoustic modes within each Runge-Kutta stage.
 
-We first recall the equations in the form given in `Klemp, Skamarock and Dudhia (2007)`_ ,
-here defining :math:`\mathbf{R}` for each equation to include all terms that contribute to the time evolution.
+We first recall the equations in the following form,
+here defining :math:`\mathbf{R}` for each equation to include all additional terms that contribute to the time evolution.
 
 .. math::
 
@@ -81,7 +81,9 @@ Then the acoustic substepping evolves the equations in the form
   V^{\prime \prime, \tau + \delta \tau} - V^{\prime \prime, \tau} &=&  \delta \tau (
               -\gamma R_d \pi^t \frac{\partial \Theta^{\prime \prime, \tau}}{\partial y} + R^t_V)
 
-  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} &=&  \delta \tau (
+.. math::
+
+  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} =  \delta \tau (
             -\gamma R_d \pi^t \frac{\partial (\beta_1 \Theta^{\prime \prime, \tau} +
                                               \beta_2 \Theta^{\prime \prime, \tau  + \delta \tau} ) }{\partial z} \\
             && - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
@@ -103,9 +105,9 @@ Then the acoustic substepping evolves the equations in the form
           - \frac{\partial V^{\prime \prime, \tau + \delta \tau }}{\partial y}
           - \frac{\partial (\beta_1 W^{\prime \prime, \tau} + \beta_2 W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho} )
 
-where :math:`beta_1 = 0.5 * (1 - \beta_s)` and :math:`beta_2 = 0.5 * (1 + \beta_s)` with :math:`\beta_s = 0.1`.
+where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)` with :math:`\beta_s = 0.1`.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
 We then solve a tridiagonal system for :math:`W^{\prime \prime, \tau + \delta \tau}`, and once :math:`W^{\prime \prime, \tau + \delta \tau}`
-is known, we update :math:`\rho^{\prime \prime, \tau + \delta \tau}` and :math:`\Theat^{\prime \prime, \tau + \delta \tau}.`
+is known, we update :math:`\rho^{\prime \prime, \tau + \delta \tau}` and :math:`\Theta^{\prime \prime, \tau + \delta \tau}.`
