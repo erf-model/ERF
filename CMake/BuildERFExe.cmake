@@ -66,10 +66,12 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SpatialStencils/Interpolation.cpp
        ${SRC_DIR}/SpatialStencils/MomentumToVelocity.cpp
        ${SRC_DIR}/SpatialStencils/VelocityToMomentum.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_MRI.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_rhs.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_fast.cpp
+       ${SRC_DIR}/TimeIntegration/TimeIntegration_fast_implicit.cpp
        ${SRC_DIR}/WPS_Interface.cpp
   )
 

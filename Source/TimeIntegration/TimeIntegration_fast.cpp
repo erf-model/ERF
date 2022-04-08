@@ -11,7 +11,8 @@ using namespace amrex;
 
 void erf_fast_rhs (int level,
                    Vector<MultiFab >& S_rhs,
-                   const Vector<MultiFab >& S_stage_data,
+                   Vector<MultiFab >& S_stage_data,
+                   const MultiFab& S_stage_prim,
                    const Vector<MultiFab >& S_data,
                    std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
                    const amrex::Geometry geom,
@@ -48,6 +49,7 @@ void erf_fast_rhs (int level,
     Delta_rho_u.FillBoundary(geom.periodicity());
     Delta_rho_v.FillBoundary(geom.periodicity());
     Delta_rho_w.FillBoundary(geom.periodicity());
+    Delta_rho.FillBoundary(geom.periodicity());
     Delta_rho_theta.FillBoundary(geom.periodicity());
 
     // *************************************************************************
@@ -71,9 +73,6 @@ void erf_fast_rhs (int level,
 
     // *************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
-    //TODO: Benchmarking of performance. We are computing the fluxes on the fly.
-    //If the performance slows, consider saving all the fluxes apriori and accessing them here.
-
     // *************************************************************************
     for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -97,9 +96,9 @@ void erf_fast_rhs (int level,
         auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
-        const Array4<const Real> & cell_data        = S_data[IntVar::cons].array(mfi);
         const Array4<Real> & cell_rhs         = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_stage_data  = S_stage_data[IntVar::cons].array(mfi);
+        const Array4<const Real> & cell_stage_prim  = S_stage_prim.array(mfi);
 
         const Array4<Real>& delta_rho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& delta_rho_v     = Delta_rho_v.array(mfi);
@@ -129,18 +128,20 @@ void erf_fast_rhs (int level,
             if (n == Rho_comp)
             {
                 // We use the most current momenta here to update rho
-                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
-                                         cell_data, Rho_comp,
-                                         advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
+                // We also use only spatial order = 2
+                int l_spatial_order = 2;
+                cell_rhs(i, j, k, n) = -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
+                                        cell_stage_prim, Rho_comp,
+                                        advflux_x, advflux_y, advflux_z, dxInv, l_spatial_order);
             } else if (n == RhoTheta_comp) {
                 // We use the most current momenta but the "lagged" theta here to update (rho theta)
-                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
-                                         cell_stage_data, RhoTheta_comp,
-                                         advflux_x, advflux_y, advflux_z, dxInv, solverChoice.spatial_order);
+                int l_spatial_order = 2;
+                cell_rhs(i, j, k, n) = -AdvectionContributionForState(i, j, k, delta_rho_u, delta_rho_v, delta_rho_w,
+                                        cell_stage_prim, RhoTheta_comp,
+                                        advflux_x, advflux_y, advflux_z, dxInv, l_spatial_order);
             } else {
                 cell_rhs(i, j, k, n) = 0.0;
             }
-
         }
         );
 
@@ -188,13 +189,12 @@ void erf_fast_rhs (int level,
 
             if (!on_coarse_fine_boundary)
             {
-
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real exner_pi_l = std::pow(getPgivenRTh(cell_stage_data(i-1,j,k,RhoTheta_comp))/p_0,R_d/c_p);
-                Real exner_pi_r = std::pow(getPgivenRTh(cell_stage_data(i  ,j,k,RhoTheta_comp))/p_0,R_d/c_p);
+                Real exner_pi_l = getExnergivenRTh(cell_stage_data(i-1,j,k,RhoTheta_comp));
+                Real exner_pi_r = getExnergivenRTh(cell_stage_data(i  ,j,k,RhoTheta_comp));
                 Real exner_pi_c =  0.5 * (exner_pi_l + exner_pi_r);
-                rho_u_rhs(i, j, k) += (-dxInv[0]) * Gamma * R_d * exner_pi_c *
-                  (delta_rho_theta(i  ,j,k,0) - delta_rho_theta(i-1,j,k,0));
+                rho_u_rhs(i, j, k) = -Gamma * R_d * exner_pi_c *
+                    (delta_rho_theta(i  ,j,k) - delta_rho_theta(i-1,j,k))*dxInv[0];
 
             } // not on coarse-fine boundary
         },
@@ -213,11 +213,11 @@ void erf_fast_rhs (int level,
             {
 
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real exner_pi_l = std::pow(getPgivenRTh(cell_stage_data(i,j-1,k,RhoTheta_comp))/p_0,R_d/c_p);
-                Real exner_pi_r = std::pow(getPgivenRTh(cell_stage_data(i,j  ,k,RhoTheta_comp))/p_0,R_d/c_p);
+                Real exner_pi_l = getExnergivenRTh(cell_stage_data(i,j-1,k,RhoTheta_comp));
+                Real exner_pi_r = getExnergivenRTh(cell_stage_data(i,j  ,k,RhoTheta_comp));
                 Real exner_pi_c =  0.5 * (exner_pi_l + exner_pi_r);
-                rho_v_rhs(i, j, k) += (-dxInv[1]) * Gamma * R_d * exner_pi_c *
-                  (delta_rho_theta(i,j  ,k,0) - delta_rho_theta(i,j-1,k,0));
+                rho_v_rhs(i, j, k) = -Gamma * R_d * exner_pi_c *
+                    (delta_rho_theta(i,j  ,k) - delta_rho_theta(i,j-1,k)) * dxInv[1];
 
             } // not on coarse-fine boundary
         },
@@ -234,20 +234,21 @@ void erf_fast_rhs (int level,
 
             if (!on_coarse_fine_boundary)
             {
-                Real exner_pi_l = std::pow(getPgivenRTh(cell_stage_data(i,j,k-1,RhoTheta_comp))/p_0,R_d/c_p);
-                Real exner_pi_r = std::pow(getPgivenRTh(cell_stage_data(i,j,k  ,RhoTheta_comp))/p_0,R_d/c_p);
+                Real exner_pi_l = getExnergivenRTh(cell_stage_data(i,j,k-1,RhoTheta_comp));
+                Real exner_pi_r = getExnergivenRTh(cell_stage_data(i,j,k  ,RhoTheta_comp));
                 Real exner_pi_c =  0.5 * (exner_pi_l + exner_pi_r);
 
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                rho_w_rhs(i, j, k) += -1.0 * Gamma * R_d * exner_pi_c *
-                  (delta_rho_theta(i,j,k,0) - delta_rho_theta(i,j,k-1,0))*dxInv[2];
+                rho_w_rhs(i, j, k) = -Gamma * R_d * exner_pi_c *
+                  (delta_rho_theta(i,j,k) - delta_rho_theta(i,j,k-1))*dxInv[2];
 
                 // Add gravity term
                 Real rhobar = 0.5 * (dptr_dens_hse[k] + dptr_dens_hse[k-1]);
-                Real  pibar = std::pow(0.5 * (dptr_pres_hse[k] + dptr_pres_hse[k-1]),R_d/c_p);
+                Real  pibar = std::pow(0.5 * (dptr_pres_hse[k] + dptr_pres_hse[k-1])/p_0,R_d/c_p);
                 Real wadv = 0.0; // We will not use this since we are using 2nd order interpolation
+                int l_spatial_order = 2;
                 rho_w_rhs(i, j, k) += grav_gpu[2] * (
-                    InterpolateFromCellOrFace(i, j, k, delta_rho, 0, wadv, Coord::z, 2)
+                    InterpolateFromCellOrFace(i, j, k, delta_rho, 0, wadv, Coord::z, l_spatial_order)
                     - (R_d / (c_p - R_d)) * exner_pi_c * rhobar / pibar *
                     InterpolateFromCellOrFace(i, j, k, delta_rho_theta,             0, wadv, Coord::z, 2) /
                     InterpolateFromCellOrFace(i, j, k, cell_stage_data, RhoTheta_comp, wadv, Coord::z, 2) );

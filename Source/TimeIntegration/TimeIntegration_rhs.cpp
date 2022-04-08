@@ -37,6 +37,7 @@ void erf_rhs (int level,
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
     const Box& domain = geom.Domain();
+    const int domhi_z = domain.bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -368,9 +369,9 @@ void erf_rhs (int level,
                                                               domain, bc_ptr);
 
             // Add pressure gradient
-            rho_w_rhs(i, j, k) += (-dxInv[2]) *
-                (getPprimegivenRTh(cell_data(i, j, k    , RhoTheta_comp),dptr_pres_hse[k  ]) -
-                 getPprimegivenRTh(cell_data(i, j, k - 1, RhoTheta_comp),dptr_pres_hse[k-1]));
+            amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),dptr_pres_hse[k  ]);
+            amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),dptr_pres_hse[k-1]);
+            rho_w_rhs(i, j, k) += (-dxInv[2]) * (p_prime_hi - p_prime_lo);
 
             // Add gravity term
             if (solverChoice.use_gravity)
@@ -400,6 +401,14 @@ void erf_rhs (int level,
             if (solverChoice.use_rayleigh_damping)
             {
                 rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
+            }
+
+            // Enforce no forcing term at bottom boundary
+            if (k == 0) {
+                rho_w_rhs(i,j,k) = 0.;
+            } else if (k == domhi_z+1) {
+                //rho_w_rhs(i, j, k) = rho_w_rhs(i,j,k-1);
+                rho_w_rhs(i, j, k) = 0.;
             }
 
             } // not on coarse-fine boundary

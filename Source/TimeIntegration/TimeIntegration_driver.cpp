@@ -4,6 +4,7 @@
 #include <AMReX_BC_TYPES.H>
 #include <SpatialStencils.H>
 #include <AMReX_TimeIntegrator.H>
+#include <ERF_MRI.H>
 #include <TimeIntegration.H>
 #include <ERF.H>
 
@@ -184,14 +185,10 @@ void ERF::erf_advance(int level,
     apply_bcs(state_old, old_time);
     cons_to_prim(state_old[IntVar::cons], S_prim);
 
-    // ***************************************************************************************
-    // Setup the integrator
-    // **************************************************************************************
-    TimeIntegrator<Vector<MultiFab> > lev_integrator(state_old);
-
     //Create function lambdas
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
-                       const Vector<MultiFab>& S_data, const Real /*time*/) {
+                       const Vector<MultiFab>& S_data, const Real time) {
+        if (verbose) Print() << "SLOW RHS, time = " << time << std::endl;
         erf_rhs(level, S_rhs, S_data, S_prim,
                 xvel_new, yvel_new, zvel_new,
                 source, advflux, diffflux,
@@ -203,11 +200,27 @@ void ERF::erf_advance(int level,
     };
 
     auto rhs_fun_fast = [&](      Vector<MultiFab>& S_rhs,
-                            const Vector<MultiFab>& S_stage_data,
-                            const Vector<MultiFab>& S_data, const Real /*time*/) {
-        erf_fast_rhs(level, S_rhs, S_stage_data, S_data,
+                                  Vector<MultiFab>& S_stage_data,
+                                  const Vector<MultiFab>& S_data,
+                                  const Real time)
+    {
+        if (verbose) Print() << "FAST RHS, time = " << time << std::endl;
+        erf_fast_rhs(level, S_rhs, S_stage_data, S_prim, S_data,
                      advflux, fine_geom, ifr, solverChoice,
                      dptr_dens_hse, dptr_pres_hse);
+    };
+
+    auto implicit_fast_rhs_fun = [&](      Vector<MultiFab>& S_rhs,
+                                           Vector<MultiFab>& S_slow_rhs,
+                                           Vector<MultiFab>& S_stage_data,
+                                     const Vector<MultiFab>& S_data,
+                                     const Vector<MultiFab>& S_data_old,
+                                     const Real time, const Real fast_dt)
+    {
+        if (verbose) Print() << "IMPLICIT FAST RHS, time = " << time << std::endl;
+        erf_implicit_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
+                              S_data, S_data_old, advflux, fine_geom, ifr, solverChoice,
+                              dptr_dens_hse, dptr_pres_hse, time, fast_dt);
     };
 
     auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp)
@@ -216,17 +229,48 @@ void ERF::erf_advance(int level,
         cons_to_prim(S_data[IntVar::cons], S_prim);
     };
 
-    // define rhs and 'post update' utility function that is called after calculating
-    // any state data (e.g. at RK stages or at the end of a timestep)
-    lev_integrator.set_rhs(rhs_fun);
-    lev_integrator.set_fast_rhs(rhs_fun_fast);
-    lev_integrator.set_slow_fast_timestep_ratio(2);
-    lev_integrator.set_post_update(post_update_fun);
+    auto post_substep_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp)
+    {
+        apply_bcs(S_data, time_for_fp);
+    };
 
+    // ***************************************************************************************
+    // Setup the integrator
     // **************************************************************************************
-    // Integrate for a single timestep
-    // **************************************************************************************
-    lev_integrator.advance(state_old, state_new, old_time, dt_advance);
+    if (use_native_mri) {
+      MRISplitIntegrator<Vector<MultiFab> > lev_integrator(state_old);
+
+      // define rhs and 'post update' utility function that is called after calculating
+      // any state data (e.g. at RK stages or at the end of a timestep)
+      lev_integrator.set_rhs(rhs_fun);
+      lev_integrator.set_implicit_fast_rhs(implicit_fast_rhs_fun);
+      lev_integrator.set_fast_rhs(rhs_fun_fast);
+      lev_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
+      lev_integrator.set_post_update(post_update_fun);
+      lev_integrator.set_post_substep(post_substep_fun);
+
+      // **************************************************************************************
+      // Integrate for a single timestep
+      // **************************************************************************************
+      lev_integrator.advance(state_old, state_new, old_time, dt_advance);
+    } else {
+      TimeIntegrator<Vector<MultiFab> > lev_integrator(state_old);
+
+      // define rhs and 'post update' utility function that is called after calculating
+      // any state data (e.g. at RK stages or at the end of a timestep)
+      lev_integrator.set_rhs(rhs_fun);
+      lev_integrator.set_fast_rhs(rhs_fun_fast);
+      if (fixed_fast_dt > 0.0)
+        lev_integrator.set_fast_timestep(fixed_fast_dt);
+      else
+        lev_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
+      lev_integrator.set_post_update(post_update_fun);
+
+      // **************************************************************************************
+      // Integrate for a single timestep
+      // **************************************************************************************
+      lev_integrator.advance(state_old, state_new, old_time, dt_advance);
+    }
 
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after we have taken a timestep

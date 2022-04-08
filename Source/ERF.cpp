@@ -25,8 +25,11 @@ int ERF::ng_pres_hse = 1;
 // Time step control
 amrex::Real ERF::cfl         =  0.8;
 amrex::Real ERF::fixed_dt    = -1.0;
+amrex::Real ERF::fixed_fast_dt = -1.0;
 amrex::Real ERF::init_shrink =  1.0;
 amrex::Real ERF::change_max  =  1.1;
+int         ERF::fixed_mri_dt_ratio = 0;
+bool        ERF::use_lowM_dt = false;
 
 // Type of mesh refinement algorithm
 std::string ERF::coupling_type = "OneWay";
@@ -35,6 +38,9 @@ int         ERF::do_avg_down   = 0;
 
 // Dictate verbosity in screen output
 int         ERF::verbose       = 0;
+
+// Use the native ERF MRI integrator
+int         ERF::use_native_mri = 0;
 
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
@@ -114,6 +120,7 @@ ERF::ERF ()
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
     dt.resize(nlevs_max, 1.e100);
+    dt_mri_ratio.resize(nlevs_max, 1);
 
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
@@ -609,6 +616,9 @@ ERF::ReadParameters ()
         // Verbosity
         pp.query("v", verbose);
 
+        // Use the native ERF MRI integrator
+        pp.query("use_native_mri", use_native_mri);
+
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
         pp.query("sum_period"  , sum_per);
@@ -619,6 +629,9 @@ ERF::ReadParameters ()
         pp.query("change_max", change_max);
 
         pp.query("fixed_dt", fixed_dt);
+        pp.query("fixed_fast_dt", fixed_fast_dt);
+        pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
+        pp.query("use_lowM_dt", use_lowM_dt);
 
         AMREX_ASSERT(cfl > 0. || fixed_dt > 0.);
     }
