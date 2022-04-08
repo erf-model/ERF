@@ -71,6 +71,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_rhs.cpp
        ${SRC_DIR}/TimeIntegration/TimeIntegration_fast.cpp
+       ${SRC_DIR}/TimeIntegration/TimeIntegration_fast_implicit.cpp
        ${SRC_DIR}/WPS_Interface.cpp
   )
 
