@@ -253,9 +253,6 @@ void erf_fast_rhs (int level,
                     InterpolateFromCellOrFace(i, j, k, delta_rho_theta,             0, wadv, Coord::z, 2) /
                     InterpolateFromCellOrFace(i, j, k, cell_stage_data, RhoTheta_comp, wadv, Coord::z, 2) );
 
-                if (i == 30 and j == 1 and k <= 31) printf("FAST RHS %d %e %e %e %e \n ", k, cell_rhs(i,j,k,Rho_comp), cell_rhs(i,j,k,RhoTheta_comp),
-                                         rho_u_rhs(i,j,k), rho_w_rhs(i,j,k));
-
             } // not on coarse-fine boundary
         });
     }
