@@ -16,7 +16,10 @@ zlo.type = "NoSlipWall"
 zhi.type = "NoSlipWall"
 
 # TIME STEP CONTROL
-erf.cfl            = 0.5     # cfl number for hyperbolic system
+integration.type       = RungeKutta
+integration.rk.type    = 3
+erf.use_native_mri     = 0
+erf.cfl                = 0.5     # cfl number for hyperbolic system
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -59,5 +62,3 @@ prob.rho_0 = 1.0
 prob.T_0 = 300.0
 
 prob.prob_type = 11
-
-FILE = ./inputs.time_integration

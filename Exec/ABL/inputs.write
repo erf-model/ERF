@@ -72,4 +72,6 @@ erf.bndry_output_var_names = temperature velocity density
 erf.bndry_output_box_lo = 256. 256.
 erf.bndry_output_box_hi = 768. 768.
 
-FILE = ./inputs.time_integration
+erf.use_native_mri = 0
+
+FILE = ../inputs.time_integration
