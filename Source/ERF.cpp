@@ -23,11 +23,11 @@ int ERF::ng_dens_hse = 1;
 int ERF::ng_pres_hse = 1;
 
 // Time step control
-amrex::Real ERF::cfl         =  0.8;
-amrex::Real ERF::fixed_dt    = -1.0;
+amrex::Real ERF::cfl           =  0.8;
+amrex::Real ERF::fixed_dt      = -1.0;
 amrex::Real ERF::fixed_fast_dt = -1.0;
-amrex::Real ERF::init_shrink =  1.0;
-amrex::Real ERF::change_max  =  1.1;
+amrex::Real ERF::init_shrink   =  1.0;
+amrex::Real ERF::change_max    =  1.1;
 int         ERF::fixed_mri_dt_ratio = 0;
 bool        ERF::use_lowM_dt = false;
 
@@ -129,6 +129,12 @@ ERF::ERF ()
         vars_new[lev].resize(Vars::NumTypes);
         vars_old[lev].resize(Vars::NumTypes);
     }
+
+#ifdef ERF_USE_TERRAIN
+    z_phys_nd.resize(nlevs_max);
+    dens_hse.resize(nlevs_max);
+    pres_hse.resize(nlevs_max);
+#endif
 
     flux_registers.resize(nlevs_max);
 
@@ -496,6 +502,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
+#ifdef ERF_USE_TERRAIN
+    pres_hse[lev].define(ba,dm,1,1);
+    dens_hse[lev].define(ba,dm,1,1);
+
+    BoxArray ba_nd(ba);
+    ba_nd.surroundingNodes();
+    z_phys_nd[lev].define(ba_nd,dm,1,0);
+#endif
+
     // Read enough of the boundary plane data to make it through the FillPatch at this time
     if (input_bndry_planes)
     {
@@ -534,6 +549,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
           erf_init_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
         }
+#ifdef ERF_USE_TERRAIN
+        init_ideal_terrain(lev);
+#endif
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "real") {
         for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
@@ -544,7 +562,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
           FArrayBox& yvel_fab = lev_new[Vars::yvel][mfi];
           FArrayBox& zvel_fab = lev_new[Vars::zvel][mfi];
 
+#ifdef ERF_USE_TERRAIN
+          FArrayBox& z_phys_nd_fab = z_phys_nd[mfi];
+          init_from_netcdf(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab,
+                           z_phys_nd_fab);
+#else
           init_from_netcdf(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
+#endif
+
         }
 #endif
     }
@@ -858,6 +883,11 @@ ERF::read_from_netcdf()
     NC_rho_fab.resize(domain,1);
     NC_rhotheta_fab.resize(domain,1);
 
+#ifdef ERF_USE_TERRAIN
+    NC_PH_fab.resize(wbx,1);
+    NC_PHB_fab.resize(wbx,1);
+#endif
+
     if (ParallelDescriptor::IOProcessor())
     {
         Vector<FArrayBox*> NC_fabs;
@@ -868,6 +898,10 @@ ERF::read_from_netcdf()
         NC_fabs.push_back(&NC_zvel_fab)    ; NC_names.push_back("W");
         NC_fabs.push_back(&NC_rho_fab)     ; NC_names.push_back("ALB");
         NC_fabs.push_back(&NC_rhotheta_fab); NC_names.push_back("T_INIT");
+#ifdef ERF_USE_TERRAIN
+        NC_fabs.push_back(&NC_PH_fab); NC_names.push_back("PH");
+        NC_fabs.push_back(&NC_PHB_fab); NC_names.push_back("PHB");
+#endif
 
         // Read the netcdf file and fill these FABs
         BuildFABsFromIdealOutputFile(nc_init_file, NC_names, NC_fabs, NC_Data_Dims_Type::Time_BT_SN_WE);
@@ -941,6 +975,10 @@ ERF::read_from_netcdf()
     ParallelDescriptor::Bcast(NC_zvel_fab.dataPtr(),NC_zvel_fab.box().numPts(),ioproc);
     ParallelDescriptor::Bcast(NC_rho_fab.dataPtr(),NC_rho_fab.box().numPts(),ioproc);
     ParallelDescriptor::Bcast(NC_rhotheta_fab.dataPtr(),NC_rhotheta_fab.box().numPts(),ioproc);
+#ifdef ERF_USE_TERRAIN
+    ParallelDescriptor::Bcast(NC_PHB_fab.dataPtr(),NC_PHB_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(NC_PH_fab.dataPtr() ,NC_PH_fab.box().numPts() ,ioproc);
+#endif
 
 #if 0
     ParallelDescriptor::Bcast(NC_rho_inv_pert_fab.dataPtr(),NC_rho_inv_pert_fab.box().numPts(),ioproc);
@@ -949,14 +987,17 @@ ERF::read_from_netcdf()
     ParallelDescriptor::Bcast(NC_p_surf_fab.dataPtr(),NC_p_surf_fab.box().numPts(),ioproc);
     ParallelDescriptor::Bcast(NC_p_surf_fab.dataPtr(),NC_p_surf_fab.box().numPts(),ioproc);
     ParallelDescriptor::Bcast(NC_eta_fab.dataPtr(),NC_eta_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_phb_fab.dataPtr(),NC_phb_fab.box().numPts(),ioproc);
 #endif
     amrex::Print() << "Successfully loaded data from the 'ideal.exe' / 'real.exe' output NetCDF file" << std::endl << std::endl;
 }
 
 void
 ERF::init_from_netcdf(const amrex::Box& bx, FArrayBox& state,
-                      FArrayBox& x_vel, FArrayBox& y_vel, FArrayBox& z_vel)
+                      FArrayBox& x_vel, FArrayBox& y_vel, FArrayBox& z_vel
+#ifdef ERF_USE_TERRAIN
+                     ,FArrayBox& z_phys
+#endif
+                                       )
 {
     //
     // FArrayBox to FArrayBox copy does "copy on intersection"
@@ -980,11 +1021,16 @@ ERF::init_from_netcdf(const amrex::Box& bx, FArrayBox& state,
     // This copies (rho*theta)
     state.copy(NC_rhotheta_fab,0,RhoTheta_comp,1);
 
-    // Set the state data
+#ifdef ERF_USE_TERRAIN
+    // This copies from NC_zphys on z-faces to z_phys_nd on nodes
+    Array4<Real>    z_arr = z_phys.array();
+    Array4<Real> nc_phb_arr = NC_PHB.array();
+    Array4<Real> nc_ph_arr  = NC_PH.array();
+    const Box& bx(z_phys.box());
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        // Initial potential temperature (Actually rho*theta)
-//        state(i, j, k, RhoTheta_comp) = (theta_arr (i, j, k) + theta_ref) * rho_const;
-//      state(i, j, k, RhoTheta_comp) = (theta_arr (i, j, k) + theta_ref) / rho_inv_arr (i, j, k);
+        z_phys_arr(i, j, k) = 0.25 * ( nc_ph_arr(i,j,k) +  nc_ph_arr(i-1,j,k) +  nc_ph_arr(i,j-1,k) +  nc_ph_arr(i-1,j-1,k) +
+                                      nc_phb_arr(i,j,k) + nc_phb_arr(i-1,j,k) + nc_phb_arr(i,j-1,k) + nc_phb_arr(i-1,j-1,k) );
     });
+#endif
 }
 #endif

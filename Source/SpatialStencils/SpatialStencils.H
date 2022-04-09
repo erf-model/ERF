@@ -34,7 +34,11 @@ Real InterpolatePertFromCell(const int &i, const int &j, const int &k,
                            const Real& uadv,
                            const enum Coord& coordDir,
                            const int& spatial_order,
+#ifdef ERF_USE_TERRAIN
+                           const Array4<const Real>& r0_arr);
+#else
                            const amrex::Real* dptr_hse);
+#endif
 
 AMREX_GPU_DEVICE
 Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int &k,
@@ -42,7 +46,11 @@ Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int 
                                const Real& uadv,
                                const enum Coord& coordDir,
                                const int& spatial_order,
+#ifdef ERF_USE_TERRAIN
+                               const Array4<const Real>& r0_arr);
+#else
                                const amrex::Real* dptr_hse);
+#endif
 
 /** Meant for {x, y, z}- momentum equations */
 AMREX_GPU_DEVICE

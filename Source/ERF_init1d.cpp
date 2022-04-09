@@ -45,6 +45,29 @@ ERF::initRayleigh()
 void
 ERF::initHSE()
 {
+#ifdef ERF_USE_TERRAIN
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        pres_hse[lev].define(grids[lev],dmap[lev],1,0);
+        dens_hse[lev].define(grids[lev],dmap[lev],1,0);
+
+        for ( MFIter mfi(pres_hse[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            // Create a flat box with same horizontal extent but only one cell in vertical
+            const Box& tbz = mfi.nodaltilebox(2);
+            amrex::Box b2d = tbz; // Copy constructor
+            int klo = tbz.smallEnd(2);
+            int khi = tbz.bigEnd(2);
+            b2d.setRange(2,0);
+
+            Array4<Real> rho_arr = dens_hse[lev].array(mfi);
+            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rho_arr(i,j,k) = 1.0;
+            });
+        }
+        erf_enforce_hse(lev, dens_hse[lev], pres_hse[lev]);
+    }
+#else
     //
     // Setup Base State Arrays
     //
@@ -75,8 +98,52 @@ ERF::initHSE()
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_pres_hse[lev].begin(), h_pres_hse[lev].end(),
                      d_pres_hse[lev].begin());
     }
+#endif
 }
 
+#ifdef ERF_USE_TERRAIN
+void
+ERF::erf_enforce_hse(int lev,
+                     MultiFab& dens,
+                     MultiFab& pres)
+{
+    amrex::Real l_gravity = solverChoice.gravity;
+
+    const auto geomdata = geom[lev].data();
+    const Real dz = geomdata.CellSize(2);
+    int nz = geom[lev].Domain().length(2);
+
+    for ( MFIter mfi(dens, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        // Create a flat box with same horizontal extent but only one cell in vertical
+        const Box& tbz = mfi.nodaltilebox(2);
+        amrex::Box b2d = tbz; // Copy constructor
+        int klo = tbz.smallEnd(2);
+        int khi = tbz.bigEnd(2);
+        b2d.setRange(2,0);
+
+        // We integrate to the first cell (and below) by using rho in this cell
+        // If gravity == 0 this is constant pressure
+        // If gravity != 0, hence this is a wall, this gives gp0 = dens[0] * gravity
+        // (dens_hse*gravity would also be dens[0]*gravity because we use foextrap for rho at k = -1)
+        // Note ng_pres_hse = 1
+
+       // We start by assuming pressure on the ground is p_0 (in ERF_Constants.H)
+       // Note that gravity is positive
+
+        Array4<Real>  rho_arr = dens.array(mfi);
+        Array4<Real> pres_arr = pres.array(mfi);
+        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            pres_arr(i,j,-1) = p_0 + (0.5*dz) * rho_arr(i,j,0) * l_gravity;
+            pres_arr(i,j, 0) = p_0 - (0.5*dz) * rho_arr(i,j,0) * l_gravity;
+            for (int k = 1; k <= nz; k++) {
+                Real dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
+            }
+        });
+    }
+}
+#else
 void
 ERF::erf_enforce_hse(int lev,
                      amrex::Vector<amrex::Real>& dens,
@@ -114,3 +181,4 @@ ERF::erf_enforce_hse(int lev,
        hptr_pres[k] = hptr_pres[k-1] - dz * dens_interp * l_gravity;
     }
 }
+#endif

@@ -37,23 +37,17 @@ void erf_rhs(int level,
              const SolverChoice& solverChoice,
              const ABLMost& most,
              const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+#ifdef ERF_USE_TERRAIN
+             const MultiFab& r0,
+             const MultiFab& p0,
+#else
              const amrex::Real* dptr_dens_hse,
              const amrex::Real* dptr_pres_hse,
+#endif
              const amrex::Real* dptr_rayleigh_tau,
              const amrex::Real* dptr_rayleigh_ubar,
              const amrex::Real* dptr_rayleigh_vbar,
              const amrex::Real* dptr_rayleigh_thetabar);
-
-void erf_fast_rhs(int level,
-                  Vector<MultiFab >& S_rhs,
-                  Vector<MultiFab >& S_stage_data,
-                  const MultiFab& S_stage_prim,
-                  const Vector<MultiFab >& S_data,
-                  std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
-                  const amrex::Geometry geom,
-                        amrex::InterpFaceRegister* ifr,
-                  const SolverChoice& solverChoice,
-                  const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse);
 
 void erf_implicit_fast_rhs (int level,
                             Vector<MultiFab >& S_rhs,
@@ -66,6 +60,11 @@ void erf_implicit_fast_rhs (int level,
                             const amrex::Geometry geom,
                                   amrex::InterpFaceRegister* ifr,
                             const SolverChoice& solverChoice,
+#ifdef ERF_USE_TERRAIN
+                            const MultiFab& r0,
+                            const MultiFab& p0,
+#else
                             const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+#endif
                             const amrex::Real time, const amrex::Real fast_dt);
 #endif

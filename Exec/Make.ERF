@@ -38,6 +38,11 @@ AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/M
 
 include $(AMReXpack)
 
+#turn on NetCDF macro define
+ifeq ($(USE_TERRAIN), TRUE)
+  DEFINES += -DERF_USE_TERRAIN
+endif
+
 CEXE_sources += AMReX_buildInfo.cpp
 CEXE_headers += $(AMREX_HOME)/Tools/C_scripts/AMReX_buildInfo.H
 INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
@@ -63,7 +68,7 @@ endif
 #turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
-  NETCDF_DIR ?= $(NETCDF_HOME)
+  NETCDF_DIR = /home/almgren/bin/netcdf
   VPATH_LOCATIONS   += $(NETCDF_DIR)/bin
   INCLUDE_LOCATIONS += $(NETCDF_DIR)/include
   LIBRARY_LOCATIONS += $(NETCDF_DIR)/lib

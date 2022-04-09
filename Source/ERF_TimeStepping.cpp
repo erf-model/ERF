@@ -158,8 +158,13 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     FillPatch(lev, time, state_mf, 0, nvars, Vars::cons);
 
     // Pass the 1D arrays if relevant
+#ifdef ERF_USE_TERRAIN
+    MultiFab& r0 = dens_hse[lev];
+    MultiFab& p0 = pres_hse[lev];
+#else
     amrex::Real* dptr_dens_hse = d_dens_hse[lev].data() + ng_dens_hse;
     amrex::Real* dptr_pres_hse = d_pres_hse[lev].data() + ng_pres_hse;
+#endif
     amrex::Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[lev].data() : nullptr;
     amrex::Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[lev].data() : nullptr;
     amrex::Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[lev].data() : nullptr;
@@ -189,7 +194,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 source, flux,
                 Geom(lev), dt_lev, time,
                 &ifr,
+#ifdef ERF_USE_TERRAIN
+                r0, p0,
+#else
                 dptr_dens_hse, dptr_pres_hse,
+#endif
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
 
