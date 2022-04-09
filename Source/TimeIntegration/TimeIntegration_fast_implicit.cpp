@@ -21,7 +21,12 @@ void erf_implicit_fast_rhs (int level,
                    const amrex::Geometry geom,
                          amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
+#ifdef ERF_USE_TERRAIN
+                   const MultiFab& r0,
+                   const MultiFab& p0,
+#else
                    const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+#endif
                    const amrex::Real /*time*/, const amrex::Real dtau)
 {
     BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
@@ -154,6 +159,11 @@ void erf_implicit_fast_rhs (int level,
         const Array4<const Real>& cur_data = S_data[IntVar::cons].const_array(mfi);
         const Array4<const Real>& old_data = S_data_old[IntVar::cons].const_array(mfi);
 
+#ifdef ERF_USE_TERRAIN
+        const Array4<const Real>& r0_arr = r0.const_array(mfi);
+        const Array4<const Real>& p0_arr = p0.const_array(mfi);
+#endif
+
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
@@ -248,10 +258,17 @@ void erf_implicit_fast_rhs (int level,
             //Note we don't act on the bottom or top boundaries of the domain
             for (int k = klo+1; k < khi; ++k)
             {
+#ifdef ERF_USE_TERRAIN
+                Real rhobar_lo = r0_arr(i,j,k-1);
+                Real rhobar_hi = r0_arr(i,j,k  );
+                Real  pibar_lo = getExnergivenRTh(p0_arr(i,j,k-1));
+                Real  pibar_hi = getExnergivenRTh(p0_arr(i,j,k  ));
+#else
                 Real rhobar_lo = dptr_dens_hse[k-1];
                 Real rhobar_hi = dptr_dens_hse[k];
                 Real  pibar_lo = getExnergivenRTh(dptr_pres_hse[k-1]);
                 Real  pibar_hi = getExnergivenRTh(dptr_pres_hse[k  ]);
+#endif
 
                 // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
                 // We set grav_gpu[2] to be the vector component which is negative

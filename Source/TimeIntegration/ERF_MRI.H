@@ -17,7 +17,6 @@ private:
 
     std::function<void (T&, amrex::Real)> post_substep;
     std::function<void(T&, T&, T&, const T&, const T&, const amrex::Real, const amrex::Real)> implicit_fast_rhs;
-    bool use_implicit_fast_rhs;
 
     amrex::Vector<std::unique_ptr<T> > T_store;
     T* S_sum;
@@ -39,9 +38,9 @@ private:
     }
 
 public:
-    MRISplitIntegrator () : use_implicit_fast_rhs(false) {}
+    MRISplitIntegrator () {}
 
-    MRISplitIntegrator (const T& S_data) : use_implicit_fast_rhs(false)
+    MRISplitIntegrator (const T& S_data)
     {
         initialize_data(S_data);
     }
@@ -66,7 +65,6 @@ public:
     void set_implicit_fast_rhs (std::function<void(T&, T&, T&, const T&, const T&, const amrex::Real, const amrex::Real)> F)
     {
         implicit_fast_rhs = F;
-        use_implicit_fast_rhs = true;
     }
 
     std::function<void(T&, T&, T&, const T&, const amrex::Real, const amrex::Real)> get_implicit_fast_rhs ()
@@ -129,12 +127,8 @@ public:
             for (int k = 0; k < nsubsteps; ++k)
             {
                 // Evaluate F_pert(S_pert, S_old)
-                if (use_implicit_fast_rhs) {
-                    // S_sum is used in the fast RHS to internally define S_pert = (S_sum - S_stage)
-                    implicit_fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_sum_old, time + k*dtau, dtau);
-                } else {
-                    BaseT::fast_rhs(*F_pert, S_old, *S_sum, time + k*dtau);
-                }
+                // S_sum is used in the fast RHS to internally define S_pert = (S_sum - S_stage)
+                implicit_fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_sum_old, time + k*dtau, dtau);
 
                 // Update S_sum = S_pert + S_stage
                 IntegratorOps<T>::Saxpy(*S_sum, dtau, *F_slow);

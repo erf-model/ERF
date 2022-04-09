@@ -20,8 +20,12 @@ void ERF::erf_advance(int level,
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt_advance, const amrex::Real old_time,
                       amrex::InterpFaceRegister* ifr,
+#ifdef ERF_USE_TERRAIN
+                      MultiFab& r0, MultiFab& p0,
+#else
                       const amrex::Real* dptr_dens_hse,
                       const amrex::Real* dptr_pres_hse,
+#endif
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
@@ -194,20 +198,13 @@ void ERF::erf_advance(int level,
                 source, advflux, diffflux,
                 fine_geom, ifr, solverChoice,
                 get_most(), domain_bcs_type_d,
+#ifdef ERF_USE_TERRAIN
+                r0, p0,
+#else
                 dptr_dens_hse, dptr_pres_hse,
+#endif
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
-    };
-
-    auto rhs_fun_fast = [&](      Vector<MultiFab>& S_rhs,
-                                  Vector<MultiFab>& S_stage_data,
-                                  const Vector<MultiFab>& S_data,
-                                  const Real time)
-    {
-        if (verbose) Print() << "FAST RHS, time = " << time << std::endl;
-        erf_fast_rhs(level, S_rhs, S_stage_data, S_prim, S_data,
-                     advflux, fine_geom, ifr, solverChoice,
-                     dptr_dens_hse, dptr_pres_hse);
     };
 
     auto implicit_fast_rhs_fun = [&](      Vector<MultiFab>& S_rhs,
@@ -220,7 +217,12 @@ void ERF::erf_advance(int level,
         if (verbose) Print() << "IMPLICIT FAST RHS, time = " << time << std::endl;
         erf_implicit_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
                               S_data, S_data_old, advflux, fine_geom, ifr, solverChoice,
-                              dptr_dens_hse, dptr_pres_hse, time, fast_dt);
+#ifdef ERF_USE_TERRAIN
+                              r0, p0,
+#else
+                              dptr_dens_hse, dptr_pres_hse,
+#endif
+                              time, fast_dt);
     };
 
     auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp)
@@ -244,7 +246,7 @@ void ERF::erf_advance(int level,
       // any state data (e.g. at RK stages or at the end of a timestep)
       lev_integrator.set_rhs(rhs_fun);
       lev_integrator.set_implicit_fast_rhs(implicit_fast_rhs_fun);
-      lev_integrator.set_fast_rhs(rhs_fun_fast);
+      //lev_integrator.set_fast_rhs(rhs_fun_fast);
       lev_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
       lev_integrator.set_post_update(post_update_fun);
       lev_integrator.set_post_substep(post_substep_fun);
@@ -259,7 +261,7 @@ void ERF::erf_advance(int level,
       // define rhs and 'post update' utility function that is called after calculating
       // any state data (e.g. at RK stages or at the end of a timestep)
       lev_integrator.set_rhs(rhs_fun);
-      lev_integrator.set_fast_rhs(rhs_fun_fast);
+      //lev_integrator.set_fast_rhs(rhs_fun_fast);
       if (fixed_fast_dt > 0.0)
         lev_integrator.set_fast_timestep(fixed_fast_dt);
       else

@@ -26,7 +26,12 @@ void erf_rhs (int level,
               const SolverChoice& solverChoice,
               const ABLMost& most,
               const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+#ifdef ERF_USE_TERRAIN
+              const MultiFab& r0,
+              const MultiFab& p0,
+#else
               const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+#endif
               const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
               const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
 {
@@ -147,6 +152,11 @@ void erf_rhs (int level,
 
         const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 
+#ifdef ERF_USE_TERRAIN
+        const Array4<const Real>& r0_arr = r0.const_array(mfi);
+        const Array4<const Real>& p0_arr = p0.const_array(mfi);
+#endif
+
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
@@ -263,9 +273,15 @@ void erf_rhs (int level,
                                                               domain, bc_ptr);
 
             // Add pressure gradient
+#ifdef ERF_USE_TERRAIN
+            rho_u_rhs(i, j, k) += (-dxInv[0]) *
+                (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),p0_arr(i,j,k)) -
+                 getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),p0_arr(i,j,k)));
+#else
             rho_u_rhs(i, j, k) += (-dxInv[0]) *
                 (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),dptr_pres_hse[k]) -
                  getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),dptr_pres_hse[k]));
+#endif
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -317,9 +333,15 @@ void erf_rhs (int level,
                                                               domain, bc_ptr);
 
             // Add pressure gradient
+#ifdef ERF_USE_TERRAIN
+            rho_v_rhs(i, j, k) += (-dxInv[1]) *
+                (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),p0_arr(i,j,k)) -
+                 getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),p0_arr(i,j,k)));
+#else
             rho_v_rhs(i, j, k) += (-dxInv[1]) *
                 (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),dptr_pres_hse[k]) -
                  getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),dptr_pres_hse[k]));
+#endif
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -369,8 +391,13 @@ void erf_rhs (int level,
                                                               domain, bc_ptr);
 
             // Add pressure gradient
+#ifdef ERF_USE_TERRAIN
+            amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),p0_arr(i,j,k));
+            amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1));
+#else
             amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),dptr_pres_hse[k  ]);
             amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),dptr_pres_hse[k-1]);
+#endif
             rho_w_rhs(i, j, k) += (-dxInv[2]) * (p_prime_hi - p_prime_lo);
 
             // Add gravity term
@@ -378,8 +405,13 @@ void erf_rhs (int level,
             {
                 int local_spatial_order = 2;
                 rho_w_rhs(i, j, k) += grav_gpu[2] *
+#ifdef ERF_USE_TERRAIN
+                     InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
+                                                          Coord::z, local_spatial_order, p0_arr);
+#else
                      InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
                                                           Coord::z, local_spatial_order, dptr_dens_hse);
+#endif
             }
 
             // Add driving pressure gradient

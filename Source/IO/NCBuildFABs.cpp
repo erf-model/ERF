@@ -82,7 +82,6 @@ BuildFABsFromIdealOutputFile(const std::string &fname,
 
         for (int i = 0; i < nc_var_names.size(); i++)
         {
-
             // Build the box first using the shape information
             amrex::IntVect smallEnd{0, 0, 0};
             amrex::IntVect bigEnd{0, 0, 0};

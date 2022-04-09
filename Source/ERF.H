@@ -141,8 +141,12 @@ public:
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
+#ifdef ERF_USE_TERRAIN
+                      MultiFab& r0, MultiFab& p0,
+#else
                       const amrex::Real* dptr_dens_hse,
                       const amrex::Real* dptr_pres_hse,
+#endif
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
@@ -207,9 +211,15 @@ private:
 
     //! Initialize HSE
     void initHSE();
+#ifdef ERF_USE_TERRAIN
+    void erf_enforce_hse(int lev,
+                         amrex::MultiFab& dens,
+                         amrex::MultiFab& pres);
+#else
     void erf_enforce_hse(int lev,
                          amrex::Vector<amrex::Real>& dens,
                          amrex::Vector<amrex::Real>& pres);
+#endif
 
     //! Initialize Rayleigh damping profiles
     void initRayleigh();
@@ -265,12 +275,25 @@ private:
     // Copy from the NC*fabs into the MultiFabs holding the initial data
     void init_from_netcdf(const amrex::Box& bx,    amrex::FArrayBox& state,
                           amrex::FArrayBox& x_vel, amrex::FArrayBox& y_vel,
-                          amrex::FArrayBox& z_vel);
+                          amrex::FArrayBox& z_vel
+#ifdef ERF_USE_TERRAIN
+                     ,FArrayBox& z_phys
+#endif
+                                       );
 
     // FArrayBoxs for holding the data read from the NetCDF file
     amrex::FArrayBox NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
     amrex::FArrayBox NC_rho_fab, NC_rhotheta_fab;
     amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab, NC_p_surf_fab, NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
+#ifdef ERF_USE_TERRAIN
+    amrex::FArrayBox NC_PH_fab;
+    amrex::FArrayBox NC_PHB_fab;
+#endif
+#endif
+
+#ifdef ERF_USE_TERRAIN
+    // Define p_phys on nodes using an analytical expression
+    void init_ideal_terrain(int lev);
 #endif
 
     // write checkpoint file to disk
@@ -315,6 +338,18 @@ private:
     // after advancing a level we use "swap".
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+
+#ifdef ERF_USE_TERRAIN
+    amrex::Vector<amrex::MultiFab> z_phys_nd;
+    amrex::Vector<amrex::MultiFab> pres_hse;
+    amrex::Vector<amrex::MultiFab> dens_hse;
+#else
+    // Base state quantities: density and pressure, 1 array per AMR level
+    amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
+#endif
 
     // array of flux registers
     amrex::Vector<amrex::FluxRegister*> flux_registers;
@@ -423,12 +458,6 @@ private:
 
     // 2D BndryRegister input
     static int          input_bndry_planes;
-
-    // Base state quantities: density and pressure, 1 array per AMR level
-    amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
 
     static int ng_dens_hse;
     static int ng_pres_hse;
