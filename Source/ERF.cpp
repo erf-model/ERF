@@ -40,7 +40,7 @@ int         ERF::do_avg_down   = 0;
 int         ERF::verbose       = 0;
 
 // Use the native ERF MRI integrator
-int         ERF::use_native_mri = 0;
+int         ERF::use_native_mri = 1;
 
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
