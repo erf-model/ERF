@@ -192,7 +192,7 @@ void ERF::erf_advance(int level,
     //Create function lambdas
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
                        const Vector<MultiFab>& S_data, const Real time) {
-        if (verbose) Print() << "SLOW RHS, time = " << time << std::endl;
+        if (verbose) Print() << "Calling slow rhs, time = " << time << std::endl;
         erf_rhs(level, S_rhs, S_data, S_prim,
                 xvel_new, yvel_new, zvel_new,
                 source, advflux, diffflux,
@@ -214,7 +214,7 @@ void ERF::erf_advance(int level,
                                      const Vector<MultiFab>& S_data_old,
                                      const Real time, const Real fast_dt)
     {
-        if (verbose) Print() << "IMPLICIT FAST RHS, time = " << time << std::endl;
+        if (verbose) Print() << "Calling fast rhs, time = " << time << std::endl;
         erf_implicit_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
                               S_data, S_data_old, advflux, fine_geom, ifr, solverChoice,
 #ifdef ERF_USE_TERRAIN
@@ -246,7 +246,6 @@ void ERF::erf_advance(int level,
       // any state data (e.g. at RK stages or at the end of a timestep)
       lev_integrator.set_rhs(rhs_fun);
       lev_integrator.set_implicit_fast_rhs(implicit_fast_rhs_fun);
-      //lev_integrator.set_fast_rhs(rhs_fun_fast);
       lev_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
       lev_integrator.set_post_update(post_update_fun);
       lev_integrator.set_post_substep(post_substep_fun);
@@ -261,7 +260,6 @@ void ERF::erf_advance(int level,
       // define rhs and 'post update' utility function that is called after calculating
       // any state data (e.g. at RK stages or at the end of a timestep)
       lev_integrator.set_rhs(rhs_fun);
-      //lev_integrator.set_fast_rhs(rhs_fun_fast);
       if (fixed_fast_dt > 0.0)
         lev_integrator.set_fast_timestep(fixed_fast_dt);
       else

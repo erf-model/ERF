@@ -15,8 +15,9 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-#erf.cfl            = 0.9     # cfl number for hyperbolic system
-erf.fixed_dt       = 0.001
+erf.use_native_mri     = 1
+erf.fixed_dt           = 0.004
+erf.fixed_mri_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -55,5 +56,3 @@ prob.M_inf = 0.0  # freestream Mach number [-]
 prob.alpha = 0.0  # inflow angle, 0 --> x-aligned [rad]
 prob.gamma = 1.4  # specific heat ratio [-]
 prob.beta = 0.05  # non-dimensional max perturbation strength [-]
-
-FILE = ./inputs.time_integration

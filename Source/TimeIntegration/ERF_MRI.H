@@ -110,7 +110,7 @@ public:
 
         for (int nrk = 0; nrk < 3; nrk++)
         {
-            amrex::Print() << "Starting RK3: Step " << nrk+1 << std::endl;
+            // amrex::Print() << "Starting RK3: Step " << nrk+1 << std::endl;
             if (nrk == 0) { nsubsteps = 1;               dtau = BaseT::timestep / 3.0_rt; }
             if (nrk == 1) { nsubsteps = substep_ratio/2; dtau = sub_timestep;}
             if (nrk == 2) { nsubsteps = substep_ratio;   dtau = sub_timestep;}

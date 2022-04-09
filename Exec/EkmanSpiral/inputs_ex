@@ -16,7 +16,10 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 0.5     # fixed time step
+integration.type       = RungeKutta
+integration.rk.type    = 3
+erf.use_native_mri     = 0
+erf.fixed_dt           = 0.5     # fixed time step
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -55,5 +58,3 @@ erf.rotational_time_period = 86164.0900027328
 # PROBLEM PARAMETERS (optional)
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
-
-FILE = ./inputs.time_integration

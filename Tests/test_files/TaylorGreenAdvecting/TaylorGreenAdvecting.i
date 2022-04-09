@@ -11,7 +11,9 @@ geometry.prob_extent = 6.283185307179586476925    6.283185307179586476925    6.2
 amr.n_cell           = 16     16     16
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 1e-2    # fixed time step
+erf.use_native_mri     = 1
+erf.fixed_dt           = 0.16    # fixed time step
+erf.mri_fixed_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -47,29 +49,3 @@ erf.spatial_order = 2
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
 prob.V_0 = 1.0
-
-# INTEGRATION
-## integration.type can take on the following values:
-## 0 = Forward Euler
-## 1 = Explicit Runge Kutta
-integration.type = 1
-
-## Explicit Runge-Kutta parameters
-#
-## integration.rk.type can take the following values:
-### 0 = User-specified Butcher Tableau
-### 1 = Forward Euler
-### 2 = Trapezoid Method
-### 3 = SSPRK3 Method
-### 4 = RK4 Method
-integration.rk.type = 3
-
-## If using a user-specified Butcher Tableau, then
-## set nodes, weights, and table entries here:
-#
-## The Butcher Tableau is read as a flattened,
-## lower triangular matrix (but including the diagonal)
-## in row major format.
-integration.rk.weights = 1
-integration.rk.nodes = 0
-integration.rk.tableau = 0.0
