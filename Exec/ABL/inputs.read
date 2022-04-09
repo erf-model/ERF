@@ -74,4 +74,6 @@ erf.input_bndry_planes = 1
 erf.bndry_file = "BndryFiles"
 erf.bndry_input_var_names = density temperature velocity 
 
-FILE = ./inputs.time_integration
+erf.use_native_mri = 0
+
+FILE = ../inputs.time_integration
