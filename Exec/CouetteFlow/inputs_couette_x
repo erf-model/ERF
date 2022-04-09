@@ -18,8 +18,9 @@ zlo.velocity    = 0.0 0.0 0.0  # for Dirichlet BC
 zhi.velocity    = 2.0 0.0 0.0  # for Dirichlet BC
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 0.1     # fixed time step
-#erf.cfl            = 0.9    # cfl number for hyperbolic system
+erf.use_native_mri  = 1
+erf.use_lowM_dt     = 1
+erf.cfl             = 0.9
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -58,5 +59,3 @@ prob.T_0 = 300.0
 prob.u_0 = 2.0
 prob.v_0 = 0.0
 prob.w_0 = 0.0
-
-FILE = ./inputs.time_integration

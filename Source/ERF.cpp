@@ -658,6 +658,18 @@ ERF::ReadParameters ()
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
         pp.query("use_lowM_dt", use_lowM_dt);
 
+        if (fixed_dt > 0. && fixed_fast_dt > 0.) {
+            if (fixed_mri_dt_ratio > 0 &&
+               fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
+            {
+                amrex::Abort("Dt is over-specfied");
+            } else {
+                fixed_mri_dt_ratio = fixed_dt / fixed_fast_dt;
+                if (fixed_mri_dt_ratio%2 != 0) 
+                    fixed_mri_dt_ratio += 1; // This ratio must be even
+            }
+        }
+
         AMREX_ASSERT(cfl > 0. || fixed_dt > 0.);
     }
 

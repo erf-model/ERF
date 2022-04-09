@@ -13,11 +13,12 @@ amr.n_cell           =    64      64     64   # TODO: Enhance the resolution in 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, SimSlipWall, Symmetry, SlipWall, NoSlipWall
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-erf.lo_bc       = "Interior"   "Interior"   "NoSlipWall"
-erf.hi_bc       = "Interior"   "Interior"   "SlipWall"
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 2.0e-2  # fixed time step depending on grid resolution
+erf.use_native_mri     = 1
+erf.fixed_dt           = 0.1  # fixed time step depending on grid resolution
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -62,29 +63,3 @@ prob.W_0 = 0.0
 prob.U_0_Pert_Mag = 0.08
 prob.V_0_Pert_Mag = 0.08 #
 prob.W_0_Pert_Mag = 0.0
-
-# INTEGRATION
-## integration.type can take on the following values:
-## 0 = Forward Euler
-## 1 = Explicit Runge Kutta
-integration.type = 1
-
-## Explicit Runge-Kutta parameters
-#
-## integration.rk.type can take the following values:
-### 0 = User-specified Butcher Tableau
-### 1 = Forward Euler
-### 2 = Trapezoid Method
-### 3 = SSPRK3 Method
-### 4 = RK4 Method
-integration.rk.type = 3
-
-## If using a user-specified Butcher Tableau, then
-## set nodes, weights, and table entries here:
-#
-## The Butcher Tableau is read as a flattened,
-## lower triangular matrix (but including the diagonal)
-## in row major format.
-integration.rk.weights = 1
-integration.rk.nodes = 0
-integration.rk.tableau = 0.0

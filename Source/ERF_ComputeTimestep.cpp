@@ -114,12 +114,28 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
             amrex::Print() << "Slow  dt at level " << level << " would be undefined " << std::endl;
         }
         amrex::Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt << std::endl;
+        if (fixed_fast_dt > 0.0) {
+            amrex::Print() << "Fixed fast dt at level " << level << "       is:  " << fixed_fast_dt << std::endl;
+        }
     }
   }
 
-  dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
+  if (fixed_dt > 0. && fixed_fast_dt > 0.) {
+      dt_fast_ratio = static_cast<long>( fixed_dt / fixed_fast_dt );
+  } else if (fixed_dt > 0.) {
+      dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt/estdt_comp)) );
+  } else {
+      dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
+  }
+
   if (verbose) {
-      amrex::Print() << "ratio is: " << dt_fast_ratio << std::endl;
+      if ( dt_fast_ratio%2 == 0) { // if already even
+          amrex::Print() << "ratio is: " << dt_fast_ratio << std::endl;
+      } else {
+          amrex::Print() << "smallest ratio is: " << dt_fast_ratio << std::endl;
+          dt_fast_ratio += 1;
+          amrex::Print() << "but smallest even ratio is: " << dt_fast_ratio << std::endl;
+      }
   }
 
   if (fixed_dt > 0.0) {

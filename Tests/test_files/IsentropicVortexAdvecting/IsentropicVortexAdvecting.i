@@ -16,7 +16,10 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt        = 0.0005
+integration.type       = RungeKutta
+integration.rk.type    = 3
+erf.use_native_mri     = 0
+erf.fixed_dt           = 0.0005
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
@@ -57,29 +60,3 @@ prob.beta  = 1.1088514254079065 # non-dimensional max perturbation strength [-]
 prob.R     = 1.0  # characteristic length scale for grid [m]
 prob.sigma = 1.0  # Gaussian standard deviation [-]
 #prob.init_periodic = true # initialize a 3x3 array of vortices (8 vortices off-grid)
-
-# INTEGRATION
-## integration.type can take on the following values:
-## 0 = Forward Euler
-## 1 = Explicit Runge Kutta
-integration.type = 1
-
-## Explicit Runge-Kutta parameters
-#
-## integration.rk.type can take the following values:
-### 0 = User-specified Butcher Tableau
-### 1 = Forward Euler
-### 2 = Trapezoid Method
-### 3 = SSPRK3 Method
-### 4 = RK4 Method
-integration.rk.type = 3
-
-## If using a user-specified Butcher Tableau, then
-## set nodes, weights, and table entries here:
-#
-## The Butcher Tableau is read as a flattened,
-## lower triangular matrix (but including the diagonal)
-## in row major format.
-integration.rk.weights = 1
-integration.rk.nodes = 0
-integration.rk.tableau = 0.0

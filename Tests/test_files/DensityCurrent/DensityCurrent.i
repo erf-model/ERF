@@ -20,7 +20,9 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 1.5625e-2  # fixed time step [s] -- Straka et al 1993
+erf.use_native_mri = 1
+erf.fixed_dt       = 1.0      # fixed time step [s] -- Straka et al 1993
+erf.fixed_fast_dt  = 0.25     # fixed time step [s] -- Straka et al 1993
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -60,40 +62,3 @@ prob.U_0 = 0.0
 # SETTING THE TIME STEP
 erf.change_max     = 1.05    # multiplier by which dt can change in one time step
 erf.init_shrink    = 1.0     # scale back initial timestep
-
-# INTEGRATION
-## integration.type can take on the following values:
-## 0 = Forward Euler
-## 1 = Explicit Runge Kutta
-integration.type = 1
-
-## Explicit Runge-Kutta parameters
-#
-## integration.rk.type can take the following values:
-### 0 = User-specified Butcher Tableau
-### 1 = Forward Euler
-### 2 = Trapezoid Method
-### 3 = SSPRK3 Method
-### 4 = RK4 Method
-integration.rk.type = 3
-
-## If using a user-specified Butcher Tableau, then
-## set nodes, weights, and table entries here:
-#
-## The Butcher Tableau is read as a flattened,
-## lower triangular matrix (but including the diagonal)
-## in row major format.
-integration.rk.weights = 1
-integration.rk.nodes = 0
-integration.rk.tableau = 0.0
-
-## If using the SUNDIALS Submodule, then
-## compile with USE_SUNDIALS=TRUE or AMReX_SUNDIALS=ON and
-## set strategy here:
-#
-## integration.sundials.strategy can take the following values:
-### NATIVE  = Runge Kutta method controlled by integration.rk
-### ERK     = ERKStep from ARKode with SSPRK3 Method
-### MRI     = MRIStep from ARKode with Explict Trapezoid Method
-### MRITEST = MRIStep from ARKode modified to use no-op inner f0
-integration.sundials.strategy = NATIVE

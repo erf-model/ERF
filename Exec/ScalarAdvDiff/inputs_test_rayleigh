@@ -15,6 +15,8 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
+erf.use_native_mri = 1
+erf.use_lowM_dt    = 1
 erf.cfl            = 0.9     # cfl number for hyperbolic system
 
 # DIAGNOSTICS & VERBOSITY
@@ -60,5 +62,3 @@ prob.rad_0 = 0.25
 prob.z0    = 0.1
 prob.zRef  = 80.0
 prob.uRef  = 8.0
-
-FILE = ./inputs.time_integration

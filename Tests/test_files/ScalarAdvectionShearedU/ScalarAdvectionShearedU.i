@@ -15,9 +15,9 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.cfl            = 0.9     # cfl number for hyperbolic system
-erf.init_shrink    = 1.0     # scale back initial timestep
-erf.change_max     = 1.05    # scale back initial timestep
+erf.use_native_mri = 1
+erf.use_lowM_dt    = 1
+erf.cfl            = 0.9
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -61,29 +61,3 @@ prob.zRef  = 80.0
 prob.uRef  = 8.0
 
 prob.prob_type = 12
-
-# INTEGRATION
-## integration.type can take on the following values:
-## 0 = Forward Euler
-## 1 = Explicit Runge Kutta
-integration.type = 1
-
-## Explicit Runge-Kutta parameters
-#
-## integration.rk.type can take the following values:
-### 0 = User-specified Butcher Tableau
-### 1 = Forward Euler
-### 2 = Trapezoid Method
-### 3 = SSPRK3 Method
-### 4 = RK4 Method
-integration.rk.type = 3
-
-## If using a user-specified Butcher Tableau, then
-## set nodes, weights, and table entries here:
-#
-## The Butcher Tableau is read as a flattened,
-## lower triangular matrix (but including the diagonal)
-## in row major format.
-integration.rk.weights = 1
-integration.rk.nodes = 0
-integration.rk.tableau = 0.0
