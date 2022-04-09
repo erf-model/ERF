@@ -665,7 +665,7 @@ ERF::ReadParameters ()
                 amrex::Abort("Dt is over-specfied");
             } else {
                 fixed_mri_dt_ratio = fixed_dt / fixed_fast_dt;
-                if (fixed_mri_dt_ratio%2 != 0) 
+                if (fixed_mri_dt_ratio%2 != 0)
                     fixed_mri_dt_ratio += 1; // This ratio must be even
             }
         }
