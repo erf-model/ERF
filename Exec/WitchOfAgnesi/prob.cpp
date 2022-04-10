@@ -1,41 +1,142 @@
 #include "prob.H"
 #include "prob_common.H"
 
+#include "EOS.H"
 #include "AMReX_ParmParse.H"
-#include "ERF_Constants.H"
 #include "IndexDefines.H"
 
 ProbParm parms;
 
 void
-erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::Geometry const& geom,
-                  const int ng_dens_hse)
+init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
+                          amrex::Real* r,           amrex::Real* p,
+                    const amrex::Real& dz, const amrex::Real&  prob_lo_z,
+                    const int& khi)
 {
-  const int khi = geom.Domain().bigEnd()[2];
-  for (int k = -ng_dens_hse; k <= khi+ng_dens_hse; k++)
+  // r_sfc / p_0 are the density / pressure at the surface
+  r[0] = r_sfc;
+  p[0] = p_0 - (0.5*dz) * r[0] * CONST_GRAV;
+
+  int MAX_ITER = 10;
+  amrex::Real TOL = 1.e-8;
+
+  int k0 = 0;
   {
-      dens_hse_ptr[k] = parms.rho_0;
+      // We do a Newton iteration to satisfy the EOS (with constant theta) and to discretely satisfy HSE
+      bool converged_hse = false;
+
+      // Initial guess
+      r[k0] = r_sfc;
+      p[k0] = getPgivenRTh(r[k0]*theta);
+
+      amrex::Real p_eos = getPgivenRTh(r[k0]*theta);
+      amrex::Real p_hse;
+
+      for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
+      {
+          p_hse = p_0 -  (0.5*dz) * r_sfc * CONST_GRAV;
+          p_eos = getPgivenRTh(r[k0]*theta);
+
+          //amrex::Print() << "PHSE PEOS " << p_hse << " " << p_eos << std::endl;
+
+          amrex::Real A = p_hse - p_eos;
+
+          amrex::Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
+
+          amrex::Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
+
+          //amrex::Print() << "DRHO " << drho << std::endl;
+
+          r[k0] = std::max(0.9*r_sfc, std::min(r[k0] + drho, 1.1*r_sfc));
+          p[k0] = getPgivenRTh(r[k0]*theta);
+
+          //amrex::Print() << "NEW R P " << r[0] << " " << p[0] << std::endl;
+
+          if (std::abs(drho) < TOL * r_sfc)
+          {
+              converged_hse = true;
+              break;
+          }
+      }
+
+      if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
+      if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+
+      //amrex::Print() << " " << std::endl;
+      //amrex::Print() << "P AT SFC VS K=0 " << p_0 << " " << p[0] << std::endl;
+      //amrex::Print() << "DPDZ VS RHOG   " << k << " " << (p[0]-p_0)/(0.5*dz) << " " << r[0]*CONST_GRAV << std::endl;
+      //amrex::Print() << " " << std::endl;
+  }
+
+  // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
+  for (int k = 1; k <= khi; k++)
+  {
+      // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
+      // to discretely satisfy HSE -- here we assume spatial_order = 2 -- we can generalize this later if needed
+      bool converged_hse = false;
+
+      r[k] = r[k-1];
+
+      amrex::Real p_eos = getPgivenRTh(r[k]*theta);
+      amrex::Real p_hse;
+
+      for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
+      {
+          p_hse = p[k-1] -  dz * 0.5 * (r[k-1]+r[k]) * CONST_GRAV;
+          p_eos = getPgivenRTh(r[k]*theta);
+
+          amrex::Real A = p_hse - p_eos;
+
+          amrex::Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
+          // Gamma * p_0 * std::pow( (R_d * theta / p_0), Gamma) * std::pow(r[k], Gamma-1.0) ;
+
+          amrex::Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
+
+          r[k] = std::max(0.9*r[k-1], std::min(r[k] + drho, 1.1*r[k-1]));
+          p[k] = getPgivenRTh(r[k]*theta);
+
+          if (std::abs(drho) < TOL * r[k-1])
+          {
+              converged_hse = true;
+              //amrex::Print() << " converged " << std::endl;
+              break;
+          }
+      }
+
+      if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
+      if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+
+      //amrex::Print() << " " << std::endl;
+      //amrex::Print() << "P AT K vs K-1 " << p[k-1] << " " << p[k] << std::endl;
+      //amrex::Print() << "DPDZ VS RHOG " << (p[k]-p[k-1])/dz << " " << 0.5*(r[k]+r[k-1])*CONST_GRAV << std::endl;
+      //amrex::Print() << " " << std::endl;
   }
 }
 
 void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
-                  amrex::Vector<amrex::Real>& ubar,
-                  amrex::Vector<amrex::Real>& vbar,
-                  amrex::Vector<amrex::Real>& thetabar,
-                  amrex::Geometry      const& geom)
+erf_init_dens_hse(amrex::Real* dens_hse_ptr,
+                  amrex::Geometry const& geom,
+                  const int /*ng_dens_hse*/)
 {
-  const int khi = geom.Domain().bigEnd()[2];
+  const amrex::Real prob_lo_z = geom.ProbLo()[2];
+  const amrex::Real dz        = geom.CellSize()[2];
+  const int khi               = geom.Domain().bigEnd()[2];
 
-  // We just use these values to test the Rayleigh damping
+  const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
+  const amrex::Real& Thetabar = parms.T_0;
+
+  amrex::Vector<amrex::Real> r(khi+1);
+  amrex::Vector<amrex::Real> p(khi+1);
+
+  init_isentropic_hse(rho_sfc,Thetabar,r.data(),p.data(),dz,prob_lo_z,khi);
+
   for (int k = 0; k <= khi; k++)
   {
-      tau[k]  = 1.0;
-      ubar[k] = 2.0;
-      vbar[k] = 1.0;
-      thetabar[k] = parms.Theta_0;
+      dens_hse_ptr[k] = r[k];
   }
+
+  dens_hse_ptr[   -1] = dens_hse_ptr[  0];
+  dens_hse_ptr[khi+1] = dens_hse_ptr[khi];
 }
 
 void
@@ -47,81 +148,88 @@ erf_init_prob(
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata)
 {
-  amrex::Print() << "HERE DOING INIT " << bx << std::endl;
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    // Geometry
-    const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real* prob_hi = geomdata.ProbHi();
-    const amrex::Real* dx = geomdata.CellSize();
+  const int khi              = geomdata.Domain().bigEnd()[2];
+
+  AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
+
+  // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
+//const amrex::Real z0 = (0.5) * dx[2] + prob_lo[2];
+//const amrex::Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
+//const amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
+//const amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
+//const amrex::Real rhobar = pbar / (R_d*Tbar); // UNUSED
+
+  const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
+  const amrex::Real& thetabar  = parms.T_0;
+  const amrex::Real& dz        = geomdata.CellSize()[2];
+  const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
+
+  // These are at cell centers (unstaggered)
+  amrex::Vector<amrex::Real> h_r(khi+1);
+  amrex::Vector<amrex::Real> h_p(khi+1);
+
+  amrex::Gpu::DeviceVector<amrex::Real> d_r(khi+1);
+  amrex::Gpu::DeviceVector<amrex::Real> d_p(khi+1);
+
+  init_isentropic_hse(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
+
+  amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
+  amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
+
+  amrex::Real* r = d_r.data();
+  amrex::Real* p = d_p.data();
+
+  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  {
+    // Geometry (note we must include these here to get the data on device)
+    const auto prob_lo         = geomdata.ProbLo();
+    const auto dx              = geomdata.CellSize();
+
     const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
     const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-    // Define a point (xc,yc,zc) at the center of the domain
-    const amrex::Real xc = parms.xc_frac * (prob_lo[0] + prob_hi[0]);
-    const amrex::Real yc = parms.yc_frac * (prob_lo[1] + prob_hi[1]);
-    const amrex::Real zc = parms.zc_frac * (prob_lo[2] + prob_hi[2]);
+    // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
+    const amrex::Real Tbar_hse = p[k] / (R_d * r[k]);
 
-    const amrex::Real r3d    = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
-    const amrex::Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
-    const amrex::Real r2d_xz = std::sqrt((x-xc)*(x-xc) + (z-zc)*(z-zc));
-
-    const amrex::Real r0 = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
-
-    // Set the density
-    state(i, j, k, Rho_comp) = parms.rho_0;
-
-    // Initial potential temperature
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
-
-    if (parms.prob_type == 10)
-    {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0*sin(x);
-        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
-        //            + B_0*sin(x)
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0 * sin(x);
-
-    } else if (parms.prob_type == 11) {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, r0) / r0));
-    } else if (parms.prob_type == 12) {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
-    } else {
-        // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
-        if (r3d < r0) {
-           state(i, j, k, RhoScalar_comp) = parms.A_0;
-        } else {
-           state(i, j, k, RhoScalar_comp) = 0.0;
-        }
+    amrex::Real L = std::sqrt(
+        std::pow((x - parms.x_c)/parms.x_r, 2) +
+        std::pow((z - parms.z_c)/parms.z_r, 2)
+    );
+    amrex::Real dT;
+    if (L > 1.0) {
+        dT = 0.0;
+    }
+    else {
+        dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
     }
 
-    state(i, j, k, RhoScalar_comp) *= parms.rho_0;
-    //state(i, j, k, RhoQv_comp) = 0.0;
-    //state(i, j, k, RhoQc_comp) = 0.0;
+    // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
+    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
 
+    // This version perturbs p but not rho
+    //state(i, j, k, Rho_comp) = r[k];
+    //state(i, j, k, RhoTheta_comp) = state(i,j,k,Rho_comp) * theta_perturbed;
+
+    // This version perturbs rho but not p
+    state(i, j, k, RhoTheta_comp) = std::pow(p[k]/p_0,1.0/Gamma) * p_0 / R_d;
+    state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
+
+    // Set scalar = 0 everywhere
+    state(i, j, k, RhoScalar_comp) = 0.0;
   });
 
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    x_vel(i, j, k) = parms.u_0;
-
-    const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real*      dx = geomdata.CellSize();
-    const amrex::Real        z = prob_lo[2] + (k + 0.5) * dx[2];
-
-    // Set the x-velocity
-    x_vel(i, j, k) = parms.u_0 + parms.uRef *
-                     std::log((z + parms.z0)/parms.z0)/
-                     std::log((parms.zRef +parms.z0)/parms.z0);
+    x_vel(i, j, k) = parms.U_0;
   });
 
   // Construct a box that is on y-faces
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-
-    y_vel(i, j, k) = parms.v_0;
+  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    y_vel(i, j, k) = 0.0;
   });
 
   // Construct a box that is on z-faces
@@ -130,6 +238,18 @@ erf_init_prob(
   amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     z_vel(i, j, k) = 0.0;
   });
+
+  amrex::Gpu::streamSynchronize();
+}
+
+void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
+                  amrex::Vector<amrex::Real>& /*ubar*/,
+                  amrex::Vector<amrex::Real>& /*vbar*/,
+                  amrex::Vector<amrex::Real>& /*thetabar*/,
+                  amrex::Geometry      const& /*geom*/)
+{
+   amrex::Error("Should never get here for DensityCurrent problem");
 }
 
 void
@@ -137,22 +257,13 @@ amrex_probinit(
   const amrex_real* /*problo*/,
   const amrex_real* /*probhi*/)
 {
-    // Parse params
-    amrex::ParmParse pp("prob");
-    pp.query("rho_0", parms.rho_0);
-    pp.query("T_0", parms.Theta_0);
-    pp.query("A_0", parms.A_0);
-    pp.query("B_0", parms.B_0);
-    pp.query("u_0", parms.u_0);
-    pp.query("v_0", parms.v_0);
-    pp.query("rad_0", parms.rad_0);
-    pp.query("z0", parms.z0);
-    pp.query("zRef", parms.zRef);
-    pp.query("uRef", parms.uRef);
-
-    pp.query("xc_frac", parms.xc_frac);
-    pp.query("yc_frac", parms.yc_frac);
-    pp.query("zc_frac", parms.zc_frac);
-
-   pp.query("prob_type", parms.prob_type);
+  // Parse params
+  amrex::ParmParse pp("prob");
+  pp.query("T_0", parms.T_0);
+  pp.query("U_0", parms.U_0);
+  pp.query("x_c", parms.x_c);
+  pp.query("z_c", parms.z_c);
+  pp.query("x_r", parms.x_r);
+  pp.query("z_r", parms.z_r);
+  pp.query("T_pert", parms.T_pert);
 }

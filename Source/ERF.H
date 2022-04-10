@@ -292,8 +292,11 @@ private:
 #endif
 
 #ifdef ERF_USE_TERRAIN
-    // Define p_phys on nodes using an analytical expression
+    // Define z_phys_nd on nodes using an analytical expression
     void init_ideal_terrain(int lev);
+
+    // Define z_phys_cc and detJ_cc on cell centers by averaging z_phys_nd
+    void make_metrics(int lev);
 #endif
 
     // write checkpoint file to disk
@@ -341,6 +344,8 @@ private:
 
 #ifdef ERF_USE_TERRAIN
     amrex::Vector<amrex::MultiFab> z_phys_nd;
+    amrex::Vector<amrex::MultiFab> z_phys_cc;
+    amrex::Vector<amrex::MultiFab> detJ_cc;
     amrex::Vector<amrex::MultiFab> pres_hse;
     amrex::Vector<amrex::MultiFab> dens_hse;
 #else
@@ -416,7 +421,7 @@ private:
     const amrex::Vector<std::string> cons_names {"density", "rhotheta", "rhoKE", "rhoQKE",
                                                  "rhoadv_0", "rhoQv", "rhoQc"};
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE",
-                                                    "scalar","pres_hse", "dens_hse", "pert_pres", "pert_dens"};
+                                                    "scalar","pres_hse", "dens_hse", "pert_pres", "pert_dens", "z_phys"};
 
     // algorithm choices
     static SolverChoice solverChoice;

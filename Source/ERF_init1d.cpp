@@ -48,20 +48,24 @@ ERF::initHSE()
 #ifdef ERF_USE_TERRAIN
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        pres_hse[lev].define(grids[lev],dmap[lev],1,0);
-        dens_hse[lev].define(grids[lev],dmap[lev],1,0);
-
         for ( MFIter mfi(pres_hse[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
-            // Create a flat box with same horizontal extent but only one cell in vertical
-            const Box& tbz = mfi.nodaltilebox(2);
-            amrex::Box b2d = tbz; // Copy constructor
-            int klo = tbz.smallEnd(2);
-            int khi = tbz.bigEnd(2);
-            b2d.setRange(2,0);
-
             Array4<Real> rho_arr = dens_hse[lev].array(mfi);
-            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+            // Create a flat box with same horizontal extent but only one cell in vertical
+            //const Box& tbz = mfi.nodaltilebox(2);
+            //amrex::Box b2d = tbz; // Copy constructor
+            //int klo = tbz.smallEnd(2);
+            //int khi = tbz.bigEnd(2);
+            //b2d.setRange(2,0);
+            //ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            //  for (int k = 0; k <= nz; k++) {
+            //     rho_arr(i,j,k) = 1.0;
+            //  }
+            //});
+
+            const Box& bx = mfi.growntilebox(1);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 rho_arr(i,j,k) = 1.0;
             });
         }

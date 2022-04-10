@@ -132,6 +132,8 @@ ERF::ERF ()
 
 #ifdef ERF_USE_TERRAIN
     z_phys_nd.resize(nlevs_max);
+    z_phys_cc.resize(nlevs_max);
+    detJ_cc.resize(nlevs_max);
     dens_hse.resize(nlevs_max);
     pres_hse.resize(nlevs_max);
 #endif
@@ -505,6 +507,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #ifdef ERF_USE_TERRAIN
     pres_hse[lev].define(ba,dm,1,1);
     dens_hse[lev].define(ba,dm,1,1);
+    z_phys_cc[lev].define(ba,dm,1,0);
+    detJ_cc[lev].define(ba,dm,1,0);
 
     BoxArray ba_nd(ba);
     ba_nd.surroundingNodes();
@@ -551,6 +555,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         }
 #ifdef ERF_USE_TERRAIN
         init_ideal_terrain(lev);
+        make_metrics(lev);
 #endif
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "real") {
@@ -569,8 +574,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #else
           init_from_netcdf(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
 #endif
-
         }
+        make_metrics(lev);
 #endif
     }
 

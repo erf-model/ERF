@@ -15,7 +15,7 @@ void erf_derrhodivide(
   auto primitive  = derfab.array();
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real rho      = dat(i, j, k, Rho_comp);
+    const amrex::Real rho       = dat(i, j, k, Rho_comp);
     const amrex::Real conserved = dat(i, j, k, scalar_index);
     primitive(i,j,k) = conserved / rho;
   });
