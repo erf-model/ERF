@@ -1,6 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 200
-max_step = 0
 
 amrex.fpe_trap_invalid = 1
 
@@ -17,8 +16,8 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.use_native_mri = 1
-erf.use_lowM_dt = 1
-erf.cfl = 0.9
+erf.fixed_dt       = 5e-5
+erf.fixed_fast_dt  = 2.5e-5
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
