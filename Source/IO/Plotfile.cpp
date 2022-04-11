@@ -293,17 +293,7 @@ ERF::WritePlotFile () const
 #ifdef ERF_USE_TERRAIN
         if (containerHasElement(plot_deriv_names, "z_phys"))
         {
-            for ( amrex::MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat  = mf[lev].array(mfi);
-                const Array4<Real const>& z_arr = z_phys_nd[lev].const_array(mfi);
-                amrex::ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = .125 * (
-                     z_arr(i,j,k  ) + z_arr(i+1,j,k  ) + z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )
-                    +z_arr(i,j,k+1) + z_arr(i+1,j,k+1) + z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1) );
-                });
-            }
+            MultiFab::Copy(mf[lev],z_phys_cc[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
 #endif
