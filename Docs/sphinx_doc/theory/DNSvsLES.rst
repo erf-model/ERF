@@ -43,9 +43,9 @@ in that quantities are transported down their resolved gradients:
 
 .. math::
 
-   \overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} &= -frac{\mu_t}{Pr_t} \nabla \tilde{\theta}
+   \overline{\rho} {\widetilde{\mathbf{u} \theta}} - \overline{\rho}\mathbf{\tilde{u}}\tilde{\theta} &= -\frac{\mu_t}{Pr_t} \nabla \tilde{\theta}
 
-   \overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} &= -frac{\mu_t}{Sc_t} \nabla \tilde{C}
+   \overline{\rho} \widetilde{\mathbf{u} C} - \overline{\rho}\mathbf{\tilde{u}}\tilde{C} &= -\frac{\mu_t}{Sc_t} \nabla \tilde{C}
 
    \overline{\rho} \mathbf{\widetilde{u u}} - \overline{\rho}\mathbf{\tilde{u}\tilde{u}} &= -\tau^{sfs}
 
@@ -98,7 +98,7 @@ for TKE is solved.  The turbulent viscosity is computed as:
 
 .. math::
 
-   \mu_t = C_k \overline{\rho} \Delta (k^{sfs})^{1/2}.
+   \mu_t = C_k \overline{\rho} \Delta (e^{sfs})^{1/2}.
 
 Then the equation solved to determine :math:`e^{sfs}`, the subfilter contribution to TKE, is:
 
