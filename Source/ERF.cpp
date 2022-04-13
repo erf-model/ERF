@@ -575,7 +575,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
           init_from_netcdf(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
 #endif
         }
+#ifdef ERF_USE_TERRAIN
         make_metrics(lev);
+#endif
 #endif
     }
 

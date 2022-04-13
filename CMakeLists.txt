@@ -17,6 +17,8 @@ option(ERF_ENABLE_SUNDIALS "Enable SUNDIALS time integration" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
+option(ERF_ENABLE_TERRAIN "Enable Terrain" OFF)
+
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
 option(ERF_ENABLE_OPENMP "Enable OpenMP" OFF)

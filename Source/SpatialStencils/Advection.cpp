@@ -129,6 +129,101 @@ AdvectionContributionForZMom(const int &i, const int &j, const int &k,
     return advectionContribution;
 }
 
+#ifdef ERF_USE_TERRAIN
+AMREX_GPU_DEVICE
+Real
+AdvectionContributionForState(const int &i, const int &j, const int &k,
+                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
+                              const Array4<const Real>& cell_prim, const int &qty_index,
+                              const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
+                              const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
+                              const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                              const int &spatial_order) {
+
+    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
+
+    Real advectionContribution;
+    Real detJinv = 1.0 / detJ(i,j,k);
+
+    Real met_xhi = 0.5 * detJinv * dxInv *
+                         ( z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)    // hi i, hi k
+                          -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) ); // hi i, lo k
+    Real met_xlo = 0.5 * detJinv * dxInv *
+                         ( z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)    // lo i, hi k
+                          -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) ); // lo i, lo k
+
+    Real met_yhi = 0.5 * detJinv * dyInv *
+                         ( z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)    // hi j, hi k
+                          -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) ); // hi j, lo k
+    Real met_ylo = 0.5 * detJinv * dyInv *
+                         ( z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)    // lo j, hi k
+                          -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) ); // lo j, lo k
+
+    Real met_zhi_xi   = 0.5 * detJinv * dxInv *
+                              ( z_nd(i+1,j+1,k+1) + z_nd(i+1,j  ,k+1)    // hi i, hi k
+                               -z_nd(i  ,j+1,k+1) - z_nd(i  ,j  ,k+1) ); // lo i, hi k
+    Real met_zhi_eta  = 0.5 * detJinv * dxInv *
+                              ( z_nd(i+1,j+1,k+1) + z_nd(i  ,j+1,k+1)    // hi j, hi k
+                               -z_nd(i+1,j  ,k+1) - z_nd(i  ,j  ,k+1) ); // lo j, hi k
+    Real met_zlo_xi   = 0.5 * detJinv * dxInv *
+                              ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
+                               -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
+    Real met_zlo_eta  = 0.5 * detJinv * dxInv *
+                              ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
+                               -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
+
+    xflux(i+1,j,k,qty_index) = rho_u(i+1,j,k) * met_xhi;
+    xflux(i  ,j,k,qty_index) = rho_u(i  ,j,k) * met_xlo;
+    yflux(i,j+1,k,qty_index) = rho_v(i,j+1,k) * met_yhi;
+    yflux(i,j  ,k,qty_index) = rho_v(i,j  ,k) * met_ylo;
+
+    Real vec_zhi_xi   = 0.25 * ( rho_u(i,j,k+1) + rho_u(i+1,j,k+1) + rho_u(i,j,k) + rho_u(i+1,j,k));
+    Real vec_zhi_eta  = 0.25 * ( rho_v(i,j,k+1) + rho_v(i,j+1,k+1) + rho_v(i,j,k) + rho_v(i,j+1,k));
+
+    Real vec_zlo_xi   = 0.25 * ( rho_u(i,j,k-1) + rho_u(i+1,j,k-1) + rho_u(i,j,k) + rho_u(i+1,j,k));
+    Real vec_zlo_eta  = 0.25 * ( rho_v(i,j,k-1) + rho_v(i,j+1,k-1) + rho_v(i,j,k) + rho_v(i,j+1,k));
+
+    zflux(i,j,k+1,qty_index) = met_zhi_xi * vec_zhi_xi + met_zhi_eta * vec_zhi_eta + rho_w(i,j,k+1);
+    zflux(i,j,k  ,qty_index) = met_zlo_xi * vec_zlo_xi + met_zlo_eta * vec_zlo_eta + rho_w(i,j,k  );
+
+    if (qty_index != Rho_comp)
+    {
+        const int prim_index = qty_index - RhoTheta_comp;
+
+        // These are only used to construct the sign to be used in upwinding
+        Real uadv_hi = rho_u(i+1,j,k);
+        Real uadv_lo = rho_u(i  ,j,k);
+        Real vadv_hi = rho_v(i,j+1,k);
+        Real vadv_lo = rho_v(i,j  ,k);
+        Real wadv_hi = rho_w(i,j,k+1);
+        Real wadv_lo = rho_w(i,j,k  );
+
+        xflux(i+1,j,k,qty_index) *=
+            InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
+
+        xflux(i  ,j,k,qty_index) *=
+            InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
+
+        yflux(i,j+1,k,qty_index) *=
+            InterpolateFromCellOrFace(i, j+1, k, cell_prim, prim_index, vadv_hi, Coord::y, spatial_order);
+
+        yflux(i,j  ,k,qty_index) *=
+            InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, vadv_lo, Coord::y, spatial_order);
+
+        zflux(i,j,k+1,qty_index) *=
+            InterpolateFromCellOrFace(i, j, k+1, cell_prim, prim_index, wadv_hi, Coord::z, spatial_order);
+
+        zflux(i,j,k  ,qty_index) *=
+            InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
+    }
+
+    advectionContribution = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
+                          + (yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dyInv
+                          + (zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dzInv;
+
+    return advectionContribution;
+}
+#else
 AMREX_GPU_DEVICE
 Real
 AdvectionContributionForState(const int &i, const int &j, const int &k,
@@ -185,3 +280,4 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
 
     return advectionContribution;
 }
+#endif

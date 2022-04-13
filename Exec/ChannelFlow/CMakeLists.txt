@@ -5,6 +5,7 @@ target_sources(${erf_exe_name}
    PRIVATE
      prob.H
      prob.cpp
+     init_ideal_terrain.cpp
 )
 
 target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

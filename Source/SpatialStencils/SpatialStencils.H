@@ -79,6 +79,9 @@ Real AdvectionContributionForState(const int &i, const int &j, const int &k,
                                    const Array4<const Real>& cell_prim, const int &qty_index,
                                    const Array4<Real>& flux_x, const Array4<Real>& flux_y,
                                    const Array4<Real>& flux_z,
+#ifdef ERF_USE_TERRAIN
+                                   const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
+#endif
                                    const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                    const int& spatial_order);
 

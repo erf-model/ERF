@@ -27,6 +27,8 @@ void erf_rhs (int level,
               const ABLMost& most,
               const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
 #ifdef ERF_USE_TERRAIN
+              const MultiFab& z_phys_nd,
+              const MultiFab& detJ_cc,
               const MultiFab& r0,
               const MultiFab& p0,
 #else
@@ -150,6 +152,12 @@ void erf_rhs (int level,
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
+#ifdef ERF_USE_TERRAIN
+        // These are metric terms for terrain-fitted coordiantes
+        const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
+        const Array4<const Real>& detJ = detJ_cc.const_array(mfi);
+#endif
+
         const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 
 #ifdef ERF_USE_TERRAIN
@@ -169,7 +177,11 @@ void erf_rhs (int level,
                 (l_use_deardorff && n == RhoKE_comp) ||
                 (l_use_QKE       && n == RhoQKE_comp && solverChoice.advect_QKE))
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
-                                         advflux_x, advflux_y, advflux_z, dxInv, l_spatial_order);
+                                         advflux_x, advflux_y, advflux_z, 
+#ifdef ERF_USE_TERRAIN
+                                         z_nd, detJ, 
+#endif
+                                         dxInv, l_spatial_order);
 
             // Add diffusive terms.
             if (n == RhoTheta_comp)
