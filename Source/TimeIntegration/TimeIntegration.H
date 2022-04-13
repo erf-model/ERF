@@ -38,6 +38,8 @@ void erf_rhs(int level,
              const ABLMost& most,
              const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
 #ifdef ERF_USE_TERRAIN
+             const MultiFab& z_phys_nd,
+             const MultiFab& detJ_cc,
              const MultiFab& r0,
              const MultiFab& p0,
 #else

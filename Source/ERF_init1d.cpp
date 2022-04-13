@@ -117,13 +117,13 @@ ERF::erf_enforce_hse(int lev,
     const Real dz = geomdata.CellSize(2);
     int nz = geom[lev].Domain().length(2);
 
+    const Box& domain = geom[lev].Domain();
+
     for ( MFIter mfi(dens, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
         // Create a flat box with same horizontal extent but only one cell in vertical
         const Box& tbz = mfi.nodaltilebox(2);
         amrex::Box b2d = tbz; // Copy constructor
-        int klo = tbz.smallEnd(2);
-        int khi = tbz.bigEnd(2);
         b2d.setRange(2,0);
 
         // We integrate to the first cell (and below) by using rho in this cell
@@ -145,7 +145,52 @@ ERF::erf_enforce_hse(int lev,
                 pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
             }
         });
+
+        int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0);
+        int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1);
+
+        if (pres[mfi].box().smallEnd(0) < domlo_x)
+        {
+            Box bx = mfi.nodaltilebox(2);
+            bx.setSmall(0,domlo_x-1);
+            bx.setBig(0,domlo_x-1);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
+            });
+        }
+
+        if (pres[mfi].box().bigEnd(0) > domhi_x)
+        {
+            Box bx = mfi.nodaltilebox(2);
+            bx.setSmall(0,domhi_x+1);
+            bx.setBig(0,domhi_x+1);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                pres_arr(i,j,k) = pres_arr(domhi_x,j,k);
+            });
+        }
+
+        if (pres[mfi].box().smallEnd(1) < domlo_y)
+        {
+            Box bx = mfi.nodaltilebox(2);
+            bx.setSmall(1,domlo_y-1);
+            bx.setBig(1,domlo_y-1);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                pres_arr(i,j,k) = pres_arr(i,domlo_y,k);
+            });
+        }
+
+        if (pres[mfi].box().bigEnd(1) > domhi_y)
+        {
+            Box bx = mfi.nodaltilebox(2);
+            bx.setSmall(1,domhi_y+1);
+            bx.setBig(1,domhi_y+1);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                pres_arr(i,j,k) = pres_arr(i,domhi_y,k);
+            });
+        }
     }
+    dens.FillBoundary(geom[lev].periodicity());
+    pres.FillBoundary(geom[lev].periodicity());
 }
 #else
 void

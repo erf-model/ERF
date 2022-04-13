@@ -199,6 +199,7 @@ void ERF::erf_advance(int level,
                 fine_geom, ifr, solverChoice,
                 get_most(), domain_bcs_type_d,
 #ifdef ERF_USE_TERRAIN
+                z_phys_nd[level], detJ_cc[level],
                 r0, p0,
 #else
                 dptr_dens_hse, dptr_pres_hse,

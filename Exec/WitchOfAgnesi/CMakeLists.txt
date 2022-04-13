@@ -1,4 +1,4 @@
-set(erf_exe_name erf_scalar_advdiff)
+set(erf_exe_name erf_witch_of_agnesi)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
