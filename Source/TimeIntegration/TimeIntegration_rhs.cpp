@@ -177,9 +177,9 @@ void erf_rhs (int level,
                 (l_use_deardorff && n == RhoKE_comp) ||
                 (l_use_QKE       && n == RhoQKE_comp && solverChoice.advect_QKE))
                 cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
-                                         advflux_x, advflux_y, advflux_z, 
+                                         advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
-                                         z_nd, detJ, 
+                                         z_nd, detJ,
 #endif
                                          dxInv, l_spatial_order);
 

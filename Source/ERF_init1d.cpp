@@ -145,7 +145,7 @@ ERF::erf_enforce_hse(int lev,
                 pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
             }
         });
-   
+
         int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0);
         int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1);
 
