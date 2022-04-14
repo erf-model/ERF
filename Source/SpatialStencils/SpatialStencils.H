@@ -57,18 +57,27 @@ AMREX_GPU_DEVICE
 Real AdvectionContributionForXMom(const int &i, const int &j, const int &k,
                                   const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                                   const Array4<const Real>& u,
+#ifdef ERF_USE_TERRAIN
+                                  const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
+#endif
                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                   const int& spatial_order);
 AMREX_GPU_DEVICE
 Real AdvectionContributionForYMom(const int &i, const int &j, const int &k,
                                   const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                                   const Array4<const Real>& v,
+#ifdef ERF_USE_TERRAIN
+                                  const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
+#endif
                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                   const int& spatial_order);
 AMREX_GPU_DEVICE
 Real AdvectionContributionForZMom(const int &i, const int &j, const int &k,
                                   const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                                   const Array4<const Real>& w,
+#ifdef ERF_USE_TERRAIN
+                                  const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
+#endif
                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                   const int& spatial_order);
 

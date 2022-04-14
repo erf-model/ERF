@@ -277,6 +277,9 @@ void erf_rhs (int level,
 
             // Add advective terms
             rho_u_rhs(i, j, k) += -AdvectionContributionForXMom(i, j, k, rho_u, rho_v, rho_w, u,
+#ifdef ERF_USE_TERRAIN
+                                                                z_nd, detJ,
+#endif
                                                                 dxInv, l_spatial_order);
 
             // Add diffusive terms
@@ -286,14 +289,26 @@ void erf_rhs (int level,
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
-            rho_u_rhs(i, j, k) += (-dxInv[0]) *
-                (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),p0_arr(i,j,k)) -
-                 getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),p0_arr(i,j,k)));
+            Real gp_xi = dxInv[0] *
+                (getPprimegivenRTh(cell_data(i  ,j,k,RhoTheta_comp),p0_arr(i,j,k)) -
+                 getPprimegivenRTh(cell_data(i-1,j,k,RhoTheta_comp),p0_arr(i,j,k)));
+            amrex::Real h_xi_on_iface = 0.125 * (
+                z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
+               -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k-1) );
+            amrex::Real h_zeta_on_iface = 0.5 * (
+                z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) + z_nd(i,j+1,k) );
+            Real gp_zeta_on_iface = 0.25 * dxInv[2] * (
+                  getPprimegivenRTh(cell_data(i  ,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
+                 +getPprimegivenRTh(cell_data(i-1,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
+                 -getPprimegivenRTh(cell_data(i  ,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1))
+                 -getPprimegivenRTh(cell_data(i-1,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1)) );
+            amrex::Real gpx = gp_xi - (h_xi_on_iface / h_zeta_on_iface) * gp_zeta_on_iface;
 #else
-            rho_u_rhs(i, j, k) += (-dxInv[0]) *
+            amrex::Real gpx = dxInv[0] *
                 (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),dptr_pres_hse[k]) -
                  getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),dptr_pres_hse[k]));
 #endif
+            rho_u_rhs(i, j, k) -= gpx;
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -337,6 +352,9 @@ void erf_rhs (int level,
 
             // Add advective terms
             rho_v_rhs(i, j, k) += -AdvectionContributionForYMom(i, j, k, rho_u, rho_v, rho_w, v,
+#ifdef ERF_USE_TERRAIN
+                                                                z_nd, detJ,
+#endif
                                                                 dxInv, l_spatial_order);
 
             // Add diffusive terms
@@ -346,14 +364,26 @@ void erf_rhs (int level,
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
-            rho_v_rhs(i, j, k) += (-dxInv[1]) *
-                (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),p0_arr(i,j,k)) -
-                 getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),p0_arr(i,j,k)));
+            Real gp_eta = dxInv[1] *
+                (getPprimegivenRTh(cell_data(i,j  ,k,RhoTheta_comp),p0_arr(i,j,k)) -
+                 getPprimegivenRTh(cell_data(i,j-1,k,RhoTheta_comp),p0_arr(i,j,k)));
+            amrex::Real h_eta_on_jface = 0.125 * (
+                z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
+               -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k-1) );
+            amrex::Real h_zeta_on_jface = 0.5 * (
+                z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) + z_nd(i+1,j,k) );
+            Real gp_zeta_on_jface = 0.25 * dxInv[2] * (
+                  getPprimegivenRTh(cell_data(i,j  ,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
+                 +getPprimegivenRTh(cell_data(i,j-1,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
+                 -getPprimegivenRTh(cell_data(i,j  ,k-1,RhoTheta_comp),p0_arr(i,j,k-1))
+                 -getPprimegivenRTh(cell_data(i,j-1,k-1,RhoTheta_comp),p0_arr(i,j,k-1)) );
+            amrex::Real gpy = gp_eta - (h_eta_on_jface / h_zeta_on_jface) * gp_zeta_on_jface;
 #else
-            rho_v_rhs(i, j, k) += (-dxInv[1]) *
+            amrex::Real gpy = dxInv[1] *
                 (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),dptr_pres_hse[k]) -
                  getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),dptr_pres_hse[k]));
 #endif
+            rho_v_rhs(i, j, k) -= gpy;
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -395,6 +425,9 @@ void erf_rhs (int level,
 
             // Add advective terms
             rho_w_rhs(i, j, k) += -AdvectionContributionForZMom(i, j, k, rho_u, rho_v, rho_w, w,
+#ifdef ERF_USE_TERRAIN
+                                                                z_nd, detJ,
+#endif
                                                                 dxInv, l_spatial_order);
 
             // Add diffusive terms
@@ -406,11 +439,16 @@ void erf_rhs (int level,
 #ifdef ERF_USE_TERRAIN
             amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),p0_arr(i,j,k));
             amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1));
+            amrex::Real h_zeta = 0.125 * (
+                z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
+               -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) + z_nd(i,j+1,k-1) + z_nd(i+1,j+1,k-1) );
+            amrex::Real gpz = (-dxInv[2]) * (p_prime_hi - p_prime_lo) / h_zeta;
 #else
             amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),dptr_pres_hse[k  ]);
             amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),dptr_pres_hse[k-1]);
+            amrex::Real gpz = (-dxInv[2]) * (p_prime_hi - p_prime_lo);
 #endif
-            rho_w_rhs(i, j, k) += (-dxInv[2]) * (p_prime_hi - p_prime_lo);
+            rho_w_rhs(i, j, k) += gpz;
 
             // Add gravity term
             if (solverChoice.use_gravity)
@@ -419,7 +457,7 @@ void erf_rhs (int level,
                 rho_w_rhs(i, j, k) += grav_gpu[2] *
 #ifdef ERF_USE_TERRAIN
                      InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
-                                                          Coord::z, local_spatial_order, p0_arr);
+                                                          Coord::z, local_spatial_order, r0_arr);
 #else
                      InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
                                                           Coord::z, local_spatial_order, dptr_dens_hse);
