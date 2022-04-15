@@ -27,10 +27,6 @@ To clone the source code of `ERF`:
     export ERF_HOME=<location for ERF code>
     git clone --recursive git@github.com:ERF-model/ERF.git ${ERF_HOME}
 
-    export AMREX_HOME=${ERF_HOME}/Submodules/AMReX # w.r.t. ERF_HOME
-
-Note that the path ``AMREX_HOME`` is dependent on ``ERF_HOME``.
-
 Alternatively, one can set environment variable ``AMREX_HOME`` to use ``AMReX`` repo from external locations independent of ``ERF_HOME``: ::
 
 1. Set the environment variable ``AMREX_HOME`` and clone a copy of ``AMReX`` there: ::

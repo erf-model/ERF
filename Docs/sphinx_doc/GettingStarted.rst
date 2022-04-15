@@ -17,6 +17,13 @@ Then download the ERF repository by typing:
 
              git clone https://github.com/erf-model/ERF.git
 
+Or, to automatically include the necessary submodules when downloading ERF,
+type:
+
+   .. code:: shell
+
+             git clone --recursive https://github.com/erf-model/ERF.git
+
 .. include:: building.rst
 
 

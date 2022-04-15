@@ -17,13 +17,15 @@ Using the GNU Make build system involves first setting environment variables for
    export ERF_HOME=${HOME}/ERF
    export AMREX_HOME=${ERF_HOME}/Submodules/AMReX
 
-Note that one could also use an external version of AMReX, downloaded by typing
+The GNU Make system is set up to use the path to AMReX submodule by default, so it is not necessary to set
+these paths explicitly, unless it is desired to do so. It is also possible to use an external version of
+AMReX, downloaded by running
 
    .. code:: shell
 
              git clone https://github.com/amrex-codes/amrex.git
 
-and then, if using bash shell,
+in which case the ``AMREX_HOME`` environment variable must point to the location where AMReX has been downloaded, which will take precedence over the default path to the submodule. If using bash shell,
 
 ::
 
