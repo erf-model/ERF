@@ -12,7 +12,7 @@ void br_shift(amrex::OrientationIter oit, const amrex::BndryRegister& b1, amrex:
     int ncomp = b1[ori].nComp();
     if (ori.coordDir() < 2) {
 #ifdef AMREX_USE_OMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         for (amrex::FabSetIter bfsi(b1[ori]); bfsi.isValid(); ++bfsi) {
             int idx = bfsi.index();
