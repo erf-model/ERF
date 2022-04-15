@@ -22,7 +22,7 @@ void erf_implicit_fast_rhs (int level,
                          amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
 #ifdef ERF_USE_TERRAIN
-                   const MultiFab& z_phys_nd, 
+                   const MultiFab& z_phys_nd,
                    const MultiFab& detJ_cc,
                    const MultiFab& r0,
                    const MultiFab& p0,
@@ -431,7 +431,7 @@ void erf_implicit_fast_rhs (int level,
             {
 #ifdef ERF_USE_TERRAIN
                 // Note that we pass theta but it won't be used here
-                fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w, 
+                fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
                                                                            theta, n, advflux_x, advflux_y, advflux_z,
                                                                            z_nd, detJ,
                                                                            dxInv, l_spatial_order);
@@ -450,7 +450,7 @@ void erf_implicit_fast_rhs (int level,
 
             } else if (n == RhoTheta_comp) {
 #ifdef ERF_USE_TERRAIN
-                fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w, 
+                fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
                                                                            theta, n, advflux_x, advflux_y, advflux_z,
                                                                            z_nd, detJ,
                                                                            dxInv, l_spatial_order);
