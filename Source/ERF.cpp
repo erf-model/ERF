@@ -768,6 +768,9 @@ ERF::MakeHorizontalAverages ()
 
     // get the cell centered data and construct sums
     auto& mf_cons = vars_new[0][Vars::cons];
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for (MFIter mfi(mf_cons); mfi.isValid(); ++mfi) {
         const Box& box = mfi.validbox();
         const IntVect& se = box.smallEnd();
@@ -971,6 +974,9 @@ ERF::read_from_netcdf()
     BoxArray ba(phb_nc);
     DistributionMapping dm { ba };
     z_phy_mf.define(ba, dm, 1, 0);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for ( MFIter mfi(z_phy_mf); mfi.isValid(); ++mfi )
     {
         const Box& z_tilebx = mfi.tilebox();

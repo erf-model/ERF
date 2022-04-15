@@ -23,6 +23,9 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
     const amrex::Real C4 = solverChoice.pbl_C4;
     const amrex::Real C5 = solverChoice.pbl_C5;
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
       const Box &bx = mfi.growntilebox(1);

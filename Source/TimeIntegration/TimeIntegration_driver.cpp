@@ -42,6 +42,9 @@ void ERF::erf_advance(int level,
     // Temporary array that we use to store primitive advected quantities for the RHS
     // **************************************************************************************
     auto cons_to_prim = [&](const MultiFab& cons_state, MultiFab& prim_state) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
       for (MFIter mfi(cons_state,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
           const Box& gbx = mfi.growntilebox(cons_state.nGrowVect());
           const Array4<const Real>& cons_arr = cons_state.array(mfi);
@@ -219,7 +222,7 @@ void ERF::erf_advance(int level,
         erf_implicit_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
                               S_data, S_data_old, advflux, fine_geom, ifr, solverChoice,
 #ifdef ERF_USE_TERRAIN
-                              r0, p0,
+                              z_phys_nd[level], detJ_cc[level], r0, p0,
 #else
                               dptr_dens_hse, dptr_pres_hse,
 #endif

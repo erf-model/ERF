@@ -5,6 +5,10 @@ ERF::make_metrics(int lev)
 {
     auto dx = geom[lev].CellSize();
     Real dzInv = 1.0/dx[2];
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for ( MFIter mfi(z_phys_cc[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
         const Box& bx = mfi.tilebox();

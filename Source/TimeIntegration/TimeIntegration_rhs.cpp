@@ -99,6 +99,9 @@ void erf_rhs (int level,
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& bx = mfi.tilebox();

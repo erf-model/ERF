@@ -22,6 +22,8 @@ void erf_implicit_fast_rhs (int level,
                          amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
 #ifdef ERF_USE_TERRAIN
+                   const MultiFab& z_phys_nd, 
+                   const MultiFab& detJ_cc,
                    const MultiFab& r0,
                    const MultiFab& p0,
 #else
@@ -34,27 +36,30 @@ void erf_implicit_fast_rhs (int level,
     // Per p2902 of Klemp-Skamarock-Dudhia-2007
     // beta_s = -1.0 : fully explicit
     // beta_s =  1.0 : fully implicit
-    amrex::Real beta_s = 0.1;
-    amrex::Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
-    amrex::Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
+    Real beta_s = 0.1;
+    Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
+    Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
-    amrex::Real c_v = c_p - R_d;
+    // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
+    Real beta_d = 0.1;
+
+    Real c_v = c_p - R_d;
 
     const Box domain(geom.Domain());
     const int domhi_z = domain.bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-    amrex::Real dxi = dxInv[0];
-    amrex::Real dyi = dxInv[1];
-    amrex::Real dzi = dxInv[2];
+    Real dxi = dxInv[0];
+    Real dyi = dxInv[1];
+    Real dzi = dxInv[2];
     const auto& ba = S_stage_data[IntVar::cons].boxArray();
     const auto& dm = S_stage_data[IntVar::cons].DistributionMap();
 
-    amrex::MultiFab Delta_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
-    amrex::MultiFab Delta_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
-    amrex::MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, 1);
-    amrex::MultiFab Delta_rho  (            ba                , dm, 1, 1);
-    amrex::MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
+    MultiFab Delta_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
+    MultiFab Delta_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
+    MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, 1);
+    MultiFab Delta_rho  (            ba                , dm, 1, 1);
+    MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
 
     // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
     MultiFab::Copy(Delta_rho_u    , S_data[IntVar::xmom], 0, 0, 1, 1);
@@ -102,6 +107,9 @@ void erf_implicit_fast_rhs (int level,
     // *************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
     // *************************************************************************
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& bx = mfi.tilebox();
@@ -160,6 +168,8 @@ void erf_implicit_fast_rhs (int level,
         const Array4<const Real>& old_data = S_data_old[IntVar::cons].const_array(mfi);
 
 #ifdef ERF_USE_TERRAIN
+        const Array4<const Real>& z_nd   = z_phys_nd.const_array(mfi);
+        const Array4<const Real>& detJ   = detJ_cc.const_array(mfi);
         const Array4<const Real>& r0_arr = r0.const_array(mfi);
         const Array4<const Real>& p0_arr = p0.const_array(mfi);
 #endif
@@ -186,13 +196,28 @@ void erf_implicit_fast_rhs (int level,
                 Real pi_r = getExnergivenRTh(cell_stage(i  ,j,k,RhoTheta_comp));
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
-                amrex::Real beta_d = 0.1;
                 Real drho_theta_hi = old_drho_theta(i,j,k) + beta_d * (
                   (cur_data(i,j  ,k,RhoTheta_comp) - old_data(i,j  ,k,RhoTheta_comp)));
                 Real drho_theta_lo = old_drho_theta(i-1,j,k) + beta_d * (
                   (cur_data(i-1,j,k,RhoTheta_comp) - old_data(i-1,j,k,RhoTheta_comp)));
 
-                fast_rhs_rho_u(i, j, k) = -Gamma * R_d * pi_c * ( drho_theta_hi - drho_theta_lo)*dxi;
+#ifdef ERF_USE_TERRAIN
+                Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
+                Real h_xi_on_iface = 0.125 * (
+                    z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
+                   -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k-1) );
+                Real h_zeta_on_iface = 0.5 * (
+                    z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) + z_nd(i,j+1,k) );
+                Real gp_zeta_on_iface = 0.25 * dzi * (
+                  (old_drho_theta(i  ,j,k+1) + beta_d*((cur_data(i  ,j,k+1,RhoTheta_comp)-old_data(i  ,j,k+1,RhoTheta_comp))))
+                 +(old_drho_theta(i-1,j,k+1) + beta_d*((cur_data(i-1,j,k+1,RhoTheta_comp)-old_data(i-1,j,k+1,RhoTheta_comp))))
+                 -(old_drho_theta(i  ,j,k-1) + beta_d*((cur_data(i  ,j,k-1,RhoTheta_comp)-old_data(i  ,j,k-1,RhoTheta_comp))))
+                 -(old_drho_theta(i-1,j,k-1) + beta_d*((cur_data(i-1,j,k-1,RhoTheta_comp)-old_data(i-1,j,k-1,RhoTheta_comp)))) );
+                Real gpx = gp_xi - (h_xi_on_iface / h_zeta_on_iface) * gp_zeta_on_iface;
+#else
+                Real gpx = (drho_theta_hi - drho_theta_lo)*dxi;
+#endif
+                fast_rhs_rho_u(i, j, k) = -Gamma * R_d * pi_c * gpx;
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u(i,j,k)
                                                         + dtau * slow_rhs_rho_u(i,j,k);
@@ -216,14 +241,30 @@ void erf_implicit_fast_rhs (int level,
                 Real pi_r = getExnergivenRTh(cell_stage(i,j  ,k,RhoTheta_comp));
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
-                // Per p2902 of Klemp-Skamarock-Dudhia-2007
-                amrex::Real beta_d = 0.1;
                 Real drho_theta_hi = old_drho_theta(i,j,k) + beta_d * (
                   (cur_data(i,j  ,k,RhoTheta_comp) - old_data(i,j  ,k,RhoTheta_comp)));
                 Real drho_theta_lo = old_drho_theta(i,j-1,k) + beta_d * (
                   (cur_data(i,j-1,k,RhoTheta_comp) - old_data(i,j-1,k,RhoTheta_comp)));
 
-                fast_rhs_rho_v(i, j, k) = -Gamma * R_d * pi_c * ( drho_theta_hi - drho_theta_lo)*dyi;
+#ifdef ERF_USE_TERRAIN
+                Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
+                Real h_eta_on_jface = 0.125 * (
+                    z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
+                   -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k-1) );
+                Real h_zeta_on_jface = 0.5 * (
+                    z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) + z_nd(i+1,j,k) );
+                Real gp_zeta_on_jface = 0.25 * dzi * (
+                  (old_drho_theta(i,j  ,k+1) + beta_d*((cur_data(i,j  ,k+1,RhoTheta_comp)-old_data(i,j  ,k+1,RhoTheta_comp))))
+                 +(old_drho_theta(i,j-1,k+1) + beta_d*((cur_data(i,j-1,k+1,RhoTheta_comp)-old_data(i,j-1,k+1,RhoTheta_comp))))
+                 -(old_drho_theta(i,j  ,k-1) + beta_d*((cur_data(i,j  ,k-1,RhoTheta_comp)-old_data(i,j  ,k-1,RhoTheta_comp))))
+                 -(old_drho_theta(i,j-1,k-1) + beta_d*((cur_data(i,j-1,k-1,RhoTheta_comp)-old_data(i,j-1,k-1,RhoTheta_comp)))) );
+                Real gpy = gp_eta - (h_eta_on_jface / h_zeta_on_jface) * gp_zeta_on_jface;
+#else
+                // Per p2902 of Klemp-Skamarock-Dudhia-2007
+                Real beta_d = 0.1;
+                Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
+#endif
+                fast_rhs_rho_v(i, j, k) = -Gamma * R_d * pi_c * gpy;
 
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v(i,j,k)
                                                         + dtau * slow_rhs_rho_v(i,j,k);
@@ -382,11 +423,19 @@ void erf_implicit_fast_rhs (int level,
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
 
+        const int l_spatial_order = 2;
         amrex::ParallelFor(bx, S_stage_data[IntVar::cons].nComp(),
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
 
             if (n == Rho_comp)
             {
+#ifdef ERF_USE_TERRAIN
+                // Note that we pass theta but it won't be used here
+                fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w, 
+                                                                           theta, n, advflux_x, advflux_y, advflux_z,
+                                                                           z_nd, detJ,
+                                                                           dxInv, l_spatial_order);
+#else
                 advflux_x(i+1,j,k,n) = new_drho_u(i+1,j,k);
                 advflux_x(i  ,j,k,n) = new_drho_u(i  ,j,k);
                 advflux_y(i,j+1,k,n) = new_drho_v(i,j+1,k);
@@ -397,9 +446,15 @@ void erf_implicit_fast_rhs (int level,
                 fast_rhs_cell(i, j, k, n) = -( (advflux_x(i+1,j,k,n) - advflux_x(i,j,k,n)) * dxi
                                              + (advflux_y(i,j+1,k,n) - advflux_y(i,j,k,n)) * dyi
                                              + (advflux_z(i,j,k+1,n) - advflux_z(i,j,k,n)) * dzi );
+#endif
 
             } else if (n == RhoTheta_comp) {
-
+#ifdef ERF_USE_TERRAIN
+                fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w, 
+                                                                           theta, n, advflux_x, advflux_y, advflux_z,
+                                                                           z_nd, detJ,
+                                                                           dxInv, l_spatial_order);
+#else
                 advflux_x(i+1,j,k,n) = new_drho_u(i+1,j,k) * 0.5 * (theta(i,j,k) + theta(i+1,j,k));
                 advflux_x(i  ,j,k,n) = new_drho_u(i  ,j,k) * 0.5 * (theta(i,j,k) + theta(i-1,j,k));
                 advflux_y(i,j+1,k,n) = new_drho_v(i,j+1,k) * 0.5 * (theta(i,j,k) + theta(i,j+1,k));
@@ -410,6 +465,7 @@ void erf_implicit_fast_rhs (int level,
                 fast_rhs_cell(i, j, k, n) = -( (advflux_x(i+1,j,k,n) - advflux_x(i,j,k,n)) * dxi
                                              + (advflux_y(i,j+1,k,n) - advflux_y(i,j,k,n)) * dyi
                                              + (advflux_z(i,j,k+1,n) - advflux_z(i,j,k,n)) * dzi );
+#endif
             } else {
                 fast_rhs_cell(i, j, k, n) = 0.0;
             }
