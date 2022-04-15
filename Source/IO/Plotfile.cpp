@@ -296,6 +296,11 @@ ERF::WritePlotFile () const
             MultiFab::Copy(mf[lev],z_phys_cc[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
+	if (containerHasElement(plot_deriv_names, "detJ"))
+        {
+            MultiFab::Copy(mf[lev],detJ_cc[lev],0,mf_comp,1,0);
+            mf_comp ++;
+        }
 #endif
     }
 

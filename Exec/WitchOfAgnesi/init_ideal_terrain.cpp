@@ -14,7 +14,7 @@ ERF::init_ideal_terrain(int lev)
     auto ProbHiArr = geom[lev].ProbHiArray();
 
     // 2 a is the high point of the hill
-    Real a = 100.;
+    Real a = 0.5;
 
     Real num = 8 * a * a * a;
     Real ztop = ProbHiArr[2];
@@ -29,7 +29,7 @@ ERF::init_ideal_terrain(int lev)
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
             // Location of nodes
-            Real x = (i * dx[0] - xcen)/20.;
+            Real x = (i * dx[0] - xcen);
             Real y = j * dx[1] - ycen;
             Real z = k * dx[2];
 

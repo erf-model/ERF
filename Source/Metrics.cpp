@@ -4,7 +4,7 @@ void
 ERF::make_metrics(int lev)
 {
     auto dx = geom[lev].CellSize();
-    Real dz = dx[2];
+    Real dzInv = 1.0/dx[2];
     for ( MFIter mfi(z_phys_cc[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
         const Box& bx = mfi.tilebox();
@@ -16,8 +16,9 @@ ERF::make_metrics(int lev)
                z_cc(i, j, k) = .125 * (
                          z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                         +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
-               detJ(i, j, k) = .25 * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                                      -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) ) ;
+               detJ(i, j, k) = .25 * dzInv *
+		 ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
+		  -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) ) ;
                });
     }
 }
