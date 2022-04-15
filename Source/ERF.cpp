@@ -534,15 +534,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #endif
 
     // Loop over grids at this level to initialize our grid data
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
     lev_new[Vars::cons].setVal(0.0);
     lev_new[Vars::xvel].setVal(0.0);
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
 
     if (init_type == "ideal") {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
           const Box& bx = mfi.tilebox();
@@ -559,7 +559,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #endif
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "real") {
-        for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
           const Box& bx = mfi.tilebox();
           FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
