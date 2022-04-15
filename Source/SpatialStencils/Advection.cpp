@@ -63,7 +63,6 @@ AdvectionContributionForXMom(const int &i, const int &j, const int &k,
     // Z-fluxes (at edges in j-direction)
     // ****************************************************************************************
 
-    // AML CHECK THIS: Center difference factor 2 error?
     // This is dh/dxi at the edge (i-1/2,j,k+1/2)
     Real met_zhi_xi   = 0.25 * dxInv *
         ( z_nd(i+1,j+1,k+1) + z_nd(i+1,j  ,k+1)    // hi i, avg in j, hi k
