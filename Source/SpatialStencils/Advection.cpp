@@ -82,7 +82,7 @@ AdvectionContributionForXMom(const int &i, const int &j, const int &k,
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     // This is dh/dxi at the edge (i-1/2,j,k-1/2)
-    Real met_zlo_xi   = 0.5 * dxInv *
+    Real met_zlo_xi   = 0.25 * dxInv *
         ( z_nd(i+1,j+1,k) + z_nd(i+1,j,k)    // hi i, avg in j, lo k
          -z_nd(i-1,j+1,k) - z_nd(i-1,j,k) ); // lo i, avg in j, lo k
 
@@ -213,7 +213,7 @@ AdvectionContributionForYMom(const int &i, const int &j, const int &k,
     // ****************************************************************************************
 
     // This is dh/deta at the edge (i,j-1/2,k+1/2)
-    Real met_zhi_eta = 0.5 * dyInv *
+    Real met_zhi_eta = 0.25 * dyInv *
         ( z_nd(i+1,j+1,k+1) + z_nd(i,j+1,k+1)    // average in i, hi j, hi k
          -z_nd(i+1,j-1,k+1) - z_nd(i,j-1,k+1) ); // average in i, lo j, hi k
 
@@ -231,7 +231,7 @@ AdvectionContributionForYMom(const int &i, const int &j, const int &k,
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     // This is dh/deta at the edge (i,j-1/2,k-1/2)
-    Real met_zlo_eta = 0.5 * dyInv *
+    Real met_zlo_eta = 0.25 * dyInv *
         ( z_nd(i+1,j+1,k) + z_nd(i,j+1,k)    // average in i, hi j, lo k
          -z_nd(i+1,j-1,k) - z_nd(i,j-1,k) ); // average in i, lo j, lo k
 
