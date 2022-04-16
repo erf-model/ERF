@@ -247,8 +247,16 @@ Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with hei
 
 .. math::
 
-  u &= u_{\star}^{2} \frac{(u-\bar{U})\bar{U}_{mag}+\bar{U}_{mag} \bar{U}}{\bar{U}_{mag}^{2}},
+  u &= u_{\star}^{2} \frac{ (u-\bar{u}) \bar{|\mathbf{U}|}
+                             \sqrt{u^2+v^2} \bar{u}  }{\bar{|\mathbf{U}|}^{2}},
 
-  \theta &= ku_{\star}\frac{\bar{U}_{mag}(\theta - \overline{\theta})+\bar{U}_{mag}(\overline{\theta}-\theta_{s})}{\bar{U}_{mag}\Theta_{h}}
+  v &= u_{\star}^{2} \frac{ (v-\bar{v}) \bar{|\mathbf{U}|}
+                             \sqrt{u^2+v^2} \bar{v}  }{\bar{|\mathbf{U}|}^{2}},
 
-where :math:`\bar{U}`, and :math:`\overline{\theta}` are the plane averaged values.
+  \theta &= \theta_s + k u_{\star} \frac{|\bar{U}| (\theta - \overline{\theta}) +
+                                   \sqrt{u^2+v^2}  (\overline{\theta}-\theta_{\star}) }{\Theta_{h}}
+
+where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values of the
+two horizontal velocity components and the potential temperature, respectively, and
+:math:`\bar{|\mathbf{U}|}` is the plane averaged magnitude of horizontal velocity.
+
