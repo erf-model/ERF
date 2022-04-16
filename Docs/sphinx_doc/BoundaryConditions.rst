@@ -259,3 +259,4 @@ Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with hei
 where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values of the
 two horizontal velocity components and the potential temperature, respectively, and
 :math:`\bar{|\mathbf{U}|}` is the plane averaged magnitude of horizontal velocity.
+
