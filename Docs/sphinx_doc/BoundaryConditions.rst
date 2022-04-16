@@ -117,7 +117,7 @@ xlo.density       = 1. sets the inflow density,
 xlo.theta         = 300. sets the inflow potential temperature,
 xlo.scalar        = 2. sets the inflow value of the advected scalar
 
-* The "slipwall" and "noslipwall" types have options for adiabatic vs Dirichlet boundary conditions.
+The "slipwall" and "noslipwall" types have options for adiabatic vs Dirichlet boundary conditions.
 If a value for theta is given for a face with type "slipwall" or "noslipwall" then the boundary
 condition for theta is assumed to be "ext_dir", i.e. theta is specified on the boundary.
 If not value is specified then the wall is assumed to be adiabiatc, i.e. there is no temperature
@@ -136,7 +136,7 @@ would designate theta = 301. at the bottom (zlo) boundary, while
 the top boundary condition would be a zero gradient, aka adiabatic
 because no value is specified for ``zhi.theta``
 
-* We note that "noslipwall" allows for non-zero tangential velocities to be specified, as in the
+We note that "noslipwall" allows for non-zero tangential velocities to be specified, as in the
 Couette regression test example, in which we specify
 
 ::
@@ -149,7 +149,7 @@ Couette regression test example, in which we specify
     zlo.velocity    = 0.0 0.0 0.0
     zhi.velocity    = 2.0 0.0 0.0
 
-* We also note that in the case of a "slipwall" boundary condition in a simulation with non-zero
+We also note that in the case of a "slipwall" boundary condition in a simulation with non-zero
 viscosity specified, the "foextrap" boundary condition enforces zero strain at the wall.
 
 The keywork "MOST" is an ERF-specific boundary type and the mapping is described below.
@@ -164,6 +164,7 @@ to read in a time sequence of data at a domain boundary and impose this data as 
 boundary values using ``FillPatch``.
 
 .. _MostBoundary:
+
 MOST Boundaries
 -------------------
 Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), The MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and the turbulent stresses :math:`\overline{u^{'}w^{'}}` and :math:`\overline{w^{'}v^{'}}` are assumed to be constant with height. Based on these assumptions,
