@@ -260,8 +260,6 @@ void erf_implicit_fast_rhs (int level,
                  -(old_drho_theta(i,j-1,k-1) + beta_d*((cur_data(i,j-1,k-1,RhoTheta_comp)-old_data(i,j-1,k-1,RhoTheta_comp)))) );
                 Real gpy = gp_eta - (h_eta_on_jface / h_zeta_on_jface) * gp_zeta_on_jface;
 #else
-                // Per p2902 of Klemp-Skamarock-Dudhia-2007
-                Real beta_d = 0.1;
                 Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
 #endif
                 fast_rhs_rho_v(i, j, k) = -Gamma * R_d * pi_c * gpy;
@@ -429,43 +427,20 @@ void erf_implicit_fast_rhs (int level,
 
             if (n == Rho_comp)
             {
-#ifdef ERF_USE_TERRAIN
                 // Note that we pass theta but it won't be used here
                 fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
                                                                            theta, n, advflux_x, advflux_y, advflux_z,
-                                                                           z_nd, detJ,
-                                                                           dxInv, l_spatial_order);
-#else
-                advflux_x(i+1,j,k,n) = new_drho_u(i+1,j,k);
-                advflux_x(i  ,j,k,n) = new_drho_u(i  ,j,k);
-                advflux_y(i,j+1,k,n) = new_drho_v(i,j+1,k);
-                advflux_y(i,j  ,k,n) = new_drho_v(i,j  ,k);
-                advflux_z(i,j,k+1,n) = new_drho_w(i,j,k+1);
-                advflux_z(i,j,k  ,n) = new_drho_w(i,j,k  );
-
-                fast_rhs_cell(i, j, k, n) = -( (advflux_x(i+1,j,k,n) - advflux_x(i,j,k,n)) * dxi
-                                             + (advflux_y(i,j+1,k,n) - advflux_y(i,j,k,n)) * dyi
-                                             + (advflux_z(i,j,k+1,n) - advflux_z(i,j,k,n)) * dzi );
-#endif
-
-            } else if (n == RhoTheta_comp) {
 #ifdef ERF_USE_TERRAIN
+                                                                           z_nd, detJ,
+#endif
+                                                                           dxInv, l_spatial_order);
+            } else if (n == RhoTheta_comp) {
                 fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
                                                                            theta, n, advflux_x, advflux_y, advflux_z,
+#ifdef ERF_USE_TERRAIN
                                                                            z_nd, detJ,
-                                                                           dxInv, l_spatial_order);
-#else
-                advflux_x(i+1,j,k,n) = new_drho_u(i+1,j,k) * 0.5 * (theta(i,j,k) + theta(i+1,j,k));
-                advflux_x(i  ,j,k,n) = new_drho_u(i  ,j,k) * 0.5 * (theta(i,j,k) + theta(i-1,j,k));
-                advflux_y(i,j+1,k,n) = new_drho_v(i,j+1,k) * 0.5 * (theta(i,j,k) + theta(i,j+1,k));
-                advflux_y(i,j  ,k,n) = new_drho_v(i,j  ,k) * 0.5 * (theta(i,j,k) + theta(i,j-1,k));
-                advflux_z(i,j,k+1,n) = new_drho_w(i,j,k+1) * 0.5 * (theta(i,j,k) + theta(i,j,k+1));
-                advflux_z(i,j,k  ,n) = new_drho_w(i,j,k  ) * 0.5 * (theta(i,j,k) + theta(i,j,k-1));
-
-                fast_rhs_cell(i, j, k, n) = -( (advflux_x(i+1,j,k,n) - advflux_x(i,j,k,n)) * dxi
-                                             + (advflux_y(i,j+1,k,n) - advflux_y(i,j,k,n)) * dyi
-                                             + (advflux_z(i,j,k+1,n) - advflux_z(i,j,k,n)) * dzi );
 #endif
+                                                                           dxInv, l_spatial_order);
             } else {
                 fast_rhs_cell(i, j, k, n) = 0.0;
             }
