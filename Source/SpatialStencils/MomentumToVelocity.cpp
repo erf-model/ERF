@@ -19,6 +19,9 @@ void MomentumToVelocity( MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
 
     // Loop over boxes = valid boxes grown by ngrow
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& tbx = amrex::grow(mfi.nodaltilebox(0),ngrow);

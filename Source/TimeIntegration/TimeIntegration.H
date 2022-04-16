@@ -63,6 +63,8 @@ void erf_implicit_fast_rhs (int level,
                                   amrex::InterpFaceRegister* ifr,
                             const SolverChoice& solverChoice,
 #ifdef ERF_USE_TERRAIN
+                            const MultiFab& z_phys_nd,
+                            const MultiFab& detJ_cc,
                             const MultiFab& r0,
                             const MultiFab& p0,
 #else
