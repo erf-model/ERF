@@ -247,14 +247,14 @@ Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with hei
 
 .. math::
 
-  u &= u_{\star}^{2} \frac{ (u-\bar{u}) \bar{|\mathbf{U}|}
-                             \sqrt{u^2+v^2} \bar{u}  }{\bar{|\mathbf{U}|}^{2}},
+  u &= u_{\star}^{2} \frac{ (u-\bar{u}) \bar{|\mathbf{U}|} +
+                             \sqrt{u^2+v^2} \; \bar{u}  }{\bar{|\mathbf{U}|}^{2}},
 
-  v &= u_{\star}^{2} \frac{ (v-\bar{v}) \bar{|\mathbf{U}|}
-                             \sqrt{u^2+v^2} \bar{v}  }{\bar{|\mathbf{U}|}^{2}},
+  v &= u_{\star}^{2} \frac{ (v-\bar{v}) \bar{|\mathbf{U}|} +
+                             \sqrt{u^2+v^2} \; \bar{v}  }{\bar{|\mathbf{U}|}^{2}},
 
-  \theta &= \theta_s + k u_{\star} \frac{|\bar{U}| (\theta - \overline{\theta}) +
-                                   \sqrt{u^2+v^2}  (\overline{\theta}-\theta_{\star}) }{\Theta_{h}}
+  \theta &= \theta_\star + k u_{\star} \frac{\bar{|\mathbf{U}|} (\theta - \overline{\theta}) +
+                                             \sqrt{u^2+v^2}  (\overline{\theta}-\theta_{\star}) }{\Theta_{h}}
 
 where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values of the
 two horizontal velocity components and the potential temperature, respectively, and
