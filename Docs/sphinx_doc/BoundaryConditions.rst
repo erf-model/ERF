@@ -184,7 +184,7 @@ the MOST theory can be written as:
 Here :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature,
 and :math:`\theta_{0}` is the potential temperature near surface in the ASL.
 
-The MOST stability parameter is given by :math:`\zeta = \frac{\mathbf{z}}{L} = -\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{w^{'}\theta^{'}}`, 
+The MOST stability parameter is given by :math:`\zeta = \frac{\mathbf{z}}{L} = -\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{w^{'}\theta^{'}}`,
 where :math:`L` is the Monin-Okukhov length.
 
 Integration of the MOST assumption equations give the classical MOST profiles of mean velocity and potential temperature
@@ -196,7 +196,7 @@ Integration of the MOST assumption equations give the classical MOST profiles of
   \Theta(z) - \theta_0 &= \frac{\theta_{\star}}{\kappa} [ \mathrm{ln}(\frac{z}{z_0})-\Psi_{h}(\zeta) ]
 
 
-where the integrated similarity functions, 
+where the integrated similarity functions,
 
 .. math::
 
@@ -210,10 +210,10 @@ Unstable: :math:`(-2 < \zeta < 0)`
 
 .. math::
 
-  \Theta_{m} &= (1-\gamma_{1}\eta)^{-\frac{1}{4}}, \quad 
+  \Theta_{m} &= (1-\gamma_{1}\eta)^{-\frac{1}{4}}, \quad
   \Psi_{m}    = \mathrm{ln}[\frac{1}{g}(1+\Psi_{m}^{2})(1+\Psi_{m}^{-1})^{2}]-2\arctan(\Theta_{m}^{-1})+\frac{\pi}{2},
 
-  \Theta_{h} &= \sigma_{\theta}(1-\gamma_{2}\zeta)^{-\frac{1}{2}}, \quad 
+  \Theta_{h} &= \sigma_{\theta}(1-\gamma_{2}\zeta)^{-\frac{1}{2}}, \quad
   \Psi_{h}    = (1+\sigma_{\theta}) \mathrm{ln}[\frac{1}{2}(1+\Theta_{h}^{-1}]+(1-\sigma_{\theta}) {\mathrm{ln}} [\frac{1}{2}(-1+\Theta_{h}^{-1})]
 
 Stable: :math:`(0 < \zeta < 1)`
@@ -230,25 +230,25 @@ and the constants are defined as:
 
 Inverting the equations above, the MOST stability parameter,
 
-.. :math:
+.. math::
   \zeta=\frac{z}{L} = -\kappa z \frac{g}{\theta_{0}} \frac{\theta_{\star}}{u^{2}_{\star}}
 
-is determined by the friction velocity 
+is determined by the friction velocity
 
-.. :math:
-  u_{\star} =\kappa U/[\mathrm{ln}(z/z_0)-\Psi_{m}(\frac{z}{L})] 
+.. math::
+  u_{\star} =\kappa U/[\mathrm{ln}(z/z_0)-\Psi_{m}(\frac{z}{L})]
 
 and the surface temperature
 
-.. :math:
+.. math::
   \theta_{\star} = \kappa (\theta_{a}-\theta_{g})/[\mathrm{ln}(z / z_0)-\Psi_{h}(z/L)]
 
 Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with height, the wind speed, temperature and moisture at surface can be derived as:
 
 .. math::
 
-  u &= u_{\star}^{2} \frac{(u-\overline{U})\overline{U}_{mag}+\overline{U}_{mag} \overline{U}}{\overline{U}_{mag}^{2}},
+  u &= u_{\star}^{2} \frac{(u-\bar{U})\bar{U}_{mag}+\bar{U}_{mag} \bar{U}}{\bar{U}_{mag}^{2}},
 
-  \theta &= ku_{\star}\frac{\overline{U}_{mag}(\theta - \overline{\theta})+\overline{U}_{mag}(\overline{\theta}-\theta_{s})}{\overline{U}_{mag}\Theta_{h}}
+  \theta &= ku_{\star}\frac{\bar{U}_{mag}(\theta - \overline{\theta})+\bar{U}_{mag}(\overline{\theta}-\theta_{s})}{\bar{U}_{mag}\Theta_{h}}
 
-where :math:`\overline{U}`, and :math:`\overline{\theta}` are the plane averaged values.
+where :math:`\bar{U}`, and :math:`\overline{\theta}` are the plane averaged values.
