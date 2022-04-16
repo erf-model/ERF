@@ -58,7 +58,7 @@ erf_init_prob(
     state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p);
 
     // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = 0.0;
+    state(i, j, k, RhoScalar_comp) = 1.0 * state(i,j,k,Rho_comp);
   });
 
   // Construct a box that is on x-faces

@@ -5,19 +5,19 @@ inputs file: ../../Tests/test_files/TaylorGreenAdvecting/TaylorGreenAdvecting.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.000268372
+CPU time used since start of simulation (CPU-hours): 0.000230099
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Sat Apr  9 12:53:44 2022
+output data / time: Sat Apr 16 10:07:56 2022
 output dir:         /home/almgren/GitCode/ERF/Exec/TaylorGreenVortex
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2022-04-09 12:47:34.836045
+build date:    2022-04-15 17:56:43.888653
 build machine: Linux manda 5.13.0-39-generic #44~20.04.1-Ubuntu SMP Thu Mar 24 16:43:35 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
 build dir:     /home/almgren/GitCode/ERF/Exec/TaylorGreenVortex
 AMReX dir:     /home/almgren/GitCode/amrex
@@ -26,7 +26,7 @@ COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: 22.04-11-ga0668e9b2-dirty
+ERF       git hash: 22.04-19-gb383b5844-dirty
 
 
 ===============================================================================
@@ -67,7 +67,7 @@ amr.check_int = 100
 amr.plot_file = plt
 amr.plot_int = 10
 amr.plot_vars = density x_velocity y_velocity z_velocity
-amr.derive_plot_vars = pressure temp theta
+amr.derive_plot_vars = pressure temp theta scalar
 erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = false

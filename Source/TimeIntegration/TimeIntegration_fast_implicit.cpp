@@ -421,29 +421,19 @@ void erf_implicit_fast_rhs (int level,
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
 
+        const Array4<const Real> & prim = S_stage_prim.const_array(mfi);
+
         const int l_spatial_order = 2;
         amrex::ParallelFor(bx, S_stage_data[IntVar::cons].nComp(),
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
 
-            if (n == Rho_comp)
-            {
-                // Note that we pass theta but it won't be used here
-                fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
-                                                                           theta, n, advflux_x, advflux_y, advflux_z,
+            // We need to update all the conserved quantities with the updated momenta
+            fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
+                                                                       prim, n, advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
-                                                                           z_nd, detJ,
+                                                                       z_nd, detJ,
 #endif
-                                                                           dxInv, l_spatial_order);
-            } else if (n == RhoTheta_comp) {
-                fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
-                                                                           theta, n, advflux_x, advflux_y, advflux_z,
-#ifdef ERF_USE_TERRAIN
-                                                                           z_nd, detJ,
-#endif
-                                                                           dxInv, l_spatial_order);
-            } else {
-                fast_rhs_cell(i, j, k, n) = 0.0;
-            }
+                                                                       dxInv, l_spatial_order);
         });
 
         // Compute the RHS for the flux terms from this stage --
@@ -451,26 +441,17 @@ void erf_implicit_fast_rhs (int level,
         amrex::ParallelFor(tbx, S_stage_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            if (n == Rho_comp && n == RhoTheta_comp)
-                xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n);
-            else
-                xflux_rhs(i,j,k,n) = 0.0;
+            xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n);
         });
         amrex::ParallelFor(tby, S_stage_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            if (n == Rho_comp && n == RhoTheta_comp)
-                yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n);
-            else
-                yflux_rhs(i,j,k,n) = 0.0;
+            yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n);
         });
         amrex::ParallelFor(tbz, S_stage_data[IntVar::cons].nComp(),
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-            if (n == Rho_comp && n == RhoTheta_comp)
-                zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n);
-            else
-                zflux_rhs(i,j,k,n) = 0.0;
+            zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n);
         });
 
     } // mfi
