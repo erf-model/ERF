@@ -116,10 +116,10 @@ public:
                 const Box& bx = mfi.fabbox();
 
                 // make Array4's for our data
-                const auto cons_arr = m_data.get_var(Vars::cons)[mfi].array();
-                const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
-                const auto vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
-                const auto eta_arr = m_has_most_bcs ? m_viscosity[mfi].array() : Array4<Real>();
+                const auto cons_arr = m_has_most_bcs ? m_data.get_var(Vars::cons)[mfi].array() : Array4<Real>();
+                const auto velx_arr = m_has_most_bcs ? m_data.get_var(Vars::xvel)[mfi].array() : Array4<Real>();
+                const auto vely_arr = m_has_most_bcs ? m_data.get_var(Vars::yvel)[mfi].array() : Array4<Real>();
+                const auto eta_arr  = m_has_most_bcs ? m_viscosity[mfi].array() : Array4<Real>();
 
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
@@ -131,23 +131,12 @@ public:
                     //      0 is used as starting index for bcrs
                     amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
-                    // in the case of MOST BCs, use reflect_odd in special cases depending
-                    // on which variables we are working with and in which directions we fill BCs.
+                    // Set bc-type at low z to reflect_odd for zvel/zmom when using MOST BCs
                     for (int i = 0; i < bcrs.size(); i++) {
-                        for (OrientationIter oit; oit; ++oit) {
-                            Orientation ori = oit();
-                            if (bcrs[i].data()[ori] == static_cast<int>(ERFBCType::MOST)) {
-                                const int idir = ori.coordDir();
-                                Orientation::Side side = ori.faceDir();
-                                if (((m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) && idir == 0) ||
-                                    ((m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) && idir == 1) ||
-                                    ((m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) && idir == 2)) {
-                                    if (side == Orientation::low) {
-                                        bcrs[i].setLo(idir, ERFBCType::reflect_odd);
-                                    } else {
-                                        bcrs[i].setHi(idir, ERFBCType::reflect_odd);
-                                    }
-                                }
+                        // ori = 2 is the zlo side
+                        if (bcrs[i].data()[2] == static_cast<int>(ERFBCType::MOST)) {
+                            if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) {
+                                bcrs[i].setLo(2, ERFBCType::reflect_odd);
                             }
                         }
                     }
@@ -208,7 +197,6 @@ public:
                         if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
 
-                        // check the bc_ptr for ERFBCType::MOST
                         if (bccomp == BCVars::xvel_bc)
                         {
                             if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
@@ -226,8 +214,11 @@ public:
                         }
                     });
 
-                    int lev = 0;
                     if (m_r2d) {
+                        //
+                        // TODO: We need to know which level we're actually at -- this is a hack
+                        //
+                        int lev = 0;
                         amrex::Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
                         const auto& bdatxlo = (*bndry_data[0])[lev].const_array();
                         const auto& bdatylo = (*bndry_data[1])[lev].const_array();
@@ -301,7 +292,9 @@ public:
                     int zlo = m_geom.Domain().smallEnd(2);
 
                     // Now handle the MOST bc if we have any
-                    ParallelFor(bx, ncomp, [=,m_var_idx=m_var_idx,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+                    // Note: if we use MOST for one variable we use it for all, so we can just test on one component
+
+                    if (bc_ptr[0].lo(2) == ERFBCType::MOST && bx.smallEnd()[2] < zlo)
                     {
                         // check m_var_idx to distinguish between Vars::Dvel and Vars::Dmom
                         // (in Legacy this was controlled by the is_derived flag)
@@ -310,17 +303,21 @@ public:
                             var_is_derived = true;
                         }
 
-                        if (bc_ptr[n].lo(2) == ERFBCType::MOST) {
-                            if (k < zlo) {
-                            Real velx, vely, rho, theta, eta;
-                            int ix, jx, iy, jy, ie, je;
-                            if (m_var_idx == Vars::cons && n == Cons::RhoTheta) {
-                                /**
-                                * for zone centered variables, the face centered velocity need to be interpolated to
-                                * zone center.
-                                * NOTE: the number of ghost zone for state variables are different from face centered
-                                *       variables in the new version.
-                                */
+                        amrex::Box b2d = bx; // Copy constructor
+                        b2d.setBig(2,zlo-1);
+
+                        /**
+                        * NOTE: the number of ghost zone for state variables are different from face centered
+                        *       variables in the new version.
+                        */
+
+                        if (m_var_idx == Vars::cons) {
+                            int n = Cons::RhoTheta;
+                            ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
+                            {
+                                Real velx, vely, rho, theta, eta;
+                                int ix, jx, iy, jy, ie, je;
+
                                 ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
                                 jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
                                 ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
@@ -354,8 +351,15 @@ public:
                                 } else {
                                     dest_array(i,j,k,icomp+n) = m_most.surf_temp + motheta/eta;
                                 }
+                            });
 
-                            } else if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) { //for velx
+                        } else if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) { //for velx
+
+                            ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
+                            {
+                                Real velx, vely, rho, eta;
+                                int iy, jy, ie, je;
+
                                 iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
                                 jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
                                 iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
@@ -367,21 +371,31 @@ public:
                                 je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
 
                                 velx  = velx_arr(i,j,zlo);
-                                vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
-                                rho   = 0.5*(cons_arr(ie,je,zlo,Rho_comp)+cons_arr(ie+1,je,zlo,Rho_comp));
-                                eta   = 0.5*(eta_arr(ie,je,zlo,EddyDiff::Mom_h)+eta_arr(ie+1,je,zlo,EddyDiff::Mom_h));
+                                vely  = 0.25*( vely_arr(iy  ,jy,zlo)+vely_arr(iy  ,jy+1,zlo)
+                                              +vely_arr(iy-1,jy,zlo)+vely_arr(iy-1,jy+1,zlo));
+                                rho   = 0.5*(cons_arr(ie-1,je,zlo,Rho_comp)+
+                                             cons_arr(ie  ,je,zlo,Rho_comp));
+                                eta   = 0.5*( eta_arr(ie-1,je,zlo,EddyDiff::Mom_h)+
+                                              eta_arr(ie  ,je,zlo,EddyDiff::Mom_h));
 
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
                                               (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgx*rho/eta;
+                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgx*rho/eta;
                                 } else {
-                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgx/eta;
+                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgx/eta;
                                 }
+                            });
 
-                            } else if (m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) { //for vely
+                        } else if (m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) { //for vely
+
+                            ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
+                            {
+                                Real velx, vely, rho, eta;
+                                int ix, jx, ie, je;
+
                                 ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
                                 jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
                                 ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
@@ -392,26 +406,31 @@ public:
                                 ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
                                 je = je > ubound(eta_arr).y-1 ? ubound(eta_arr).y-1 : je;
 
-                                velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix,jx+1,zlo));
+                                velx  = 0.25*( velx_arr(ix,jx  ,zlo)+velx_arr(ix+1,jx  ,zlo)
+                                              +velx_arr(ix,jx-1,zlo)+velx_arr(ix+1,jx-1,zlo));
                                 vely  = vely_arr(i,j,zlo);
-                                rho   = 0.5*(cons_arr(ie,je,zlo,Rho_comp)+cons_arr(ie,je+1,zlo,Rho_comp));
-                                eta   = 0.5*(eta_arr(ie,je,zlo,EddyDiff::Mom_h)+eta_arr(ie,je+1,zlo,EddyDiff::Mom_h));
+                                rho   = 0.5*(cons_arr(ie,je-1,zlo,Rho_comp)+
+                                             cons_arr(ie,je  ,zlo,Rho_comp));
+                                eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_h)+
+                                             eta_arr(ie,je  ,zlo,EddyDiff::Mom_h));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
 
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgy*rho/eta;
+                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgy*rho/eta;
                                 } else {
-                                    dest_array(i,j,k,icomp+n) = dest_array(i,j,zlo,icomp+n) - vgy/eta;
+                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgy/eta;
                                 }
-                            } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) { //for velz
-                                dest_array(i,j,k,icomp+n) = (zlo-k+1)*dest_array(i,j,zlo  ,icomp+n) -
-                                                            (zlo-k  )*dest_array(i,j,zlo+1,icomp+n);
-                            }
-                            }
+                            });
+
+                        } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) { //for velz
+                            ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k) {
+                                dest_array(i,j,k,icomp) = (zlo-k+1)*dest_array(i,j,zlo  ,icomp) -
+                                                          (zlo-k  )*dest_array(i,j,zlo+1,icomp);
+                            });
                         }
-                    });
+                    }
 
 /* EXAMPLE CUSTOM PHYSICAL BC FUNCTION USING ALL VARIABLES
                     // Call our custom BC fill functions here using ccbx and vars_arrays to pass
