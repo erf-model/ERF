@@ -295,11 +295,11 @@ void erf_rhs (int level,
             Real gp_xi = dxInv[0] *
                 (getPprimegivenRTh(cell_data(i  ,j,k,RhoTheta_comp),p0_arr(i,j,k)) -
                  getPprimegivenRTh(cell_data(i-1,j,k,RhoTheta_comp),p0_arr(i,j,k)));
-            amrex::Real h_xi_on_iface = 0.125 * (
+            amrex::Real h_xi_on_iface = 0.125 * dxInv[0] * (
                 z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
                -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k-1) );
-            amrex::Real h_zeta_on_iface = 0.5 * (
-                z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) + z_nd(i,j+1,k) );
+            amrex::Real h_zeta_on_iface = 0.5 * dxInv[2] * (
+                z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) - z_nd(i,j+1,k) );
             Real gp_zeta_on_iface = 0.25 * dxInv[2] * (
                   getPprimegivenRTh(cell_data(i  ,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
                  +getPprimegivenRTh(cell_data(i-1,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
@@ -370,10 +370,10 @@ void erf_rhs (int level,
             Real gp_eta = dxInv[1] *
                 (getPprimegivenRTh(cell_data(i,j  ,k,RhoTheta_comp),p0_arr(i,j,k)) -
                  getPprimegivenRTh(cell_data(i,j-1,k,RhoTheta_comp),p0_arr(i,j,k)));
-            amrex::Real h_eta_on_jface = 0.125 * (
+            amrex::Real h_eta_on_jface = 0.125 * dxInv[1] * (
                 z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
                -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k-1) );
-            amrex::Real h_zeta_on_jface = 0.5 * (
+            amrex::Real h_zeta_on_jface = 0.5 * dxInv[2] * (
                 z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) + z_nd(i+1,j,k) );
             Real gp_zeta_on_jface = 0.25 * dxInv[2] * (
                   getPprimegivenRTh(cell_data(i,j  ,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
@@ -442,16 +442,16 @@ void erf_rhs (int level,
 #ifdef ERF_USE_TERRAIN
             amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),p0_arr(i,j,k));
             amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1));
-            amrex::Real h_zeta = 0.125 * (
+            amrex::Real h_zeta = 0.125 * dxInv[2] * (
                 z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
                -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) + z_nd(i,j+1,k-1) + z_nd(i+1,j+1,k-1) );
-            amrex::Real gpz = (-dxInv[2]) * (p_prime_hi - p_prime_lo) / h_zeta;
+            amrex::Real gpz = dxInv[2] * (p_prime_hi - p_prime_lo) / h_zeta;
 #else
             amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),dptr_pres_hse[k  ]);
             amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),dptr_pres_hse[k-1]);
-            amrex::Real gpz = (-dxInv[2]) * (p_prime_hi - p_prime_lo);
+            amrex::Real gpz = dxInv[2] * (p_prime_hi - p_prime_lo);
 #endif
-            rho_w_rhs(i, j, k) += gpz;
+            rho_w_rhs(i, j, k) -= gpz;
 
             // Add gravity term
             if (solverChoice.use_gravity)
