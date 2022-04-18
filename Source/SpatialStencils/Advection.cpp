@@ -71,7 +71,7 @@ AdvectionContributionForXMom(const int &i, const int &j, const int &k,
     // This is dh/deta at the edge (i-1/2,j,k+1/2)
     Real met_zhi_eta  =  dyInv * (z_nd(i,j+1,k+1) - z_nd(i,j,k+1)); // diff in j at node (i-1/2,k+1/2)
 
-    vec = -met_zhi_xi  * 0.5   * (u(i,j,k) + u(i,j,k+1))
+    vec = -met_zhi_xi  * 0.5   * (rho_u(i,j,k) + rho_u(i,j,k+1))
           -met_zhi_eta * 0.125 * (
              rho_v(i,j,k  ) + rho_v(i-1,j,k  ) + rho_v(i,j+1,k  ) + rho_v(i-1,j+1,k  ) +
              rho_v(i,j,k+1) + rho_v(i-1,j,k+1) + rho_v(i,j+1,k+1) + rho_v(i-1,j+1,k+1) )
@@ -89,7 +89,7 @@ AdvectionContributionForXMom(const int &i, const int &j, const int &k,
     // This is dh/deta at the edge (i-1/2,j,k-1/2)
     Real met_zlo_eta  =  dyInv * (z_nd(i,j+1,k) - z_nd(i,j,k)); // diff in j at node (i-1/2,k-1/2)
 
-    vec = -met_zlo_xi  * 0.5 * (u(i,j,k) + u(i,j,k-1))
+    vec = -met_zlo_xi  * 0.5 * (rho_u(i,j,k) + rho_u(i,j,k-1))
           -met_zlo_eta * 0.125 * (
              rho_v(i,j,k  ) + rho_v(i-1,j,k  ) + rho_v(i,j+1,k  ) + rho_v(i-1,j+1,k  ) +
              rho_v(i,j,k-1) + rho_v(i-1,j,k-1) + rho_v(i,j+1,k-1) + rho_v(i-1,j+1,k-1) )
@@ -220,7 +220,7 @@ AdvectionContributionForYMom(const int &i, const int &j, const int &k,
     // This is dh/dxi at the edge (i,j-1/2,k+1/2)
     Real met_zhi_xi  =  dxInv * (z_nd(i+1,j,k+1) - z_nd(i,j,k+1)); // diff in i-direction
 
-    vec = -met_zhi_eta * 0.5 * (v(i,j,k) + v(i,j,k+1))
+    vec = -met_zhi_eta * 0.5 * (rho_v(i,j,k) + rho_v(i,j,k+1))
           -met_zhi_xi  * 0.125 * (
              rho_u(i,j,k  ) + rho_u(i,j-1,k  ) + rho_u(i+1,j,k  ) + rho_u(i+1,j-1,k  ) +
              rho_u(i,j,k+1) + rho_u(i,j-1,k+1) + rho_u(i+1,j,k+1) + rho_u(i+1,j-1,k+1) )
@@ -238,7 +238,7 @@ AdvectionContributionForYMom(const int &i, const int &j, const int &k,
     // This is dh/dxi at the edge (i,j-1/2,k-1/2)
     Real met_zlo_xi  =  dxInv * (z_nd(i+1,j,k) - z_nd(i,j,k)); // diff in i-direction
 
-    vec = -met_zlo_eta * 0.5 * (v(i,j,k) + v(i,j,k-1))
+    vec = -met_zlo_eta * 0.5 * (rho_v(i,j,k) + rho_v(i,j,k-1))
           -met_zlo_xi  * 0.125 * (
              rho_u(i,j,k  ) + rho_u(i,j-1,k  ) + rho_u(i+1,j,k  ) + rho_u(i+1,j-1,k  ) +
              rho_u(i,j,k-1) + rho_u(i,j-1,k-1) + rho_u(i+1,j,k-1) + rho_u(i+1,j-1,k-1) )
@@ -372,9 +372,9 @@ AdvectionContributionForZMom(const int &i, const int &j, const int &k,
          -z_nd(i,j  ,k+1) - z_nd(i+1,j  ,k+1) - z_nd(i,j  ,k) - z_nd(i+1,j  ,k) );
 
     // This is at the cell (i,j,k)
-    vec  = -met_zhi_xi  * 0.5 * ( rho_u(i,j,k) + rho_u(i+1,j,k))
-           -met_zhi_eta * 0.5 * ( rho_v(i,j,k) + rho_v(i,j+1,k))
-           +              0.5 * ( rho_w(i,j,k) + rho_w(i,j,k+1));
+    vec  = -met_zhi_xi  * 0.5 * ( rho_u(i,j,k) + rho_u(i+1,j  ,k))
+           -met_zhi_eta * 0.5 * ( rho_v(i,j,k) + rho_v(i  ,j+1,k))
+           +              0.5 * ( rho_w(i,j,k) + rho_w(i  ,j  ,k+1));
 
     Real centFluxZZNext = vec *
                           InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
