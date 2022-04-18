@@ -71,6 +71,9 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
       Real Cs = solverChoice.Cs;
       Real CsDeltaSqr = Cs*Cs*Delta*Delta;
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
       for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.growntilebox(1);
@@ -97,6 +100,9 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     {
       Real l_C_k = solverChoice.Ck;
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
       for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.growntilebox(1);
@@ -119,6 +125,10 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
         Real inv_Sc_t = solverChoice.Sc_t_inv;
         Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
         bool use_KE = (solverChoice.les_type == LESType::Deardorff);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
         for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box &bx = mfi.growntilebox(1);
             const Array4<Real> &K = eddyViscosity.array(mfi);
@@ -147,6 +157,9 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
         }
     }
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box &bx = mfi.growntilebox(1);
@@ -186,6 +199,9 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     // Now extend to low and high in vertical (assuming not periodic in z)
     if (!geom.isPeriodic(2))
     {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
         for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
             const Box &bx = mfi.growntilebox(1);

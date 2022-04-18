@@ -1,5 +1,5 @@
 HyperCLaw-V1.1
-7
+8
 density
 x_velocity
 y_velocity
@@ -7,6 +7,7 @@ z_velocity
 pressure
 temp
 theta
+scalar
 3
 1.5999999999999999
 0

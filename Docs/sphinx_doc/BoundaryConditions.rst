@@ -117,7 +117,7 @@ xlo.density       = 1. sets the inflow density,
 xlo.theta         = 300. sets the inflow potential temperature,
 xlo.scalar        = 2. sets the inflow value of the advected scalar
 
-* The "slipwall" and "noslipwall" types have options for adiabatic vs Dirichlet boundary conditions.
+The "slipwall" and "noslipwall" types have options for adiabatic vs Dirichlet boundary conditions.
 If a value for theta is given for a face with type "slipwall" or "noslipwall" then the boundary
 condition for theta is assumed to be "ext_dir", i.e. theta is specified on the boundary.
 If not value is specified then the wall is assumed to be adiabiatc, i.e. there is no temperature
@@ -136,7 +136,7 @@ would designate theta = 301. at the bottom (zlo) boundary, while
 the top boundary condition would be a zero gradient, aka adiabatic
 because no value is specified for ``zhi.theta``
 
-* We note that "noslipwall" allows for non-zero tangential velocities to be specified, as in the
+We note that "noslipwall" allows for non-zero tangential velocities to be specified, as in the
 Couette regression test example, in which we specify
 
 ::
@@ -149,7 +149,7 @@ Couette regression test example, in which we specify
     zlo.velocity    = 0.0 0.0 0.0
     zhi.velocity    = 2.0 0.0 0.0
 
-* We also note that in the case of a "slipwall" boundary condition in a simulation with non-zero
+We also note that in the case of a "slipwall" boundary condition in a simulation with non-zero
 viscosity specified, the "foextrap" boundary condition enforces zero strain at the wall.
 
 The keywork "MOST" is an ERF-specific boundary type and the mapping is described below.
@@ -164,6 +164,7 @@ to read in a time sequence of data at a domain boundary and impose this data as 
 boundary values using ``FillPatch``.
 
 .. _MostBoundary:
+
 MOST Boundaries
 -------------------
 Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), The MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and the turbulent stresses :math:`\overline{u^{'}w^{'}}` and :math:`\overline{w^{'}v^{'}}` are assumed to be constant with height. Based on these assumptions,
@@ -180,61 +181,82 @@ the MOST theory can be written as:
   \Theta_{h}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \theta}{\partial z}
 
 
-here, :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature, and :math:`\theta_{0}` is the potential temperature near surface in the ASL, and the MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{w^{'}\theta^{'}}`, with :math:`\mathbf{L}` is the Monin-Okukhov length.
+Here :math:`u_{\star}` is the friction velocity, :math:`\theta_{\star}` is the surface temperature,
+and :math:`\theta_{0}` is the potential temperature near surface in the ASL.
+
+The MOST stability parameter is given by :math:`\zeta = \frac{\mathbf{z}}{L} = -\frac{\kappa z}{u_{\star}^{3}} \frac{g}{\theta_{0}} \overline{w^{'}\theta^{'}}`,
+where :math:`L` is the Monin-Okukhov length.
 
 Integration of the MOST assumption equations give the classical MOST profiles of mean velocity and potential temperature
 
 .. math::
 
-  \mathbf{U}(\zeta) &= \frac{u_{\star}}{\kappa} [\mathbf{ln}(\frac{\mathbf{z}}{\mathbf{z}_{0}})-\Psi_{m}(\zeta)],
+  \mathbf{U}(\zeta)    &= \frac{u_{\star}}{\kappa} [ \mathrm{ln} (\frac{z}{z_0})-\Psi_m(\zeta)],
 
-  \mathbf{\Theta}(\mathbf{z})-\theta_{0} &= \frac{\theta_{\star}}{\kappa}[\mathbf{ln}(\frac{\mathbf{z}}{\mathbf{z}_{0}})-\Psi_{h}(\zeta)
-
-
-where
-
-.. math::
-
-  \Psi_{m}(\zeta) &= \int _{\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{m}(\zeta)]d \mathbf{ln}(\zeta),
-
-  \Psi_{h}(\zeta) &= \int _{\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{h}(\zeta)]d \mathbf{ln}(\zeta)
-
-are integrated similarity function.
+  \Theta(z) - \theta_0 &= \frac{\theta_{\star}}{\kappa} [ \mathrm{ln}(\frac{z}{z_0})-\Psi_{h}(\zeta) ]
 
 
-The integrated similarity functions (:math:`\Psi_{m}, \Psi_{h}`) are calculated analytically in the stable and unstable stratification.
-
-Unstable, :math:`(-2 < \zeta < 0)`
+where the integrated similarity functions,
 
 .. math::
 
-  \Theta_{m} &= (1-\gamma_{1}\eta)^{-\frac{1}{4}},
-  \Psi_{m}=\mathbf{ln}[\frac{1}{g}(1+\Psi_{m}^{2})(1+\Psi_{m}^{-1})^{2}]-2\arctan(\Theta_{m}^{-1})+\frac{\pi}{2},
+  \Psi_{m}(\zeta) &= \int _{\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{m}(\zeta)]d \mathrm{ln}(\zeta),
 
-  \Theta_{h} &= \sigma_{\theta}(1-\gamma_{2}\zeta)^{-\frac{1}{2}},
-  \Psi_{h}=(1+\sigma_{\theta}) \mathbf{ln}[\frac{1}{2}(1+\Theta_{h}^{-1}]+(1-\sigma_{\theta})ln[\frac{1}{2}(-1+\Theta_{h}^{-1})]
+  \Psi_{h}(\zeta) &= \int _{\frac{z_{0}}{L}} ^{\frac{z}{L}} [1-\Theta_{h}(\zeta)]d \mathrm{ln}(\zeta)
 
-Stable, :math:`(0 < \zeta < 1)`
+are calculated analytically for stable and unstable stratifications.
+
+Unstable: :math:`(-2 < \zeta < 0)`
 
 .. math::
-  \Theta_{m} &= 1+\beta \zeta, \Psi_{m}=-\beta \zeta,
 
-  \Theta_{h} &= \sigma_{\theta}+\beta \zeta, \Psi_{h}=(1-\sigma_{\theta})\mathbf{ln}(\zeta)-\beta \zeta
+  \Theta_{m} &= (1-\gamma_{1}\eta)^{-\frac{1}{4}}, \quad
+  \Psi_{m}    = \mathrm{ln}[\frac{1}{g}(1+\Psi_{m}^{2})(1+\Psi_{m}^{-1})^{2}]-2\arctan(\Theta_{m}^{-1})+\frac{\pi}{2},
+
+  \Theta_{h} &= \sigma_{\theta}(1-\gamma_{2}\zeta)^{-\frac{1}{2}}, \quad
+  \Psi_{h}    = (1+\sigma_{\theta}) \mathrm{ln}[\frac{1}{2}(1+\Theta_{h}^{-1}]+(1-\sigma_{\theta}) {\mathrm{ln}} [\frac{1}{2}(-1+\Theta_{h}^{-1})]
+
+Stable: :math:`(0 < \zeta < 1)`
+
+.. math::
+  \Theta_{m} &= 1+\beta \zeta, \quad \Psi_{m}=-\beta \zeta,
+
+  \Theta_{h} &= \sigma_{\theta}+\beta \zeta, \quad \Psi_{h}=(1-\sigma_{\theta})\mathrm{ln}(\zeta)-\beta \zeta
 
 and the constants are defined as:
 
 .. math::
-  \sigma_{\theta}=1, \beta = 5, \gamma_{1}=16, \gamma_{2}=16
+  \sigma_{\theta}=1, \quad \beta = 5, \quad \gamma_{1}=16, \quad \gamma_{2}=16
 
-The MOST stability parameter :math:`\zeta=\frac{\mathbf{z}}{\mathbf{L}}=-\kappa z \frac{g}{\theta_{0}} \frac{\theta_{\star}}{\mathbf{u}^{2}_{\star}}` is determined by the friction velocity :math:`\mathbf{u}_{\star}=\kappa \mathbf{U}/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{m}(\mathbf{u}/\mathbf{L})]`, and the surface temperature
-:math:`\theta_{\star} = \kappa (\theta_{a}-\theta_{g})/[\mathbf{ln}(\mathbf{z}/\mathbf{z}_{0})-\Psi_{h}(\mathbf{z}/\mathbf{L})]`
+Inverting the equations above, the MOST stability parameter,
+
+.. math::
+  \zeta=\frac{z}{L} = -\kappa z \frac{g}{\theta_{0}} \frac{\theta_{\star}}{u^{2}_{\star}}
+
+is determined by the friction velocity
+
+.. math::
+  u_{\star} =\kappa U/[\mathrm{ln}(z/z_0)-\Psi_{m}(\frac{z}{L})]
+
+and the surface temperature
+
+.. math::
+  \theta_{\star} = \kappa (\theta_{a}-\theta_{g})/[\mathrm{ln}(z / z_0)-\Psi_{h}(z/L)]
 
 Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with height, the wind speed, temperature and moisture at surface can be derived as:
 
 .. math::
 
-  u &= u_{\star}^{2} \frac{(u-\overline{U})\overline{U}_{mag}+\overline{U}_{mag} \overline{U}}{\overline{U}_{mag}^{2}},
+  u &= u_{\star}^{2} \frac{ (u-\bar{u}) \bar{|\mathbf{U}|} +
+                             \sqrt{u^2+v^2} \; \bar{u}  }{\bar{|\mathbf{U}|}^{2}},
 
-  \theta &= ku_{\star}\frac{\overline{U}_{mag}(\theta - \overline{\theta})+\overline{U}_{mag}(\overline{\theta}-\theta_{s})}{\overline{U}_{mag}\Theta_{h}}
+  v &= u_{\star}^{2} \frac{ (v-\bar{v}) \bar{|\mathbf{U}|} +
+                             \sqrt{u^2+v^2} \; \bar{v}  }{\bar{|\mathbf{U}|}^{2}},
 
-where :math:`\overline{U}`, and :math:`\overline{\theta}` are the plane averaged values.
+  \theta &= \theta_\star + k u_{\star} \frac{\bar{|\mathbf{U}|} (\theta - \overline{\theta}) +
+                                             \sqrt{u^2+v^2}  (\overline{\theta}-\theta_{\star}) }{\Theta_{h}}
+
+where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values of the
+two horizontal velocity components and the potential temperature, respectively, and
+:math:`\bar{|\mathbf{U}|}` is the plane averaged magnitude of horizontal velocity.
+

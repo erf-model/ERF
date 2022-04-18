@@ -328,47 +328,45 @@ Time Step
 
 .. _list-of-parameters-6:
 
-List of Parameters
-------------------
+List of Parameters for Single-Rate
+----------------------------------
 
-+---------------------+----------------+----------------+----------------+
-| Parameter           | Definition     | Acceptable     | Default        |
-|                     |                | Values         |                |
-+=====================+================+================+================+
-| **erf.cfl**         | CFL number for | Real > 0 and   | 0.8            |
-|                     | hydro          | <= 1           |                |
-|                     |                |                |                |
-|                     |                |                |                |
-+---------------------+----------------+----------------+----------------+
-| **erf.init_shrink** | factor by      | Real > 0 and   | 1.0            |
-|                     | which to       | <= 1           |                |
-|                     | shrink the     |                |                |
-|                     | initial time   |                |                |
-|                     | step           |                |                |
-+---------------------+----------------+----------------+----------------+
-| **erf.change_max**  | factor by      | Real >= 1      | 1.1            |
-|                     | which the time |                |                |
-|                     | step can grow  |                |                |
-|                     | in subsequent  |                |                |
-|                     | steps          |                |                |
-+---------------------+----------------+----------------+----------------+
-| **erf.fixed_dt**    | level-0 time   | Real > 0       | unused if not  |
-|                     | step           |                | set            |
-|                     | regardless of  |                |                |
-|                     | cfl or other   |                |                |
-|                     | settings       |                |                |
-+---------------------+----------------+----------------+----------------+
-| **erf.initial_dt**  | initial        | Real > 0       | unused if not  |
-|                     | level-0 time   |                | set            |
-|                     | step           |                |                |
-|                     | regardless of  |                |                |
-|                     | other settings |                |                |
-+---------------------+----------------+----------------+----------------+
-| **erf.max_dt**      | time step      | Real > 0       | 1.e20          |
-|                     | above which    |                |                |
-|                     | calculation    |                |                |
-|                     | will abort     |                |                |
-+---------------------+----------------+----------------+----------------+
++----------------------------+-----------------+----------------+-------------------+
+| Parameter                  | Definition      | Acceptable     | Default           |
+|                            |                 | Values         |                   |
++============================+=================+================+===================+
+| **erf.cfl**                | CFL number for  | Real > 0 and   | 0.8               |
+|                            | hydro           | <= 1           |                   |
+|                            |                 |                |                   |
+|                            |                 |                |                   |
++----------------------------+-----------------+----------------+-------------------+
+| **erf.fixed_dt**           | set level 0 dt  | Real > 0       | unused if not     |
+|                            | as this value   |                | set               |
+|                            | regardless of   |                |                   |
+|                            | cfl or other    |                |                   |
+|                            | settings        |                |                   |
++----------------------------+-----------------+----------------+-------------------+
+| **erf.use_lowM_dt**        | set level 0 dt  | bool           | false             |
+|                            | based on        |                |                   |
+|                            | low M cfl cond  |                |                   |
++----------------------------+-----------------+----------------+-------------------+
+| **erf.fixed_fast_dt**      | set fast dt     | Real > 0       | only relevant     |
+|                            | as this value   |                | if use_native_mri |
+|                            |                 |                | is true           |
++----------------------------+-----------------+----------------+-------------------+
+| **erf.fixed_mri_dt_ratio** | set fast dt     | int            | only relevant     |
+|                            | as slow dt /    |                | if use_native_mri |
+|                            | this ratio      |                | is true           |
++----------------------------+-----------------+----------------+-------------------+
+| **erf.init_shrink**        | factor by which | Real > 0 and   | 1.0               |
+|                            | to shrink the   | <= 1           |                   |
+|                            | initial dt      |                |                   |
++----------------------------+-----------------+----------------+-------------------+
+| **erf.change_max**         | factor by which | Real >= 1      | 1.1               |
+|                            | dt can grow     |                |                   |
+|                            | in subsequent   |                |                   |
+|                            | steps           |                |                   |
++----------------------------+-----------------+----------------+-------------------+
 
 .. _examples-of-usage-5:
 
@@ -376,7 +374,7 @@ Examples of Usage
 -----------------
 
 -  | **erf.cfl** = 0.9
-   | defines the timestep as dt = cfl \* dx / (u+c)
+   | defines the timestep as dt = cfl \* dx / (u+c).  Only relevant if **fixed_dt** not set
 
 -  | **erf.init_shrink** = 0.01
    | sets the initial time step to 1% of what it would be otherwise.
@@ -391,11 +389,6 @@ Examples of Usage
      ignoring the other timestep controls. Note that if
      **erf.init_shrink** :math:`\neq 1` then the first time step will in
      fact be **erf.init_shrink** \* **erf.fixed_dt**.
-
--  | **erf.initial_dt** = 1.e-4
-   | sets the *initial* level-0 time step to be 1.e-4 regardless of
-     **erf.cfl** or **erf.fixed_dt**. The time step can grow in
-     subsequent steps by a factor of **erf.change_max** each step.
 
 Restart Capability
 ==================
