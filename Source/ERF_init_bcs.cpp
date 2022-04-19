@@ -154,11 +154,8 @@ void ERF::init_bcs ()
         }
         else if (bc_type == "most")
         {
-            // amrex::Print() << bcid <<" set to MOST.\n";
-
             phys_bc_type[ori] = BC::MOST;
             domain_bc_type[ori] = "MOST";
-
         }
         else
         {

@@ -10,6 +10,52 @@
 
 using namespace amrex;
 
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real OmegaFromW(int i, int j, int k, Real w,
+                       const amrex::Array4<const Real> u,
+                       const amrex::Array4<const Real> v,
+                       const amrex::Array4<const Real> z_nd,
+                       const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
+{
+    // This is dh/dxi at z-face (i,j,k-1/2)
+    Real met_zlo_xi   = 0.5 * dxInv[0] *
+                              ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
+                               -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
+
+    // This is dh/deta at z-face (i,j,k-1/2)
+    Real met_zlo_eta  = 0.5 * dxInv[1] *
+                              ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
+                               -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
+
+    Real vec_zlo_xi   = 0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
+    Real vec_zlo_eta  = 0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
+    Real omega = -met_zlo_xi * vec_zlo_xi - met_zlo_eta * vec_zlo_eta + w;
+    return omega;
+}
+
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real WFromOmega(int i, int j, int k, amrex::Real omega,
+                       const amrex::Array4<const Real>& u,
+                       const amrex::Array4<const Real>& v,
+                       const amrex::Array4<const Real>& z_nd,
+                       const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
+{
+    // This is dh/dxi at z-face (i,j,k-1/2)
+    Real met_zlo_xi   = 0.5 * dxInv[0] *
+                              ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
+                               -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
+
+    // This is dh/deta at z-face (i,j,k-1/2)
+    Real met_zlo_eta  = 0.5 * dxInv[1] *
+                              ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
+                               -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
+
+    Real vec_zlo_xi   = 0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
+    Real vec_zlo_eta  = 0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
+    Real w = met_zlo_xi * vec_zlo_xi + met_zlo_eta * vec_zlo_eta + omega;
+    return w;
+}
+
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         const MultiFab& cons_in,
                         const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,
@@ -54,7 +100,7 @@ Real InterpolateDensityPertFromCellToFace(const int &i, const int &j, const int 
 
 /** Meant for {x, y, z}- momentum equations */
 AMREX_GPU_DEVICE
-Real AdvectionContributionForXMom(const int &i, const int &j, const int &k,
+Real AdvectionSrcForXMom(const int &i, const int &j, const int &k,
                                   const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                                   const Array4<const Real>& u,
 #ifdef ERF_USE_TERRAIN
@@ -63,7 +109,7 @@ Real AdvectionContributionForXMom(const int &i, const int &j, const int &k,
                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                   const int& spatial_order);
 AMREX_GPU_DEVICE
-Real AdvectionContributionForYMom(const int &i, const int &j, const int &k,
+Real AdvectionSrcForYMom(const int &i, const int &j, const int &k,
                                   const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                                   const Array4<const Real>& v,
 #ifdef ERF_USE_TERRAIN
@@ -72,7 +118,7 @@ Real AdvectionContributionForYMom(const int &i, const int &j, const int &k,
                                   const GpuArray<Real, AMREX_SPACEDIM>& cellSize,
                                   const int& spatial_order);
 AMREX_GPU_DEVICE
-Real AdvectionContributionForZMom(const int &i, const int &j, const int &k,
+Real AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                                   const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                                   const Array4<const Real>& w,
 #ifdef ERF_USE_TERRAIN
@@ -83,7 +129,7 @@ Real AdvectionContributionForZMom(const int &i, const int &j, const int &k,
 
 /** Meant for the continuity, energy, and scalar equations */
 AMREX_GPU_DEVICE
-Real AdvectionContributionForState(const int &i, const int &j, const int &k,
+Real AdvectionSrcForState(const int &i, const int &j, const int &k,
                                    const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                                    const Array4<const Real>& cell_prim, const int &qty_index,
                                    const Array4<Real>& flux_x, const Array4<Real>& flux_y,
@@ -113,7 +159,7 @@ Real ComputeStressTerm (const int &i, const int &j, const int &k,
                         const Box& domain, const amrex::BCRec* bc_ptr);
 
 AMREX_GPU_DEVICE
-Real DiffusionContributionForMom(const int &i, const int &j, const int &k,
+Real DiffusionSrcForMom(const int &i, const int &j, const int &k,
                                  const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                                  const Array4<const Real>& cons,
                                  const enum MomentumEqn &momentumEqn,
@@ -132,7 +178,7 @@ Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
                                   const enum Coord& coordDir);
 
 AMREX_GPU_DEVICE
-Real DiffusionContributionForState(const int &i, const int &j, const int &k,
+Real DiffusionSrcForState(const int &i, const int &j, const int &k,
                                    const Array4<const Real>& cell_data,
                                    const Array4<const Real>& cell_prim, const int & qty_index,
                                    const Array4<Real>& flux_x, const Array4<Real>& flux_y,

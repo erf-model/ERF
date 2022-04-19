@@ -380,7 +380,7 @@ public:
 
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
-                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                              (m_most.vmag_mean*m_most.vmag_mean) * m_most.utau*m_most.utau;
 
                                 if (!var_is_derived) {
                                     dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgx*rho/eta;

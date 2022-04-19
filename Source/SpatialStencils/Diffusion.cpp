@@ -5,7 +5,7 @@ using namespace amrex;
 
 AMREX_GPU_DEVICE
 Real
-DiffusionContributionForMom(const int &i, const int &j, const int &k,
+DiffusionSrcForMom(const int &i, const int &j, const int &k,
                             const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                             const Array4<const Real>& cons,
                             const enum MomentumEqn &momentumEqn,
@@ -195,7 +195,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 
 AMREX_GPU_DEVICE
 Real
-DiffusionContributionForState(const int &i, const int &j, const int &k,
+DiffusionSrcForState(const int &i, const int &j, const int &k,
                               const Array4<const Real>& cell_data,
                               const Array4<const Real>& cell_prim, const int & qty_index,
                               const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
@@ -219,10 +219,10 @@ DiffusionContributionForState(const int &i, const int &j, const int &k,
   zflux(i,j,k+1,qty_index) = ComputeDiffusionFluxForState(i, j, k+1, cell_data, cell_prim, prim_index, dz_inv, K_turb, solverChoice, Coord::z);
   zflux(i,j,k  ,qty_index) = ComputeDiffusionFluxForState(i, j, k  , cell_data, cell_prim, prim_index, dz_inv, K_turb, solverChoice, Coord::z);
 
-  Real diffusionContribution =
+  Real diffusionSrc =
       (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dx_inv   // Diffusive flux in x-dir
      +(yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dy_inv   // Diffusive flux in y-dir
      +(zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dz_inv;  // Diffusive flux in z-dir
 
-  return diffusionContribution;
+  return diffusionSrc;
 }
