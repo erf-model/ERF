@@ -203,11 +203,11 @@ void erf_implicit_fast_rhs (int level,
 
 #ifdef ERF_USE_TERRAIN
                 Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
-                Real h_xi_on_iface = 0.125 * (
+                Real h_xi_on_iface = 0.125 * dxi * (
                     z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
                    -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k-1) );
-                Real h_zeta_on_iface = 0.5 * (
-                    z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) + z_nd(i,j+1,k) );
+                Real h_zeta_on_iface = 0.5 * dyi * (
+                    z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) - z_nd(i,j+1,k) );
                 Real gp_zeta_on_iface = 0.25 * dzi * (
                   (old_drho_theta(i  ,j,k+1) + beta_d*((cur_data(i  ,j,k+1,RhoTheta_comp)-old_data(i  ,j,k+1,RhoTheta_comp))))
                  +(old_drho_theta(i-1,j,k+1) + beta_d*((cur_data(i-1,j,k+1,RhoTheta_comp)-old_data(i-1,j,k+1,RhoTheta_comp))))
@@ -248,10 +248,10 @@ void erf_implicit_fast_rhs (int level,
 
 #ifdef ERF_USE_TERRAIN
                 Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
-                Real h_eta_on_jface = 0.125 * (
+                Real h_eta_on_jface = 0.125 * dyi * (
                     z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
                    -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k-1) );
-                Real h_zeta_on_jface = 0.5 * (
+                Real h_zeta_on_jface = 0.5 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) + z_nd(i+1,j,k) );
                 Real gp_zeta_on_jface = 0.25 * dzi * (
                   (old_drho_theta(i,j  ,k+1) + beta_d*((cur_data(i,j  ,k+1,RhoTheta_comp)-old_data(i,j  ,k+1,RhoTheta_comp))))
@@ -318,11 +318,18 @@ void erf_implicit_fast_rhs (int level,
                 Real pi_hi = getExnergivenRTh(cell_stage(i,j,k  ,RhoTheta_comp));
                 Real pi_c =  0.5 * (pi_lo + pi_hi);
 
-                Real coeff_P = 0.5   * beta_2 * R_d * ( -Gamma * dzi* pi_c )
+                Real h_zeta_on_kface = 1.0;
+#ifdef USE_TERRAIN
+                h_zeta_on_kface = 0.125 * dzi * (
+                    z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
+                   -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
+#endif
+
+                Real coeff_P = 0.5   * beta_2 * R_d * ( -Gamma * dzi* pi_c / h_zeta_on_kface)
                              + halfg * beta_2 * R_d  * rhobar_hi * pi_hi  /
                               (c_v * pibar_hi * cell_stage(i,j,k,RhoTheta_comp));
 
-                Real coeff_Q = 0.5 * beta_2 * R_d * (  Gamma * dzi* pi_c )
+                Real coeff_Q = 0.5 * beta_2 * R_d * (  Gamma * dzi* pi_c / h_zeta_on_kface)
                              + halfg * beta_2 * R_d * rhobar_lo * pi_lo  /
                               (c_v * pibar_lo * cell_stage(i,j,k-1,RhoTheta_comp));
 
@@ -343,6 +350,10 @@ void erf_implicit_fast_rhs (int level,
                         +coeff_Q * (old_drho_theta(i,j,k-1) + dtau * slow_rhs_cons(i,j,k-1,RhoTheta_comp));
 
                 // first part of second half of lines 2-3
+                Real detJ_on_kface = 1.0;
+#ifdef USE_TERRAIN
+                detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+#endif
                 R_tmp += dtau * (
                   -coeff_P * dxi * ( new_drho_u(i+1,j,k  ) * 0.5 * ( theta(i+1,j  ,k  ) + theta(i,j,k) )
                                     -new_drho_u(i  ,j,k  ) * 0.5 * ( theta(i-1,j  ,k  ) + theta(i,j,k) ) )
@@ -351,10 +362,10 @@ void erf_implicit_fast_rhs (int level,
                   -coeff_Q * dxi * ( new_drho_u(i+1,j,k-1) * 0.5 * ( theta(i+1,j  ,k-1) + theta(i,j,k-1) )
                                     -new_drho_u(i  ,j,k-1) * 0.5 * ( theta(i-1,j  ,k-1) + theta(i,j,k-1) ) )
                   -coeff_Q * dyi * ( new_drho_v(i,j+1,k-1) * 0.5 * ( theta(i  ,j+1,k-1) + theta(i,j,k-1) )
-                                    -new_drho_v(i,j  ,k-1) * 0.5 * ( theta(i  ,j-1,k-1) + theta(i,j,k-1) ) ) );
+                                    -new_drho_v(i,j  ,k-1) * 0.5 * ( theta(i  ,j-1,k-1) + theta(i,j,k-1) ) ) ) / detJ_on_kface;
 
                 // second part of second half of lines 2-3
-                R_tmp += -dtau * beta_1 * dzi * (
+                R_tmp += -dtau * beta_1 * dzi / h_zeta_on_kface * (
                    coeff_P * ( old_drho_w(i,j,k+1) * theta_t_hi  - old_drho_w(i,j,k  ) * theta_t_mid )
                   +coeff_Q * ( old_drho_w(i,j,k  ) * theta_t_mid - old_drho_w(i,j,k-1) * theta_t_lo ) );
 
@@ -374,15 +385,18 @@ void erf_implicit_fast_rhs (int level,
 
                 // lines 7-8
                 R_tmp += dtau * beta_2 * halfg * (
-                      dxi * (new_drho_u(i+1,j,k  ) - new_drho_u(i,j,k  ))
-                    + dxi * (new_drho_u(i+1,j,k-1) - new_drho_u(i,j,k-1))
-                    + dyi * (new_drho_v(i,j+1,k  ) - new_drho_v(i,j,k  ))
-                    + dyi * (new_drho_v(i,j+1,k-1) - new_drho_v(i,j,k-1))
+                      dxi * (new_drho_u(i+1,j,k  ) - new_drho_u(i,j,k  )) / detJ_on_kface
+                    + dxi * (new_drho_u(i+1,j,k-1) - new_drho_u(i,j,k-1)) / detJ_on_kface
+                    + dyi * (new_drho_v(i,j+1,k  ) - new_drho_v(i,j,k  )) / detJ_on_kface
+                    + dyi * (new_drho_v(i,j+1,k-1) - new_drho_v(i,j,k-1)) / detJ_on_kface
                     + dzi * (old_drho_w(i,j  ,k+1) - old_drho_w(i,j,k  )) * beta_1
                     + dzi * (old_drho_w(i,j  ,k  ) - old_drho_w(i,j,k-1)) * beta_1 );
 
                 // line 1
                 RHS(k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
+#ifdef ERF_USE_TERRAIN
+                RHS(k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
+#endif
           } // k
 
           // w_0 = 0
@@ -412,7 +426,11 @@ void erf_implicit_fast_rhs (int level,
           }
 
           for (int k = 0; k <= klen; k++) {
+#ifdef ERF_USE_TERRAIN
+              new_drho_w(i,j,k) = WFromOmega(i,j,k,soln(k),new_drho_u,new_drho_v, z_nd,dxInv);
+#else
               new_drho_w(i,j,k) = soln(k);
+#endif
               fast_rhs_rho_w(i,j,k) = ( new_drho_w(i,j,k) - old_drho_w(i,j,k) - dtau * slow_rhs_rho_w(i,j,k)) / dtau;
           }
         });
@@ -428,7 +446,7 @@ void erf_implicit_fast_rhs (int level,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
 
             // We need to update all the conserved quantities with the updated momenta
-            fast_rhs_cell(i, j, k, n) = -AdvectionContributionForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
+            fast_rhs_cell(i, j, k, n) = -AdvectionSrcForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
                                                                        prim, n, advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
                                                                        z_nd, detJ,

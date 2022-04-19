@@ -25,7 +25,7 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
     //
     // NOTE: we do not allow LES with MolecDiffType::ConstantAlpha so we don't have to worry about the
     //       density-weighting of the LES term in this case.  When using MolecDiffType::ConstantAlpha,
-    //       we multiply the entire stress term by (rho / rho0_trans) in DiffusionContributionForMom
+    //       we multiply the entire stress term by (rho / rho0_trans) in DiffusionSrcForMom
     //       (which is calling this routine)
     //
     if ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||

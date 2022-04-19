@@ -179,7 +179,7 @@ void erf_rhs (int level,
             if ((n != RhoKE_comp && n != RhoQKE_comp) ||
                 (l_use_deardorff && n == RhoKE_comp) ||
                 (l_use_QKE       && n == RhoQKE_comp && solverChoice.advect_QKE))
-                cell_rhs(i, j, k, n) += -AdvectionContributionForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
+                cell_rhs(i, j, k, n) += -AdvectionSrcForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
                                          advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
                                          z_nd, detJ,
@@ -188,16 +188,16 @@ void erf_rhs (int level,
 
             // Add diffusive terms.
             if (n == RhoTheta_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoTheta_comp,
+                cell_rhs(i, j, k, n) += DiffusionSrcForState(i, j, k, cell_data, cell_prim, RhoTheta_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
             if (n == RhoScalar_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoScalar_comp,
+                cell_rhs(i, j, k, n) += DiffusionSrcForState(i, j, k, cell_data, cell_prim, RhoScalar_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
             if (l_use_deardorff && n == RhoKE_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoKE_comp,
+                cell_rhs(i, j, k, n) += DiffusionSrcForState(i, j, k, cell_data, cell_prim, RhoKE_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
             if (l_use_QKE && n == RhoQKE_comp)
-                cell_rhs(i, j, k, n) += DiffusionContributionForState(i, j, k, cell_data, cell_prim, RhoQKE_comp,
+                cell_rhs(i, j, k, n) += DiffusionSrcForState(i, j, k, cell_data, cell_prim, RhoQKE_comp,
                                         diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
 
             // Add Rayleigh damping
@@ -279,14 +279,14 @@ void erf_rhs (int level,
             {
 
             // Add advective terms
-            rho_u_rhs(i, j, k) += -AdvectionContributionForXMom(i, j, k, rho_u, rho_v, rho_w, u,
+            rho_u_rhs(i, j, k) += -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, u,
 #ifdef ERF_USE_TERRAIN
                                                                 z_nd, detJ,
 #endif
                                                                 dxInv, l_spatial_order);
 
             // Add diffusive terms
-            rho_u_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
+            rho_u_rhs(i, j, k) += DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
                                                               MomentumEqn::x, dxInv, K_turb, solverChoice,
                                                               domain, bc_ptr);
 
@@ -354,14 +354,14 @@ void erf_rhs (int level,
             {
 
             // Add advective terms
-            rho_v_rhs(i, j, k) += -AdvectionContributionForYMom(i, j, k, rho_u, rho_v, rho_w, v,
+            rho_v_rhs(i, j, k) += -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, v,
 #ifdef ERF_USE_TERRAIN
                                                                 z_nd, detJ,
 #endif
                                                                 dxInv, l_spatial_order);
 
             // Add diffusive terms
-            rho_v_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
+            rho_v_rhs(i, j, k) += DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
                                                               MomentumEqn::y, dxInv, K_turb, solverChoice,
                                                               domain, bc_ptr);
 
@@ -427,14 +427,14 @@ void erf_rhs (int level,
             {
 
             // Add advective terms
-            rho_w_rhs(i, j, k) += -AdvectionContributionForZMom(i, j, k, rho_u, rho_v, rho_w, w,
+            rho_w_rhs(i, j, k) += -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, w,
 #ifdef ERF_USE_TERRAIN
                                                                 z_nd, detJ,
 #endif
                                                                 dxInv, l_spatial_order);
 
             // Add diffusive terms
-            rho_w_rhs(i, j, k) += DiffusionContributionForMom(i, j, k, u, v, w, cell_data,
+            rho_w_rhs(i, j, k) += DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
                                                               MomentumEqn::z, dxInv, K_turb, solverChoice,
                                                               domain, bc_ptr);
 

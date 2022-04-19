@@ -1,6 +1,6 @@
 CEXE_sources += TimeIntegration_driver.cpp
-CEXE_sources += TimeIntegration_rhs.cpp
-CEXE_sources += TimeIntegration_fast_implicit.cpp
+CEXE_sources += ERF_slow_rhs.cpp
+CEXE_sources += ERF_fast_rhs.cpp
 CEXE_headers += TimeIntegration.H
 CEXE_headers += ERF_MRI.H
 

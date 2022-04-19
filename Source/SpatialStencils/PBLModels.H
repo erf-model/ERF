@@ -33,7 +33,6 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
       const Array4<Real> &K_turb = eddyViscosity.array(mfi);
       const Array4<Real const> &uvel = xvel.array(mfi);
       const Array4<Real const> &vvel = yvel.array(mfi);
-      const Array4<Real const> &wvel = zvel.array(mfi);
 
       // Compute some quantities that are constant in each column
       // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals

@@ -5,7 +5,7 @@ using namespace amrex;
 #ifdef ERF_USE_TERRAIN
 AMREX_GPU_DEVICE
 Real
-AdvectionContributionForXMom(const int &i, const int &j, const int &k,
+AdvectionSrcForXMom(const int &i, const int &j, const int &k,
                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                              const Array4<const Real>& u,
                              const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
@@ -100,17 +100,17 @@ AdvectionContributionForXMom(const int &i, const int &j, const int &k,
     // ****************************************************************************************
     // ****************************************************************************************
 
-    Real advectionContribution = (centFluxXXNext - centFluxXXPrev) * dxInv
+    Real advectionSrc = (centFluxXXNext - centFluxXXPrev) * dxInv
                                + (edgeFluxXYNext - edgeFluxXYPrev) * dyInv
                                + (edgeFluxXZNext - edgeFluxXZPrev) * dzInv;
-    advectionContribution /= 0.5*(detJ(i,j,k) + detJ(i-1,j,k));
+    advectionSrc /= 0.5*(detJ(i,j,k) + detJ(i-1,j,k));
 
-    return advectionContribution;
+    return advectionSrc;
 }
 #else
 AMREX_GPU_DEVICE
 Real
-AdvectionContributionForXMom(const int &i, const int &j, const int &k,
+AdvectionSrcForXMom(const int &i, const int &j, const int &k,
                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                              const Array4<const Real>& u,
                              const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -143,18 +143,18 @@ AdvectionContributionForXMom(const int &i, const int &j, const int &k,
     Real edgeFluxXZPrev = rho_w_avg *
                           InterpolateFromCellOrFace(i, j, k  , u, 0, rho_w_avg, Coord::z, spatial_order);
 
-    Real advectionContribution = (centFluxXXNext - centFluxXXPrev) * dxInv
+    Real advectionSrc = (centFluxXXNext - centFluxXXPrev) * dxInv
                                + (edgeFluxXYNext - edgeFluxXYPrev) * dyInv
                                + (edgeFluxXZNext - edgeFluxXZPrev) * dzInv;
 
-    return advectionContribution;
+    return advectionSrc;
 }
 #endif
 
 #ifdef ERF_USE_TERRAIN
 AMREX_GPU_DEVICE
 Real
-AdvectionContributionForYMom(const int &i, const int &j, const int &k,
+AdvectionSrcForYMom(const int &i, const int &j, const int &k,
                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                              const Array4<const Real>& v,
                              const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
@@ -249,17 +249,17 @@ AdvectionContributionForYMom(const int &i, const int &j, const int &k,
     // ****************************************************************************************
     // ****************************************************************************************
 
-    Real advectionContribution = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv
+    Real advectionSrc = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv
                                + (centFluxYYNext - centFluxYYPrev) * dyInv
                                + (edgeFluxYZNext - edgeFluxYZPrev) * dzInv;
-    advectionContribution /= 0.5*(detJ(i,j,k) + detJ(i,j-1,k));
+    advectionSrc /= 0.5*(detJ(i,j,k) + detJ(i,j-1,k));
 
-    return advectionContribution;
+    return advectionSrc;
 }
 #else
 AMREX_GPU_DEVICE
 Real
-AdvectionContributionForYMom(const int &i, const int &j, const int &k,
+AdvectionSrcForYMom(const int &i, const int &j, const int &k,
                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                              const Array4<const Real>& v,
                              const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -292,18 +292,18 @@ AdvectionContributionForYMom(const int &i, const int &j, const int &k,
     Real edgeFluxYZPrev = rho_w_avg *
                           InterpolateFromCellOrFace(i, j, k  , v, 0, rho_w_avg, Coord::z, spatial_order);
 
-    Real advectionContribution = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv
+    Real advectionSrc = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv
                                + (centFluxYYNext - centFluxYYPrev) * dyInv
                                + (edgeFluxYZNext - edgeFluxYZPrev) * dzInv;
 
-    return advectionContribution;
+    return advectionSrc;
 }
 #endif
 
 #ifdef ERF_USE_TERRAIN
 AMREX_GPU_DEVICE
 Real
-AdvectionContributionForZMom(const int &i, const int &j, const int &k,
+AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                              const Array4<const Real>& w,
                              const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
@@ -397,17 +397,17 @@ AdvectionContributionForZMom(const int &i, const int &j, const int &k,
     Real centFluxZZPrev = vec *
                           InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
 
-    Real advectionContribution = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
+    Real advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
                                + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
                                + (centFluxZZNext - centFluxZZPrev) * dzInv;
-    advectionContribution /= 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
+    advectionSrc /= 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
 
-    return advectionContribution;
+    return advectionSrc;
 }
 #else
 AMREX_GPU_DEVICE
 Real
-AdvectionContributionForZMom(const int &i, const int &j, const int &k,
+AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                              const Array4<const Real>& w,
                              const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -440,18 +440,18 @@ AdvectionContributionForZMom(const int &i, const int &j, const int &k,
     Real centFluxZZPrev = rho_w_avg *
                           InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
 
-    Real advectionContribution = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
+    Real advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
                                + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
                                + (centFluxZZNext - centFluxZZPrev) * dzInv;
 
-    return advectionContribution;
+    return advectionSrc;
 }
 #endif
 
 #ifdef ERF_USE_TERRAIN
 AMREX_GPU_DEVICE
 Real
-AdvectionContributionForState(const int &i, const int &j, const int &k,
+AdvectionSrcForState(const int &i, const int &j, const int &k,
                               const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                               const Array4<const Real>& cell_prim, const int &qty_index,
                               const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
@@ -461,7 +461,7 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-    Real advectionContribution;
+    Real advectionSrc;
 
     // ****************************************************************************************
     // Y-faces
@@ -501,34 +501,8 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
     // Z-faces
     // ****************************************************************************************
 
-    // This is dh/dxi at z-face (i,j,k+1/2)
-    Real met_zhi_xi   = 0.5 * dxInv *
-                              ( z_nd(i+1,j+1,k+1) + z_nd(i+1,j  ,k+1)    // hi i, hi k
-                               -z_nd(i  ,j+1,k+1) - z_nd(i  ,j  ,k+1) ); // lo i, hi k
-
-    // This is dh/deta at z-face (i,j,k+1/2)
-    Real met_zhi_eta  = 0.5 * dyInv *
-                              ( z_nd(i+1,j+1,k+1) + z_nd(i  ,j+1,k+1)    // hi j, hi k
-                               -z_nd(i+1,j  ,k+1) - z_nd(i  ,j  ,k+1) ); // lo j, hi k
-
-    // This is dh/dxi at z-face (i,j,k-1/2)
-    Real met_zlo_xi   = 0.5 * dxInv *
-                              ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
-                               -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
-
-    // This is dh/deta at z-face (i,j,k-1/2)
-    Real met_zlo_eta  = 0.5 * dyInv *
-                              ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
-                               -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
-
-    Real vec_zhi_xi   = 0.25 * ( rho_u(i,j,k+1) + rho_u(i+1,j,k+1) + rho_u(i,j,k) + rho_u(i+1,j,k));
-    Real vec_zhi_eta  = 0.25 * ( rho_v(i,j,k+1) + rho_v(i,j+1,k+1) + rho_v(i,j,k) + rho_v(i,j+1,k));
-
-    Real vec_zlo_xi   = 0.25 * ( rho_u(i,j,k-1) + rho_u(i+1,j,k-1) + rho_u(i,j,k) + rho_u(i+1,j,k));
-    Real vec_zlo_eta  = 0.25 * ( rho_v(i,j,k-1) + rho_v(i,j+1,k-1) + rho_v(i,j,k) + rho_v(i,j+1,k));
-
-    zflux(i,j,k+1,qty_index) = -met_zhi_xi * vec_zhi_xi - met_zhi_eta * vec_zhi_eta + rho_w(i,j,k+1);
-    zflux(i,j,k  ,qty_index) = -met_zlo_xi * vec_zlo_xi - met_zlo_eta * vec_zlo_eta + rho_w(i,j,k  );
+    zflux(i,j,k+1,qty_index) = OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv);
+    zflux(i,j,k  ,qty_index) = OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv);
 
     // ****************************************************************************************
     // Now that we have the correctly weighted vector components, we can multiply by the
@@ -566,18 +540,18 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
             InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
     }
 
-    advectionContribution = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
+    advectionSrc = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
                           + (yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dyInv
                           + (zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dzInv;
 
-    advectionContribution /= detJ(i,j,k);
+    advectionSrc /= detJ(i,j,k);
 
-    return advectionContribution;
+    return advectionSrc;
 }
 #else
 AMREX_GPU_DEVICE
 Real
-AdvectionContributionForState(const int &i, const int &j, const int &k,
+AdvectionSrcForState(const int &i, const int &j, const int &k,
                               const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                               const Array4<const Real>& cell_prim, const int &qty_index,
                               const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
@@ -586,7 +560,7 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-    Real advectionContribution;
+    Real advectionSrc;
 
     if (qty_index == Rho_comp)
     {
@@ -625,10 +599,10 @@ AdvectionContributionForState(const int &i, const int &j, const int &k,
             InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
     }
 
-    advectionContribution = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
+    advectionSrc = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
                           + (yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dyInv
                           + (zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dzInv;
 
-    return advectionContribution;
+    return advectionSrc;
 }
 #endif
