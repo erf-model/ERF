@@ -400,7 +400,8 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
     Real advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
                                + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
                                + (centFluxZZNext - centFluxZZPrev) * dzInv;
-    advectionSrc /= 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
+    Real denom = (k == 0) ? detJ(i,j,k) : 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
+    advectionSrc /= denom;
 
     return advectionSrc;
 }

@@ -507,7 +507,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #ifdef ERF_USE_TERRAIN
     pres_hse[lev].define(ba,dm,1,1);
     dens_hse[lev].define(ba,dm,1,1);
-    z_phys_cc[lev].define(ba,dm,1,0);
+    z_phys_cc[lev].define(ba,dm,1,1);
     detJ_cc[lev].define(ba,dm,1,1);
 
     BoxArray ba_nd(ba);

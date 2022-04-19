@@ -205,7 +205,7 @@ void erf_implicit_fast_rhs (int level,
                 Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
                 Real h_xi_on_iface = 0.125 * dxi * (
                     z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-                   -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k-1) );
+                   -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
                 Real h_zeta_on_iface = 0.5 * dyi * (
                     z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) - z_nd(i,j+1,k) );
                 Real gp_zeta_on_iface = 0.25 * dzi * (
@@ -221,6 +221,8 @@ void erf_implicit_fast_rhs (int level,
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u(i,j,k)
                                                         + dtau * slow_rhs_rho_u(i,j,k);
+
+                if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
             } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
@@ -250,7 +252,7 @@ void erf_implicit_fast_rhs (int level,
                 Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
                 Real h_eta_on_jface = 0.125 * dyi * (
                     z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-                   -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k-1) );
+                   -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
                 Real h_zeta_on_jface = 0.5 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) + z_nd(i+1,j,k) );
                 Real gp_zeta_on_jface = 0.25 * dzi * (
@@ -266,6 +268,7 @@ void erf_implicit_fast_rhs (int level,
 
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v(i,j,k)
                                                         + dtau * slow_rhs_rho_v(i,j,k);
+                if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
             } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
@@ -298,12 +301,12 @@ void erf_implicit_fast_rhs (int level,
             for (int k = klo+1; k < khi; ++k)
             {
 #ifdef ERF_USE_TERRAIN
-                Real rhobar_lo = r0_arr(i,j,k-1);
+                Real rhobar_lo = (k == 0) ?  r0_arr(i,j,k) : r0_arr(i,j,k-1);
                 Real rhobar_hi = r0_arr(i,j,k  );
                 Real  pibar_lo = getExnergivenRTh(p0_arr(i,j,k-1));
                 Real  pibar_hi = getExnergivenRTh(p0_arr(i,j,k  ));
 #else
-                Real rhobar_lo = dptr_dens_hse[k-1];
+                Real rhobar_lo = (k == 0) ?  dptr_dens_hse[k] : dptr_dens_hse[k-1];
                 Real rhobar_hi = dptr_dens_hse[k];
                 Real  pibar_lo = getExnergivenRTh(dptr_pres_hse[k-1]);
                 Real  pibar_hi = getExnergivenRTh(dptr_pres_hse[k  ]);
@@ -427,7 +430,7 @@ void erf_implicit_fast_rhs (int level,
 
           for (int k = 0; k <= klen; k++) {
 #ifdef ERF_USE_TERRAIN
-              new_drho_w(i,j,k) = WFromOmega(i,j,k,soln(k),new_drho_u,new_drho_v, z_nd,dxInv);
+              new_drho_w(i,j,k) = WFromOmega(i,j,k,soln(k),new_drho_u,new_drho_v,z_nd,dxInv);
 #else
               new_drho_w(i,j,k) = soln(k);
 #endif
