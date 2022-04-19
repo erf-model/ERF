@@ -508,11 +508,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     pres_hse[lev].define(ba,dm,1,1);
     dens_hse[lev].define(ba,dm,1,1);
     z_phys_cc[lev].define(ba,dm,1,0);
-    detJ_cc[lev].define(ba,dm,1,0);
+    detJ_cc[lev].define(ba,dm,1,1);
 
     BoxArray ba_nd(ba);
     ba_nd.surroundingNodes();
-    z_phys_nd[lev].define(ba_nd,dm,1,0);
+    z_phys_nd[lev].define(ba_nd,dm,1,1);
 #endif
 
     // Read enough of the boundary plane data to make it through the FillPatch at this time

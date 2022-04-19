@@ -25,4 +25,5 @@ ERF::make_metrics(int lev)
                           -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
                });
     }
+    detJ_cc[lev].FillBoundary(geom[lev].periodicity());
 }
