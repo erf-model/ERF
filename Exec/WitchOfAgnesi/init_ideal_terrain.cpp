@@ -24,9 +24,9 @@ ERF::init_ideal_terrain(int lev)
 
     for ( MFIter mfi(z_phys_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        const Box& bx = mfi.tilebox();
+        const Box& gbx = mfi.growntilebox(1);
         Array4<Real> z_arr = z_phys_nd[lev].array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
             // Location of nodes
             Real x = (i * dx[0] - xcen);
