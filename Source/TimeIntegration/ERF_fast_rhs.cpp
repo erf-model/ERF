@@ -254,7 +254,7 @@ void erf_implicit_fast_rhs (int level,
                     z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
                    -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
                 Real h_zeta_on_jface = 0.5 * dzi * (
-                    z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) + z_nd(i+1,j,k) );
+                    z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) - z_nd(i+1,j,k) );
                 Real gp_zeta_on_jface = 0.25 * dzi * (
                   (old_drho_theta(i,j  ,k+1) + beta_d*((cur_data(i,j  ,k+1,RhoTheta_comp)-old_data(i,j  ,k+1,RhoTheta_comp))))
                  +(old_drho_theta(i,j-1,k+1) + beta_d*((cur_data(i,j-1,k+1,RhoTheta_comp)-old_data(i,j-1,k+1,RhoTheta_comp))))

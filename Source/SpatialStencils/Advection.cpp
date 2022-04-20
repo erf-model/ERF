@@ -105,6 +105,7 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
                                + (edgeFluxXZNext - edgeFluxXZPrev) * dzInv;
     advectionSrc /= 0.5*(detJ(i,j,k) + detJ(i-1,j,k));
 
+
     return advectionSrc;
 }
 #else
@@ -458,8 +459,8 @@ AdvectionSrcForState(const int &i, const int &j, const int &k,
                               const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
                               const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
                               const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                              const int &spatial_order) {
-
+                              const int &spatial_order)
+{
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
     Real advectionSrc;

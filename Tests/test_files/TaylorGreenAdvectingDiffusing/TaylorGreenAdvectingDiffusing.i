@@ -6,9 +6,12 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.is_periodic = 1 1 1
+geometry.is_periodic = 1 1 0
 geometry.prob_extent = 6.283185307179586476925    6.283185307179586476925    6.283185307179586476925    
 amr.n_cell           = 16     16     16
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt       = 1e-2    # fixed time step

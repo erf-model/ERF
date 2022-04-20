@@ -1,25 +1,25 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: ../../Tests/test_files/TaylorGreenAdvecting/TaylorGreenAdvecting.i
+inputs file: /home/almgren/GitCode/ERF/Tests/test_files/TaylorGreenAdvecting/TaylorGreenAdvecting.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.000230099
+CPU time used since start of simulation (CPU-hours): 0.000256712
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Sat Apr 16 10:07:56 2022
-output dir:         /home/almgren/GitCode/ERF/Exec/TaylorGreenVortex
+output data / time: Tue Apr 19 17:21:05 2022
+output dir:         /home/almgren/TEMP/ERF/Exec/TaylorGreenVortex
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2022-04-15 17:56:43.888653
+build date:    2022-04-15 17:58:46.840150
 build machine: Linux manda 5.13.0-39-generic #44~20.04.1-Ubuntu SMP Thu Mar 24 16:43:35 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
-build dir:     /home/almgren/GitCode/ERF/Exec/TaylorGreenVortex
+build dir:     /home/almgren/TEMP/ERF/Exec/TaylorGreenVortex
 AMReX dir:     /home/almgren/GitCode/amrex
 
 COMP:          gnu
@@ -41,8 +41,8 @@ ERF       git hash: 22.04-19-gb383b5844-dirty
    +x: Periodic
    -y: Periodic
    +y: Periodic
-   -z: Periodic
-   +z: Periodic
+   -z: SlipWall
+   +z: SlipWall
 
 
 ===============================================================================
@@ -51,9 +51,11 @@ ERF       git hash: 22.04-19-gb383b5844-dirty
 max_step = 10
 amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
-geometry.is_periodic = 1 1 1
+geometry.is_periodic = 1 1 0
 geometry.prob_extent = 6.283185307179586476925 6.283185307179586476925 6.283185307179586476925
 amr.n_cell = 16 16 16
+zlo.type = SlipWall
+zhi.type = SlipWall
 erf.use_native_mri = 1
 erf.fixed_dt = 0.16
 erf.mri_fixed_dt_ratio(nvals = 1)  :: [4]
