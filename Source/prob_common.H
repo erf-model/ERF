@@ -8,10 +8,16 @@ void amrex_probinit (
   const amrex_real* problo,
   const amrex_real* probhi);
 
+#ifdef ERF_USE_TERRAIN
+void
+erf_init_dens_hse(amrex::MultiFab& dens_hse,
+                  amrex::Geometry const& geom);
+#else
 void
 erf_init_dens_hse(amrex::Real* dens_hse_ptr,
                   amrex::Geometry const& geom,
                   const int ng_dens_hse);
+#endif
 
 void
 erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,

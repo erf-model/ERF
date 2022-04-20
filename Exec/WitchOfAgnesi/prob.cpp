@@ -3,14 +3,17 @@
 
 #include "EOS.H"
 #include "AMReX_ParmParse.H"
+#include "AMReX_MultiFab.H"
 #include "IndexDefines.H"
+
+using namespace amrex;
 
 ProbParm parms;
 
 void
-init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
-                          amrex::Real* r,           amrex::Real* p,
-                    const amrex::Real& dz, const amrex::Real&  prob_lo_z,
+init_isentropic_hse(const Real& r_sfc, const Real& theta,
+                          Real* r,           Real* p,
+                    const Real& dz,    const Real&  prob_lo_z,
                     const int& khi)
 {
   // r_sfc / p_0 are the density / pressure at the surface
@@ -18,7 +21,7 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
   p[0] = p_0 - (0.5*dz) * r[0] * CONST_GRAV;
 
   int MAX_ITER = 10;
-  amrex::Real TOL = 1.e-8;
+  Real TOL = 1.e-8;
 
   int k0 = 0;
   {
@@ -29,28 +32,22 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
       r[k0] = r_sfc;
       p[k0] = getPgivenRTh(r[k0]*theta);
 
-      amrex::Real p_eos = getPgivenRTh(r[k0]*theta);
-      amrex::Real p_hse;
+      Real p_eos = getPgivenRTh(r[k0]*theta);
+      Real p_hse;
 
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
           p_hse = p_0 -  (0.5*dz) * r_sfc * CONST_GRAV;
           p_eos = getPgivenRTh(r[k0]*theta);
 
-          //amrex::Print() << "PHSE PEOS " << p_hse << " " << p_eos << std::endl;
+          Real A = p_hse - p_eos;
 
-          amrex::Real A = p_hse - p_eos;
+          Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
 
-          amrex::Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
-
-          amrex::Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
-
-          //amrex::Print() << "DRHO " << drho << std::endl;
+          Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
 
           r[k0] = std::max(0.9*r_sfc, std::min(r[k0] + drho, 1.1*r_sfc));
           p[k0] = getPgivenRTh(r[k0]*theta);
-
-          //amrex::Print() << "NEW R P " << r[0] << " " << p[0] << std::endl;
 
           if (std::abs(drho) < TOL * r_sfc)
           {
@@ -61,11 +58,6 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
 
       if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
       if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
-
-      //amrex::Print() << " " << std::endl;
-      //amrex::Print() << "P AT SFC VS K=0 " << p_0 << " " << p[0] << std::endl;
-      //amrex::Print() << "DPDZ VS RHOG   " << k << " " << (p[0]-p_0)/(0.5*dz) << " " << r[0]*CONST_GRAV << std::endl;
-      //amrex::Print() << " " << std::endl;
   }
 
   // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
@@ -77,20 +69,20 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
 
       r[k] = r[k-1];
 
-      amrex::Real p_eos = getPgivenRTh(r[k]*theta);
-      amrex::Real p_hse;
+      Real p_eos = getPgivenRTh(r[k]*theta);
+      Real p_hse;
 
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
           p_hse = p[k-1] -  dz * 0.5 * (r[k-1]+r[k]) * CONST_GRAV;
           p_eos = getPgivenRTh(r[k]*theta);
 
-          amrex::Real A = p_hse - p_eos;
+          Real A = p_hse - p_eos;
 
-          amrex::Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
+          Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
           // Gamma * p_0 * std::pow( (R_d * theta / p_0), Gamma) * std::pow(r[k], Gamma-1.0) ;
 
-          amrex::Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
+          Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
 
           r[k] = std::max(0.9*r[k-1], std::min(r[k] + drho, 1.1*r[k-1]));
           p[k] = getPgivenRTh(r[k]*theta);
@@ -105,28 +97,66 @@ init_isentropic_hse(const amrex::Real& r_sfc, const amrex::Real& theta,
 
       if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
       if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
-
-      //amrex::Print() << " " << std::endl;
-      //amrex::Print() << "P AT K vs K-1 " << p[k-1] << " " << p[k] << std::endl;
-      //amrex::Print() << "DPDZ VS RHOG " << (p[k]-p[k-1])/dz << " " << 0.5*(r[k]+r[k-1])*CONST_GRAV << std::endl;
-      //amrex::Print() << " " << std::endl;
   }
 }
 
+#ifdef ERF_USE_TERRAIN
 void
-erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::Geometry const& geom,
+erf_init_dens_hse(MultiFab& rho_hse,
+                  Geometry const& geom)
+{
+  const Real prob_lo_z = geom.ProbLo()[2];
+  const Real dz        = geom.CellSize()[2];
+  const int khi        = geom.Domain().bigEnd()[2];
+
+  const Real& T_sfc    = parms.T_0;
+  const Real& rho_sfc  = p_0 / (R_d*T_sfc);
+  const Real& Thetabar = T_sfc;
+
+  if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
+
+  for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+  {
+       Array4<Real> rho_arr = rho_hse.array(mfi);
+
+       // Create a flat box with same horizontal extent but only one cell in vertical
+       const Box& tbz = mfi.nodaltilebox(2);
+       Box b2d = tbz; // Copy constructor
+       int klo = tbz.smallEnd(2);
+       int khi = tbz.bigEnd(2);
+       b2d.setRange(2,0);
+
+       ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+         Array1D<Real,0,255> r;;
+         Array1D<Real,0,255> p;;
+
+         init_isentropic_hse(rho_sfc,Thetabar,&(r(0)),&(p(0)),dz,prob_lo_z,khi);
+
+         for (int k = 0; k <= khi; k++) {
+            rho_arr(i,j,k) = r(k);
+         }
+         rho_arr(i,j,   -1) = rho_arr(i,j,0);
+         rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
+       });
+   }
+}
+
+#else
+void
+erf_init_dens_hse(Real* dens_hse_ptr,
+                  Geometry const& geom,
                   const int /*ng_dens_hse*/)
 {
-  const amrex::Real prob_lo_z = geom.ProbLo()[2];
-  const amrex::Real dz        = geom.CellSize()[2];
+  const Real prob_lo_z = geom.ProbLo()[2];
+  const Real dz        = geom.CellSize()[2];
   const int khi               = geom.Domain().bigEnd()[2];
 
-  const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
-  const amrex::Real& Thetabar = parms.T_0;
+  const Real& T_sfc    = 300.;
+  const Real& rho_sfc  = p_0 / (R_d*T_sfc);
+  const Real& Thetabar = T_sfc;
 
-  amrex::Vector<amrex::Real> r(khi+1);
-  amrex::Vector<amrex::Real> p(khi+1);
+  Vector<Real> r(khi+1);
+  Vector<Real> p(khi+1);
 
   init_isentropic_hse(rho_sfc,Thetabar,r.data(),p.data(),dz,prob_lo_z,khi);
 
@@ -138,6 +168,7 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
   dens_hse_ptr[   -1] = dens_hse_ptr[  0];
   dens_hse_ptr[khi+1] = dens_hse_ptr[khi];
 }
+#endif
 
 void
 erf_init_prob(

@@ -5,28 +5,28 @@ inputs file: ../../Tests/test_files/DensityCurrent/DensityCurrent.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.00438248
+CPU time used since start of simulation (CPU-hours): 0.00449065
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Sat Apr  9 13:07:49 2022
-output dir:         /home/almgren/GitCode/ERF/Exec/DensityCurrent
+output data / time: Tue Apr 19 16:48:51 2022
+output dir:         /home/almgren/TEMP/ERF/Exec/DensityCurrent
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2022-04-09 13:05:58.526825
-build machine: Linux manda 5.13.0-39-generic #44~20.04.1-Ubuntu SMP Thu Mar 24 16:43:35 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
-build dir:     /home/almgren/GitCode/ERF/Exec/DensityCurrent
+build date:    2022-02-28 18:45:58.099256
+build machine: Linux manda 5.8.0-53-generic #60~20.04.1-Ubuntu SMP Thu May 6 09:52:46 UTC 2021 x86_64 x86_64 x86_64 GNU/Linux
+build dir:     /home/almgren/TEMP/ERF/Exec/DensityCurrent
 AMReX dir:     /home/almgren/GitCode/amrex
 
 COMP:          gnu
-COMP version:  9.4.0
+COMP version:  9.3.0
 
 
-ERF       git hash: 22.04-11-ga0668e9b2-dirty
+ERF       git hash: 22.02-16-g3199edf61
 
 
 ===============================================================================

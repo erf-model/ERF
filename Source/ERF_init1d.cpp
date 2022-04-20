@@ -1,4 +1,5 @@
 #include <ERF.H>
+#include <EOS.H>
 #include <prob_common.H>
 
 void
@@ -48,27 +49,8 @@ ERF::initHSE()
 #ifdef ERF_USE_TERRAIN
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        for ( MFIter mfi(pres_hse[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            Array4<Real> rho_arr = dens_hse[lev].array(mfi);
+        erf_init_dens_hse(dens_hse[lev], geom[lev]);
 
-            // Create a flat box with same horizontal extent but only one cell in vertical
-            //const Box& tbz = mfi.nodaltilebox(2);
-            //amrex::Box b2d = tbz; // Copy constructor
-            //int klo = tbz.smallEnd(2);
-            //int khi = tbz.bigEnd(2);
-            //b2d.setRange(2,0);
-            //ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            //  for (int k = 0; k <= nz; k++) {
-            //     rho_arr(i,j,k) = 1.0;
-            //  }
-            //});
-
-            const Box& bx = mfi.growntilebox(1);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                rho_arr(i,j,k) = 1.0;
-            });
-        }
         erf_enforce_hse(lev, dens_hse[lev], pres_hse[lev]);
     }
 #else
@@ -124,6 +106,7 @@ ERF::erf_enforce_hse(int lev,
         // Create a flat box with same horizontal extent but only one cell in vertical
         const Box& tbz = mfi.nodaltilebox(2);
         amrex::Box b2d = tbz; // Copy constructor
+        b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
         b2d.setRange(2,0);
 
         // We integrate to the first cell (and below) by using rho in this cell
@@ -231,3 +214,4 @@ ERF::erf_enforce_hse(int lev,
     }
 }
 #endif
+
