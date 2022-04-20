@@ -301,7 +301,7 @@ void erf_rhs (int level,
             amrex::Real h_zeta_on_iface = 0.5 * dxInv[2] * (
                 z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) - z_nd(i,j+1,k) );
 
-            Real gp_zeta_on_iface = (k == 0) ? 
+            Real gp_zeta_on_iface = (k == 0) ?
                 0.5 * dxInv[2] * (
                   getPprimegivenRTh(cell_data(i  ,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
                  +getPprimegivenRTh(cell_data(i-1,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
@@ -311,7 +311,7 @@ void erf_rhs (int level,
                   getPprimegivenRTh(cell_data(i  ,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
                  +getPprimegivenRTh(cell_data(i-1,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
                  -getPprimegivenRTh(cell_data(i  ,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1))
-                 -getPprimegivenRTh(cell_data(i-1,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1)) ); 
+                 -getPprimegivenRTh(cell_data(i-1,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1)) );
             amrex::Real gpx = gp_xi - (h_xi_on_iface / h_zeta_on_iface) * gp_zeta_on_iface;
 #else
             amrex::Real gpx = dxInv[0] *
@@ -383,12 +383,12 @@ void erf_rhs (int level,
             amrex::Real h_zeta_on_jface = 0.5 * dxInv[2] * (
                 z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) - z_nd(i+1,j,k) );
 
-            Real gp_zeta_on_jface = (k == 0) ? 
+            Real gp_zeta_on_jface = (k == 0) ?
                 0.5 * dxInv[2] * (
                   getPprimegivenRTh(cell_data(i,j  ,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
                  +getPprimegivenRTh(cell_data(i,j-1,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
                  -getPprimegivenRTh(cell_data(i,j  ,k  ,RhoTheta_comp),p0_arr(i,j,k  ))
-                 -getPprimegivenRTh(cell_data(i,j-1,k  ,RhoTheta_comp),p0_arr(i,j,k  )) ) : 
+                 -getPprimegivenRTh(cell_data(i,j-1,k  ,RhoTheta_comp),p0_arr(i,j,k  )) ) :
                 0.25 * dxInv[2] * (
                   getPprimegivenRTh(cell_data(i,j  ,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
                  +getPprimegivenRTh(cell_data(i,j-1,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
