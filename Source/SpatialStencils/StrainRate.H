@@ -63,12 +63,12 @@ ComputeS12(const int &i, const int &j, const int &k,
     } else if (j == domain.bigEnd(1)+1 && is_on_face(bc_ptr[BCVars::xvel_bc].hi(1))) {
         strainRate = -(-(8./3.) * u(i,j,k) + 3. * u(i,j-1,k) - (1./3.) * u(i,j-2,k))*dy_inv;
     } else {
-        strainRate  = (u(i, j, k) - u(i, j-1, k))*dy_inv;
+        strainRate = (u(i, j, k) - u(i, j-1, k))*dy_inv;
     }
     if (i == domain.smallEnd(0) && is_on_face(bc_ptr[BCVars::yvel_bc].lo(0))) {
-        strainRate =  (-(8./3.) * v(i-1,j,k) + 3. * v(i,j,k) - (1./3.) * v(i+1,j,k))*dx_inv;
+        strainRate +=  (-(8./3.) * v(i-1,j,k) + 3. * v(i,j,k) - (1./3.) * v(i+1,j,k))*dx_inv;
     } else if (i == domain.bigEnd(0)+1 && is_on_face(bc_ptr[BCVars::yvel_bc].hi(0))) {
-        strainRate = -(-(8./3.) * v(i,j,k) + 3. * v(i-1,j,k) - (1./3.) * v(i-2,j,k))*dx_inv;
+        strainRate += -(-(8./3.) * v(i,j,k) + 3. * v(i-1,j,k) - (1./3.) * v(i-2,j,k))*dx_inv;
     } else {
         strainRate += (v(i, j, k) - v(i-1, j, k)) * dx_inv;
     }
@@ -97,9 +97,9 @@ ComputeS13(const int &i, const int &j, const int &k,
         strainRate = (u(i, j, k) - u(i, j, k-1))*dz_inv;
     }
     if (i == domain.smallEnd(0) && is_on_face(bc_ptr[BCVars::zvel_bc].lo(0))) {
-        strainRate =  (-(8./3.) * w(i-1,j,k) + 3. * w(i,j,k) - (1./3.) * w(i+1,j,k))*dx_inv;
+        strainRate +=  (-(8./3.) * w(i-1,j,k) + 3. * w(i,j,k) - (1./3.) * w(i+1,j,k))*dx_inv;
     } else if (i == domain.bigEnd(0)+1 && is_on_face(bc_ptr[BCVars::zvel_bc].hi(0))) {
-        strainRate = -(-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dx_inv;
+        strainRate += -(-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dx_inv;
     } else {
         strainRate += (w(i, j, k) - w(i-1, j, k)) * dx_inv;
     }
@@ -128,9 +128,9 @@ ComputeS23(const int &i, const int &j, const int &k,
         strainRate = (v(i, j, k) - v(i, j, k-1))*dz_inv;
     }
     if (j == domain.smallEnd(1) && is_on_face(bc_ptr[BCVars::zvel_bc].lo(1))) {
-        strainRate =  (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dy_inv;
+        strainRate +=  (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dy_inv;
     } else if (j == domain.bigEnd(1)+1 && is_on_face(bc_ptr[BCVars::zvel_bc].hi(1))) {
-        strainRate = -(-(8./3.) * w(i,j  ,k) + 3. * w(i,j-1,k) - (1./3.) * w(i,j-2,k))*dy_inv;
+        strainRate += -(-(8./3.) * w(i,j  ,k) + 3. * w(i,j-1,k) - (1./3.) * w(i,j-2,k))*dy_inv;
     } else {
         strainRate += (w(i, j, k) - w(i, j-1, k))*dy_inv;
     }
