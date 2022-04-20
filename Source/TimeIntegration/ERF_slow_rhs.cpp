@@ -381,7 +381,7 @@ void erf_rhs (int level,
                 z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
                -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
             amrex::Real h_zeta_on_jface = 0.5 * dxInv[2] * (
-                z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) + z_nd(i+1,j,k) );
+                z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) - z_nd(i+1,j,k) );
 
             Real gp_zeta_on_jface = (k == 0) ? 
                 0.5 * dxInv[2] * (
@@ -458,7 +458,7 @@ void erf_rhs (int level,
             amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1));
             amrex::Real h_zeta = 0.125 * dxInv[2] * (
                 z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-               -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) + z_nd(i,j+1,k-1) + z_nd(i+1,j+1,k-1) );
+               -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
             amrex::Real gpz = dxInv[2] * (p_prime_hi - p_prime_lo) / h_zeta;
 #else
             amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),dptr_pres_hse[k  ]);
