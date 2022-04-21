@@ -213,8 +213,8 @@ private:
     void initHSE();
 #ifdef ERF_USE_TERRAIN
     void erf_enforce_hse(int lev,
-                         amrex::MultiFab& dens,
-                         amrex::MultiFab& pres);
+                         amrex::MultiFab& dens, amrex::MultiFab& pres,
+                         amrex::MultiFab& z_nd, amrex::MultiFab& z_cc);
 #else
     void erf_enforce_hse(int lev,
                          amrex::Vector<amrex::Real>& dens,

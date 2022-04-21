@@ -49,9 +49,9 @@ ERF::initHSE()
 #ifdef ERF_USE_TERRAIN
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        erf_init_dens_hse(dens_hse[lev], geom[lev]);
+        erf_init_dens_hse(dens_hse[lev], z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
 
-        erf_enforce_hse(lev, dens_hse[lev], pres_hse[lev]);
+        erf_enforce_hse(lev, dens_hse[lev], pres_hse[lev], z_phys_nd[lev], z_phys_cc[lev]);
     }
 #else
     //
@@ -90,13 +90,12 @@ ERF::initHSE()
 #ifdef ERF_USE_TERRAIN
 void
 ERF::erf_enforce_hse(int lev,
-                     MultiFab& dens,
-                     MultiFab& pres)
+                     MultiFab& dens, MultiFab& pres,
+                     MultiFab& z_nd, MultiFab& z_cc)
 {
     amrex::Real l_gravity = solverChoice.gravity;
 
     const auto geomdata = geom[lev].data();
-    const Real dz = geomdata.CellSize(2);
     int nz = geom[lev].Domain().length(2);
 
     const Box& domain = geom[lev].Domain();
@@ -120,11 +119,19 @@ ERF::erf_enforce_hse(int lev,
 
         Array4<Real>  rho_arr = dens.array(mfi);
         Array4<Real> pres_arr = pres.array(mfi);
-        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+        Array4<Real> znd_arr = z_nd.array(mfi);
+        Array4<Real> zcc_arr = z_cc.array(mfi);
+        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            int k0 = 0;
+            Real dz = 0.25 * ( znd_arr(i,j,k0+1) +  znd_arr(i+1,j,k0+1) + znd_arr(i,j+1,k0+1) + znd_arr(i+1,j+1,k0+1)
+                              -znd_arr(i,j,k0  ) -  znd_arr(i+1,j,k0  ) - znd_arr(i,j+1,k0  ) - znd_arr(i+1,j+1,k0  ) );
             pres_arr(i,j,-1) = p_0 + (0.5*dz) * rho_arr(i,j,0) * l_gravity;
             pres_arr(i,j, 0) = p_0 - (0.5*dz) * rho_arr(i,j,0) * l_gravity;
+
             for (int k = 1; k <= nz; k++) {
                 Real dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
                 pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
             }
         });
