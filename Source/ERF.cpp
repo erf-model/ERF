@@ -916,7 +916,12 @@ ERF::setupABLMost (int lev)
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
-    PlaneAverage save (&S_new, geom[0], 2, true);
+    // Multifab to store primitive Theta, which is what we want to average
+    MultiFab Theta_prim(S_new.boxArray(), S_new.DistributionMap(), 1, 0);
+    MultiFab::Copy(Theta_prim, S_new, Cons::RhoTheta, 0, 1, 0);
+    MultiFab::Divide(Theta_prim, S_new, Cons::Rho, 0, 1, 0);
+    
+    PlaneAverage save (&Theta_prim, geom[0], 2, true);
     PlaneAverage vxave(&U_new, geom[0], 2, true);
     PlaneAverage vyave(&V_new, geom[0], 2, true);
     PlaneAverage vzave(&W_new, geom[0], 2, true);
@@ -934,7 +939,7 @@ ERF::setupABLMost (int lev)
     most.vel_mean[1] = vyave.line_average_interpolated(most.zref, 0);
     most.vel_mean[2] = vzave.line_average_interpolated(most.zref, 0);
     most.vmag_mean   = vmagave.line_hvelmag_average_interpolated(most.zref);
-    most.theta_mean  = save.line_average_interpolated(most.zref, Cons::RhoTheta);
+    most.theta_mean  = save.line_average_interpolated(most.zref, 0);
 
     printf("vmag_mean=%13.6e,theta_mean=%13.6e, zref=%13.6e, dx=%13.6e\n",most.vmag_mean,most.theta_mean,most.zref,dx[2]);
 
