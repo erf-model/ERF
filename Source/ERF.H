@@ -270,18 +270,18 @@ private:
                              const amrex::Real time);
 
     // Read the netcdf file once
-    void read_from_netcdf();
+    void read_wrfinput();
 
     // Copy from the NC*fabs into the MultiFabs holding the initial data
-    void init_from_netcdf(const amrex::Box& bx,    amrex::FArrayBox& state,
-                          amrex::FArrayBox& x_vel, amrex::FArrayBox& y_vel,
-                          amrex::FArrayBox& z_vel
+    void init_from_wrfinput(const amrex::Box& bx, amrex::FArrayBox& state,
+                            amrex::FArrayBox& x_vel, amrex::FArrayBox& y_vel,
+                            amrex::FArrayBox& z_vel
 #ifdef ERF_USE_TERRAIN
                      ,FArrayBox& z_phys
 #endif
                                        );
 
-    // FArrayBoxs for holding the data read from the NetCDF file
+    // FArrayBoxs for holding the data read from the wrfinput NetCDF file
     amrex::FArrayBox NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
     amrex::FArrayBox NC_rho_fab, NC_rhotheta_fab;
     amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab, NC_p_surf_fab, NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
