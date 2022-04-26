@@ -464,8 +464,7 @@
                                 rho   = cons_arr(ie,je,zlo,Rho_comp);
                                 theta = cons_arr(ie,je,zlo,RhoTheta_comp)/rho;
 
-                                // TODO: Verify this is the correct Diff component
-                                eta   = eta_arr(ie,je,zlo,EddyDiff::Mom_h);
+                                eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v);
 
                                 Real vmag    = sqrt(velx*velx+vely*vely);
                                 Real num1    = (theta-m_most.theta_mean)*m_most.vmag_mean;

@@ -920,7 +920,7 @@ ERF::setupABLMost (int lev)
     MultiFab Theta_prim(S_new.boxArray(), S_new.DistributionMap(), 1, 0);
     MultiFab::Copy(Theta_prim, S_new, Cons::RhoTheta, 0, 1, 0);
     MultiFab::Divide(Theta_prim, S_new, Cons::Rho, 0, 1, 0);
-    
+
     PlaneAverage save (&Theta_prim, geom[0], 2, true);
     PlaneAverage vxave(&U_new, geom[0], 2, true);
     PlaneAverage vyave(&V_new, geom[0], 2, true);
