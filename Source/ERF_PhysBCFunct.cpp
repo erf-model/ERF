@@ -501,8 +501,8 @@
                                               +vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo));
                                 rho   = 0.5*(cons_arr(ie-1,je,zlo,Rho_comp)+
                                              cons_arr(ie  ,je,zlo,Rho_comp));
-                                eta   = 0.5*( eta_arr(ie-1,je,zlo,EddyDiff::Mom_h)+
-                                              eta_arr(ie  ,je,zlo,EddyDiff::Mom_h));
+                                eta   = 0.5*( eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)+
+                                              eta_arr(ie  ,je,zlo,EddyDiff::Mom_v));
 
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
@@ -538,8 +538,8 @@
                                 vely  = vely_arr(i,j,zlo);
                                 rho   = 0.5*(cons_arr(ie,je-1,zlo,Rho_comp)+
                                              cons_arr(ie,je  ,zlo,Rho_comp));
-                                eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_h)+
-                                             eta_arr(ie,je  ,zlo,EddyDiff::Mom_h));
+                                eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)+
+                                             eta_arr(ie,je  ,zlo,EddyDiff::Mom_v));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
                                 Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
                                              (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
