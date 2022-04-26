@@ -61,5 +61,7 @@ prob.T_0 = 300.0
 erf.init_type = "real"
 erf.nc_init_file = "wrfinput_d01"
 #erf.nc_init_file = "/home/pkjha/Desktop/netcdf_files/real_output_chisholmview/wrfinput_d01"
+erf.nc_bdy_file = "wrfbdy_d01"
+#erf.nc_bdy_file = "/home/pkjha/Desktop/netcdf_files/real_output_chisholmview/wrfbdy_d01"
 
 FILE = ./inputs.time_integration
