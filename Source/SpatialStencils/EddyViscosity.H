@@ -112,8 +112,9 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            K(i,j,k,EddyDiff::Mom_h) = l_C_k * Delta *  cell_data(i,j,k,Rho_comp) *
-                                std::sqrt(cell_data(i,j,k,RhoKE_comp));
+            // K = rho * C_k * Delta * KE^(1/2) = C_k * Delta * (rho * RhoKE)^1/2
+            K(i,j,k,EddyDiff::Mom_h) = l_C_k * Delta *
+                                std::sqrt(cell_data(i,j,k,RhoKE_comp) * cell_data(i,j,k,Rho_comp));
         });
       } //mfi
     }
