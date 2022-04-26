@@ -782,9 +782,9 @@ Initialization
 ERF can be initialzed in different ways. These are listed below:
 
 - Customized initialization:
-    Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are sort of ideal problems meant for demonstration.
+    Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are meant for demonstration.
 - Initialization using a NetCDF file:
-    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesocale data. This is a more realistic problem with real atmospheric data used for initialization.
+    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesocale data. This is a more realistic problem with real atmospheric data used for initialization. The typical filename used for initialization is **wrfinput_d01**, which is the outcome of running *"ideal.exe"* or *"real.exe"* of the WPS/WRF system.
 
 List of Parameters
 ------------------
@@ -793,26 +793,33 @@ List of Parameters
 | Parameter                   | Definition       | Acceptable       | Default   |
 |                             |                  | Values           |           |
 +=============================+==================+==================+===========+
-| **erf.init_type**           | Initialization   | “*ideal*”,       | “*ideal*” |
-|                             | type             | “*real*”         |           |
+| **erf.init_type**           | Initialization   | “*custom*”,      | “*ideal*” |
+|                             | type             | “*ideal*”,       |           |
+|                             |                  | “*real*”         |           |
 +-----------------------------+------------------+------------------+-----------+
 | **erf.nc_init_file**        | NetCDF file with |  String          | NONE      |
-|                             | mesocale data    |                  |           |
+|                             | initial mesocale |                  |           |
+|                             | data             |                  |           |
 +-----------------------------+------------------+------------------+-----------+
 
 
 Examples of Usage
 -----------------
 
--  **erf.init_type**  = “*ideal*”
-    "*ideal*" type of initialization is for custom problems.
+-  **erf.init_type**  = “*custom*”
+    "*custom*" type of initialization is for customized problems meant for demonstration.
 
+-  **erf.init_type**  = “*ideal*”
+    "*ideal*" type of initialization is for problems initialized with mesoscale data contained in a
+    NetCDF file, provided via *erf.nc_init_file*. The mesoscale data are horizontally homogeneous, i.e., there is variation only in vertical direction.
+
+-  **erf.init_type**  = “*real*”
     "*real*" type of initialization is for problems initialized with mesoscale data contained in a
-    NetCDF file, provided via *erf.nc_init_file*.
+    NetCDF file, provided via *erf.nc_init_file*. The mesoscale data are realistic with variation in all the three directions.
 
 -  **erf.nc_init_file**   = “*wrfinput_d01*”
-    The NetCDF file with mesoscale data if *erf.init_type* is "*real*".
+    The NetCDF file with mesoscale data if *erf.init_type* is "*ideal*" or "*real*".
 
-If ``erf.init_type`` is set to ``"ideal"``, then ``erf.nc_init_file`` need not be provided.
+If ``erf.init_type`` is set to ``"custom"``, then ``erf.nc_init_file`` need not be provided.
 
-If ``erf.init_type`` is set to ``"real"``, then ``erf.nc_init_file`` **must** be provided.
+If ``erf.init_type`` is set to ``"ideal"`` or ``"real"``, then ``erf.nc_init_file`` **must** be provided.
