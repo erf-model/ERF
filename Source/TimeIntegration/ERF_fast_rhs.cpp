@@ -221,7 +221,7 @@ void erf_implicit_fast_rhs (int level,
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u(i,j,k)
                                                         + dtau * slow_rhs_rho_u(i,j,k);
-		
+
                 if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
             } // not on coarse-fine boundary
         },
@@ -338,11 +338,11 @@ void erf_implicit_fast_rhs (int level,
 
 		Real coeff_P = -Gamma * R_d * pi_c * dzi / h_zeta_on_kface
                              +  halfg * R_d * rhobar_hi * pi_hi  /
-				    (c_v * pibar_hi * cell_stage(i,j,k,RhoTheta_comp));
+		             (  c_v * pibar_hi * cell_stage(i,j,k  ,RhoTheta_comp)  );
 
-		Real coeff_Q = Gamma * R_d * pi_c * dzi / h_zeta_on_kface
+		Real coeff_Q =  Gamma * R_d * pi_c * dzi / h_zeta_on_kface
                              +  halfg * R_d * rhobar_lo * pi_lo  /
-				     (c_v  * pibar_lo * cell_stage(i,j,k-1,RhoTheta_comp));
+		             (  c_v  * pibar_lo * cell_stage(i,j,k-1,RhoTheta_comp)  );
 
                 Real theta_t_lo  = 0.5 * ( theta(i,j,k-2) + theta(i,j,k-1) );
                 Real theta_t_mid = 0.5 * ( theta(i,j,k-1) + theta(i,j,k  ) );
