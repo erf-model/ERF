@@ -23,10 +23,10 @@ enum class NC_Data_Dims_Type {
 
 void BuildFABSFromMetgridOutputFileDemo(const std::string &fname);
 
-void BuildFABsFromIdealOutputFile(const std::string &fname,
-                                  amrex::Vector<std::string> nc_var_names,
-                                  amrex::Vector<FArrayBox*> fab_vars,
-                                  const enum NC_Data_Dims_Type &nc_data_dims_type);
+void BuildFABsFromWRFInputFile(const std::string &fname,
+                               amrex::Vector<std::string> nc_var_names,
+                               amrex::Vector<FArrayBox*> fab_vars,
+                               const enum NC_Data_Dims_Type &nc_data_dims_type);
 
 //
 // NDArray is the datatype designed to hold any data, including scalars, multidimensional
@@ -177,8 +177,8 @@ void ReadMetgridOutputFile(const std::string  &fname, amrex::Vector<std::string>
 
 
 template<typename DType>
-void ReadIdealOutputFile(const std::string& fname, amrex::Vector<std::string> names,
-                           amrex::Vector<NDArray<DType> >& arrays) {
+void ReadWRFInputFile(const std::string& fname, amrex::Vector<std::string> names,
+                      amrex::Vector<NDArray<DType> >& arrays) {
 
     amrex::Print() << "Reading NetCDF Ideal Output file: " << fname << "\n";
     amrex::Print() << "names.size(): " << names.size()<< "\n";

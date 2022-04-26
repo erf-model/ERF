@@ -68,17 +68,18 @@ void BuildFABsFromMetgridOutputFileDemo(const std::string &fname) {
 }
 
 // Function to read a NetCDF variable and fill a corresponding MultiFab and Array4
+// fname is the "wrfinput_d01" resulting from running ideal.exe or real.exe
 void
-BuildFABsFromIdealOutputFile(const std::string &fname,
-                             Vector<std::string> nc_var_names,
-                             Vector<amrex::FArrayBox*> fab_vars,
-                             const enum NC_Data_Dims_Type &nc_data_dims_type)
+BuildFABsFromWRFInputFile(const std::string &fname,
+                          Vector<std::string> nc_var_names,
+                          Vector<amrex::FArrayBox*> fab_vars,
+                          const enum NC_Data_Dims_Type &nc_data_dims_type)
 {
     if (amrex::ParallelDescriptor::IOProcessor())
     {
         using RARRAY = NDArray<float>;
         amrex::Vector<RARRAY> arrays(nc_var_names.size());
-        ReadIdealOutputFile(fname, nc_var_names, arrays);
+        ReadWRFInputFile(fname, nc_var_names, arrays);
 
         for (int i = 0; i < nc_var_names.size(); i++)
         {

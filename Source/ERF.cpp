@@ -49,10 +49,10 @@ amrex::Real ERF::sum_per       = -1.0;
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
-// init_type:  "ideal" vs "real"
-std::string ERF::init_type        = "ideal";
+// init_type:  "custom" vs "ideal" vs "real"
+std::string ERF::init_type        = "custom";
 
-// NetCDF initialization file
+// NetCDF wrfinput (initialization) file
 std::string ERF::nc_init_file = ""; // Must provide via input
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
@@ -525,10 +525,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #ifdef ERF_USE_NETCDF
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
-        if (init_type == "real") {
+        if (init_type == "ideal" || init_type == "real") {
             if (nc_init_file.empty())
                 amrex::Error("NetCDF initialization file name must be provided via input");
-            read_from_netcdf();
+            read_wrfinput();
         }
     }
 #endif
@@ -539,7 +539,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
 
-    if (init_type == "ideal") {
+    if (init_type == "custom") {
 
 #ifdef ERF_USE_TERRAIN
         init_ideal_terrain(lev);
@@ -571,7 +571,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #endif
         }
 #ifdef ERF_USE_NETCDF
-    } else if (init_type == "real") {
+    } else if (init_type == "ideal" || init_type == "real") {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -585,10 +585,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
 #ifdef ERF_USE_TERRAIN
           FArrayBox& z_phys_nd_fab = z_phys_nd[mfi];
-          init_from_netcdf(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab,
+          init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab,
                            z_phys_nd_fab);
 #else
-          init_from_netcdf(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
+            init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
 #endif
         }
 #ifdef ERF_USE_TERRAIN
@@ -699,12 +699,12 @@ ERF::ReadParameters ()
     {  // How to initialize
         ParmParse pp("erf");
         pp.query("init_type",init_type);
-        if (init_type != "ideal" && init_type != "real")
+        if (init_type != "custom" && init_type != "ideal" && init_type != "real")
         {
-            amrex::Error("init_type must be ideal or real");
+            amrex::Error("init_type must be custom, ideal or real");
         }
 
-        // NetCDF initialization file
+        // NetCDF wrfinput initialization file
         pp.query("nc_init_file", nc_init_file);
     }
 
@@ -910,7 +910,7 @@ ERF::setupABLMost (int lev)
 
 #ifdef ERF_USE_NETCDF
 void
-ERF::read_from_netcdf()
+ERF::read_wrfinput()
 {
     auto domain = geom[0].Domain();
 
@@ -930,6 +930,7 @@ ERF::read_from_netcdf()
     {
         Vector<FArrayBox*> NC_fabs;
         Vector<std::string> NC_names;
+        //Vector<std::string> NC_names;
 
         NC_fabs.push_back(&NC_xvel_fab    ); NC_names.push_back("U");
         NC_fabs.push_back(&NC_yvel_fab)    ; NC_names.push_back("V");
@@ -942,7 +943,7 @@ ERF::read_from_netcdf()
 #endif
 
         // Read the netcdf file and fill these FABs
-        BuildFABsFromIdealOutputFile(nc_init_file, NC_names, NC_fabs, NC_Data_Dims_Type::Time_BT_SN_WE);
+        BuildFABsFromWRFInputFile(nc_init_file, NC_names, NC_fabs, NC_Data_Dims_Type::Time_BT_SN_WE);
 
         // Convert to rho by inverting
         NC_rho_fab.invert(1.0);
@@ -1029,12 +1030,12 @@ ERF::read_from_netcdf()
     ParallelDescriptor::Bcast(NC_p_surf_fab.dataPtr(),NC_p_surf_fab.box().numPts(),ioproc);
     ParallelDescriptor::Bcast(NC_eta_fab.dataPtr(),NC_eta_fab.box().numPts(),ioproc);
 #endif
-    amrex::Print() << "Successfully loaded data from the 'ideal.exe' / 'real.exe' output NetCDF file" << std::endl << std::endl;
+    amrex::Print() << "Successfully loaded data from the wrfinput (output of 'ideal.exe' / 'real.exe') NetCDF file" << std::endl << std::endl;
 }
 
 void
-ERF::init_from_netcdf(const amrex::Box& bx, FArrayBox& state,
-                      FArrayBox& x_vel, FArrayBox& y_vel, FArrayBox& z_vel
+ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state,
+                        FArrayBox& x_vel, FArrayBox& y_vel, FArrayBox& z_vel
 #ifdef ERF_USE_TERRAIN
                      ,FArrayBox& z_phys
 #endif
