@@ -26,7 +26,7 @@ void BuildFABSFromMetgridOutputFileDemo(const std::string &fname);
 void BuildFABsFromWRFInputFile(const std::string &fname,
                                amrex::Vector<std::string> nc_var_names,
                                amrex::Vector<FArrayBox*> fab_vars,
-                               const enum NC_Data_Dims_Type &nc_data_dims_type);
+                               Vector<enum NC_Data_Dims_Type> NC_dim_types);
 
 //
 // NDArray is the datatype designed to hold any data, including scalars, multidimensional

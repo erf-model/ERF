@@ -281,7 +281,7 @@ private:
 #endif
                                        );
 
-    // FArrayBoxs for holding the data read from the NetCDF file
+    // FArrayBoxs for holding the data read from the wrfinput NetCDF file
     amrex::FArrayBox NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
     amrex::FArrayBox NC_rho_fab, NC_rhotheta_fab;
     amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab, NC_p_surf_fab, NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;

@@ -930,20 +930,20 @@ ERF::read_wrfinput()
     {
         Vector<FArrayBox*> NC_fabs;
         Vector<std::string> NC_names;
-        //Vector<std::string> NC_names;
+        Vector<enum NC_Data_Dims_Type> NC_dim_types;
 
-        NC_fabs.push_back(&NC_xvel_fab    ); NC_names.push_back("U");
-        NC_fabs.push_back(&NC_yvel_fab)    ; NC_names.push_back("V");
-        NC_fabs.push_back(&NC_zvel_fab)    ; NC_names.push_back("W");
-        NC_fabs.push_back(&NC_rho_fab)     ; NC_names.push_back("ALB");
-        NC_fabs.push_back(&NC_rhotheta_fab); NC_names.push_back("T_INIT");
+        NC_fabs.push_back(&NC_xvel_fab    ); NC_names.push_back("U")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_yvel_fab)    ; NC_names.push_back("V")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_zvel_fab)    ; NC_names.push_back("W")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_rho_fab)     ; NC_names.push_back("ALB")   ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_rhotheta_fab); NC_names.push_back("T_INIT"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 #ifdef ERF_USE_TERRAIN
-        NC_fabs.push_back(&NC_PH_fab); NC_names.push_back("PH");
-        NC_fabs.push_back(&NC_PHB_fab); NC_names.push_back("PHB");
+        NC_fabs.push_back(&NC_PH_fab); NC_names.push_back("PH"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_PHB_fab); NC_names.push_back("PHB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 #endif
 
         // Read the netcdf file and fill these FABs
-        BuildFABsFromWRFInputFile(nc_init_file, NC_names, NC_fabs, NC_Data_Dims_Type::Time_BT_SN_WE);
+        BuildFABsFromWRFInputFile(nc_init_file, NC_names, NC_fabs, NC_dim_types);
 
         // Convert to rho by inverting
         NC_rho_fab.invert(1.0);
