@@ -220,8 +220,8 @@ void erf_implicit_fast_rhs (int level,
                 fast_rhs_rho_u(i, j, k) = -Gamma * R_d * pi_c * gpx;
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u(i,j,k)
-                                                        + dtau * slow_rhs_rho_u(i,j,k);	
-
+                                                        + dtau * slow_rhs_rho_u(i,j,k);
+		
                 if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
             } // not on coarse-fine boundary
         },
@@ -267,7 +267,7 @@ void erf_implicit_fast_rhs (int level,
                 fast_rhs_rho_v(i, j, k) = -Gamma * R_d * pi_c * gpy;
 
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v(i,j,k)
-                                                        + dtau * slow_rhs_rho_v(i,j,k);		
+                                                        + dtau * slow_rhs_rho_v(i,j,k);
 		
                 if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
             } // not on coarse-fine boundary
