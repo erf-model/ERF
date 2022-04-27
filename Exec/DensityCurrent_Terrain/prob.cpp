@@ -8,6 +8,8 @@
 
 using namespace amrex;
 
+#ifndef ERF_USE_TERRAIN
+
 ProbParm parms;
 
 void
@@ -100,50 +102,6 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
   }
 }
 
-#ifdef ERF_USE_TERRAIN
-void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  const amrex::MultiFab& z_phys_nd,
-                  const amrex::MultiFab& z_phys_cc,
-                  Geometry const& geom)
-{
-  const Real prob_lo_z = geom.ProbLo()[2];
-  const Real dz        = geom.CellSize()[2];
-  const int khi        = geom.Domain().bigEnd()[2];
-
-  const Real& T_sfc    = parms.T_0;
-  const Real& rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real& Thetabar = T_sfc;
-
-  if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
-
-  for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-  {
-       Array4<Real> rho_arr = rho_hse.array(mfi);
-
-       // Create a flat box with same horizontal extent but only one cell in vertical
-       const Box& tbz = mfi.nodaltilebox(2);
-       Box b2d = tbz; // Copy constructor
-       int klo = tbz.smallEnd(2);
-       int khi = tbz.bigEnd(2);
-       b2d.setRange(2,0);
-
-       ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-         Array1D<Real,0,255> r;;
-         Array1D<Real,0,255> p;;
-
-         init_isentropic_hse(rho_sfc,Thetabar,&(r(0)),&(p(0)),dz,prob_lo_z,khi);
-
-         for (int k = 0; k <= khi; k++) {
-            rho_arr(i,j,k) = r(k);
-         }
-         rho_arr(i,j,   -1) = rho_arr(i,j,0);
-         rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
-       });
-   }
-}
-
-#else
 void
 erf_init_dens_hse(Real* dens_hse_ptr,
                   Geometry const& geom,
@@ -170,7 +128,6 @@ erf_init_dens_hse(Real* dens_hse_ptr,
   dens_hse_ptr[   -1] = dens_hse_ptr[  0];
   dens_hse_ptr[khi+1] = dens_hse_ptr[khi];
 }
-#endif
 
 void
 erf_init_prob(
@@ -245,10 +202,6 @@ erf_init_prob(
     // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
     amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
 
-    // This version perturbs p but not rho
-    //state(i, j, k, Rho_comp) = r[k];
-    //state(i, j, k, RhoTheta_comp) = state(i,j,k,Rho_comp) * theta_perturbed;
-
     // This version perturbs rho but not p
     state(i, j, k, RhoTheta_comp) = std::pow(p[k]/p_0,1.0/Gamma) * p_0 / R_d;
     state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
@@ -280,6 +233,7 @@ erf_init_prob(
 
   amrex::Gpu::streamSynchronize();
 }
+#endif
 
 void
 erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
