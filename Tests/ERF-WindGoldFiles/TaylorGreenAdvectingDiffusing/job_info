@@ -1,32 +1,33 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: ../../Tests/test_files/TaylorGreenAdvectingDiffusing/TaylorGreenAdvectingDiffusing.i
+inputs file: ../../../Tests/test_files/TaylorGreenAdvectingDiffusing/TaylorGreenAdvectingDiffusing.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.00036548
+CPU time used since start of simulation (CPU-hours): 0.000256558
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Tue Apr 19 17:14:31 2022
-output dir:         /home/almgren/TEMP/ERF/Exec/TaylorGreenVortex
+output data / time: Wed Apr 27 12:15:45 2022
+output dir:         /home/almgren/GitCode/ERF/build/Exec/TaylorGreenVortex
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2022-04-15 17:58:46.840150
-build machine: Linux manda 5.13.0-39-generic #44~20.04.1-Ubuntu SMP Thu Mar 24 16:43:35 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
-build dir:     /home/almgren/TEMP/ERF/Exec/TaylorGreenVortex
-AMReX dir:     /home/almgren/GitCode/amrex
+build date:    Apr 27 2022 12:10:58
+build machine: Linux manda 5.13.0-40-generic #45~20.04.1-Ubuntu SMP Mon Apr 4 09:38:31 UTC 2022 x86_64
+build dir:     /home/almgren/GitCode/ERF/build/Exec
+AMReX dir:     /home/almgren/GitCode/ERF/Submodules/AMReX
 
-COMP:          gnu
+COMP:          GNU
 COMP version:  9.4.0
 
 
-ERF       git hash: 22.04-19-gb383b5844-dirty
+ERF       git hash: last-amrlevel-version-163-g9129ef03c1e8-dirty
+AMReX       git hash: 20.06-1428-ga0668e9b25f1
 
 
 ===============================================================================

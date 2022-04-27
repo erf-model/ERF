@@ -8,9 +8,21 @@
 
 ProbParm parms;
 
+void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
+                  amrex::Vector<amrex::Real>& /*ubar*/,
+                  amrex::Vector<amrex::Real>& /*vbar*/,
+                  amrex::Vector<amrex::Real>& /*thetabar*/,
+                  amrex::Geometry      const& /*geom*/)
+{
+   amrex::Error("Should never get here for TaylorGreenVortex problem");
+}
+
 #ifdef ERF_USE_TERRAIN
 void
 erf_init_dens_hse(amrex::MultiFab& rho_hse,
+                  amrex::MultiFab const& z_phys_nd,
+                  amrex::MultiFab const& z_phys_cc,
                   amrex::Geometry const& geom)
 {
     amrex::Real R0 = parms.rho_0;
@@ -24,7 +36,9 @@ erf_init_dens_hse(amrex::MultiFab& rho_hse,
        });
     }
 }
+
 #else
+
 void
 erf_init_dens_hse(amrex::Real* dens_hse_ptr,
                   amrex::Geometry const& geom,
@@ -36,17 +50,8 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
       dens_hse_ptr[k] = parms.rho_0;
   }
 }
-#endif
 
-void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
-                  amrex::Vector<amrex::Real>& /*ubar*/,
-                  amrex::Vector<amrex::Real>& /*vbar*/,
-                  amrex::Vector<amrex::Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
-{
-   amrex::Error("Should never get here for TaylorGreenVortex problem");
-}
+#endif
 
 void
 erf_init_prob(
@@ -55,6 +60,12 @@ erf_init_prob(
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
+#ifdef ERF_USE_TERRAIN
+  amrex::Array4<amrex::Real> const& r_hse,
+  amrex::Array4<amrex::Real> const& p_hse,
+  amrex::Array4<amrex::Real const> const& z_nd,
+  amrex::Array4<amrex::Real const> const& z_cc,
+#endif
   amrex::GeometryData const& geomdata)
 {
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {

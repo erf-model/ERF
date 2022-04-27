@@ -7,23 +7,28 @@
 
 ProbParm parms;
 
+void
+erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
+                  amrex::Vector<amrex::Real>& /*ubar*/,
+                  amrex::Vector<amrex::Real>& /*vbar*/,
+                  amrex::Vector<amrex::Real>& /*thetabar*/,
+                  amrex::Geometry      const& /*geom*/)
+{
+   amrex::Error("Should never get here for PoiseuilleFlow problem");
+}
+
 #ifdef ERF_USE_TERRAIN
 void
 erf_init_dens_hse(amrex::MultiFab& rho_hse,
+                  amrex::MultiFab const& z_phys_nd,
+                  amrex::MultiFab const& z_phys_cc,
                   amrex::Geometry const& geom)
 {
-    amrex::Real R0 = parms.rho_0;
-    //for ( amrex::MFIter mfi(rho_hse, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    for ( amrex::MFIter mfi(rho_hse, false); mfi.isValid(); ++mfi )
-    {
-       amrex::Array4<amrex::Real> rho_arr = rho_hse.array(mfi);
-       const amrex::Box& gbx = mfi.growntilebox(1);
-       amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-           rho_arr(i,j,k) = R0;
-       });
-    }
+    amrex::Error("This problem not set up to use with terrain");
 }
+
 #else
+
 void
 erf_init_dens_hse(amrex::Real* dens_hse_ptr,
                   amrex::Geometry const& geom,
@@ -35,17 +40,8 @@ erf_init_dens_hse(amrex::Real* dens_hse_ptr,
       dens_hse_ptr[k] = parms.rho_0;
   }
 }
-#endif
 
-void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
-                  amrex::Vector<amrex::Real>& /*ubar*/,
-                  amrex::Vector<amrex::Real>& /*vbar*/,
-                  amrex::Vector<amrex::Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
-{
-   amrex::Error("Should never get here for PoiseuilleFlow problem");
-}
+#endif
 
 void
 erf_init_prob(
@@ -54,6 +50,12 @@ erf_init_prob(
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
+#ifdef ERF_USE_TERRAIN
+  amrex::Array4<amrex::Real> const& r_hse,
+  amrex::Array4<amrex::Real> const& p_hse,
+  amrex::Array4<amrex::Real const> const& z_nd,
+  amrex::Array4<amrex::Real const> const& z_cc,
+#endif
   amrex::GeometryData const& geomdata)
 {
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
