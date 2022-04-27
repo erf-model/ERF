@@ -328,11 +328,11 @@ void erf_implicit_fast_rhs (int level,
                    -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
 #endif
 
-                Real coeff_P = 0.5   * beta_2 * R_d * ( -Gamma * dzi* pi_c / h_zeta_on_kface)
+                Real coeff_P = beta_2 * R_d * ( -Gamma * dzi* pi_c / h_zeta_on_kface)
                              + halfg * beta_2 * R_d  * rhobar_hi * pi_hi  /
                               (c_v * pibar_hi * cell_stage(i,j,k,RhoTheta_comp));
 
-                Real coeff_Q = 0.5 * beta_2 * R_d * (  Gamma * dzi* pi_c / h_zeta_on_kface)
+                Real coeff_Q = beta_2 * R_d * (  Gamma * dzi* pi_c / h_zeta_on_kface)
                              + halfg * beta_2 * R_d * rhobar_lo * pi_lo  /
                               (c_v * pibar_lo * cell_stage(i,j,k-1,RhoTheta_comp));
 
@@ -382,9 +382,9 @@ void erf_implicit_fast_rhs (int level,
                    +pi_hi * rhobar_hi / pibar_hi * (old_drho_theta(i,j,k  ) / cell_stage(i,j,k  ,RhoTheta_comp)) );
 
                 // line 6
-                R_tmp += -(beta_2+beta_1) * halfg * (
+                R_tmp += -halfg * (
                          ( old_drho(i,j,k  ) + old_drho(i,j,k-1) )
-                         + dtau * (slow_rhs_cons(i,j,k,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp)) );
+                         + dtau * beta_2 * (slow_rhs_cons(i,j,k,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp)) );
 
                 // lines 7-8
                 R_tmp += dtau * beta_2 * halfg * (
