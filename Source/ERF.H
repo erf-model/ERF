@@ -269,22 +269,37 @@ private:
                              const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
                              const amrex::Real time);
 
-    // Read the netcdf file once
-    void read_wrfinput();
+    // Read the netcdf wrfinput file once
+    void read_from_wrfinput();
+
+    // Read the netcdf wrfbdy file once
+    void read_from_wrfbdy();
 
     // Copy from the NC*fabs into the MultiFabs holding the initial data
-    void init_from_wrfinput(const amrex::Box& bx, amrex::FArrayBox& state,
-                            amrex::FArrayBox& x_vel, amrex::FArrayBox& y_vel,
-                            amrex::FArrayBox& z_vel
+    void init_from_wrfinput(const amrex::Box& bx, amrex::FArrayBox& state_fab,
+                            amrex::FArrayBox& x_vel_fab, amrex::FArrayBox& y_vel_fab,
+                            amrex::FArrayBox& z_vel_fab
 #ifdef ERF_USE_TERRAIN
                      ,FArrayBox& z_phys
 #endif
                                        );
 
+    // Copy from the NC*fabs into the MultiFabs holding the boundary data
+    void init_from_wrfbdy(Vector<FArrayBox*> x_vel_lateral, Vector<FArrayBox*> y_vel_lateral,
+                          Vector<FArrayBox*> z_vel_lateral, Vector<FArrayBox*> T_lateral);
+
     // FArrayBoxs for holding the data read from the wrfinput NetCDF file
     amrex::FArrayBox NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
     amrex::FArrayBox NC_rho_fab, NC_rhotheta_fab;
     amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab, NC_p_surf_fab, NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
+
+    // FArrayBoxs for holding the data read from the wrfbdy NetCDF file
+    amrex::FArrayBox NC_U_BXS_fab, NC_U_BXE_fab, NC_U_BYS_fab, NC_U_BYE_fab; // The four lateral boundaries for x-velocity
+    amrex::FArrayBox NC_V_BXS_fab, NC_V_BXE_fab, NC_V_BYS_fab, NC_V_BYE_fab; // The four lateral boundaries for y-velocity
+    amrex::FArrayBox NC_W_BXS_fab, NC_W_BXE_fab, NC_W_BYS_fab, NC_W_BYE_fab; // The four lateral boundaries for z-velocity
+    amrex::FArrayBox NC_T_BXS_fab, NC_T_BXE_fab, NC_T_BYS_fab, NC_T_BYE_fab; // The four lateral boundaries for potential temperature
+
+
 #ifdef ERF_USE_TERRAIN
     amrex::FArrayBox NC_PH_fab;
     amrex::FArrayBox NC_PHB_fab;
@@ -444,8 +459,11 @@ private:
     // init_type:  "ideal" vs "real"
     static std::string init_type;
 
-    // NetCDF initialization file
+    // NetCDF initialization (wrfinput) file
     static std::string nc_init_file;
+
+    // NetCDF initialization (wrfbdy) file
+    static std::string nc_bdy_file;
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;

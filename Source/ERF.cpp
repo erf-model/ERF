@@ -55,6 +55,9 @@ std::string ERF::init_type        = "custom";
 // NetCDF wrfinput (initialization) file
 std::string ERF::nc_init_file = ""; // Must provide via input
 
+// NetCDF wrfbdy (lateral boundary) file
+std::string ERF::nc_bdy_file = ""; // Must provide via input
+
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
 int         ERF::column_interval  = -1;
@@ -528,7 +531,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         if (init_type == "ideal" || init_type == "real") {
             if (nc_init_file.empty())
                 amrex::Error("NetCDF initialization file name must be provided via input");
-            read_wrfinput();
+            read_from_wrfinput();
+        }
+        if (init_type == "real") {
+            if (nc_bdy_file.empty())
+                amrex::Error("NetCDF boundary file name must be provided via input");
+            read_from_wrfbdy();
         }
     }
 #endif
@@ -578,6 +586,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
           const Box& bx = mfi.tilebox();
+          // Define fabs for holding the initial data
           FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
           FArrayBox& xvel_fab = lev_new[Vars::xvel][mfi];
           FArrayBox& yvel_fab = lev_new[Vars::yvel][mfi];
@@ -589,7 +598,39 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
                            z_phys_nd_fab);
 #else
             init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
-#endif
+
+#endif // ERF_USE_TERRAIN
+
+            if (init_type == "real") {
+                // Define variables for holding the lateral BC data
+
+                // Need discussion on using the right variable types
+                FArrayBox U_BXS_fab; // Point it a suitable mfi and var;
+                FArrayBox U_BXE_fab; // Point it a suitable mfi and var
+                FArrayBox U_BYS_fab; // Point it a suitable mfi and var
+                FArrayBox U_BYE_fab; // Point it a suitable mfi and var
+                Vector<FArrayBox*> x_vel_lateral = {&U_BXS_fab, &U_BXE_fab, &U_BYS_fab, &U_BYE_fab};
+
+                FArrayBox V_BXS_fab; // Point it a suitable mfi and var
+                FArrayBox V_BXE_fab; // Point it a suitable mfi and var
+                FArrayBox V_BYS_fab; // Point it a suitable mfi and var
+                FArrayBox V_BYE_fab; // Point it a suitable mfi and var
+                Vector<FArrayBox*> y_vel_lateral = {&V_BXS_fab, &V_BXE_fab, &V_BYS_fab, &V_BYE_fab};
+
+                FArrayBox W_BXS_fab; // Point it a suitable mfi and var
+                FArrayBox W_BXE_fab; // Point it a suitable mfi and var
+                FArrayBox W_BYS_fab; // Point it a suitable mfi and var
+                FArrayBox W_BYE_fab; // Point it a suitable mfi and var
+                Vector<FArrayBox*> z_vel_lateral = {&W_BXS_fab, &W_BXE_fab, &W_BYS_fab, &W_BYE_fab};
+
+                FArrayBox T_BXS_fab; // Point it a suitable mfi and var
+                FArrayBox T_BXE_fab; // Point it a suitable mfi and var
+                FArrayBox T_BYS_fab; // Point it a suitable mfi and var
+                FArrayBox T_BYE_fab; // Point it a suitable mfi and var
+                Vector<FArrayBox*> T_lateral = {&W_BXS_fab, &W_BXE_fab, &W_BYS_fab, &W_BYE_fab};
+
+                init_from_wrfbdy(x_vel_lateral, y_vel_lateral, z_vel_lateral, T_lateral);
+            }
         }
 #ifdef ERF_USE_TERRAIN
         make_metrics(lev);
@@ -706,6 +747,9 @@ ERF::ReadParameters ()
 
         // NetCDF wrfinput initialization file
         pp.query("nc_init_file", nc_init_file);
+
+        // NetCDF wrfbdy lateral boundary file
+        pp.query("nc_bdy_file", nc_bdy_file);
     }
 
     {  // Mesh refinement
@@ -910,7 +954,7 @@ ERF::setupABLMost (int lev)
 
 #ifdef ERF_USE_NETCDF
 void
-ERF::read_wrfinput()
+ERF::read_from_wrfinput()
 {
     auto domain = geom[0].Domain();
 
@@ -1034,11 +1078,69 @@ ERF::read_wrfinput()
 }
 
 void
-ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state,
-                        FArrayBox& x_vel, FArrayBox& y_vel, FArrayBox& z_vel
+ERF::read_from_wrfbdy() {
+//    auto domain = geom[0].Domain();
+//
+//    // We allocate these here so they exist on all ranks
+//    Box ubx(domain); ubx.surroundingNodes(0); NC_xvel_fab.resize(ubx,1);
+//    Box vbx(domain); vbx.surroundingNodes(1); NC_yvel_fab.resize(vbx,1);
+//    Box wbx(domain); wbx.surroundingNodes(2); NC_zvel_fab.resize(wbx,1);
+//    NC_rho_fab.resize(domain,1);
+//    NC_rhotheta_fab.resize(domain,1);
+
+    if (ParallelDescriptor::IOProcessor())
+    {
+        Vector<FArrayBox*> NC_fabs;
+        Vector<std::string> NC_names;
+        Vector<enum NC_Data_Dims_Type> NC_dim_types;
+
+        NC_fabs.push_back(&NC_U_BXS_fab)   ;  NC_names.push_back("U_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
+        NC_fabs.push_back(&NC_U_BXE_fab)   ;  NC_names.push_back("U_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
+        NC_fabs.push_back(&NC_U_BYS_fab)   ;  NC_names.push_back("U_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+        NC_fabs.push_back(&NC_U_BYE_fab)   ;  NC_names.push_back("U_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+
+        NC_fabs.push_back(&NC_V_BXS_fab)   ;  NC_names.push_back("V_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
+        NC_fabs.push_back(&NC_V_BXE_fab)   ;  NC_names.push_back("V_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
+        NC_fabs.push_back(&NC_V_BYS_fab)   ;  NC_names.push_back("V_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+        NC_fabs.push_back(&NC_V_BYE_fab)   ;  NC_names.push_back("V_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+
+        NC_fabs.push_back(&NC_W_BXS_fab)   ;  NC_names.push_back("W_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
+        NC_fabs.push_back(&NC_W_BXE_fab)   ;  NC_names.push_back("W_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
+        NC_fabs.push_back(&NC_W_BYS_fab)   ;  NC_names.push_back("W_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+        NC_fabs.push_back(&NC_W_BYE_fab)   ;  NC_names.push_back("W_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+
+        NC_fabs.push_back(&NC_T_BXS_fab)   ;  NC_names.push_back("T_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
+        NC_fabs.push_back(&NC_T_BXE_fab)   ;  NC_names.push_back("T_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
+        NC_fabs.push_back(&NC_T_BYS_fab)   ;  NC_names.push_back("T_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+        NC_fabs.push_back(&NC_T_BYE_fab)   ;  NC_names.push_back("T_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+
+        // Read the netcdf file and fill these FABs
+        BuildFABsFromWRFBdyFile(nc_bdy_file, NC_names, NC_fabs, NC_dim_types);
+
+    } // if ParalleDescriptor::IOProcessor()
+
+    // We put a barrier here so the rest of the processors wait to do anything until they have the data
+    amrex::ParallelDescriptor::Barrier();
+
+    // When an FArrayBox is built, space is allocated on every rank.  However, we only
+    //    filled the data in these FABs on the IOProcessor.  So here we broadcast
+    //    the data to every rank.
+
+//    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+//    ParallelDescriptor::Bcast(NC_U_BXS_fab.dataPtr(),NC_U_BXS_fab.box().numPts(),ioproc);
+//    ParallelDescriptor::Bcast(NC_U_BXE_fab.dataPtr(),NC_U_BXE_fab.box().numPts(),ioproc);
+//    ParallelDescriptor::Bcast(NC_U_BYS_fab.dataPtr(),NC_U_BYS_fab.box().numPts(),ioproc);
+//    ParallelDescriptor::Bcast(NC_U_BYE_fab.dataPtr(),NC_U_BYE_fab.box().numPts(),ioproc);
+
+    amrex::Print() << "Successfully loaded data from the wrfbdy (output of 'real.exe') NetCDF file" << std::endl << std::endl;
+}
+
+void
+ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
+                        FArrayBox& x_vel_fab, FArrayBox& y_vel_fab, FArrayBox& z_vel_fab
 #ifdef ERF_USE_TERRAIN
                      ,FArrayBox& z_phys
-#endif
+#endif // ERF_USE_TERRAIN
                                        )
 {
     //
@@ -1046,22 +1148,22 @@ ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state,
     // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
     //
     // This copies x-vel
-    x_vel.copy(NC_xvel_fab);
+    x_vel_fab.copy(NC_xvel_fab);
 
     // This copies y-vel
-    y_vel.copy(NC_yvel_fab);
+    y_vel_fab.copy(NC_yvel_fab);
 
     // This copies z-vel
-    z_vel.copy(NC_zvel_fab);
+    z_vel_fab.copy(NC_zvel_fab);
 
-    // We first initialize all state variables to zero
-    state.setVal(0.);
+    // We first initialize all state_fab variables to zero
+    state_fab.setVal(0.);
 
     // This copies the density
-    state.copy(NC_rho_fab,0,Rho_comp,1);
+    state_fab.copy(NC_rho_fab, 0, Rho_comp, 1);
 
     // This copies (rho*theta)
-    state.copy(NC_rhotheta_fab,0,RhoTheta_comp,1);
+    state_fab.copy(NC_rhotheta_fab, 0, RhoTheta_comp, 1);
 
 #ifdef ERF_USE_TERRAIN
     // This copies from NC_zphys on z-faces to z_phys_nd on nodes
@@ -1075,4 +1177,36 @@ ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state,
     });
 #endif
 }
-#endif
+
+// Decide on arguments that need to be passed
+void
+ERF::init_from_wrfbdy(Vector<FArrayBox*> x_vel_lateral, Vector<FArrayBox*> y_vel_lateral,
+                      Vector<FArrayBox*> z_vel_lateral, Vector<FArrayBox*> T_lateral) {
+
+    // This copies x-vel at the four boundaries
+    x_vel_lateral[0]->copy(NC_U_BXS_fab);
+    x_vel_lateral[1]->copy(NC_U_BXE_fab);
+    x_vel_lateral[2]->copy(NC_U_BYS_fab);
+    x_vel_lateral[3]->copy(NC_U_BYE_fab);
+
+    // This copies y-vel at the four boundaries
+    y_vel_lateral[0]->copy(NC_V_BXS_fab);
+    y_vel_lateral[1]->copy(NC_V_BXE_fab);
+    y_vel_lateral[2]->copy(NC_V_BYS_fab);
+    y_vel_lateral[3]->copy(NC_V_BYE_fab);
+
+    // This copies z-vel at the four boundaries
+    z_vel_lateral[0]->copy(NC_W_BXS_fab);
+    z_vel_lateral[1]->copy(NC_W_BXE_fab);
+    z_vel_lateral[2]->copy(NC_W_BYS_fab);
+    z_vel_lateral[3]->copy(NC_W_BYE_fab);
+
+    // This copies T at the four boundaries
+    T_lateral[0]->copy(NC_T_BXS_fab);
+    T_lateral[1]->copy(NC_T_BXE_fab);
+    T_lateral[2]->copy(NC_T_BYS_fab);
+    T_lateral[3]->copy(NC_T_BYE_fab);
+
+}
+
+#endif // ERF_USE_NETCDF
