@@ -11,25 +11,25 @@
 using namespace amrex;
 
 void erf_implicit_fast_rhs (int level,
-                Vector<MultiFab >& S_rhs,                        // the fast RHS we will return
-                Vector<MultiFab >& S_slow_rhs,                   // the slow RHS already computed
-                Vector<MultiFab >& S_stage_data,                 // S_bar = S^n, S^* or S^**
-                const MultiFab& S_stage_prim,
-                const Vector<MultiFab >& S_data,                 // S_sum = most recent full solution
-                const Vector<MultiFab >& S_data_old,             // S_sum_old at most recent fast timestep
-                std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
-                const amrex::Geometry geom,
-                amrex::InterpFaceRegister* ifr,
-                const SolverChoice& solverChoice,
+                            Vector<MultiFab >& S_rhs,                        // the fast RHS we will return
+                            Vector<MultiFab >& S_slow_rhs,                   // the slow RHS already computed
+                            Vector<MultiFab >& S_stage_data,                 // S_bar = S^n, S^* or S^**
+                            const MultiFab& S_stage_prim,
+                            const Vector<MultiFab >& S_data,                 // S_sum = most recent full solution
+                            const Vector<MultiFab >& S_data_old,             // S_sum_old at most recent fast timestep
+                            std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+                            const amrex::Geometry geom,
+                            amrex::InterpFaceRegister* ifr,
+                            const SolverChoice& solverChoice,
 #ifdef ERF_USE_TERRAIN
-                const MultiFab& z_phys_nd,
-                const MultiFab& detJ_cc,
-                const MultiFab& r0,
-                const MultiFab& p0,
+                            const MultiFab& z_phys_nd,
+                            const MultiFab& detJ_cc,
+                            const MultiFab& r0,
+                            const MultiFab& p0,
 #else
-                const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+                            const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
 #endif
-                const amrex::Real /*time*/, const amrex::Real dtau)
+                            const amrex::Real /*time*/, const amrex::Real dtau)
 {
     BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
 
@@ -322,133 +322,133 @@ void erf_implicit_fast_rhs (int level,
                 Real pi_hi = getExnergivenRTh(cell_stage(i,j,k  ,RhoTheta_comp));
                 Real pi_c =  0.5 * (pi_lo + pi_hi);
 
-        Real detJ_on_kface      = 1.0;
+                Real detJ_on_kface      = 1.0;
                 Real h_zeta_on_kface    = 1.0;
-        Real h_zeta_cc_xface_hi = 1.0;
-        Real h_zeta_cc_xface_lo = 1.0;
-        Real h_zeta_cc_yface_hi = 1.0;
-        Real h_zeta_cc_yface_lo = 1.0;
+                Real h_zeta_cc_xface_hi = 1.0;
+                Real h_zeta_cc_xface_lo = 1.0;
+                Real h_zeta_cc_yface_hi = 1.0;
+                Real h_zeta_cc_yface_lo = 1.0;
 #ifdef ERF_USE_TERRAIN
                 h_zeta_on_kface = 0.125 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
                    -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
 
-        detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+                detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
 #endif
 
-        Real coeff_P = -Gamma * R_d * pi_c * dzi / h_zeta_on_kface
+                Real coeff_P = -Gamma * R_d * pi_c * dzi / h_zeta_on_kface
                              +  halfg * R_d * rhobar_hi * pi_hi  /
-                    (c_v * pibar_hi * cell_stage(i,j,k,RhoTheta_comp));
+                             (  c_v * pibar_hi * cell_stage(i,j,k,RhoTheta_comp) );
 
-        Real coeff_Q = Gamma * R_d * pi_c * dzi / h_zeta_on_kface
-                             +  halfg * R_d * rhobar_lo * pi_lo  /
-                     (c_v  * pibar_lo * cell_stage(i,j,k-1,RhoTheta_comp));
+                Real coeff_Q = Gamma * R_d * pi_c * dzi / h_zeta_on_kface
+                             + halfg * R_d * rhobar_lo * pi_lo  /
+                             ( c_v  * pibar_lo * cell_stage(i,j,k-1,RhoTheta_comp) );
 
                 Real theta_t_lo  = 0.5 * ( theta(i,j,k-2) + theta(i,j,k-1) );
                 Real theta_t_mid = 0.5 * ( theta(i,j,k-1) + theta(i,j,k  ) );
                 Real theta_t_hi  = 0.5 * ( theta(i,j,k  ) + theta(i,j,k+1) );
 
                 // LHS for tri-diagonal system
-        Real D = dtau * dtau * beta_2 * beta_2 * dzi / detJ_on_kface;
-        coeff_A(k) = D * ( halfg - coeff_Q * theta_t_lo );
-        coeff_C(k) = D * (-halfg + coeff_P * theta_t_hi );
-        coeff_B(k) = 1.0 + D * (coeff_Q - coeff_P) * theta_t_mid;
+                Real D = dtau * dtau * beta_2 * beta_2 * dzi / detJ_on_kface;
+                coeff_A(k) = D * ( halfg - coeff_Q * theta_t_lo );
+                coeff_C(k) = D * (-halfg + coeff_P * theta_t_hi );
+                coeff_B(k) = 1.0 + D * (coeff_Q - coeff_P) * theta_t_mid;
 
                 amrex::Real R_tmp = 0.;
 
-        // line 2 last two terms (order dtau)
-        R_tmp += coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
-                -halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
+                // line 2 last two terms (order dtau)
+                R_tmp += coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
+                       - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
 
-        // line 3 residuals (order dtau^2) 1.0 <-> beta_2
-        R_tmp += -dtau * beta_2 * halfg * (slow_rhs_cons(i,j,k,Rho_comp) + slow_rhs_cons(i,j,k-1,Rho_comp))
-             +dtau * beta_2 * (
-                       coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
-                       coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
+                // line 3 residuals (order dtau^2) 1.0 <-> beta_2
+                R_tmp += -dtau * beta_2 * halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
+                                                    slow_rhs_cons(i,j,k-1,Rho_comp) )
+                       +  dtau * beta_2 * ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
+                                            coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
 
-        // line 4 (order dtau^2)
+                // line 4 (order dtau^2)
 #ifdef ERF_USE_TERRAIN
-        Real Omega_hi = OmegaFromW(i,j,k+1,old_drho_w(i,j,k+1),old_drho_u,old_drho_v,z_nd,dxInv);
-        Real Omega_lo = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
-        h_zeta_cc_xface_hi = 0.5 * dzi *
-                         ( z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
-                          -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
+                Real Omega_hi = OmegaFromW(i,j,k+1,old_drho_w(i,j,k+1),old_drho_u,old_drho_v,z_nd,dxInv);
+                Real Omega_lo = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
+                h_zeta_cc_xface_hi = 0.5 * dzi *
+                  (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
+                    -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
 
-        h_zeta_cc_xface_lo = 0.5 * dzi *
-                         ( z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
-                          -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
+                h_zeta_cc_xface_lo = 0.5 * dzi *
+                  (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
+                    -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
 
-        h_zeta_cc_yface_hi = 0.5 * dzi *
-                         ( z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                          -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
+                h_zeta_cc_yface_hi = 0.5 * dzi *
+                  (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
+                    -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
 
-        h_zeta_cc_yface_lo = 0.5 * dzi *
-                         ( z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
-                          -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
+                h_zeta_cc_yface_lo = 0.5 * dzi *
+                  (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
+                    -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
 #else
-        Real Omega_hi = old_drho_w(i,j,k+1);
-        Real Omega_lo = old_drho_w(i,j,k  );
+                Real Omega_hi = old_drho_w(i,j,k+1);
+                Real Omega_lo = old_drho_w(i,j,k  );
 #endif
-        R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
-                 ( beta_1 * dzi * (Omega_hi - Omega_lo)    +
-                        dxi * (new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi  -
-                       new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo) +
-                        dyi * (new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi  -
-                       new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo) );
+                R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
+                         ( beta_1 * dzi * (Omega_hi - Omega_lo)    +
+                                    dxi * (new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi  -
+                                           new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo) +
+                                    dyi * (new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi  -
+                                           new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo) );
 
-        // line 6 (reuse Omega & metrics) (order dtau^2)
-        Real Theta_x_hi = 0.5 * ( theta(i+1,j  ,k) + theta(i,j,k) );
-        Real Theta_x_lo = 0.5 * ( theta(i-1,j  ,k) + theta(i,j,k) );
-        Real Theta_y_hi = 0.5 * ( theta(i  ,j+1,k) + theta(i,j,k) );
-        Real Theta_y_lo = 0.5 * ( theta(i  ,j-1,k) + theta(i,j,k) );
-        R_tmp += -( dtau * beta_2 * coeff_P / detJ_on_kface ) *
-                  ( beta_1 * dzi * (Omega_hi*theta_t_hi - Omega_lo*theta_t_mid) +
-                         dxi * (new_drho_u(i+1,j,k)*Theta_x_hi*h_zeta_cc_xface_hi  -
-                        new_drho_u(i  ,j,k)*Theta_x_lo*h_zeta_cc_xface_lo) +
-                         dyi * (new_drho_v(i,j+1,k)*Theta_y_hi*h_zeta_cc_yface_hi  -
-                        new_drho_v(i,j  ,k)*Theta_y_lo*h_zeta_cc_yface_lo) );
+                // line 6 (reuse Omega & metrics) (order dtau^2)
+                Real Theta_x_hi = 0.5 * ( theta(i+1,j  ,k) + theta(i,j,k) );
+                Real Theta_x_lo = 0.5 * ( theta(i-1,j  ,k) + theta(i,j,k) );
+                Real Theta_y_hi = 0.5 * ( theta(i  ,j+1,k) + theta(i,j,k) );
+                Real Theta_y_lo = 0.5 * ( theta(i  ,j-1,k) + theta(i,j,k) );
+                R_tmp += -( dtau * beta_2 * coeff_P / detJ_on_kface ) *
+                          ( beta_1 * dzi * (Omega_hi*theta_t_hi - Omega_lo*theta_t_mid) +
+                                     dxi * (new_drho_u(i+1,j,k)*Theta_x_hi*h_zeta_cc_xface_hi  -
+                                            new_drho_u(i  ,j,k)*Theta_x_lo*h_zeta_cc_xface_lo) +
+                                     dyi * (new_drho_v(i,j+1,k)*Theta_y_hi*h_zeta_cc_yface_hi  -
+                                            new_drho_v(i,j  ,k)*Theta_y_lo*h_zeta_cc_yface_lo) );
 
-        // line 5 (order dtau^2)
+                // line 5 (order dtau^2)
 #ifdef ERF_USE_TERRAIN
-        Omega_hi = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
-        Omega_lo = OmegaFromW(i,j,k-1,old_drho_w(i,j,k-1),old_drho_u,old_drho_v,z_nd,dxInv);
-        h_zeta_cc_xface_hi = 0.5 * dzi *
-                         ( z_nd(i+1,j  ,k  ) + z_nd(i+1,j+1,k  )
-                          -z_nd(i+1,j  ,k-1) - z_nd(i+1,j+1,k-1) );
+                Omega_hi = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
+                Omega_lo = OmegaFromW(i,j,k-1,old_drho_w(i,j,k-1),old_drho_u,old_drho_v,z_nd,dxInv);
+                h_zeta_cc_xface_hi = 0.5 * dzi *
+                  (  z_nd(i+1,j  ,k  ) + z_nd(i+1,j+1,k  )
+                    -z_nd(i+1,j  ,k-1) - z_nd(i+1,j+1,k-1) );
 
-        h_zeta_cc_xface_lo = 0.5 * dzi *
-                         ( z_nd(i  ,j  ,k  ) + z_nd(i  ,j+1,k  )
-                          -z_nd(i  ,j  ,k-1) - z_nd(i  ,j+1,k-1) );
+                h_zeta_cc_xface_lo = 0.5 * dzi *
+                  (  z_nd(i  ,j  ,k  ) + z_nd(i  ,j+1,k  )
+                    -z_nd(i  ,j  ,k-1) - z_nd(i  ,j+1,k-1) );
 
-        h_zeta_cc_yface_hi = 0.5 * dzi *
-                         ( z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
-                          -z_nd(i  ,j+1,k-1) - z_nd(i+1,j+1,k-1) );
+                h_zeta_cc_yface_hi = 0.5 * dzi *
+                  (  z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
+                    -z_nd(i  ,j+1,k-1) - z_nd(i+1,j+1,k-1) );
 
-        h_zeta_cc_yface_lo = 0.5 * dzi *
-                         ( z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
-                          -z_nd(i  ,j  ,k-1) - z_nd(i+1,j  ,k-1) );
+                h_zeta_cc_yface_lo = 0.5 * dzi *
+                  (  z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
+                    -z_nd(i  ,j  ,k-1) - z_nd(i+1,j  ,k-1) );
 #else
-        Omega_hi = old_drho_w(i,j,k  );
-        Omega_lo = old_drho_w(i,j,k-1);
+                Omega_hi = old_drho_w(i,j,k  );
+                Omega_lo = old_drho_w(i,j,k-1);
 #endif
-        R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
-                 ( beta_1 * dzi * (Omega_hi - Omega_lo) +
-                        dxi * (new_drho_u(i+1,j,k-1)*h_zeta_cc_xface_hi  -
-                       new_drho_u(i  ,j,k-1)*h_zeta_cc_xface_lo) +
-                        dyi * (new_drho_v(i,j+1,k-1)*h_zeta_cc_yface_hi  -
-                       new_drho_v(i,j  ,k-1)*h_zeta_cc_yface_lo) );
+                R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
+                         ( beta_1 * dzi * (Omega_hi - Omega_lo) +
+                                    dxi * (new_drho_u(i+1,j,k-1)*h_zeta_cc_xface_hi  -
+                                           new_drho_u(i  ,j,k-1)*h_zeta_cc_xface_lo) +
+                                    dyi * (new_drho_v(i,j+1,k-1)*h_zeta_cc_yface_hi  -
+                                           new_drho_v(i,j  ,k-1)*h_zeta_cc_yface_lo) );
 
-        // line 7 (reuse Omega & metrics) (order dtau^2)
-        Theta_x_hi = 0.5 * ( theta(i+1,j  ,k-1) + theta(i,j,k-1) );
-        Theta_x_lo = 0.5 * ( theta(i-1,j  ,k-1) + theta(i,j,k-1) );
-        Theta_y_hi = 0.5 * ( theta(i  ,j+1,k-1) + theta(i,j,k-1) );
-        Theta_y_lo = 0.5 * ( theta(i  ,j-1,k-1) + theta(i,j,k-1) );
-        R_tmp += -( dtau * beta_2 * coeff_Q / detJ_on_kface ) *
-                  ( beta_1 * dzi * (Omega_hi*theta_t_mid - Omega_lo*theta_t_lo) +
-                         dxi * (new_drho_u(i+1,j,k-1)*Theta_x_hi*h_zeta_cc_xface_hi  -
-                          new_drho_u(i  ,j,k-1)*Theta_x_lo*h_zeta_cc_xface_lo) +
-                         dyi * (new_drho_v(i,j+1,k-1)*Theta_y_hi*h_zeta_cc_yface_hi  -
-                        new_drho_v(i,j  ,k-1)*Theta_y_lo*h_zeta_cc_yface_lo) );
+                // line 7 (reuse Omega & metrics) (order dtau^2)
+                Theta_x_hi = 0.5 * ( theta(i+1,j  ,k-1) + theta(i,j,k-1) );
+                Theta_x_lo = 0.5 * ( theta(i-1,j  ,k-1) + theta(i,j,k-1) );
+                Theta_y_hi = 0.5 * ( theta(i  ,j+1,k-1) + theta(i,j,k-1) );
+                Theta_y_lo = 0.5 * ( theta(i  ,j-1,k-1) + theta(i,j,k-1) );
+                R_tmp += -( dtau * beta_2 * coeff_Q / detJ_on_kface ) *
+                          ( beta_1 * dzi * (Omega_hi*theta_t_mid - Omega_lo*theta_t_lo) +
+                                     dxi * (new_drho_u(i+1,j,k-1)*Theta_x_hi*h_zeta_cc_xface_hi  -
+                                            new_drho_u(i  ,j,k-1)*Theta_x_lo*h_zeta_cc_xface_lo) +
+                                     dyi * (new_drho_v(i,j+1,k-1)*Theta_y_hi*h_zeta_cc_yface_hi  -
+                                            new_drho_v(i,j  ,k-1)*Theta_y_lo*h_zeta_cc_yface_lo) );
 
                 // line 1
                 RHS(k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
