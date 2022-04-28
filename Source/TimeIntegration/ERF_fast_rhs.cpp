@@ -327,7 +327,7 @@ void erf_implicit_fast_rhs (int level,
                 Real h_zeta_cc_xface_lo = 1.0;
                 Real h_zeta_cc_yface_hi = 1.0;
                 Real h_zeta_cc_yface_lo = 1.0;
-                
+
 #ifdef ERF_USE_TERRAIN
                 h_zeta_on_kface = 0.125 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
