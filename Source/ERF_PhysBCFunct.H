@@ -358,11 +358,12 @@ public:
                             ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
                             {
                                 Real velx, vely, rho, eta;
-                                int iy, jy, ie, je;
+                                int jy, ie, je;
 
-                                iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
+                                int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
+                                int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
+
                                 jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-                                iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
                                 jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
                                 ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
@@ -371,8 +372,8 @@ public:
                                 je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
 
                                 velx  = velx_arr(i,j,zlo);
-                                vely  = 0.25*( vely_arr(iy  ,jy,zlo)+vely_arr(iy  ,jy+1,zlo)
-                                              +vely_arr(iy-1,jy,zlo)+vely_arr(iy-1,jy+1,zlo));
+                                vely  = 0.25*( vely_arr(iyhi,jy,zlo)+vely_arr(iyhi,jy+1,zlo)
+                                              +vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo));
                                 rho   = 0.5*(cons_arr(ie-1,je,zlo,Rho_comp)+
                                              cons_arr(ie  ,je,zlo,Rho_comp));
                                 eta   = 0.5*( eta_arr(ie-1,je,zlo,EddyDiff::Mom_h)+
@@ -394,20 +395,21 @@ public:
                             ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
                             {
                                 Real velx, vely, rho, eta;
-                                int ix, jx, ie, je;
+                                int ix, ie, je;
 
                                 ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
-                                jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
                                 ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
-                                jx = jx > ubound(velx_arr).y-1 ? ubound(velx_arr).y-1 : jx;
+
+                                int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
+                                int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
 
                                 ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
                                 je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
                                 ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
                                 je = je > ubound(eta_arr).y-1 ? ubound(eta_arr).y-1 : je;
 
-                                velx  = 0.25*( velx_arr(ix,jx  ,zlo)+velx_arr(ix+1,jx  ,zlo)
-                                              +velx_arr(ix,jx-1,zlo)+velx_arr(ix+1,jx-1,zlo));
+                                velx  = 0.25*( velx_arr(ix,jxhi,zlo)+velx_arr(ix+1,jxhi,zlo)
+                                              +velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo));
                                 vely  = vely_arr(i,j,zlo);
                                 rho   = 0.5*(cons_arr(ie,je-1,zlo,Rho_comp)+
                                              cons_arr(ie,je  ,zlo,Rho_comp));
