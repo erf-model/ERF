@@ -349,7 +349,6 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
         std::string filename1 = amrex::MultiFabFileFullPrefix(lev, chkname1, level_prefix, var_name);
 
         int ncomp;
-
         if (var_name == "velocity") {
             ncomp = AMREX_SPACEDIM;
         } else {
