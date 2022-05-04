@@ -321,7 +321,7 @@ ERF::WritePlotFile () const
         if (plotfile_type == "amrex") {
 #ifdef ERF_USE_TERRAIN
             // We started with mf_nd holding 0 in every component; here we fill only the offset in z
-            int lev = 0; 
+            int lev = 0;
             MultiFab::Copy(mf_nd[lev],z_phys_nd[lev],0,2,1,0);
             Real dz = Geom()[lev].CellSizeArray()[2];
             for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -333,13 +333,13 @@ ERF::WritePlotFile () const
                 });
             }
             WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
-                                               GetVecOfConstPtrs(mf), 
-                                               GetVecOfConstPtrs(mf_nd), 
+                                               GetVecOfConstPtrs(mf),
+                                               GetVecOfConstPtrs(mf_nd),
                                                varnames,
                                                Geom(), t_new[0], istep, refRatio());
 #else
             amrex::WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                           GetVecOfConstPtrs(mf), 
+                                           GetVecOfConstPtrs(mf),
                                            varnames,
                                            Geom(), t_new[0], istep, refRatio());
 #endif
