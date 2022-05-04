@@ -433,12 +433,12 @@ private:
     amrex::Vector<std::string> plot_state_names;
     amrex::Vector<std::string> plot_deriv_names;
     const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
-    const amrex::Vector<std::string> cons_names { "density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0" 
+    const amrex::Vector<std::string> cons_names { "density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
 #ifdef ERF_USE_MOISTURE
                                                  ,"rhoQv", "rhoQc"};
 #endif
                                                  };
-                                                 
+
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE",
                                                     "scalar","pres_hse", "dens_hse", "pert_pres", "pert_dens", "z_phys", "detJ"};
 
