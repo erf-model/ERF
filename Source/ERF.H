@@ -159,6 +159,33 @@ public:
     // write plotfile to disk
     void WritePlotFile () const;
 
+#ifdef ERF_USE_TERRAIN
+    void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
+                                             int nlevels,
+                                             const Vector<const MultiFab*> &mf,
+                                             const Vector<const MultiFab*> &mf_nd,
+                                             const Vector<std::string> &varnames,
+                                             const Vector<Geometry> &geom,
+                                             Real time,
+                                             const Vector<int> &level_steps,
+                                             const Vector<IntVect> &ref_ratio,
+                                             const std::string &versionName = "HyperCLaw-V1.1",
+                                             const std::string &levelPrefix = "Level_",
+                                             const std::string &mfPrefix = "Cell",
+                                             const Vector<std::string>& extra_dirs = Vector<std::string>()) const;
+
+    void WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
+                                                int nlevels,
+                                                const Vector<BoxArray> &bArray,
+                                                const Vector<std::string> &varnames,
+                                                const Vector<Geometry> &geom,
+                                                Real time,
+                                                const Vector<int> &level_steps,
+                                                const Vector<IntVect> &ref_ratio,
+                                                const std::string &versionName,
+                                                const std::string &levelPrefix,
+                                                const std::string &mfPrefix) const;
+#endif
 private:
 
     ////////////////

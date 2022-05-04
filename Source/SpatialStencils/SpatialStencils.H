@@ -64,6 +64,61 @@ amrex::Real WFromOmega(int i, int j, int k, amrex::Real omega,
     return w;
 }
 
+// This routine follows WFromOmega with clipping at the boundary:
+// Terrain metrics at the boundary are used for ghost cells (0 gradient).
+// U & V are extrapolated to the top & bottom k faces.
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+amrex::Real WFromOmegaBC(int i, int j, int k, amrex::Real omega,
+                         const amrex::Array4<const Real>& u,
+                         const amrex::Array4<const Real>& v,
+                         const amrex::Array4<const Real>& z_nd,
+                         const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
+{
+    // Clip metric indices for ghost cell BCs
+    Dim3 hi = ubound(z_nd);
+    Dim3 lo = lbound(z_nd);
+    int  im = (i  >= hi.x) ? (hi.x-1) : i;
+         im = (im <= lo.x) ? (lo.x+1) : im;
+    int  jm = (j  >= hi.y) ? (hi.y-1) : j;
+         jm = (jm <= lo.y) ? (lo.y+1) : jm;
+    int  km = (k  >= hi.z) ? (hi.z-1) : k;
+         km = (km <= lo.z) ? (lo.z+1) : km;
+
+    // This is dh/dxi at z-face (i,j,k-1/2)
+    Real met_zlo_xi   = 0.5 * dxInv[0] *
+                              ( z_nd(im+1,jm+1,km  ) + z_nd(im+1,jm  ,km  )    // hi i, lo k
+                               -z_nd(im  ,jm+1,km  ) - z_nd(im  ,jm  ,km  ) ); // lo i, lo k
+
+    // This is dh/deta at z-face (i,j,k-1/2)
+    Real met_zlo_eta  = 0.5 * dxInv[1] *
+                              ( z_nd(im+1,jm+1,km  ) + z_nd(im  ,jm+1,km  )    // hi j, lo k
+                               -z_nd(im+1,jm  ,km  ) - z_nd(im  ,jm  ,km  ) ); // lo j, lo k
+
+    // Clip velocity indices for ghost cell BCs
+    Real vec_zlo_xi;
+    Real vec_zlo_eta;
+    hi = ubound(u);
+    lo = lbound(u);
+    hi.z = hi.z + 1; // nodal for zvelocity
+
+    if( k == hi.z) {
+      // foextrap to highest k-face
+      vec_zlo_xi  = 0.75*( u(i,j,k-1)+u(i+1,j,k-1) ) - 0.25*( u(i,j,k-2)+u(i+1,j,k-2) );
+      vec_zlo_eta = 0.75*( v(i,j,k-1)+v(i,j+1,k-1) ) - 0.25*( v(i,j,k-2)+v(i,j+1,k-2) );
+    } else if (k == lo.z) {
+      // foextrap to lowest k-face
+      vec_zlo_xi  = 0.75*( u(i,j,k)+u(i+1,j,k) ) - 0.25*( u(i,j,k+1)+u(i+1,j,k+1) );
+      vec_zlo_eta = 0.75*( v(i,j,k)+v(i,j+1,k) ) - 0.25*( v(i,j,k+1)+v(i,j+1,k+1) );
+    } else {
+      // Valid ghost cell for u & v
+      vec_zlo_xi  = 0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
+      vec_zlo_eta = 0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
+    }
+
+    Real w = met_zlo_xi * vec_zlo_xi + met_zlo_eta * vec_zlo_eta + omega;
+    return w;
+}
+
 void MomentumToVelocity(MultiFab& xvel_out, MultiFab& yvel_out, MultiFab& zvel_out,
                         const MultiFab& cons_in,
                         const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,

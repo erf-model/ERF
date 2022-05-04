@@ -154,6 +154,15 @@ ERF::WritePlotFile () const
         mf[lev].define(grids[lev], dmap[lev], ncomp_mf, 0);
     }
 
+#ifdef ERF_USE_TERRAIN
+    Vector<MultiFab> mf_nd(finest_level+1);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
+        mf_nd[lev].define(nodal_grids, dmap[lev], ncomp_mf, 0);
+        mf_nd[lev].setVal(0.);
+    }
+#endif
+
     for (int lev = 0; lev <= finest_level; ++lev) {
         int mf_comp = 0;
 
@@ -310,8 +319,30 @@ ERF::WritePlotFile () const
     if (finest_level == 0)
     {
         if (plotfile_type == "amrex") {
-            amrex::WriteMultiLevelPlotfile(plotfilename, finest_level+1, GetVecOfConstPtrs(mf), varnames,
+#ifdef ERF_USE_TERRAIN
+            // We started with mf_nd holding 0 in every component; here we fill only the offset in z
+            int lev = 0;
+            MultiFab::Copy(mf_nd[lev],z_phys_nd[lev],0,2,1,0);
+            Real dz = Geom()[lev].CellSizeArray()[2];
+            for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
+                Array4<const Real>  z_arr = z_phys_nd[lev].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    mf_arr(i,j,k,2) -= k * dz;
+                });
+            }
+            WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
+                                               GetVecOfConstPtrs(mf),
+                                               GetVecOfConstPtrs(mf_nd),
+                                               varnames,
+                                               Geom(), t_new[0], istep, refRatio());
+#else
+            amrex::WriteMultiLevelPlotfile(plotfilename, finest_level+1,
+                                           GetVecOfConstPtrs(mf),
+                                           varnames,
                                            Geom(), t_new[0], istep, refRatio());
+#endif
             writeJobInfo(plotfilename);
 #ifdef ERF_USE_NETCDF
         } else {
@@ -377,3 +408,186 @@ ERF::WritePlotFile () const
         }
     } // end multi-level
 }
+
+#ifdef ERF_USE_TERRAIN
+void
+ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nlevels,
+                                         const Vector<const MultiFab*>& mf,
+                                         const Vector<const MultiFab*>& mf_nd,
+                                         const Vector<std::string>& varnames,
+                                         const Vector<Geometry>& geom, Real time,
+                                         const Vector<int>& level_steps,
+                                         const Vector<IntVect>& ref_ratio,
+                                         const std::string &versionName,
+                                         const std::string &levelPrefix,
+                                         const std::string &mfPrefix,
+                                         const Vector<std::string>& extra_dirs) const
+{
+    BL_PROFILE("WriteMultiLevelPlotfileWithTerrain()");
+
+    BL_ASSERT(nlevels <= mf.size());
+    BL_ASSERT(nlevels <= geom.size());
+    BL_ASSERT(nlevels <= ref_ratio.size()+1);
+    BL_ASSERT(nlevels <= level_steps.size());
+    BL_ASSERT(mf[0]->nComp() == varnames.size());
+
+    int finest_level = nlevels-1;
+
+    bool callBarrier(false);
+    PreBuildDirectorHierarchy(plotfilename, levelPrefix, nlevels, callBarrier);
+    if (!extra_dirs.empty()) {
+        for (const auto& d : extra_dirs) {
+            const std::string ed = plotfilename+"/"+d;
+            amrex::PreBuildDirectorHierarchy(ed, levelPrefix, nlevels, callBarrier);
+        }
+    }
+    ParallelDescriptor::Barrier();
+
+    if (ParallelDescriptor::MyProc() == ParallelDescriptor::NProcs()-1) {
+        Vector<BoxArray> boxArrays(nlevels);
+        for(int level(0); level < boxArrays.size(); ++level) {
+            boxArrays[level] = mf[level]->boxArray();
+        }
+
+        auto f = [=]() {
+            VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
+            std::string HeaderFileName(plotfilename + "/Header");
+            std::ofstream HeaderFile;
+            HeaderFile.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
+            HeaderFile.open(HeaderFileName.c_str(), std::ofstream::out   |
+                                                    std::ofstream::trunc |
+                                                    std::ofstream::binary);
+            if( ! HeaderFile.good()) FileOpenFailed(HeaderFileName);
+            WriteGenericPlotfileHeaderWithTerrain(HeaderFile, nlevels, boxArrays, varnames,
+                                                  geom, time, level_steps, ref_ratio, versionName,
+                                                  levelPrefix, mfPrefix);
+        };
+
+        if (AsyncOut::UseAsyncOut()) {
+            AsyncOut::Submit(std::move(f));
+        } else {
+            f();
+        }
+    }
+
+    std::string mf_nodal_prefix = "Nu_nd";
+    for (int level = 0; level <= finest_level; ++level)
+    {
+        if (AsyncOut::UseAsyncOut()) {
+            VisMF::AsyncWrite(*mf[level],
+                              MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mfPrefix),
+                              true);
+            VisMF::AsyncWrite(*mf_nd[level],
+                              MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mf_nodal_prefix),
+                              true);
+        } else {
+            const MultiFab* data;
+            std::unique_ptr<MultiFab> mf_tmp;
+            if (mf[level]->nGrowVect() != 0) {
+                mf_tmp = std::make_unique<MultiFab>(mf[level]->boxArray(),
+                                                    mf[level]->DistributionMap(),
+                                                    mf[level]->nComp(), 0, MFInfo(),
+                                                    mf[level]->Factory());
+                MultiFab::Copy(*mf_tmp, *mf[level], 0, 0, mf[level]->nComp(), 0);
+                data = mf_tmp.get();
+            } else {
+                data = mf[level];
+            }
+            VisMF::Write(*data       , MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mfPrefix));
+            VisMF::Write(*mf_nd[level], MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mf_nodal_prefix));
+        }
+    }
+}
+
+void
+ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
+                                            int nlevels,
+                                            const Vector<BoxArray> &bArray,
+                                            const Vector<std::string> &varnames,
+                                            const Vector<Geometry> &geom,
+                                            Real time,
+                                            const Vector<int> &level_steps,
+                                            const Vector<IntVect> &ref_ratio,
+                                            const std::string &versionName,
+                                            const std::string &levelPrefix,
+                                            const std::string &mfPrefix) const
+{
+        BL_ASSERT(nlevels <= bArray.size());
+        BL_ASSERT(nlevels <= geom.size());
+        BL_ASSERT(nlevels <= ref_ratio.size()+1);
+        BL_ASSERT(nlevels <= level_steps.size());
+
+        int finest_level(nlevels - 1);
+
+        HeaderFile.precision(17);
+
+        // ---- this is the generic plot file type name
+        HeaderFile << versionName << '\n';
+
+        HeaderFile << varnames.size() << '\n';
+
+        for (int ivar = 0; ivar < varnames.size(); ++ivar) {
+            HeaderFile << varnames[ivar] << "\n";
+        }
+        HeaderFile << AMREX_SPACEDIM << '\n';
+        HeaderFile << time << '\n';
+        HeaderFile << finest_level << '\n';
+        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+            HeaderFile << geom[0].ProbLo(i) << ' ';
+        }
+        HeaderFile << '\n';
+        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+            HeaderFile << geom[0].ProbHi(i) << ' ';
+        }
+        HeaderFile << '\n';
+        for (int i = 0; i < finest_level; ++i) {
+            HeaderFile << ref_ratio[i][0] << ' ';
+        }
+        HeaderFile << '\n';
+        for (int i = 0; i <= finest_level; ++i) {
+            HeaderFile << geom[i].Domain() << ' ';
+        }
+        HeaderFile << '\n';
+        for (int i = 0; i <= finest_level; ++i) {
+            HeaderFile << level_steps[i] << ' ';
+        }
+        HeaderFile << '\n';
+        for (int i = 0; i <= finest_level; ++i) {
+            for (int k = 0; k < AMREX_SPACEDIM; ++k) {
+                HeaderFile << geom[i].CellSize()[k] << ' ';
+            }
+            HeaderFile << '\n';
+        }
+        HeaderFile << (int) geom[0].Coord() << '\n';
+        HeaderFile << "0\n";
+
+        for (int level = 0; level <= finest_level; ++level) {
+            HeaderFile << level << ' ' << bArray[level].size() << ' ' << time << '\n';
+            HeaderFile << level_steps[level] << '\n';
+
+            const IntVect& domain_lo = geom[level].Domain().smallEnd();
+            for (int i = 0; i < bArray[level].size(); ++i)
+            {
+                // Need to shift because the RealBox ctor we call takes the
+                // physical location of index (0,0,0).  This does not affect
+                // the usual cases where the domain index starts with 0.
+                const Box& b = amrex::shift(bArray[level][i], -domain_lo);
+                RealBox loc = RealBox(b, geom[level].CellSize(), geom[level].ProbLo());
+                for (int n = 0; n < AMREX_SPACEDIM; ++n) {
+                    HeaderFile << loc.lo(n) << ' ' << loc.hi(n) << '\n';
+                }
+            }
+
+            HeaderFile << MultiFabHeaderPath(level, levelPrefix, mfPrefix) << '\n';
+        }
+        HeaderFile << "1" << "\n";
+        HeaderFile << "3" << "\n";
+        HeaderFile << "amrexvec_nu_x" << "\n";
+        HeaderFile << "amrexvec_nu_y" << "\n";
+        HeaderFile << "amrexvec_nu_z" << "\n";
+        std::string mf_nodal_prefix = "Nu_nd";
+        for (int level = 0; level <= finest_level; ++level) {
+            HeaderFile << MultiFabHeaderPath(level, levelPrefix, mf_nodal_prefix) << '\n';
+        }
+}
+#endif

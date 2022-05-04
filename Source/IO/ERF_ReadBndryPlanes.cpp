@@ -328,7 +328,7 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
 
     // We need to initialize all the components because we may not fill all of them from files,
     //    but the loop in the interpolate routine goes over all the components anyway
-    int ncomp = BCVars::NumTypes;
+    int ncomp_for_bc = BCVars::NumTypes;
     for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
         auto ori = oit();
         if (ori.coordDir() < 2) {
@@ -336,7 +336,7 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
             const auto& bx = d.box();
             amrex::Array4<amrex::Real> d_arr    = d.array();
             amrex::ParallelFor(
-                bx, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                bx, ncomp_for_bc, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
                 d_arr(i,j,k,n) = 0.;
             });
         }
