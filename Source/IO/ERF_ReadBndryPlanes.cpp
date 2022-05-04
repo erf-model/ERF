@@ -130,8 +130,10 @@ ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
     is_temperature_read  = 0;
     is_theta_read        = 0;
     is_scalar_read       = 0;
+#ifdef ERF_USE_MOISTURE
     is_qv_read           = 0;
     is_qc_read           = 0;
+#endif
     is_KE_read           = 0;
     is_QKE_read           = 0;
 
@@ -146,8 +148,10 @@ ReadBndryPlanes::ReadBndryPlanes(const amrex::Geometry& geom): m_geom(geom)
             if (m_var_names[i] == "temperature")  is_temperature_read = 1;
             if (m_var_names[i] == "theta")        is_theta_read = 1;
             if (m_var_names[i] == "scalar")       is_scalar_read = 1;
+#ifdef ERF_USE_MOISTURE
             if (m_var_names[i] == "qv")           is_qv_read = 1;
             if (m_var_names[i] == "qc")           is_qc_read = 1;
+#endif
             if (m_var_names[i] == "KE")           is_KE_read = 1;
             if (m_var_names[i] == "QKE")          is_QKE_read = 1;
         }
@@ -359,8 +363,10 @@ void ReadBndryPlanes::read_file(const int idx, amrex::Vector<std::unique_ptr<Pla
         if (var_name == "KE")          n_offset = BCVars::RhoKE_bc_comp;
         if (var_name == "QKE")         n_offset = BCVars::RhoQKE_bc_comp;
         if (var_name == "scalar")      n_offset = BCVars::RhoScalar_bc_comp;
+#ifdef ERF_USE_MOISTURE
         if (var_name == "qv")          n_offset = BCVars::RhoQv_bc_comp;
         if (var_name == "qc")          n_offset = BCVars::RhoQc_bc_comp;
+#endif
         if (var_name == "velocity")    n_offset = BCVars::xvel_bc;
 
         // amrex::Print() << "Reading " << chkname1 << " for variable " << var_name << " with n_offset == " << n_offset << std::endl;

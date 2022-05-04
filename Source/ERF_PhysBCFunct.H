@@ -294,7 +294,10 @@ public:
                     // Now handle the MOST bc if we have any
                     // Note: if we use MOST for one variable we use it for all, so we can just test on one component
 
-                    if (bcrs[0].lo(2) == ERFBCType::MOST && bx.smallEnd()[2] < zlo)
+                    if ( bx.smallEnd()[2] < zlo &&
+                         ( (m_var_idx == Vars::cons && bcrs[Cons::RhoTheta].lo(2) == ERFBCType::MOST) ||
+                           (m_var_idx == Vars::xvel && bcrs[0].lo(2) == ERFBCType::MOST) ||
+                           (m_var_idx == Vars::yvel && bcrs[0].lo(2) == ERFBCType::MOST) ) )
                     {
                         // check m_var_idx to distinguish between Vars::Dvel and Vars::Dmom
                         // (in Legacy this was controlled by the is_derived flag)

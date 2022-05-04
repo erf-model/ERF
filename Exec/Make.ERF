@@ -39,7 +39,10 @@ AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/M
 
 include $(AMReXpack)
 
-#turn on NetCDF macro define
+ifeq ($(USE_MOISTURE), TRUE)
+  DEFINES += -DERF_USE_MOISTURE
+endif
+
 ifeq ($(USE_TERRAIN), TRUE)
   DEFINES += -DERF_USE_TERRAIN
 endif
