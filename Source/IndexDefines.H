@@ -10,17 +10,26 @@
 #define RhoKE_comp     2 // for Deardorff LES Model
 #define RhoQKE_comp    3 // for MYNN PBL Model
 #define RhoScalar_comp 4
+
+#ifdef ERF_USE_MOISTURE
 #define RhoQv_comp     5
 #define RhoQc_comp     6
 #define NVAR           7
+#else
+#define NVAR           5
+#endif
 
 // Cell-centered primitive variables
 #define PrimTheta_comp   RhoTheta_comp -1
 #define PrimKE_comp      RhoKE_comp    -1
 #define PrimQKE_comp     RhoQKE_comp   -1
 #define PrimScalar_comp  RhoScalar_comp-1
+
+#ifdef ERF_USE_MOISTURE
 #define PrimQv_comp      RhoQv_comp-1
 #define PrimQc_comp      RhoQc_comp-1
+#endif
+
 #define NUM_PRIM         NVAR-1
 
 namespace BCVars {
@@ -31,8 +40,10 @@ namespace BCVars {
         RhoKE_bc_comp,
         RhoQKE_bc_comp,
         RhoScalar_bc_comp,
+#ifdef ERF_USE_MOISTURE
         RhoQv_bc_comp,
         RhoQc_bc_comp,
+#endif
         xvel_bc = NVAR,
         yvel_bc,
         zvel_bc,
@@ -60,8 +71,10 @@ namespace Cons {
         RhoKE,
         RhoQKE,
         RhoScalar,
+#ifdef ERF_USE_MOISTURE
         RhoQv,
         RhoQc,
+#endif
         NumVars
     };
 }
@@ -72,8 +85,10 @@ namespace Prim {
         KE,
         QKE,
         Scalar,
+#ifdef ERF_USE_MOISTURE
         Qv,
         Qc,
+#endif
         NumVars
     };
 }

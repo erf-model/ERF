@@ -800,7 +800,7 @@ void
 ERF::MakeHorizontalAverages ()
 {
     // We need to create horizontal averages for 5 variables:
-    // density, temperature, pressure, qc, qv
+    // density, temperature, pressure, qc, qv (if present)
 
     // First, average down all levels
     AverageDown();
@@ -810,18 +810,17 @@ ERF::MakeHorizontalAverages ()
     auto domain = geom[0].Domain();
     int size_z = domain.length(dir_z);
     int start_z = domain.smallEnd()[dir_z];
-
     Real area_z = static_cast<Real>(domain.length(0));
-#if (AMREX_SPACEDIM == 3)
     area_z *= domain.length(1);
-#endif
 
     // resize the level 0 horizontal average vectors
     h_havg_density.resize(size_z, 0.0_rt);
     h_havg_temperature.resize(size_z, 0.0_rt);
     h_havg_pressure.resize(size_z, 0.0_rt);
+#ifdef ERF_USE_MOISTURE
     h_havg_qv.resize(size_z, 0.0_rt);
     h_havg_qc.resize(size_z, 0.0_rt);
+#endif
 
     // get the cell centered data and construct sums
     auto& mf_cons = vars_new[0][Vars::cons];
@@ -834,7 +833,11 @@ ERF::MakeHorizontalAverages ()
         const IntVect& be = box.bigEnd();
         auto  arr_cons = mf_cons[mfi].array();
 
+#ifdef ERF_USE_MOISTURE
         FArrayBox fab_reduce(box, 5);
+#else
+        FArrayBox fab_reduce(box, 3);
+#endif
         Elixir elx_reduce = fab_reduce.elixir();
         auto arr_reduce = fab_reduce.array();
 
@@ -843,8 +846,10 @@ ERF::MakeHorizontalAverages ()
             arr_reduce(i, j, k, 0) = dens;
             arr_reduce(i, j, k, 1) = arr_cons(i, j, k, Cons::RhoTheta) / dens;
             arr_reduce(i, j, k, 2) = getPgivenRTh(arr_cons(i, j, k, Cons::RhoTheta));
+#ifdef ERF_USE_MOISTURE
             arr_reduce(i, j, k, 3) = arr_cons(i, j, k, Cons::RhoQv) / dens;
             arr_reduce(i, j, k, 4) = arr_cons(i, j, k, Cons::RhoQc) / dens;
+#endif
         });
 
         for (int k=se[dir_z]; k <= be[dir_z]; ++k) {
@@ -852,8 +857,10 @@ ERF::MakeHorizontalAverages ()
             h_havg_density     [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,0);
             h_havg_temperature [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,1);
             h_havg_pressure    [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,2);
+#ifdef ERF_USE_MOISTURE
             h_havg_qv          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,3);
             h_havg_qc          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,4);
+#endif
         }
     }
 
@@ -861,31 +868,39 @@ ERF::MakeHorizontalAverages ()
     ParallelDescriptor::ReduceRealSum(h_havg_density.dataPtr(), h_havg_density.size());
     ParallelDescriptor::ReduceRealSum(h_havg_temperature.dataPtr(), h_havg_temperature.size());
     ParallelDescriptor::ReduceRealSum(h_havg_pressure.dataPtr(), h_havg_pressure.size());
+#ifdef ERF_USE_MOISTURE
     ParallelDescriptor::ReduceRealSum(h_havg_qv.dataPtr(), h_havg_qv.size());
     ParallelDescriptor::ReduceRealSum(h_havg_qc.dataPtr(), h_havg_qc.size());
+#endif
 
     // divide by the total number of cells we are averaging over
     for (int k = 0; k < size_z; ++k) {
         h_havg_density[k]     /= area_z;
         h_havg_temperature[k] /= area_z;
         h_havg_pressure[k]    /= area_z;
+#ifdef ERF_USE_MOISTURE
         h_havg_qv[k]          /= area_z;
         h_havg_qc[k]          /= area_z;
+#endif
     }
 
     // resize device vectors
     d_havg_density.resize(size_z, 0.0_rt);
     d_havg_temperature.resize(size_z, 0.0_rt);
     d_havg_pressure.resize(size_z, 0.0_rt);
+#ifdef ERF_USE_MOISTURE
     d_havg_qv.resize(size_z, 0.0_rt);
     d_havg_qc.resize(size_z, 0.0_rt);
+#endif
 
     // copy host vectors to device vectors
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_density.begin(), h_havg_density.end(), d_havg_density.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_temperature.begin(), h_havg_temperature.end(), d_havg_temperature.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_pressure.begin(), h_havg_pressure.end(), d_havg_pressure.begin());
+#ifdef ERF_USE_MOISTURE
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
+#endif
 }
 
 // Set covered coarse cells to be the average of overlying fine cells for all levels
