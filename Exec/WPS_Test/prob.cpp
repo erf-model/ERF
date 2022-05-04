@@ -52,7 +52,7 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
 // Shoudln't we get rid of this function when initializing with real atm data?
 ///*
 void
-erf_init_prob(
+init_custom_prob(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
   amrex::Array4<amrex::Real> const& x_vel,

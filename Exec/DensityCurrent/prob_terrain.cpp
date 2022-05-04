@@ -150,7 +150,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
 }
 
 void
-erf_init_prob(
+init_custom_prob(
   const amrex::Box& bx,
   amrex::Array4<amrex::Real> const& state,
   amrex::Array4<amrex::Real> const& x_vel,
