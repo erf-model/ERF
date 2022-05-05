@@ -18,6 +18,9 @@
 #include <DataStruct.H>
 #include <EddyViscosity.H>
 #include <ABLMost.H>
+#ifdef ERF_USE_TERRAIN
+#include <SpatialStencils.H>
+#endif
 
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
@@ -41,9 +44,17 @@ public:
                     const int& var_idx, TimeInterpolatedData& data,
                     Array<Array<Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
                     const SolverChoice& solverChoice,
+#ifdef ERF_USE_TERRAIN
+                    const MultiFab& z_phys_nd,
+                    const MultiFab& detJ_cc,
+#endif
                     ABLMost& most, std::unique_ptr<ReadBndryPlanes>& r2d)
         : m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
-          m_var_idx(var_idx), m_data(data), m_bc_extdir_vals(bc_extdir_vals), m_most(most), m_r2d(r2d)
+          m_var_idx(var_idx), m_data(data), m_bc_extdir_vals(bc_extdir_vals),
+#ifdef ERF_USE_TERRAIN
+          m_z_phys_nd(z_phys_nd), m_detJ_cc(detJ_cc),
+#endif
+          m_most(most), m_r2d(r2d)
         {
             m_has_most_bcs = false;
             for (const auto& bcr : domain_bcs_type) {
@@ -95,6 +106,11 @@ public:
         const auto& dom_lo = amrex::lbound(domain);
         const auto& dom_hi = amrex::ubound(domain);
 
+#ifdef ERF_USE_TERRAIN
+        // Private data from constructor
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv = m_geom.InvCellSizeArray();
+#endif
+
         // Create a grown domain box containing valid + periodic cells
         Box gdomain = amrex::convert(domain, mf.boxArray().ixType());
         for (int i = 0; i < AMREX_SPACEDIM; ++i) {
@@ -115,11 +131,21 @@ public:
                 const Array4<Real>& dest_array = mf.array(mfi);
                 const Box& bx = mfi.fabbox();
 
+#ifdef ERF_USE_TERRAIN
+                // Private data from constructor
+                const Array4<const Real>& z_nd = m_z_phys_nd.const_array(mfi);
+                const Array4<const Real>& detJ = m_detJ_cc.const_array(mfi);
+                const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
+                const auto vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
+                const auto cons_arr = m_has_most_bcs ? m_data.get_var(Vars::cons)[mfi].array() : Array4<Real>();
+                const auto eta_arr  = m_has_most_bcs ? m_viscosity[mfi].array() : Array4<Real>();
+#else
                 // make Array4's for our data
                 const auto cons_arr = m_has_most_bcs ? m_data.get_var(Vars::cons)[mfi].array() : Array4<Real>();
                 const auto velx_arr = m_has_most_bcs ? m_data.get_var(Vars::xvel)[mfi].array() : Array4<Real>();
                 const auto vely_arr = m_has_most_bcs ? m_data.get_var(Vars::yvel)[mfi].array() : Array4<Real>();
                 const auto eta_arr  = m_has_most_bcs ? m_viscosity[mfi].array() : Array4<Real>();
+#endif
 
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
@@ -184,6 +210,69 @@ public:
                     // Fill here all the "generic" ext_dir bc's
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                     {
+#ifdef ERF_USE_TERRAIN
+                      // BC for W with terrain (U & V filled before W)
+                      if (bccomp == BCVars::zvel_bc) {
+                        // Populate W ghost cells & upper face on top boundary
+                        if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
+                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][0],
+                                                                   velx_arr,vely_arr,
+                                                                   z_nd,dxInv);
+                        if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
+                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][1],
+                                                                   velx_arr,vely_arr,
+                                                                   z_nd,dxInv);
+                        if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
+                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
+                                                                   velx_arr,vely_arr,
+                                                                   z_nd,dxInv);
+                        if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir)
+                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][3],
+                                                                   velx_arr,vely_arr,
+                                                                   z_nd,dxInv);
+                        if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir)
+                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][4],
+                                                                   velx_arr,vely_arr,
+                                                                   z_nd,dxInv);
+                        if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
+                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][5],
+                                                                   velx_arr,vely_arr,
+                                                                   z_nd,dxInv);
+                        // Populate W face value on bottom boundary
+                        if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
+                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
+                                                                   velx_arr,vely_arr,
+                                                                   z_nd,dxInv);
+                        } else {
+                          // Populate ghost cells & upper face on top boundary
+                          if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+                          if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+                          if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                          if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
+                          if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
+                          if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
+                        }
+
+                        // Populate face values on bottom boundary (except for W)
+                        if (bccomp == BCVars::xvel_bc)
+                        {
+                          if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+                        }
+                        if (bccomp == BCVars::yvel_bc)
+                        {
+                          if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+                        }
+
+#else
+                        // Populate ghost cells & upper face on top boundary
                         if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
                         if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
@@ -197,21 +286,23 @@ public:
                         if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
 
+                        // Populate face values on bottom boundary
                         if (bccomp == BCVars::xvel_bc)
                         {
-                            if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+                          if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
                         }
                         if (bccomp == BCVars::yvel_bc)
                         {
-                            if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+                          if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
                         }
                         if (bccomp == BCVars::zvel_bc)
                         {
-                            if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                          if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
                         }
+#endif
                     });
 
                     if (m_r2d) {
@@ -468,6 +559,10 @@ private:
     Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
     MultiFab m_viscosity;
     bool m_has_most_bcs;
+#ifdef ERF_USE_TERRAIN
+    const MultiFab& m_z_phys_nd;
+    const MultiFab& m_detJ_cc;
+#endif
     ABLMost m_most;
     std::unique_ptr<ReadBndryPlanes>& m_r2d;
 };
