@@ -378,4 +378,30 @@ struct SolverChoice {
     IC_BC_Type icBcType;
 };
 
+struct InputSoundingData {
+public:
+    // Constructor
+    InputSoundingData (const amrex::Vector<amrex::Real> &z_inp_sound_arg,
+                       const amrex::Vector<amrex::Real> &theta_inp_sound_arg,
+                       const amrex::Vector<amrex::Real> &moisture_inp_sound_arg,
+                       const amrex::Vector<amrex::Real> &U_inp_sound_arg,
+                       const amrex::Vector<amrex::Real> &V_inp_sound_arg,
+                       const amrex::Real &press_ref_inp_sound_arg,
+                       const amrex::Real &theta_ref_inp_sound_arg,
+                       const amrex::Real &dummy_arg) :
+            z_inp_sound(z_inp_sound_arg),
+            theta_inp_sound (theta_inp_sound_arg),
+            moisture_inp_sound (moisture_inp_sound_arg),
+            U_inp_sound (U_inp_sound_arg),
+            V_inp_sound (V_inp_sound_arg),
+            press_ref_inp_sound (press_ref_inp_sound_arg),
+            theta_ref_inp_sound (theta_ref_inp_sound_arg),
+            dummy (dummy_arg)
+    {
+    }
+
+    // Members
+    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
+    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
+};
 #endif
