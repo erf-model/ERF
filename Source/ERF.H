@@ -303,6 +303,9 @@ private:
     // Read the netcdf wrfbdy file once
     void read_from_wrfbdy();
 
+    // Read the text input_sounding file once
+    void read_from_input_sounding();
+
     // Copy from the NC*fabs into the MultiFabs holding the initial data
     void init_from_wrfinput(const amrex::Box& bx, amrex::FArrayBox& state_fab,
                             amrex::FArrayBox& x_vel_fab, amrex::FArrayBox& y_vel_fab,
@@ -316,17 +319,53 @@ private:
     void init_from_wrfbdy(Vector<FArrayBox*> x_vel_lateral, Vector<FArrayBox*> y_vel_lateral,
                           Vector<FArrayBox*> z_vel_lateral, Vector<FArrayBox*> T_lateral);
 
-    // FArrayBoxs for holding the data read from the wrfinput NetCDF file
+
+    void
+    init_from_input_sounding(
+            const amrex::Box& bx,
+            amrex::Array4<amrex::Real> const& state,
+            amrex::Array4<amrex::Real> const& x_vel,
+            amrex::Array4<amrex::Real> const& y_vel,
+            amrex::Array4<amrex::Real> const& z_vel,
+            amrex::GeometryData const& geomdata);
+
+    Real
+    interpolate_profile (const amrex::Vector<Real> &v1, const amrex::Vector<Real> &v2, const Real &var);
+
+
+    // *** *** FArrayBox's for holding the INITIAL data
+    // Data read from the wrfinput NetCDF file
     amrex::FArrayBox NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
     amrex::FArrayBox NC_rho_fab, NC_rhotheta_fab;
-    amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab, NC_p_surf_fab, NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
+    amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab;
 
-    // FArrayBoxs for holding the data read from the wrfbdy NetCDF file
+    // *** *** FArrayBox's for holding the SURFACE data
+    // Data read from the wrfinput NetCDF file
+    //TODO: Move the relevant variables under #ifdef ERF_USE_TERRAIN
+    amrex::FArrayBox NC_HGT_fab; // Terrain height (variable HGT in the wrfinput file)
+    amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
+    amrex::FArrayBox NC_z0_fab; // Surface Roughness, z0 = z0 (IVGTYP)
+    amrex::FArrayBox NC_PSFC_fab; // Surface pressure
+    amrex::FArrayBox NC_SST_fab; // Sea Surface Temperature; Defined even for land area
+    amrex::FArrayBox NC_TSK_fab; // Surface Skin Temperature; Appears to be same as SST...TODO: Clarify the relation between SST and TSK
+    //amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
+
+    // *** *** FArrayBox's for holding the LATERAL BOUNDARY data (the four sides)
+    // Data read from the wrfbdy NetCDF file
+    amrex::Vector<std::string> bdyDataTimeStamps;
+    // The correspondence between {BXS, BXE, BYS, BYE} or {BTXS, BTXE, BTYS, BTYE} and {x_lo, x_hi, y_lo, y_hi}
+    // xlo = BXS, xhi = BXE, ylo = BYS, xhi = BYE
+    // XS = X Start, XE = X End, YS = Y Start, YE = Y End
+    // TODO: The numbers for variables on {BXS, BXE, BYS, BYE} are very large, while those on {BTXS, BTXE, BTYS, BTYE} are more realistic..
+    //  Need to clarify
     amrex::FArrayBox NC_U_BXS_fab, NC_U_BXE_fab, NC_U_BYS_fab, NC_U_BYE_fab; // The four lateral boundaries for x-velocity
     amrex::FArrayBox NC_V_BXS_fab, NC_V_BXE_fab, NC_V_BYS_fab, NC_V_BYE_fab; // The four lateral boundaries for y-velocity
     amrex::FArrayBox NC_W_BXS_fab, NC_W_BXE_fab, NC_W_BYS_fab, NC_W_BYE_fab; // The four lateral boundaries for z-velocity
     amrex::FArrayBox NC_T_BXS_fab, NC_T_BXE_fab, NC_T_BYS_fab, NC_T_BYE_fab; // The four lateral boundaries for potential temperature
 
+    // *** *** Variables for holding the data in input_sounding
+    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
+    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
 
 #ifdef ERF_USE_TERRAIN
     amrex::FArrayBox NC_PH_fab;
@@ -488,7 +527,7 @@ private:
     // Native or NetCDF
     static std::string plotfile_type;
 
-    // init_type:  "ideal" vs "real"
+    // init_type:  "custom", "ideal", "real", "input_sounding"
     static std::string init_type;
 
     // NetCDF initialization (wrfinput) file
@@ -496,6 +535,9 @@ private:
 
     // NetCDF initialization (wrfbdy) file
     static std::string nc_bdy_file;
+
+    // Text input_sounding file
+    static std::string input_sounding_file;
 
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
