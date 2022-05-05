@@ -303,9 +303,6 @@ private:
     // Read the netcdf wrfbdy file once
     void read_from_wrfbdy();
 
-    // Read the text input_sounding file once
-    void read_from_input_sounding();
-
     // Copy from the NC*fabs into the MultiFabs holding the initial data
     void init_from_wrfinput(const amrex::Box& bx, amrex::FArrayBox& state_fab,
                             amrex::FArrayBox& x_vel_fab, amrex::FArrayBox& y_vel_fab,
@@ -318,20 +315,6 @@ private:
     // Copy from the NC*fabs into the MultiFabs holding the boundary data
     void init_from_wrfbdy(Vector<FArrayBox*> x_vel_lateral, Vector<FArrayBox*> y_vel_lateral,
                           Vector<FArrayBox*> z_vel_lateral, Vector<FArrayBox*> T_lateral);
-
-
-    void
-    init_from_input_sounding(
-            const amrex::Box& bx,
-            amrex::Array4<amrex::Real> const& state,
-            amrex::Array4<amrex::Real> const& x_vel,
-            amrex::Array4<amrex::Real> const& y_vel,
-            amrex::Array4<amrex::Real> const& z_vel,
-            amrex::GeometryData const& geomdata);
-
-    Real
-    interpolate_profile (const amrex::Vector<Real> &v1, const amrex::Vector<Real> &v2, const Real &var);
-
 
     // *** *** FArrayBox's for holding the INITIAL data
     // Data read from the wrfinput NetCDF file
@@ -363,15 +346,31 @@ private:
     amrex::FArrayBox NC_W_BXS_fab, NC_W_BXE_fab, NC_W_BYS_fab, NC_W_BYE_fab; // The four lateral boundaries for z-velocity
     amrex::FArrayBox NC_T_BXS_fab, NC_T_BXE_fab, NC_T_BYS_fab, NC_T_BYE_fab; // The four lateral boundaries for potential temperature
 
-    // *** *** Variables for holding the data in input_sounding
-    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
-    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
-
 #ifdef ERF_USE_TERRAIN
     amrex::FArrayBox NC_PH_fab;
     amrex::FArrayBox NC_PHB_fab;
 #endif
-#endif
+#endif // ERF_USE_NETCDF
+
+    // input Sounding doesn't depend on NETCDF
+    // Read the text input_sounding file once
+    void read_from_input_sounding();
+
+    void
+    init_from_input_sounding(
+            const amrex::Box& bx,
+            amrex::Array4<amrex::Real> const& state,
+            amrex::Array4<amrex::Real> const& x_vel,
+            amrex::Array4<amrex::Real> const& y_vel,
+            amrex::Array4<amrex::Real> const& z_vel,
+            amrex::GeometryData const& geomdata);
+
+    amrex::Real
+    interpolate_profile (const amrex::Vector<Real> &v1, const amrex::Vector<Real> &v2, const Real &var);
+
+    // *** *** Variables for holding the data in input_sounding
+    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
+    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
 
 #ifdef ERF_USE_TERRAIN
     // Define z_phys_nd on nodes using an analytical expression

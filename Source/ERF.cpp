@@ -528,9 +528,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         m_r2d->read_input_files(time,dt_dummy,m_bc_extdir_vals);
     }
 
-#ifdef ERF_USE_NETCDF
+
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
+#ifdef ERF_USE_NETCDF
         if (init_type == "ideal" || init_type == "real") {
             if (nc_init_file.empty())
                 amrex::Error("NetCDF initialization file name must be provided via input");
@@ -541,13 +542,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
                 amrex::Error("NetCDF boundary file name must be provided via input");
             read_from_wrfbdy();
         }
+#endif //ERF_USE_NETCDF
         if (init_type == "input_sounding") {
             if (input_sounding_file.empty())
                 amrex::Error("input_sounding file name must be provided via input");
             read_from_input_sounding();
         }
     }
-#endif
 
     // Loop over grids at this level to initialize our grid data
     lev_new[Vars::cons].setVal(0.0);
@@ -565,36 +566,37 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-          const Box& bx = mfi.tilebox();
-          const auto& cons_arr = lev_new[Vars::cons].array(mfi);
-          const auto& xvel_arr = lev_new[Vars::xvel].array(mfi);
-          const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
-          const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
+        for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box &bx = mfi.tilebox();
+            const auto &cons_arr = lev_new[Vars::cons].array(mfi);
+            const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
+            const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
+            const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
 
-          if (init_type == "custom") {
+            if (init_type == "custom") {
 #ifndef ERF_USE_TERRAIN
-              init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+                init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
 #else
-              const auto& r_hse_arr = dens_hse[lev].array(mfi);
-              const auto& p_hse_arr = pres_hse[lev].array(mfi);
-              const auto& z_nd_arr  = z_phys_nd[lev].const_array(mfi);
-              const auto& z_cc_arr  = z_phys_cc[lev].const_array(mfi);
+                const auto& r_hse_arr = dens_hse[lev].array(mfi);
+                const auto& p_hse_arr = pres_hse[lev].array(mfi);
+                const auto& z_nd_arr  = z_phys_nd[lev].const_array(mfi);
+                const auto& z_cc_arr  = z_phys_cc[lev].const_array(mfi);
 
-              init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                            r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
-                            geom[lev].data());
+                init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+                              r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
+                              geom[lev].data());
 #endif
-          }
-          else
-              init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+            }
+            else
+                init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
         }
+    }
 #ifdef ERF_USE_NETCDF
-    } else if (init_type == "ideal" || init_type == "real") {
+    else if (init_type == "ideal" || init_type == "real") {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
+        // INITIAL DATA common for "ideal" as well as "real" simulation
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
             const Box &bx = mfi.tilebox();
             // Define fabs for holding the initial data
@@ -611,8 +613,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
 
 #endif // ERF_USE_TERRAIN
-
         }
+
+        // BOUNDARY DATA meant for "real" simulation, but not needed for "ideal" simulation
         if (init_type == "real") {
             //TODO: Discuss which mfi, box etc. to use
             for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
@@ -650,8 +653,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #ifdef ERF_USE_TERRAIN
         make_metrics(lev);
 #endif
-#endif
     }
+#endif //ERF_USE_NETCDF
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
     // The data associated with the lower grid ID is considered the correct value.
@@ -1172,40 +1175,6 @@ ERF::read_from_wrfbdy() {
 }
 
 void
-ERF::read_from_input_sounding() {
-    // Read the input_sounding file
-    amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
-    std::ifstream input_sounding_reader(input_sounding_file);
-    if(!input_sounding_reader.is_open()) {
-        amrex::Error("Error opening the input_sounding file\n");
-    }
-    else {
-        // Read the contents of the input_sounding file
-        amrex::Print() << "Successfully opened the input_sounding file. Now reading... " << std::endl;
-        std::string  line;
-
-        // Read the first line
-        std::getline(input_sounding_reader, line);
-        std::istringstream iss(line);
-        iss >> press_ref_inp_sound >> theta_ref_inp_sound >> dummy;
-
-        // Read the vertical profile at each given height
-        while(std::getline(input_sounding_reader, line)) {
-            std::istringstream iss(line);
-            Real z, theta, moiture, U, V;
-            iss >> z >> theta >> moiture >> U >> V;
-            z_inp_sound.push_back(z);
-            theta_inp_sound.push_back(theta);
-            moisture_inp_sound.push_back(moiture);
-            U_inp_sound.push_back(U);
-            V_inp_sound.push_back(V);
-        }
-    }
-    amrex::Print() << "Successfully read the input_sounding file..." << std::endl;
-    input_sounding_reader.close();
-}
-
-void
 ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab, FArrayBox& z_vel_fab
 #ifdef ERF_USE_TERRAIN
@@ -1277,6 +1246,42 @@ ERF::init_from_wrfbdy(Vector<FArrayBox*> x_vel_lateral, Vector<FArrayBox*> y_vel
     T_lateral[2]->copy(NC_T_BYS_fab);
     T_lateral[3]->copy(NC_T_BYE_fab);
 
+}
+#endif // ERF_USE_NETCDF
+
+// input Sounding doesn't depend on NETCDF
+void
+ERF::read_from_input_sounding() {
+    // Read the input_sounding file
+    amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
+    std::ifstream input_sounding_reader(input_sounding_file);
+    if(!input_sounding_reader.is_open()) {
+        amrex::Error("Error opening the input_sounding file\n");
+    }
+    else {
+        // Read the contents of the input_sounding file
+        amrex::Print() << "Successfully opened the input_sounding file. Now reading... " << std::endl;
+        std::string  line;
+
+        // Read the first line
+        std::getline(input_sounding_reader, line);
+        std::istringstream iss(line);
+        iss >> press_ref_inp_sound >> theta_ref_inp_sound >> dummy;
+
+        // Read the vertical profile at each given height
+        while(std::getline(input_sounding_reader, line)) {
+            std::istringstream iss(line);
+            Real z, theta, moiture, U, V;
+            iss >> z >> theta >> moiture >> U >> V;
+            z_inp_sound.push_back(z);
+            theta_inp_sound.push_back(theta);
+            moisture_inp_sound.push_back(moiture);
+            U_inp_sound.push_back(U);
+            V_inp_sound.push_back(V);
+        }
+    }
+    amrex::Print() << "Successfully read the input_sounding file..." << std::endl;
+    input_sounding_reader.close();
 }
 
 void ERF::init_from_input_sounding(  const amrex::Box& bx,
@@ -1353,7 +1358,7 @@ void ERF::init_from_input_sounding(  const amrex::Box& bx,
 //    //return v2[mid_val];
 //}
 
-Real
+amrex::Real
 ERF::interpolate_profile(const Vector<Real>& alpha, const Vector<Real>& varSurf, const Real &detail_sensativity)
 {
     //in case the interoplation point alraedy exists in the array
@@ -1407,5 +1412,3 @@ ERF::interpolate_profile(const Vector<Real>& alpha, const Vector<Real>& varSurf,
     }
     return res;
 }
-
-#endif // ERF_USE_NETCDF
