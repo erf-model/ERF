@@ -566,14 +566,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
           const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
 
 #ifndef ERF_USE_TERRAIN
-          erf_init_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+          init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
 #else
           const auto& r_hse_arr = dens_hse[lev].array(mfi);
           const auto& p_hse_arr = pres_hse[lev].array(mfi);
           const auto& z_nd_arr  = z_phys_nd[lev].const_array(mfi);
           const auto& z_cc_arr  = z_phys_cc[lev].const_array(mfi);
 
-          erf_init_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+          init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
                         geom[lev].data());
 #endif
