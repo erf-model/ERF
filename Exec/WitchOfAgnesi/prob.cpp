@@ -21,17 +21,17 @@ init_isentropic_hse(int i, int j,
                     const int& khi)
 {
   // r_sfc / p_0 are the density / pressure at the surface
-  int k0 = 0;
-  Real dz = 0.25 * ( z_nd(i,j,k0+1) +  z_nd(i+1,j,k0+1) + z_nd(i,j+1,k0+1) + z_nd(i+1,j+1,k0+1)
-                    -z_nd(i,j,k0  ) -  z_nd(i+1,j,k0  ) - z_nd(i,j+1,k0  ) - z_nd(i+1,j+1,k0  ) );
+  int k0  = 0;
+  Real hz = z_cc(i,j,k0);
+
   r[0] = r_sfc;
-  p[0] = p_0 - 0.5 * dz * r[0] * CONST_GRAV;
+  p[0] = p_0 - hz * r[0] * CONST_GRAV;
 
   int MAX_ITER = 10;
   Real TOL = 1.e-8;
 
   {
-      // We do a Newton iteration to satisfy the EOS (with constant theta) and to discretely satisfy HSE
+      // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
       bool converged_hse = false;
 
       // Initial guess
@@ -43,19 +43,19 @@ init_isentropic_hse(int i, int j,
 
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
-          p_hse = p_0 - z_cc(i,j,0) * r_sfc * CONST_GRAV;
+          p_hse = p_0 - hz * r_sfc * CONST_GRAV;
           p_eos = getPgivenRTh(r[k0]*theta);
 
           Real A = p_hse - p_eos;
 
           Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
 
-          Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
+          Real drho = A / (dpdr + hz * CONST_GRAV);
 
-          r[k0] = std::max(0.9*r_sfc, std::min(r[k0] + drho, 1.1*r_sfc));
+          r[k0] = r[k0] + drho;
           p[k0] = getPgivenRTh(r[k0]*theta);
 
-          if (std::abs(drho) < TOL * r_sfc)
+          if (std::abs(drho) < TOL)
           {
               converged_hse = true;
               break;
@@ -134,8 +134,6 @@ erf_init_dens_hse(MultiFab& rho_hse,
        Box b2d = tbz; // Copy constructor
        b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
        b2d.setRange(2,0);
-
-       amrex::Print() << "INIT HSE "<<b2d << "\n";
 
        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
          Array1D<Real,0,255> r;;
