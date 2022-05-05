@@ -352,25 +352,54 @@ private:
 #endif
 #endif // ERF_USE_NETCDF
 
+    // *** *** Variables for holding the data in input_sounding
+    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
+    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
+
     // input Sounding doesn't depend on NETCDF
+    struct InputSoundingData {
+        public:
+            // Constructor
+            InputSoundingData (const amrex::Vector<amrex::Real> &z_inp_sound_arg,
+                               const amrex::Vector<amrex::Real> &theta_inp_sound_arg,
+                               const amrex::Vector<amrex::Real> &moisture_inp_sound_arg,
+                               const amrex::Vector<amrex::Real> &U_inp_sound_arg,
+                               const amrex::Vector<amrex::Real> &V_inp_sound_arg,
+                               const amrex::Real &press_ref_inp_sound_arg,
+                               const amrex::Real &theta_ref_inp_sound_arg,
+                               const amrex::Real &dummy_arg) :
+                               z_inp_sound(z_inp_sound_arg),
+                               theta_inp_sound (theta_inp_sound_arg),
+                               moisture_inp_sound (moisture_inp_sound_arg),
+                               U_inp_sound (U_inp_sound_arg),
+                               V_inp_sound (V_inp_sound_arg),
+                               press_ref_inp_sound (press_ref_inp_sound_arg),
+                               theta_ref_inp_sound (theta_ref_inp_sound_arg),
+                               dummy (dummy_arg)
+                               {
+            }
+
+            // Members
+            amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
+            amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
+    };
+
     // Read the text input_sounding file once
     void read_from_input_sounding();
 
     void
     init_from_input_sounding(
-            const amrex::Box& bx,
-            amrex::Array4<amrex::Real> const& state,
-            amrex::Array4<amrex::Real> const& x_vel,
-            amrex::Array4<amrex::Real> const& y_vel,
-            amrex::Array4<amrex::Real> const& z_vel,
-            amrex::GeometryData const& geomdata);
+            const amrex::Box &bx,
+            amrex::Array4<amrex::Real> const &state,
+            amrex::Array4<amrex::Real> const &x_vel,
+            amrex::Array4<amrex::Real> const &y_vel,
+            amrex::Array4<amrex::Real> const &z_vel,
+            amrex::GeometryData const &geomdata,
+            const InputSoundingData &inputSoundingData);
 
     amrex::Real
     interpolate_profile (const amrex::Vector<Real> &v1, const amrex::Vector<Real> &v2, const Real &var);
 
-    // *** *** Variables for holding the data in input_sounding
-    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
-    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
 
 #ifdef ERF_USE_TERRAIN
     // Define z_phys_nd on nodes using an analytical expression

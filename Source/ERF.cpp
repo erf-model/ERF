@@ -587,8 +587,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
                               geom[lev].data());
 #endif
             }
-            else
-                init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+            else {
+                InputSoundingData inputSoundingData(z_inp_sound,
+                                                    theta_inp_sound,
+                                                    moisture_inp_sound,
+                                                    U_inp_sound,
+                                                    V_inp_sound,
+                                                    press_ref_inp_sound,
+                                                    theta_ref_inp_sound,
+                                                    dummy);
+                init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), inputSoundingData);
+            }
         }
     }
 #ifdef ERF_USE_NETCDF
@@ -1284,12 +1293,14 @@ ERF::read_from_input_sounding() {
     input_sounding_reader.close();
 }
 
-void ERF::init_from_input_sounding(  const amrex::Box& bx,
-                                     amrex::Array4<amrex::Real> const& state,
-                                     amrex::Array4<amrex::Real> const& x_vel,
-                                     amrex::Array4<amrex::Real> const& y_vel,
-                                     amrex::Array4<amrex::Real> const& z_vel,
-                                     amrex::GeometryData const& geomdata) {
+void ERF::init_from_input_sounding(
+        const amrex::Box &bx,
+        amrex::Array4<amrex::Real> const &state,
+        amrex::Array4<amrex::Real> const &x_vel,
+        amrex::Array4<amrex::Real> const &y_vel,
+        amrex::Array4<amrex::Real> const &z_vel,
+        amrex::GeometryData const &geomdata,
+        const InputSoundingData &inputSoundingData) {
 //    struct ProbParm {
 //        amrex::Real rho_0 = 1.0;
 //        amrex::Real Theta_0 = 300.0;
@@ -1309,7 +1320,7 @@ void ERF::init_from_input_sounding(  const amrex::Box& bx,
         state(i, j, k, Rho_comp) = rho_0;
 
         // Initial Rho0*Theta0
-        state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_profile(z_inp_sound, theta_inp_sound, z);
+        state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_profile(inputSoundingData.z_inp_sound, inputSoundingData.theta_inp_sound, z);
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state(i, j, k, RhoScalar_comp) = 0;
@@ -1325,7 +1336,7 @@ void ERF::init_from_input_sounding(  const amrex::Box& bx,
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         // Set the x-velocity
-        x_vel(i, j, k) = interpolate_profile(z_inp_sound, U_inp_sound, z);
+        x_vel(i, j, k) = interpolate_profile(inputSoundingData.z_inp_sound, inputSoundingData.U_inp_sound, z);
     });
 
     // Construct a box that is on y-faces
@@ -1338,7 +1349,7 @@ void ERF::init_from_input_sounding(  const amrex::Box& bx,
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         // Set the y-velocity
-        y_vel(i, j, k) = interpolate_profile(z_inp_sound, V_inp_sound, z);
+        y_vel(i, j, k) = interpolate_profile(inputSoundingData.z_inp_sound, inputSoundingData.V_inp_sound, z);
     });
 
     // Construct a box that is on z-faces
