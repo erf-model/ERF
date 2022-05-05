@@ -1296,7 +1296,7 @@ void ERF::init_from_input_sounding(  const amrex::Box& bx,
         amrex::Real V_0 = 1.0;
     };
     ProbParm parms;
-    amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         // Geometry
         const amrex::Real* prob_lo = geomdata.ProbLo();
         const amrex::Real* dx = geomdata.CellSize();
