@@ -985,33 +985,6 @@ ERF::read_from_wrfinput()
         // Now multiply by rho to get (rho theta) instead of theta
         NC_rhotheta_fab.mult(NC_rho_fab,0,0,1);
 
-#if 0
-        // Read the perturbation density inverse
-        BuildFabFromIdealOutputFile(nc_init_file, "AL", NC_rho_inv_pert_fab,
-                                    NC_Data_Dims_Type::Time_BT_SN_WE);
-
-        // Read Base Pressure
-        BuildFabFromIdealOutputFile(nc_init_file, "PB", NC_p_base_fab,
-                                    NC_Data_Dims_Type::Time_BT_SN_WE);
-
-        // Read Perturbation Pressure
-        BuildFabFromIdealOutputFile(nc_init_file, "P", NC_p_pert_fab,
-                                    NC_Data_Dims_Type::Time_BT_SN_WE);
-
-        // Read Surface Pressure
-        BuildFabFromIdealOutputFile(nc_init_file, "PSFC", NC_p_surf_fab,
-                                    NC_Data_Dims_Type::Time_SN_WE);
-
-        // Read eta at cell-center levels
-        // Likewise, we can read eta at z-stagger levels, but since pressure is defined at cell-centers we skip that
-        // eta = (p(z) - p_top)/(p_surf - p_top) => 1 at surface and 0 at top
-        BuildFabFromIdealOutputFile(nc_init_file, "ZNU", NC_eta_fab,
-                                    NC_Data_Dims_Type::Time_BT);
-
-        // Read base-state geopotential
-        BuildFabFromIdealOutputFile(nc_init_file, "PHB", NC_phb_fab,
-                                    NC_Data_Dims_Type::Time_BT_SN_WE);
-#endif
     } // if ParalleDescriptor::IOProcessor()
 
     // We put a barrier here so the rest of the processors wait to do anything until they have the data
@@ -1032,14 +1005,6 @@ ERF::read_from_wrfinput()
     ParallelDescriptor::Bcast(NC_PH_fab.dataPtr() ,NC_PH_fab.box().numPts() ,ioproc);
 #endif
 
-#if 0
-    ParallelDescriptor::Bcast(NC_rho_inv_pert_fab.dataPtr(),NC_rho_inv_pert_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_p_base_fab.dataPtr(),NC_p_base_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_p_pert_fab.dataPtr(),NC_p_pert_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_p_surf_fab.dataPtr(),NC_p_surf_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_p_surf_fab.dataPtr(),NC_p_surf_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_eta_fab.dataPtr(),NC_eta_fab.box().numPts(),ioproc);
-#endif
     amrex::Print() << "Successfully loaded data from the wrfinput (output of 'ideal.exe' / 'real.exe') NetCDF file" << std::endl << std::endl;
 }
 
@@ -1051,6 +1016,7 @@ ERF::read_from_wrfbdy()
     // Here we make only one enough space for one time -- we will
     //    add space for the later time slices later
     // *********************************************************
+
     int ncomp = 4; // for right now just the velocities + temperature
     const amrex::Box& domain = geom[0].Domain();
     for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
@@ -1065,6 +1031,18 @@ ERF::read_from_wrfbdy()
             plo[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
             phi[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
             const amrex::Box pbx(plo, phi);
+            /*
+             TODO: Discuss
+             bdy_data_xlo contains 4 different variables U_BXS, V_BXS, W_BXS, T_BXS.
+             The dimensions of all these variables are not same as "pbx" or 1  X  NY    X  NZ
+             U_BXS -> dim -> 1  X  NY    X  NZ
+             V_BXS -> dim -> 1  X (NY+1) X  NZ
+             W_BXS -> dim -> 1  X  NY    X (NZ+1)
+             T_BXS -> dim -> 1  X  NY    X  NZ
+             */
+            /*
+             Instead of bdy_data_xlo with 4 components, should we use U_xlo, V_xlo, W_xlo, T_xLo separately?
+             */
             if (ori.coordDir() == 0 && !ori.isHigh())
                 bdy_data_xlo.push_back(amrex::FArrayBox(pbx, ncomp));
             if (ori.coordDir() == 0 && ori.isHigh())
@@ -1073,6 +1051,42 @@ ERF::read_from_wrfbdy()
                 bdy_data_ylo.push_back(amrex::FArrayBox(pbx, ncomp));
             if (ori.coordDir() == 1 && ori.isHigh())
                 bdy_data_yhi.push_back(amrex::FArrayBox(pbx, ncomp));
+
+            /*
+             * Alternate data structure considering different dimensions of U, V, W, T on the planes
+            */
+            if (ori.coordDir() == 0) {
+                Box x_plane_no_stag(pbx);
+                Box x_plane_y_stag = convert(pbx, {0, 1, 0});
+                Box x_plane_z_stag = convert(pbx, {0, 0, 1});
+
+                Vector<FArrayBox> x_plane_data;
+                x_plane_data.push_back(FArrayBox(x_plane_no_stag, 1)); //U
+                x_plane_data.push_back(FArrayBox(x_plane_y_stag, 1)); //V
+                x_plane_data.push_back(FArrayBox(x_plane_z_stag, 1)); //W
+                x_plane_data.push_back(FArrayBox(x_plane_no_stag, 1)); // T
+
+//                if(!ori.isHigh())
+//                    bdy_x_lo.push_back(x_plane_data);
+//                if(ori.isHigh())
+//                    bdy_x_hi.push_back(x_plane_data);
+            }
+            if (ori.coordDir() == 1) {
+                Box y_plane_no_stag(pbx);
+                Box y_plane_x_stag = convert(pbx, {1, 0, 0});
+                Box y_plane_z_stag = convert(pbx, {0, 0, 1});
+
+                Vector<FArrayBox> y_plane_data;
+                y_plane_data.push_back(FArrayBox(y_plane_x_stag, 1)); //U
+                y_plane_data.push_back(FArrayBox(y_plane_no_stag, 1)); //V
+                y_plane_data.push_back(FArrayBox(y_plane_z_stag, 1)); //W
+                y_plane_data.push_back(FArrayBox(y_plane_no_stag, 1)); // T
+
+//                if(!ori.isHigh())
+//                    bdy_y_lo.push_back(y_plane_data);
+//                if(ori.isHigh())
+//                    bdy_y_hi.push_back(y_plane_data);
+            }
         }
     }
 

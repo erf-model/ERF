@@ -99,30 +99,35 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
 
         Vector<std::string> nc_var_names;
         Vector<enum NC_Data_Dims_Type> NC_dim_types;
+        Vector<enum Stagger> staggerDir;
 
-        nc_var_names.push_back("U_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        nc_var_names.push_back("U_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        nc_var_names.push_back("U_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-        nc_var_names.push_back("U_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+        nc_var_names.push_back("U_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);   staggerDir.push_back(Stagger::None);
+        nc_var_names.push_back("U_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);   staggerDir.push_back(Stagger::None);
+        nc_var_names.push_back("U_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);   staggerDir.push_back(Stagger::x);
+        nc_var_names.push_back("U_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);   staggerDir.push_back(Stagger::x);
 
-        nc_var_names.push_back("V_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        nc_var_names.push_back("V_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        nc_var_names.push_back("V_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-        nc_var_names.push_back("V_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+        nc_var_names.push_back("V_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);   staggerDir.push_back(Stagger::y);
+        nc_var_names.push_back("V_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);   staggerDir.push_back(Stagger::y);
+        nc_var_names.push_back("V_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);   staggerDir.push_back(Stagger::None);
+        nc_var_names.push_back("V_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);   staggerDir.push_back(Stagger::None);
 
-        nc_var_names.push_back("W_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        nc_var_names.push_back("W_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        nc_var_names.push_back("W_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-        nc_var_names.push_back("W_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+        nc_var_names.push_back("W_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);   staggerDir.push_back(Stagger::z);
+        nc_var_names.push_back("W_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);   staggerDir.push_back(Stagger::z);
+        nc_var_names.push_back("W_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);   staggerDir.push_back(Stagger::z);
+        nc_var_names.push_back("W_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);   staggerDir.push_back(Stagger::z);
 
-        nc_var_names.push_back("T_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        nc_var_names.push_back("T_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        nc_var_names.push_back("T_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-        nc_var_names.push_back("T_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
+        nc_var_names.push_back("T_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);   staggerDir.push_back(Stagger::None);
+        nc_var_names.push_back("T_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);   staggerDir.push_back(Stagger::None);
+        nc_var_names.push_back("T_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);   staggerDir.push_back(Stagger::None);
+        nc_var_names.push_back("T_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);   staggerDir.push_back(Stagger::None);
 
         using RARRAY = NDArray<float>;
         amrex::Vector<RARRAY> arrays(nc_var_names.size());
         ReadWRFBdyFile(fname, nc_var_names, arrays);
+
+        using CharArray = NDArray<char*>;
+        amrex::Vector<CharArray> array_ts(1);
+        //ReadWRFBdyFile(fname, {"Times"}, array_ts);
 
         ntimes = arrays[0].get_vshape()[0];
 
@@ -131,6 +136,7 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
             amrex::Print() << "Building FAB for the the NetCDF variable : " << nc_var_names[i] << std::endl;
 
             auto shape_data = arrays[i].get_vshape();
+            auto currentVar = nc_var_names[i];
 
             // Build the box first using the shape information
             amrex::IntVect smallEnd{0, 0, 0};
@@ -144,6 +150,11 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
             // Assert that all data has the same number of time snapshots
             AMREX_ALWAYS_ASSERT(arrays[i].get_vshape()[0] == ntimes);
 
+            /*
+            //TODO:
+             Should we use Vector<Vector<FArrayBox>> for bdy_data_xlo,
+             where the outer index is for time and inner is for variables = {U, V, W, T} with different stagger ?
+             */
             // Add enough space to hold all the time snapshots
             Box bx_xlo = bdy_data_xlo[0].box();
             int nc_xlo = bdy_data_xlo[0].nComp();
@@ -188,7 +199,8 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
                     // amrex::Print() << "SHAPE 1 " << arrays[i].get_vshape()[1] << std::endl;
                     // amrex::Print() << "SHAPE 2 " << arrays[i].get_vshape()[2] << std::endl;
                     // amrex::Print() << "SHAPE 3 " << arrays[i].get_vshape()[3] << std::endl;
-                    bigEnd[0] = arrays[i].get_vshape()[1] - 1;
+                    //bigEnd[0] = arrays[i].get_vshape()[1] - 1;
+                    bigEnd[0] = arrays[i].get_vshape()[3] - 1;
                     smallEnd[1] = -1;
                     bigEnd[1]   = -1;
                     bigEnd[2] = arrays[i].get_vshape()[2] - 1;
@@ -214,20 +226,24 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
             amrex::Box bx = amrex::Box(smallEnd, bigEnd, boxType);
             // amrex::Print() << "BX OF INPUT DATA " << bx << std::endl;
 
-            auto num_pts = bdy_data_xlo[0].box().numPts();
-
+            //auto num_pts = bdy_data_xlo[0].box().numPts();
             int ncomp  = bdy_data_xlo[0].nComp();
+            long num_pts;
             amrex::Real* data_ptr;
             std::string last3 = nc_var_names[i].substr(nc_var_names[i].size()-3, 3);
 
             for (int nt(0); nt < ntimes; ++nt) {
               if (last3 == "BXS") {
+                  num_pts = bdy_data_xlo[0].box().numPts();
                   data_ptr = bdy_data_xlo[nt].dataPtr();
               } else if (last3 == "BXE") {
+                  num_pts = bdy_data_xhi[0].box().numPts();
                   data_ptr = bdy_data_xhi[nt].dataPtr();
               } else if (last3 == "BYS") {
+                  num_pts = bdy_data_ylo[0].box().numPts();
                   data_ptr = bdy_data_ylo[nt].dataPtr();
               } else if (last3 == "BYE") {
+                  num_pts = bdy_data_yhi[0].box().numPts();
                   data_ptr = bdy_data_yhi[nt].dataPtr();
               }
 
@@ -240,7 +256,7 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
                   *(dataPtr+n) = static_cast<amrex::Real>(*(arrays[i].get_data()+n));
               }
             } // nt
-        }
+        } //nc_var_names
     } // if IOProcessor
     return ntimes;
 }
