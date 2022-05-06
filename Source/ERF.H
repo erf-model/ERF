@@ -331,7 +331,7 @@ private:
     amrex::FArrayBox NC_PSFC_fab; // Surface pressure
     amrex::FArrayBox NC_SST_fab; // Sea Surface Temperature; Defined even for land area
     amrex::FArrayBox NC_TSK_fab; // Surface Skin Temperature; Appears to be same as SST...TODO: Clarify the relation between SST and TSK
-    //amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
+    amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
 
     // *** *** FArrayBox's for holding the LATERAL BOUNDARY data (the four sides)
     // Data read from the wrfbdy NetCDF file
