@@ -7,7 +7,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  1     1     1    
-amr.n_cell           = 16     16     16 #TODO: Need to play around with resolution to get rid of ringing
+amr.n_cell           = 16    16    16
 
 geometry.is_periodic = 0 1 0
 
