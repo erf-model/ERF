@@ -393,7 +393,7 @@ public:
                         });
                     }
 
-#ifdef ERF_USE_NETCDFj
+#ifdef ERF_USE_NETCDF
                     //
                     // This uses data read in from WRF real.exe output
                     //

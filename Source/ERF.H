@@ -311,10 +311,11 @@ private:
                            ,FArrayBox& z_phys
 #endif
                                        );
+
     // FArrayBoxs for holding the data read from the wrfinput NetCDF file
     amrex::FArrayBox NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
     amrex::FArrayBox NC_rho_fab, NC_rhotheta_fab;
-    amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab, NC_p_surf_fab, NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
+    //amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab, NC_p_surf_fab, NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
 #ifdef ERF_USE_TERRAIN
     amrex::FArrayBox NC_PH_fab;
     amrex::FArrayBox NC_PHB_fab;
@@ -325,6 +326,16 @@ private:
     amrex::Vector<FArrayBox> bdy_data_xhi;
     amrex::Vector<FArrayBox> bdy_data_ylo;
     amrex::Vector<FArrayBox> bdy_data_yhi;
+
+    /*
+     * Alternate data structure considering different dimensions of U, V, W, T on the planes
+     * This should be be member of ERF class.
+     */
+    Vector<Vector<FArrayBox>> bdy_x_lo;
+    Vector<Vector<FArrayBox>> bdy_x_hi;
+    Vector<Vector<FArrayBox>> bdy_y_lo;
+    Vector<Vector<FArrayBox>> bdy_y_hi;
+
 
 #endif
 

@@ -148,6 +148,17 @@ struct NCVar
         const std::vector<size_t>&,
         const std::vector<ptrdiff_t>&) const;
 
+    //! Read a chunk of data from the file
+    void
+    get(char**, const std::vector<size_t>&, const std::vector<size_t>&) const;
+
+    //! Read a chunk of data with strides
+    void
+    get(char**,
+        const std::vector<size_t>&,
+        const std::vector<size_t>&,
+        const std::vector<ptrdiff_t>&) const;
+
     bool has_attr(const std::string& name) const;
     void put_attr(const std::string& name, const std::string& value) const;
     void
