@@ -186,7 +186,22 @@ public:
                                                 const std::string &versionName,
                                                 const std::string &levelPrefix,
                                                 const std::string &mfPrefix) const;
+
+    // Define z_phys_nd on nodes using an analytical expression
+    void init_ideal_terrain(int lev);
+
+    // Define z_phys_cc and detJ_cc on cell centers by averaging z_phys_nd
+    void make_metrics(int lev);
+
+    void erf_enforce_hse(int lev,
+                         amrex::MultiFab& dens, amrex::MultiFab& pres,
+                         amrex::MultiFab& z_nd, amrex::MultiFab& z_cc);
+#else
+    void erf_enforce_hse(int lev,
+                         amrex::Vector<amrex::Real>& dens,
+                         amrex::Vector<amrex::Real>& pres);
 #endif
+
 private:
 
     ////////////////
@@ -239,15 +254,6 @@ private:
 
     //! Initialize HSE
     void initHSE();
-#ifdef ERF_USE_TERRAIN
-    void erf_enforce_hse(int lev,
-                         amrex::MultiFab& dens, amrex::MultiFab& pres,
-                         amrex::MultiFab& z_nd, amrex::MultiFab& z_cc);
-#else
-    void erf_enforce_hse(int lev,
-                         amrex::Vector<amrex::Real>& dens,
-                         amrex::Vector<amrex::Real>& pres);
-#endif
 
     //! Initialize Rayleigh damping profiles
     void initRayleigh();
@@ -337,14 +343,6 @@ private:
     Vector<Vector<FArrayBox>> bdy_y_hi;
 
 
-#endif
-
-#ifdef ERF_USE_TERRAIN
-    // Define z_phys_nd on nodes using an analytical expression
-    void init_ideal_terrain(int lev);
-
-    // Define z_phys_cc and detJ_cc on cell centers by averaging z_phys_nd
-    void make_metrics(int lev);
 #endif
 
     // write checkpoint file to disk
