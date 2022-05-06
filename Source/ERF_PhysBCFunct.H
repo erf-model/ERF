@@ -48,11 +48,23 @@ public:
                     const MultiFab& z_phys_nd,
                     const MultiFab& detJ_cc,
 #endif
+#ifdef ERF_USE_NETCDF
+                    const Vector<FArrayBox>& bdy_data_xlo,
+                    const Vector<FArrayBox>& bdy_data_xhi,
+                    const Vector<FArrayBox>& bdy_data_ylo,
+                    const Vector<FArrayBox>& bdy_data_yhi,
+#endif
                     ABLMost& most, std::unique_ptr<ReadBndryPlanes>& r2d)
         : m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
           m_var_idx(var_idx), m_data(data), m_bc_extdir_vals(bc_extdir_vals),
 #ifdef ERF_USE_TERRAIN
           m_z_phys_nd(z_phys_nd), m_detJ_cc(detJ_cc),
+#endif
+#ifdef ERF_USE_NETCDF
+          m_bdy_data_xlo(bdy_data_xlo),
+          m_bdy_data_xhi(bdy_data_xhi),
+          m_bdy_data_ylo(bdy_data_ylo),
+          m_bdy_data_yhi(bdy_data_yhi),
 #endif
           m_most(most), m_r2d(r2d)
         {
@@ -305,6 +317,7 @@ public:
 #endif
                     });
 
+                    // This uses data read in as BndryRegisters from a previous ERF run
                     if (m_r2d) {
                         //
                         // TODO: We need to know which level we're actually at -- this is a hack
@@ -379,6 +392,119 @@ public:
                             }
                         });
                     }
+
+#ifdef ERF_USE_NETCDFj
+                    //
+                    // This uses data read in from WRF real.exe output
+                    //
+                    if (0) {
+                        //
+                        // We assume the data has been read in at the level 0 resolution
+                        //
+                        int lev = 0;
+
+                        // This is a total HACK
+                        amrex::Real dT = 1.0;
+
+                        int n = time / dT;
+                        amrex::Real alpha = (time - n * dT) / dT;
+                        amrex::Real oma   = 1.0 - alpha;
+
+                        //
+                        // We have data at fixed time intervals we will call dT
+                        // Then to interpolate, given time, we can define n = (time/dT)
+                        // and alpha = (time - n*dT) / dT, then we define the data at time
+                        // as  alpha * (data at time n+1) + (1 - alpha) * (data at time n)
+                        //
+                        const auto& bdatxlo_n   = m_bdy_data_xlo[n  ].const_array();
+                        const auto& bdatxlo_np1 = m_bdy_data_xlo[n+1].const_array();
+                        const auto& bdatxhi_n   = m_bdy_data_xhi[n  ].const_array();
+                        const auto& bdatxhi_np1 = m_bdy_data_xhi[n+1].const_array();
+                        const auto& bdatylo_n   = m_bdy_data_ylo[n  ].const_array();
+                        const auto& bdatylo_np1 = m_bdy_data_ylo[n+1].const_array();
+                        const auto& bdatyhi_n   = m_bdy_data_yhi[n  ].const_array();
+                        const auto& bdatyhi_np1 = m_bdy_data_yhi[n+1].const_array();
+
+                        if (bccomp == BCVars::xvel_bc)
+                           amrex::Print() << "XVEL BC " << icomp << " " << ncomp << std::endl;
+                        else if (bccomp == BCVars::yvel_bc)
+                           amrex::Print() << "YVEL BC " << icomp << " " << ncomp << std::endl;
+                        else if (bccomp == BCVars::zvel_bc)
+                           amrex::Print() << "ZVEL BC " << icomp << " " << ncomp << std::endl;
+                        else
+                           amrex::Print() << "BC IC " << bccomp << " " << icomp << " " << ncomp << std::endl;
+
+                        // Fill here all the boundary conditions which are supplied by
+                        // planes we have read in and are interpolating in time
+                        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+                        {
+                            if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
+                                int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                dest_array(i,j,k,icomp+n) = oma * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp+n)
+                                                        + alpha * bdatxlo_np1(dom_lo.x-1,jb,kb,bccomp+n);
+                            }
+                            if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
+                                int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                dest_array(i,j,k,icomp+n) = oma * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp+n)
+                                                        + alpha * bdatylo_np1(ib,dom_lo.y-1,kb,bccomp+n);
+                            }
+                            if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
+                                // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                // dest_array(i,j,k,icomp+n) = oma * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp+n)
+                                //                         + alpha * bdatzlo_np1(ib,jb,dom_lo.z-1,bccomp+n);
+                            }
+                            if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested) {
+                                int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                dest_array(i,j,k,icomp+n) = oma * bdatxhi_n  (dom_hi.x+1,jb,kb,bccomp+n)
+                                                        + alpha * bdatxhi_np1(dom_hi.x+1,jb,kb,bccomp+n);
+                            }
+                            if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir_ingested) {
+                                int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                dest_array(i,j,k,icomp+n) = oma * bdatyhi_n  (ib,dom_hi.y+1,kb,bccomp+n)
+                                                        + alpha * bdatyhi_np1(ib,dom_hi.y+1,kb,bccomp+n);
+                            }
+                            if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested) {
+                                // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                // dest_array(i,j,k,icomp+n) = oma * bdatzhi_n  (ib,jb,dom_hi.z+1,bccomp+n)
+                                //                         + alpha * bdatzhi_np1(ib,jb,dom_hi.z+1,bccomp+n);
+                            }
+
+                            if (bccomp == BCVars::xvel_bc)
+                            {
+                                if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
+                                    int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                    int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                    dest_array(i,j,k,icomp+n) = oma * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp+n)
+                                                            + alpha * bdatxlo_np1(dom_lo.x-1,jb,kb,bccomp+n);
+                                }
+                            }
+                            if (bccomp == BCVars::yvel_bc)
+                            {
+                                if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
+                                    int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                    int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                    dest_array(i,j,k,icomp+n) = oma * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp+n)
+                                                            + alpha * bdatylo_np1(ib,dom_lo.y-1,kb,bccomp+n);
+                                }
+                            }
+                            if (bccomp == BCVars::zvel_bc)
+                            {
+                                if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
+                                    // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                                    // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                    // dest_array(i,j,k,icomp+n) = oma * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp+n)
+                                    //                         + alpha * bdatzlo_np1(ib,jb,dom_lo.z-1,bccomp+n);
+                                }
+                            }
+                        });
+                    }
+#endif
 
                     int zlo = m_geom.Domain().smallEnd(2);
 
@@ -565,6 +691,12 @@ private:
 #endif
     ABLMost m_most;
     std::unique_ptr<ReadBndryPlanes>& m_r2d;
+#ifdef ERF_USE_NETCDF
+    const Vector<FArrayBox>& m_bdy_data_xlo;
+    const Vector<FArrayBox>& m_bdy_data_xhi;
+    const Vector<FArrayBox>& m_bdy_data_ylo;
+    const Vector<FArrayBox>& m_bdy_data_yhi;
+#endif
 };
 
 #endif
