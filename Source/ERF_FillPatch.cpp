@@ -88,6 +88,9 @@ ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_
 #ifdef ERF_USE_TERRAIN
                               z_phys_nd[lev],detJ_cc[lev],
 #endif
+#ifdef ERF_USE_NETCDF
+                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+#endif
                               get_most(),m_r2d);
         amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
                                     geom[lev], physbc, bccomp);
@@ -106,10 +109,16 @@ ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_
 #ifdef ERF_USE_TERRAIN
                                z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
+#ifdef ERF_USE_NETCDF
+                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+#endif
                                get_most(),m_r2d);
         ERFPhysBCFunct fphysbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                                z_phys_nd[lev],detJ_cc[lev],
+#endif
+#ifdef ERF_USE_NETCDF
+                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                                get_most(),m_r2d);
 
@@ -182,6 +191,9 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 #ifdef ERF_USE_TERRAIN
                                   z_phys_nd[lev],detJ_cc[lev],
 #endif
+#ifdef ERF_USE_NETCDF
+                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+#endif
                                   get_most(),m_r2d);
             amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
                                         geom[lev], physbc, bccomp);
@@ -200,10 +212,16 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
+#ifdef ERF_USE_NETCDF
+                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+#endif
                                    get_most(),m_r2d);
             ERFPhysBCFunct fphysbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev],detJ_cc[lev],
+#endif
+#ifdef ERF_USE_NETCDF
+                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                                    get_most(),m_r2d);
 
@@ -261,10 +279,16 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
 #ifdef ERF_USE_TERRAIN
                            z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
+#ifdef ERF_USE_NETCDF
+                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+#endif
                            get_most(),m_r2d);
     ERFPhysBCFunct fphysbc(geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                            z_phys_nd[lev],detJ_cc[lev],
+#endif
+#ifdef ERF_USE_NETCDF
+                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                            get_most(),m_r2d);
 

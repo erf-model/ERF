@@ -8,6 +8,8 @@
 
 #include "NCInterface.H"
 
+using PlaneVector = amrex::Vector<amrex::FArrayBox>;
+
 /*
  // Read from wrfinput
  NetCDF variables of dimensions Time_BT_SN_WE: "AL", "ALB", "PB", "P", "T_INIT", "U", "V", "W" etc.
@@ -28,17 +30,16 @@ enum class NC_Data_Dims_Type {
     Time_BdyWidth_BT_WE
 };
 
-void BuildFABSFromMetgridOutputFileDemo(const std::string &fname);
-
 void BuildFABsFromWRFInputFile(const std::string &fname,
                                amrex::Vector<std::string> nc_var_names,
                                amrex::Vector<FArrayBox*> fab_vars,
                                Vector<enum NC_Data_Dims_Type> NC_dim_types);
 
-void BuildFABsFromWRFBdyFile(const std::string &fname,
-                               amrex::Vector<std::string> nc_var_names,
-                               amrex::Vector<FArrayBox*> fab_vars,
-                               Vector<enum NC_Data_Dims_Type> NC_dim_types);
+int BuildFABsFromWRFBdyFile(const std::string &fname,
+                            amrex::Vector<FArrayBox>& bdy_data_xlo,
+                            amrex::Vector<FArrayBox>& bdy_data_xhi,
+                            amrex::Vector<FArrayBox>& bdy_data_ylo,
+                            amrex::Vector<FArrayBox>& bdy_data_yhi);
 
 //
 // NDArray is the datatype designed to hold any data, including scalars, multidimensional
