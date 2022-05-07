@@ -2,6 +2,8 @@
 
 #include "ERF.H"
 
+using namespace amrex;
+
 void
 ERF::sum_integrated_quantities(Real time)
 {

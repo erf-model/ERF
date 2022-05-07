@@ -2,8 +2,6 @@
 #ifndef ABLMOST_H
 #define ABLMOST_H
 
-using namespace amrex;
-
 /** Monin-Obukhov surface layer profile
  *
  * van der Laan, P., Kelly, M. C., & Sørensen, N. N. (2017). A new k-epsilon

@@ -1,23 +1,20 @@
 #ifndef _COMPUTE_EXPANSIONRATE_H_
 #define _COMPUTE_EXPANSIONRATE_H_
 
-using namespace amrex;
-
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeExpansionRate(const int &i, const int &j, const int &k,
-                     const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
+                     const amrex::Array4<const amrex::Real>& u, 
+                     const amrex::Array4<const amrex::Real>& v, 
+                     const amrex::Array4<const amrex::Real>& w, 
                      const enum MomentumEqn &momentumEqn,
                      const enum DiffusionDir &diffDir,
-                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv) {
-    Real dx_inv = cellSizeInv[0];
-    Real dy_inv = cellSizeInv[1];
-    Real dz_inv = cellSizeInv[2];
+                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv) {
+    amrex::Real dx_inv = cellSizeInv[0];
+    amrex::Real dy_inv = cellSizeInv[1];
+    amrex::Real dz_inv = cellSizeInv[2];
 
-    Real expansionRate = 0;
-
-    //TODO: Check if it is more efficient to store computed divergence at cell-centers rather than
-    // computing on the fly
+    amrex::Real expansionRate = 0;
 
     switch (momentumEqn) {
         case MomentumEqn::x:

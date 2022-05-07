@@ -10,8 +10,6 @@
 // Can use NetCDF to Multifab conversion from AMR-wind
 // Fore each MPI_rank, look for only it's (i, j, k) and fill them instead of filling entire Multifab by each MPI rank
 // Parallel NetCDF to have each MPI rank read a portion ...particle to mesh redistribution
-using namespace amrex;
-
 class Metgrid_Output {
 public:
     void readMetgridOutputFiles(const std::string &metgrid_files_loc);
@@ -23,12 +21,12 @@ private:
 };
 
 struct BoundaryData {
-    MultiFab u, v, w, theta;
+    amrex::MultiFab u, v, w, theta;
 };
 
 // Could have different multifab than BoundaryData
 struct InitialData {
-    MultiFab u, v, w, theta;
+    amrex::MultiFab u, v, w, theta;
 };
 
 class ERF_IC_BC {

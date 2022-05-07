@@ -11,12 +11,12 @@
 
 #include <AMReX_AmrCore.H>
 #include <AMReX_BCRec.H>
+#include <AMReX_InterpFaceRegister.H>
 
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_FillPatchUtil.H>
-#include <AMReX_PlotFileUtil.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_PhysBCFunct.H>
 #include <AMReX_FluxRegister.H>
@@ -28,14 +28,10 @@
 
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
-#include <ERF_PhysBCFunct.H>
-#include <AMReX_TimeIntegrator.H>
-#include <TimeIntegration.H>
 #include <DataStruct.H>
 #include <ABLFieldInit.H>
+#include <ABLMost.H>
 #include <Derive.H>
-#include <PlaneAverage.H>
-#include <VelPlaneAverage.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
 
@@ -48,8 +44,6 @@
 #ifdef AMREX_LAZY
 #include <AMReX_Lazy.H>
 #endif
-
-using namespace amrex;
 
 namespace InterpType {
     enum {
@@ -91,10 +85,10 @@ public:
     void InitData ();
 
     // Called after every level 0 timestep
-    void post_timestep (int nstep, Real time, Real dt_lev);
+    void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
 
     // Diagnostics
-    void sum_integrated_quantities(Real time);
+    void sum_integrated_quantities(amrex::Real time);
 
     // Perform the volume-weighted sum
     amrex::Real
@@ -128,21 +122,21 @@ public:
                       const amrex::DistributionMapping& dm) override;
 
     // compute dt from CFL considerations
-    Real estTimeStep (int lev, long& dt_fast_ratio) const;
+    amrex::Real estTimeStep (int lev, long& dt_fast_ratio) const;
 
     // Interface for advancing the data at one level by one "slow" timestep
     void erf_advance(int level,
-                      MultiFab& cons_old,  MultiFab& cons_new,
-                      MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
-                      MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
-                      MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
-                      MultiFab& source,
-                      std::array< MultiFab, AMREX_SPACEDIM>& flux,
+                      amrex::MultiFab& cons_old,  amrex::MultiFab& cons_new,
+                      amrex::MultiFab& xvel_old,  amrex::MultiFab& yvel_old,  amrex::MultiFab& zvel_old,
+                      amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
+                      amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
+                      amrex::MultiFab& source,
+                      std::array< amrex::MultiFab, AMREX_SPACEDIM>& flux,
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
 #ifdef ERF_USE_TERRAIN
-                      MultiFab& r0, MultiFab& p0,
+                      amrex::MultiFab& r0, amrex::MultiFab& p0,
 #else
                       const amrex::Real* dptr_dens_hse,
                       const amrex::Real* dptr_pres_hse,
@@ -162,27 +156,27 @@ public:
 #ifdef ERF_USE_TERRAIN
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
-                                             const Vector<const MultiFab*> &mf,
-                                             const Vector<const MultiFab*> &mf_nd,
-                                             const Vector<std::string> &varnames,
-                                             const Vector<Geometry> &geom,
+                                             const amrex::Vector<const amrex::MultiFab*> &mf,
+                                             const amrex::Vector<const amrex::MultiFab*> &mf_nd,
+                                             const amrex::Vector<std::string> &varnames,
+                                             const amrex::Vector<amrex::Geometry> &geom,
                                              Real time,
-                                             const Vector<int> &level_steps,
-                                             const Vector<IntVect> &ref_ratio,
+                                             const amrex::Vector<int> &level_steps,
+                                             const amrex::Vector<IntVect> &ref_ratio,
                                              const std::string &versionName = "HyperCLaw-V1.1",
                                              const std::string &levelPrefix = "Level_",
                                              const std::string &mfPrefix = "Cell",
-                                             const Vector<std::string>& extra_dirs = Vector<std::string>()) const;
+                                             const amrex::Vector<std::string>& extra_dirs = amrex::Vector<std::string>()) const;
 
 
     void WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                                 int nlevels,
-                                                const Vector<BoxArray> &bArray,
-                                                const Vector<std::string> &varnames,
-                                                const Vector<Geometry> &geom,
-                                                Real time,
-                                                const Vector<int> &level_steps,
-                                                const Vector<IntVect> &ref_ratio,
+                                                const amrex::Vector<amrex::BoxArray> &bArray,
+                                                const amrex::Vector<std::string> &varnames,
+                                                const amrex::Vector<amrex::Geometry> &geom,
+                                                amrex::Real time,
+                                                const amrex::Vector<int> &level_steps,
+                                                const amrex::Vector<amrex::IntVect> &ref_ratio,
                                                 const std::string &versionName,
                                                 const std::string &levelPrefix,
                                                 const std::string &mfPrefix) const;
@@ -232,7 +226,8 @@ private:
     // at each RK stage when integrating between initial and final times at a given level).
     // NOTE: mfs should always contain {cons, xvel, yvel, zvel} multifab data.
     // if which_var is supplied, then only fill the specified variable in the vector of mfs
-    void FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<MultiFab> > mfs, int which_var = -1);
+    void FillIntermediatePatch (int lev, amrex::Real time, 
+                                amrex::Vector<std::reference_wrapper<amrex::MultiFab> > mfs, int which_var = -1);
 
     // fill an entire multifab by interpolating from the coarser level
     // this comes into play when a new level of refinement appears
@@ -240,10 +235,10 @@ private:
 
     // fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
-    void FillCoarsePatchAllVars (int lev, Real time, Vector<MultiFab>& vmf);
+    void FillCoarsePatchAllVars (int lev, amrex::Real time, amrex::Vector<amrex::MultiFab>& vmf);
 
     // utility to copy in data from old and/or new state into another multifab
-    TimeInterpolatedData GetDataAtTime (int lev, Real time);
+    TimeInterpolatedData GetDataAtTime (int lev, amrex::Real time);
 
     // advance a level by dt
     // includes a recursive call for finer levels
@@ -630,7 +625,7 @@ private:
 
     void setRecordDataInfo (int i, const std::string& filename)
     {
-        if (ParallelDescriptor::IOProcessor())
+        if (amrex::ParallelDescriptor::IOProcessor())
         {
             datalog[i] = std::make_unique<std::fstream>();
             datalog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
@@ -638,11 +633,11 @@ private:
                 amrex::FileOpenFailed(filename);
             }
         }
-        ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
+        amrex::ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
     }
 
-    Vector<std::unique_ptr<std::fstream> > datalog;
-    Vector<std::string> datalogname;
+    amrex::Vector<std::unique_ptr<std::fstream> > datalog;
+    amrex::Vector<std::string> datalogname;
 
     //! The filename of the ith datalog file.
     const std::string DataLogName (int i) const noexcept { return datalogname[i]; }

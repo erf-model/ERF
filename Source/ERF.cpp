@@ -2,10 +2,13 @@
  * \file ERF.cpp
  */
 
-#include <ERF.H>
+#include <PlaneAverage.H>
+#include <VelPlaneAverage.H>
 #include <prob_common.H>
-#include <AMReX_buildInfo.H>
 #include <EOS.H>
+#include <ERF.H>
+
+#include <AMReX_buildInfo.H>
 
 using namespace amrex;
 

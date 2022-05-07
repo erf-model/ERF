@@ -7,13 +7,11 @@
 #include <TimeIntegration.H>
 #include <functional>
 
-using namespace amrex;
-
 template<class T>
-class MRISplitIntegrator : public IntegratorBase<T>
+class MRISplitIntegrator : public amrex::IntegratorBase<T>
 {
 private:
-    typedef IntegratorBase<T> BaseT;
+    typedef amrex::IntegratorBase<T> BaseT;
 
     std::function<void (T&, amrex::Real)> post_substep;
     std::function<void(T&, T&, T&, const T&, const T&, const amrex::Real, const amrex::Real)> implicit_fast_rhs;
@@ -27,13 +25,13 @@ private:
     void initialize_data (const T& S_data)
     {
         const bool include_ghost = true;
-        IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
+        amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         S_sum = T_store[0].get();
-        IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
+        amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         S_sum_old = T_store[1].get();
-        IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
+        amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         F_slow = T_store[2].get();
-        IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
+        amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         F_pert = T_store[3].get();
     }
 
@@ -80,7 +78,7 @@ public:
 
         AMREX_ALWAYS_ASSERT(substep_ratio > 1 && substep_ratio % 2 == 0);
 
-        const Real sub_timestep = BaseT::timestep / substep_ratio;
+        const amrex::Real sub_timestep = BaseT::timestep / substep_ratio;
 
         // Assume before advance() that S_old is valid data at the current time ("time" argument)
         // And that if data is a MultiFab, both S_old and S_new contain ghost cells for evaluating a stencil based RHS
@@ -99,7 +97,7 @@ public:
         /**********************************************/
 
         // Start with S_new (aka S_stage) holding S_old
-        IntegratorOps<T>::Copy(S_new, S_old);
+        amrex::IntegratorOps<T>::Copy(S_new, S_old);
         BaseT::post_update(S_new, time);
 
         // Timestep taken by the fast integrator
@@ -111,15 +109,15 @@ public:
         for (int nrk = 0; nrk < 3; nrk++)
         {
             // amrex::Print() << "Starting RK3: Step " << nrk+1 << std::endl;
-            if (nrk == 0) { nsubsteps = 1;               dtau = BaseT::timestep / 3.0_rt; }
+            if (nrk == 0) { nsubsteps = 1;               dtau = BaseT::timestep / 3.0; }
             if (nrk == 1) { nsubsteps = substep_ratio/2; dtau = sub_timestep;}
             if (nrk == 2) { nsubsteps = substep_ratio;   dtau = sub_timestep;}
 
             // step 1 starts with S_stage = S^n  and we always start substepping at the old time
             // step 2 starts with S_stage = S^*  and we always start substepping at the old time
             // step 3 starts with S_stage = S^** and we always start substepping at the old time
-            IntegratorOps<T>::Copy(*S_sum    , S_old);
-            IntegratorOps<T>::Copy(*S_sum_old, S_old);
+            amrex::IntegratorOps<T>::Copy(*S_sum    , S_old);
+            amrex::IntegratorOps<T>::Copy(*S_sum_old, S_old);
 
             // Evaluate F_slow(S_stage)
             BaseT::rhs(*F_slow, S_new, time);
@@ -131,10 +129,10 @@ public:
                 implicit_fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_sum_old, time + k*dtau, dtau);
 
                 // Update S_sum = S_pert + S_stage
-                IntegratorOps<T>::Saxpy(*S_sum, dtau, *F_slow);
-                IntegratorOps<T>::Saxpy(*S_sum, dtau, *F_pert);
+                amrex::IntegratorOps<T>::Saxpy(*S_sum, dtau, *F_slow);
+                amrex::IntegratorOps<T>::Saxpy(*S_sum, dtau, *F_pert);
 
-                IntegratorOps<T>::Copy(*S_sum_old, *S_sum);
+                amrex::IntegratorOps<T>::Copy(*S_sum_old, *S_sum);
 
                 // Call the post-substep hook for S_sum at t = time + (k+1) * sub_dt
                 post_substep(*S_sum    , time + (k+1) * dtau);
@@ -142,7 +140,7 @@ public:
             }
 
             // Define the solution at the next stage
-            IntegratorOps<T>::Copy(S_new, *S_sum);
+            amrex::IntegratorOps<T>::Copy(S_new, *S_sum);
 
             // Call the post-update hook for S_new after all the fine steps completed
             BaseT::post_update(S_new, time + nsubsteps*dtau);

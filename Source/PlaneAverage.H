@@ -5,12 +5,10 @@
 #include "ERF.H"
 #include "DirectionSelector.H"
 
-using namespace amrex;
-
 class PlaneAverage {
 public:
-    explicit PlaneAverage(const MultiFab* field_in,
-                          const Geometry geom_in,
+    explicit PlaneAverage(const amrex::MultiFab* field_in,
+                          const amrex::Geometry geom_in,
                           int axis_in,
                           bool compute_deriv = false);
     PlaneAverage() = default;
@@ -19,21 +17,21 @@ public:
     void operator()();
 
     /** evaluate line average at specific location for any average component */
-    Real line_average_interpolated(Real x, int comp) const;
+    amrex::Real line_average_interpolated(amrex::Real x, int comp) const;
     /** evaluate line average at specific cell for any average component */
-    Real line_average_cell(int cell, int comp) const;
+    amrex::Real line_average_cell(int cell, int comp) const;
 
     /** evaluate line average derivative at specific location for any average component */
-    Real line_derivative_interpolated(Real x, int comp) const;
+    amrex::Real line_derivative_interpolated(amrex::Real x, int comp) const;
     /** evaluate derivative of a line average at specific cell for any component
      */
-    Real line_derivative_of_average_cell(int ind, int comp) const;
+    amrex::Real line_derivative_of_average_cell(int ind, int comp) const;
 
     /** change precision of text file output */
     void set_precision(int p) { m_precision = p; };
 
-    Real dx() const { return m_dx; };
-    Real xlo() const { return m_xlo; };
+    amrex::Real dx() const { return m_dx; };
+    amrex::Real xlo() const { return m_xlo; };
 
     int axis() const { return m_axis; };
     int level() const { return m_level; };
@@ -41,30 +39,31 @@ public:
     int ncell_plane() const { return m_ncell_plane; };
     int ncell_line() const { return m_ncell_line; };
 
-    const Vector<Real>& line_average() const
+    const amrex::Vector<amrex::Real>& line_average() const
     {
         return m_line_average;
     };
-    void line_average(int comp, Vector<Real>& l_vec);
-    const Vector<Real>& line_centroids() const
+    void line_average(int comp, amrex::Vector<amrex::Real>& l_vec);
+    const amrex::Vector<amrex::Real>& line_centroids() const
     {
         return m_line_xcentroid;
     };
 
-    const MultiFab& field() const { return *m_field; };
+    const amrex::MultiFab& field() const { return *m_field; };
 
 protected:
     int m_ncomp; /** number of average components */
 
-    Vector<Real> m_line_average; /** line storage for the average velocity and tracer variables */
+    /** line storage for the average velocity and tracer variables */
+    amrex::Vector<amrex::Real> m_line_average; 
 
     //! line storage for the derivative of average field
-    Vector<Real> m_line_deriv;
+    amrex::Vector<amrex::Real> m_line_deriv;
 
-    Vector<Real> m_line_xcentroid; /** line storage for centroids of each cell along a line*/
+    amrex::Vector<amrex::Real> m_line_xcentroid; /** line storage for centroids of each cell along a line*/
 
-    Real m_dx;  /** mesh spacing in axis direction*/
-    Real m_xlo; /** bottom of domain in axis direction */
+    amrex::Real m_dx;  /** mesh spacing in axis direction*/
+    amrex::Real m_xlo; /** bottom of domain in axis direction */
 
     int m_ncell_plane; /** number of cells in plane */
     int m_ncell_line;  /** number of cells along line */
@@ -72,39 +71,39 @@ protected:
     int m_precision = 4; /** precision for line plot text file */
     const int m_level = 0; /** level for plane averaging for now fixed at level=0 */
 
-    const MultiFab* m_field;
-    Geometry m_geom;
+    const amrex::MultiFab* m_field;
+    amrex::Geometry m_geom;
     const int m_axis;
     const bool m_comp_deriv;
 
 public:
     /** fill line storage with averages */
     template <typename IndexSelector>
-    void compute_averages(const IndexSelector& idxOp, const MultiFab& mfab);
+    void compute_averages(const IndexSelector& idxOp, const amrex::MultiFab& mfab);
 
     /** fill derivatives of line storage */
     void compute_line_derivatives();
 };
 
 inline PlaneAverage::PlaneAverage(
-             const MultiFab* field_in,
-             Geometry geom_in,
+             const amrex::MultiFab* field_in,
+             amrex::Geometry geom_in,
              int axis_in,
              bool compute_deriv)
              : m_field(field_in)
              , m_geom(geom_in)
              , m_axis(axis_in)
-             , m_comp_deriv(compute_deriv) {
-
+             , m_comp_deriv(compute_deriv) 
+{
     AMREX_ALWAYS_ASSERT(m_axis >= 0 && m_axis < AMREX_SPACEDIM);
 
     m_xlo = m_geom.ProbLo(m_axis);
     m_dx  = m_geom.CellSize(m_axis);
     m_ncomp = m_field->nComp();
 
-    Box domain = m_geom.Domain();
-    IntVect dom_lo(domain.loVect());
-    IntVect dom_hi(domain.hiVect());
+    amrex::Box domain = m_geom.Domain();
+    amrex::IntVect dom_lo(domain.loVect());
+    amrex::IntVect dom_hi(domain.hiVect());
 
     m_ncell_line = dom_hi[m_axis] - dom_lo[m_axis] + 1;
 
@@ -123,17 +122,17 @@ inline PlaneAverage::PlaneAverage(
     }
 }
 
-inline Real
-PlaneAverage::line_average_interpolated(Real x, int comp) const
+inline amrex::Real
+PlaneAverage::line_average_interpolated(amrex::Real x, int comp) const
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
-    Real c = 0.0;
+    amrex::Real c = 0.0;
     int ind = 0;
 
     if (x > m_xlo + 0.5 * m_dx) {
         ind = static_cast<int>(floor((x - m_xlo) / m_dx - 0.5));
-        const Real x1 = m_xlo + (ind + 0.5) * m_dx;
+        const amrex::Real x1 = m_xlo + (ind + 0.5) * m_dx;
         c = (x - x1) / m_dx;
     }
 
@@ -148,7 +147,7 @@ PlaneAverage::line_average_interpolated(Real x, int comp) const
            m_line_average[m_ncomp * (ind + 1) + comp] * c;
 }
 
-inline void PlaneAverage::line_average(int comp, Vector<Real>& l_vec)
+inline void PlaneAverage::line_average(int comp, amrex::Vector<amrex::Real>& l_vec)
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
@@ -156,7 +155,7 @@ inline void PlaneAverage::line_average(int comp, Vector<Real>& l_vec)
         l_vec[i] = m_line_average[m_ncomp * i + comp];
 }
 
-inline Real PlaneAverage::line_average_cell(int ind, int comp) const
+inline amrex::Real PlaneAverage::line_average_cell(int ind, int comp) const
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
     AMREX_ALWAYS_ASSERT(ind >= 0 && ind < m_ncell_line);
@@ -173,17 +172,17 @@ inline void PlaneAverage::compute_line_derivatives()
     }
 }
 
-inline Real PlaneAverage::line_derivative_interpolated(
-            Real x, int comp) const
+inline amrex::Real PlaneAverage::line_derivative_interpolated(
+              amrex::Real x, int comp) const
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
-    Real c = 0.0;
+    amrex::Real c = 0.0;
     int ind = 0;
 
     if (x > m_xlo + 0.5 * m_dx) {
         ind = static_cast<int>(floor((x - m_xlo) / m_dx - 0.5));
-        const Real x1 = m_xlo + (ind + 0.5) * m_dx;
+        const amrex::Real x1 = m_xlo + (ind + 0.5) * m_dx;
         c = (x - x1) / m_dx;
     }
 
@@ -212,7 +211,7 @@ inline void PlaneAverage::operator()()
         compute_averages(ZDir(), *m_field);
         break;
     default:
-        Abort("axis must be equal to 0, 1, or 2");
+        amrex::Abort("axis must be equal to 0, 1, or 2");
         break;
     }
     if (m_comp_deriv) compute_line_derivatives();
@@ -220,34 +219,36 @@ inline void PlaneAverage::operator()()
 
 template <typename IndexSelector>
 inline void PlaneAverage::compute_averages(
-            const IndexSelector& idxOp, const MultiFab& mfab)
+            const IndexSelector& idxOp, const amrex::MultiFab& mfab)
 {
-    const Real denom = 1.0 / (Real)m_ncell_plane;
-    AsyncArray<Real> lavg(m_line_average.data(), m_line_average.size());
-    Real* line_avg = lavg.data();
+    const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane;
+    amrex::AsyncArray<amrex::Real> lavg(m_line_average.data(), m_line_average.size());
+    amrex::Real* line_avg = lavg.data();
     const int ncomp = m_ncomp;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(mfab, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        Box bx = mfi.tilebox();
+    for (amrex::MFIter mfi(mfab, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        amrex::Box bx = mfi.tilebox();
         auto fab_arr = mfab.const_array(mfi);
-        Box pbx = PerpendicularBox<IndexSelector>(bx, IntVect{0, 0, 0});
+        amrex::Box pbx = PerpendicularBox<IndexSelector>(bx, amrex::IntVect{0, 0, 0});
 
-        ParallelFor(Gpu::KernelInfo().setReduction(true), pbx, [=] AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
-                   Gpu::Handler const& handler) noexcept {
+        ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=] 
+           AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
+                             amrex::Gpu::Handler const& handler) noexcept {
             // Loop over the direction perpendicular to the plane.
             // This reduces the atomic pressure on the destination arrays.
 
-            Box lbx = ParallelBox<IndexSelector>(bx, IntVect{p_i, p_j, p_k});
+            amrex::Box lbx = ParallelBox<IndexSelector>(bx, amrex::IntVect{p_i, p_j, p_k});
 
             for (int k = lbx.smallEnd(2); k <= lbx.bigEnd(2); ++k) {
                 for (int j = lbx.smallEnd(1); j <= lbx.bigEnd(1); ++j) {
                     for (int i = lbx.smallEnd(0); i <= lbx.bigEnd(0); ++i) {
                         int ind = idxOp.getIndx(i, j, k);
                         for (int n = 0; n < ncomp; ++n) {
-                            Gpu::deviceReduceSum(&line_avg[ncomp * ind + n], fab_arr(i, j, k, n) * denom, handler);
+                            amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n], 
+                                            fab_arr(i, j, k, n) * denom, handler);
                         }
                      }
                  }
@@ -256,6 +257,6 @@ inline void PlaneAverage::compute_averages(
     }
 
     lavg.copyToHost(m_line_average.data(), m_line_average.size());
-    ParallelDescriptor::ReduceRealSum(m_line_average.data(), m_line_average.size());
+    amrex::ParallelDescriptor::ReduceRealSum(m_line_average.data(), m_line_average.size());
 }
 #endif /* PlaneAverage_H */

@@ -1,4 +1,7 @@
 #include <ERF.H>
+#include "AMReX_PlotFileUtil.H"
+
+using namespace amrex;
 
 // utility to skip to next line in Header
 void

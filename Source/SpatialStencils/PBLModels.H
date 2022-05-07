@@ -1,13 +1,16 @@
 #ifndef _PBLMODELS_H_
 #define _PBLMODELS_H_
 
-#include <TimeIntegration.H>
+#include "ABLMost.H"
 #include "DirectionSelector.H"
 
 inline
-void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel,
-                                  const MultiFab& cons_in, MultiFab& eddyViscosity,
-                                  const Geometry& geom,
+void ComputeTurbulentViscosityPBL(const amrex::MultiFab& xvel,
+                                  const amrex::MultiFab& yvel,
+                                  const amrex::MultiFab& zvel,
+                                  const amrex::MultiFab& cons_in,
+                                  amrex::MultiFab& eddyViscosity,
+                                  const amrex::Geometry& geom,
                                   const SolverChoice& solverChoice, const ABLMost& most)
 {
   // MYNN Level 2.5 PBL Model
@@ -26,33 +29,33 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-      const Box &bx = mfi.growntilebox(1);
-      const Array4<Real const > &cell_data = cons_in.array(mfi);
-      const Array4<Real> &K_turb = eddyViscosity.array(mfi);
-      const Array4<Real const> &uvel = xvel.array(mfi);
-      const Array4<Real const> &vvel = yvel.array(mfi);
+      const amrex::Box &bx = mfi.growntilebox(1);
+      const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
+      const amrex::Array4<amrex::Real> &K_turb = eddyViscosity.array(mfi);
+      const amrex::Array4<amrex::Real const> &uvel = xvel.array(mfi);
+      const amrex::Array4<amrex::Real const> &vvel = yvel.array(mfi);
 
       // Compute some quantities that are constant in each column
       // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals
       // NOTE: Here we requite that sbx covers the entire vertical domain
-      const Box &dbx = geom.Domain();
-      Box sbx(bx.smallEnd(), bx.bigEnd());
+      const amrex::Box &dbx = geom.Domain();
+      amrex::Box sbx(bx.smallEnd(), bx.bigEnd());
       sbx.grow(2,-1);
       AMREX_ALWAYS_ASSERT(sbx.smallEnd(2) == dbx.smallEnd(2) && sbx.bigEnd(2) == dbx.bigEnd(2));
 
-      const GeometryData gdata = geom.data();
+      const amrex::GeometryData gdata = geom.data();
 
-      const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
-      FArrayBox qintegral(xybx,2);
-      qintegral.setVal<RunOn::Device>(0.0);
-      FArrayBox qturb(bx,1);
-      const Array4<amrex::Real> qint = qintegral.array();
-      const Array4<amrex::Real> qvel= qturb.array();
+      const amrex::Box xybx = PerpendicularBox<ZDir>(bx, amrex::IntVect{0,0,0});
+      amrex::FArrayBox qintegral(xybx,2);
+      qintegral.setVal<amrex::RunOn::Device>(0.0);
+      amrex::FArrayBox qturb(bx,1);
+      const amrex::Array4<amrex::Real> qint = qintegral.array();
+      const amrex::Array4<amrex::Real> qvel= qturb.array();
 
-      amrex::ParallelFor(Gpu::KernelInfo().setReduction(true), bx,
-                         [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
+      amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), bx,
+                         [=] AMREX_GPU_DEVICE (int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
       {
           const amrex::Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
           const amrex::Real rho = cell_data(i,j,k,Rho_comp);
@@ -60,8 +63,8 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
           // We will divide by qvel later
           AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
           if (sbx.contains(i,j,k)) {
-              Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k), handler);
-              Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k), handler);
+              amrex::Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k), handler);
+              amrex::Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k), handler);
           }
       });
 
@@ -161,11 +164,14 @@ void ComputeTurbulentViscosityPBL(const MultiFab& xvel, const MultiFab& yvel, co
 
 AMREX_GPU_DEVICE
 inline
-Real ComputeQKESourceTerms(int i, int j, int k,
-                           const Array4<const Real>& uvel, const Array4<const Real>& vvel,
-                           const Array4<const Real>& cell_data, const Array4<const Real>& cell_prim,
-                           const Array4<Real>& K_turb,
-                           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv, const Box& domain,
+amrex::Real ComputeQKESourceTerms(int i, int j, int k,
+                           const amrex::Array4<const amrex::Real>& uvel,
+                           const amrex::Array4<const amrex::Real>& vvel,
+                           const amrex::Array4<const amrex::Real>& cell_data,
+                           const amrex::Array4<const amrex::Real>& cell_prim,
+                           const amrex::Array4<amrex::Real>& K_turb,
+                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv, 
+                           const amrex::Box& domain,
                            const SolverChoice& solverChoice, const ABLMost& most)
 {
   // Compute some relevant derivatives

@@ -1,4 +1,8 @@
 #include <ERF.H>
+#include <ERF_PhysBCFunct.H>
+#include <TimeInterpolatedData.H>
+
+using namespace amrex;
 
 // utility to copy in data from old/new data into a struct that holds data for FillPatching
 TimeInterpolatedData
