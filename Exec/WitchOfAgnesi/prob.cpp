@@ -12,6 +12,7 @@ using namespace amrex;
 
 ProbParm parms;
 
+AMREX_GPU_DEVICE
 void
 init_isentropic_hse(int i, int j,
                     const Real& r_sfc, const Real& theta,
@@ -62,8 +63,8 @@ init_isentropic_hse(int i, int j,
           }
       }
 
-      if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
-      if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+      //if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
+      //if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
   }
 
   // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
@@ -102,11 +103,10 @@ init_isentropic_hse(int i, int j,
           }
       }
 
-      if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
-      if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
+      //if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
+      //if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
   }
 }
-
 
 void
 erf_init_dens_hse(MultiFab& rho_hse,
