@@ -263,7 +263,7 @@ void erf_rhs (int level,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
-        amrex::ParallelFor(tbx, tby, tbz,
+        amrex::ParallelFor(tbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // x-momentum equation
 
             rho_u_rhs(i, j, k) = 0.0; // Initialize the updated x-mom eqn term to zero
@@ -345,7 +345,8 @@ void erf_rhs (int level,
             }
 
             } // not on coarse-fine boundary
-        },
+        });
+        amrex::ParallelFor(tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
 
             rho_v_rhs(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
@@ -425,7 +426,8 @@ void erf_rhs (int level,
             }
 
             } // not on coarse-fine boundary
-        },
+        });
+        amrex::ParallelFor(tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
             rho_w_rhs(i, j, k) = 0.0; // Initialize the updated z-mom eqn term to zero
