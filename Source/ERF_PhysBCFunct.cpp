@@ -1,3 +1,4 @@
+#include "AMReX_PhysBCFunct.H"
 #include <ERF_PhysBCFunct.H>
 
     //
@@ -12,8 +13,8 @@
     // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
     //     so this follows the BCVars enum
     //
-    void operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,
-                     Real time, int bccomp)
+    void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,
+                                    Real time, int bccomp)
     {
         if (m_geom.isAllPeriodic()) return;
 
