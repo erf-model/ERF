@@ -1,8 +1,14 @@
 #ifndef _DATA_STRUCT_H_
 #define _DATA_STRUCT_H_
 
-#include <ERF_Constants.H>
+#include <string>
+#include <iostream>
+
 #include <AMReX_ParmParse.H>
+#include <AMReX_Print.H>
+#include <AMReX_Gpu.H>
+
+#include <ERF_Constants.H>
 
 enum class ABLDriverType {
     None, PressureGradient, GeostrophicWind
@@ -380,28 +386,87 @@ struct SolverChoice {
 
 struct InputSoundingData {
 public:
-    // Constructor
-    InputSoundingData (const amrex::Vector<amrex::Real> &z_inp_sound_arg,
-                       const amrex::Vector<amrex::Real> &theta_inp_sound_arg,
-                       const amrex::Vector<amrex::Real> &moisture_inp_sound_arg,
-                       const amrex::Vector<amrex::Real> &U_inp_sound_arg,
-                       const amrex::Vector<amrex::Real> &V_inp_sound_arg,
-                       const amrex::Real &press_ref_inp_sound_arg,
-                       const amrex::Real &theta_ref_inp_sound_arg,
-                       const amrex::Real &dummy_arg) :
-            z_inp_sound(z_inp_sound_arg),
-            theta_inp_sound (theta_inp_sound_arg),
-            moisture_inp_sound (moisture_inp_sound_arg),
-            U_inp_sound (U_inp_sound_arg),
-            V_inp_sound (V_inp_sound_arg),
-            press_ref_inp_sound (press_ref_inp_sound_arg),
-            theta_ref_inp_sound (theta_ref_inp_sound_arg),
-            dummy (dummy_arg)
+    InputSoundingData() {}
+
+    void read_from_file(const std::string input_sounding_file)
     {
+        z_inp_sound.resize(0);
+        theta_inp_sound.resize(0);
+        moisture_inp_sound.resize(0);
+        U_inp_sound.resize(0);
+        V_inp_sound.resize(0);
+
+        // Read the input_sounding file
+        amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
+        std::ifstream input_sounding_reader(input_sounding_file);
+        if(!input_sounding_reader.is_open()) {
+            amrex::Error("Error opening the input_sounding file\n");
+        }
+        else {
+            // Read the contents of the input_sounding file
+            amrex::Print() << "Successfully opened the input_sounding file. Now reading... " << std::endl;
+            std::string  line;
+
+            // Read the first line
+            std::getline(input_sounding_reader, line);
+            std::istringstream iss(line);
+            iss >> press_ref_inp_sound >> theta_ref_inp_sound >> dummy;
+
+            // Read the vertical profile at each given height
+            while(std::getline(input_sounding_reader, line)) {
+                std::istringstream iss(line);
+                amrex::Real z, theta, moisture, U, V;
+                iss >> z >> theta >> moisture >> U >> V;
+                z_inp_sound.push_back(z);
+                theta_inp_sound.push_back(theta);
+                moisture_inp_sound.push_back(moisture);
+                U_inp_sound.push_back(U);
+                V_inp_sound.push_back(V);
+            }
+        }
+        amrex::Print() << "Successfully read the input_sounding file..." << std::endl;
+        input_sounding_reader.close();
+
+        host_to_device();
+    }
+
+    void host_to_device()
+    {
+        z_inp_sound_d.resize(size());
+        theta_inp_sound_d.resize(size());
+        moisture_inp_sound_d.resize(size());
+        U_inp_sound_d.resize(size());
+        V_inp_sound_d.resize(size());
+
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                         z_inp_sound.begin(), z_inp_sound.end(),
+                         z_inp_sound_d.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                         theta_inp_sound.begin(), theta_inp_sound.end(),
+                         theta_inp_sound_d.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                         moisture_inp_sound.begin(), moisture_inp_sound.end(),
+                         moisture_inp_sound_d.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                         U_inp_sound.begin(), U_inp_sound.end(),
+                         U_inp_sound_d.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                         V_inp_sound.begin(), V_inp_sound.end(),
+                         V_inp_sound_d.begin());
+    }
+
+    int size() const
+    {
+        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == theta_inp_sound.size());
+        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == moisture_inp_sound.size());
+        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == U_inp_sound.size());
+        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == V_inp_sound.size());
+        return z_inp_sound.size();
     }
 
     // Members
     amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
+    amrex::Gpu::DeviceVector<amrex::Real> z_inp_sound_d, theta_inp_sound_d, moisture_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
     amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
 };
 #endif
