@@ -52,6 +52,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/IndexDefines.H
        ${SRC_DIR}/prob_common.H
+       ${SRC_DIR}/ERF_Math.H
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/ERF_init1d.cpp
