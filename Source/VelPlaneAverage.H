@@ -145,7 +145,7 @@ void VelPlaneAverage::compute_hvelmag_averages(
                 for (int j = lbx.smallEnd(1); j <= lbx.bigEnd(1); ++j) {
                     for (int i = lbx.smallEnd(0); i <= lbx.bigEnd(0); ++i) {
                         const int ind = idx_op.getIndx(i,j,k);
-                        const amrex::Real hvelmag = 
+                        const amrex::Real hvelmag =
                            std::sqrt(xfab_arr(i,j,k)*xfab_arr(i,j,k)+yfab_arr(i,j,k)*yfab_arr(i,j,k));
                         amrex::Gpu::deviceReduceSum(&line_avg[ind],hvelmag*denom,handler);
                     }

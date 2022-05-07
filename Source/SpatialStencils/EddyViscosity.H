@@ -221,9 +221,9 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
 AMREX_GPU_DEVICE
 inline amrex::Real
 ComputeTKEProduction (const int &i, const int &j, const int &k,
-                      const amrex::Array4<const amrex::Real>& u, 
-                      const amrex::Array4<const amrex::Real>& v, 
-                      const amrex::Array4<const amrex::Real>& w, 
+                      const amrex::Array4<const amrex::Real>& u,
+                      const amrex::Array4<const amrex::Real>& v,
+                      const amrex::Array4<const amrex::Real>& w,
                       const amrex::Array4<amrex::Real>& K_turb,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Box& domain, const amrex::BCRec* bc_ptr)

@@ -4,9 +4,9 @@
 AMREX_GPU_DEVICE
 inline amrex::Real
 ComputeExpansionRate(const int &i, const int &j, const int &k,
-                     const amrex::Array4<const amrex::Real>& u, 
-                     const amrex::Array4<const amrex::Real>& v, 
-                     const amrex::Array4<const amrex::Real>& w, 
+                     const amrex::Array4<const amrex::Real>& u,
+                     const amrex::Array4<const amrex::Real>& v,
+                     const amrex::Array4<const amrex::Real>& w,
                      const enum MomentumEqn &momentumEqn,
                      const enum DiffusionDir &diffDir,
                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv) {

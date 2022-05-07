@@ -23,7 +23,7 @@ is_on_face(int bc_in)
 AMREX_GPU_DEVICE
 inline amrex::Real
 ComputeS11(const int &i, const int &j, const int &k,
-           const amrex::Array4<amrex::Real const>& u, 
+           const amrex::Array4<amrex::Real const>& u,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
 {
   amrex::Real dx_inv = cellSizeInv[0];

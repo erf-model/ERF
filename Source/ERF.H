@@ -226,7 +226,7 @@ private:
     // at each RK stage when integrating between initial and final times at a given level).
     // NOTE: mfs should always contain {cons, xvel, yvel, zvel} multifab data.
     // if which_var is supplied, then only fill the specified variable in the vector of mfs
-    void FillIntermediatePatch (int lev, amrex::Real time, 
+    void FillIntermediatePatch (int lev, amrex::Real time,
                                 amrex::Vector<std::reference_wrapper<amrex::MultiFab> > mfs, int which_var = -1);
 
     // fill an entire multifab by interpolating from the coarser level

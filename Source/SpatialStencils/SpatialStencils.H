@@ -126,13 +126,13 @@ void MomentumToVelocity(amrex::MultiFab& xvel_out,
                         const amrex::MultiFab& zmom_in,
                         const amrex::IntVect& ngrow);
 
-void VelocityToMomentum(const amrex::MultiFab& xvel_in, 
+void VelocityToMomentum(const amrex::MultiFab& xvel_in,
                         const amrex::MultiFab& yvel_in,
                         const amrex::MultiFab& zvel_in,
                         const amrex::MultiFab& cons_in,
-                        amrex::MultiFab& xmom_out, 
-                        amrex::MultiFab& ymom_out, 
-                        amrex::MultiFab& zmom_out, 
+                        amrex::MultiFab& xmom_out,
+                        amrex::MultiFab& ymom_out,
+                        amrex::MultiFab& zmom_out,
                         const amrex::IntVect& ngrow);
 
 
@@ -179,7 +179,7 @@ amrex::Real AdvectionSrcForXMom(
                        const amrex::Array4<const amrex::Real>& rho_w,
                        const amrex::Array4<const amrex::Real>& u,
 #ifdef ERF_USE_TERRAIN
-                       const amrex::Array4<const amrex::Real>& z_nd, 
+                       const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
 #endif
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,

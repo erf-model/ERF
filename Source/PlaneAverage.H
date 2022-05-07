@@ -55,7 +55,7 @@ protected:
     int m_ncomp; /** number of average components */
 
     /** line storage for the average velocity and tracer variables */
-    amrex::Vector<amrex::Real> m_line_average; 
+    amrex::Vector<amrex::Real> m_line_average;
 
     //! line storage for the derivative of average field
     amrex::Vector<amrex::Real> m_line_deriv;
@@ -93,7 +93,7 @@ inline PlaneAverage::PlaneAverage(
              : m_field(field_in)
              , m_geom(geom_in)
              , m_axis(axis_in)
-             , m_comp_deriv(compute_deriv) 
+             , m_comp_deriv(compute_deriv)
 {
     AMREX_ALWAYS_ASSERT(m_axis >= 0 && m_axis < AMREX_SPACEDIM);
 
@@ -234,7 +234,7 @@ inline void PlaneAverage::compute_averages(
         auto fab_arr = mfab.const_array(mfi);
         amrex::Box pbx = PerpendicularBox<IndexSelector>(bx, amrex::IntVect{0, 0, 0});
 
-        ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=] 
+        ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
            AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
                              amrex::Gpu::Handler const& handler) noexcept {
             // Loop over the direction perpendicular to the plane.
@@ -247,7 +247,7 @@ inline void PlaneAverage::compute_averages(
                     for (int i = lbx.smallEnd(0); i <= lbx.bigEnd(0); ++i) {
                         int ind = idxOp.getIndx(i, j, k);
                         for (int n = 0; n < ncomp; ++n) {
-                            amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n], 
+                            amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
                                             fab_arr(i, j, k, n) * denom, handler);
                         }
                      }

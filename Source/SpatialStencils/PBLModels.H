@@ -170,7 +170,7 @@ amrex::Real ComputeQKESourceTerms(int i, int j, int k,
                            const amrex::Array4<const amrex::Real>& cell_data,
                            const amrex::Array4<const amrex::Real>& cell_prim,
                            const amrex::Array4<amrex::Real>& K_turb,
-                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv, 
+                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                            const amrex::Box& domain,
                            const SolverChoice& solverChoice, const ABLMost& most)
 {
