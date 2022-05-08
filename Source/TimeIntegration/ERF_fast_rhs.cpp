@@ -255,7 +255,7 @@ void erf_implicit_fast_rhs (int level,
                 Real h_zeta_on_jface = 0.5 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) - z_nd(i+1,j,k) );
                 Real gp_zeta_on_jface = 0.25 * dzi * (
-                   extrap_arr(i,j  ,k+1) + extrap_arr(i,j-1,k+1) 
+                   extrap_arr(i,j  ,k+1) + extrap_arr(i,j-1,k+1)
                  - extrap_arr(i,j  ,k-1) - extrap_arr(i,j-1,k-1) );
                 Real gpy = gp_eta - (h_eta_on_jface / h_zeta_on_jface) * gp_zeta_on_jface;
 #else
