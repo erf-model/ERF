@@ -5,29 +5,27 @@
 #include <AMReX_Vector.H>
 #include <AMReX_REAL.H>
 
-using namespace amrex;
-
 struct TimeInterpolatedData {
     TimeInterpolatedData() {}
 
-    TimeInterpolatedData(Real time) : m_time(time) {}
+    TimeInterpolatedData(amrex::Real time) : m_time(time) {}
 
     ~TimeInterpolatedData() {
         clear();
     }
 
-    void set_time(Real time) {
+    void set_time(amrex::Real time) {
         m_time = time;
     }
 
-    Real get_time() { return m_time; }
+    amrex::Real get_time() { return m_time; }
 
-    void add_var(MultiFab* var_data, int own_data) {
+    void add_var(amrex::MultiFab* var_data, int own_data) {
         m_data.push_back(var_data);
         m_owns_data.push_back(own_data);
     }
 
-    MultiFab& get_var(int var_idx) {
+    amrex::MultiFab& get_var(int var_idx) {
         return *m_data[var_idx];
     }
 
@@ -52,9 +50,9 @@ struct TimeInterpolatedData {
     const int non_owning = 0;
 
 private:
-    Vector<MultiFab*> m_data;
-    Vector<int> m_owns_data;
-    Real m_time;
+    amrex::Vector<amrex::MultiFab*> m_data;
+    amrex::Vector<int> m_owns_data;
+    amrex::Real m_time;
 };
 
 #endif

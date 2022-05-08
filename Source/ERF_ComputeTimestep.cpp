@@ -1,6 +1,8 @@
 #include <EOS.H>
 #include <ERF.H>
 
+using namespace amrex;
+
 // a wrapper for estTimeStep
 void
 ERF::ComputeDt ()

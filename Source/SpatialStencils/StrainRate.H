@@ -1,7 +1,7 @@
 #ifndef _COMPUTE_STRAINRATE_H_
 #define _COMPUTE_STRAINRATE_H_
 
-using namespace amrex;
+#include "IndexDefines.H"
 
 // Note:  if the boundary condition type is ext_dir, it means that the velocity is fixed
 //        on that face, so we use a special stencil that understands the value is
@@ -21,42 +21,47 @@ is_on_face(int bc_in)
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeS11(const int &i, const int &j, const int &k,
-           const Array4<Real const>& u, const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv)
+           const amrex::Array4<amrex::Real const>& u,
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
 {
-  Real dx_inv = cellSizeInv[0];
+  amrex::Real dx_inv = cellSizeInv[0];
   return (u(i, j, k) - u(i-1, j, k))*dx_inv;
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeS22(const int &i, const int &j, const int &k,
-           const Array4<Real const>& v, const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv)
+           const amrex::Array4<amrex::Real const>& v,
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
 {
-  Real dy_inv = cellSizeInv[1];
+  amrex::Real dy_inv = cellSizeInv[1];
   return (v(i, j, k) - v(i, j-1, k))*dy_inv;
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeS33(const int &i, const int &j, const int &k,
-           const Array4<Real const>& w, const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv)
+           const amrex::Array4<amrex::Real const>& w,
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
 {
-  Real dz_inv = cellSizeInv[2];
+  amrex::Real dz_inv = cellSizeInv[2];
   return (w(i, j, k) - w(i, j, k-1))*dz_inv;
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeS12(const int &i, const int &j, const int &k,
-           const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& /*w*/,
-           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-           const Box& domain, const amrex::BCRec* bc_ptr)
+           const amrex::Array4<amrex::Real const>& u,
+           const amrex::Array4<amrex::Real const>& v,
+           const amrex::Array4<amrex::Real const>& /*w*/,
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-    Real dx_inv = cellSizeInv[0];
-    Real dy_inv = cellSizeInv[1];
-    Real strainRate = 0;
+    amrex::Real dx_inv = cellSizeInv[0];
+    amrex::Real dy_inv = cellSizeInv[1];
+    amrex::Real strainRate = 0;
 
     if (j == domain.smallEnd(1) && is_on_face(bc_ptr[BCVars::xvel_bc].lo(1))) {
         strainRate =  (-(8./3.) * u(i,j-1,k) + 3. * u(i,j,k) - (1./3.) * u(i,j+1,k))*dy_inv;
@@ -78,16 +83,18 @@ ComputeS12(const int &i, const int &j, const int &k,
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeS13(const int &i, const int &j, const int &k,
-           const Array4<Real const>& u, const Array4<Real const>& /*v*/, const Array4<Real const>& w,
-           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-           const Box& domain, const amrex::BCRec* bc_ptr)
+           const amrex::Array4<amrex::Real const>& u,
+           const amrex::Array4<amrex::Real const>& /*v*/,
+           const amrex::Array4<amrex::Real const>& w,
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-    Real dx_inv = cellSizeInv[0];
-    Real dz_inv = cellSizeInv[2];
+    amrex::Real dx_inv = cellSizeInv[0];
+    amrex::Real dz_inv = cellSizeInv[2];
 
-    Real strainRate;
+    amrex::Real strainRate;
 
     if (k == domain.smallEnd(2) && is_on_face(bc_ptr[BCVars::xvel_bc].lo(2))) {
         strainRate =  (-(8./3.) * u(i,j,k-1) + 3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dz_inv;
@@ -109,16 +116,18 @@ ComputeS13(const int &i, const int &j, const int &k,
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeS23(const int &i, const int &j, const int &k,
-           const Array4<Real const>& /*u*/, const Array4<Real const>& v, const Array4<Real const>& w,
-           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-           const Box& domain, const amrex::BCRec* bc_ptr)
+           const amrex::Array4<amrex::Real const>& /*u*/,
+           const amrex::Array4<amrex::Real const>& v,
+           const amrex::Array4<amrex::Real const>& w,
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-    Real dy_inv = cellSizeInv[1];
-    Real dz_inv = cellSizeInv[2];
+    amrex::Real dy_inv = cellSizeInv[1];
+    amrex::Real dz_inv = cellSizeInv[2];
 
-    Real strainRate;
+    amrex::Real strainRate;
 
     if (k == domain.smallEnd(2) && is_on_face(bc_ptr[BCVars::yvel_bc].lo(2))) {
         strainRate =  (-(8./3.) * v(i,j,k-1) + 3. * v(i,j,k  ) - (1./3.) * v(i,j,k+1))*dz_inv;
@@ -140,45 +149,53 @@ ComputeS23(const int &i, const int &j, const int &k,
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeS21(const int &i, const int &j, const int &k,
-           const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& w,
-           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-           const Box& domain, const amrex::BCRec* bc_ptr)
+           const amrex::Array4<amrex::Real const>& u,
+           const amrex::Array4<amrex::Real const>& v,
+           const amrex::Array4<amrex::Real const>& w,
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     return ComputeS12(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeS31(const int &i, const int &j, const int &k,
-           const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& w,
-           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-           const Box& domain, const amrex::BCRec* bc_ptr)
+           const amrex::Array4<amrex::Real const>& u,
+           const amrex::Array4<amrex::Real const>& v,
+           const amrex::Array4<amrex::Real const>& w,
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     return ComputeS13(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeS32(const int &i, const int &j, const int &k,
-           const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& w,
-           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-           const Box& domain, const amrex::BCRec* bc_ptr)
+           const amrex::Array4<amrex::Real const>& u,
+           const amrex::Array4<amrex::Real const>& v,
+           const amrex::Array4<amrex::Real const>& w,
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     return ComputeS23(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 }
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeStrainRate(const int &i, const int &j, const int &k,
-                  const Array4<Real const>& u, const Array4<Real const>& v, const Array4<Real const>& w,
+                  const amrex::Array4<amrex::Real const>& u,
+                  const amrex::Array4<amrex::Real const>& v,
+                  const amrex::Array4<amrex::Real const>& w,
                   const enum MomentumEqn &momentumEqn,
                   const enum DiffusionDir &diffDir,
-                  const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                  const Box& domain, const amrex::BCRec* bc_ptr)
+                  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                  const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-    Real strainRate;
+    amrex::Real strainRate;
     switch (momentumEqn) {
       case MomentumEqn::x:
         switch (diffDir) {

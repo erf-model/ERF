@@ -1,6 +1,9 @@
 #include <EOS.H>
 #include <ERF.H>
 #include "AMReX_Interp_3D_C.H"
+#include "AMReX_PlotFileUtil.H"
+
+using namespace amrex;
 
 // get plotfile name
 std::string

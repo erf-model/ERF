@@ -1,6 +1,7 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
+#include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
 #include <EddyViscosity.H>
 #include <PBLModels.H>
