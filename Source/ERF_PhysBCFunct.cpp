@@ -242,57 +242,57 @@
                         ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                         {
                             if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
-                                int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
-                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
+                                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                 dest_array(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
                             }
                             if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
-                                int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                 dest_array(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
                             }
                             if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
-                                // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                 // dest_array(i,j,k,icomp+n) = bdatzlo(ib,jb,dom_lo.z-1,bccomp+n);
                             }
                             if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested) {
-                                int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
-                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
+                                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                 dest_array(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bccomp+n);
                             }
                             if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir_ingested) {
-                                int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                 dest_array(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bccomp+n);
                             }
                             if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested) {
-                                // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                 // dest_array(i,j,k,icomp+n) = bdatzhi(ib,jb,dom_hi.z+1,bccomp+n);
                             }
 
                             if (bccomp == BCVars::xvel_bc)
                             {
                                 if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
-                                    int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
-                                    int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                    int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
+                                    int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                     dest_array(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
                                 }
                             }
                             if (bccomp == BCVars::yvel_bc)
                             {
                                 if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
-                                    int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                    int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                    int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                    int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                     dest_array(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
                                 }
                             }
                             if (bccomp == BCVars::zvel_bc)
                             {
                                 if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
-                                    // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                    // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                    // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                    // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                     // dest_array(i,j,k,icomp+n) = bdatzlo(ib,jb,dom_lo.z-1,bccomp+n);
                                 }
                             }
@@ -345,38 +345,38 @@
                         ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                         {
                             if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
-                                int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
-                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
+                                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                 dest_array(i,j,k,icomp+n) = oma * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp+n)
                                                         + alpha * bdatxlo_np1(dom_lo.x-1,jb,kb,bccomp+n);
                             }
                             if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
-                                int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                 dest_array(i,j,k,icomp+n) = oma * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp+n)
                                                         + alpha * bdatylo_np1(ib,dom_lo.y-1,kb,bccomp+n);
                             }
                             if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
-                                // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                 // dest_array(i,j,k,icomp+n) = oma * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp+n)
                                 //                         + alpha * bdatzlo_np1(ib,jb,dom_lo.z-1,bccomp+n);
                             }
                             if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested) {
-                                int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
-                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
+                                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                 dest_array(i,j,k,icomp+n) = oma * bdatxhi_n  (dom_hi.x+1,jb,kb,bccomp+n)
                                                         + alpha * bdatxhi_np1(dom_hi.x+1,jb,kb,bccomp+n);
                             }
                             if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir_ingested) {
-                                int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                 dest_array(i,j,k,icomp+n) = oma * bdatyhi_n  (ib,dom_hi.y+1,kb,bccomp+n)
                                                         + alpha * bdatyhi_np1(ib,dom_hi.y+1,kb,bccomp+n);
                             }
                             if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested) {
-                                // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                 // dest_array(i,j,k,icomp+n) = oma * bdatzhi_n  (ib,jb,dom_hi.z+1,bccomp+n)
                                 //                         + alpha * bdatzhi_np1(ib,jb,dom_hi.z+1,bccomp+n);
                             }
@@ -384,8 +384,8 @@
                             if (bccomp == BCVars::xvel_bc)
                             {
                                 if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
-                                    int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
-                                    int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                    int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
+                                    int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                     dest_array(i,j,k,icomp+n) = oma * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp+n)
                                                             + alpha * bdatxlo_np1(dom_lo.x-1,jb,kb,bccomp+n);
                                 }
@@ -393,8 +393,8 @@
                             if (bccomp == BCVars::yvel_bc)
                             {
                                 if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
-                                    int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                    int kb = amrex::min(amrex::max(k,dom_lo.z),dom_hi.z);
+                                    int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                    int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
                                     dest_array(i,j,k,icomp+n) = oma * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp+n)
                                                             + alpha * bdatylo_np1(ib,dom_lo.y-1,kb,bccomp+n);
                                 }
@@ -402,8 +402,8 @@
                             if (bccomp == BCVars::zvel_bc)
                             {
                                 if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
-                                    // int ib = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                                    // int jb = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                                    // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
+                                    // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                     // dest_array(i,j,k,icomp+n) = oma * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp+n)
                                     //                         + alpha * bdatzlo_np1(ib,jb,dom_lo.z-1,bccomp+n);
                                 }

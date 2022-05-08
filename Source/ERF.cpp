@@ -1174,8 +1174,8 @@ ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
     // We must be careful not to read out of bounds of the WPS data
     //
     amrex::ParallelFor(z_phys_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        int ii = amrex::max(amrex::min(i,ihi-1),ilo+1);
-        int jj = amrex::max(amrex::min(j,jhi-1),jlo+1);
+        int ii = std::max(std::min(i,ihi-1),ilo+1);
+        int jj = std::max(std::min(j,jhi-1),jlo+1);
         if (!z_phys_box.contains(ii,jj,k) || !z_phys_box.contains(ii-1,jj-1,k)) amrex::Print() << "BAD " << IntVect(ii,jj,k) << std::endl;
         if (k < 0) {
             Real z_klo   =  0.25 * ( nc_ph_arr (ii,jj,klo  ) +  nc_ph_arr(ii-1,jj,klo  ) + nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
