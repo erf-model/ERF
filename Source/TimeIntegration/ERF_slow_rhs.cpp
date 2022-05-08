@@ -97,6 +97,8 @@ void erf_rhs (int level,
         mhi_mf_z = &(ifr->mask(Orientation(2,Orientation::high)));
     }
 
+    MultiFab pprime(S_data[IntVar::cons].boxArray(), S_data[IntVar::cons].DistributionMap(), 1, 1);
+
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
@@ -168,6 +170,15 @@ void erf_rhs (int level,
         const Array4<const Real>& r0_arr = r0.const_array(mfi);
         const Array4<const Real>& p0_arr = p0.const_array(mfi);
 #endif
+        const Box& gbx = mfi.growntilebox(1);
+        const Array4<Real> & pp_arr  = pprime.array(mfi);
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+#ifdef ERF_USE_TERRAIN
+           pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
+#else
+           pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),dptr_pres_hse[k]);
+#endif
+        });
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
@@ -294,8 +305,7 @@ void erf_rhs (int level,
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
             Real gp_xi = dxInv[0] *
-                (getPprimegivenRTh(cell_data(i  ,j,k,RhoTheta_comp),p0_arr(i,j,k)) -
-                 getPprimegivenRTh(cell_data(i-1,j,k,RhoTheta_comp),p0_arr(i,j,k)));
+                (pp_arr(i,j,k) - pp_arr(i-1,j,k));
             amrex::Real h_xi_on_iface = 0.125 * dxInv[0] * (
                 z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
                -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
@@ -304,20 +314,12 @@ void erf_rhs (int level,
 
             Real gp_zeta_on_iface = (k == 0) ?
                 0.5 * dxInv[2] * (
-                  getPprimegivenRTh(cell_data(i  ,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
-                 +getPprimegivenRTh(cell_data(i-1,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
-                 -getPprimegivenRTh(cell_data(i  ,j,k  ,RhoTheta_comp),p0_arr(i,j,k  ))
-                 -getPprimegivenRTh(cell_data(i-1,j,k  ,RhoTheta_comp),p0_arr(i,j,k  )) ) :
+                pp_arr(i,j,k+1) + pp_arr(i-1,j,k+1) - pp_arr(i,j,k) - pp_arr(i-1,j,k)):
                 0.25 * dxInv[2] * (
-                  getPprimegivenRTh(cell_data(i  ,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
-                 +getPprimegivenRTh(cell_data(i-1,j,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
-                 -getPprimegivenRTh(cell_data(i  ,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1))
-                 -getPprimegivenRTh(cell_data(i-1,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1)) );
+                  pp_arr(i,j,k+1) + pp_arr(i-1,j,k+1) - pp_arr(i,j,k-1) - pp_arr(i-1,j,k-1));
             amrex::Real gpx = gp_xi - (h_xi_on_iface / h_zeta_on_iface) * gp_zeta_on_iface;
 #else
-            amrex::Real gpx = dxInv[0] *
-                (getPprimegivenRTh(cell_data(i    , j, k, RhoTheta_comp),dptr_pres_hse[k]) -
-                 getPprimegivenRTh(cell_data(i - 1, j, k, RhoTheta_comp),dptr_pres_hse[k]));
+            amrex::Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
 #endif
             rho_u_rhs(i, j, k) -= gpx;
 
@@ -377,8 +379,7 @@ void erf_rhs (int level,
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
             Real gp_eta = dxInv[1] *
-                (getPprimegivenRTh(cell_data(i,j  ,k,RhoTheta_comp),p0_arr(i,j,k)) -
-                 getPprimegivenRTh(cell_data(i,j-1,k,RhoTheta_comp),p0_arr(i,j,k)));
+                (pp_arr(i,j,k) - pp_arr(i,j-1,k));
             amrex::Real h_eta_on_jface = 0.125 * dxInv[1] * (
                 z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
                -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
@@ -387,20 +388,12 @@ void erf_rhs (int level,
 
             Real gp_zeta_on_jface = (k == 0) ?
                 0.5 * dxInv[2] * (
-                  getPprimegivenRTh(cell_data(i,j  ,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
-                 +getPprimegivenRTh(cell_data(i,j-1,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
-                 -getPprimegivenRTh(cell_data(i,j  ,k  ,RhoTheta_comp),p0_arr(i,j,k  ))
-                 -getPprimegivenRTh(cell_data(i,j-1,k  ,RhoTheta_comp),p0_arr(i,j,k  )) ) :
+                  pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1) - pp_arr(i,j,k) - pp_arr(i,j-1,k)):
                 0.25 * dxInv[2] * (
-                  getPprimegivenRTh(cell_data(i,j  ,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
-                 +getPprimegivenRTh(cell_data(i,j-1,k+1,RhoTheta_comp),p0_arr(i,j,k+1))
-                 -getPprimegivenRTh(cell_data(i,j  ,k-1,RhoTheta_comp),p0_arr(i,j,k-1))
-                 -getPprimegivenRTh(cell_data(i,j-1,k-1,RhoTheta_comp),p0_arr(i,j,k-1)) );
+                  pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1) - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1));
             amrex::Real gpy = gp_eta - (h_eta_on_jface / h_zeta_on_jface) * gp_zeta_on_jface;
 #else
-            amrex::Real gpy = dxInv[1] *
-                (getPprimegivenRTh(cell_data(i, j    , k, RhoTheta_comp),dptr_pres_hse[k]) -
-                 getPprimegivenRTh(cell_data(i, j - 1, k, RhoTheta_comp),dptr_pres_hse[k]));
+            amrex::Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
 #endif
             rho_v_rhs(i, j, k) -= gpy;
 
@@ -457,16 +450,12 @@ void erf_rhs (int level,
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
-            amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),p0_arr(i,j,k));
-            amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),p0_arr(i,j,k-1));
             amrex::Real h_zeta = 0.125 * dxInv[2] * (
                 z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
                -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
-            amrex::Real gpz = dxInv[2] * (p_prime_hi - p_prime_lo) / h_zeta;
+            amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / h_zeta;
 #else
-            amrex::Real p_prime_hi = getPprimegivenRTh(cell_data(i,j,k  ,RhoTheta_comp),dptr_pres_hse[k  ]);
-            amrex::Real p_prime_lo = getPprimegivenRTh(cell_data(i,j,k-1,RhoTheta_comp),dptr_pres_hse[k-1]);
-            amrex::Real gpz = dxInv[2] * (p_prime_hi - p_prime_lo);
+            amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
 #endif
             rho_w_rhs(i, j, k) -= gpz;
 
