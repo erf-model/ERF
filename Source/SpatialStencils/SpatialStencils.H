@@ -152,7 +152,7 @@ amrex::Real InterpolatePertFromCell(
                        const enum Coord& coordDir,
                        const int& spatial_order,
 #ifdef ERF_USE_TERRAIN
-                       const Array4<const Real>& r0_arr);
+                       const amrex::Array4<const amrex::Real>& r0_arr);
 #else
                        const amrex::Real* dptr_hse);
 #endif
