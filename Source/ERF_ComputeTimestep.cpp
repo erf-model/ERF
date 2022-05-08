@@ -19,9 +19,9 @@ ERF::ComputeDt ()
     Real dt_0 = dt_tmp[0];
     int n_factor = 1;
     for (int lev = 0; lev <= finest_level; ++lev) {
-        dt_tmp[lev] = std::min(dt_tmp[lev], change_max*dt[lev]);
+        dt_tmp[lev] = amrex::min(dt_tmp[lev], change_max*dt[lev]);
         n_factor *= nsubsteps[lev];
-        dt_0 = std::min(dt_0, n_factor*dt_tmp[lev]);
+        dt_0 = amrex::min(dt_0, n_factor*dt_tmp[lev]);
     }
 
     // Limit dt's by the value of stop_time.
@@ -69,7 +69,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
                amrex::Real pressure = getPgivenRTh(rhotheta);
                amrex::Real c = std::sqrt(Gamma * pressure / rho);
 
-               new_comp_dt = std::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+               new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
                                         ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
                                         ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv[2]), new_comp_dt);
            });
@@ -86,7 +86,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
            Real new_lm_dt = -1.e100;
            amrex::Loop(b, [=,&new_lm_dt] (int i, int j, int k) noexcept
            {
-               new_lm_dt = std::max(((amrex::Math::abs(u(i,j,k,0)))*dxinv[0]),
+               new_lm_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0)))*dxinv[0]),
                                       ((amrex::Math::abs(u(i,j,k,1)))*dxinv[1]),
                                       ((amrex::Math::abs(u(i,j,k,2)))*dxinv[2]), new_lm_dt);
            });
