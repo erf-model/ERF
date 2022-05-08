@@ -62,6 +62,8 @@ void erf_implicit_fast_rhs (int level,
     MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
 
     // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
+    // Note that we do the Copy and Subtract including one ghost cell
+    //    so that we don't have to fill ghost cells of the new MultiFabs
     MultiFab::Copy(Delta_rho_u    , S_data[IntVar::xmom], 0, 0, 1, 1);
     MultiFab::Copy(Delta_rho_v    , S_data[IntVar::ymom], 0, 0, 1, 1);
     MultiFab::Copy(Delta_rho_w    , S_data[IntVar::zmom], 0, 0, 1, 1);
@@ -74,16 +76,9 @@ void erf_implicit_fast_rhs (int level,
     MultiFab::Subtract(Delta_rho      , S_stage_data[IntVar::cons], Rho_comp     , 0, 1, 1);
     MultiFab::Subtract(Delta_rho_theta, S_stage_data[IntVar::cons], RhoTheta_comp, 0, 1, 1);
 
-    // Not sure if we need these
-    Delta_rho_u.FillBoundary(geom.periodicity());
-    Delta_rho_v.FillBoundary(geom.periodicity());
-    Delta_rho_w.FillBoundary(geom.periodicity());
-    Delta_rho.FillBoundary(geom.periodicity());
-    Delta_rho_theta.FillBoundary(geom.periodicity());
-
-    amrex::MultiFab New_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
-    amrex::MultiFab New_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
-    amrex::MultiFab New_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, 1);
+    amrex::MultiFab New_rho_u(convert(ba,IntVect(1,0,0)), dm, 1, 1);
+    amrex::MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
+    amrex::MultiFab New_rho_w(convert(ba,IntVect(0,0,1)), dm, 1, 1);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -103,6 +98,8 @@ void erf_implicit_fast_rhs (int level,
         mlo_mf_z = &(ifr->mask(Orientation(2,Orientation::low)));
         mhi_mf_z = &(ifr->mask(Orientation(2,Orientation::high)));
     }
+
+    MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
 
     // *************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
@@ -174,6 +171,14 @@ void erf_implicit_fast_rhs (int level,
         const Array4<const Real>& p0_arr = p0.const_array(mfi);
 #endif
 
+        const Array4<Real>& extrap_arr = extrap.array(mfi);
+
+        const Box& gbx = mfi.growntilebox(1);
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+           extrap_arr(i,j,k) = old_drho_theta(i,j,k) + beta_d * (
+              (cur_data(i,j  ,k,RhoTheta_comp) - old_data(i,j  ,k,RhoTheta_comp)));
+        });
+
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
@@ -196,10 +201,8 @@ void erf_implicit_fast_rhs (int level,
                 Real pi_r = getExnergivenRTh(cell_stage(i  ,j,k,RhoTheta_comp));
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
-                Real drho_theta_hi = old_drho_theta(i,j,k) + beta_d * (
-                  (cur_data(i,j  ,k,RhoTheta_comp) - old_data(i,j  ,k,RhoTheta_comp)));
-                Real drho_theta_lo = old_drho_theta(i-1,j,k) + beta_d * (
-                  (cur_data(i-1,j,k,RhoTheta_comp) - old_data(i-1,j,k,RhoTheta_comp)));
+                Real drho_theta_hi = extrap_arr(i  ,j,k);
+                Real drho_theta_lo = extrap_arr(i-1,j,k);
 
 #ifdef ERF_USE_TERRAIN
                 Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
@@ -209,10 +212,8 @@ void erf_implicit_fast_rhs (int level,
                 Real h_zeta_on_iface = 0.5 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) - z_nd(i,j+1,k) );
                 Real gp_zeta_on_iface = 0.25 * dzi * (
-                  (old_drho_theta(i  ,j,k+1) + beta_d*((cur_data(i  ,j,k+1,RhoTheta_comp)-old_data(i  ,j,k+1,RhoTheta_comp))))
-                 +(old_drho_theta(i-1,j,k+1) + beta_d*((cur_data(i-1,j,k+1,RhoTheta_comp)-old_data(i-1,j,k+1,RhoTheta_comp))))
-                 -(old_drho_theta(i  ,j,k-1) + beta_d*((cur_data(i  ,j,k-1,RhoTheta_comp)-old_data(i  ,j,k-1,RhoTheta_comp))))
-                 -(old_drho_theta(i-1,j,k-1) + beta_d*((cur_data(i-1,j,k-1,RhoTheta_comp)-old_data(i-1,j,k-1,RhoTheta_comp)))) );
+                  extrap_arr(i  ,j,k+1) + extrap_arr(i-1,j,k+1)
+                 -extrap_arr(i  ,j,k-1) - extrap_arr(i-1,j,k-1));
                 Real gpx = gp_xi - (h_xi_on_iface / h_zeta_on_iface) * gp_zeta_on_iface;
 #else
                 Real gpx = (drho_theta_hi - drho_theta_lo)*dxi;
@@ -243,10 +244,8 @@ void erf_implicit_fast_rhs (int level,
                 Real pi_r = getExnergivenRTh(cell_stage(i,j  ,k,RhoTheta_comp));
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
-                Real drho_theta_hi = old_drho_theta(i,j,k) + beta_d * (
-                  (cur_data(i,j  ,k,RhoTheta_comp) - old_data(i,j  ,k,RhoTheta_comp)));
-                Real drho_theta_lo = old_drho_theta(i,j-1,k) + beta_d * (
-                  (cur_data(i,j-1,k,RhoTheta_comp) - old_data(i,j-1,k,RhoTheta_comp)));
+                Real drho_theta_hi = extrap_arr(i,j,k);
+                Real drho_theta_lo = extrap_arr(i,j-1,k);
 
 #ifdef ERF_USE_TERRAIN
                 Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
@@ -256,10 +255,8 @@ void erf_implicit_fast_rhs (int level,
                 Real h_zeta_on_jface = 0.5 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) - z_nd(i+1,j,k) );
                 Real gp_zeta_on_jface = 0.25 * dzi * (
-                  (old_drho_theta(i,j  ,k+1) + beta_d*((cur_data(i,j  ,k+1,RhoTheta_comp)-old_data(i,j  ,k+1,RhoTheta_comp))))
-                 +(old_drho_theta(i,j-1,k+1) + beta_d*((cur_data(i,j-1,k+1,RhoTheta_comp)-old_data(i,j-1,k+1,RhoTheta_comp))))
-                 -(old_drho_theta(i,j  ,k-1) + beta_d*((cur_data(i,j  ,k-1,RhoTheta_comp)-old_data(i,j  ,k-1,RhoTheta_comp))))
-                 -(old_drho_theta(i,j-1,k-1) + beta_d*((cur_data(i,j-1,k-1,RhoTheta_comp)-old_data(i,j-1,k-1,RhoTheta_comp)))) );
+                   extrap_arr(i,j  ,k+1) + extrap_arr(i,j-1,k+1) 
+                 - extrap_arr(i,j  ,k-1) - extrap_arr(i,j-1,k-1) );
                 Real gpy = gp_eta - (h_eta_on_jface / h_zeta_on_jface) * gp_zeta_on_jface;
 #else
                 Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
