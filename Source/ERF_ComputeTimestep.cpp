@@ -19,9 +19,9 @@ ERF::ComputeDt ()
     Real dt_0 = dt_tmp[0];
     int n_factor = 1;
     for (int lev = 0; lev <= finest_level; ++lev) {
-        dt_tmp[lev] = std::min(dt_tmp[lev], change_max*dt[lev]);
+        dt_tmp[lev] = amrex::min(dt_tmp[lev], change_max*dt[lev]);
         n_factor *= nsubsteps[lev];
-        dt_0 = std::min(dt_0, n_factor*dt_tmp[lev]);
+        dt_0 = amrex::min(dt_0, n_factor*dt_tmp[lev]);
     }
 
     // Limit dt's by the value of stop_time.
