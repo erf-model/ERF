@@ -350,7 +350,7 @@ void erf_implicit_fast_rhs (int level,
                 Real coeff_Q = Gamma * R_d * pi_c * dzi / h_zeta_on_kface
                              + halfg * R_d * rhobar_lo * pi_lo  /
                              ( c_v  * pibar_lo * cell_stage(i,j,k-1,RhoTheta_comp) );
-               
+
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
                                 +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
