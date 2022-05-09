@@ -321,7 +321,13 @@ void erf_rhs (int level,
 #else
             amrex::Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
 #endif
+#ifdef ERF_USE_MOISUTRE
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
+            rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
+#else
             rho_u_rhs(i, j, k) -= gpx;
+#endif
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -395,7 +401,13 @@ void erf_rhs (int level,
 #else
             amrex::Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
 #endif
+#ifdef ERF_USE_MOISUTRE
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
+            rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
+#else
             rho_v_rhs(i, j, k) -= gpy;
+#endif
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -457,7 +469,13 @@ void erf_rhs (int level,
 #else
             amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
 #endif
+#ifdef ERF_USE_MOISUTRE
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
+            rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
+#else
             rho_w_rhs(i, j, k) -= gpz;
+#endif
 
             // Add gravity term
             if (solverChoice.use_gravity)

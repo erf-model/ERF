@@ -70,6 +70,11 @@ init_custom_prob(
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = 0.0;
+
+#ifdef ERF_USE_MOISTURE
+    state(i, j, k, RhoQv_comp) = 0.0;
+    state(i, j, k, RhoQc_comp) = 0.0;
+#endif
   });
 
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
