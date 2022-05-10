@@ -180,7 +180,7 @@ To derive MOST, it is assumed that the ASL is in a steady state and horizontally
 where :math:`u_{\star}` is the friction velocity and :math:`\theta_{\star}` is the surface layer characteristic temperature scale, bars indicate horizontal averages and primes indicate fluctuations. Then, based on dimensional arguments, universal similarity laws can be proposed for the vertical gradient components:
   
 .. math::
-	  
+
   \Phi_{m}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \mathbf{\bar{u}}}{\partial z},
 
   \Phi_{h}(\zeta) = \frac{\kappa z}{\theta_{\star}} \frac{\partial \bar{\theta}}{\partial z}
@@ -263,7 +263,7 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
      \left.  \frac{\tau_{\theta z}}{\rho} \right|_0  &= \theta_\star u_{\star} \frac{|\mathbf{\bar{u}}| ({\theta} - \overline{\theta}) +
                                                 \sqrt{u^2+v^2}  (\overline{\theta} - \theta_0) }{ |\mathbf{\bar{u}}| (\overline{\theta} -\theta_0) } =
-						u_{\star} \kappa  \frac{|\mathbf{\bar{u}}| ({\theta} - \overline{\theta})  +
+                                                u_{\star} \kappa  \frac{|\mathbf{\bar{u}}| ({\theta} - \overline{\theta})  +
                                                 \sqrt{u^2+v^2} (\overline{\theta} - \theta_0) }{ |\mathbf{\bar{u}}| [  \mathrm{ln}(z_{ref} / z_0)-\Psi_{h}(z_{ref}/L)] }
 
    where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values (at :math:`z_{ref}`) of the
