@@ -512,17 +512,16 @@ void erf_implicit_fast_rhs (int level,
         // **************************************************************************
 
         const int l_spatial_order = 2;
-        amrex::ParallelFor(bx, S_stage_data[IntVar::cons].nComp(),
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+        int ncomp = S_stage_data[IntVar::cons].nComp();
 
-            // We need to update all the conserved quantities with the updated momenta
-            fast_rhs_cell(i, j, k, n) = -AdvectionSrcForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
-                                                                       prim, n, advflux_x, advflux_y, advflux_z,
+        // We need to update all the conserved quantities with the updated momenta
+        int start_comp = 0;
+        AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w,
+                             prim, fast_rhs_cell, advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
-                                                                       z_nd, detJ,
+                             z_nd, detJ,
 #endif
-                                                                       dxInv, l_spatial_order);
-        });
+                             dxInv, l_spatial_order, false, false);
 
         // Compute the RHS for the flux terms from this stage --
         //     we do it this way so we don't double count
