@@ -469,12 +469,13 @@
                                 Real vmag    = sqrt(velx*velx+vely*vely);
                                 Real num1    = (theta-m_most.theta_mean)*m_most.vmag_mean;
                                 Real num2    = (m_most.theta_mean-m_most.surf_temp)*vmag;
-                                Real motheta = (num1+num2)*m_most.utau*m_most.kappa/m_most.phi_h();
+                                Real moflux  = (num1+num2)*m_most.utau*m_most.kappa/m_most.phi_h()/m_most.vmag_mean;
+                                Real deltaz  = m_geom.CellSize(2) * (zlo - k);
 
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,icomp+n) = rho*(m_most.surf_temp + motheta*rho/eta);
+                                    dest_array(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta * deltaz);
                                 } else {
-                                    dest_array(i,j,k,icomp+n) = m_most.surf_temp + motheta/eta;
+                                    dest_array(i,j,k,icomp+n) = theta - moflux*rho/eta * deltaz;
                                 }
                             });
 
@@ -505,13 +506,14 @@
                                               eta_arr(ie  ,je,zlo,EddyDiff::Mom_v));
 
                                 Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
-                                              (m_most.vmag_mean*m_most.vmag_mean) * m_most.utau*m_most.utau;
+                                Real stressx = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
+                                                (m_most.vmag_mean*m_most.vmag_mean) * m_most.utau*m_most.utau;
+                                Real deltaz  = m_geom.CellSize(2) * (zlo - k);
 
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgx*rho/eta;
+                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - rho*rho*stressx/eta * deltaz;
                                 } else {
-                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgx/eta;
+                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - rho*stressx/eta * deltaz;
                                 }
                             });
 
@@ -541,13 +543,14 @@
                                 eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)+
                                              eta_arr(ie,je  ,zlo,EddyDiff::Mom_v));
                                 Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
-                                             (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                Real stressy = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
+                                               (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                                Real deltaz  = m_geom.CellSize(2) * (zlo - k);
 
                                 if (!var_is_derived) {
-                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgy*rho/eta;
+                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - rho*rho*stressy/eta * deltaz;
                                 } else {
-                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgy/eta;
+                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - rho*stressy/eta * deltaz;
                                 }
                             });
 
