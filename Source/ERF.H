@@ -462,8 +462,9 @@ private:
     const amrex::Vector<std::string> cons_names { "density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
 #ifdef ERF_USE_MOISTURE
                                                  ,"rhoQv", "rhoQc"};
-#endif
+#else
                                                  };
+#endif
 
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE",
                                                     "scalar","pres_hse", "dens_hse", "pert_pres", "pert_dens", "z_phys", "detJ"};

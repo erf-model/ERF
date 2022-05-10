@@ -131,7 +131,7 @@ void erf_implicit_fast_rhs (int level,
 
         const Array4<      Real> & fast_rhs_cell = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_stage    = S_stage_data[IntVar::cons].const_array(mfi);
-        const Array4<const Real> & theta         = S_stage_prim.const_array(mfi);
+        const Array4<const Real> & prim          = S_stage_prim.const_array(mfi);
 
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
@@ -218,6 +218,11 @@ void erf_implicit_fast_rhs (int level,
 #else
                 Real gpx = (drho_theta_hi - drho_theta_lo)*dxi;
 #endif
+#ifdef ERF_USE_MOISTURE
+                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
+                                +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
+                gpx /= (1.0 + q);
+#endif
                 fast_rhs_rho_u(i, j, k) = -Gamma * R_d * pi_c * gpx;
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u(i,j,k)
@@ -260,6 +265,11 @@ void erf_implicit_fast_rhs (int level,
                 Real gpy = gp_eta - (h_eta_on_jface / h_zeta_on_jface) * gp_zeta_on_jface;
 #else
                 Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
+#endif
+#ifdef ERF_USE_MOISTURE
+                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
+                                +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
+                gpy /= (1.0 + q);
 #endif
                 fast_rhs_rho_v(i, j, k) = -Gamma * R_d * pi_c * gpy;
 
@@ -341,9 +351,16 @@ void erf_implicit_fast_rhs (int level,
                              + halfg * R_d * rhobar_lo * pi_lo  /
                              ( c_v  * pibar_lo * cell_stage(i,j,k-1,RhoTheta_comp) );
 
-                Real theta_t_lo  = 0.5 * ( theta(i,j,k-2) + theta(i,j,k-1) );
-                Real theta_t_mid = 0.5 * ( theta(i,j,k-1) + theta(i,j,k  ) );
-                Real theta_t_hi  = 0.5 * ( theta(i,j,k  ) + theta(i,j,k+1) );
+#ifdef ERF_USE_MOISTURE
+                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
+                                +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
+                coeff_P /= (1.0 + q);
+                coeff_Q /= (1.0 + q);
+#endif
+
+                Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+                Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
+                Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
                 // LHS for tri-diagonal system
                 Real D = dtau * dtau * beta_2 * beta_2 * dzi / detJ_on_kface;
@@ -394,10 +411,10 @@ void erf_implicit_fast_rhs (int level,
                                            new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo) );
 
                 // line 6 (reuse Omega & metrics) (order dtau^2)
-                Real Theta_x_hi = 0.5 * ( theta(i+1,j  ,k) + theta(i,j,k) );
-                Real Theta_x_lo = 0.5 * ( theta(i-1,j  ,k) + theta(i,j,k) );
-                Real Theta_y_hi = 0.5 * ( theta(i  ,j+1,k) + theta(i,j,k) );
-                Real Theta_y_lo = 0.5 * ( theta(i  ,j-1,k) + theta(i,j,k) );
+                Real Theta_x_hi = 0.5 * ( prim(i+1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+                Real Theta_x_lo = 0.5 * ( prim(i-1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+                Real Theta_y_hi = 0.5 * ( prim(i  ,j+1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+                Real Theta_y_lo = 0.5 * ( prim(i  ,j-1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
                 R_tmp += -( dtau * beta_2 * coeff_P / detJ_on_kface ) *
                           ( beta_1 * dzi * (Omega_hi*theta_t_hi - Omega_lo*theta_t_mid) +
                                      dxi * (new_drho_u(i+1,j,k)*Theta_x_hi*h_zeta_cc_xface_hi  -
@@ -436,10 +453,10 @@ void erf_implicit_fast_rhs (int level,
                                            new_drho_v(i,j  ,k-1)*h_zeta_cc_yface_lo) );
 
                 // line 7 (reuse Omega & metrics) (order dtau^2)
-                Theta_x_hi = 0.5 * ( theta(i+1,j  ,k-1) + theta(i,j,k-1) );
-                Theta_x_lo = 0.5 * ( theta(i-1,j  ,k-1) + theta(i,j,k-1) );
-                Theta_y_hi = 0.5 * ( theta(i  ,j+1,k-1) + theta(i,j,k-1) );
-                Theta_y_lo = 0.5 * ( theta(i  ,j-1,k-1) + theta(i,j,k-1) );
+                Theta_x_hi = 0.5 * ( prim(i+1,j  ,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+                Theta_x_lo = 0.5 * ( prim(i-1,j  ,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+                Theta_y_hi = 0.5 * ( prim(i  ,j+1,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+                Theta_y_lo = 0.5 * ( prim(i  ,j-1,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
                 R_tmp += -( dtau * beta_2 * coeff_Q / detJ_on_kface ) *
                           ( beta_1 * dzi * (Omega_hi*theta_t_mid - Omega_lo*theta_t_lo) +
                                      dxi * (new_drho_u(i+1,j,k-1)*Theta_x_hi*h_zeta_cc_xface_hi  -
@@ -494,20 +511,17 @@ void erf_implicit_fast_rhs (int level,
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
 
-        const Array4<const Real> & prim = S_stage_prim.const_array(mfi);
-
         const int l_spatial_order = 2;
-        amrex::ParallelFor(bx, S_stage_data[IntVar::cons].nComp(),
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+        int ncomp = S_stage_data[IntVar::cons].nComp();
 
-            // We need to update all the conserved quantities with the updated momenta
-            fast_rhs_cell(i, j, k, n) = -AdvectionSrcForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
-                                                                       prim, n, advflux_x, advflux_y, advflux_z,
+        // We need to update all the conserved quantities with the updated momenta
+        int start_comp = 0;
+        AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w,
+                             prim, fast_rhs_cell, advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
-                                                                       z_nd, detJ,
+                             z_nd, detJ,
 #endif
-                                                                       dxInv, l_spatial_order);
-        });
+                             dxInv, l_spatial_order, false, false);
 
         // Compute the RHS for the flux terms from this stage --
         //     we do it this way so we don't double count

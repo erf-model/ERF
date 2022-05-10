@@ -104,6 +104,11 @@ init_custom_prob(
 
     // Set an initial value for QKE
     state(i, j, k, RhoQKE_comp) = parms.QKE_0;
+
+#ifdef ERF_USE_MOISTURE
+    state(i, j, k, RhoQv_comp) = 0.0;
+    state(i, j, k, RhoQc_comp) = 0.0;
+#endif
   });
 
   // Construct a box that is on x-faces

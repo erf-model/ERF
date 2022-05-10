@@ -38,7 +38,7 @@ void erf_rhs (int level,
               const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
               const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
 {
-    BL_PROFILE_VAR("erf_rhs()",erf_rhs);
+    BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
 
     const int l_spatial_order = solverChoice.spatial_order;
 
@@ -183,20 +183,19 @@ void erf_rhs (int level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        amrex::ParallelFor(bx, S_data[IntVar::cons].nComp(),
-                           [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
-            cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
+        int ncomp = S_data[IntVar::cons].nComp();
 
-            // Add advection terms.
-            if ((n != RhoKE_comp && n != RhoQKE_comp) ||
-                (l_use_deardorff && n == RhoKE_comp) ||
-                (l_use_QKE       && n == RhoQKE_comp && solverChoice.advect_QKE))
-                cell_rhs(i, j, k, n) += -AdvectionSrcForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
-                                         advflux_x, advflux_y, advflux_z,
+        int start_comp = 0;
+        AdvectionSrcForState(bx, start_comp, ncomp, rho_u, rho_v, rho_w, cell_prim,
+                             cell_rhs, advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
-                                         z_nd, detJ,
+                             z_nd, detJ,
 #endif
-                                         dxInv, l_spatial_order);
+                             dxInv, l_spatial_order, l_use_deardorff, l_use_QKE);
+
+        amrex::ParallelFor(bx, ncomp,
+                           [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
 
             // Add diffusive terms.
             if (n == RhoTheta_comp)
@@ -251,8 +250,7 @@ void erf_rhs (int level,
 
             // Add source terms. TODO: Put this under an if condition when we implement source term
             cell_rhs(i, j, k, n) += source_fab(i, j, k, n);
-        }
-        );
+        });
 
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
         //         fluxes at fine-fine interfaces
@@ -321,7 +319,13 @@ void erf_rhs (int level,
 #else
             amrex::Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
 #endif
+#ifdef ERF_USE_MOISUTRE
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
+            rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
+#else
             rho_u_rhs(i, j, k) -= gpx;
+#endif
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -395,7 +399,13 @@ void erf_rhs (int level,
 #else
             amrex::Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
 #endif
+#ifdef ERF_USE_MOISUTRE
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
+            rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
+#else
             rho_v_rhs(i, j, k) -= gpy;
+#endif
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -457,7 +467,13 @@ void erf_rhs (int level,
 #else
             amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
 #endif
+#ifdef ERF_USE_MOISUTRE
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
+            rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
+#else
             rho_w_rhs(i, j, k) -= gpz;
+#endif
 
             // Add gravity term
             if (solverChoice.use_gravity)
