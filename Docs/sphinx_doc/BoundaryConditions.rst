@@ -261,10 +261,10 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
      \left. \frac{\tau_{yz}}{\rho}  \right|_0 &= u_{\star}^{2}  \frac{(v - \bar{v})|\mathbf{\bar{u}}| +  \bar{v}\sqrt{u^2 + v^2} }{|\mathbf{\bar{u}}|^2},
 
-     \left.  \frac{\tau_{\theta z}}{\rho} \right|_0  &= \theta_\star u_{\star} \frac{|\mathbf{\bar{u}}| (\overline{\theta} - \theta_0) +
-                                                \sqrt{u^2+v^2}  (\theta - \overline{\theta}) }{ |\mathbf{\bar{u}}| (\overline{\theta} -\theta_0) } =
-						u_{\star} \kappa  \frac{|\mathbf{\bar{u}}| (\overline{\theta} - \theta_0) +
-                                                \sqrt{u^2+v^2}  (\theta - \overline{\theta}) }{ |\mathbf{\bar{u}}| [  \mathrm{ln}(z_{ref} / z_0)-\Psi_{h}(z_{ref}/L)] }
+     \left.  \frac{\tau_{\theta z}}{\rho} \right|_0  &= \theta_\star u_{\star} \frac{|\mathbf{\bar{u}}| ({\theta} - \overline{\theta}) +
+                                                \sqrt{u^2+v^2}  (\overline{\theta} - \theta_0) }{ |\mathbf{\bar{u}}| (\overline{\theta} -\theta_0) } =
+						u_{\star} \kappa  \frac{|\mathbf{\bar{u}}| ({\theta} - \overline{\theta})  +
+                                                \sqrt{u^2+v^2} (\overline{\theta} - \theta_0) }{ |\mathbf{\bar{u}}| [  \mathrm{ln}(z_{ref} / z_0)-\Psi_{h}(z_{ref}/L)] }
 
    where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values (at :math:`z_{ref}`) of the
    two horizontal velocity components and the potential temperature, respectively, and
