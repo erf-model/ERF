@@ -502,11 +502,11 @@ void erf_implicit_fast_rhs (int level,
 
             // We need to update all the conserved quantities with the updated momenta
             fast_rhs_cell(i, j, k, n) = -AdvectionSrcForState(i, j, k, new_drho_u, new_drho_v, new_drho_w,
-                                                                       prim, n, advflux_x, advflux_y, advflux_z,
+                                                              prim, n, advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
-                                                                       z_nd, detJ,
+                                                              z_nd, detJ,
 #endif
-                                                                       dxInv, l_spatial_order);
+                                                              dxInv, l_spatial_order);
         });
 
         // Compute the RHS for the flux terms from this stage --

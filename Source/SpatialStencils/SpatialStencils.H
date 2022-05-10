@@ -8,6 +8,7 @@
 #include "DataStruct.H"
 #include "IndexDefines.H"
 
+
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real OmegaFromW(int i, int j, int k, amrex::Real w,
                        const amrex::Array4<const amrex::Real> u,
@@ -116,6 +117,7 @@ amrex::Real WFromOmegaBC(int i, int j, int k, amrex::Real omega,
     amrex::Real w = met_zlo_xi * vec_zlo_xi + met_zlo_eta * vec_zlo_eta + omega;
     return w;
 }
+
 
 void MomentumToVelocity(amrex::MultiFab& xvel_out,
                         amrex::MultiFab& yvel_out,
@@ -261,6 +263,10 @@ amrex::Real DiffusionSrcForMom(
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                        const amrex::Array4<amrex::Real>& Ksmag,
                        const SolverChoice &solverChoice,
+#ifdef ERF_USE_TERRAIN
+                       const amrex::Array4<const amrex::Real>& z_nd,
+                       const amrex::Array4<const amrex::Real>& detJ,
+#endif
                        const amrex::Box& domain, const amrex::BCRec* bc_ptr);
 
 AMREX_GPU_DEVICE

@@ -136,9 +136,11 @@ ERF::erf_enforce_hse(int lev,
             // Set ghost cell with dz and rho at boundary
             pres_arr(i,j,k0-1) = pres_arr(i,j,k0) + dz_loc * rho_arr(i,j,k0) * l_gravity;
 
+            Real dens_interp;
             for (int k = 1; k <= nz; k++) {
                 dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
-                pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * rho_arr(i,j,k) * l_gravity;
+                dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
             }
         });
 

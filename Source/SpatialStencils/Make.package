@@ -9,3 +9,7 @@ CEXE_headers += StrainRate.H
 CEXE_headers += StressTerm.H
 CEXE_headers += EddyViscosity.H
 
+ifeq ($(USE_TERRAIN),TRUE)
+CEXE_headers += TerrainMetrics.cpp
+endif
+

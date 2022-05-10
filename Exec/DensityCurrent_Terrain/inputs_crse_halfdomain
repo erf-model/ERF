@@ -9,7 +9,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     =      0.   0.    0.
-geometry.prob_hi     =  25600. 400. 6400.
+geometry.prob_hi     =  25600. 400. 3200.
 
 amr.n_cell           =  2048   4    256   # dx=dy=dz=25 m, Straka et al 1993 / Xue et al 2000
 amr.n_cell           =   256   4     64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000

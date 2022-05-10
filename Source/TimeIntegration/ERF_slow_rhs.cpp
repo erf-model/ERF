@@ -293,14 +293,17 @@ void erf_rhs (int level,
             // Add advective terms
             rho_u_rhs(i, j, k) += -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, u,
 #ifdef ERF_USE_TERRAIN
-                                                                z_nd, detJ,
+                                                       z_nd, detJ,
 #endif
-                                                                dxInv, l_spatial_order);
+                                                       dxInv, l_spatial_order);
 
             // Add diffusive terms
             rho_u_rhs(i, j, k) += DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
-                                                              MomentumEqn::x, dxInv, K_turb, solverChoice,
-                                                              domain, bc_ptr);
+                                                     MomentumEqn::x, dxInv, K_turb, solverChoice,
+#ifdef ERF_USE_TERRAIN
+                                                     z_nd, detJ,
+#endif
+                                                     domain, bc_ptr);
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
@@ -367,14 +370,17 @@ void erf_rhs (int level,
             // Add advective terms
             rho_v_rhs(i, j, k) += -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, v,
 #ifdef ERF_USE_TERRAIN
-                                                                z_nd, detJ,
+                                                       z_nd, detJ,
 #endif
-                                                                dxInv, l_spatial_order);
+                                                       dxInv, l_spatial_order);
 
             // Add diffusive terms
             rho_v_rhs(i, j, k) += DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
-                                                              MomentumEqn::y, dxInv, K_turb, solverChoice,
-                                                              domain, bc_ptr);
+                                                     MomentumEqn::y, dxInv, K_turb, solverChoice,
+#ifdef ERF_USE_TERRAIN
+                                                     z_nd, detJ,
+#endif
+                                                     domain, bc_ptr);
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
@@ -439,14 +445,17 @@ void erf_rhs (int level,
             // Add advective terms
             rho_w_rhs(i, j, k) += -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, w,
 #ifdef ERF_USE_TERRAIN
-                                                                z_nd, detJ,
+                                                       z_nd, detJ,
 #endif
-                                                                dxInv, l_spatial_order);
+                                                       dxInv, l_spatial_order);
 
             // Add diffusive terms
             rho_w_rhs(i, j, k) += DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
-                                                              MomentumEqn::z, dxInv, K_turb, solverChoice,
-                                                              domain, bc_ptr);
+                                                     MomentumEqn::z, dxInv, K_turb, solverChoice,
+#ifdef ERF_USE_TERRAIN
+                                                     z_nd, detJ,
+#endif
+                                                     domain, bc_ptr);
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
