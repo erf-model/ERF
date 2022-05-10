@@ -58,7 +58,7 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
     amrex::Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv, z_nd, domain, bc_ptr);
 
     // D_ij term
-    amrex::Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
+    amrex::Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, z_nd, cellSizeInv);
 
     // sigma_ij = S_ij - D_ij
     amrex::Real strainRateDeviatoric = strainRate - expansionRate; 

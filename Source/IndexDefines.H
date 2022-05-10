@@ -138,7 +138,11 @@ namespace TerrainMet {
   enum {
         h_xi=0,
         h_eta,
-        h_zeta
+        h_zeta,
+        h_xi_eta,
+        h_xi_zeta,
+        h_eta_zeta,
+        all
   };
 }
 #endif

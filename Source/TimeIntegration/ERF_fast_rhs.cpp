@@ -8,6 +8,11 @@
 #include <TimeIntegration.H>
 #include <EOS.H>
 
+#ifdef ERF_USE_TERRAIN
+#include "TerrainMetrics.H"
+#include "IndexDefines.H"
+#endif
+
 using namespace amrex;
 
 void erf_implicit_fast_rhs (int level,
@@ -205,16 +210,13 @@ void erf_implicit_fast_rhs (int level,
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
 
 #ifdef ERF_USE_TERRAIN
+                Real met_h_xi,met_h_eta,met_h_zeta;
+                ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
                 Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
-                Real h_xi_on_iface = 0.125 * dxi * (
-                    z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-                   -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
-                Real h_zeta_on_iface = 0.5 * dzi * (
-                    z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) - z_nd(i,j+1,k) );
                 Real gp_zeta_on_iface = 0.25 * dzi * (
                   extrap_arr(i  ,j,k+1) + extrap_arr(i-1,j,k+1)
                  -extrap_arr(i  ,j,k-1) - extrap_arr(i-1,j,k-1));
-                Real gpx = gp_xi - (h_xi_on_iface / h_zeta_on_iface) * gp_zeta_on_iface;
+                Real gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
 #else
                 Real gpx = (drho_theta_hi - drho_theta_lo)*dxi;
 #endif
@@ -248,16 +250,13 @@ void erf_implicit_fast_rhs (int level,
                 Real drho_theta_lo = extrap_arr(i,j-1,k);
 
 #ifdef ERF_USE_TERRAIN
+                Real met_h_xi,met_h_eta,met_h_zeta;
+                ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta); 
                 Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
-                Real h_eta_on_jface = 0.125 * dyi * (
-                    z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-                   -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
-                Real h_zeta_on_jface = 0.5 * dzi * (
-                    z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) - z_nd(i+1,j,k) );
                 Real gp_zeta_on_jface = 0.25 * dzi * (
                    extrap_arr(i,j  ,k+1) + extrap_arr(i,j-1,k+1)
                  - extrap_arr(i,j  ,k-1) - extrap_arr(i,j-1,k-1) );
-                Real gpy = gp_eta - (h_eta_on_jface / h_zeta_on_jface) * gp_zeta_on_jface;
+                Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
 #else
                 Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
 #endif
@@ -325,6 +324,9 @@ void erf_implicit_fast_rhs (int level,
                 Real h_zeta_cc_yface_hi = 1.0;
                 Real h_zeta_cc_yface_lo = 1.0;
 
+                Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
+                Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
+                
 #ifdef ERF_USE_TERRAIN
                 h_zeta_on_kface = 0.125 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)

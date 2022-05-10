@@ -92,23 +92,23 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
   case MomentumEqn::z:
     Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev, normv;
     tau31Next = ComputeStressTerm(i+1, j, k, u, v, w, momentumEqn,
-                  DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                  z_nd, domain, bc_ptr);
+                                  DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
+                                  z_nd, domain, bc_ptr);
     tau31Prev = ComputeStressTerm(i  , j, k, u, v, w, momentumEqn,
-                  DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                  z_nd, domain, bc_ptr);
+                                  DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
+                                  z_nd, domain, bc_ptr);
     tau32Next = ComputeStressTerm(i, j+1, k, u, v, w, momentumEqn,
-                  DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                  z_nd, domain, bc_ptr);
+                                  DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
+                                  z_nd, domain, bc_ptr);
     tau32Prev = ComputeStressTerm(i, j  , k, u, v, w, momentumEqn,
-                  DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                  z_nd, domain, bc_ptr);
+                                  DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
+                                  z_nd, domain, bc_ptr);
     tau33Next = ComputeStressTerm(i, j, k+1, u, v, w, momentumEqn,
-                  DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
-                  z_nd, domain, bc_ptr);
+                                  DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
+                                  z_nd, domain, bc_ptr);
     tau33Prev = ComputeStressTerm(i, j, k  , u, v, w, momentumEqn,
-                  DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
-                  z_nd, domain, bc_ptr);
+                                  DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
+                                  z_nd, domain, bc_ptr);
 
     diffContrib = (tau31Next - tau31Prev) * dxInv  // Contribution to z-mom eqn from diffusive flux in x-dir
                 + (tau32Next - tau32Prev) * dyInv  // Contribution to z-mom eqn from diffusive flux in y-dir

@@ -280,21 +280,22 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
   case MomentumEqn::x:
     switch (diffDir) {
     case DiffusionDir::x: // S11
-      ComputeMetricXmomXface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                             cellSizeInv,z_nd,3);
+      // Cell-Center is staggered
+      ComputeMetricAtCellCenter(i-1,j,k,met_h_xi,met_h_eta,met_h_zeta,
+                                cellSizeInv,z_nd,TerrainMet::all);
       strainRate = ComputeS11(i,j,k,u,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta);
       break;
     case DiffusionDir::y: // S12
-      ComputeMetricXmomYface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                             cellSizeInv,z_nd,3);
+      ComputeMetricAtEdgeCenterK(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
+                                 cellSizeInv,z_nd,TerrainMet::all);
       strainRate = ComputeS12(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
     case DiffusionDir::z: // S13
-      ComputeMetricXmomZface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                             cellSizeInv,z_nd,3);
+      ComputeMetricAtEdgeCenterJ(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
+                                 cellSizeInv,z_nd,TerrainMet::all);
       strainRate = ComputeS13(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
@@ -306,21 +307,22 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
   case MomentumEqn::y:
     switch (diffDir) {
     case DiffusionDir::x: // S21
-      ComputeMetricYmomXface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                             cellSizeInv,z_nd,3);
+      ComputeMetricAtEdgeCenterK(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
+                                 cellSizeInv,z_nd,TerrainMet::all);
       strainRate = ComputeS21(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
     case DiffusionDir::y: // S22
-      ComputeMetricYmomYface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                             cellSizeInv,z_nd,3);
+      // Cell-Center is staggered
+      ComputeMetricAtCellCenter(i,j-1,k,met_h_xi,met_h_eta,met_h_zeta,
+                                cellSizeInv,z_nd,TerrainMet::all);
       strainRate = ComputeS22(i,j,k,v,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta);
       break;
     case DiffusionDir::z: // S23
-      ComputeMetricYmomZface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                             cellSizeInv,z_nd,3);
+      ComputeMetricAtEdgeCenterI(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
+                                 cellSizeInv,z_nd,TerrainMet::all);
       strainRate = ComputeS23(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
@@ -332,22 +334,23 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
   case MomentumEqn::z:
     switch (diffDir) {
     case DiffusionDir::x: // S31
-      ComputeMetricZmomXface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                             cellSizeInv,z_nd,3);
+      ComputeMetricAtEdgeCenterJ(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
+                                 cellSizeInv,z_nd,TerrainMet::all);
       strainRate = ComputeS31(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
     case DiffusionDir::y: // S32
-      ComputeMetricZmomYface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                             cellSizeInv,z_nd,3);
+      ComputeMetricAtEdgeCenterI(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
+                                 cellSizeInv,z_nd,TerrainMet::all);
       strainRate = ComputeS32(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
     case DiffusionDir::z: // S33
-      ComputeMetricZmomZface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                             cellSizeInv,z_nd,3);
+      // Cell-Center is staggered
+      ComputeMetricAtCellCenter(i,j,k-1,met_h_xi,met_h_eta,met_h_zeta,
+                                cellSizeInv,z_nd,TerrainMet::all);
       strainRate = ComputeS33(i,j,k,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta);
       break;

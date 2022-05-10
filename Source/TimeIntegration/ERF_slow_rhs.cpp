@@ -10,6 +10,11 @@
 #include <EOS.H>
 #include <ERF.H>
 
+#ifdef ERF_USE_TERRAIN
+#include "TerrainMetrics.H"
+#include "IndexDefines.H"
+#endif
+
 using namespace amrex;
 
 void erf_rhs (int level,
@@ -23,7 +28,7 @@ void erf_rhs (int level,
               std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
               std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
               const amrex::Geometry geom,
-                    amrex::InterpFaceRegister* ifr,
+              amrex::InterpFaceRegister* ifr,
               const SolverChoice& solverChoice,
               const ABLMost& most,
               const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
@@ -307,20 +312,15 @@ void erf_rhs (int level,
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
-            Real gp_xi = dxInv[0] *
-                (pp_arr(i,j,k) - pp_arr(i-1,j,k));
-            amrex::Real h_xi_on_iface = 0.125 * dxInv[0] * (
-                z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-               -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
-            amrex::Real h_zeta_on_iface = 0.5 * dxInv[2] * (
-                z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) - z_nd(i,j+1,k) );
-
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
+            Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
             Real gp_zeta_on_iface = (k == 0) ?
                 0.5 * dxInv[2] * (
                 pp_arr(i,j,k+1) + pp_arr(i-1,j,k+1) - pp_arr(i,j,k) - pp_arr(i-1,j,k)):
                 0.25 * dxInv[2] * (
                   pp_arr(i,j,k+1) + pp_arr(i-1,j,k+1) - pp_arr(i,j,k-1) - pp_arr(i-1,j,k-1));
-            amrex::Real gpx = gp_xi - (h_xi_on_iface / h_zeta_on_iface) * gp_zeta_on_iface;
+            amrex::Real gpx = gp_xi - (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
 #else
             amrex::Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
 #endif
@@ -384,20 +384,15 @@ void erf_rhs (int level,
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
-            Real gp_eta = dxInv[1] *
-                (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-            amrex::Real h_eta_on_jface = 0.125 * dxInv[1] * (
-                z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-               -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
-            amrex::Real h_zeta_on_jface = 0.5 * dxInv[2] * (
-                z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) - z_nd(i+1,j,k) );
-
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);            
+            Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
             Real gp_zeta_on_jface = (k == 0) ?
                 0.5 * dxInv[2] * (
                   pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1) - pp_arr(i,j,k) - pp_arr(i,j-1,k)):
                 0.25 * dxInv[2] * (
                   pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1) - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1));
-            amrex::Real gpy = gp_eta - (h_eta_on_jface / h_zeta_on_jface) * gp_zeta_on_jface;
+            amrex::Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
 #else
             amrex::Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
 #endif
@@ -459,10 +454,9 @@ void erf_rhs (int level,
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
-            amrex::Real h_zeta = 0.125 * dxInv[2] * (
-                z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-               -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
-            amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / h_zeta;
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            ComputeMetricAtKface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_zeta);
+            amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / met_h_zeta;
 #else
             amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
 #endif
