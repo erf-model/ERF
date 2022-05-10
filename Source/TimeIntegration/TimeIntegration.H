@@ -47,7 +47,8 @@ void erf_rhs(int level,
              const amrex::Real* dptr_rayleigh_tau,
              const amrex::Real* dptr_rayleigh_ubar,
              const amrex::Real* dptr_rayleigh_vbar,
-             const amrex::Real* dptr_rayleigh_thetabar);
+             const amrex::Real* dptr_rayleigh_thetabar,
+             const int rhs_vars=RHSVar::all);
 
 void erf_implicit_fast_rhs (int level,
                             amrex::Vector<amrex::MultiFab >& S_rhs,

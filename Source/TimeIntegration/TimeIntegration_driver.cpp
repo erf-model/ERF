@@ -194,7 +194,8 @@ void ERF::erf_advance(int level,
 
     //Create function lambdas
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
-                       const Vector<MultiFab>& S_data, const Real time) {
+                       const Vector<MultiFab>& S_data, const Real time,
+                       const int rhs_vars=RHSVar::all) {
         if (verbose) Print() << "Calling slow rhs, time = " << time << std::endl;
         erf_rhs(level, S_rhs, S_data, S_prim,
                 xvel_new, yvel_new, zvel_new,
@@ -208,7 +209,8 @@ void ERF::erf_advance(int level,
                 dptr_dens_hse, dptr_pres_hse,
 #endif
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+                dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
+                rhs_vars);
     };
 
     auto implicit_fast_rhs_fun = [&](      Vector<MultiFab>& S_rhs,

@@ -36,9 +36,18 @@ void erf_rhs (int level,
               const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
 #endif
               const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-              const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
+              const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
+              const int rhs_vars)
 {
     BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
+
+    if (rhs_vars == RHSVar::fast) {
+        // placeholder
+    } else if (rhs_vars == RHSVar::slow) {
+        // placeholder
+    } else if (rhs_vars == RHSVar::all) {
+        // placeholder
+    }
 
     const int l_spatial_order = solverChoice.spatial_order;
 
