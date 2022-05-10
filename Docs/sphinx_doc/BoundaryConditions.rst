@@ -174,11 +174,11 @@ To derive MOST, it is assumed that the ASL is in a steady state and horizontally
 .. math::
 
   \overline{u^{'} w^{'}} = const = -u^{2}_{\star},
-  
+
   \overline{w^{'} \theta^{'}} = const = -u_{\star}\theta_{\star},
 
 where :math:`u_{\star}` is the friction velocity and :math:`\theta_{\star}` is the surface layer characteristic temperature scale, bars indicate horizontal averages and primes indicate fluctuations. Then, based on dimensional arguments, universal similarity laws can be proposed for the vertical gradient components:
-  
+
 .. math::
 
   \Phi_{m}(\zeta) = \frac{\kappa z}{u_{\star}} \frac{\partial \mathbf{\bar{u}}}{\partial z},
@@ -277,9 +277,9 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
    .. math::
 
       \tau_{xz} = K_{m,v} \frac{\partial u}{\partial z}
-   
+
       \tau_{yz} = K_{m,v} \frac{\partial v}{\partial z}
-      
+
       \tau_{\theta z} = K_{\theta,v} \frac{\partial \theta}{\partial z}.
 
    This implies that, for example, the value set for the conserved :math:`\rho\theta` variable in the :math:`-n\mathrm{th}` ghost cell is
@@ -288,4 +288,4 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
       (\rho \theta)_{i,j,-n} = \rho_{i,j,-n} \left[ \frac{(\rho\theta)_{i,j,0}}{\rho_{i,j,0}} - \left. \frac{\tau_{\theta z}}{\rho} \right|_{i,j,0} \frac{\rho_{i,j,0}}{K_{\theta,v,(i,j,0)}} n \Delta z \right]
 
-   
+

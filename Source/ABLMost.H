@@ -35,7 +35,7 @@ struct ABLMost
     amrex::Real surf_temp;           ///< Instantaneous surface temperature
     amrex::Real ref_temp;            ///< Reference temperature
 
-    amrex::Real beta_m{5.0};  // Constants from Dyer, BLM, 1974 
+    amrex::Real beta_m{5.0};  // Constants from Dyer, BLM, 1974
     amrex::Real beta_h{5.0};  // https://doi.org/10.1007/BF00240838
     amrex::Real gamma_m{16.0};
     amrex::Real gamma_h{16.0};
