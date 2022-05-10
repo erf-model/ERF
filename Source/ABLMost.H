@@ -35,10 +35,10 @@ struct ABLMost
     amrex::Real surf_temp;           ///< Instantaneous surface temperature
     amrex::Real ref_temp;            ///< Reference temperature
 
-    amrex::Real gamma_m{5.0};
-    amrex::Real gamma_h{5.0};
-    amrex::Real beta_m{16.0};
-    amrex::Real beta_h{16.0};
+    amrex::Real beta_m{5.0};  // Constants from Dyer, BLM, 1974 
+    amrex::Real beta_h{5.0};  // https://doi.org/10.1007/BF00240838
+    amrex::Real gamma_m{16.0};
+    amrex::Real gamma_h{16.0};
 
     ThetaCalcType alg_type{HEAT_FLUX};
 
@@ -57,10 +57,10 @@ struct ABLMost
         amrex::Print() << " surf_temp_flux: " << surf_temp_flux << "\n";
         amrex::Print() << " surf_temp: " << surf_temp << "\n";
         amrex::Print() << " ref_temp: " << ref_temp << "\n";
-        amrex::Print() << " gamma_m: " << gamma_m << "\n";
-        amrex::Print() << " gamma_h: " << gamma_h << "\n";
         amrex::Print() << " beta_m: " << beta_m << "\n";
         amrex::Print() << " beta_h: " << beta_h << "\n";
+        amrex::Print() << " gamma_m: " << gamma_m << "\n";
+        amrex::Print() << " gamma_h: " << gamma_h << "\n";
     }
 
     AMREX_GPU_DEVICE AMREX_FORCE_INLINE
@@ -91,11 +91,11 @@ struct ABLMost
     amrex::Real calc_psi_m(amrex::Real zeta) const
     {
         if (zeta > 0) {
-            return -gamma_m * zeta;
+            return -beta_m * zeta;
         } else {
-            amrex::Real x = std::sqrt(std::sqrt(1 - beta_m * zeta));
+            amrex::Real x = std::sqrt(std::sqrt(1 - gamma_m * zeta));
             return 2.0 * std::log(0.5 * (1.0 + x)) + log(0.5 * (1 + x * x)) -
-                   2.0 * std::atan(x) + 1.57;
+                   2.0 * std::atan(x) + 0.5*PI;
         }
     }
 
@@ -103,9 +103,9 @@ struct ABLMost
     amrex::Real calc_psi_h(amrex::Real zeta) const
     {
         if (zeta > 0) {
-            return -gamma_h * zeta;
+            return -beta_h * zeta;
         } else {
-            amrex::Real x = std::sqrt(1 - beta_h * zeta);
+            amrex::Real x = std::sqrt(1 - gamma_h * zeta);
             return 2.0 * std::log(0.5 * (1 + x));
         }
     }
