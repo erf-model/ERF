@@ -211,8 +211,7 @@ amrex::Real AdvectionSrcForZMom(
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                        const int& spatial_order);
 
-/** Meant for the continuity, energy, and scalar equations */
-AMREX_GPU_DEVICE
+/** Compute advection source for the continuity, energy, and scalar equations */
 void AdvectionSrcForState(
                        const amrex::Box& bx,
                        const int &start_comp, const int &num_comp,

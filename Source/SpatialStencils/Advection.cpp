@@ -451,7 +451,6 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
 }
 #endif
 
-AMREX_GPU_DEVICE
 void
 AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
                      const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
