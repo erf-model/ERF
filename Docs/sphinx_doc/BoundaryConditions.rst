@@ -254,7 +254,7 @@ Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with hei
                              \sqrt{u^2+v^2} \; \bar{v}  }{\bar{|\mathbf{U}|}^{2}},
 
   \mu\frac{\partial \theta }{\partial z} &= k u_{\star} \frac{\bar{|\mathbf{U}|} (\theta - \overline{\theta}) +
-                                             \sqrt{u^2+v^2}  (\overline{\theta}-\theta_{\star}) }{\Theta_{h} \mathbf{U}}
+                                             \sqrt{u^2+v^2}  (\overline{\theta}-\theta_{\star}) }{\Theta_{h} \bar{\mathbf{U}}}
 
 where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values of the
 two horizontal velocity components and the potential temperature, respectively, and
