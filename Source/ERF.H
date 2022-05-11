@@ -268,9 +268,9 @@ private:
 #ifdef ERF_USE_NETCDF
     //! Write plotfile using NETCDF
     void writeNCPlotFile(const std::string& dir,
-                         const Vector<const MultiFab*> &mf,
-                         const Vector<std::string> &varnames,
-                         const Vector<int> level_steps, const Real time) const;
+                         const amrex::Vector<const amrex::MultiFab*> &mf,
+                         const amrex::Vector<std::string> &varnames,
+                         const amrex::Vector<int> level_steps, const amrex::Real time) const;
 
     //! Write checkpointFile using NetCdf
     void WriteNCCheckpointFile () const;
@@ -279,14 +279,14 @@ private:
     void ReadNCCheckpointFile ();
 
     //! Write MultiFab in NetCDF format
-    void WriteNCMultiFab (const FabArray<FArrayBox> &fab,
+    void WriteNCMultiFab (const amrex::FabArray<amrex::FArrayBox> &fab,
                           const std::string& name,
                           bool set_ghost = false) const;
 
     //! Read MultiFab in NetCDF format
-    void ReadNCMultiFab (FabArray<FArrayBox> &fab,
+    void ReadNCMultiFab (amrex::FabArray<amrex::FArrayBox> &fab,
                          const std::string &name,
-                         int coordinatorProc = ParallelDescriptor::IOProcessorNumber(),
+                         int coordinatorProc = amrex::ParallelDescriptor::IOProcessorNumber(),
                          int allow_empty_mf = 0);
 
     //! Create 1D vertical column output for coupling
@@ -323,19 +323,19 @@ private:
 #endif
 
     // FArrayBoxs for holding the data read from the wrfbdy NetCDF file
-    amrex::Vector<FArrayBox> bdy_data_xlo;
-    amrex::Vector<FArrayBox> bdy_data_xhi;
-    amrex::Vector<FArrayBox> bdy_data_ylo;
-    amrex::Vector<FArrayBox> bdy_data_yhi;
+    amrex::Vector<amrex::FArrayBox> bdy_data_xlo;
+    amrex::Vector<amrex::FArrayBox> bdy_data_xhi;
+    amrex::Vector<amrex::FArrayBox> bdy_data_ylo;
+    amrex::Vector<amrex::FArrayBox> bdy_data_yhi;
 
     /*
      * Alternate data structure considering different dimensions of U, V, W, T on the planes
      * This should be be member of ERF class.
      */
-    Vector<Vector<FArrayBox>> bdy_x_lo;
-    Vector<Vector<FArrayBox>> bdy_x_hi;
-    Vector<Vector<FArrayBox>> bdy_y_lo;
-    Vector<Vector<FArrayBox>> bdy_y_hi;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_x_lo;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_x_hi;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_y_lo;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_y_hi;
 
 
 #endif

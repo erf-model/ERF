@@ -7,6 +7,8 @@
 #include "NCInterface.H"
 #include "AMReX_Print.H"
 
+using namespace amrex;
+
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
 // Function to read a NetCDF variable and fill a corresponding MultiFab and Array4
@@ -74,7 +76,7 @@ BuildFABsFromWRFInputFile(const std::string &fname,
             for (int k(0); k < ncomp; ++k) {
                 auto dataPtr = fab_vars[i]->dataPtr(k);
                 for (int n(0); n < num_pts; ++n) {
-                    *(dataPtr+n) = static_cast<amrex::Real>(*(arrays[i].get_data()+n));
+                    *(dataPtr+n) = static_cast<Real>(*(arrays[i].get_data()+n));
 //                    if (n % 5000 == 0)
 //                        //amrex::Print() << "n: " << n << ", data[n]: " << *(dataPtr+n) << std::endl;
 //                        amrex::Print() << "n: " << n << ", data[n]: " << *(arrays[i].get_data()+n) << std::endl;
@@ -229,7 +231,7 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
             //auto num_pts = bdy_data_xlo[0].box().numPts();
             int ncomp  = bdy_data_xlo[0].nComp();
             long num_pts;
-            amrex::Real* data_ptr;
+            Real* data_ptr;
             std::string last3 = nc_var_names[i].substr(nc_var_names[i].size()-3, 3);
 
             for (int nt(0); nt < ntimes; ++nt) {
@@ -253,7 +255,7 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
               int k = i;
               auto dataPtr = bdy_data_xlo[nt].dataPtr(k);
               for (int n(0); n < num_pts; ++n) {
-                  *(dataPtr+n) = static_cast<amrex::Real>(*(arrays[i].get_data()+n));
+                  *(dataPtr+n) = static_cast<Real>(*(arrays[i].get_data()+n));
               }
             } // nt
         } //nc_var_names
