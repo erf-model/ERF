@@ -518,6 +518,14 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
     Real zflux_lo = rho_w(i,j,k  );
 #endif
 
+    // These are only used to construct the sign to be used in upwinding
+    Real uadv_hi = rho_u(i+1,j,k);
+    Real uadv_lo = rho_u(i  ,j,k);
+    Real vadv_hi = rho_v(i,j+1,k);
+    Real vadv_lo = rho_v(i,j  ,k);
+    Real wadv_hi = rho_w(i,j,k+1);
+    Real wadv_lo = rho_w(i,j,k  );
+
     // ****************************************************************************************
     // Now that we have the correctly weighted vector components, we can multiply by the
     //     scalar (such as theta or C) on the respective faces
@@ -537,14 +545,6 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
             if (n != Rho_comp)
             {
                 const int prim_index = n - RhoTheta_comp;
-
-                // These are only used to construct the sign to be used in upwinding
-                Real uadv_hi = rho_u(i+1,j,k);
-                Real uadv_lo = rho_u(i  ,j,k);
-                Real vadv_hi = rho_v(i,j+1,k);
-                Real vadv_lo = rho_v(i,j  ,k);
-                Real wadv_hi = rho_w(i,j,k+1);
-                Real wadv_lo = rho_w(i,j,k  );
 
                 xflux_hi_n = xflux_hi * InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
                 xflux_lo_n = xflux_lo * InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
@@ -576,6 +576,7 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
             advectionSrc(i,j,k,n) *= invdetJ;
 #endif
         } else {
+
             xflux(i+1,j,k,n) = 0.;
             xflux(i  ,j,k,n) = 0.;
             yflux(i,j+1,k,n) = 0.;

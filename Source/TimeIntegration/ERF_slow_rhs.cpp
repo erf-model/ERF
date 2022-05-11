@@ -12,41 +12,47 @@
 
 using namespace amrex;
 
-void erf_rhs (int level,
-              Vector<MultiFab>& S_rhs,
-              const Vector<MultiFab>& S_data,
-              const MultiFab& S_prim,
-              const MultiFab& xvel,
-              const MultiFab& yvel,
-              const MultiFab& zvel,
-              MultiFab& source,
-              std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
-              std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
-              const amrex::Geometry geom,
-                    amrex::InterpFaceRegister* ifr,
-              const SolverChoice& solverChoice,
-              const ABLMost& most,
-              const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+void erf_slow_rhs (int level,
+                   Vector<MultiFab>& S_rhs,
+                   const Vector<MultiFab>& S_data,
+                   const MultiFab& S_prim,
+                         Vector<MultiFab>& S_scratch,
+                   const MultiFab& xvel,
+                   const MultiFab& yvel,
+                   const MultiFab& zvel,
+                   MultiFab& source,
+                   std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+                   std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
+                   const amrex::Geometry geom,
+                         amrex::InterpFaceRegister* ifr,
+                   const SolverChoice& solverChoice,
+                   const ABLMost& most,
+                   const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
 #ifdef ERF_USE_TERRAIN
-              const MultiFab& z_phys_nd,
-              const MultiFab& detJ_cc,
-              const MultiFab& r0,
-              const MultiFab& p0,
+                   const MultiFab& z_phys_nd,
+                   const MultiFab& detJ_cc,
+                   const MultiFab& r0,
+                   const MultiFab& p0,
 #else
-              const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
 #endif
-              const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-              const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
-              const int rhs_vars)
+                   const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
+                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
+                   const int rhs_vars)
 {
     BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
 
+    int start_comp;
+    int   num_comp;
     if (rhs_vars == RHSVar::fast) {
-        // placeholder
+        start_comp = 0;
+          num_comp = 2; // Rho_comp and RhoTheta_comp
     } else if (rhs_vars == RHSVar::slow) {
-        // placeholder
+        start_comp = 2;
+          num_comp = S_data[IntVar::cons].nComp() - 2;
     } else if (rhs_vars == RHSVar::all) {
-        // placeholder
+        start_comp = 0;
+          num_comp = S_data[IntVar::cons].nComp();
     }
 
     const int l_spatial_order = solverChoice.spatial_order;
@@ -141,6 +147,15 @@ void erf_rhs (int level,
         const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
+        Array4<Real> avg_xmom;
+        Array4<Real> avg_ymom;
+        Array4<Real> avg_zmom;
+        if (S_scratch.size() > 0) {
+            avg_xmom = S_scratch[IntVar::xmom].array(mfi);
+            avg_ymom = S_scratch[IntVar::ymom].array(mfi);
+            avg_zmom = S_scratch[IntVar::zmom].array(mfi);
+        }
+
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
         const Array4<const Real> & w = zvel.array(mfi);
@@ -181,30 +196,40 @@ void erf_rhs (int level,
 #endif
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        if (rhs_vars != RHSVar::slow) {
+            amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 #ifdef ERF_USE_TERRAIN
-           pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
+               pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
 #else
-           pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),dptr_pres_hse[k]);
+               pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),dptr_pres_hse[k]);
 #endif
-        });
+            });
+        }
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        int ncomp = S_data[IntVar::cons].nComp();
 
-        int start_comp = 0;
-        AdvectionSrcForState(bx, start_comp, ncomp, rho_u, rho_v, rho_w, cell_prim,
-                             cell_rhs, advflux_x, advflux_y, advflux_z,
+        if (rhs_vars == RHSVar::fast || rhs_vars == RHSVar::all) {
+            AdvectionSrcForState(bx, start_comp, num_comp, rho_u, rho_v, rho_w, cell_prim,
+                                 cell_rhs, advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
-                             z_nd, detJ,
+                                 z_nd, detJ,
 #endif
-                             dxInv, l_spatial_order, l_use_deardorff, l_use_QKE);
+                                 dxInv, l_spatial_order, l_use_deardorff, l_use_QKE);
+        } else if (rhs_vars == RHSVar::slow) {
+            AdvectionSrcForState(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom, cell_prim,
+                                 cell_rhs, advflux_x, advflux_y, advflux_z,
+#ifdef ERF_USE_TERRAIN
+                                 z_nd, detJ,
+#endif
+                                 dxInv, l_spatial_order, l_use_deardorff, l_use_QKE);
+        }
 
-        amrex::ParallelFor(bx, ncomp,
-                           [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        amrex::ParallelFor(bx, num_comp,
+                           [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
         {
+            int n = start_comp + n_in;
 
             // Add diffusive terms.
             if (n == RhoTheta_comp)
@@ -263,25 +288,37 @@ void erf_rhs (int level,
 
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
         //         fluxes at fine-fine interfaces
-        amrex::ParallelFor(tbx, S_data[IntVar::cons].nComp(),
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        int rc = Rho_comp;
+        int update_mom = (S_scratch.size() > 0);
+        amrex::ParallelFor(tbx, num_comp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
         {
+             int n = start_comp + n_in;
              xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n) + diffflux_x(i,j,k,n);
+             if (update_mom && n == rc) // Only update if we are computing source for density
+                 avg_xmom(i,j,k) = advflux_x(i,j,k,0);
         });
-        amrex::ParallelFor(tby, S_data[IntVar::cons].nComp(),
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        amrex::ParallelFor(tby, num_comp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
         {
+             int n = start_comp + n_in;
              yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n) + diffflux_y(i,j,k,n);
+             if (update_mom && n == rc) // Only update if we are computing source for density
+                 avg_ymom(i,j,k) = advflux_y(i,j,k,0);
         });
-        amrex::ParallelFor(tbz, S_data[IntVar::cons].nComp(),
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        amrex::ParallelFor(tbz, num_comp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
         {
+             int n = start_comp + n_in;
              zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n) + diffflux_z(i,j,k,n);
+             if (update_mom && n == rc) // Only update if we are computing source for density
+                 avg_zmom(i,j,k) = advflux_z(i,j,k,0);
         });
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
+        if (rhs_vars != RHSVar::slow) {
         amrex::ParallelFor(tbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // x-momentum equation
 
@@ -529,5 +566,6 @@ void erf_rhs (int level,
 
             } // not on coarse-fine boundary
         });
+        } // not (rhs_vars == RHSVar::slow)
     }
 }
