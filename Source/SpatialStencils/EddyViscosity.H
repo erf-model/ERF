@@ -3,8 +3,8 @@
 #ifndef _EDDY_VISCOSITY_H_
 #define _EDDY_VISCOSITY_H_
 
-#include "DataStruct.H"
-#include "StrainRate.H"
+#include <DataStruct.H>
+#include <StrainRate.H>
 
 #ifdef ERF_USE_TERRAIN
 AMREX_GPU_DEVICE
@@ -19,14 +19,18 @@ amrex::Real ComputeSmnSmn(const int& i,const int& j,const int& k,
   amrex::Real met_h_xi,met_h_eta,met_h_zeta;
   
   // AML   : USE_TERRAIN preprocessor flags got OUT OF HAND with TKE (clipped dependency here)
-  // TO-DO : Calls to TerrainMetrics.H functions to get metrics
+  // TO-DO :
+  //         1. Calls to TerrainMetrics.H functions to get metrics
+  //         2. Pass metrics at each ijk
+  //         3. Pass z_nd to ComputeSmnSmn
+  //         4. Anisotropy of stress tensor
   met_h_xi   = 0.0;
   met_h_eta  = 0.0;
   met_h_zeta = 1.0;
     
   amrex::Real S11 = ComputeS11(i+1, j, k, u, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta);
   amrex::Real S22 = ComputeS22(i, j+1, k, v, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta);
-  amrex::Real S33 = ComputeS33(i, j, k+1, w, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta);
+  amrex::Real S33 = 0.0; //ComputeS33(i, j, k+1, u, v, w, cellSizeInv, z_nd, met_h_xi, met_h_eta, met_h_zeta);
 
     amrex::Real S12 = 0.25* (
               ComputeS12(i  , j  , k, u, v, w, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
