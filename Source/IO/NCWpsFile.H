@@ -32,14 +32,14 @@ enum class NC_Data_Dims_Type {
 
 void BuildFABsFromWRFInputFile(const std::string &fname,
                                amrex::Vector<std::string> nc_var_names,
-                               amrex::Vector<FArrayBox*> fab_vars,
-                               Vector<enum NC_Data_Dims_Type> NC_dim_types);
+                               amrex::Vector<amrex::FArrayBox*> fab_vars,
+                               amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types);
 
 int BuildFABsFromWRFBdyFile(const std::string &fname,
-                            amrex::Vector<FArrayBox>& bdy_data_xlo,
-                            amrex::Vector<FArrayBox>& bdy_data_xhi,
-                            amrex::Vector<FArrayBox>& bdy_data_ylo,
-                            amrex::Vector<FArrayBox>& bdy_data_yhi);
+                            amrex::Vector<amrex::FArrayBox>& bdy_data_xlo,
+                            amrex::Vector<amrex::FArrayBox>& bdy_data_xhi,
+                            amrex::Vector<amrex::FArrayBox>& bdy_data_ylo,
+                            amrex::Vector<amrex::FArrayBox>& bdy_data_yhi);
 
 //
 // NDArray is the datatype designed to hold any data, including scalars, multidimensional

@@ -20,6 +20,8 @@ namespace {
  std::string nc_state_filename = "Plot_State_MF.nc";
 } // namespace
 
+using namespace amrex;
+
 void
 ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plotMF,
                      const Vector<std::string> &plot_var_names,
@@ -132,8 +134,8 @@ ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plot
     ncf.put_attr("FinestLevel", std::vector<int>{finest_level});
     ncf.put_attr("CurrentLevel", std::vector<int>{lev});
 
-    amrex::Vector<amrex::Real> probLo;
-    amrex::Vector<amrex::Real> probHi;
+    amrex::Vector<Real> probLo;
+    amrex::Vector<Real> probHi;
     for (int i = 0; i < AMREX_SPACEDIM; i++) {
       probLo.push_back(geom[lev].ProbLo(i));
       probHi.push_back(geom[lev].ProbHi(i));
@@ -163,7 +165,7 @@ ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plot
       ncf.var("Geom.bigend").put(bigend.data(), {static_cast<long unsigned int>(i), 0}, {1, AMREX_SPACEDIM});
     }
 
-    amrex::Vector<amrex::Real> CellSize;
+    amrex::Vector<Real> CellSize;
     for (int i = 0; i <= flev; i++) {
       CellSize.clear();
       for (int j = 0; j < AMREX_SPACEDIM; j++) {
@@ -183,21 +185,21 @@ ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plot
 
   if (amrex::ParallelDescriptor::IOProcessor()) {
 
-    std::vector<amrex::Real> x_grid;
-    std::vector<amrex::Real> y_grid;
-    std::vector<amrex::Real> z_grid;
+    std::vector<Real> x_grid;
+    std::vector<Real> y_grid;
+    std::vector<Real> z_grid;
     for (int i = 0; i < grids[lev].size(); ++i) {
-      amrex::RealBox gridloc = amrex::RealBox(grids[lev][i], geom[lev].CellSize(), geom[lev].ProbLo());
+      RealBox gridloc = RealBox(grids[lev][i], geom[lev].CellSize(), geom[lev].ProbLo());
 
       x_grid.clear(); y_grid.clear(); z_grid.clear();
       for (auto k1 = 0; k1 < grids[lev][i].length(0); ++k1) {
-        x_grid.push_back(gridloc.lo(0)+geom[lev].CellSize(0)*static_cast<amrex::Real>(k1));
+        x_grid.push_back(gridloc.lo(0)+geom[lev].CellSize(0)*static_cast<Real>(k1));
       }
       for (auto k2 = 0; k2 < grids[lev][i].length(1); ++k2) {
-        y_grid.push_back(gridloc.lo(1)+geom[lev].CellSize(1)*static_cast<amrex::Real>(k2));
+        y_grid.push_back(gridloc.lo(1)+geom[lev].CellSize(1)*static_cast<Real>(k2));
       }
       for (auto k3 = 0; k3 < grids[lev][i].length(2); ++k3) {
-        z_grid.push_back(gridloc.lo(2)+geom[lev].CellSize(2)*static_cast<amrex::Real>(k3));
+        z_grid.push_back(gridloc.lo(2)+geom[lev].CellSize(2)*static_cast<Real>(k3));
       }
 
       auto xlen = static_cast<long unsigned int>(grids[lev][i].length(0));
