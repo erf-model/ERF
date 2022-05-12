@@ -2,10 +2,13 @@
  * \file ERF.cpp
  */
 
-#include <ERF.H>
+#include <PlaneAverage.H>
+#include <VelPlaneAverage.H>
 #include <prob_common.H>
-#include <AMReX_buildInfo.H>
 #include <EOS.H>
+#include <ERF.H>
+
+#include <AMReX_buildInfo.H>
 
 using namespace amrex;
 
@@ -615,52 +618,18 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
 
 #ifdef ERF_USE_TERRAIN
-            FArrayBox& z_phys_nd_fab = z_phys_nd[mfi];
-            init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab,
+          FArrayBox& z_phys_nd_fab = z_phys_nd[lev][mfi];
+          init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab,
                              z_phys_nd_fab);
 #else
-            init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
-
-#endif // ERF_USE_TERRAIN
+          init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
+#endif
         }
 
-        // BOUNDARY DATA meant for "real" simulation, but not needed for "ideal" simulation
-        if (init_type == "real") {
-            //TODO: Discuss which mfi, box etc. to use
-            for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-
-                // Define variables for holding the lateral BC data
-
-                // Need discussion on using the right variable types
-                FArrayBox U_BXS_fab; // Point it to a suitable mfi and var;
-                FArrayBox U_BXE_fab; // Point it to a suitable mfi and var
-                FArrayBox U_BYS_fab; // Point it to a suitable mfi and var
-                FArrayBox U_BYE_fab; // Point it to a suitable mfi and var
-                Vector<FArrayBox *> x_vel_lateral = {&U_BXS_fab, &U_BXE_fab, &U_BYS_fab, &U_BYE_fab};
-
-                FArrayBox V_BXS_fab; // Point it to a suitable mfi and var
-                FArrayBox V_BXE_fab; // Point it to a suitable mfi and var
-                FArrayBox V_BYS_fab; // Point it to a suitable mfi and var
-                FArrayBox V_BYE_fab; // Point it to a suitable mfi and var
-                Vector<FArrayBox *> y_vel_lateral = {&V_BXS_fab, &V_BXE_fab, &V_BYS_fab, &V_BYE_fab};
-
-                FArrayBox W_BXS_fab; // Point it to a suitable mfi and var
-                FArrayBox W_BXE_fab; // Point it to a suitable mfi and var
-                FArrayBox W_BYS_fab; // Point it to a suitable mfi and var
-                FArrayBox W_BYE_fab; // Point it to a suitable mfi and var
-                Vector<FArrayBox *> z_vel_lateral = {&W_BXS_fab, &W_BXE_fab, &W_BYS_fab, &W_BYE_fab};
-
-                FArrayBox T_BXS_fab; // Point it to a suitable mfi and var
-                FArrayBox T_BXE_fab; // Point it to a suitable mfi and var
-                FArrayBox T_BYS_fab; // Point it to a suitable mfi and var
-                FArrayBox T_BYE_fab; // Point it to a suitable mfi and var
-                Vector<FArrayBox *> T_lateral = {&W_BXS_fab, &W_BXE_fab, &W_BYS_fab, &W_BYE_fab};
-
-                init_from_wrfbdy(x_vel_lateral, y_vel_lateral, z_vel_lateral, T_lateral);
-            }
-        }
 #ifdef ERF_USE_TERRAIN
         make_metrics(lev);
+#endif
+
 #endif
     }
 #endif //ERF_USE_NETCDF
@@ -1047,53 +1016,6 @@ ERF::read_from_wrfinput()
         // Now multiply by rho to get (rho theta) instead of theta
         NC_rhotheta_fab.mult(NC_rho_fab,0,0,1);
 
-#if 0
-        // Read the perturbation density inverse
-        BuildFabFromIdealOutputFile(nc_init_file, "AL", NC_rho_inv_pert_fab,
-                                    NC_Data_Dims_Type::Time_BT_SN_WE);
-
-        // Read Base Pressure
-        BuildFabFromIdealOutputFile(nc_init_file, "PB", NC_p_base_fab,
-                                    NC_Data_Dims_Type::Time_BT_SN_WE);
-
-        // Read Perturbation Pressure
-        BuildFabFromIdealOutputFile(nc_init_file, "P", NC_p_pert_fab,
-                                    NC_Data_Dims_Type::Time_BT_SN_WE);
-
-        // Read Surface Pressure
-        BuildFabFromIdealOutputFile(nc_init_file, "PSFC", NC_p_surf_fab,
-                                    NC_Data_Dims_Type::Time_SN_WE);
-
-        // Read eta at cell-center levels
-        // Likewise, we can read eta at z-stagger levels, but since pressure is defined at cell-centers we skip that
-        // eta = (p(z) - p_top)/(p_surf - p_top) => 1 at surface and 0 at top
-        BuildFabFromIdealOutputFile(nc_init_file, "ZNU", NC_eta_fab,
-                                    NC_Data_Dims_Type::Time_BT);
-
-        // Read base-state geopotential
-        BuildFabFromIdealOutputFile(nc_init_file, "PHB", NC_phb_fab,
-                                    NC_Data_Dims_Type::Time_BT_SN_WE);
-#endif
-
-#if 0
-    //Construct physical z from base-state geopotential. We can possibly include pertubation geopotential
-    BoxArray ba(phb_nc);
-    DistributionMapping dm { ba };
-    z_phy_mf.define(ba, dm, 1, 0);
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(z_phy_mf); mfi.isValid(); ++mfi )
-    {
-        const Box& z_tilebx = mfi.tilebox();
-        z_phy_arr = z_phy_mf.array(mfi);
-        amrex::ParallelFor(z_tilebx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            z_phy_arr(i, j, k) = phb_arr(i, j, k) / CONST_GRAV;
-        });
-        // Alternatively, we can compute z = f(eta, pb+p, p_surf, theta)
-    }
-#endif
-
     } // if ParalleDescriptor::IOProcessor()
 
     // We put a barrier here so the rest of the processors wait to do anything until they have the data
@@ -1114,71 +1036,117 @@ ERF::read_from_wrfinput()
     ParallelDescriptor::Bcast(NC_PH_fab.dataPtr() ,NC_PH_fab.box().numPts() ,ioproc);
 #endif
 
-#if 0
-    ParallelDescriptor::Bcast(NC_rho_inv_pert_fab.dataPtr(),NC_rho_inv_pert_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_p_base_fab.dataPtr(),NC_p_base_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_p_pert_fab.dataPtr(),NC_p_pert_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_p_surf_fab.dataPtr(),NC_p_surf_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_p_surf_fab.dataPtr(),NC_p_surf_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_eta_fab.dataPtr(),NC_eta_fab.box().numPts(),ioproc);
-#endif
     amrex::Print() << "Successfully loaded data from the wrfinput (output of 'ideal.exe' / 'real.exe') NetCDF file" << std::endl << std::endl;
 }
 
 void
-ERF::read_from_wrfbdy() {
-//    auto domain = geom[0].Domain();
-//
-//    // We allocate these here so they exist on all ranks
-//    Box ubx(domain); ubx.surroundingNodes(0); NC_xvel_fab.resize(ubx,1);
-//    Box vbx(domain); vbx.surroundingNodes(1); NC_yvel_fab.resize(vbx,1);
-//    Box wbx(domain); wbx.surroundingNodes(2); NC_zvel_fab.resize(wbx,1);
-//    NC_rho_fab.resize(domain,1);
-//    NC_rhotheta_fab.resize(domain,1);
+ERF::read_from_wrfbdy()
+{
+    // *********************************************************
+    // Allocate space for all of the boundary planes we may need
+    // Here we make only one enough space for one time -- we will
+    //    add space for the later time slices later
+    // *********************************************************
 
+    int ncomp = 4; // for right now just the velocities + temperature
+    const amrex::Box& domain = geom[0].Domain();
+    for (amrex::OrientationIter oit; oit != nullptr; ++oit) {
+        auto ori = oit();
+        if (ori.coordDir() < 2) {
+            const auto& lo = domain.loVect();
+            const auto& hi = domain.hiVect();
+
+            amrex::IntVect plo(lo);
+            amrex::IntVect phi(hi);
+            const int normal = ori.coordDir();
+            plo[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
+            phi[normal] = ori.isHigh() ? hi[normal] + 1 : -1;
+            const amrex::Box pbx(plo, phi);
+            /*
+             TODO: Discuss
+             bdy_data_xlo contains 4 different variables U_BXS, V_BXS, W_BXS, T_BXS.
+             The dimensions of all these variables are not same as "pbx" or 1  X  NY    X  NZ
+             U_BXS -> dim -> 1  X  NY    X  NZ
+             V_BXS -> dim -> 1  X (NY+1) X  NZ
+             W_BXS -> dim -> 1  X  NY    X (NZ+1)
+             T_BXS -> dim -> 1  X  NY    X  NZ
+             */
+            /*
+             Instead of bdy_data_xlo with 4 components, should we use U_xlo, V_xlo, W_xlo, T_xLo separately?
+             */
+            if (ori.coordDir() == 0 && !ori.isHigh())
+                bdy_data_xlo.push_back(amrex::FArrayBox(pbx, ncomp));
+            if (ori.coordDir() == 0 && ori.isHigh())
+                bdy_data_xhi.push_back(amrex::FArrayBox(pbx, ncomp));
+            if (ori.coordDir() == 1 && !ori.isHigh())
+                bdy_data_ylo.push_back(amrex::FArrayBox(pbx, ncomp));
+            if (ori.coordDir() == 1 && ori.isHigh())
+                bdy_data_yhi.push_back(amrex::FArrayBox(pbx, ncomp));
+
+            /*
+             * Alternate data structure considering different dimensions of U, V, W, T on the planes
+            */
+            if (ori.coordDir() == 0) {
+                Box x_plane_no_stag(pbx);
+                Box x_plane_y_stag = convert(pbx, {0, 1, 0});
+                Box x_plane_z_stag = convert(pbx, {0, 0, 1});
+
+                Vector<FArrayBox> x_plane_data;
+                x_plane_data.push_back(FArrayBox(x_plane_no_stag, 1)); //U
+                x_plane_data.push_back(FArrayBox(x_plane_y_stag, 1)); //V
+                x_plane_data.push_back(FArrayBox(x_plane_z_stag, 1)); //W
+                x_plane_data.push_back(FArrayBox(x_plane_no_stag, 1)); // T
+
+//                if(!ori.isHigh())
+//                    bdy_x_lo.push_back(x_plane_data);
+//                if(ori.isHigh())
+//                    bdy_x_hi.push_back(x_plane_data);
+            }
+            if (ori.coordDir() == 1) {
+                Box y_plane_no_stag(pbx);
+                Box y_plane_x_stag = convert(pbx, {1, 0, 0});
+                Box y_plane_z_stag = convert(pbx, {0, 0, 1});
+
+                Vector<FArrayBox> y_plane_data;
+                y_plane_data.push_back(FArrayBox(y_plane_x_stag, 1)); //U
+                y_plane_data.push_back(FArrayBox(y_plane_no_stag, 1)); //V
+                y_plane_data.push_back(FArrayBox(y_plane_z_stag, 1)); //W
+                y_plane_data.push_back(FArrayBox(y_plane_no_stag, 1)); // T
+
+//                if(!ori.isHigh())
+//                    bdy_y_lo.push_back(y_plane_data);
+//                if(ori.isHigh())
+//                    bdy_y_hi.push_back(y_plane_data);
+            }
+        }
+    }
+
+    int ntimes;
     if (ParallelDescriptor::IOProcessor())
     {
-        Vector<FArrayBox*> NC_fabs;
-        Vector<std::string> NC_names;
-        Vector<enum NC_Data_Dims_Type> NC_dim_types;
-
-        NC_fabs.push_back(&NC_U_BXS_fab)   ;  NC_names.push_back("U_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        NC_fabs.push_back(&NC_U_BXE_fab)   ;  NC_names.push_back("U_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        NC_fabs.push_back(&NC_U_BYS_fab)   ;  NC_names.push_back("U_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-        NC_fabs.push_back(&NC_U_BYE_fab)   ;  NC_names.push_back("U_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-
-        NC_fabs.push_back(&NC_V_BXS_fab)   ;  NC_names.push_back("V_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        NC_fabs.push_back(&NC_V_BXE_fab)   ;  NC_names.push_back("V_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        NC_fabs.push_back(&NC_V_BYS_fab)   ;  NC_names.push_back("V_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-        NC_fabs.push_back(&NC_V_BYE_fab)   ;  NC_names.push_back("V_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-
-        NC_fabs.push_back(&NC_W_BXS_fab)   ;  NC_names.push_back("W_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        NC_fabs.push_back(&NC_W_BXE_fab)   ;  NC_names.push_back("W_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        NC_fabs.push_back(&NC_W_BYS_fab)   ;  NC_names.push_back("W_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-        NC_fabs.push_back(&NC_W_BYE_fab)   ;  NC_names.push_back("W_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-
-        NC_fabs.push_back(&NC_T_BXS_fab)   ;  NC_names.push_back("T_BXS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        NC_fabs.push_back(&NC_T_BXE_fab)   ;  NC_names.push_back("T_BXE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_SN);
-        NC_fabs.push_back(&NC_T_BYS_fab)   ;  NC_names.push_back("T_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-        NC_fabs.push_back(&NC_T_BYE_fab)   ;  NC_names.push_back("T_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
-
         // Read the netcdf file and fill these FABs
-        BuildFABsFromWRFBdyFile(nc_bdy_file, NC_names, NC_fabs, NC_dim_types);
+        ntimes = BuildFABsFromWRFBdyFile(nc_bdy_file, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
 
     } // if ParalleDescriptor::IOProcessor()
 
     // We put a barrier here so the rest of the processors wait to do anything until they have the data
     amrex::ParallelDescriptor::Barrier();
 
+    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+
+    // Make sure all processors know how many times are stored
+    ParallelDescriptor::Bcast(&ntimes,1,ioproc);
+
     // When an FArrayBox is built, space is allocated on every rank.  However, we only
     //    filled the data in these FABs on the IOProcessor.  So here we broadcast
     //    the data to every rank.
-
-//    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
-//    ParallelDescriptor::Bcast(NC_U_BXS_fab.dataPtr(),NC_U_BXS_fab.box().numPts(),ioproc);
-//    ParallelDescriptor::Bcast(NC_U_BXE_fab.dataPtr(),NC_U_BXE_fab.box().numPts(),ioproc);
-//    ParallelDescriptor::Bcast(NC_U_BYS_fab.dataPtr(),NC_U_BYS_fab.box().numPts(),ioproc);
-//    ParallelDescriptor::Bcast(NC_U_BYE_fab.dataPtr(),NC_U_BYE_fab.box().numPts(),ioproc);
+    for (int nt = 0; nt < ntimes; nt++)
+    {
+        ParallelDescriptor::Bcast(bdy_data_xlo[nt].dataPtr(),bdy_data_xlo[nt].box().numPts(),ioproc);
+        ParallelDescriptor::Bcast(bdy_data_xhi[nt].dataPtr(),bdy_data_xhi[nt].box().numPts(),ioproc);
+        ParallelDescriptor::Bcast(bdy_data_ylo[nt].dataPtr(),bdy_data_ylo[nt].box().numPts(),ioproc);
+        ParallelDescriptor::Bcast(bdy_data_yhi[nt].dataPtr(),bdy_data_yhi[nt].box().numPts(),ioproc);
+    }
 
     amrex::Print() << "Successfully loaded data from the wrfbdy (output of 'real.exe') NetCDF file" << std::endl << std::endl;
 }
@@ -1187,7 +1155,7 @@ void
 ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab, FArrayBox& z_vel_fab
 #ifdef ERF_USE_TERRAIN
-                     ,FArrayBox& z_phys
+                       ,FArrayBox& z_phys
 #endif // ERF_USE_TERRAIN
                                        )
 {
@@ -1215,46 +1183,46 @@ ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
 
 #ifdef ERF_USE_TERRAIN
     // This copies from NC_zphys on z-faces to z_phys_nd on nodes
-    Array4<Real>    z_arr = z_phys.array();
-    Array4<Real> nc_phb_arr = NC_PHB.array();
-    Array4<Real> nc_ph_arr  = NC_PH.array();
-    const Box& bx(z_phys.box());
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        z_phys_arr(i, j, k) = 0.25 * ( nc_ph_arr(i,j,k) +  nc_ph_arr(i-1,j,k) +  nc_ph_arr(i,j-1,k) +  nc_ph_arr(i-1,j-1,k) +
-                                      nc_phb_arr(i,j,k) + nc_phb_arr(i-1,j,k) + nc_phb_arr(i,j-1,k) + nc_phb_arr(i-1,j-1,k) );
+    Array4<Real>    z_arr   = z_phys.array();
+    Array4<Real> nc_phb_arr = NC_PHB_fab.array();
+    Array4<Real> nc_ph_arr  = NC_PH_fab.array();
+
+    const Box& z_phys_box(z_phys.box());
+
+    Box nodal_dom = amrex::surroundingNodes(geom[0].Domain());
+
+    int ilo = nodal_dom.smallEnd()[0];
+    int ihi = nodal_dom.bigEnd()[0];
+    int jlo = nodal_dom.smallEnd()[1];
+    int jhi = nodal_dom.bigEnd()[1];
+    int klo = nodal_dom.smallEnd()[2];
+    int khi = nodal_dom.bigEnd()[2];
+
+    //
+    // We must be careful not to read out of bounds of the WPS data
+    //
+    amrex::ParallelFor(z_phys_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        int ii = std::max(std::min(i,ihi-1),ilo+1);
+        int jj = std::max(std::min(j,jhi-1),jlo+1);
+        if (!z_phys_box.contains(ii,jj,k) || !z_phys_box.contains(ii-1,jj-1,k)) amrex::Print() << "BAD " << IntVect(ii,jj,k) << std::endl;
+        if (k < 0) {
+            Real z_klo   =  0.25 * ( nc_ph_arr (ii,jj,klo  ) +  nc_ph_arr(ii-1,jj,klo  ) + nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
+                                     nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(ii-1,jj,klo  ) + nc_phb_arr(ii,jj-1,klo  ) + nc_phb_arr(ii-1,jj-1,klo) ) / CONST_GRAV;
+            Real z_klop1 =  0.25 * ( nc_ph_arr (ii,jj,klo+1) +  nc_ph_arr(ii-1,jj,klo+1) + nc_ph_arr (ii,jj-1,klo+1) + nc_ph_arr (ii-1,jj-1,klo+1) +
+                                     nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(ii-1,jj,klo+1) + nc_phb_arr(ii,jj-1,klo+1) + nc_phb_arr(ii-1,jj-1,klo+1) ) / CONST_GRAV;
+            z_arr(i, j, k) = 2.0 * z_klo - z_klop1;
+        } else if (k > khi) {
+            Real z_khi   =  0.25 * ( nc_ph_arr (ii,jj,khi  ) + nc_ph_arr (ii-1,jj,khi  ) + nc_ph_arr (ii,jj-1,khi  ) + nc_ph_arr (ii-1,jj-1,khi) +
+                                     nc_phb_arr(ii,jj,khi  ) + nc_phb_arr(ii-1,jj,khi  ) + nc_phb_arr(ii,jj-1,khi  ) + nc_phb_arr(ii-1,jj-1,khi) ) / CONST_GRAV;
+            Real z_khim1 =  0.25 * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (ii-1,jj,khi-1) + nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
+                                     nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(ii-1,jj,khi-1) + nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
+            z_arr(i, j, k) = 2.0 * z_khi - z_khim1;
+          } else {
+            z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj,k) +  nc_ph_arr(ii-1,jj,k) +  nc_ph_arr(ii,jj-1,k) +  nc_ph_arr(ii-1,jj-1,k) +
+                                      nc_phb_arr(ii,jj,k) + nc_phb_arr(ii-1,jj,k) + nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
+        } // k
     });
 #endif
-}
-
-// Decide on arguments that need to be passed
-void
-ERF::init_from_wrfbdy(Vector<FArrayBox*> x_vel_lateral, Vector<FArrayBox*> y_vel_lateral,
-                      Vector<FArrayBox*> z_vel_lateral, Vector<FArrayBox*> T_lateral) {
-
-    // This copies x-vel at the four boundaries
-    x_vel_lateral[0]->copy(NC_U_BXS_fab);
-    x_vel_lateral[1]->copy(NC_U_BXE_fab);
-    x_vel_lateral[2]->copy(NC_U_BYS_fab);
-    x_vel_lateral[3]->copy(NC_U_BYE_fab);
-
-    // This copies y-vel at the four boundaries
-    y_vel_lateral[0]->copy(NC_V_BXS_fab);
-    y_vel_lateral[1]->copy(NC_V_BXE_fab);
-    y_vel_lateral[2]->copy(NC_V_BYS_fab);
-    y_vel_lateral[3]->copy(NC_V_BYE_fab);
-
-    // This copies z-vel at the four boundaries
-    z_vel_lateral[0]->copy(NC_W_BXS_fab);
-    z_vel_lateral[1]->copy(NC_W_BXE_fab);
-    z_vel_lateral[2]->copy(NC_W_BYS_fab);
-    z_vel_lateral[3]->copy(NC_W_BYE_fab);
-
-    // This copies T at the four boundaries
-    T_lateral[0]->copy(NC_T_BXS_fab);
-    T_lateral[1]->copy(NC_T_BXE_fab);
-    T_lateral[2]->copy(NC_T_BYS_fab);
-    T_lateral[3]->copy(NC_T_BYE_fab);
-
 }
 #endif // ERF_USE_NETCDF
 

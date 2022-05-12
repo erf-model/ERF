@@ -3,46 +3,44 @@
 #ifndef _EDDY_VISCOSITY_H_
 #define _EDDY_VISCOSITY_H_
 
-#include <TimeIntegration.H>
+#include "DataStruct.H"
 #include "StrainRate.H"
-
-using namespace amrex;
 
 AMREX_GPU_DEVICE
 inline
-Real ComputeSmnSmn(const int& i,const int& j,const int& k,
-                   const Array4<Real const>& u,
-                   const Array4<Real const>& v,
-                   const Array4<Real const>& w,
-                   const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const Box& domain, const amrex::BCRec* bc_ptr)
+amrex::Real ComputeSmnSmn(const int& i,const int& j,const int& k,
+                          const amrex::Array4<amrex::Real const>& u,
+                          const amrex::Array4<amrex::Real const>& v,
+                          const amrex::Array4<amrex::Real const>& w,
+                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                          const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-    Real S11 = ComputeS11(i+1, j, k, u, cellSizeInv);
-    Real S22 = ComputeS22(i, j+1, k, v, cellSizeInv);
-    Real S33 = ComputeS33(i, j, k+1, w, cellSizeInv);
+    amrex::Real S11 = ComputeS11(i+1, j, k, u, cellSizeInv);
+    amrex::Real S22 = ComputeS22(i, j+1, k, v, cellSizeInv);
+    amrex::Real S33 = ComputeS33(i, j, k+1, w, cellSizeInv);
 
-    Real S12 = 0.25* (
+    amrex::Real S12 = 0.25* (
               ComputeS12(i  , j  , k, u, v, w, cellSizeInv, domain, bc_ptr)
             + ComputeS12(i  , j+1, k, u, v, w, cellSizeInv, domain, bc_ptr)
             + ComputeS12(i+1, j  , k, u, v, w, cellSizeInv, domain, bc_ptr)
             + ComputeS12(i+1, j+1, k, u, v, w, cellSizeInv, domain, bc_ptr)
             );
 
-    Real S13 = 0.25* (
+    amrex::Real S13 = 0.25* (
               ComputeS13(i  , j, k  , u, v, w,  cellSizeInv, domain, bc_ptr)
             + ComputeS13(i  , j, k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
             + ComputeS13(i+1, j, k  , u, v, w,  cellSizeInv, domain, bc_ptr)
             + ComputeS13(i+1, j, k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
             );
 
-    Real S23 = 0.25* (
+    amrex::Real S23 = 0.25* (
               ComputeS23(i, j  , k  , u, v, w,  cellSizeInv, domain, bc_ptr)
             + ComputeS23(i, j  , k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
             + ComputeS23(i, j+1, k  , u, v, w,  cellSizeInv, domain, bc_ptr)
             + ComputeS23(i, j+1, k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
             );
 
-    Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
+    amrex::Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
 
     return SmnSmn;
 }
@@ -50,16 +48,16 @@ Real ComputeSmnSmn(const int& i,const int& j,const int& k,
 /** Compute Eddy Viscosity */
 //AMREX_GPU_DEVICE
 inline
-void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const MultiFab& zvel,
-                               const MultiFab& cons_in, MultiFab& eddyViscosity,
-                               const Geometry& geom,
+void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel,
+                               const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
+                               const amrex::Geometry& geom,
                                const SolverChoice& solverChoice,
-                               const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d)
+                               const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d)
 {
-    const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
 
-    const Real cellVol = 1.0 / (cellSizeInv[0] * cellSizeInv[1] * cellSizeInv[2]);
-    const Real Delta = std::pow(cellVol,1.0/3.0);
+    const amrex::Real cellVol = 1.0 / (cellSizeInv[0] * cellSizeInv[1] * cellSizeInv[2]);
+    const amrex::Real Delta = std::pow(cellVol,1.0/3.0);
 
     const auto& domain = geom.Domain();
     const auto& dom_lo = amrex::lbound(domain);
@@ -68,28 +66,28 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     // Compute the turbulent viscosity
     if (solverChoice.les_type == LESType::Smagorinsky)
     {
-      Real Cs = solverChoice.Cs;
-      Real CsDeltaSqr = Cs*Cs*Delta*Delta;
+      amrex::Real Cs = solverChoice.Cs;
+      amrex::Real CsDeltaSqr = Cs*Cs*Delta*Delta;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-      for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+      for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box &bx = mfi.growntilebox(1);
+        const amrex::Box &bx = mfi.growntilebox(1);
 
-        const Array4<Real const > &cell_data = cons_in.array(mfi);
-        const Array4<Real> &K = eddyViscosity.array(mfi);
+        const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
+        const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
 
-        const Array4<Real const> &u = xvel.array(mfi);
-        const Array4<Real const> &v = yvel.array(mfi);
-        const Array4<Real const> &w = zvel.array(mfi);
+        const amrex::Array4<amrex::Real const> &u = xvel.array(mfi);
+        const amrex::Array4<amrex::Real const> &v = yvel.array(mfi);
+        const amrex::Array4<amrex::Real const> &w = zvel.array(mfi);
 
         const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real SmnSmn = ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
+            amrex::Real SmnSmn = ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 
             // Note the positive sign, which aligns well with the positive sign in the diffusion term for momentum equation
             K(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
@@ -98,17 +96,17 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     }
     else if (solverChoice.les_type == LESType::Deardorff)
     {
-      Real l_C_k = solverChoice.Ck;
+      amrex::Real l_C_k = solverChoice.Ck;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-      for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+      for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box &bx = mfi.growntilebox(1);
+        const amrex::Box &bx = mfi.growntilebox(1);
 
-        const Array4<Real const > &cell_data = cons_in.array(mfi);
-        const Array4<Real> &K = eddyViscosity.array(mfi);
+        const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
+        const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -122,17 +120,17 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
     // Fill in the rest of the turbulent diffusivities
     if (solverChoice.les_type == LESType::Smagorinsky ||
         solverChoice.les_type == LESType::Deardorff) {
-        Real inv_Pr_t = solverChoice.Pr_t_inv;
-        Real inv_Sc_t = solverChoice.Sc_t_inv;
-        Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
+        amrex::Real inv_Pr_t = solverChoice.Pr_t_inv;
+        amrex::Real inv_Sc_t = solverChoice.Sc_t_inv;
+        amrex::Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
         bool use_KE = (solverChoice.les_type == LESType::Deardorff);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const Box &bx = mfi.growntilebox(1);
-            const Array4<Real> &K = eddyViscosity.array(mfi);
+        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const amrex::Box &bx = mfi.growntilebox(1);
+            const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Get eddy diffusivities from the eddy viscosity
@@ -161,15 +159,15 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box &bx = mfi.growntilebox(1);
+        const amrex::Box &bx = mfi.growntilebox(1);
 
         if (!(domain.contains(bx))) {
             // Fill values outside the domain by straightforward extrapolation.  Note this must be
             // done separately from the loop above so all the interior values are filled.  We also
             // do this in three separate loops so that we don't have any race conditions.
-            const Array4<Real> &K = eddyViscosity.array(mfi);
+            const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
             amrex::ParallelFor(bx, (int) EddyDiff::NumDiffs, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
                 if (i < dom_lo.x) {
                     if (j < dom_lo.y)
@@ -203,12 +201,12 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-            const Box &bx = mfi.growntilebox(1);
+            const amrex::Box &bx = mfi.growntilebox(1);
 
             if (!(domain.contains(bx))) {
-                const Array4<Real> &K = eddyViscosity.array(mfi);
+                const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
                 amrex::ParallelFor(bx, (int) EddyDiff::NumDiffs, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                 {
                     if (k < dom_lo.z) K(i,j,k,n) = K(i,j,dom_lo.z,n);
@@ -221,12 +219,14 @@ void ComputeTurbulentViscosity(const MultiFab& xvel, const MultiFab& yvel, const
 } // function call
 
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 ComputeTKEProduction (const int &i, const int &j, const int &k,
-                      const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
-                      const Array4<Real>& K_turb,
-                      const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                      const Box& domain, const amrex::BCRec* bc_ptr)
+                      const amrex::Array4<const amrex::Real>& u,
+                      const amrex::Array4<const amrex::Real>& v,
+                      const amrex::Array4<const amrex::Real>& w,
+                      const amrex::Array4<amrex::Real>& K_turb,
+                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                      const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     amrex::Real TKE_production = K_turb(i,j,k,EddyDiff::Mom_h) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 
@@ -236,13 +236,13 @@ ComputeTKEProduction (const int &i, const int &j, const int &k,
 /// Compute K_turb (i-1/2, j+1/2, k) etc given K_turb (i, j, k) is known
 // Note: This should be at edges for momEqnDir != diffDir, cell centers otherwise
 AMREX_GPU_DEVICE
-inline Real
+inline amrex::Real
 InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
                               const enum MomentumEqn &momentumEqn,
                               const enum DiffusionDir &diffDir,
-                              const Array4<Real>& K_turb) {
+                              const amrex::Array4<amrex::Real>& K_turb) {
   // Assuming we already have 'K_turb' computed for all (i, j, k)
-  Real turbViscInterpolated = 1.0;
+  amrex::Real turbViscInterpolated = 1.0;
 
   switch (momentumEqn) {
   case MomentumEqn::x: // Reference face is x-face index (i, j, k)

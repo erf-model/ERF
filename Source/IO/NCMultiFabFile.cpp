@@ -17,6 +17,8 @@
 #include "NCPlotFile.H"
 #include "IndexDefines.H"
 
+using namespace amrex;
+
 void
 ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
                     const std::string  &mf_name,

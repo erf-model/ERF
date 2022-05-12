@@ -1,3 +1,4 @@
+#include <IndexDefines.H>
 #include <SpatialStencils.H>
 
 using namespace amrex;
@@ -399,8 +400,8 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                           InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
 
     Real advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
-                               + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
-                               + (centFluxZZNext - centFluxZZPrev) * dzInv;
+                      + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
+                      + (centFluxZZNext - centFluxZZPrev) * dzInv;
     Real denom = (k == 0) ? detJ(i,j,k) : 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
     advectionSrc /= denom;
 
@@ -443,28 +444,31 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                           InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
 
     Real advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
-                               + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
-                               + (centFluxZZNext - centFluxZZPrev) * dzInv;
+                      + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
+                      + (centFluxZZNext - centFluxZZPrev) * dzInv;
 
     return advectionSrc;
 }
 #endif
 
+void
+AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
+                     const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
+                     const Array4<const Real>& cell_prim,
+                     const Array4<Real>& advectionSrc,
+                     const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
 #ifdef ERF_USE_TERRAIN
-AMREX_GPU_DEVICE
-Real
-AdvectionSrcForState(const int &i, const int &j, const int &k,
-                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                              const Array4<const Real>& cell_prim, const int &qty_index,
-                              const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
-                              const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
-                              const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                              const int &spatial_order)
+                     const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
+#endif
+                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                     const int &spatial_order, const int &use_deardorff, const int &use_QKE)
 {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-    Real advectionSrc;
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
 
+#ifdef ERF_USE_TERRAIN
     // ****************************************************************************************
     // Y-faces
     // ****************************************************************************************
@@ -479,8 +483,8 @@ AdvectionSrcForState(const int &i, const int &j, const int &k,
                          ( z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)    // lo i, hi k
                           -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) ); // lo i, lo k
 
-    xflux(i+1,j,k,qty_index) = rho_u(i+1,j,k) * met_xhi;
-    xflux(i  ,j,k,qty_index) = rho_u(i  ,j,k) * met_xlo;
+    Real xflux_hi = rho_u(i+1,j,k) * met_xhi;
+    Real xflux_lo = rho_u(i  ,j,k) * met_xlo;
 
     // ****************************************************************************************
     // Y-faces
@@ -496,115 +500,92 @@ AdvectionSrcForState(const int &i, const int &j, const int &k,
                          ( z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)    // lo j, hi k
                           -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) ); // lo j, lo k
 
-    yflux(i,j+1,k,qty_index) = rho_v(i,j+1,k) * met_yhi;
-    yflux(i,j  ,k,qty_index) = rho_v(i,j  ,k) * met_ylo;
+    Real yflux_hi = rho_v(i,j+1,k) * met_yhi;
+    Real yflux_lo = rho_v(i,j  ,k) * met_ylo;
 
     // ****************************************************************************************
     // Z-faces
     // ****************************************************************************************
 
-    zflux(i,j,k+1,qty_index) = OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv);
-    zflux(i,j,k  ,qty_index) = OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv);
+    Real zflux_hi = OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv);
+    Real zflux_lo = OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv);
+#else
+    Real xflux_hi = rho_u(i+1,j,k);
+    Real xflux_lo = rho_u(i  ,j,k);
+    Real yflux_hi = rho_v(i,j+1,k);
+    Real yflux_lo = rho_v(i,j  ,k);
+    Real zflux_hi = rho_w(i,j,k+1);
+    Real zflux_lo = rho_w(i,j,k  );
+#endif
+
+    // These are only used to construct the sign to be used in upwinding
+    Real uadv_hi = rho_u(i+1,j,k);
+    Real uadv_lo = rho_u(i  ,j,k);
+    Real vadv_hi = rho_v(i,j+1,k);
+    Real vadv_lo = rho_v(i,j  ,k);
+    Real wadv_hi = rho_w(i,j,k+1);
+    Real wadv_lo = rho_w(i,j,k  );
 
     // ****************************************************************************************
     // Now that we have the correctly weighted vector components, we can multiply by the
     //     scalar (such as theta or C) on the respective faces
     // ****************************************************************************************
 
-    if (qty_index != Rho_comp)
-    {
-        const int prim_index = qty_index - RhoTheta_comp;
-
-        // These are only used to construct the sign to be used in upwinding
-        Real uadv_hi = rho_u(i+1,j,k);
-        Real uadv_lo = rho_u(i  ,j,k);
-        Real vadv_hi = rho_v(i,j+1,k);
-        Real vadv_lo = rho_v(i,j  ,k);
-        Real wadv_hi = rho_w(i,j,k+1);
-        Real wadv_lo = rho_w(i,j,k  );
-
-        xflux(i+1,j,k,qty_index) *=
-            InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
-
-        xflux(i  ,j,k,qty_index) *=
-            InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
-
-        yflux(i,j+1,k,qty_index) *=
-            InterpolateFromCellOrFace(i, j+1, k, cell_prim, prim_index, vadv_hi, Coord::y, spatial_order);
-
-        yflux(i,j  ,k,qty_index) *=
-            InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, vadv_lo, Coord::y, spatial_order);
-
-        zflux(i,j,k+1,qty_index) *=
-            InterpolateFromCellOrFace(i, j, k+1, cell_prim, prim_index, wadv_hi, Coord::z, spatial_order);
-
-        zflux(i,j,k  ,qty_index) *=
-            InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
-    }
-
-    advectionSrc = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
-                          + (yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dyInv
-                          + (zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dzInv;
-
-    advectionSrc /= detJ(i,j,k);
-
-    return advectionSrc;
-}
-#else
-AMREX_GPU_DEVICE
-Real
-AdvectionSrcForState(const int &i, const int &j, const int &k,
-                              const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                              const Array4<const Real>& cell_prim, const int &qty_index,
-                              const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
-                              const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                              const int &spatial_order) {
-
-    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-
-    Real advectionSrc;
-
-    if (qty_index == Rho_comp)
-    {
-        xflux(i+1,j,k,qty_index) = rho_u(i+1,j,k);
-        xflux(i  ,j,k,qty_index) = rho_u(i  ,j,k);
-        yflux(i,j+1,k,qty_index) = rho_v(i,j+1,k);
-        yflux(i,j  ,k,qty_index) = rho_v(i,j  ,k);
-        zflux(i,j,k+1,qty_index) = rho_w(i,j,k+1);
-        zflux(i,j,k  ,qty_index) = rho_w(i,j,k  );
-
-    } else {
-        const int prim_index = qty_index - RhoTheta_comp;
-
-        Real uadv_hi = rho_u(i+1,j,k);
-        Real uadv_lo = rho_u(i  ,j,k);
-        Real vadv_hi = rho_v(i,j+1,k);
-        Real vadv_lo = rho_v(i,j  ,k);
-        Real wadv_hi = rho_w(i,j,k+1);
-        Real wadv_lo = rho_w(i,j,k  );
-        xflux(i+1,j,k,qty_index) = rho_u(i+1,j,k) *
-            InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
-
-        xflux(i  ,j,k,qty_index) = rho_u(i  ,j,k) *
-            InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
-
-        yflux(i,j+1,k,qty_index) = rho_v(i,j+1,k) *
-            InterpolateFromCellOrFace(i, j+1, k, cell_prim, prim_index, vadv_hi, Coord::y, spatial_order);
-
-        yflux(i,j  ,k,qty_index) = rho_v(i,j  ,k) *
-            InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, vadv_lo, Coord::y, spatial_order);
-
-        zflux(i,j,k+1,qty_index) = rho_w(i,j,k+1)*
-            InterpolateFromCellOrFace(i, j, k+1, cell_prim, prim_index, wadv_hi, Coord::z, spatial_order);
-
-        zflux(i,j,k  ,qty_index) = rho_w(i,j,k  )*
-            InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
-    }
-
-    advectionSrc = (xflux(i+1,j,k,qty_index) - xflux(i  ,j,k,qty_index)) * dxInv
-                          + (yflux(i,j+1,k,qty_index) - yflux(i,j  ,k,qty_index)) * dyInv
-                          + (zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dzInv;
-
-    return advectionSrc;
-}
+#ifdef ERF_USE_TERRAIN
+    Real invdetJ = 1.0 / detJ(i,j,k);
 #endif
+
+    for (int n = icomp; n < icomp+ncomp; n++)
+    {
+        if ((n != RhoKE_comp && n != RhoQKE_comp) ||
+            (  use_deardorff && n == RhoKE_comp) ||
+            (  use_QKE       && n == RhoQKE_comp) )
+        {
+            Real xflux_hi_n, xflux_lo_n, yflux_hi_n, yflux_lo_n, zflux_hi_n, zflux_lo_n;
+            if (n != Rho_comp)
+            {
+                const int prim_index = n - RhoTheta_comp;
+
+                xflux_hi_n = xflux_hi * InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
+                xflux_lo_n = xflux_lo * InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
+
+                yflux_hi_n = yflux_hi * InterpolateFromCellOrFace(i, j+1, k, cell_prim, prim_index, vadv_hi, Coord::y, spatial_order);
+                yflux_lo_n = yflux_lo * InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, vadv_lo, Coord::y, spatial_order);
+
+                zflux_hi_n = zflux_hi * InterpolateFromCellOrFace(i, j, k+1, cell_prim, prim_index, wadv_hi, Coord::z, spatial_order);
+                zflux_lo_n = zflux_lo * InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
+
+            } else {
+
+                xflux_hi_n = xflux_hi; xflux_lo_n = xflux_lo;
+                yflux_hi_n = yflux_hi; yflux_lo_n = yflux_lo;
+                zflux_hi_n = zflux_hi; zflux_lo_n = zflux_lo;
+            }
+
+            xflux(i+1,j,k,n) = xflux_hi_n;
+            xflux(i  ,j,k,n) = xflux_lo_n;
+            yflux(i,j+1,k,n) = yflux_hi_n;
+            yflux(i,j  ,k,n) = yflux_lo_n;
+            zflux(i,j,k+1,n) = zflux_hi_n;
+            zflux(i,j,k  ,n) = zflux_lo_n;
+
+            advectionSrc(i,j,k,n) = -( (xflux_hi_n - xflux_lo_n) * dxInv
+                                      +(yflux_hi_n - yflux_lo_n) * dyInv
+                                      +(zflux_hi_n - zflux_lo_n) * dzInv );
+#ifdef ERF_USE_TERRAIN
+            advectionSrc(i,j,k,n) *= invdetJ;
+#endif
+        } else {
+
+            xflux(i+1,j,k,n) = 0.;
+            xflux(i  ,j,k,n) = 0.;
+            yflux(i,j+1,k,n) = 0.;
+            yflux(i,j  ,k,n) = 0.;
+            zflux(i,j,k+1,n) = 0.;
+            zflux(i,j,k  ,n) = 0.;
+
+            advectionSrc(i,j,k,n) = 0.;
+        }
+    } // n
+    });
+}

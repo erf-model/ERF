@@ -51,6 +51,14 @@ namespace BCVars {
     };
 }
 
+namespace RHSVar {
+    enum {
+        slow = 0,
+        fast,
+        all
+    };
+}
+
 namespace Vars {
     enum {
         cons = 0,

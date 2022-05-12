@@ -27,5 +27,6 @@ ifeq ($(USE_TERRAIN),TRUE)
 CEXE_sources += Metrics.cpp
 endif
 
+CEXE_sources += ERF_PhysBCFunct.cpp
 CEXE_headers += ERF_PhysBCFunct.H
 CEXE_headers += TimeInterpolatedData.H

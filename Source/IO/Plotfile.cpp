@@ -1,12 +1,15 @@
 #include <EOS.H>
 #include <ERF.H>
 #include "AMReX_Interp_3D_C.H"
+#include "AMReX_PlotFileUtil.H"
+
+using namespace amrex;
 
 // get plotfile name
 std::string
 ERF::PlotFileName (int lev) const
 {
-    return amrex::Concatenate(plot_file, lev, 5);
+    return Concatenate(plot_file, lev, 5);
 }
 
 void
@@ -70,7 +73,7 @@ ERF::setPlotVariables ()
     // check to see if we found all the requested vairables
     for (auto plot_name : plot_state_names) {
       if (!containerHasElement(tmp_plot_names, plot_name)) {
-    amrex::Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
+    Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
       }
     }
     plot_state_names = tmp_plot_names;
@@ -119,7 +122,7 @@ ERF::setPlotVariables ()
     // check to see if we found all the requested vairables
     for (auto plot_name : plot_deriv_names) {
         if (!containerHasElement(tmp_deriv_names, plot_name)) {
-            amrex::Warning("\nWARNING: Requested to plot derived variable '" + plot_name + "' but it is not available");
+            Warning("\nWARNING: Requested to plot derived variable '" + plot_name + "' but it is not available");
         }
     }
 
@@ -191,7 +194,7 @@ ERF::WritePlotFile () const
                                      const decltype(derived::erf_dernull)& der_function)
         {
             if (containerHasElement(plot_deriv_names, der_name)) {
-                MultiFab dmf(mf[lev], amrex::make_alias, mf_comp, 1);
+                MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
 
                 for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
@@ -220,11 +223,11 @@ ERF::WritePlotFile () const
             MultiFab::Copy(mf[lev],pres_hse[lev],0,mf_comp,1,0);
 #else
             auto d_pres_hse_lev = d_pres_hse[lev].dataPtr();
-            for ( amrex::MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
-                amrex::ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i, j, k, mf_comp) = d_pres_hse_lev[k+ng_pres_hse];
                 });
             }
@@ -238,11 +241,11 @@ ERF::WritePlotFile () const
             MultiFab::Copy(mf[lev],dens_hse[lev],0,mf_comp,1,0);
 #else
             auto d_dens_hse_lev = d_dens_hse[lev].dataPtr();
-            for ( amrex::MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
-                amrex::ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i, j, k, mf_comp) = d_dens_hse_lev[k+ng_dens_hse];
                 });
             }
@@ -255,7 +258,7 @@ ERF::WritePlotFile () const
 #ifndef ERF_USE_TERRAIN
             auto d_pres_hse_lev = d_pres_hse[lev].dataPtr();
 #endif
-            for ( amrex::MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
@@ -263,7 +266,7 @@ ERF::WritePlotFile () const
                 const Array4<Real const>& p0_arr = pres_hse[lev].const_array(mfi);
 #endif
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                amrex::ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
 #ifdef ERF_USE_TERRAIN
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - p0_arr(i,j,k);
@@ -280,7 +283,7 @@ ERF::WritePlotFile () const
 #ifndef ERF_USE_TERRAIN
             auto d_dens_hse_lev = d_dens_hse[lev].dataPtr();
 #endif
-            for ( amrex::MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat  = mf[lev].array(mfi);
@@ -288,7 +291,7 @@ ERF::WritePlotFile () const
 #ifdef ERF_USE_TERRAIN
                 const Array4<Real const>& r0_arr = dens_hse[lev].const_array(mfi);
 #endif
-                amrex::ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 #ifdef ERF_USE_TERRAIN
                     derdat(i, j, k, mf_comp) = S_arr(i,j,k,Rho_comp) - r0_arr(i,j,k);
 #else
@@ -338,7 +341,7 @@ ERF::WritePlotFile () const
                                                varnames,
                                                Geom(), t_new[0], istep, refRatio());
 #else
-            amrex::WriteMultiLevelPlotfile(plotfilename, finest_level+1,
+            WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                            GetVecOfConstPtrs(mf),
                                            varnames,
                                            Geom(), t_new[0], istep, refRatio());
@@ -352,9 +355,9 @@ ERF::WritePlotFile () const
 
     } else {
 
-        amrex::Vector<IntVect>   r2(finest_level);
-        amrex::Vector<Geometry>  g2(finest_level+1);
-        amrex::Vector<MultiFab> mf2(finest_level+1);
+        Vector<IntVect>   r2(finest_level);
+        Vector<Geometry>  g2(finest_level+1);
+        Vector<MultiFab> mf2(finest_level+1);
 
         mf2[0].define(grids[0], dmap[0], ncomp_mf, 0);
 
@@ -374,7 +377,7 @@ ERF::WritePlotFile () const
                 r2[lev-1][2] = r2[lev-2][2] * ref_ratio[lev-1][0];
             }
 
-            mf2[lev].define(amrex::refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
+            mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
 
             // Set the new problem domain
             Box d2(Geom()[lev].Domain());
@@ -392,13 +395,13 @@ ERF::WritePlotFile () const
         }
 
         // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
-        amrex::Vector<IntVect> rr(finest_level);
+        Vector<IntVect> rr(finest_level);
         for (int lev = 0; lev < finest_level; ++lev) {
             rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
         }
 
         if (plotfile_type == "amrex") {
-            amrex::WriteMultiLevelPlotfile(plotfilename, finest_level+1, GetVecOfConstPtrs(mf2), varnames,
+            WriteMultiLevelPlotfile(plotfilename, finest_level+1, GetVecOfConstPtrs(mf2), varnames,
                                            g2, t_new[0], istep, rr);
             writeJobInfo(plotfilename);
 #ifdef ERF_USE_NETCDF
@@ -438,7 +441,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
     if (!extra_dirs.empty()) {
         for (const auto& d : extra_dirs) {
             const std::string ed = plotfilename+"/"+d;
-            amrex::PreBuildDirectorHierarchy(ed, levelPrefix, nlevels, callBarrier);
+            PreBuildDirectorHierarchy(ed, levelPrefix, nlevels, callBarrier);
         }
     }
     ParallelDescriptor::Barrier();
@@ -571,7 +574,7 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                 // Need to shift because the RealBox ctor we call takes the
                 // physical location of index (0,0,0).  This does not affect
                 // the usual cases where the domain index starts with 0.
-                const Box& b = amrex::shift(bArray[level][i], -domain_lo);
+                const Box& b = shift(bArray[level][i], -domain_lo);
                 RealBox loc = RealBox(b, geom[level].CellSize(), geom[level].ProbLo());
                 for (int n = 0; n < AMREX_SPACEDIM; ++n) {
                     HeaderFile << loc.lo(n) << ' ' << loc.hi(n) << '\n';

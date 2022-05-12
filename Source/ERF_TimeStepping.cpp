@@ -2,6 +2,8 @@
 #include <ERF.H>
 #include <SpatialStencils.H>
 
+using namespace amrex;
+
 // Advance a level by dt
 // includes a recursive call for finer levels
 void

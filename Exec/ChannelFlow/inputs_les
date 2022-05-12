@@ -15,7 +15,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "NoSlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 2e-5    # fixed time step #TODO: Need to play around with time step to get rid of ringing
+erf.fixed_dt       = 2e-5    # fixed time step
 #erf.cfl            = 0.9     # cfl number for hyperbolic system
 
 # DIAGNOSTICS & VERBOSITY

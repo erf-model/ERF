@@ -12,6 +12,10 @@ enum class Coord {
     x, y, z
 };
 
+enum class Stagger {
+    None, x, y, z
+};
+
 enum class AdvectedQuantity {
     unity, u, v, w, theta, scalar
 };

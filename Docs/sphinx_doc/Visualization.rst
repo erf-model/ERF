@@ -13,9 +13,63 @@ Visualization
 ERF currently generates plotfile in the native AMReX format.
 
 There are several visualization tools that can be used for AMReX plotfiles, specifically
-VisIt, ParaView, and yt.
+ParaView, VisIt and yt.
+
+.. _section-1:
+
+ParaView
+--------
+
+The open source visualization package ParaView v5.10 and later can be used to view ERF
+plotfiles with and without terrain. You can download the paraview executable at https://www.paraview.org/.
+
+To open a plotfile
+
+#. Run ParaView v5.10, then select "File" :math:`\rightarrow` "Open".
+
+#. Navigate to your run directory, and select either a single plotfile or a set of plotfiles.
+   Open multiple plotfile at once by selecting ``plt..`` Paraview will load the plotfiles as a time series.
+   ParaView will ask you about the file type -- choose "AMReX/BoxLib Grid Reader".
+
+#. If you have run the ERF executable with terrain, then the mapped grid information will
+   be stored as nodal data.  Choose the "point data" called "nu", then click on "Warp by Vector"
+   which can be found via Filters-->Alphabetical.  This wil then plot data onto the mapped grid
+   locations.
+
+#. Under the "Cell Arrays" field, select a variable (e.g., "x_velocity") and click
+   "Apply". Note that the default number of refinement levels loaded and vizualized is 1.
+   Change to the required number of AMR level before clicking "Apply".
+
+#. For "Representation" select "Surface".
+
+#. For "Coloring" select the variable you chose above.
+
+#. To add planes, near the top left you will see a cube icon with a green plane
+   slicing through it. If you hover your mouse over it, it will say "Slice".
+   Click that button.
+
+#. You can play with the Plane Parameters to define a plane of data to view, as
+   shown in :numref:`fig:ParaView`.
+
+.. raw:: latex
+
+   \begin{center}
+
+.. _fig:ParaView:
+
+.. figure:: ./figures/ParaView.png
+   :width: 3.1in
+
+   : Plotfile image generated with ParaView
+
+.. raw:: latex
+
+   \end{center}
+
 
 .. _sec:visit:
+
+.. _section-2:
 
 VisIt
 -----
@@ -117,125 +171,7 @@ But, if you do not have "plt" followed immediately by the number,
 e.g. you name it pltx00100, then VisIt will not be able to correctly recognize
 and print the value for "Cycle".  (It will still read and display the data itself.)
 
-.. _section-1:
-
-ParaView
---------
-
-The open source visualization package ParaView v5.7 and later can be used to view 2D and 3D
-plotfiles, as well as particles data. Download the package at
-https://www.paraview.org/.
-
-To open a plotfile (for example, you could run the
-``HeatEquation_EX1_C`` in 3D):
-
-#. Run ParaView v5.7, then select "File" :math:`\rightarrow` "Open".
-
-#. Navigate to your run directory, and select the fluid or particle plotfile.
-   Note that you can either open single/multiple plotfile(s) at once by selecting
-   them one by one or select an ensemble of file, labelled as ``plt..`` and indicated
-   as a Group in the "Type" column of the file explorer (see :numref:`fig:ParaView_filegroup`).
-   In the later case, Paraview will load the plotfiles as a time series.
-   ParaView will ask you about the file type -- choose "AMReX/BoxLib Grid Reader" or
-   "AMReX/BoxLib Particles Reader".
-
-#. Under the "Cell Arrays" field, select a variable (e.g., "phi") and click
-   "Apply". Note that the default number of refinement levels loaded and vizualized is 1.
-   Change to the required number of AMR level before clicking "Apply".
-
-#. Under "Representation" select "Surface".
-
-#. Under "Coloring" select the variable you chose above.
-
-#. To add planes, near the top left you will see a cube icon with a green plane
-   slicing through it. If you hover your mouse over it, it will say "Slice".
-   Click that button.
-
-#. You can play with the Plane Parameters to define a plane of data to view, as
-   shown in :numref:`fig:ParaView`.
-
-.. raw:: latex
-
-   \begin{center}
-
-.. _fig:ParaView:
-
-.. figure:: ./figures/ParaView.png
-   :width: 3.1in
-
-   : Plotfile image generated with ParaView
-
-.. raw:: latex
-
-   \end{center}
-
-Note that Paraview is not able to generate iso-surfaces from cell centered data. To build an iso-surface (or iso-line in 2D):
-
-#. Perform a cell to node interpolation: "Filters" :math:`\rightarrow` "Alphabetical" :math:`\rightarrow` "Cell Data to Point Data".
-
-#. Use the "Contour" icon (next to the calculator) to select the data from which to build the contour ("Contour by"), enters the iso-surfaces
-   values and click "Apply".
-
-To visualize particle data within plofile directories (for example, you could
-run the ``ShortRangeParticles`` example):
-
-.. raw:: latex
-
-   \begin{center}
-
-.. _fig:ParaView_filegroup:
-
-.. figure:: ./figures/ParaView_filegroup.png
-   :width: 3.1in
-
-   : File dialog in ParaView showing a group of plotfile directories selected
-
-.. raw:: latex
-
-   \end{center}
-
-#. Run ParaView v5.7, and select  then  "File" :math:`\rightarrow` "Open". You
-   will see a combined "plt.." group. Click on "+" to expand the group, if you
-   want inspect the files in the group. You can select an individual plotfile
-   directory or select a group of directories to read them a time series, as
-   shown in :numref:`fig:ParaView_filegroup`, and click OK. ParaView will ask you about the file type -- choose "AMReX/BoxLib Particles Reader".
-
-#. The "Properties" panel in ParaView allows you to specify the "Particle
-   Type", which defaults to "particles". Using the "Properties" panel, you can
-   also choose which point arrays to read.
-
-#. Click "Apply" and under "Representation" select "Point Gaussian".
-
-#. Change the Gaussian Radius if you like. You can scroll through the frames
-   with the VCR-like controls at the top, as shown in
-   :numref:`fig:ParaView_particles`.
-
-.. raw:: latex
-
-   \begin{center}
-
-.. _fig:ParaView_particles:
-
-.. figure:: ./figures/ParaView_particles.png
-   :width: 3.1in
-
-   : Particle image generated with ParaView
-
-.. raw:: latex
-
-   \end{center}
-
-Following these instructions, you can open fluid and/or particles plotfiles and visualize them together on the same Panel View.
-
-Once you have loaded an AMReX plotfile time series (fluid and/or particles), you can generate a movie following these instructions:
-
-#. "File" :math:`\rightarrow` "Save Animation...".
-
-#. Enter a file name, select ".avi" as the Type of File and click "OK".
-
-#. Adjust the resolution, compression and framerate, and click "OK"
-
-.. _section-2:
+.. _section-3:
 
 yt
 --

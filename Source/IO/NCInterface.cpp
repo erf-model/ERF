@@ -224,6 +224,25 @@ void NCVar::get(
         ncid, varid, start.data(), count.data(), stride.data(), dptr));
 }
 
+void NCVar::get(
+        char** dptr,
+        const std::vector<size_t>& start,
+        const std::vector<size_t>& count) const
+{
+    check_nc_error(
+            nc_get_vara_string(ncid, varid, start.data(), count.data(), dptr));
+}
+
+void NCVar::get(
+        char** dptr,
+        const std::vector<size_t>& start,
+        const std::vector<size_t>& count,
+        const std::vector<ptrdiff_t>& stride) const
+{
+    check_nc_error(nc_get_vars_string(
+            ncid, varid, start.data(), count.data(), stride.data(), dptr));
+}
+
 bool NCVar::has_attr(const std::string& name) const
 {
     int ierr;
@@ -292,6 +311,7 @@ void NCVar::get_attr(const std::string& name, std::vector<int>& values) const
     values.resize(lenp);
     check_nc_error(nc_get_att_int(ncid, varid, name.data(), values.data()));
 }
+
 //Uncomment for parallel NetCDF
 /*
 void NCVar::par_access(const int cmode) const

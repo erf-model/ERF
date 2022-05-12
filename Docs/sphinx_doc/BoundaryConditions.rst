@@ -247,16 +247,16 @@ Assuming that :math:`\theta_{\star}, u_{\star}, q_{\star}` are constant with hei
 
 .. math::
 
-  u &= u_{\star}^{2} \frac{ (u-\bar{u}) \bar{|\mathbf{U}|} +
+  \mu\frac{\partial u}{\partial z} &= -\rho u_{\star}^{2} \frac{ (u-\bar{u}) \bar{|\mathbf{U}|} +
                              \sqrt{u^2+v^2} \; \bar{u}  }{\bar{|\mathbf{U}|}^{2}},
 
-  v &= u_{\star}^{2} \frac{ (v-\bar{v}) \bar{|\mathbf{U}|} +
+ \mu\frac{\partial v}{\partial z} &= -\rho u_{\star}^{2} \frac{ (v-\bar{v}) \bar{|\mathbf{U}|} +
                              \sqrt{u^2+v^2} \; \bar{v}  }{\bar{|\mathbf{U}|}^{2}},
 
-  \theta &= \theta_\star + k u_{\star} \frac{\bar{|\mathbf{U}|} (\theta - \overline{\theta}) +
-                                             \sqrt{u^2+v^2}  (\overline{\theta}-\theta_{\star}) }{\Theta_{h}}
+  \mu\frac{\partial \theta }{\partial z} &= \rho \frac{\bar{|\mathbf{U}|} (\theta - \overline{\theta}) +
+                                             \sqrt{u^2+v^2}  (\overline{\theta}-\theta_{\star}) }{\Theta_{h} \bar{|\mathbf{U}|}}
 
 where :math:`\bar{u}`, :math:`\bar{v}` and :math:`\overline{\theta}` are the plane averaged values of the
 two horizontal velocity components and the potential temperature, respectively, and
-:math:`\bar{|\mathbf{U}|}` is the plane averaged magnitude of horizontal velocity.
+:math:`\bar{|\mathbf{U}|}` is the plane averaged magnitude of horizontal velocity. :math:`\mu` is the eddy visocisity.
 

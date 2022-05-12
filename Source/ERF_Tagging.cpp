@@ -1,4 +1,7 @@
 #include <ERF.H>
+
+using namespace amrex;
+
 //
 // Tag cells for refinement -- this overrides the pure virtual function in AmrCore
 //

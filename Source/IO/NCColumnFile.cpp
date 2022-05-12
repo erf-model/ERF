@@ -2,11 +2,13 @@
 #include "NCInterface.H"
 #include "IndexDefines.H"
 
+using namespace amrex;
+
 void
 ERF::createNCColumnFile(int lev,
                         const std::string& colfile_name,
-                        const amrex::Real xloc,
-                        const amrex::Real yloc)
+                        const Real xloc,
+                        const Real yloc)
 {
   // Create file to which column data will be written every timestep
   if (amrex::ParallelDescriptor::IOProcessor()) {
@@ -18,7 +20,7 @@ ERF::createNCColumnFile(int lev,
     ncf.enter_def_mode();
     ncf.put_attr("title", "ERF NetCDF Vertical Column Output");
     ncf.put_attr("units", "mks");
-    amrex::Vector<amrex::Real> loc = {xloc, yloc};
+    amrex::Vector<Real> loc = {xloc, yloc};
     ncf.put_attr("location", loc);
     ncf.def_dim(nt_name, NC_UNLIMITED);
     ncf.def_dim(nh_name, nheights);
@@ -31,9 +33,9 @@ ERF::createNCColumnFile(int lev,
     ncf.exit_def_mode();
 
     // Put in the Z grid, but not any actual data yet
-    amrex::Real zmin = geom[lev].ProbLo(2);
-    amrex::Real dz = geom[lev].CellSize(2);
-    amrex::Vector<amrex::Real> zvalues(nheights, zmin-0.5*dz);
+    Real zmin = geom[lev].ProbLo(2);
+    Real dz = geom[lev].CellSize(2);
+    amrex::Vector<Real> zvalues(nheights, zmin-0.5*dz);
     for (int ii = 0; ii < nheights; ++ii) {
       zvalues[ii] += ii * dz;
     }
@@ -44,8 +46,8 @@ ERF::createNCColumnFile(int lev,
 
 void
 ERF::writeToNCColumnFile(const int lev,
-                         const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
-                         const amrex::Real cumtime)
+                         const std::string& colfile_name, const Real xloc, const Real yloc,
+                         const Real cumtime)
 {
   //
   // This routine assumes that we can grab the whole column of data from the MultiFabs at
@@ -56,11 +58,11 @@ ERF::writeToNCColumnFile(const int lev,
   // All processors: look for the requested column and get data if it's there
   amrex::Box probBox = geom[lev].Domain();
   const size_t nheights = probBox.length(2) + 2;
-  amrex::Gpu::DeviceVector<amrex::Real> d_column_data(nheights*3, 0.0);
-  amrex::Vector<amrex::Real> h_column_data(nheights*3, 0.0);
-  amrex::Real* ucol = &d_column_data[0];
-  amrex::Real* vcol = &d_column_data[nheights];
-  amrex::Real* thetacol = &d_column_data[nheights*2];
+  amrex::Gpu::DeviceVector<Real> d_column_data(nheights*3, 0.0);
+  amrex::Vector<Real> h_column_data(nheights*3, 0.0);
+  Real* ucol = &d_column_data[0];
+  Real* vcol = &d_column_data[nheights];
+  Real* thetacol = &d_column_data[nheights*2];
 
   // Requested point must be inside problem domain
   if (xloc < geom[0].ProbLo(0) || xloc > geom[0].ProbHi(0) ||
@@ -69,13 +71,13 @@ ERF::writeToNCColumnFile(const int lev,
   }
 
   // get indices and interpolation coefficients
-  const amrex::Real x_cell_loc = probBox.smallEnd(0) + (xloc - geom[lev].ProbLo(0))* geom[lev].InvCellSize(0);
-  const amrex::Real y_cell_loc = probBox.smallEnd(1) + (yloc - geom[lev].ProbLo(1))* geom[lev].InvCellSize(1);
+  const Real x_cell_loc = probBox.smallEnd(0) + (xloc - geom[lev].ProbLo(0))* geom[lev].InvCellSize(0);
+  const Real y_cell_loc = probBox.smallEnd(1) + (yloc - geom[lev].ProbLo(1))* geom[lev].InvCellSize(1);
   const int iloc = static_cast<int>(floor(x_cell_loc - 0.5));
   const int jloc = static_cast<int>(floor(y_cell_loc - 0.5));
-  const amrex::Real alpha_x = x_cell_loc - 0.5 - iloc;
-  const amrex::Real alpha_y = y_cell_loc - 0.5 - jloc;
-  amrex::Array2D<amrex::Real, 0, 1, 0, 1> alpha_theta;
+  const Real alpha_x = x_cell_loc - 0.5 - iloc;
+  const Real alpha_y = y_cell_loc - 0.5 - jloc;
+  amrex::Array2D<Real, 0, 1, 0, 1> alpha_theta;
   alpha_theta(0,0) = (1.0 - alpha_x) * (1.0-alpha_y);
   alpha_theta(1,0) = (alpha_x) * (1.0-alpha_y);
   alpha_theta(0,1) = (1.0 - alpha_x) * (alpha_y);
@@ -83,14 +85,14 @@ ERF::writeToNCColumnFile(const int lev,
   // may need different indices for u,v due to not being collocated
   const int iloc_shift = static_cast<int>(floor(x_cell_loc)) - iloc;
   const int jloc_shift = static_cast<int>(floor(y_cell_loc)) - jloc;
-  const amrex::Real alpha_x_u = x_cell_loc - iloc - iloc_shift;
-  const amrex::Real alpha_y_v = y_cell_loc - jloc - jloc_shift;
-  amrex::Array2D<amrex::Real, 0, 1, 0, 1> alpha_u;
+  const Real alpha_x_u = x_cell_loc - iloc - iloc_shift;
+  const Real alpha_y_v = y_cell_loc - jloc - jloc_shift;
+  amrex::Array2D<Real, 0, 1, 0, 1> alpha_u;
   alpha_u(0,0) = (1.0 - alpha_x_u) * (1.0-alpha_y);
   alpha_u(1,0) = (alpha_x_u) * (1.0-alpha_y);
   alpha_u(0,1) = (1.0 - alpha_x_u) * (alpha_y);
   alpha_u(1,1) = (alpha_x_u) * (alpha_y);
-  amrex::Array2D<amrex::Real, 0, 1, 0, 1> alpha_v;
+  amrex::Array2D<Real, 0, 1, 0, 1> alpha_v;
   alpha_v(0,0) = (1.0 - alpha_x) * (1.0-alpha_y_v);
   alpha_v(1,0) = (alpha_x) * (1.0-alpha_y_v);
   alpha_v(0,1) = (1.0 - alpha_x) * (alpha_y_v);
@@ -160,7 +162,7 @@ ERF::writeToNCColumnFile(const int lev,
 
     // T flux
     // TODO: Make this the actual flux rather than just a placeholder
-    amrex::Real Tflux = 0.0;
+    Real Tflux = 0.0;
     ncf.var("wrf_tflux").put(&Tflux, start_t, count_t);
 
     // U, V, Theta

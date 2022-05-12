@@ -2,6 +2,8 @@
 #include <EOS.H>
 #include <prob_common.H>
 
+using namespace amrex;
+
 void
 ERF::initRayleigh()
 {
@@ -119,20 +121,24 @@ ERF::erf_enforce_hse(int lev,
 
         Array4<Real>  rho_arr = dens.array(mfi);
         Array4<Real> pres_arr = pres.array(mfi);
-        Array4<Real> znd_arr = z_nd.array(mfi);
-        Array4<Real> zcc_arr = z_cc.array(mfi);
+        Array4<Real> znd_arr  = z_nd.array(mfi);
+        Array4<Real> zcc_arr  = z_cc.array(mfi);
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            int k0 = 0;
-            Real dz = 0.25 * ( znd_arr(i,j,k0+1) +  znd_arr(i+1,j,k0+1) + znd_arr(i,j+1,k0+1) + znd_arr(i+1,j+1,k0+1)
-                              -znd_arr(i,j,k0  ) -  znd_arr(i+1,j,k0  ) - znd_arr(i,j+1,k0  ) - znd_arr(i+1,j+1,k0  ) );
-            pres_arr(i,j,-1) = p_0 + (0.5*dz) * rho_arr(i,j,0) * l_gravity;
-            pres_arr(i,j, 0) = p_0 - (0.5*dz) * rho_arr(i,j,0) * l_gravity;
+            int k0  = 0;
+            // Physical heigh of the terrain at cell center
+            Real hz = zcc_arr(i,j,k0);
+            // Local displacement
+            Real dz_loc = (zcc_arr(i,j,k0) - zcc_arr(i,j,k0-1));
+
+            // Set value at surface from Newton iteration for rho
+            pres_arr(i,j,k0  ) = p_0 - hz * rho_arr(i,j,k0) * l_gravity;
+            // Set ghost cell with dz and rho at boundary
+            pres_arr(i,j,k0-1) = pres_arr(i,j,k0) + dz_loc * rho_arr(i,j,k0) * l_gravity;
 
             for (int k = 1; k <= nz; k++) {
-                Real dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
-                Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
-                pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
+                dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
+                pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * rho_arr(i,j,k) * l_gravity;
             }
         });
 

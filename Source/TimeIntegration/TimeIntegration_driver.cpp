@@ -1,5 +1,4 @@
 #include <AMReX.H>
-#include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
 #include <SpatialStencils.H>
@@ -55,7 +54,7 @@ void ERF::erf_advance(int level,
               prim_arr(i,j,k,PrimTheta_comp + n) = cons_arr(i,j,k,RhoTheta_comp + n) / cons_arr(i,j,k,Rho_comp);
             }
           });
-      }
+      } // mfi
     };
 
     MultiFab S_prim(ba, dm, NUM_PRIM, cons_old.nGrowVect());
@@ -194,39 +193,65 @@ void ERF::erf_advance(int level,
 
     //Create function lambdas
     auto rhs_fun = [&](      Vector<MultiFab>& S_rhs,
-                       const Vector<MultiFab>& S_data, const Real time) {
-        if (verbose) Print() << "Calling slow rhs, time = " << time << std::endl;
-        erf_rhs(level, S_rhs, S_data, S_prim,
-                xvel_new, yvel_new, zvel_new,
-                source, advflux, diffflux,
-                fine_geom, ifr, solverChoice,
-                get_most(), domain_bcs_type_d,
+                       const Vector<MultiFab>& S_data,
+                       const Real time,
+                       const int rhs_vars=RHSVar::all) {
+        if (verbose) Print() << "Calling rhs, time = " << time << std::endl;
+        Vector <MultiFab> S_scratch;
+        erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
+                     xvel_new, yvel_new, zvel_new,
+                     source, advflux, diffflux,
+                     fine_geom, ifr, solverChoice,
+                     get_most(), domain_bcs_type_d,
 #ifdef ERF_USE_TERRAIN
-                z_phys_nd[level], detJ_cc[level],
-                r0, p0,
+                     z_phys_nd[level], detJ_cc[level],
+                     r0, p0,
 #else
-                dptr_dens_hse, dptr_pres_hse,
+                     dptr_dens_hse, dptr_pres_hse,
 #endif
-                dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+                     dptr_rayleigh_tau, dptr_rayleigh_ubar,
+                     dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
+                     rhs_vars);
     };
 
-    auto implicit_fast_rhs_fun = [&](      Vector<MultiFab>& S_rhs,
-                                           Vector<MultiFab>& S_slow_rhs,
-                                           Vector<MultiFab>& S_stage_data,
-                                     const Vector<MultiFab>& S_data,
-                                     const Vector<MultiFab>& S_data_old,
-                                     const Real time, const Real fast_dt)
-    {
-        if (verbose) Print() << "Calling fast rhs, time = " << time << std::endl;
-        erf_implicit_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
-                              S_data, S_data_old, advflux, fine_geom, ifr, solverChoice,
+    //Create function lambdas
+    auto slow_rhs_fun = [&](      Vector<MultiFab>& S_rhs,
+                            const Vector<MultiFab>& S_data,
+                                  Vector<MultiFab>& S_scratch,
+                            const Real time,
+                            const int rhs_vars=RHSVar::all) {
+        if (verbose) Print() << "Calling slow rhs, time = " << time << std::endl;
+        erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
+                     xvel_new, yvel_new, zvel_new,
+                     source, advflux, diffflux,
+                     fine_geom, ifr, solverChoice, get_most(), domain_bcs_type_d,
 #ifdef ERF_USE_TERRAIN
-                              z_phys_nd[level], detJ_cc[level], r0, p0,
+                     z_phys_nd[level], detJ_cc[level],
+                     r0, p0,
 #else
-                              dptr_dens_hse, dptr_pres_hse,
+                     dptr_dens_hse, dptr_pres_hse,
 #endif
-                              time, fast_dt);
+                     dptr_rayleigh_tau, dptr_rayleigh_ubar,
+                     dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
+                     rhs_vars);
+    };
+
+    auto fast_rhs_fun = [&](      Vector<MultiFab>& S_rhs,
+                                  Vector<MultiFab>& S_slow_rhs,
+                                  Vector<MultiFab>& S_stage_data,
+                            const Vector<MultiFab>& S_data,
+                                  Vector<MultiFab>& S_scratch,
+                            const Real fast_dt, const Real inv_fac)
+    {
+        if (verbose) Print() << "  Calling fast rhs with dtau = " << fast_dt << std::endl;
+        erf_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
+                     S_data, S_scratch, advflux, fine_geom, ifr, solverChoice,
+#ifdef ERF_USE_TERRAIN
+                     z_phys_nd[level], detJ_cc[level], r0, p0,
+#else
+                     dptr_dens_hse, dptr_pres_hse,
+#endif
+                     fast_dt, inv_fac);
     };
 
     auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp)
@@ -237,6 +262,8 @@ void ERF::erf_advance(int level,
 
     auto post_substep_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp)
     {
+        // TODO: we only need to apply bcs for the "fast" variables -- this would be an optimization
+        //       but shouldn't affect correctness
         apply_bcs(S_data, time_for_fp);
     };
 
@@ -248,8 +275,8 @@ void ERF::erf_advance(int level,
 
       // define rhs and 'post update' utility function that is called after calculating
       // any state data (e.g. at RK stages or at the end of a timestep)
-      lev_integrator.set_rhs(rhs_fun);
-      lev_integrator.set_implicit_fast_rhs(implicit_fast_rhs_fun);
+      lev_integrator.set_slow_rhs(slow_rhs_fun);
+      lev_integrator.set_fast_rhs(fast_rhs_fun);
       lev_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
       lev_integrator.set_post_update(post_update_fun);
       lev_integrator.set_post_substep(post_substep_fun);
