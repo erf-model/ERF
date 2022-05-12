@@ -10,26 +10,26 @@
 
 using namespace amrex;
 
-void erf_implicit_fast_rhs (int level,
-                            Vector<MultiFab >& S_rhs,                        // the fast RHS we will return
-                            Vector<MultiFab >& S_slow_rhs,                   // the slow RHS already computed
-                            Vector<MultiFab >& S_stage_data,                 // S_bar = S^n, S^* or S^**
-                            const MultiFab& S_stage_prim,
-                            const Vector<MultiFab >& S_data,                 // S_sum = most recent full solution
-                            const Vector<MultiFab >& S_data_old,             // S_sum_old at most recent fast timestep
-                            std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
-                            const amrex::Geometry geom,
-                            amrex::InterpFaceRegister* ifr,
-                            const SolverChoice& solverChoice,
+void erf_fast_rhs (int level,
+                   Vector<MultiFab>& S_rhs,                        // the fast RHS we will return
+                   Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
+                   Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
+                   const MultiFab& S_stage_prim,
+                   const Vector<MultiFab>& S_data,                 // S_sum = most recent full solution
+                         Vector<MultiFab>& S_scratch,              // S_sum_old at most recent fast timestep for (rho theta)
+                   std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+                   const amrex::Geometry geom,
+                   amrex::InterpFaceRegister* ifr,
+                   const SolverChoice& solverChoice,
 #ifdef ERF_USE_TERRAIN
-                            const MultiFab& z_phys_nd,
-                            const MultiFab& detJ_cc,
-                            const MultiFab& r0,
-                            const MultiFab& p0,
+                   const MultiFab& z_phys_nd,
+                   const MultiFab& detJ_cc,
+                   const MultiFab& r0,
+                   const MultiFab& p0,
 #else
-                            const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
 #endif
-                            const amrex::Real /*time*/, const amrex::Real dtau)
+                   const amrex::Real dtau, const amrex::Real facinv)
 {
     BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
 
@@ -148,21 +148,26 @@ void erf_implicit_fast_rhs (int level,
         const Array4<const Real>& slow_rhs_rho_v    = S_slow_rhs[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_w    = S_slow_rhs[IntVar::zmom].const_array(mfi);
 
-        const Array4<Real>& new_drho_u = New_rho_u.array(mfi);
-        const Array4<Real>& new_drho_v = New_rho_v.array(mfi);
-        const Array4<Real>& new_drho_w = New_rho_w.array(mfi);
+        const Array4<      Real>& new_drho_u = New_rho_u.array(mfi);
+        const Array4<      Real>& new_drho_v = New_rho_v.array(mfi);
+        const Array4<      Real>& new_drho_w = New_rho_w.array(mfi);
 
-        const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
-        const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
-        const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
+        const Array4<      Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
+        const Array4<      Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
+        const Array4<      Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
 
         // These are temporaries we use to add to the S_rhs for the fluxes
-        const Array4<Real>& advflux_x = advflux[0].array(mfi);
-        const Array4<Real>& advflux_y = advflux[1].array(mfi);
-        const Array4<Real>& advflux_z = advflux[2].array(mfi);
+        const Array4<      Real>& advflux_x = advflux[0].array(mfi);
+        const Array4<      Real>& advflux_y = advflux[1].array(mfi);
+        const Array4<      Real>& advflux_z = advflux[2].array(mfi);
 
         const Array4<const Real>& cur_data = S_data[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& old_data = S_data_old[IntVar::cons].const_array(mfi);
+        const Array4<const Real>& old_data = S_scratch[IntVar::cons].const_array(mfi);
+
+        // These store the advection momenta which we will use to update the slow variables
+        const Array4<      Real>& avg_xmom = S_scratch[IntVar::xmom].array(mfi);
+        const Array4<      Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
+        const Array4<      Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
 #ifdef ERF_USE_TERRAIN
         const Array4<const Real>& z_nd   = z_phys_nd.const_array(mfi);
@@ -229,6 +234,9 @@ void erf_implicit_fast_rhs (int level,
                                                         + dtau * slow_rhs_rho_u(i,j,k);
 
                 if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
+
+                avg_xmom(i,j,k) += facinv * new_drho_u(i,j,k);
+
             } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
@@ -276,6 +284,9 @@ void erf_implicit_fast_rhs (int level,
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v(i,j,k)
                                                         + dtau * slow_rhs_rho_v(i,j,k);
                 if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
+
+                avg_ymom(i,j,k) += facinv * new_drho_v(i,j,k);
+
             } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
@@ -504,6 +515,8 @@ void erf_implicit_fast_rhs (int level,
               new_drho_w(i,j,k) = soln(k);
 #endif
               fast_rhs_rho_w(i,j,k) = ( new_drho_w(i,j,k) - old_drho_w(i,j,k) - dtau * slow_rhs_rho_w(i,j,k)) / dtau;
+
+              avg_zmom(i,j,k) += facinv * new_drho_w(i,j,k);
           }
         });
 
@@ -512,10 +525,10 @@ void erf_implicit_fast_rhs (int level,
         // **************************************************************************
 
         const int l_spatial_order = 2;
-        int ncomp = S_stage_data[IntVar::cons].nComp();
 
-        // We need to update all the conserved quantities with the updated momenta
+        // We only update (rho) and (rho theta) here
         int start_comp = 0;
+        int ncomp      = 2;
         AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w,
                              prim, fast_rhs_cell, advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
@@ -525,17 +538,17 @@ void erf_implicit_fast_rhs (int level,
 
         // Compute the RHS for the flux terms from this stage --
         //     we do it this way so we don't double count
-        amrex::ParallelFor(tbx, S_stage_data[IntVar::cons].nComp(),
+        amrex::ParallelFor(tbx, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n);
         });
-        amrex::ParallelFor(tby, S_stage_data[IntVar::cons].nComp(),
+        amrex::ParallelFor(tby, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n);
         });
-        amrex::ParallelFor(tbz, S_stage_data[IntVar::cons].nComp(),
+        amrex::ParallelFor(tbz, ncomp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n);
