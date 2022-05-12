@@ -549,7 +549,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         if (init_type == "input_sounding") {
             if (input_sounding_file.empty())
                 amrex::Error("input_sounding file name must be provided via input");
-            read_from_input_sounding();
+            input_sounding_data.read_from_file(input_sounding_file);
         }
     }
 
@@ -591,15 +591,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #endif
             }
             else {
-                InputSoundingData inputSoundingData(z_inp_sound,
-                                                    theta_inp_sound,
-                                                    moisture_inp_sound,
-                                                    U_inp_sound,
-                                                    V_inp_sound,
-                                                    press_ref_inp_sound,
-                                                    theta_ref_inp_sound,
-                                                    dummy);
-                init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), inputSoundingData);
+                init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), input_sounding_data);
             }
         }
     }
@@ -1224,41 +1216,6 @@ ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
 }
 #endif // ERF_USE_NETCDF
 
-// input Sounding doesn't depend on NETCDF
-void
-ERF::read_from_input_sounding() {
-    // Read the input_sounding file
-    amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
-    std::ifstream input_sounding_reader(input_sounding_file);
-    if(!input_sounding_reader.is_open()) {
-        amrex::Error("Error opening the input_sounding file\n");
-    }
-    else {
-        // Read the contents of the input_sounding file
-        amrex::Print() << "Successfully opened the input_sounding file. Now reading... " << std::endl;
-        std::string  line;
-
-        // Read the first line
-        std::getline(input_sounding_reader, line);
-        std::istringstream iss(line);
-        iss >> press_ref_inp_sound >> theta_ref_inp_sound >> dummy;
-
-        // Read the vertical profile at each given height
-        while(std::getline(input_sounding_reader, line)) {
-            std::istringstream iss(line);
-            Real z, theta, moiture, U, V;
-            iss >> z >> theta >> moiture >> U >> V;
-            z_inp_sound.push_back(z);
-            theta_inp_sound.push_back(theta);
-            moisture_inp_sound.push_back(moiture);
-            U_inp_sound.push_back(U);
-            V_inp_sound.push_back(V);
-        }
-    }
-    amrex::Print() << "Successfully read the input_sounding file..." << std::endl;
-    input_sounding_reader.close();
-}
-
 void ERF::init_from_input_sounding(
         const amrex::Box &bx,
         amrex::Array4<amrex::Real> const &state,
@@ -1266,14 +1223,15 @@ void ERF::init_from_input_sounding(
         amrex::Array4<amrex::Real> const &y_vel,
         amrex::Array4<amrex::Real> const &z_vel,
         amrex::GeometryData const &geomdata,
-        const InputSoundingData &inputSoundingData) {
-//    struct ProbParm {
-//        amrex::Real rho_0 = 1.0;
-//        amrex::Real Theta_0 = 300.0;
-//        amrex::Real V_0 = 1.0;
-//    };
-//    ProbParm parms;
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        InputSoundingData const &inputSoundingData) {
+
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
+    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
+    const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d.dataPtr();
+    const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d.dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size();
+
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Geometry
         const amrex::Real* prob_lo = geomdata.ProbLo();
         const amrex::Real* dx = geomdata.CellSize();
@@ -1286,7 +1244,7 @@ void ERF::init_from_input_sounding(
         state(i, j, k, Rho_comp) = rho_0;
 
         // Initial Rho0*Theta0
-        state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_profile(inputSoundingData.z_inp_sound, inputSoundingData.theta_inp_sound, z);
+        state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state(i, j, k, RhoScalar_comp) = 0;
@@ -1294,98 +1252,34 @@ void ERF::init_from_input_sounding(
 
     // Construct a box that is on x-faces
     const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
-    // Set the x-velocity
-    amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    // Construct a box that is on y-faces
+    const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
+    // Construct a box that is on z-faces
+    const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+
+    // Set the x,y,z-velocities
+    amrex::ParallelFor(xbx, ybx, zbx,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of x-faces
         const amrex::Real* prob_lo = geomdata.ProbLo();
         const amrex::Real* dx = geomdata.CellSize();
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         // Set the x-velocity
-        x_vel(i, j, k) = interpolate_profile(inputSoundingData.z_inp_sound, inputSoundingData.U_inp_sound, z);
-    });
-
-    // Construct a box that is on y-faces
-    const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
-    // Set the y-velocity
-    amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of y-faces
         const amrex::Real* prob_lo = geomdata.ProbLo();
         const amrex::Real* dx = geomdata.CellSize();
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         // Set the y-velocity
-        y_vel(i, j, k) = interpolate_profile(inputSoundingData.z_inp_sound, inputSoundingData.V_inp_sound, z);
-    });
-
-    // Construct a box that is on z-faces
-    const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
-    // Set the z-velocity
-    amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        // Note that this is called on a box of z-faces
+        // Set the z-velocity
         z_vel(i, j, k) = 0.0;
     });
-}
-
-//Real
-//ERF::interpolate_profile(const Vector<Real> &v1, const Vector<Real> &v2, const Real &var) {
-//    // Implement this
-//    auto vec_size = v1.size();
-//    AMREX_ALWAYS_ASSERT(vec_size == v2.size());
-//    int mid_val = vec_size/2;
-//    //return v2[mid_val];
-//}
-
-amrex::Real
-ERF::interpolate_profile(const Vector<Real>& alpha, const Vector<Real>& varSurf, const Real &detail_sensativity)
-{
-    //in case the interoplation point alraedy exists in the array
-    //just return it
-    Real res;
-    Vector<Real>::const_iterator it = std::find(alpha.begin(), alpha.end(), detail_sensativity);
-    if (it != alpha.end())
-    {
-        int index = it - alpha.begin();
-        res = varSurf[index];
-    }
-    else // we need linear interpolation/extrapolation.
-    {
-        Real max = *std::max_element(alpha.begin(), alpha.end());
-        Real min = *std::min_element(alpha.begin(), alpha.end());
-        if (detail_sensativity >= min && detail_sensativity <= max) //interpolate
-        {
-            for (size_t i = 0; i < alpha.size(); ++i)
-            {
-                if (detail_sensativity >= alpha[i] && detail_sensativity <= alpha[i + 1])
-                {
-                    //y = y0 + (y1-y0)*(x-x0)/(x1-x0);
-                    Real y0 = varSurf[i];
-                    Real y1 = varSurf[i + 1];
-                    Real x = detail_sensativity;
-                    Real x0 = alpha[i];
-                    Real x1 = alpha[i + 1];
-                    res = y0 + (y1 - y0)*(x - x0) / (x1 - x0);
-                }
-            }
-        }
-        else //extrapolate
-        {
-            //y = y0 + ((x - x0) / (x1 - x0)) * (y1 - y0)
-            int i;
-            if (detail_sensativity >= *alpha.end())
-            {
-                i = varSurf.end() - varSurf.begin() - 1;
-            }
-            else
-            {
-                i = 0;
-            }
-            Real y0 = varSurf[i];
-            Real y1 = varSurf[i + 1];
-            Real x = detail_sensativity;
-            Real x0 = alpha[i];
-            Real x1 = alpha[i + 1];
-            res = y0 + ((x - x0) / (x1 - x0)) * (y1 - y0);
-        }
-    }
-    return res;
 }
