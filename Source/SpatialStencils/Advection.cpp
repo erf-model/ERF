@@ -22,11 +22,11 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
     Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
 
     Real met_h_xi, met_h_eta,  met_h_zeta;
-     
+
     // ****************************************************************************************
     // X-fluxes (at cell centers)
     // ****************************************************************************************
-    
+
     // Cell-Center is staggered
     ComputeMetricAtCellCenter(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
 
@@ -35,7 +35,7 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
                           InterpolateFromCellOrFace(i+1, j, k, u, 0, rho_u_avg, Coord::x, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-    
+
     // Cell-Center is staggered
     ComputeMetricAtCellCenter(i-1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
 
@@ -55,7 +55,7 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
                           InterpolateFromCellOrFace(i, j+1, k, u, 0, rho_v_avg, Coord::y, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-    
+
     // Metric is at edge and center Z (red pentagon)
     ComputeMetricAtEdgeCenterK(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
 
@@ -160,7 +160,7 @@ AdvectionSrcForYMom(const int &i, const int &j, const int &k,
     Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
 
     Real met_h_xi, met_h_eta,  met_h_zeta;
-    
+
     // ****************************************************************************************
     // x-fluxes (at edges in k-direction)
     // ****************************************************************************************
@@ -176,7 +176,7 @@ AdvectionSrcForYMom(const int &i, const int &j, const int &k,
 
     // Metric is at edge and center Z (red pentagon)
     ComputeMetricAtEdgeCenterK(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-    
+
     rho_u_avg = 0.5 * (rho_u(i, j, k) + rho_u(i, j-1, k));
     Real edgeFluxYXPrev = rho_u_avg * met_h_zeta *
                           InterpolateFromCellOrFace(i  , j, k, v, 0, rho_u_avg, Coord::x, spatial_order);
@@ -187,7 +187,7 @@ AdvectionSrcForYMom(const int &i, const int &j, const int &k,
 
     // Cell-Center is staggered
     ComputeMetricAtCellCenter(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-    
+
     rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j, k));
     Real centFluxYYNext = rho_v_avg * met_h_zeta *
                           InterpolateFromCellOrFace(i, j+1, k, v, 0, rho_v_avg, Coord::y, spatial_order);
@@ -221,7 +221,7 @@ AdvectionSrcForYMom(const int &i, const int &j, const int &k,
 
     // Metric is at edge and center I (purple hexagon)
     ComputeMetricAtEdgeCenterI(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_xi_eta);
-    
+
     vec = -met_h_eta * 0.5 * (rho_v(i,j,k) + rho_v(i,j,k-1))
           -met_h_xi  * 0.125 * (
              rho_u(i,j,k  ) + rho_u(i,j-1,k  ) + rho_u(i+1,j,k  ) + rho_u(i+1,j-1,k  ) +
@@ -355,7 +355,7 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                           InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-    
+
     // Cell-Center is staggered
     ComputeMetricAtCellCenter(i  ,j  ,k-1,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_xi_eta);
 
@@ -438,7 +438,7 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
 
 #ifdef ERF_USE_TERRAIN
      Real met_h_xi, met_h_eta,  met_h_zeta;
-     
+
     // ****************************************************************************************
     // X-faces
     // ****************************************************************************************
@@ -454,7 +454,7 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
     // ****************************************************************************************
     // Y-faces
     // ****************************************************************************************
-    
+
     // Metric at V location
     ComputeMetricAtJface(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
     Real yflux_hi = rho_v(i,j+1,k) * met_h_zeta;

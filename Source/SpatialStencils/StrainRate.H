@@ -48,7 +48,7 @@ ComputeS11(const int &i, const int &j, const int &k,
 
   strainRate = ( u(i  ,j  ,k  ) - u(i-1,j  ,k  ) ) * dx_inv
              - (met_h_xi/met_h_zeta) * GradUz;
-  
+
   return strainRate;
 }
 
@@ -72,7 +72,7 @@ ComputeS22(const int &i, const int &j, const int &k,
 
   strainRate = (v(i, j, k) - v(i, j-1, k)) * dy_inv
              - (met_h_eta/met_h_zeta) * GradVz;
-    
+
   return strainRate;
 }
 
@@ -83,13 +83,13 @@ ComputeS33(const int &i, const int &j, const int &k,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
            const amrex::Real& met_h_xi, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta)
 {
-  amrex::Real strainRate = 0; 
+  amrex::Real strainRate = 0;
   amrex::Real dx_inv = cellSizeInv[0];
   amrex::Real dy_inv = cellSizeInv[1];
   amrex::Real dz_inv = cellSizeInv[2];
 
   strainRate = ( w(i, j, k) - w(i, j, k-1) ) * dz_inv / met_h_zeta ;
-  
+
   return strainRate;
 }
 
@@ -104,7 +104,7 @@ ComputeS12(const int &i, const int &j, const int &k,
            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   amrex::Real strainRate = 0;
-  amrex::Real GradUz,GradVz; 
+  amrex::Real GradUz,GradVz;
   amrex::Real dx_inv = cellSizeInv[0];
   amrex::Real dy_inv = cellSizeInv[1];
   amrex::Real dz_inv = cellSizeInv[2];
@@ -137,7 +137,7 @@ ComputeS12(const int &i, const int &j, const int &k,
      -v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
 
   strainRate += -(met_h_eta/met_h_zeta)*GradUz - (met_h_xi/met_h_zeta)*GradVz;
-  
+
   strainRate *= 0.5;
 
   return strainRate;
@@ -182,7 +182,7 @@ ComputeS13(const int &i, const int &j, const int &k,
      -w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
 
   strainRate += -(met_h_xi/met_h_zeta)*GradWz;
-  
+
   strainRate *= 0.5;
 
   return strainRate;
@@ -227,7 +227,7 @@ ComputeS23(const int &i, const int &j, const int &k,
      -w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
 
   strainRate += -(met_h_eta/met_h_zeta)*GradWz;
-  
+
   strainRate *= 0.5;
 
   return strainRate;
@@ -259,7 +259,7 @@ ComputeS31(const int &i, const int &j, const int &k,
            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
  return ComputeS13(i,j,k,u,v,w,cellSizeInv,
-            met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);                              
+            met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
 }
 
 AMREX_GPU_DEVICE
@@ -273,7 +273,7 @@ ComputeS32(const int &i, const int &j, const int &k,
            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   return ComputeS23(i,j,k,u,v,w,cellSizeInv,
-            met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr); 
+            met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
 }
 
 //*****************************************************************************************

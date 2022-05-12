@@ -17,7 +17,7 @@ amrex::Real ComputeSmnSmn(const int& i,const int& j,const int& k,
                           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   amrex::Real met_h_xi,met_h_eta,met_h_zeta;
-  
+
   // AML   : USE_TERRAIN preprocessor flags got OUT OF HAND with TKE (clipped dependency here)
   // TO-DO :
   //         1. Calls to TerrainMetrics.H functions to get metrics
@@ -27,7 +27,7 @@ amrex::Real ComputeSmnSmn(const int& i,const int& j,const int& k,
   met_h_xi   = 0.0;
   met_h_eta  = 0.0;
   met_h_zeta = 1.0;
-    
+
   amrex::Real S11 = ComputeS11(i+1, j, k, u, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta);
   amrex::Real S22 = ComputeS22(i, j+1, k, v, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta);
   amrex::Real S33 = ComputeS33(i, j, k+1, w, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta);

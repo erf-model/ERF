@@ -264,7 +264,7 @@ void erf_fast_rhs (int level,
 
 #ifdef ERF_USE_TERRAIN
                 Real met_h_xi,met_h_eta,met_h_zeta;
-                ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta); 
+                ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
                 Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
                 Real gp_zeta_on_jface = 0.25 * dzi * (
                    extrap_arr(i,j  ,k+1) + extrap_arr(i,j-1,k+1)
@@ -347,7 +347,7 @@ void erf_fast_rhs (int level,
 
                 Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
                 Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
-                
+
 #ifdef ERF_USE_TERRAIN
                 h_zeta_on_kface = 0.125 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)

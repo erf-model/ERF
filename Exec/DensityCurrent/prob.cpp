@@ -25,13 +25,13 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
   p[k0] = p_0 - (0.5*dz) * r[k0] * CONST_GRAV;
 
   int MAX_ITER = 10;
-  Real TOL = 1.e-8; 
+  Real TOL = 1.e-8;
   {
       // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
       bool converged_hse = false;
       Real p_hse;
       Real p_eos;
-      
+
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
           p_hse = p_0 -  (0.5*dz) * r[k0] * CONST_GRAV;

@@ -435,7 +435,7 @@ void erf_slow_rhs (int level,
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
             Real met_h_xi,met_h_eta,met_h_zeta;
-            ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);            
+            ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
             Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
             Real gp_zeta_on_jface = (k == 0) ?
                 0.5 * dxInv[2] * (

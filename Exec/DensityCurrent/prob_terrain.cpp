@@ -33,7 +33,7 @@ init_isentropic_hse(int i, int j,
       bool converged_hse = false;
       Real p_hse;
       Real p_eos;
-      
+
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
           p_hse = p_0 - hz * r[k0] * CONST_GRAV;

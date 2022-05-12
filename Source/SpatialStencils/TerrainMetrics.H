@@ -24,7 +24,7 @@ ComputeMetricAtCellCenter(const int &i, const int &j, const int &k,
   amrex::Real dxInv = cellSizeInv[0];
   amrex::Real dyInv = cellSizeInv[1];
   amrex::Real dzInv = cellSizeInv[2];
- 
+
   switch(flag) {
   case TerrainMet::h_xi:
     met_h_xi   = 0.25 * dxInv *
@@ -39,7 +39,7 @@ ComputeMetricAtCellCenter(const int &i, const int &j, const int &k,
   case TerrainMet::h_zeta:
     met_h_zeta = 0.25 * dzInv *
       ( z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-       -z_nd(i+1,j,k  ) - z_nd(i+1,j+1,k  ) - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );  
+       -z_nd(i+1,j,k  ) - z_nd(i+1,j+1,k  ) - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
     break;
   case TerrainMet::h_xi_eta:
     met_h_xi   = 0.25 * dxInv *
@@ -97,7 +97,7 @@ ComputeMetricAtIface(const int &i, const int &j, const int &k,
   amrex::Real dxInv = cellSizeInv[0];
   amrex::Real dyInv = cellSizeInv[1];
   amrex::Real dzInv = cellSizeInv[2];
- 
+
   switch(flag) {
   case TerrainMet::h_xi:
     met_h_xi   = 0.125 * dxInv *
@@ -159,7 +159,7 @@ ComputeMetricAtJface(const int &i, const int &j, const int &k,
   amrex::Real dxInv = cellSizeInv[0];
   amrex::Real dyInv = cellSizeInv[1];
   amrex::Real dzInv = cellSizeInv[2];
- 
+
   switch(flag) {
   case TerrainMet::h_xi:
     met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
@@ -221,7 +221,7 @@ ComputeMetricAtKface(const int &i, const int &j, const int &k,
   amrex::Real dxInv = cellSizeInv[0];
   amrex::Real dyInv = cellSizeInv[1];
   amrex::Real dzInv = cellSizeInv[2];
- 
+
   switch(flag) {
   case TerrainMet::h_xi:
     met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k)
@@ -234,7 +234,7 @@ ComputeMetricAtKface(const int &i, const int &j, const int &k,
   case TerrainMet::h_zeta:
     met_h_zeta = 0.125 * dzInv *
       ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );    
+       -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
     break;
   case TerrainMet::h_xi_eta:
     met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k)
@@ -286,21 +286,21 @@ ComputeMetricAtEdgeCenterK(const int &i, const int &j, const int &k,
   amrex::Real dxInv = cellSizeInv[0];
   amrex::Real dyInv = cellSizeInv[1];
   amrex::Real dzInv = cellSizeInv[2];
-  
+
   switch(flag) {
   case TerrainMet::h_xi:
     met_h_xi  = 0.25 * dxInv *
       ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
        -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) );
-    break;   
+    break;
   case TerrainMet::h_eta:
     met_h_eta = 0.25 * dyInv *
       ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1)
        -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) );
-    break;   
+    break;
   case TerrainMet::h_zeta:
     met_h_zeta = dzInv * (z_nd(i,j,k+1) - z_nd(i,j,k));
-    break;   
+    break;
   case TerrainMet::h_xi_eta:
     met_h_xi  = 0.25 * dxInv *
       ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
@@ -348,7 +348,7 @@ ComputeMetricAtEdgeCenterJ(const int &i, const int &j, const int &k,
   amrex::Real dxInv = cellSizeInv[0];
   amrex::Real dyInv = cellSizeInv[1];
   amrex::Real dzInv = cellSizeInv[2];
-  
+
   switch(flag) {
   case TerrainMet::h_xi:
     met_h_xi = 0.25 * dxInv *
@@ -406,7 +406,7 @@ ComputeMetricAtEdgeCenterI(const int &i, const int &j, const int &k,
   amrex::Real dxInv = cellSizeInv[0];
   amrex::Real dyInv = cellSizeInv[1];
   amrex::Real dzInv = cellSizeInv[2];
-  
+
   switch(flag) {
   case TerrainMet::h_xi:
     met_h_xi  = dxInv * ( z_nd(i+1,j,k) - z_nd(i,j,k) );
@@ -458,7 +458,7 @@ amrex::Real OmegaFromW(int i, int j, int k, amrex::Real w,
                        const amrex::Array4<const amrex::Real> v,
                        const amrex::Array4<const amrex::Real> z_nd,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
-{ 
+{
   // This is dh/dxi at z-face (i,j,k-1/2)
   amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
     ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
@@ -468,13 +468,13 @@ amrex::Real OmegaFromW(int i, int j, int k, amrex::Real w,
   amrex::Real met_zlo_eta  = 0.5 * dxInv[1] *
     ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
      -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
-  
+
   // Use extrapolation instead of interpolation if at the bottom boundary
   amrex::Real vec_zlo_xi   = (k == 0) ? 1.5 * (0.5*(u(i,j,k)+u(i+1,j,k))) - 0.5*(0.5*(u(i,j,k+1)+u(i+1,j,k+1))) :
     0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
   amrex::Real vec_zlo_eta  = (k == 0) ? 1.5 * (0.5*( v(i,j,k)+v(i,j+1,k))) - 0.5*(0.5*(v(i,j,k+1)+v(i,j+1,k+1))) :
     0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
-  
+
   amrex::Real omega = -met_zlo_xi * vec_zlo_xi - met_zlo_eta * vec_zlo_eta + w;
   return omega;
 }
@@ -485,7 +485,7 @@ amrex::Real WFromOmega(int i, int j, int k, amrex::Real omega,
                        const amrex::Array4<const amrex::Real>& v,
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
-{  
+{
   // This is dh/dxi at z-face (i,j,k-1/2)
   amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
     ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
@@ -516,7 +516,7 @@ amrex::Real WFromOmegaBC(int i, int j, int k, amrex::Real omega,
                          const amrex::Array4<const amrex::Real>& v,
                          const amrex::Array4<const amrex::Real>& z_nd,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
-{  
+{
   // Clip metric indices for ghost cell BCs
   amrex::Dim3 hi = ubound(z_nd);
   amrex::Dim3 lo = lbound(z_nd);
