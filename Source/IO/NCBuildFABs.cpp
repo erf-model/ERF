@@ -97,7 +97,7 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
     if (amrex::ParallelDescriptor::IOProcessor())
     {
         // We only read in data at one resolution, which we assume to be that of level 0
-        int lev = 0;
+        //int lev = 0;
 
         Vector<std::string> nc_var_names;
         Vector<enum NC_Data_Dims_Type> NC_dim_types;
@@ -229,7 +229,7 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
             // amrex::Print() << "BX OF INPUT DATA " << bx << std::endl;
 
             //auto num_pts = bdy_data_xlo[0].box().numPts();
-            int ncomp  = bdy_data_xlo[0].nComp();
+            //int ncomp  = bdy_data_xlo[0].nComp();
             long num_pts;
             Real* data_ptr;
             std::string last3 = nc_var_names[i].substr(nc_var_names[i].size()-3, 3);

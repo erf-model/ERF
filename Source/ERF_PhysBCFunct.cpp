@@ -52,7 +52,7 @@
 #ifdef ERF_USE_TERRAIN
                 // Private data from constructor
                 const Array4<const Real>& z_nd = m_z_phys_nd.const_array(mfi);
-                const Array4<const Real>& detJ = m_detJ_cc.const_array(mfi);
+                //const Array4<const Real>& detJ = m_detJ_cc.const_array(mfi);
                 const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
                 const auto vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
                 const auto cons_arr = m_has_most_bcs ? m_data.get_var(Vars::cons)[mfi].array() : Array4<Real>();
@@ -307,7 +307,7 @@
                         //
                         // We assume the data has been read in at the level 0 resolution
                         //
-                        int lev = 0;
+                        //int lev = 0;
 
                         // This is a total HACK
                         amrex::Real dT = 1.0;

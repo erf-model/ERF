@@ -18,12 +18,12 @@ void ComputeTurbulentViscosityPBL(const amrex::MultiFab& xvel,
 
     const amrex::Real A1 = solverChoice.pbl_A1;
     const amrex::Real A2 = solverChoice.pbl_A2;
-    const amrex::Real B1 = solverChoice.pbl_B1;
+    //const amrex::Real B1 = solverChoice.pbl_B1;
     const amrex::Real B2 = solverChoice.pbl_B2;
     const amrex::Real C1 = solverChoice.pbl_C1;
     const amrex::Real C2 = solverChoice.pbl_C2;
     const amrex::Real C3 = solverChoice.pbl_C3;
-    const amrex::Real C4 = solverChoice.pbl_C4;
+    //const amrex::Real C4 = solverChoice.pbl_C4;
     const amrex::Real C5 = solverChoice.pbl_C5;
 
 #ifdef _OPENMP
