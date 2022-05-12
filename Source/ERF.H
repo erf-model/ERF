@@ -314,8 +314,10 @@ private:
                                        );
 
     // Copy from the NC*fabs into the MultiFabs holding the boundary data
-    void init_from_wrfbdy(Vector<FArrayBox*> x_vel_lateral, Vector<FArrayBox*> y_vel_lateral,
-                          Vector<FArrayBox*> z_vel_lateral, Vector<FArrayBox*> T_lateral);
+    void init_from_wrfbdy(amrex::Vector<amrex::FArrayBox*> x_vel_lateral,
+                          amrex::Vector<amrex::FArrayBox*> y_vel_lateral,
+                          amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
+                          amrex::Vector<amrex::FArrayBox*> T_lateral);
 
     // *** *** FArrayBox's for holding the INITIAL data
     // Data read from the wrfinput NetCDF file
@@ -378,12 +380,12 @@ private:
             const InputSoundingData &inputSoundingData);
 
     amrex::Real
-    interpolate_profile (const amrex::Vector<Real> &v1, const amrex::Vector<Real> &v2, const Real &var);
+    interpolate_profile (const amrex::Vector<amrex::Real> &v1, const amrex::Vector<amrex::Real> &v2, const amrex::Real &var);
 
 
 #ifdef ERF_USE_TERRAIN
     // Define z_phys_nd on nodes using an analytical expression
-    void init_ideal_terrain(int lev);
+    //void init_ideal_terrain(int lev);
 
     /*
      * Alternate data structure considering different dimensions of U, V, W, T on the planes
