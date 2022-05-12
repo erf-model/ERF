@@ -17,33 +17,48 @@
 
 using namespace amrex;
 
-void erf_rhs (int level,
-              Vector<MultiFab>& S_rhs,
-              const Vector<MultiFab>& S_data,
-              const MultiFab& S_prim,
-              const MultiFab& xvel,
-              const MultiFab& yvel,
-              const MultiFab& zvel,
-              MultiFab& source,
-              std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
-              std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
-              const amrex::Geometry geom,
-              amrex::InterpFaceRegister* ifr,
-              const SolverChoice& solverChoice,
-              const ABLMost& most,
-              const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+void erf_slow_rhs (int level,
+                   Vector<MultiFab>& S_rhs,
+                   const Vector<MultiFab>& S_data,
+                   const MultiFab& S_prim,
+                         Vector<MultiFab>& S_scratch,
+                   const MultiFab& xvel,
+                   const MultiFab& yvel,
+                   const MultiFab& zvel,
+                   MultiFab& source,
+                   std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
+                   std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
+                   const amrex::Geometry geom,
+                         amrex::InterpFaceRegister* ifr,
+                   const SolverChoice& solverChoice,
+                   const ABLMost& most,
+                   const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
 #ifdef ERF_USE_TERRAIN
-              const MultiFab& z_phys_nd,
-              const MultiFab& detJ_cc,
-              const MultiFab& r0,
-              const MultiFab& p0,
+                   const MultiFab& z_phys_nd,
+                   const MultiFab& detJ_cc,
+                   const MultiFab& r0,
+                   const MultiFab& p0,
 #else
-              const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
+                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
 #endif
-              const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-              const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
+                   const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
+                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
+                   const int rhs_vars)
 {
-    BL_PROFILE_VAR("erf_rhs()",erf_rhs);
+    BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
+
+    int start_comp;
+    int   num_comp;
+    if (rhs_vars == RHSVar::fast) {
+        start_comp = 0;
+          num_comp = 2; // Rho_comp and RhoTheta_comp
+    } else if (rhs_vars == RHSVar::slow) {
+        start_comp = 2;
+          num_comp = S_data[IntVar::cons].nComp() - 2;
+    } else if (rhs_vars == RHSVar::all) {
+        start_comp = 0;
+          num_comp = S_data[IntVar::cons].nComp();
+    }
 
     const int l_spatial_order = solverChoice.spatial_order;
 
@@ -87,7 +102,7 @@ void erf_rhs (int level,
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
     const iMultiFab *mlo_mf_z, *mhi_mf_z;
 
-    bool l_use_QKE       = solverChoice.use_QKE;
+    bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
     Real l_Delta         = std::pow(dx[0] * dx[1] * dx[2],1./3.);
     Real l_C_e           = solverChoice.Ce;
@@ -137,6 +152,15 @@ void erf_rhs (int level,
         const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<Real> & source_fab = source.array(mfi);
 
+        Array4<Real> avg_xmom;
+        Array4<Real> avg_ymom;
+        Array4<Real> avg_zmom;
+        if (S_scratch.size() > 0) {
+            avg_xmom = S_scratch[IntVar::xmom].array(mfi);
+            avg_ymom = S_scratch[IntVar::ymom].array(mfi);
+            avg_zmom = S_scratch[IntVar::zmom].array(mfi);
+        }
+
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
         const Array4<const Real> & w = zvel.array(mfi);
@@ -177,31 +201,40 @@ void erf_rhs (int level,
 #endif
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        if (rhs_vars != RHSVar::slow) {
+            amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 #ifdef ERF_USE_TERRAIN
-           pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
+               pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
 #else
-           pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),dptr_pres_hse[k]);
+               pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),dptr_pres_hse[k]);
 #endif
-        });
+            });
+        }
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        amrex::ParallelFor(bx, S_data[IntVar::cons].nComp(),
-                           [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
-            cell_rhs(i, j, k, n) = 0.0; // Initialize the updated state eqn term to zero.
 
-            // Add advection terms.
-            if ((n != RhoKE_comp && n != RhoQKE_comp) ||
-                (l_use_deardorff && n == RhoKE_comp) ||
-                (l_use_QKE       && n == RhoQKE_comp && solverChoice.advect_QKE))
-                cell_rhs(i, j, k, n) += -AdvectionSrcForState(i, j, k, rho_u, rho_v, rho_w, cell_prim, n,
-                                         advflux_x, advflux_y, advflux_z,
+        if (rhs_vars == RHSVar::fast || rhs_vars == RHSVar::all) {
+            AdvectionSrcForState(bx, start_comp, num_comp, rho_u, rho_v, rho_w, cell_prim,
+                                 cell_rhs, advflux_x, advflux_y, advflux_z,
 #ifdef ERF_USE_TERRAIN
-                                         z_nd, detJ,
+                                 z_nd, detJ,
 #endif
-                                         dxInv, l_spatial_order);
+                                 dxInv, l_spatial_order, l_use_deardorff, l_use_QKE);
+        } else if (rhs_vars == RHSVar::slow) {
+            AdvectionSrcForState(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom, cell_prim,
+                                 cell_rhs, advflux_x, advflux_y, advflux_z,
+#ifdef ERF_USE_TERRAIN
+                                 z_nd, detJ,
+#endif
+                                 dxInv, l_spatial_order, l_use_deardorff, l_use_QKE);
+        }
+
+        amrex::ParallelFor(bx, num_comp,
+                           [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
+        {
+            int n = start_comp + n_in;
 
             // Add diffusive terms.
             if (n == RhoTheta_comp)
@@ -256,30 +289,41 @@ void erf_rhs (int level,
 
             // Add source terms. TODO: Put this under an if condition when we implement source term
             cell_rhs(i, j, k, n) += source_fab(i, j, k, n);
-        }
-        );
+        });
 
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
         //         fluxes at fine-fine interfaces
-        amrex::ParallelFor(tbx, S_data[IntVar::cons].nComp(),
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        int rc = Rho_comp;
+        int update_mom = (S_scratch.size() > 0);
+        amrex::ParallelFor(tbx, num_comp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
         {
+             int n = start_comp + n_in;
              xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n) + diffflux_x(i,j,k,n);
+             if (update_mom && n == rc) // Only update if we are computing source for density
+                 avg_xmom(i,j,k) = advflux_x(i,j,k,0);
         });
-        amrex::ParallelFor(tby, S_data[IntVar::cons].nComp(),
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        amrex::ParallelFor(tby, num_comp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
         {
+             int n = start_comp + n_in;
              yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n) + diffflux_y(i,j,k,n);
+             if (update_mom && n == rc) // Only update if we are computing source for density
+                 avg_ymom(i,j,k) = advflux_y(i,j,k,0);
         });
-        amrex::ParallelFor(tbz, S_data[IntVar::cons].nComp(),
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        amrex::ParallelFor(tbz, num_comp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
         {
+             int n = start_comp + n_in;
              zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n) + diffflux_z(i,j,k,n);
+             if (update_mom && n == rc) // Only update if we are computing source for density
+                 avg_zmom(i,j,k) = advflux_z(i,j,k,0);
         });
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
+        if (rhs_vars != RHSVar::slow) {
         amrex::ParallelFor(tbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // x-momentum equation
 
@@ -324,7 +368,13 @@ void erf_rhs (int level,
 #else
             amrex::Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
 #endif
+#ifdef ERF_USE_MOISUTRE
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
+            rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
+#else
             rho_u_rhs(i, j, k) -= gpx;
+#endif
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -396,7 +446,13 @@ void erf_rhs (int level,
 #else
             amrex::Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
 #endif
+#ifdef ERF_USE_MOISUTRE
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
+            rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
+#else
             rho_v_rhs(i, j, k) -= gpy;
+#endif
 
             // Add driving pressure gradient
             if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
@@ -460,7 +516,13 @@ void erf_rhs (int level,
 #else
             amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
 #endif
+#ifdef ERF_USE_MOISUTRE
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
+            rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
+#else
             rho_w_rhs(i, j, k) -= gpz;
+#endif
 
             // Add gravity term
             if (solverChoice.use_gravity)
@@ -507,5 +569,6 @@ void erf_rhs (int level,
 
             } // not on coarse-fine boundary
         });
+        } // not (rhs_vars == RHSVar::slow)
     }
 }

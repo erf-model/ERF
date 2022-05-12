@@ -7,9 +7,8 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 3750000. 	3750000. 	5000.
-amr.n_cell           = 200   		200   		176
-#amr.blocking_factor  = 1
+geometry.prob_extent = 150. 125. 5000.
+amr.n_cell           = 12    10   400
 
 geometry.is_periodic = 1 1 0
 
@@ -17,8 +16,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.use_native_mri     = 1
-erf.fixed_dt           = 0.5  # fixed time step depending on grid resolution
+erf.fixed_dt       = 0.5     # fixed time step
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -36,7 +34,7 @@ amr.check_int       =-100        # number of timesteps between checkpoints
 amr.plot_file         = plt        # root name of plotfile
 amr.plot_int          = 1          # number of timesteps between plotfiles
 amr.plot_vars         =  density x_velocity y_velocity z_velocity
-amr.derive_plot_vars  = pressure temp theta pres_hse z_phys
+amr.derive_plot_vars  = pressure temp theta pres_hse
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
@@ -59,8 +57,8 @@ prob.rho_0 = 1.0
 prob.T_0 = 300.0
 
 # INITIALIZATION WITH ATM DATA
-erf.init_type    = "real"
-erf.nc_init_file = "wrfinput_d01"
-#erf.nc_init_file = "/home/pkjha/Desktop/netcdf_files/real_output_chisholmview/wrfinput_d01"
-erf.nc_bdy_file = "wrfbdy_d01"
-#erf.nc_bdy_file = "/home/pkjha/Desktop/netcdf_files/real_output_chisholmview/wrfbdy_d01_width1"
+erf.init_type = "input_sounding"
+erf.input_sounding_file = "input_sounding_file"
+#erf.input_sounding_file = "/home/pkjha/Desktop/input_sounding_file/ekman/input_sounding"
+
+FILE = ./inputs.time_integration

@@ -1,5 +1,8 @@
 #include <ERF.H>
-#include "IO/NCInterface.H"
+#include <NCInterface.H>
+#include <AMReX_PlotFileUtil.H>
+
+using namespace amrex;
 
 void
 ERF::WriteNCCheckpointFile () const
@@ -12,7 +15,7 @@ ERF::WriteNCCheckpointFile () const
     const int nlevels = finest_level+1;
 
     // ---- ParallelDescriptor::IOProcessor() creates the directories
-    amrex::PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
+    PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
 
     // write Header file
    if (ParallelDescriptor::IOProcessor()) {

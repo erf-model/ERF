@@ -89,6 +89,11 @@ init_custom_prob(
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 1.0 * state(i,j,k,Rho_comp);
+
+#ifdef ERF_USE_MOISTURE
+    state(i, j, k, RhoQv_comp) = 0.0;
+    state(i, j, k, RhoQc_comp) = 0.0;
+#endif
   });
 
   // Construct a box that is on x-faces

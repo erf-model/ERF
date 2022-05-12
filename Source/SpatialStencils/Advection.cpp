@@ -1,3 +1,4 @@
+#include <IndexDefines.H>
 #include <SpatialStencils.H>
 
 #ifdef ERF_USE_TERRAIN
@@ -418,19 +419,22 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
 }
 #endif
 
-AMREX_GPU_DEVICE
-Real
-AdvectionSrcForState(const int &i, const int &j, const int &k,
+void
+AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
                      const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                     const Array4<const Real>& cell_prim, const int &qty_index,
+                     const Array4<const Real>& cell_prim,
+                     const Array4<Real>& advectionSrc,
                      const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
 #ifdef ERF_USE_TERRAIN
                      const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
 #endif
                      const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                     const int &spatial_order)
+                     const int &spatial_order, const int &use_deardorff, const int &use_QKE)
 {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
+
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
 
 #ifdef ERF_USE_TERRAIN
      Real met_h_xi, met_h_eta,  met_h_zeta;
@@ -473,101 +477,74 @@ AdvectionSrcForState(const int &i, const int &j, const int &k,
     Real zflux_lo = rho_w(i,j,k  );
 #endif
 
+    // These are only used to construct the sign to be used in upwinding
+    Real uadv_hi = rho_u(i+1,j,k);
+    Real uadv_lo = rho_u(i  ,j,k);
+    Real vadv_hi = rho_v(i,j+1,k);
+    Real vadv_lo = rho_v(i,j  ,k);
+    Real wadv_hi = rho_w(i,j,k+1);
+    Real wadv_lo = rho_w(i,j,k  );
+
     // ****************************************************************************************
     // Now that we have the correctly weighted vector components, we can multiply by the
     //     scalar (such as theta or C) on the respective faces
     // ****************************************************************************************
 
-    if (qty_index != Rho_comp)
-    {
-        const int prim_index = qty_index - RhoTheta_comp;
-
-        // These are only used to construct the sign to be used in upwinding
-        Real uadv_hi = rho_u(i+1,j,k);
-        Real uadv_lo = rho_u(i  ,j,k);
-        Real vadv_hi = rho_v(i,j+1,k);
-        Real vadv_lo = rho_v(i,j  ,k);
-        Real wadv_hi = rho_w(i,j,k+1);
-        Real wadv_lo = rho_w(i,j,k  );
-
-        xflux_hi *= InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
-        xflux_lo *= InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
-
-        yflux_hi *= InterpolateFromCellOrFace(i, j+1, k, cell_prim, prim_index, vadv_hi, Coord::y, spatial_order);
-        yflux_lo *= InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, vadv_lo, Coord::y, spatial_order);
-
-        zflux_hi *= InterpolateFromCellOrFace(i, j, k+1, cell_prim, prim_index, wadv_hi, Coord::z, spatial_order);
-        zflux_lo *= InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
-    }
-
-    xflux(i+1,j,k,qty_index) = xflux_hi;
-    xflux(i  ,j,k,qty_index) = xflux_lo;
-    yflux(i,j+1,k,qty_index) = yflux_hi;
-    yflux(i,j  ,k,qty_index) = yflux_lo;
-    zflux(i,j,k+1,qty_index) = zflux_hi;
-    zflux(i,j,k  ,qty_index) = zflux_lo;
-
-    Real advectionSrc = ( (xflux_hi - xflux_lo) * dxInv
-                         +(yflux_hi - yflux_lo) * dyInv
-                         +(zflux_hi - zflux_lo) * dzInv );
 #ifdef ERF_USE_TERRAIN
-    advectionSrc /= detJ(i,j,k);
+    Real invdetJ = 1.0 / detJ(i,j,k);
 #endif
 
-    return advectionSrc;
-}
-#if 0
-AMREX_GPU_DEVICE
-Real
-AdvectionSrcForState(const int &i, const int &j, const int &k,
-                     const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
-                     const Array4<const Real>& cell_prim, const int &qty_index,
-                     const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
-                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                     const int &spatial_order) {
-
-    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-
-    Real xflux_hi = rho_u(i+1,j,k);
-    Real xflux_lo = rho_u(i  ,j,k);
-    Real yflux_hi = rho_v(i,j+1,k);
-    Real yflux_lo = rho_v(i,j  ,k);
-    Real zflux_hi = rho_w(i,j,k+1);
-    Real zflux_lo = rho_w(i,j,k  );
-
-    if (qty_index != Rho_comp)
+    for (int n = icomp; n < icomp+ncomp; n++)
     {
-        const int prim_index = qty_index - RhoTheta_comp;
+        if ((n != RhoKE_comp && n != RhoQKE_comp) ||
+            (  use_deardorff && n == RhoKE_comp) ||
+            (  use_QKE       && n == RhoQKE_comp) )
+        {
+            Real xflux_hi_n, xflux_lo_n, yflux_hi_n, yflux_lo_n, zflux_hi_n, zflux_lo_n;
+            if (n != Rho_comp)
+            {
+                const int prim_index = n - RhoTheta_comp;
 
-        // These are only used to construct the sign to be used in upwinding
-        Real uadv_hi = rho_u(i+1,j,k);
-        Real uadv_lo = rho_u(i  ,j,k);
-        Real vadv_hi = rho_v(i,j+1,k);
-        Real vadv_lo = rho_v(i,j  ,k);
-        Real wadv_hi = rho_w(i,j,k+1);
-        Real wadv_lo = rho_w(i,j,k  );
+                xflux_hi_n = xflux_hi * InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
+                xflux_lo_n = xflux_lo * InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
 
-        xflux_hi *= InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
-        xflux_lo *= InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
+                yflux_hi_n = yflux_hi * InterpolateFromCellOrFace(i, j+1, k, cell_prim, prim_index, vadv_hi, Coord::y, spatial_order);
+                yflux_lo_n = yflux_lo * InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, vadv_lo, Coord::y, spatial_order);
 
-        yflux_hi *= InterpolateFromCellOrFace(i, j+1, k, cell_prim, prim_index, vadv_hi, Coord::y, spatial_order);
-        yflux_lo *= InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, vadv_lo, Coord::y, spatial_order);
+                zflux_hi_n = zflux_hi * InterpolateFromCellOrFace(i, j, k+1, cell_prim, prim_index, wadv_hi, Coord::z, spatial_order);
+                zflux_lo_n = zflux_lo * InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
 
-        zflux_hi *= InterpolateFromCellOrFace(i, j, k+1, cell_prim, prim_index, wadv_hi, Coord::z, spatial_order);
-        zflux_lo *= InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
-    }
+            } else {
 
-    xflux(i+1,j,k,qty_index) = xflux_hi;
-    xflux(i  ,j,k,qty_index) = xflux_lo;
-    yflux(i,j+1,k,qty_index) = yflux_hi;
-    yflux(i,j  ,k,qty_index) = yflux_lo;
-    zflux(i,j,k+1,qty_index) = zflux_hi;
-    zflux(i,j,k  ,qty_index) = zflux_lo;
+                xflux_hi_n = xflux_hi; xflux_lo_n = xflux_lo;
+                yflux_hi_n = yflux_hi; yflux_lo_n = yflux_lo;
+                zflux_hi_n = zflux_hi; zflux_lo_n = zflux_lo;
+            }
 
-    Real advectionSrc = (xflux_hi - xflux_lo) * dxInv
-                      + (yflux_hi - yflux_lo) * dyInv
-                      + (zflux_hi - zflux_lo) * dzInv;
+            xflux(i+1,j,k,n) = xflux_hi_n;
+            xflux(i  ,j,k,n) = xflux_lo_n;
+            yflux(i,j+1,k,n) = yflux_hi_n;
+            yflux(i,j  ,k,n) = yflux_lo_n;
+            zflux(i,j,k+1,n) = zflux_hi_n;
+            zflux(i,j,k  ,n) = zflux_lo_n;
 
-    return advectionSrc;
-}
+            advectionSrc(i,j,k,n) = -( (xflux_hi_n - xflux_lo_n) * dxInv
+                                      +(yflux_hi_n - yflux_lo_n) * dyInv
+                                      +(zflux_hi_n - zflux_lo_n) * dzInv );
+#ifdef ERF_USE_TERRAIN
+            advectionSrc(i,j,k,n) *= invdetJ;
 #endif
+        } else {
+
+            xflux(i+1,j,k,n) = 0.;
+            xflux(i  ,j,k,n) = 0.;
+            yflux(i,j+1,k,n) = 0.;
+            yflux(i,j  ,k,n) = 0.;
+            zflux(i,j,k+1,n) = 0.;
+            zflux(i,j,k  ,n) = 0.;
+
+            advectionSrc(i,j,k,n) = 0.;
+        }
+    } // n
+    });
+}

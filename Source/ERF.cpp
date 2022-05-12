@@ -52,7 +52,7 @@ amrex::Real ERF::sum_per       = -1.0;
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
-// init_type:  "custom" vs "ideal" vs "real"
+// init_type:  "custom", "ideal", "real", "input_sounding"
 std::string ERF::init_type        = "custom";
 
 // NetCDF wrfinput (initialization) file
@@ -60,6 +60,9 @@ std::string ERF::nc_init_file = ""; // Must provide via input
 
 // NetCDF wrfbdy (lateral boundary) file
 std::string ERF::nc_bdy_file = ""; // Must provide via input
+
+// Text input_sounding file
+std::string ERF::input_sounding_file = ""; // Must provide via input
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
@@ -528,9 +531,16 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         m_r2d->read_input_files(time,dt_dummy,m_bc_extdir_vals);
     }
 
-#ifdef ERF_USE_NETCDF
+
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
+        if (init_type == "input_sounding") {
+            if (input_sounding_file.empty())
+                amrex::Error("input_sounding file name must be provided via input");
+            input_sounding_data.read_from_file(input_sounding_file);
+        }
+
+#ifdef ERF_USE_NETCDF
         if (init_type == "ideal" || init_type == "real") {
             if (nc_init_file.empty())
                 amrex::Error("NetCDF initialization file name must be provided via input");
@@ -539,10 +549,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         if (init_type == "real") {
             if (nc_bdy_file.empty())
                 amrex::Error("NetCDF boundary file name must be provided via input");
-            read_from_wrfbdy();
+            //read_from_wrfbdy(); // TODO: Uncomment after it's working correctly
         }
+#endif //ERF_USE_NETCDF
     }
-#endif
 
     // Loop over grids at this level to initialize our grid data
     lev_new[Vars::cons].setVal(0.0);
@@ -550,7 +560,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
 
-    if (init_type == "custom") {
+    if (init_type == "custom" || init_type == "input_sounding") {
 
 #ifdef ERF_USE_TERRAIN
         init_ideal_terrain(lev);
@@ -560,41 +570,46 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-          const Box& bx = mfi.tilebox();
-          const auto& cons_arr = lev_new[Vars::cons].array(mfi);
-          const auto& xvel_arr = lev_new[Vars::xvel].array(mfi);
-          const auto& yvel_arr = lev_new[Vars::yvel].array(mfi);
-          const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
+        for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box &bx = mfi.tilebox();
+            const auto &cons_arr = lev_new[Vars::cons].array(mfi);
+            const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
+            const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
+            const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
 
+            if (init_type == "custom") {
 #ifndef ERF_USE_TERRAIN
-          init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+                init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
 #else
-          const auto& r_hse_arr = dens_hse[lev].array(mfi);
-          const auto& p_hse_arr = pres_hse[lev].array(mfi);
-          const auto& z_nd_arr  = z_phys_nd[lev].const_array(mfi);
-          const auto& z_cc_arr  = z_phys_cc[lev].const_array(mfi);
+                const auto& r_hse_arr = dens_hse[lev].array(mfi);
+                const auto& p_hse_arr = pres_hse[lev].array(mfi);
+                const auto& z_nd_arr  = z_phys_nd[lev].const_array(mfi);
+                const auto& z_cc_arr  = z_phys_cc[lev].const_array(mfi);
 
-          init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                        r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
-                        geom[lev].data());
+                init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+                              r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
+                              geom[lev].data());
 #endif
-        }
+            }
+            else { // init_type == "input_sounding", simplified problem, shouldn't depend on ERF_USE_TERRAIN
+                init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+                                         geom[lev].data(), input_sounding_data);
+            }
+        } //mfi
+    } // init_type == "custom" || init_type == "input_sounding"
 #ifdef ERF_USE_NETCDF
-    } else if (init_type == "ideal" || init_type == "real") {
-
+    else if (init_type == "ideal" || init_type == "real") {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-          const Box& bx = mfi.tilebox();
-          // Define fabs for holding the initial data
-          FArrayBox& cons_fab = lev_new[Vars::cons][mfi];
-          FArrayBox& xvel_fab = lev_new[Vars::xvel][mfi];
-          FArrayBox& yvel_fab = lev_new[Vars::yvel][mfi];
-          FArrayBox& zvel_fab = lev_new[Vars::zvel][mfi];
+        // INITIAL DATA common for "ideal" as well as "real" simulation
+        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+            const Box &bx = mfi.tilebox();
+            // Define fabs for holding the initial data
+            FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
+            FArrayBox &xvel_fab = lev_new[Vars::xvel][mfi];
+            FArrayBox &yvel_fab = lev_new[Vars::yvel][mfi];
+            FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
 
 #ifdef ERF_USE_TERRAIN
           FArrayBox& z_phys_nd_fab = z_phys_nd[lev][mfi];
@@ -608,9 +623,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #ifdef ERF_USE_TERRAIN
         make_metrics(lev);
 #endif
-
-#endif
-    }
+    } // init_type == "ideal" || init_type == "real"
+#endif //ERF_USE_NETCDF
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
     // The data associated with the lower grid ID is considered the correct value.
@@ -714,9 +728,12 @@ ERF::ReadParameters ()
     {  // How to initialize
         ParmParse pp("erf");
         pp.query("init_type",init_type);
-        if (init_type != "custom" && init_type != "ideal" && init_type != "real")
+        if (init_type != "custom" &&
+            init_type != "ideal" &&
+            init_type != "real" &&
+            init_type != "input_sounding")
         {
-            amrex::Error("init_type must be custom, ideal or real");
+            amrex::Error("init_type must be custom, ideal, real, or input_sounding");
         }
 
         // NetCDF wrfinput initialization file
@@ -724,6 +741,9 @@ ERF::ReadParameters ()
 
         // NetCDF wrfbdy lateral boundary file
         pp.query("nc_bdy_file", nc_bdy_file);
+
+        // Text input_sounding file
+        pp.query("input_sounding_file", input_sounding_file);
     }
 
     {  // Mesh refinement
@@ -1197,3 +1217,72 @@ ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
 #endif
 }
 #endif // ERF_USE_NETCDF
+
+void ERF::init_from_input_sounding(
+        const amrex::Box &bx,
+        amrex::Array4<amrex::Real> const &state,
+        amrex::Array4<amrex::Real> const &x_vel,
+        amrex::Array4<amrex::Real> const &y_vel,
+        amrex::Array4<amrex::Real> const &z_vel,
+        amrex::GeometryData const &geomdata,
+        InputSoundingData const &inputSoundingData) {
+
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
+    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
+    const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d.dataPtr();
+    const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d.dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size();
+
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        // Geometry
+        const amrex::Real* prob_lo = geomdata.ProbLo();
+        const amrex::Real* dx = geomdata.CellSize();
+        const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+
+        // TODO: Read this from file, the way we do for custom problems
+        // Or provide rho = rho (z) as applicable or computer rho = rho(z) as WRF does
+        Real rho_0 = 1.0;
+
+        // Set the density
+        state(i, j, k, Rho_comp) = rho_0;
+
+        // Initial Rho0*Theta0
+        state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+
+        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
+        state(i, j, k, RhoScalar_comp) = 0;
+    });
+
+    // Construct a box that is on x-faces
+    const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
+    // Construct a box that is on y-faces
+    const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
+    // Construct a box that is on z-faces
+    const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+
+    // Set the x,y,z-velocities
+    amrex::ParallelFor(xbx, ybx, zbx,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        // Note that this is called on a box of x-faces
+        const amrex::Real* prob_lo = geomdata.ProbLo();
+        const amrex::Real* dx = geomdata.CellSize();
+        const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+
+        // Set the x-velocity
+        x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        // Note that this is called on a box of y-faces
+        const amrex::Real* prob_lo = geomdata.ProbLo();
+        const amrex::Real* dx = geomdata.CellSize();
+        const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+
+        // Set the y-velocity
+        y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        // Note that this is called on a box of z-faces
+        // Set the z-velocity
+        z_vel(i, j, k) = 0.0;
+    });
+}

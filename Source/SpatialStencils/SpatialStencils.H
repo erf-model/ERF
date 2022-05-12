@@ -102,14 +102,15 @@ amrex::Real AdvectionSrcForZMom(
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                        const int& spatial_order);
 
-/** Meant for the continuity, energy, and scalar equations */
-AMREX_GPU_DEVICE
-amrex::Real AdvectionSrcForState(
-                       const int &i, const int &j, const int &k,
+/** Compute advection source for the continuity, energy, and scalar equations */
+void AdvectionSrcForState(
+                       const amrex::Box& bx,
+                       const int &start_comp, const int &num_comp,
                        const amrex::Array4<const amrex::Real>& rho_u,
                        const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& rho_w,
-                       const amrex::Array4<const amrex::Real>& cell_prim, const int &qty_index,
+                       const amrex::Array4<const amrex::Real>& cell_prim,
+                       const amrex::Array4<amrex::Real>& src,
                        const amrex::Array4<amrex::Real>& flux_x,
                        const amrex::Array4<amrex::Real>& flux_y,
                        const amrex::Array4<amrex::Real>& flux_z,
@@ -118,7 +119,8 @@ amrex::Real AdvectionSrcForState(
                        const amrex::Array4<const amrex::Real>& detJ,
 #endif
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
-                       const int& spatial_order);
+                       const int& spatial_order, const int& use_deardorff,
+                       const int& use_QKE);
 
 /** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known */
 AMREX_GPU_DEVICE
