@@ -51,8 +51,8 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
                                        met_v_h_xi_lo,met_v_h_eta_lo,met_v_h_zeta_lo,
                                        cellSizeInv,z_nd,TerrainMet::h_zeta);
 
-                  Omega_hi = OmegaFromW(i-1,j  ,k+1, w(i-1,j  ,k+1),u,v,z_nd,cellSizeInv);
-                  Omega_lo = OmegaFromW(i-1,j  ,k  , w(i-1,j  ,k  ),u,v,z_nd,cellSizeInv);
+                  Omega_hi = OmegaFromW(i-1,j  ,k+1,w(i-1,j  ,k+1),u,v,z_nd,cellSizeInv);
+                  Omega_lo = OmegaFromW(i-1,j  ,k  ,w(i-1,j  ,k  ),u,v,z_nd,cellSizeInv);
                   
                   // D11 (i+1/2)
                   expansionRate = (u(i  ,j  ,k  )*met_u_h_zeta_hi - u(i-1,j  ,k  )*met_u_h_zeta_lo)*dx_inv +

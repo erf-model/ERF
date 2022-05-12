@@ -9,8 +9,8 @@
 #include <EOS.H>
 
 #ifdef ERF_USE_TERRAIN
-#include "TerrainMetrics.H"
-#include "IndexDefines.H"
+#include <TerrainMetrics.H>
+#include <IndexDefines.H>
 #endif
 
 using namespace amrex;

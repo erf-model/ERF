@@ -81,6 +81,7 @@ ComputeMetricAtCellCenter(const int &i, const int &j, const int &k,
 //*****************************************************************************************
 // Compute terrain metric terms at face-centers
 //*****************************************************************************************
+// Metric coincides with U location
 AMREX_GPU_DEVICE
 inline void
 ComputeMetricAtIface(const int &i, const int &j, const int &k,
@@ -142,6 +143,7 @@ ComputeMetricAtIface(const int &i, const int &j, const int &k,
   }
 }
 
+// Metric coincides with V location
 AMREX_GPU_DEVICE
 inline void
 ComputeMetricAtJface(const int &i, const int &j, const int &k,
@@ -203,6 +205,7 @@ ComputeMetricAtJface(const int &i, const int &j, const int &k,
   }
 }
 
+// Metric coincides with W location
 AMREX_GPU_DEVICE
 inline void
 ComputeMetricAtKface(const int &i, const int &j, const int &k,
