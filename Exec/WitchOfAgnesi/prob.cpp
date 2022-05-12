@@ -114,7 +114,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
                   MultiFab const& z_phys_cc,
                   Geometry const& geom)
 {
-  const Real prob_lo_z = geom.ProbLo()[2];
+  //const Real prob_lo_z = geom.ProbLo()[2];
   const int khi        = geom.Domain().bigEnd()[2];
 
   const Real& T_sfc    = parms.T_0;
@@ -176,7 +176,7 @@ init_custom_prob(
 
   const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
   const amrex::Real& thetabar  = parms.T_0;
-  const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
+  //const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
 
   // These are at cell centers (unstaggered)
   amrex::Vector<amrex::Real> h_r(khi+1);

@@ -119,8 +119,8 @@ void erf_fast_rhs (int level,
         int vhi_x = valid_bx.bigEnd(0);
         int vlo_y = valid_bx.smallEnd(1);
         int vhi_y = valid_bx.bigEnd(1);
-        int vlo_z = valid_bx.smallEnd(2);
-        int vhi_z = valid_bx.bigEnd(2);
+//        int vlo_z = valid_bx.smallEnd(2);
+//        int vhi_z = valid_bx.bigEnd(2);
 
         auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
         auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
