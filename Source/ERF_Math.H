@@ -3,7 +3,7 @@
 #include <AMReX_REAL.H>
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real interpolate_1d(const amrex::Real* alpha, const amrex::Real* beta, 
+amrex::Real interpolate_1d(const amrex::Real* alpha, const amrex::Real* beta,
                            const amrex::Real alpha_interp, const int alpha_size)
 {
     /*
