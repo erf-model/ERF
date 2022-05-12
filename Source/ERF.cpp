@@ -534,6 +534,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
+        if (init_type == "input_sounding") {
+            if (input_sounding_file.empty())
+                amrex::Error("input_sounding file name must be provided via input");
+            input_sounding_data.read_from_file(input_sounding_file);
+        }
+
 #ifdef ERF_USE_NETCDF
         if (init_type == "ideal" || init_type == "real") {
             if (nc_init_file.empty())
@@ -543,14 +549,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         if (init_type == "real") {
             if (nc_bdy_file.empty())
                 amrex::Error("NetCDF boundary file name must be provided via input");
-            read_from_wrfbdy();
+            //read_from_wrfbdy(); // TODO: Uncomment after it's working correctly
         }
 #endif //ERF_USE_NETCDF
-        if (init_type == "input_sounding") {
-            if (input_sounding_file.empty())
-                amrex::Error("input_sounding file name must be provided via input");
-            input_sounding_data.read_from_file(input_sounding_file);
-        }
     }
 
     // Loop over grids at this level to initialize our grid data
@@ -590,11 +591,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
                               geom[lev].data());
 #endif
             }
-            else {
-                init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data(), input_sounding_data);
+            else { // init_type == "input_sounding", simplified problem, shouldn't depend on ERF_USE_TERRAIN
+                init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+                                         geom[lev].data(), input_sounding_data);
             }
-        }
-    }
+        } //mfi
+    } // init_type == "custom" || init_type == "input_sounding"
 #ifdef ERF_USE_NETCDF
     else if (init_type == "ideal" || init_type == "real") {
 #ifdef _OPENMP
@@ -621,7 +623,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #ifdef ERF_USE_TERRAIN
         make_metrics(lev);
 #endif
-    }
+    } // init_type == "ideal" || init_type == "real"
 #endif //ERF_USE_NETCDF
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
@@ -1238,6 +1240,7 @@ void ERF::init_from_input_sounding(
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         // TODO: Read this from file, the way we do for custom problems
+        // Or provide rho = rho (z) as applicable or computer rho = rho(z) as WRF does
         Real rho_0 = 1.0;
 
         // Set the density

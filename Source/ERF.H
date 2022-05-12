@@ -373,28 +373,6 @@ private:
     amrex::Vector<amrex::FArrayBox> bdy_data_xhi;
     amrex::Vector<amrex::FArrayBox> bdy_data_ylo;
     amrex::Vector<amrex::FArrayBox> bdy_data_yhi;
-    // *** *** Variables for holding the data in input_sounding
-    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
-    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
-
-    // input Sounding doesn't depend on NETCDF
-
-    // Read the text input_sounding file once
-    void read_from_input_sounding();
-
-    void
-    init_from_input_sounding(
-            const amrex::Box &bx,
-            amrex::Array4<amrex::Real> const &state,
-            amrex::Array4<amrex::Real> const &x_vel,
-            amrex::Array4<amrex::Real> const &y_vel,
-            amrex::Array4<amrex::Real> const &z_vel,
-            amrex::GeometryData const &geomdata,
-            const InputSoundingData &inputSoundingData);
-
-    amrex::Real
-    interpolate_profile (const amrex::Vector<amrex::Real> &v1, const amrex::Vector<amrex::Real> &v2, const amrex::Real &var);
-
 
 #ifdef ERF_USE_TERRAIN
     // Define z_phys_nd on nodes using an analytical expression
