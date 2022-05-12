@@ -968,9 +968,13 @@ ERF::read_from_wrfinput()
     auto domain = geom[0].Domain();
 
     // We allocate these here so they exist on all ranks
-    Box ubx(domain); ubx.surroundingNodes(0); NC_xvel_fab.resize(ubx,1);
-    Box vbx(domain); vbx.surroundingNodes(1); NC_yvel_fab.resize(vbx,1);
-    Box wbx(domain); wbx.surroundingNodes(2); NC_zvel_fab.resize(wbx,1);
+    Box ubx(domain); ubx.surroundingNodes(0);
+    Box vbx(domain); vbx.surroundingNodes(1);
+    Box wbx(domain); wbx.surroundingNodes(2);
+
+    NC_xvel_fab.resize(ubx,1);
+    NC_yvel_fab.resize(vbx,1);
+    NC_zvel_fab.resize(wbx,1);
     NC_rho_fab.resize(domain,1);
     NC_rhotheta_fab.resize(domain,1);
 
@@ -979,34 +983,46 @@ ERF::read_from_wrfinput()
     NC_PHB_fab.resize(wbx,1);
 #endif
 
+#ifdef AMREX_USE_GPU
+    FArrayBox host_NC_xvel_fab(NC_xvel_fab.box(), NC_xvel_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_yvel_fab(NC_yvel_fab.box(), NC_yvel_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_zvel_fab(NC_zvel_fab.box(), NC_zvel_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_rho_fab (NC_rho_fab.box(), NC_rho_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab.box(), NC_rhotheta_fab.nComp(),amrex::The_Pinned_Arena());
+#ifdef ERF_USE_TERRAIN
+    FArrayBox host_NC_PH_fab(NC_PH_fab.box(), NC_PH_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_PHB_fab(NC_PHB_fab.box(), NC_PHB_fab.nComp(),amrex::The_Pinned_Arena());
+#endif
+#else
+    FArrayBox host_NC_xvel_fab    (NC_xvel_fab    , amrex::make_alias, 0, NC_xvel_fab.nComp());
+    FArrayBox host_NC_yvel_fab    (NC_yvel_fab    , amrex::make_alias, 0, NC_yvel_fab.nComp());
+    FArrayBox host_NC_zvel_fab    (NC_zvel_fab    , amrex::make_alias, 0, NC_zvel_fab.nComp());
+    FArrayBox host_NC_rho_fab     (NC_rho_fab     , amrex::make_alias, 0, NC_rho_fab.nComp());
+    FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab, amrex::make_alias, 0, NC_rhotheta_fab.nComp());
+#ifdef ERF_USE_TERRAIN
+    FArrayBox host_NC_PH_fab (NC_PH_fab) , amrex::make_alias, 0, NC_PH_fab.nComp();
+    FArrayBox host_NC_PHB_fab(NC_PHB_fab), amrex::make_alias, 0, NC_PHB_fab.nComp();
+#endif
+#endif
+
     if (ParallelDescriptor::IOProcessor())
     {
         Vector<FArrayBox*> NC_fabs;
         Vector<std::string> NC_names;
         Vector<enum NC_Data_Dims_Type> NC_dim_types;
 
-        NC_fabs.push_back(&NC_xvel_fab    ); NC_names.push_back("U")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_fabs.push_back(&NC_yvel_fab)    ; NC_names.push_back("V")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_fabs.push_back(&NC_zvel_fab)    ; NC_names.push_back("W")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_fabs.push_back(&NC_rho_fab)     ; NC_names.push_back("ALB")   ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_fabs.push_back(&NC_rhotheta_fab); NC_names.push_back("T_INIT"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&host_NC_xvel_fab    ); NC_names.push_back("U")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&host_NC_yvel_fab)    ; NC_names.push_back("V")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&host_NC_zvel_fab)    ; NC_names.push_back("W")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&host_NC_rho_fab)     ; NC_names.push_back("ALB")   ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&host_NC_rhotheta_fab); NC_names.push_back("T_INIT"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 #ifdef ERF_USE_TERRAIN
-        NC_fabs.push_back(&NC_PH_fab); NC_names.push_back("PH"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_fabs.push_back(&NC_PHB_fab); NC_names.push_back("PHB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&host_NC_PH_fab); NC_names.push_back("PH"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&host_NC_PHB_fab); NC_names.push_back("PHB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 #endif
 
         // Read the netcdf file and fill these FABs
         BuildFABsFromWRFInputFile(nc_init_file, NC_names, NC_fabs, NC_dim_types);
-
-        // Convert to rho by inverting
-        NC_rho_fab.invert(1.0);
-
-        // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
-        const Real theta_ref = 300.0;
-        NC_rhotheta_fab.plus(theta_ref);
-
-        // Now multiply by rho to get (rho theta) instead of theta
-        NC_rhotheta_fab.mult(NC_rho_fab,0,0,1);
 
     } // if ParalleDescriptor::IOProcessor()
 
@@ -1018,15 +1034,44 @@ ERF::read_from_wrfinput()
     //    the data to every rank.
 
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
-    ParallelDescriptor::Bcast(NC_xvel_fab.dataPtr(),NC_xvel_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_yvel_fab.dataPtr(),NC_yvel_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_zvel_fab.dataPtr(),NC_zvel_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_rho_fab.dataPtr(),NC_rho_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_rhotheta_fab.dataPtr(),NC_rhotheta_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(host_NC_xvel_fab.dataPtr(),NC_xvel_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(host_NC_yvel_fab.dataPtr(),NC_yvel_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(host_NC_zvel_fab.dataPtr(),NC_zvel_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(host_NC_rho_fab.dataPtr(),NC_rho_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(host_NC_rhotheta_fab.dataPtr(),NC_rhotheta_fab.box().numPts(),ioproc);
 #ifdef ERF_USE_TERRAIN
-    ParallelDescriptor::Bcast(NC_PHB_fab.dataPtr(),NC_PHB_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(NC_PH_fab.dataPtr() ,NC_PH_fab.box().numPts() ,ioproc);
+    ParallelDescriptor::Bcast(host_NC_PHB_fab.dataPtr(),NC_PHB_fab.box().numPts(),ioproc);
+    ParallelDescriptor::Bcast(host_NC_PH_fab.dataPtr() ,NC_PH_fab.box().numPts() ,ioproc);
 #endif
+
+#ifdef AMREX_USE_GPU
+     Gpu::copy(Gpu::hostToDevice, host_NC_xvel_fab.dataPtr(), host_NC_xvel_fab.dataPtr()+host_NC_xvel_fab.size(),
+                                       NC_xvel_fab.dataPtr());
+     Gpu::copy(Gpu::hostToDevice, host_NC_yvel_fab.dataPtr(), host_NC_yvel_fab.dataPtr()+host_NC_yvel_fab.size(),
+                                       NC_yvel_fab.dataPtr());
+     Gpu::copy(Gpu::hostToDevice, host_NC_zvel_fab.dataPtr(), host_NC_zvel_fab.dataPtr()+host_NC_zvel_fab.size(),
+                                       NC_zvel_fab.dataPtr());
+     Gpu::copy(Gpu::hostToDevice, host_NC_rho_fab.dataPtr(), host_NC_rho_fab.dataPtr()+host_NC_rho_fab.size(),
+                                       NC_rho_fab.dataPtr());
+     Gpu::copy(Gpu::hostToDevice, host_NC_rhotheta_fab.dataPtr(), host_NC_rhotheta_fab.dataPtr()+host_NC_rhotheta_fab.size(),
+                                       NC_rhotheta_fab.dataPtr());
+#ifdef ERF_USE_TERRAIN
+     Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(),
+                                       NC_PH_fab.dataPtr());
+     Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(),
+                                       NC_PHB_fab.dataPtr());
+#endif
+#endif
+
+    // Convert to rho by inverting
+    NC_rho_fab.template invert<RunOn::Device>(1.0);
+
+    // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
+    const Real theta_ref = 300.0;
+    NC_rhotheta_fab.template plus<RunOn::Device>(theta_ref);
+
+    // Now multiply by rho to get (rho theta) instead of theta
+    NC_rhotheta_fab.template mult<RunOn::Device>(NC_rho_fab,0,0,1);
 
     amrex::Print() << "Successfully loaded data from the wrfinput (output of 'ideal.exe' / 'real.exe') NetCDF file" << std::endl << std::endl;
 }
@@ -1142,147 +1187,4 @@ ERF::read_from_wrfbdy()
 
     amrex::Print() << "Successfully loaded data from the wrfbdy (output of 'real.exe') NetCDF file" << std::endl << std::endl;
 }
-
-void
-ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
-                        FArrayBox& x_vel_fab, FArrayBox& y_vel_fab, FArrayBox& z_vel_fab
-#ifdef ERF_USE_TERRAIN
-                       ,FArrayBox& z_phys
-#endif // ERF_USE_TERRAIN
-                                       )
-{
-    //
-    // FArrayBox to FArrayBox copy does "copy on intersection"
-    // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
-    //
-    // This copies x-vel
-    x_vel_fab.copy(NC_xvel_fab);
-
-    // This copies y-vel
-    y_vel_fab.copy(NC_yvel_fab);
-
-    // This copies z-vel
-    z_vel_fab.copy(NC_zvel_fab);
-
-    // We first initialize all state_fab variables to zero
-    state_fab.setVal(0.);
-
-    // This copies the density
-    state_fab.copy(NC_rho_fab, 0, Rho_comp, 1);
-
-    // This copies (rho*theta)
-    state_fab.copy(NC_rhotheta_fab, 0, RhoTheta_comp, 1);
-
-#ifdef ERF_USE_TERRAIN
-    // This copies from NC_zphys on z-faces to z_phys_nd on nodes
-    Array4<Real>    z_arr   = z_phys.array();
-    Array4<Real> nc_phb_arr = NC_PHB_fab.array();
-    Array4<Real> nc_ph_arr  = NC_PH_fab.array();
-
-    const Box& z_phys_box(z_phys.box());
-
-    Box nodal_dom = amrex::surroundingNodes(geom[0].Domain());
-
-    int ilo = nodal_dom.smallEnd()[0];
-    int ihi = nodal_dom.bigEnd()[0];
-    int jlo = nodal_dom.smallEnd()[1];
-    int jhi = nodal_dom.bigEnd()[1];
-    int klo = nodal_dom.smallEnd()[2];
-    int khi = nodal_dom.bigEnd()[2];
-
-    //
-    // We must be careful not to read out of bounds of the WPS data
-    //
-    amrex::ParallelFor(z_phys_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        int ii = std::max(std::min(i,ihi-1),ilo+1);
-        int jj = std::max(std::min(j,jhi-1),jlo+1);
-        if (!z_phys_box.contains(ii,jj,k) || !z_phys_box.contains(ii-1,jj-1,k)) amrex::Print() << "BAD " << IntVect(ii,jj,k) << std::endl;
-        if (k < 0) {
-            Real z_klo   =  0.25 * ( nc_ph_arr (ii,jj,klo  ) +  nc_ph_arr(ii-1,jj,klo  ) + nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
-                                     nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(ii-1,jj,klo  ) + nc_phb_arr(ii,jj-1,klo  ) + nc_phb_arr(ii-1,jj-1,klo) ) / CONST_GRAV;
-            Real z_klop1 =  0.25 * ( nc_ph_arr (ii,jj,klo+1) +  nc_ph_arr(ii-1,jj,klo+1) + nc_ph_arr (ii,jj-1,klo+1) + nc_ph_arr (ii-1,jj-1,klo+1) +
-                                     nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(ii-1,jj,klo+1) + nc_phb_arr(ii,jj-1,klo+1) + nc_phb_arr(ii-1,jj-1,klo+1) ) / CONST_GRAV;
-            z_arr(i, j, k) = 2.0 * z_klo - z_klop1;
-        } else if (k > khi) {
-            Real z_khi   =  0.25 * ( nc_ph_arr (ii,jj,khi  ) + nc_ph_arr (ii-1,jj,khi  ) + nc_ph_arr (ii,jj-1,khi  ) + nc_ph_arr (ii-1,jj-1,khi) +
-                                     nc_phb_arr(ii,jj,khi  ) + nc_phb_arr(ii-1,jj,khi  ) + nc_phb_arr(ii,jj-1,khi  ) + nc_phb_arr(ii-1,jj-1,khi) ) / CONST_GRAV;
-            Real z_khim1 =  0.25 * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (ii-1,jj,khi-1) + nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
-                                     nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(ii-1,jj,khi-1) + nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
-            z_arr(i, j, k) = 2.0 * z_khi - z_khim1;
-          } else {
-            z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj,k) +  nc_ph_arr(ii-1,jj,k) +  nc_ph_arr(ii,jj-1,k) +  nc_ph_arr(ii-1,jj-1,k) +
-                                      nc_phb_arr(ii,jj,k) + nc_phb_arr(ii-1,jj,k) + nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
-        } // k
-    });
-#endif
-}
 #endif // ERF_USE_NETCDF
-
-void ERF::init_from_input_sounding(
-        const amrex::Box &bx,
-        amrex::Array4<amrex::Real> const &state,
-        amrex::Array4<amrex::Real> const &x_vel,
-        amrex::Array4<amrex::Real> const &y_vel,
-        amrex::Array4<amrex::Real> const &z_vel,
-        amrex::GeometryData const &geomdata,
-        InputSoundingData const &inputSoundingData) {
-
-    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
-    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-    const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d.dataPtr();
-    const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d.dataPtr();
-    const int   inp_sound_size  = inputSoundingData.size();
-
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        // Geometry
-        const amrex::Real* prob_lo = geomdata.ProbLo();
-        const amrex::Real* dx = geomdata.CellSize();
-        const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
-
-        // TODO: Read this from file, the way we do for custom problems
-        // Or provide rho = rho (z) as applicable or computer rho = rho(z) as WRF does
-        Real rho_0 = 1.0;
-
-        // Set the density
-        state(i, j, k, Rho_comp) = rho_0;
-
-        // Initial Rho0*Theta0
-        state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
-
-        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-        state(i, j, k, RhoScalar_comp) = 0;
-    });
-
-    // Construct a box that is on x-faces
-    const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
-    // Construct a box that is on y-faces
-    const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
-    // Construct a box that is on z-faces
-    const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
-
-    // Set the x,y,z-velocities
-    amrex::ParallelFor(xbx, ybx, zbx,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        // Note that this is called on a box of x-faces
-        const amrex::Real* prob_lo = geomdata.ProbLo();
-        const amrex::Real* dx = geomdata.CellSize();
-        const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
-
-        // Set the x-velocity
-        x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        // Note that this is called on a box of y-faces
-        const amrex::Real* prob_lo = geomdata.ProbLo();
-        const amrex::Real* dx = geomdata.CellSize();
-        const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
-
-        // Set the y-velocity
-        y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        // Note that this is called on a box of z-faces
-        // Set the z-velocity
-        z_vel(i, j, k) = 0.0;
-    });
-}
