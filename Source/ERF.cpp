@@ -968,9 +968,9 @@ ERF::read_from_wrfinput()
     auto domain = geom[0].Domain();
 
     // We allocate these here so they exist on all ranks
-    Box ubx(domain); ubx.surroundingNodes(0); 
-    Box vbx(domain); vbx.surroundingNodes(1); 
-    Box wbx(domain); wbx.surroundingNodes(2); 
+    Box ubx(domain); ubx.surroundingNodes(0);
+    Box vbx(domain); vbx.surroundingNodes(1);
+    Box wbx(domain); wbx.surroundingNodes(2);
 
     NC_xvel_fab.resize(ubx,1);
     NC_yvel_fab.resize(vbx,1);
@@ -984,14 +984,14 @@ ERF::read_from_wrfinput()
 #endif
 
 #ifdef AMREX_USE_GPU
-    FArrayBox host_NC_xvel_fab(NC_xvel_fab.box(), NC_xvel_fab.nComp(),amrex::The_Pinned_Arena()); 
-    FArrayBox host_NC_yvel_fab(NC_yvel_fab.box(), NC_yvel_fab.nComp(),amrex::The_Pinned_Arena()); 
-    FArrayBox host_NC_zvel_fab(NC_zvel_fab.box(), NC_zvel_fab.nComp(),amrex::The_Pinned_Arena()); 
-    FArrayBox host_NC_rho_fab (NC_rho_fab.box(), NC_rho_fab.nComp(),amrex::The_Pinned_Arena()); 
-    FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab.box(), NC_rhotheta_fab.nComp(),amrex::The_Pinned_Arena()); 
+    FArrayBox host_NC_xvel_fab(NC_xvel_fab.box(), NC_xvel_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_yvel_fab(NC_yvel_fab.box(), NC_yvel_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_zvel_fab(NC_zvel_fab.box(), NC_zvel_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_rho_fab (NC_rho_fab.box(), NC_rho_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab.box(), NC_rhotheta_fab.nComp(),amrex::The_Pinned_Arena());
 #ifdef ERF_USE_TERRAIN
-    FArrayBox host_NC_PH_fab(NC_PH_fab.box(), NC_PH_fab.nComp(),amrex::The_Pinned_Arena()); 
-    FArrayBox host_NC_PHB_fab(NC_PHB_fab.box(), NC_PHB_fab.nComp(),amrex::The_Pinned_Arena()); 
+    FArrayBox host_NC_PH_fab(NC_PH_fab.box(), NC_PH_fab.nComp(),amrex::The_Pinned_Arena());
+    FArrayBox host_NC_PHB_fab(NC_PHB_fab.box(), NC_PHB_fab.nComp(),amrex::The_Pinned_Arena());
 #endif
 #else
     FArrayBox host_NC_xvel_fab    (NC_xvel_fab    , amrex::make_alias, 0, NC_xvel_fab.nComp());
@@ -1045,20 +1045,20 @@ ERF::read_from_wrfinput()
 #endif
 
 #ifdef AMREX_USE_GPU
-     Gpu::copy(Gpu::hostToDevice, host_NC_xvel_fab.dataPtr(), host_NC_xvel_fab.dataPtr()+host_NC_xvel_fab.size(), 
+     Gpu::copy(Gpu::hostToDevice, host_NC_xvel_fab.dataPtr(), host_NC_xvel_fab.dataPtr()+host_NC_xvel_fab.size(),
                                        NC_xvel_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_yvel_fab.dataPtr(), host_NC_yvel_fab.dataPtr()+host_NC_yvel_fab.size(), 
+     Gpu::copy(Gpu::hostToDevice, host_NC_yvel_fab.dataPtr(), host_NC_yvel_fab.dataPtr()+host_NC_yvel_fab.size(),
                                        NC_yvel_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_zvel_fab.dataPtr(), host_NC_zvel_fab.dataPtr()+host_NC_zvel_fab.size(), 
+     Gpu::copy(Gpu::hostToDevice, host_NC_zvel_fab.dataPtr(), host_NC_zvel_fab.dataPtr()+host_NC_zvel_fab.size(),
                                        NC_zvel_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_rho_fab.dataPtr(), host_NC_rho_fab.dataPtr()+host_NC_rho_fab.size(), 
+     Gpu::copy(Gpu::hostToDevice, host_NC_rho_fab.dataPtr(), host_NC_rho_fab.dataPtr()+host_NC_rho_fab.size(),
                                        NC_rho_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_rhotheta_fab.dataPtr(), host_NC_rhotheta_fab.dataPtr()+host_NC_rhotheta_fab.size(), 
+     Gpu::copy(Gpu::hostToDevice, host_NC_rhotheta_fab.dataPtr(), host_NC_rhotheta_fab.dataPtr()+host_NC_rhotheta_fab.size(),
                                        NC_rhotheta_fab.dataPtr());
 #ifdef ERF_USE_TERRAIN
-     Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(), 
+     Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(),
                                        NC_PH_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(), 
+     Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(),
                                        NC_PHB_fab.dataPtr());
 #endif
 #endif
