@@ -55,6 +55,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_Math.H
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_init.cpp
        ${SRC_DIR}/ERF_init1d.cpp
        ${SRC_DIR}/ERF_SumIQ.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
