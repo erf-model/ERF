@@ -58,7 +58,7 @@ prob.T_0 = 300.0
 
 # INITIALIZATION WITH ATM DATA
 erf.init_type = "input_sounding"
-erf.input_sounding_file = "input_sounding"
+erf.input_sounding_file = "input_sounding_file"
 #erf.input_sounding_file = "/home/pkjha/Desktop/input_sounding_file/ekman/input_sounding"
 
 FILE = ./inputs.time_integration
