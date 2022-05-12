@@ -306,10 +306,10 @@ private:
 
     // Copy from the NC*fabs into the MultiFabs holding the initial data
     void init_from_wrfinput(const amrex::Box& bx,         amrex::FArrayBox& state_fab,
-                            amrex ::FArrayBox& x_vel_fab, amrex::FArrayBox& y_vel_fab,
+                            amrex::FArrayBox& x_vel_fab, amrex::FArrayBox& y_vel_fab,
                             amrex::FArrayBox& z_vel_fab
 #ifdef ERF_USE_TERRAIN
-                           ,FArrayBox& z_phys
+                           ,amrex::FArrayBox& z_phys
 #endif
                                        );
 
