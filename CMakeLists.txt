@@ -108,7 +108,6 @@ add_subdirectory(Exec)
 
 if(ERF_ENABLE_TESTS)
   include(CTest)
-  add_subdirectory("Submodules/GoogleTest")
   add_subdirectory(Tests)
 endif()
 
