@@ -207,6 +207,13 @@ public:
                          amrex::Vector<amrex::Real>& pres);
 #endif
 
+#ifdef ERF_USE_NETCDF
+    //! Write a timestep to 1D vertical column output for coupling
+    void writeToNCColumnFile(const int lev,
+                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
+                             const amrex::Real time);
+#endif
+
 private:
 
     ////////////////
@@ -303,11 +310,6 @@ private:
     //! Create 1D vertical column output for coupling
     void createNCColumnFile(const int lev,
                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
-
-    //! Write a timestep to 1D vertical column output for coupling
-    void writeToNCColumnFile(const int lev,
-                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
-                             const amrex::Real time);
 
     // Read the netcdf wrfinput file once
     void read_from_wrfinput();
