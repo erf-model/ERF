@@ -130,8 +130,8 @@ ComputeS12(const int &i, const int &j, const int &k,
 
   // At EdgeCenterK
   GradUz = 0.25 * dz_inv *
-    ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
-     -u(i  ,j  ,k-1) - u(i-1,j  ,k-1) );
+    ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
+     -u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
   GradVz = 0.25 * dz_inv *
     ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
      -v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
