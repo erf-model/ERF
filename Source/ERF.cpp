@@ -985,13 +985,13 @@ ERF::read_from_wrfinput()
         Vector<std::string> NC_names;
         Vector<enum NC_Data_Dims_Type> NC_dim_types;
 
-        NC_fabs.push_back(&NC_xvel_fab    ); NC_names.push_back("U")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_fabs.push_back(&NC_yvel_fab)    ; NC_names.push_back("V")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_fabs.push_back(&NC_zvel_fab)    ; NC_names.push_back("W")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_fabs.push_back(&NC_rho_fab)     ; NC_names.push_back("ALB")   ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_xvel_fab);     NC_names.push_back("U");      NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_yvel_fab);     NC_names.push_back("V");      NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_zvel_fab);     NC_names.push_back("W");      NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_rho_fab);      NC_names.push_back("ALB");    NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
         NC_fabs.push_back(&NC_rhotheta_fab); NC_names.push_back("T_INIT"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 #ifdef ERF_USE_TERRAIN
-        NC_fabs.push_back(&NC_PH_fab); NC_names.push_back("PH"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+        NC_fabs.push_back(&NC_PH_fab);  NC_names.push_back("PH");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
         NC_fabs.push_back(&NC_PHB_fab); NC_names.push_back("PHB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 #endif
 

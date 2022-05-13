@@ -25,8 +25,6 @@ ComputeMetricAtCellCenter(const int &i, const int &j, const int &k,
   amrex::Real dyInv = cellSizeInv[1];
   amrex::Real dzInv = cellSizeInv[2];
 
-
-
   switch(flag) {
   case TerrainMet::h_xi:
     met_h_xi   = 0.25 * dxInv *
