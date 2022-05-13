@@ -207,6 +207,22 @@ public:
                          amrex::Vector<amrex::Real>& pres);
 #endif
 
+#ifdef ERF_USE_NETCDF
+    //! Write a timestep to 1D vertical column output for coupling
+    void writeToNCColumnFile(const int lev,
+                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
+                             const amrex::Real time);
+
+    // Copy from the NC*fabs into the MultiFabs holding the initial data
+    void init_from_wrfinput(const amrex::Box& bx,        amrex::FArrayBox& state_fab,
+                            amrex::FArrayBox& x_vel_fab, amrex::FArrayBox& y_vel_fab,
+                            amrex::FArrayBox& z_vel_fab
+#ifdef ERF_USE_TERRAIN
+                           ,amrex::FArrayBox& z_phys
+#endif
+                           );
+#endif
+
 private:
 
     ////////////////
@@ -304,25 +320,11 @@ private:
     void createNCColumnFile(const int lev,
                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
 
-    //! Write a timestep to 1D vertical column output for coupling
-    void writeToNCColumnFile(const int lev,
-                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
-                             const amrex::Real time);
-
     // Read the netcdf wrfinput file once
     void read_from_wrfinput();
 
     // Read the netcdf wrfbdy file once
     void read_from_wrfbdy();
-
-    // Copy from the NC*fabs into the MultiFabs holding the initial data
-    void init_from_wrfinput(const amrex::Box& bx,        amrex::FArrayBox& state_fab,
-                            amrex::FArrayBox& x_vel_fab, amrex::FArrayBox& y_vel_fab,
-                            amrex::FArrayBox& z_vel_fab
-#ifdef ERF_USE_TERRAIN
-                           ,amrex::FArrayBox& z_phys
-#endif
-                                       );
 
     // Copy from the NC*fabs into the MultiFabs holding the boundary data
     void init_from_wrfbdy(amrex::Vector<amrex::FArrayBox*> x_vel_lateral,

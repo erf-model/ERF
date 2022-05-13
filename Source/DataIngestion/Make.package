@@ -1,5 +1,0 @@
-
-ifeq ($(USE_NETCDF), TRUE)
-CEXE_sources += NCReadFile.H
-CEXE_sources += NCReadFile.cpp
-endif

@@ -85,6 +85,12 @@ void erf_fast_rhs (int level,
     amrex::MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
     amrex::MultiFab New_rho_w(convert(ba,IntVect(0,0,1)), dm, 1, 1);
 
+    // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
+    // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
+    MultiFab::Copy(New_rho_u, Delta_rho_u, 0, 0, 1, 1);
+    MultiFab::Copy(New_rho_v, Delta_rho_v, 0, 0, 1, 1);
+    MultiFab::Copy(New_rho_w, Delta_rho_w, 0, 0, 1, 1);
+
     // *************************************************************************
     // Set gravity as a vector
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
@@ -124,8 +130,8 @@ void erf_fast_rhs (int level,
         int vhi_x = valid_bx.bigEnd(0);
         int vlo_y = valid_bx.smallEnd(1);
         int vhi_y = valid_bx.bigEnd(1);
-        int vlo_z = valid_bx.smallEnd(2);
-        int vhi_z = valid_bx.bigEnd(2);
+//        int vlo_z = valid_bx.smallEnd(2);
+//        int vhi_z = valid_bx.bigEnd(2);
 
         auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
         auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};

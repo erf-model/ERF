@@ -126,7 +126,7 @@ struct SolverChoice {
             if (les_type != LESType::None) {
                 amrex::Print() << "Selected a PBL model and an LES model: " <<
                 "Using PBL for vertical transport, LES for horizontal" << std::endl;
-            } else {
+            } else if (les_type == LESType::Deardorff) {
                 amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
             }
             pp.query("pbl_A1", pbl_A1);
@@ -418,9 +418,9 @@ public:
 
             // Read the vertical profile at each given height
             while(std::getline(input_sounding_reader, line)) {
-                std::istringstream iss(line);
+                std::istringstream iss_z(line);
                 amrex::Real z, theta, moisture, U, V;
-                iss >> z >> theta >> moisture >> U >> V;
+                iss_z >> z >> theta >> moisture >> U >> V;
                 z_inp_sound.push_back(z);
                 theta_inp_sound.push_back(theta);
                 moisture_inp_sound.push_back(moisture);

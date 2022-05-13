@@ -46,13 +46,13 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
                   amrex::Vector<amrex::Real>& thetabar,
                   amrex::Geometry      const& geom)
 {
-  const amrex::Real* prob_lo = geom.ProbLo();
-  const auto dx              = geom.CellSize();
+  //const amrex::Real* prob_lo = geom.ProbLo();
+  //const auto dx              = geom.CellSize();
   const int khi              = geom.Domain().bigEnd()[2];
 
   for (int k = 0; k <= khi; k++)
   {
-      const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+      //const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
       tau[k]      = 1.0;
 

@@ -43,6 +43,7 @@
         {
             Vector<BCRec> bcrs(ncomp);
 
+            // Do all BCs except MOST
             for (MFIter mfi(mf); mfi.isValid(); ++mfi)
             {
                 FArrayBox& dest = mf[mfi];
@@ -52,18 +53,17 @@
 #ifdef ERF_USE_TERRAIN
                 // Private data from constructor
                 const Array4<const Real>& z_nd = m_z_phys_nd.const_array(mfi);
-                const Array4<const Real>& detJ = m_detJ_cc.const_array(mfi);
+                //const Array4<const Real>& detJ = m_detJ_cc.const_array(mfi);
                 const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
                 const auto vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
-                const auto cons_arr = m_has_most_bcs ? m_data.get_var(Vars::cons)[mfi].array() : Array4<Real>();
                 const auto eta_arr  = m_has_most_bcs ? m_viscosity[mfi].array() : Array4<Real>();
 #else
                 // make Array4's for our data
-                const auto cons_arr = m_has_most_bcs ? m_data.get_var(Vars::cons)[mfi].array() : Array4<Real>();
                 const auto velx_arr = m_has_most_bcs ? m_data.get_var(Vars::xvel)[mfi].array() : Array4<Real>();
                 const auto vely_arr = m_has_most_bcs ? m_data.get_var(Vars::yvel)[mfi].array() : Array4<Real>();
                 const auto eta_arr  = m_has_most_bcs ? m_viscosity[mfi].array() : Array4<Real>();
 #endif
+                const auto cons_arr = m_has_most_bcs ? m_data.get_var(Vars::cons)[mfi].array() : Array4<Real>();
 
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
@@ -215,11 +215,11 @@
                           if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
                         }
-                        if (bccomp == BCVars::zvel_bc)
-                        {
-                          if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-                        }
+                        //if (bccomp == BCVars::zvel_bc)
+                        //{
+                        //  if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
+                        //    dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                        //}
 #endif
                     });
 
@@ -307,7 +307,7 @@
                         //
                         // We assume the data has been read in at the level 0 resolution
                         //
-                        int lev = 0;
+                        //int lev = 0;
 
                         // This is a total HACK
                         amrex::Real dT = 1.0;
@@ -411,167 +411,32 @@
                         });
                     }
 #endif
-
                     int zlo = m_geom.Domain().smallEnd(2);
 
                     // Now handle the MOST bc if we have any
-                    // Note: if we use MOST for one variable we use it for all, so we can just test on one component
-
-                    if ( bx.smallEnd()[2] < zlo &&
-                         ( (m_var_idx == Vars::cons && bcrs[Cons::RhoTheta].lo(2) == ERFBCType::MOST) ||
-                           (m_var_idx == Vars::xvel && bcrs[0].lo(2) == ERFBCType::MOST) ||
-                           (m_var_idx == Vars::yvel && bcrs[0].lo(2) == ERFBCType::MOST) ) )
+                    if ( bx.smallEnd()[2] < zlo)
                     {
-                        // check m_var_idx to distinguish between Vars::Dvel and Vars::Dmom
-                        // (in Legacy this was controlled by the is_derived flag)
-                        bool var_is_derived = false;
-                        if (m_var_idx == Vars::xvel || m_var_idx == Vars::yvel || m_var_idx == Vars::zvel) {
-                            var_is_derived = true;
-                        }
-
-                        amrex::Box b2d = bx; // Copy constructor
-                        b2d.setBig(2,zlo-1);
-
-                        /**
-                        * NOTE: the number of ghost zone for state variables are different from face centered
-                        *       variables in the new version.
-                        */
-
-                        if (m_var_idx == Vars::cons) {
-                            int n = Cons::RhoTheta;
-                            ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
-                            {
-                                Real velx, vely, rho, theta, eta;
-                                int ix, jx, iy, jy, ie, je;
-
-                                ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
-                                jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
-                                ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
-                                jx = jx > ubound(velx_arr).y ? ubound(velx_arr).y : jx;
-
-                                iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
-                                jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-                                iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
-                                jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
-
-                                ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-                                je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                                ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-                                je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-
-                                velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix+1,jx,zlo));
-                                vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
-                                rho   = cons_arr(ie,je,zlo,Rho_comp);
-                                theta = cons_arr(ie,je,zlo,RhoTheta_comp)/rho;
-
-                                // TODO: Verify this is the correct Diff component
-                                eta   = eta_arr(ie,je,zlo,EddyDiff::Mom_h);
-
-                                Real vmag    = sqrt(velx*velx+vely*vely);
-                                Real num1    = (theta-m_most.theta_mean)*m_most.vmag_mean;
-                                Real num2    = (m_most.theta_mean-m_most.surf_temp)*vmag;
-                                Real motheta = (num1+num2)*m_most.utau*m_most.kappa/m_most.phi_h();
-
-                                if (!var_is_derived) {
-                                    dest_array(i,j,k,icomp+n) = rho*(m_most.surf_temp + motheta*rho/eta);
-                                } else {
-                                    dest_array(i,j,k,icomp+n) = m_most.surf_temp + motheta/eta;
-                                }
-                            });
-
-                        } else if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom) { //for velx
-
-                            ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
-                            {
-                                Real velx, vely, rho, eta;
-                                int jy, ie, je;
-
-                                int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
-                                int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
-
-                                jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-                                jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
-
-                                ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-                                je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                                ie = ie > ubound(eta_arr).x-1 ? ubound(eta_arr).x-1 : ie;
-                                je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-
-                                velx  = velx_arr(i,j,zlo);
-                                vely  = 0.25*( vely_arr(iyhi,jy,zlo)+vely_arr(iyhi,jy+1,zlo)
-                                              +vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo));
-                                rho   = 0.5*(cons_arr(ie-1,je,zlo,Rho_comp)+
-                                             cons_arr(ie  ,je,zlo,Rho_comp));
-                                eta   = 0.5*( eta_arr(ie-1,je,zlo,EddyDiff::Mom_h)+
-                                              eta_arr(ie  ,je,zlo,EddyDiff::Mom_h));
-
-                                Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
-                                              (m_most.vmag_mean*m_most.vmag_mean) * m_most.utau*m_most.utau;
-
-                                if (!var_is_derived) {
-                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgx*rho/eta;
-                                } else {
-                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgx/eta;
-                                }
-                            });
-
-                        } else if (m_var_idx == Vars::yvel || m_var_idx == Vars::ymom) { //for vely
-
-                            ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
-                            {
-                                Real velx, vely, rho, eta;
-                                int ix, ie, je;
-
-                                ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
-                                ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
-
-                                int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
-                                int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
-
-                                ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-                                je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                                ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-                                je = je > ubound(eta_arr).y-1 ? ubound(eta_arr).y-1 : je;
-
-                                velx  = 0.25*( velx_arr(ix,jxhi,zlo)+velx_arr(ix+1,jxhi,zlo)
-                                              +velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo));
-                                vely  = vely_arr(i,j,zlo);
-                                rho   = 0.5*(cons_arr(ie,je-1,zlo,Rho_comp)+
-                                             cons_arr(ie,je  ,zlo,Rho_comp));
-                                eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_h)+
-                                             eta_arr(ie,je  ,zlo,EddyDiff::Mom_h));
-                                Real vmag  = sqrt(velx*velx+vely*vely);
-                                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
-                                             (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
-
-                                if (!var_is_derived) {
-                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgy*rho/eta;
-                                } else {
-                                    dest_array(i,j,k,icomp) = dest_array(i,j,zlo,icomp) - vgy/eta;
-                                }
-                            });
-
-                        } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) { //for velz
-                            ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        if ( (m_var_idx == Vars::cons && bcrs[Cons::RhoTheta].lo(2) == ERFBCType::MOST) ||
+                             (m_var_idx == Vars::xvel && bcrs[0].lo(2) == ERFBCType::MOST) ||
+                             (m_var_idx == Vars::yvel && bcrs[0].lo(2) == ERFBCType::MOST) )
+                        {
+                            impose_most_bcs(bx, dest_array, cons_arr, velx_arr, vely_arr, eta_arr,
+                                            m_var_idx, icomp, zlo);
+                        } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom)
+                        {
+#ifndef ERF_USE_TERRAIN
+                            // MOST doesn't change the fact that w is reflect-odd at bottom boundary
+                            Box b2d = bx; // Copy constructor
+                            b2d.setBig(2,zlo-1);
+                            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                                 dest_array(i,j,k,icomp) = (zlo-k+1)*dest_array(i,j,zlo  ,icomp) -
                                                           (zlo-k  )*dest_array(i,j,zlo+1,icomp);
                             });
+#endif
                         }
-                    }
+                    } // bottom boundary only
 
-/* EXAMPLE CUSTOM PHYSICAL BC FUNCTION USING ALL VARIABLES
-                    // Call our custom BC fill functions here using ccbx and vars_arrays to pass
-                    // the cell-centered box and all the state variables. Note that var_idx tells us which
-                    // of Vars::cons, Vars::xvel, Vars::yvel, or Vars::zvel we are filling in case we need logic.
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        // we probably want some logic to compare (i,j,k) to the domain bounds here ...
-                        if (var_idx == Vars::cons) { // depending on which variable type we are filling
-                            dest_array(i,j,k,0) = vars_arrays_p[Vars::xvel](i,j,k); // (use other variable types, for example)
-                        }
-                    });
-*/
-                }
-            }
-        }
-    }
+                } // !gdomain.contains(bx)
+            } // MFIter
+        } // OpenMP
+    } // operator()
