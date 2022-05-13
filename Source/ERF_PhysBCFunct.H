@@ -118,6 +118,14 @@ public:
         this->operator()(mf,dcomp,ncomp,nghost,time,bccomp);
     }
 
+    void impose_most_bcs(const amrex::Box& bx,
+                         const amrex::Array4<amrex::Real>& dest_arr,
+                         const amrex::Array4<amrex::Real>& cons_arr,
+                         const amrex::Array4<amrex::Real>& velx_arr,
+                         const amrex::Array4<amrex::Real>& vely_arr,
+                         const amrex::Array4<amrex::Real>&  eta_arr,
+                         int idx, int icomp, int zlo);
+
 private:
     amrex::Geometry      m_geom;
     amrex::Vector<amrex::BCRec> m_domain_bcs_type;
