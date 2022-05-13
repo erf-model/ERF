@@ -71,27 +71,30 @@ amrex::Real
 ERF::volWgtSumMF(int lev,
   const amrex::MultiFab& mf, int comp, bool local, bool finemask)
 {
-  BL_PROFILE("ERF::volWgtSumMF()");
+    BL_PROFILE("ERF::volWgtSumMF()");
 
-  amrex::Real sum = 0.0;
-  amrex::MultiFab tmp(grids[lev], dmap[lev], 1, 0);
-  amrex::MultiFab::Copy(tmp, mf, comp, 0, 1, 0);
+    amrex::Real sum = 0.0;
+    amrex::MultiFab tmp(grids[lev], dmap[lev], 1, 0);
+    amrex::MultiFab::Copy(tmp, mf, comp, 0, 1, 0);
 
-  if (lev < finest_level && finemask) {
-    const amrex::MultiFab& mask = build_fine_mask(lev+1);
-    amrex::MultiFab::Multiply(tmp, mask, 0, 0, 1, 0);
-  }
+    if (lev < finest_level && finemask) {
+        const amrex::MultiFab& mask = build_fine_mask(lev+1);
+        amrex::MultiFab::Multiply(tmp, mask, 0, 0, 1, 0);
+    }
 
-  amrex::MultiFab volume(grids[lev], dmap[lev], 1, 0);
-  auto const& dx = geom[lev].CellSizeArray();
-  Real cell_vol = dx[0]*dx[1]*dx[2];
-  volume.setVal(cell_vol);
-  sum = amrex::MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
+    amrex::MultiFab volume(grids[lev], dmap[lev], 1, 0);
+    auto const& dx = geom[lev].CellSizeArray();
+    Real cell_vol = dx[0]*dx[1]*dx[2];
+    volume.setVal(cell_vol);
+#ifdef ERF_USE_TERRAIN
+    amrex::MultiFab::Multiply(volume, detJ_cc[lev], 0, 0, 1, 0);
+#endif
+    sum = amrex::MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
 
-  if (!local)
-    amrex::ParallelDescriptor::ReduceRealSum(sum);
+    if (!local)
+      amrex::ParallelDescriptor::ReduceRealSum(sum);
 
-  return sum;
+    return sum;
 }
 
 amrex::MultiFab&
