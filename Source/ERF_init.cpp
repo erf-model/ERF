@@ -20,22 +20,22 @@ ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
     // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
     //
     // This copies x-vel
-    x_vel_fab.copy(NC_xvel_fab);
+    x_vel_fab.template copy<RunOn::Device>(NC_xvel_fab);
 
     // This copies y-vel
-    y_vel_fab.copy(NC_yvel_fab);
+    y_vel_fab.template copy<RunOn::Device>(NC_yvel_fab);
 
     // This copies z-vel
-    z_vel_fab.copy(NC_zvel_fab);
+    z_vel_fab.template copy<RunOn::Device>(NC_xvel_fab);
 
     // We first initialize all state_fab variables to zero
-    state_fab.setVal(0.);
+    state_fab.template setVal<RunOn::Device>(0.);
 
     // This copies the density
-    state_fab.copy(NC_rho_fab, 0, Rho_comp, 1);
+    state_fab.template copy<RunOn::Device>(NC_rho_fab, 0, Rho_comp, 1);
 
     // This copies (rho*theta)
-    state_fab.copy(NC_rhotheta_fab, 0, RhoTheta_comp, 1);
+    state_fab.template copy<RunOn::Device>(NC_rhotheta_fab, 0, RhoTheta_comp, 1);
 
 #ifdef ERF_USE_TERRAIN
     // This copies from NC_zphys on z-faces to z_phys_nd on nodes
