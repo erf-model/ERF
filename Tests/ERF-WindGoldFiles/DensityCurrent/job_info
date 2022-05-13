@@ -1,33 +1,32 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: ../../../Tests/test_files/DensityCurrent/DensityCurrent.i
+inputs file: ../../Tests/test_files/DensityCurrent/DensityCurrent.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.00485354
+CPU time used since start of simulation (CPU-hours): 0.00260686
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Wed Apr 27 12:14:21 2022
-output dir:         /home/almgren/GitCode/ERF/build/Exec/DensityCurrent
+output data / time: Fri May 13 16:26:56 2022
+output dir:         /home/almgren/GitCode/ERF/Exec/DensityCurrent
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    Apr 27 2022 12:10:58
-build machine: Linux manda 5.13.0-40-generic #45~20.04.1-Ubuntu SMP Mon Apr 4 09:38:31 UTC 2022 x86_64
-build dir:     /home/almgren/GitCode/ERF/build/Exec
-AMReX dir:     /home/almgren/GitCode/ERF/Submodules/AMReX
+build date:    2022-05-07 15:00:36.439523
+build machine: Linux manda 5.13.0-40-generic #45~20.04.1-Ubuntu SMP Mon Apr 4 09:38:31 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
+build dir:     /home/almgren/GitCode/ERF/Exec/DensityCurrent
+AMReX dir:     /home/almgren/GitCode/amrex
 
-COMP:          GNU
+COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: last-amrlevel-version-163-g9129ef03c1e8-dirty
-AMReX       git hash: 20.06-1428-ga0668e9b25f1
+ERF       git hash: 22.05-4-gef52970b8-dirty
 
 
 ===============================================================================
@@ -73,7 +72,7 @@ amr.check_int = 1000
 amr.plot_file = plt
 amr.plot_int = 3840
 amr.plot_vars = density x_velocity y_velocity z_velocity
-amr.derive_plot_vars = pressure theta
+amr.derive_plot_vars = pressure theta pres_hse dens_hse
 erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
@@ -92,7 +91,7 @@ amr.refine_grid_layout_y = 1
 amr.refine_grid_layout_z = 0
 amr.n_proper = 2
 amr.max_grid_size = 2048
-amr.blocking_factor = 2
+amr.blocking_factor = 1
 amrex.v = 1
 amrex.verbose = 1
 amrex.regtest_reduction = 0

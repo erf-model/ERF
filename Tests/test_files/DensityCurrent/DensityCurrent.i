@@ -40,7 +40,7 @@ amr.check_int       = 1000       # number of timesteps between checkpoints
 amr.plot_file       = plt        # root name of plotfile
 amr.plot_int        = 3840       # number of timesteps between plotfiles
 amr.plot_vars        =  density x_velocity y_velocity z_velocity
-amr.derive_plot_vars = pressure theta
+amr.derive_plot_vars = pressure theta pres_hse dens_hse
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
