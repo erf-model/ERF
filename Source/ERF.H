@@ -220,6 +220,7 @@ public:
 #ifdef ERF_USE_TERRAIN
                            ,amrex::FArrayBox& z_phys
 #endif
+                           );
 #endif
 
 private:
