@@ -25,8 +25,9 @@ init_isentropic_hse(int i, int j,
   int k0  = 0;
   Real hz = z_cc(i,j,k0);
 
-  r[0] = r_sfc;
-  p[0] = p_0 - hz * r[0] * CONST_GRAV;
+  // Initial guess
+  r[k0] = r_sfc;
+  p[k0] = p_0 - hz * r[k0] * CONST_GRAV;
 
   int MAX_ITER = 10;
   Real TOL = 1.e-8;
@@ -34,17 +35,12 @@ init_isentropic_hse(int i, int j,
   {
       // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
       bool converged_hse = false;
-
-      // Initial guess
-      r[k0] = r_sfc;
-      p[k0] = getPgivenRTh(r[k0]*theta);
-
-      Real p_eos = getPgivenRTh(r[k0]*theta);
       Real p_hse;
+      Real p_eos;
 
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
-          p_hse = p_0 - hz * r_sfc * CONST_GRAV;
+          p_hse = p_0 - hz * r[k0] * CONST_GRAV;
           p_eos = getPgivenRTh(r[k0]*theta);
 
           Real A = p_hse - p_eos;

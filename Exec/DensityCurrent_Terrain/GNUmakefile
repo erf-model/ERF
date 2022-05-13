@@ -26,5 +26,5 @@ USE_TERRAIN = TRUE
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/WitchOfAgnesi
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DensityCurrent_Terrain
 include $(ERF_HOME)/Exec/Make.ERF

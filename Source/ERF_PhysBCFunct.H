@@ -19,7 +19,7 @@
 #include <EddyViscosity.H>
 #include <ABLMost.H>
 #ifdef ERF_USE_TERRAIN
-#include <SpatialStencils.H>
+#include "TerrainMetrics.H"
 #endif
 
 using namespace amrex;

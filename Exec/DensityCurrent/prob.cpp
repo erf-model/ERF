@@ -10,6 +10,7 @@ using namespace amrex;
 
 ProbParm parms;
 
+#ifndef ERF_USE_TERRAIN
 void
 init_isentropic_hse(const Real& r_sfc, const Real& theta,
                           Real* r,           Real* p,
@@ -17,27 +18,23 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
                     const int& khi)
 {
   // r_sfc / p_0 are the density / pressure at the surface
-  r[0] = r_sfc;
-  p[0] = p_0 - (0.5*dz) * r[0] * CONST_GRAV;
+  int k0 = 0;
+
+  // Initial guess
+  r[k0] = r_sfc;
+  p[k0] = p_0 - (0.5*dz) * r[k0] * CONST_GRAV;
 
   int MAX_ITER = 10;
   Real TOL = 1.e-8;
-
-  int k0 = 0;
   {
-      // We do a Newton iteration to satisfy the EOS (with constant theta) and to discretely satisfy HSE
+      // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
       bool converged_hse = false;
-
-      // Initial guess
-      r[k0] = r_sfc;
-      p[k0] = getPgivenRTh(r[k0]*theta);
-
-      Real p_eos = getPgivenRTh(r[k0]*theta);
       Real p_hse;
+      Real p_eos;
 
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
       {
-          p_hse = p_0 -  (0.5*dz) * r_sfc * CONST_GRAV;
+          p_hse = p_0 -  (0.5*dz) * r[k0] * CONST_GRAV;
           p_eos = getPgivenRTh(r[k0]*theta);
 
           Real A = p_hse - p_eos;
@@ -46,10 +43,10 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
 
           Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
 
-          r[k0] = std::max(0.9*r_sfc, std::min(r[k0] + drho, 1.1*r_sfc));
+          r[k0] = r[k0] + drho;
           p[k0] = getPgivenRTh(r[k0]*theta);
 
-          if (std::abs(drho) < TOL * r_sfc)
+          if (std::abs(drho) < TOL)
           {
               converged_hse = true;
               break;
@@ -100,16 +97,6 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
   }
 }
 
-#ifdef ERF_USE_TERRAIN
-void
-erf_init_dens_hse(amrex::MultiFab& rho_hse,
-                  const amrex::MultiFab& z_phys_nd,
-                  const amrex::MultiFab& z_phys_cc,
-                  amrex::Geometry const& geom)
-{
-   amrex::Error("ABL not yet set up for terrain");
-}
-#else
 void
 erf_init_dens_hse(Real* dens_hse_ptr,
                   Geometry const& geom,
@@ -136,7 +123,6 @@ erf_init_dens_hse(Real* dens_hse_ptr,
   dens_hse_ptr[   -1] = dens_hse_ptr[  0];
   dens_hse_ptr[khi+1] = dens_hse_ptr[khi];
 }
-#endif
 
 void
 init_custom_prob(
@@ -145,15 +131,9 @@ init_custom_prob(
   amrex::Array4<amrex::Real> const& x_vel,
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
-#ifdef ERF_USE_TERRAIN
-  amrex::Array4<amrex::Real> const& r_hse,
-  amrex::Array4<amrex::Real> const& p_hse,
-  amrex::Array4<amrex::Real const> const& z_nd,
-  amrex::Array4<amrex::Real const> const& z_cc,
-#endif
   amrex::GeometryData const& geomdata)
 {
-  const int khi              = geomdata.Domain().bigEnd()[2];
+  const int khi = geomdata.Domain().bigEnd()[2];
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
@@ -247,6 +227,7 @@ init_custom_prob(
 
   amrex::Gpu::streamSynchronize();
 }
+#endif
 
 void
 erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
