@@ -85,8 +85,9 @@ public:
                 const auto& cons_mf = m_data.get_var(Vars::cons);
                 m_viscosity.define(cons_mf.boxArray(), cons_mf.DistributionMap(), EddyDiff::NumDiffs, cons_mf.nGrowVect());
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.les_type == LESType::Smagorinsky ||
-                                                 solverChoice.les_type == LESType::Deardorff,
-                                                 "Must use an LES model to compute turbulent viscosity for MOST boundaries");
+                                                 solverChoice.les_type == LESType::Deardorff   ||
+                                                 solverChoice.pbl_type == PBLType::MYNN25,
+                                                 "Must use an LES or PBL model to compute turbulent viscosity for MOST boundaries");
                 ComputeTurbulentViscosity(m_data.get_var(Vars::xvel),
                                           m_data.get_var(Vars::yvel),
                                           m_data.get_var(Vars::zvel),
