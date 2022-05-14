@@ -1,11 +1,13 @@
 HyperCLaw-V1.1
-6
+8
 density
 x_velocity
 y_velocity
 z_velocity
 pressure
 theta
+pres_hse
+dens_hse
 3
 10
 0
