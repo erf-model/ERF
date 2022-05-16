@@ -140,9 +140,7 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                 vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
                 rho   = cons_arr(ie,je,zlo,Rho_comp);
                 theta = cons_arr(ie,je,zlo,RhoTheta_comp)/rho;
-
-                // TODO: Verify this is the correct Diff component
-                eta   = eta_arr(ie,je,zlo,EddyDiff::Mom_h);
+                eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v);
 
                 Real vmag    = sqrt(velx*velx+vely*vely);
                 Real num1    = (theta-d_thM)*d_vmM;
@@ -182,8 +180,8 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                               +vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo));
                 rho   = 0.5*(cons_arr(ie-1,je,zlo,Rho_comp)+
                              cons_arr(ie  ,je,zlo,Rho_comp));
-                eta   = 0.5*( eta_arr(ie-1,je,zlo,EddyDiff::Mom_h)+
-                              eta_arr(ie  ,je,zlo,EddyDiff::Mom_h));
+                eta   = 0.5*( eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)+
+                              eta_arr(ie  ,je,zlo,EddyDiff::Mom_v));
 
                 Real vmag  = sqrt(velx*velx+vely*vely);
                 Real vgx   = ((velx-d_vxM)*d_vmM + vmag*d_vxM)/
@@ -222,8 +220,8 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                 vely  = vely_arr(i,j,zlo);
                 rho   = 0.5*(cons_arr(ie,je-1,zlo,Rho_comp)+
                              cons_arr(ie,je  ,zlo,Rho_comp));
-                eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_h)+
-                             eta_arr(ie,je  ,zlo,EddyDiff::Mom_h));
+                eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)+
+                             eta_arr(ie,je  ,zlo,EddyDiff::Mom_v));
                 Real vmag  = sqrt(velx*velx+vely*vely);
                 Real vgy   = ((vely-d_vyM)*d_vmM + vmag*d_vyM) /
                              (d_vmM*d_vmM)*d_utau*d_utau;
