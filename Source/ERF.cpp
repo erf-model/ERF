@@ -929,7 +929,12 @@ ERF::setupABLMost (int lev)
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
-    m_most->update_fluxes(lev,S_new,U_new,V_new,W_new);
+    // Multifab to store primitive Theta, which is what we want to average
+    MultiFab Theta_prim(S_new.boxArray(), S_new.DistributionMap(), 1, 0);
+    MultiFab::Copy(Theta_prim, S_new, Cons::RhoTheta, 0, 1, 0);
+    MultiFab::Divide(Theta_prim, S_new, Cons::Rho, 0, 1, 0);
+
+    m_most->update_fluxes(lev,Theta_prim,U_new,V_new,W_new);
 }
 
 #ifdef ERF_USE_NETCDF
