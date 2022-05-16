@@ -61,7 +61,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/ERF_FillPatch.cpp
-       ${SRC_DIR}/ERF_MOST.cpp
+       ${SRC_DIR}/ABLMost.H
+       ${SRC_DIR}/ABLMost.cpp
        ${SRC_DIR}/ERF_PhysBCFunct.cpp
        ${SRC_DIR}/ERF_TimeStepping.cpp
        ${SRC_DIR}/IO/Checkpoint.cpp

@@ -2,8 +2,6 @@
  * \file ERF.cpp
  */
 
-#include <PlaneAverage.H>
-#include <VelPlaneAverage.H>
 #include <prob_common.H>
 #include <EOS.H>
 #include <ERF.H>
@@ -633,9 +631,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
 
     // configure ABLMost params if used MostWall boundary condition
-    for (OrientationIter oitr; oitr; ++oitr) {
-        const Orientation face = oitr();
-        if (phys_bc_type[face] == BC::MOST && lev == 0) setupABLMost(lev);
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == BC::MOST)
+    {
+        if (lev == 0) m_most = std::make_unique<ABLMost>(geom);
+        setupABLMost(lev);
     }
 
     // Fill ghost cells/faces
@@ -925,40 +924,12 @@ ERF::AverageDownTo (int crse_lev)
 void
 ERF::setupABLMost (int lev)
 {
-    amrex::ParmParse pp("erf");
-
-    pp.query("most.surf_temp", most.surf_temp);
-    pp.query("most.zref", most.zref);
-    pp.query("most.z0", most.z0);
-
     MultiFab& S_new = vars_new[lev][Vars::cons];
     MultiFab& U_new = vars_new[lev][Vars::xvel];
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
-    PlaneAverage save (&S_new, geom[0], 2, true);
-    PlaneAverage vxave(&U_new, geom[0], 2, true);
-    PlaneAverage vyave(&V_new, geom[0], 2, true);
-    PlaneAverage vzave(&W_new, geom[0], 2, true);
-    VelPlaneAverage vmagave({&U_new,&V_new,&W_new}, geom[0], 2, true);
-
-    save. compute_averages(ZDir(), save.field());
-    vxave.compute_averages(ZDir(), vxave.field());
-    vyave.compute_averages(ZDir(), vyave.field());
-    vzave.compute_averages(ZDir(), vzave.field());
-    vmagave.compute_hvelmag_averages(ZDir(), 0, 1, vmagave.field());
-
-    const GpuArray<Real, AMREX_SPACEDIM> dx = geom[0].CellSizeArray();
-
-    most.vel_mean[0] = vxave.line_average_interpolated(most.zref, 0);
-    most.vel_mean[1] = vyave.line_average_interpolated(most.zref, 0);
-    most.vel_mean[2] = vzave.line_average_interpolated(most.zref, 0);
-    most.vmag_mean   = vmagave.line_hvelmag_average_interpolated(most.zref);
-    most.theta_mean  = save.line_average_interpolated(most.zref, Cons::RhoTheta);
-
-    printf("vmag_mean=%13.6e,theta_mean=%13.6e, zref=%13.6e, dx=%13.6e\n",most.vmag_mean,most.theta_mean,most.zref,dx[2]);
-
-    most.update_fluxes();
+    m_most->update_fluxes(lev,S_new,U_new,V_new,W_new);
 }
 
 #ifdef ERF_USE_NETCDF

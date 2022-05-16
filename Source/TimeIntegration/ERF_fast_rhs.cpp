@@ -98,7 +98,6 @@ void erf_fast_rhs (int level,
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
-    const iMultiFab *mlo_mf_z, *mhi_mf_z;
 
     if (level > 0)
     {
@@ -106,8 +105,6 @@ void erf_fast_rhs (int level,
         mhi_mf_x = &(ifr->mask(Orientation(0,Orientation::high)));
         mlo_mf_y = &(ifr->mask(Orientation(1,Orientation::low)));
         mhi_mf_y = &(ifr->mask(Orientation(1,Orientation::high)));
-        mlo_mf_z = &(ifr->mask(Orientation(2,Orientation::low)));
-        mhi_mf_z = &(ifr->mask(Orientation(2,Orientation::high)));
     }
 
     MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
@@ -130,15 +127,11 @@ void erf_fast_rhs (int level,
         int vhi_x = valid_bx.bigEnd(0);
         int vlo_y = valid_bx.smallEnd(1);
         int vhi_y = valid_bx.bigEnd(1);
-//        int vlo_z = valid_bx.smallEnd(2);
-//        int vhi_z = valid_bx.bigEnd(2);
 
         auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
         auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
         auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
         auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
-        auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
-        auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
         const Array4<      Real> & fast_rhs_cell = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_stage    = S_stage_data[IntVar::cons].const_array(mfi);
@@ -350,9 +343,6 @@ void erf_fast_rhs (int level,
                 Real h_zeta_cc_xface_lo = 1.0;
                 Real h_zeta_cc_yface_hi = 1.0;
                 Real h_zeta_cc_yface_lo = 1.0;
-
-                Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
-                Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
 
 #ifdef ERF_USE_TERRAIN
                 h_zeta_on_kface = 0.125 * dzi * (

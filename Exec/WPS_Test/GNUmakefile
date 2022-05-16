@@ -23,7 +23,10 @@ USE_DPCPP = FALSE
 # Debugging
 DEBUG = FALSE
 
-USE_NETCDF = TRUE
+USE_NETCDF  = TRUE
+USE_TERRAIN = TRUE
+
+BL_NO_FORT = TRUE
 
 # GNU Make
 Bpack := ./Make.package

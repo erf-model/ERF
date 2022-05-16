@@ -4,6 +4,7 @@
 #include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
 #include <EddyViscosity.H>
+#include <ABLMost.H>
 #include <PBLModels.H>
 #include <SpatialStencils.H>
 #include <TimeIntegration.H>
@@ -31,7 +32,7 @@ void erf_slow_rhs (int level,
                    const amrex::Geometry geom,
                          amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
-                   const ABLMost& most,
+                   std::unique_ptr<ABLMost>& most,
                    const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
 #ifdef ERF_USE_TERRAIN
                    const MultiFab& z_phys_nd,
@@ -46,6 +47,9 @@ void erf_slow_rhs (int level,
                    const int rhs_vars)
 {
     BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
+
+    amrex::Real theta_mean;
+    if (most) theta_mean = most->theta_mean;
 
     int start_comp;
     int   num_comp;
@@ -284,7 +288,8 @@ void erf_slow_rhs (int level,
 
             // QKE : similar terms to TKE
             if (l_use_QKE && n == RhoQKE_comp) {
-                cell_rhs(i,j,k,n) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,K_turb,dxInv,domain,solverChoice,most);
+                 cell_rhs(i,j,k,n) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
+                                                            K_turb,dxInv,domain,solverChoice,theta_mean);
             }
 
             // Add source terms. TODO: Put this under an if condition when we implement source term

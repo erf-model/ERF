@@ -18,6 +18,7 @@
 #include <DataStruct.H>
 #include <EddyViscosity.H>
 #include <ABLMost.H>
+
 #ifdef ERF_USE_TERRAIN
 #include "TerrainMetrics.H"
 #endif
@@ -41,7 +42,8 @@ struct NullFill
 class ERFPhysBCFunct
 {
 public:
-    ERFPhysBCFunct (const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
+    ERFPhysBCFunct (const int lev,
+                    const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                     const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                     const int& var_idx, TimeInterpolatedData& data,
                     amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
@@ -56,8 +58,9 @@ public:
                     const amrex::Vector<amrex::FArrayBox>& bdy_data_ylo,
                     const amrex::Vector<amrex::FArrayBox>& bdy_data_yhi,
 #endif
-                    ABLMost& most, std::unique_ptr<ReadBndryPlanes>& r2d)
-        : m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
+                    std::unique_ptr<ABLMost>&         most,
+                    std::unique_ptr<ReadBndryPlanes>& r2d)
+        : m_lev(lev), m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
           m_var_idx(var_idx), m_data(data), m_bc_extdir_vals(bc_extdir_vals),
 #ifdef ERF_USE_TERRAIN
           m_z_phys_nd(z_phys_nd), m_detJ_cc(detJ_cc),
@@ -119,15 +122,8 @@ public:
         this->operator()(mf,dcomp,ncomp,nghost,time,bccomp);
     }
 
-    void impose_most_bcs(const amrex::Box& bx,
-                         const amrex::Array4<amrex::Real>& dest_arr,
-                         const amrex::Array4<amrex::Real>& cons_arr,
-                         const amrex::Array4<amrex::Real>& velx_arr,
-                         const amrex::Array4<amrex::Real>& vely_arr,
-                         const amrex::Array4<amrex::Real>&  eta_arr,
-                         int idx, int icomp, int zlo);
-
 private:
+    int                  m_lev;
     amrex::Geometry      m_geom;
     amrex::Vector<amrex::BCRec> m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
@@ -140,7 +136,7 @@ private:
     const amrex::MultiFab& m_z_phys_nd;
     const amrex::MultiFab& m_detJ_cc;
 #endif
-    ABLMost m_most;
+    std::unique_ptr<ABLMost>&         m_most;
     std::unique_ptr<ReadBndryPlanes>& m_r2d;
 #ifdef ERF_USE_NETCDF
     const amrex::Vector<amrex::FArrayBox>& m_bdy_data_xlo;

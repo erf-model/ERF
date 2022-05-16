@@ -2,7 +2,7 @@
 #ifndef VelPlaneAverage_H
 #define VelPlaneAverage_H
 
-#include "ERF.H"
+#include "AMReX_MultiFab.H"
 #include "DirectionSelector.H"
 
 class VelPlaneAverage {

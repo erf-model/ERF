@@ -6,6 +6,7 @@
 #include <ctime>
 #include <atomic>
 
+#include "AMReX_FArrayBox.H"
 #include "NCInterface.H"
 
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;

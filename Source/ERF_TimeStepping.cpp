@@ -117,10 +117,10 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     }
 
     // configure ABLMost params if used MostWall boundary condition
-    for (OrientationIter oitr; oitr; ++oitr) {
-        const Orientation face = oitr();
-        if (phys_bc_type[face] == BC::MOST && lev == 0) setupABLMost(lev);
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] != BC::MOST) {
+        if (m_most) setupABLMost(lev);
     }
+
     // Do an error check
     if (solverChoice.pbl_type == PBLType::MYNN25 &&
         phys_bc_type[Orientation(Direction::z,Orientation::low)] != BC::MOST) {

@@ -35,7 +35,7 @@ void erf_slow_rhs(int level,
                   const amrex::Geometry geom,
                         amrex::InterpFaceRegister* ifr,
                   const SolverChoice& solverChoice,
-                  const ABLMost& most,
+                  std::unique_ptr<ABLMost>& most,
                   const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
 #ifdef ERF_USE_TERRAIN
                   const amrex::MultiFab& z_phys_nd,

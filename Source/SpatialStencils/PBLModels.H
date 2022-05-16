@@ -11,7 +11,8 @@ void ComputeTurbulentViscosityPBL(const amrex::MultiFab& xvel,
                                   const amrex::MultiFab& cons_in,
                                   amrex::MultiFab& eddyViscosity,
                                   const amrex::Geometry& geom,
-                                  const SolverChoice& solverChoice, const ABLMost& most)
+                                  const SolverChoice& solverChoice,
+                                  std::unique_ptr<ABLMost>& most)
 {
   // MYNN Level 2.5 PBL Model
   if (solverChoice.pbl_type == PBLType::MYNN25) {
@@ -71,9 +72,9 @@ void ComputeTurbulentViscosityPBL(const amrex::MultiFab& xvel,
       amrex::Real dz_inv = geom.InvCellSize(2);
       int izmin = geom.Domain().smallEnd(2);
       int izmax = geom.Domain().bigEnd(2);
-      const amrex::Real l_obukhov = most.obukhov_len;
-      const amrex::Real surface_heat_flux = most.surf_temp_flux;
-      const amrex::Real theta0 = most.theta_mean; //(TODO: IS THIS ACTUALLY RHOTHETA)
+      const amrex::Real l_obukhov = most->obukhov_len;
+      const amrex::Real surface_heat_flux = most->surf_temp_flux;
+      const amrex::Real theta0 = most->theta_mean; //(TODO: IS THIS ACTUALLY RHOTHETA)
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
           // Compute some partial derivatives that we will need (1st order at domain boundary)
@@ -172,7 +173,8 @@ amrex::Real ComputeQKESourceTerms(int i, int j, int k,
                            const amrex::Array4<amrex::Real>& K_turb,
                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                            const amrex::Box& domain,
-                           const SolverChoice& solverChoice, const ABLMost& most)
+                           const SolverChoice& solverChoice,
+                           const amrex::Real theta_mean)
 {
   // Compute some relevant derivatives
   amrex::Real dz_inv = cellSizeInv[2];
@@ -195,7 +197,7 @@ amrex::Real ComputeQKESourceTerms(int i, int j, int k,
   }
 
   // Bouyancy
-  source_term += 2*CONST_GRAV/most.theta_mean*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
+  source_term += 2*CONST_GRAV/theta_mean*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
   // Production
   source_term += K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);

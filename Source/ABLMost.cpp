@@ -1,15 +1,91 @@
-#include <ERF_PhysBCFunct.H>
+#include <ABLMost.H>
+#include <PlaneAverage.H>
+#include <VelPlaneAverage.H>
 
 using namespace amrex;
 
+void ABLMost::update_fluxes(int lev,
+                            amrex::MultiFab& S_new, amrex::MultiFab& U_new,
+                            amrex::MultiFab& V_new, amrex::MultiFab& W_new,
+                            int max_iters)
+{
+    PlaneAverage ssave(&S_new, m_geom[lev], 2, true);
+    PlaneAverage vxave(&U_new, m_geom[lev], 2, true);
+    PlaneAverage vyave(&V_new, m_geom[lev], 2, true);
+    PlaneAverage vzave(&W_new, m_geom[lev], 2, true);
+    VelPlaneAverage vmagave({&U_new,&V_new,&W_new}, m_geom[lev], 2, true);
+
+    ssave.compute_averages(ZDir(), ssave.field());
+    vxave.compute_averages(ZDir(), vxave.field());
+    vyave.compute_averages(ZDir(), vyave.field());
+    vzave.compute_averages(ZDir(), vzave.field());
+    vmagave.compute_hvelmag_averages(ZDir(), 0, 1, vmagave.field());
+
+    vel_mean[0] = vxave.line_average_interpolated(zref, 0);
+    vel_mean[1] = vyave.line_average_interpolated(zref, 0);
+    vel_mean[2] = vzave.line_average_interpolated(zref, 0);
+    vmag_mean   = vmagave.line_hvelmag_average_interpolated(zref);
+    theta_mean  = ssave.line_average_interpolated(zref, Cons::RhoTheta);
+
+    constexpr amrex::Real eps = 1.0e-16;
+    amrex::Real zeta = 0.0;
+    amrex::Real utau_iter = 0.0;
+
+    // Initialize variables
+    amrex::Real psi_m = 0.0;
+    amrex::Real psi_h = 0.0;
+    utau = kappa * vmag_mean / (std::log(zref / z0_const));
+
+    int iter = 0;
+    do {
+            utau_iter = utau;
+            switch (alg_type) {
+            case HEAT_FLUX:
+                surf_temp = surf_temp_flux * (std::log(zref / z0_const) - psi_h) /
+                                (utau * kappa) + theta_mean;
+                break;
+
+            case SURFACE_TEMPERATURE:
+                surf_temp_flux = -(theta_mean - surf_temp) * utau * kappa /
+                                (std::log(zref / z0_const) - psi_h);
+                break;
+            }
+
+            if (std::abs(surf_temp_flux) > eps) {
+                // Stable and unstable ABL conditions
+                obukhov_len = -utau * utau * utau * theta_mean /
+                            (kappa * gravity * surf_temp_flux);
+                zeta = zref / obukhov_len;
+            } else {
+                // Neutral conditions
+                obukhov_len = std::numeric_limits<amrex::Real>::max();
+                zeta = 0.0;
+            }
+            psi_m = calc_psi_m(zeta);
+            psi_h = calc_psi_h(zeta);
+            utau = kappa * vmag_mean / (std::log(zref / z0_const) - psi_m);
+            ++iter;
+    } while ((std::abs(utau_iter - utau) > 1e-5) && iter <= max_iters);
+
+    if (iter >= max_iters) {
+        amrex::Print()
+            << "MOData::update_fluxes: Convergence criteria not met after "
+            << max_iters << " iterations"
+            << "\nObuhov length = " << obukhov_len << " zeta = " << zeta
+            << "\npsi_m = " << psi_m << " psi_h = " << psi_h
+            << "\nutau = " << utau << " Tsurf = " << surf_temp
+            << " q = " << surf_temp_flux << std::endl;
+    }
+}
+
 void
-ERFPhysBCFunct::impose_most_bcs(const Box& bx,
-                                const Array4<Real>& dest_arr,
-                                const Array4<Real>& cons_arr,
-                                const Array4<Real>& velx_arr,
-                                const Array4<Real>& vely_arr,
-                                const Array4<Real>&  eta_arr,
-                                const int idx, const int icomp, const int zlo)
+ABLMost::impose_most_bcs(const int lev, const Box& bx,
+                         const Array4<Real>& dest_arr,
+                         const Array4<Real>& cons_arr,
+                         const Array4<Real>& velx_arr,
+                         const Array4<Real>& vely_arr,
+                         const Array4<Real>&  eta_arr,
+                         const int idx, const int icomp, const int zlo)
 {
     // check idx to distinguish between Vars::Dvel and Vars::Dmom
     // (in Legacy this was controlled by the is_derived flag)
@@ -23,12 +99,25 @@ ERFPhysBCFunct::impose_most_bcs(const Box& bx,
     *       variables in the new version.
     */
 
+    // Define temporaries so we can access these on GPU
+    Real d_kappa = kappa;
+    Real d_utau  = utau;
+    Real d_sfcT  = surf_temp;
+    Real d_thM   = theta_mean;
+    Real d_vmM   = vmag_mean;
+    Real d_vxM   = vel_mean[0];
+    Real d_vyM   = vel_mean[1];
+
+    const Array4<Real> z0_arr = z_0[lev].array();
+
     if (idx == Vars::cons) {
         amrex::Box b2d = bx; // Copy constructor
         b2d.setBig(2,zlo-1);
         int n = Cons::RhoTheta;
-        ParallelFor(b2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+                int k0 = 0;
+                Real d_phi_h = phi_h(z0_arr(i,j,k0));
                 Real velx, vely, rho, theta, eta;
                 int ix, jx, iy, jy, ie, je;
 
@@ -56,14 +145,14 @@ ERFPhysBCFunct::impose_most_bcs(const Box& bx,
                 eta   = eta_arr(ie,je,zlo,EddyDiff::Mom_h);
 
                 Real vmag    = sqrt(velx*velx+vely*vely);
-                Real num1    = (theta-m_most.theta_mean)*m_most.vmag_mean;
-                Real num2    = (m_most.theta_mean-m_most.surf_temp)*vmag;
-                Real motheta = (num1+num2)*m_most.utau*m_most.kappa/m_most.phi_h();
+                Real num1    = (theta-d_thM)*d_vmM;
+                Real num2    = (d_thM-d_sfcT)*vmag;
+                Real motheta = (num1+num2)*d_utau*d_kappa/d_phi_h;
 
                 if (!var_is_derived) {
-                    dest_arr(i,j,k,icomp+n) = rho*(m_most.surf_temp + motheta*rho/eta);
+                    dest_arr(i,j,k,icomp+n) = rho*(d_sfcT + motheta*rho/eta);
                 } else {
-                    dest_arr(i,j,k,icomp+n) = m_most.surf_temp + motheta/eta;
+                    dest_arr(i,j,k,icomp+n) = d_sfcT + motheta/eta;
                 }
             });
 
@@ -72,7 +161,7 @@ ERFPhysBCFunct::impose_most_bcs(const Box& bx,
         amrex::Box xb2d = surroundingNodes(bx,0); // Copy constructor
         xb2d.setBig(2,zlo-1);
 
-        ParallelFor(xb2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(xb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 Real velx, vely, rho, eta;
                 int jy, ie, je;
@@ -97,8 +186,8 @@ ERFPhysBCFunct::impose_most_bcs(const Box& bx,
                               eta_arr(ie  ,je,zlo,EddyDiff::Mom_h));
 
                 Real vmag  = sqrt(velx*velx+vely*vely);
-                Real vgx   = ((velx-m_most.vel_mean[0])*m_most.vmag_mean + vmag*m_most.vel_mean[0])/
-                              (m_most.vmag_mean*m_most.vmag_mean) * m_most.utau*m_most.utau;
+                Real vgx   = ((velx-d_vxM)*d_vmM + vmag*d_vxM)/
+                              (d_vmM*d_vmM) * d_utau*d_utau;
 
                 if (!var_is_derived) {
                     dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - vgx*rho/eta;
@@ -112,7 +201,7 @@ ERFPhysBCFunct::impose_most_bcs(const Box& bx,
         amrex::Box yb2d = surroundingNodes(bx,1); // Copy constructor
         yb2d.setBig(2,zlo-1);
 
-        ParallelFor(yb2d, [=,m_most=m_most] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(yb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 Real velx, vely, rho, eta;
                 int ix, ie, je;
@@ -136,8 +225,8 @@ ERFPhysBCFunct::impose_most_bcs(const Box& bx,
                 eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_h)+
                              eta_arr(ie,je  ,zlo,EddyDiff::Mom_h));
                 Real vmag  = sqrt(velx*velx+vely*vely);
-                Real vgy   = ((vely-m_most.vel_mean[1])*m_most.vmag_mean + vmag*m_most.vel_mean[1]) /
-                             (m_most.vmag_mean*m_most.vmag_mean)*m_most.utau*m_most.utau;
+                Real vgy   = ((vely-d_vyM)*d_vmM + vmag*d_vyM) /
+                             (d_vmM*d_vmM)*d_utau*d_utau;
 
                 if (!var_is_derived) {
                     dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - vgy*rho/eta;
