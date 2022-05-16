@@ -5,17 +5,17 @@
 using namespace amrex;
 
 void ABLMost::update_fluxes(int lev,
-                            amrex::MultiFab& S_new, amrex::MultiFab& U_new,
+                            amrex::MultiFab& Theta_new, amrex::MultiFab& U_new,
                             amrex::MultiFab& V_new, amrex::MultiFab& W_new,
                             int max_iters)
 {
-    PlaneAverage ssave(&S_new, m_geom[lev], 2, true);
+    PlaneAverage Thave(&Theta_new, m_geom[lev], 2, true);
     PlaneAverage vxave(&U_new, m_geom[lev], 2, true);
     PlaneAverage vyave(&V_new, m_geom[lev], 2, true);
     PlaneAverage vzave(&W_new, m_geom[lev], 2, true);
     VelPlaneAverage vmagave({&U_new,&V_new,&W_new}, m_geom[lev], 2, true);
 
-    ssave.compute_averages(ZDir(), ssave.field());
+    Thave.compute_averages(ZDir(), Thave.field());
     vxave.compute_averages(ZDir(), vxave.field());
     vyave.compute_averages(ZDir(), vyave.field());
     vzave.compute_averages(ZDir(), vzave.field());
@@ -25,7 +25,7 @@ void ABLMost::update_fluxes(int lev,
     vel_mean[1] = vyave.line_average_interpolated(zref, 0);
     vel_mean[2] = vzave.line_average_interpolated(zref, 0);
     vmag_mean   = vmagave.line_hvelmag_average_interpolated(zref);
-    theta_mean  = ssave.line_average_interpolated(zref, Cons::RhoTheta);
+    theta_mean  = Thave.line_average_interpolated(zref, 0);
 
     constexpr amrex::Real eps = 1.0e-16;
     amrex::Real zeta = 0.0;
