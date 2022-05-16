@@ -14,7 +14,7 @@
     //     so this follows the BCVars enum
     //
     void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,
-                                    Real time, int bccomp)
+                                     Real time, int bccomp)
     {
         if (m_geom.isAllPeriodic()) return;
 
@@ -225,17 +225,13 @@
 
                     // This uses data read in as BndryRegisters from a previous ERF run
                     if (m_r2d) {
-                        //
-                        // TODO: We need to know which level we're actually at -- this is a hack
-                        //
-                        int lev = 0;
                         amrex::Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
-                        const auto& bdatxlo = (*bndry_data[0])[lev].const_array();
-                        const auto& bdatylo = (*bndry_data[1])[lev].const_array();
-                        // const auto& bdatzlo = (*bndry_data[2])[lev].const_array();
-                        const auto& bdatxhi = (*bndry_data[3])[lev].const_array();
-                        const auto& bdatyhi = (*bndry_data[4])[lev].const_array();
-                        // const auto& bdatzhi = (*bndry_data[5])[lev].const_array();
+                        const auto& bdatxlo = (*bndry_data[0])[m_lev].const_array();
+                        const auto& bdatylo = (*bndry_data[1])[m_lev].const_array();
+                        // const auto& bdatzlo = (*bndry_data[2])[m_lev].const_array();
+                        const auto& bdatxhi = (*bndry_data[3])[m_lev].const_array();
+                        const auto& bdatyhi = (*bndry_data[4])[m_lev].const_array();
+                        // const auto& bdatzhi = (*bndry_data[5])[m_lev].const_array();
 
                         // Fill here all the boundary conditions which are supplied by
                         // planes we have read in and are interpolating in time
@@ -307,7 +303,6 @@
                         //
                         // We assume the data has been read in at the level 0 resolution
                         //
-                        //int lev = 0;
 
                         // This is a total HACK
                         amrex::Real dT = 1.0;
@@ -420,8 +415,8 @@
                              (m_var_idx == Vars::xvel && bcrs[0].lo(2) == ERFBCType::MOST) ||
                              (m_var_idx == Vars::yvel && bcrs[0].lo(2) == ERFBCType::MOST) )
                         {
-                            impose_most_bcs(bx, dest_array, cons_arr, velx_arr, vely_arr, eta_arr,
-                                            m_var_idx, icomp, zlo);
+                            m_most->impose_most_bcs(m_lev, bx, dest_array, cons_arr, velx_arr, vely_arr, eta_arr,
+                                                    m_var_idx, icomp, zlo);
                         } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom)
                         {
 #ifndef ERF_USE_TERRAIN

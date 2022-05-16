@@ -22,6 +22,8 @@ DEBUG = FALSE
 
 USE_TERRAIN = TRUE
 
+BL_NO_FORT = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

@@ -1,9 +1,11 @@
 CEXE_sources += main.cpp
 CEXE_sources += ERF.cpp
 CEXE_sources += ERF_init.cpp
-CEXE_sources += ERF_MOST.cpp
 CEXE_headers += ERF.H
 CEXE_headers += prob_common.H
+
+CEXE_headers += ABLMost.H
+CEXE_sources += ABLMost.cpp
 
 CEXE_headers += ERF_Math.H
 CEXE_headers += IndexDefines.H

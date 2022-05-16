@@ -1,8 +1,7 @@
-
 #ifndef PlaneAverage_H
 #define PlaneAverage_H
 
-#include "ERF.H"
+#include "AMReX_MultiFab.H"
 #include "DirectionSelector.H"
 
 class PlaneAverage {

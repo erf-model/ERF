@@ -388,8 +388,6 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_x_hi;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_y_lo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_y_hi;
-
-
 #endif
 
     // write checkpoint file to disk
@@ -412,9 +410,6 @@ private:
     // Single level functions called by advance()
     void post_update (amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
     void fill_rhs (amrex::MultiFab& rhs_mf, const amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
-
-    ABLMost& get_most() { return most; }
-    const ABLMost& get_most() const { return most; }
 
     void setupABLMost(int lev);
 
@@ -470,8 +465,6 @@ private:
     int last_plot_file_step;
     int last_check_file_step;
     int plot_file_on_restart = 1;
-
-    ABLMost most;
 
     ////////////////
     // runtime parameters
@@ -598,8 +591,9 @@ private:
 
     static void refinement_criteria_setup();
 
-    std::unique_ptr<WriteBndryPlanes> m_w2d = nullptr;
-    std::unique_ptr<ReadBndryPlanes>  m_r2d = nullptr;
+    std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
+    std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
+    std::unique_ptr<ABLMost>          m_most = nullptr;
 
     //
     // Holds info for dynamically generated tagging criteria
