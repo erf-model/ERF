@@ -46,5 +46,6 @@ ERF::init_ideal_terrain(int lev)
             //z_arr(i,j,k) = z;
         });
     }
+    z_phys_nd[lev].FillBoundary(geom[lev].periodicity());
 }
 #endif
