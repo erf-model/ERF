@@ -16,6 +16,7 @@
 #include <TimeInterpolatedData.H>
 #include <IndexDefines.H>
 #include <DataStruct.H>
+#include <PBLModels.H>
 #include <EddyViscosity.H>
 #include <ABLMost.H>
 
@@ -91,11 +92,20 @@ public:
                                                  solverChoice.les_type == LESType::Deardorff   ||
                                                  solverChoice.pbl_type == PBLType::MYNN25,
                                                  "Must use an LES or PBL model to compute turbulent viscosity for MOST boundaries");
-                ComputeTurbulentViscosity(m_data.get_var(Vars::xvel),
-                                          m_data.get_var(Vars::yvel),
-                                          m_data.get_var(Vars::zvel),
-                                          cons_mf, m_viscosity, geom, solverChoice,
-                                          domain_bcs_type_d);
+
+                // PBL or PBL+LES - get vertical viscosity component with PBL model. LES - get it with LES model
+                if (solverChoice.pbl_type != PBLType::None) {
+                    ComputeTurbulentViscosityPBL(m_data.get_var(Vars::xvel),
+                                                 m_data.get_var(Vars::yvel),
+                                                 m_data.get_var(Vars::zvel),
+                                                 cons_mf, m_viscosity, geom, solverChoice, m_most);
+                } else {
+                    ComputeTurbulentViscosity(m_data.get_var(Vars::xvel),
+                                              m_data.get_var(Vars::yvel),
+                                              m_data.get_var(Vars::zvel),
+                                              cons_mf, m_viscosity, geom, solverChoice,
+                                              domain_bcs_type_d);
+                }
             }
         }
 
