@@ -470,6 +470,7 @@ amrex::Real OmegaFromW(int i, int j, int k, amrex::Real w,
      -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
 
   // Use extrapolation instead of interpolation if at the bottom boundary
+
   amrex::Real vec_zlo_xi   = (k == 0) ? 1.5 * (0.5*(u(i,j,k)+u(i+1,j,k))) - 0.5*(0.5*(u(i,j,k+1)+u(i+1,j,k+1))) :
     0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
   amrex::Real vec_zlo_eta  = (k == 0) ? 1.5 * (0.5*( v(i,j,k)+v(i,j+1,k))) - 0.5*(0.5*(v(i,j,k+1)+v(i,j+1,k+1))) :
@@ -497,6 +498,7 @@ amrex::Real WFromOmega(int i, int j, int k, amrex::Real omega,
      -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
 
   // Use extrapolation instead of interpolation if at the bottom boundary
+
   amrex::Real vec_zlo_xi   = (k == 0) ? 1.5 * (0.5*(u(i,j,k)+u(i+1,j,k))) - 0.5*(0.5*(u(i,j,k+1)+u(i+1,j,k+1))) :
     0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
   amrex::Real vec_zlo_eta  = (k == 0) ? 1.5 * (0.5*( v(i,j,k)+v(i,j+1,k))) - 0.5*(0.5*(v(i,j,k+1)+v(i,j+1,k+1))) :

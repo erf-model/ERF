@@ -82,8 +82,9 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
     tau12Prev *= met_h_zeta;
     //************************************************************************************
     // 13 Next
-    // Accumulate average to tau11BarN
+    // Accumulate averages
     tau11BarN  = Tmp11;
+    tau12BarN  = Tmp12;
     tau11BarN += ComputeStressTerm(i+1,j  ,k+1, u, v, w, momentumEqn,
                                   DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
                                   z_nd, domain, bc_ptr);
@@ -91,8 +92,6 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
                                   DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
                                   z_nd, domain, bc_ptr);
     tau11BarN *= 0.25;
-    // Accumulate average to tau12BarN
-    tau12BarN  = Tmp12;
     tau12BarN += ComputeStressTerm(i  ,j+1,k+1, u, v, w, momentumEqn,
                                   DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
                                   z_nd, domain, bc_ptr);
@@ -190,8 +189,9 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
     tau22Prev *= met_h_zeta;
     //************************************************************************************
     // 23 Next
-    // Accumulate average to tau21BarN
+    // Accumulate averages
     tau21BarN  = Tmp21;
+    tau22BarN  = Tmp22;
     tau21BarN += ComputeStressTerm(i+1,j  ,k+1, u, v, w, momentumEqn,
                                   DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
                                   z_nd, domain, bc_ptr);
@@ -199,8 +199,6 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
                                   DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
                                   z_nd, domain, bc_ptr);
     tau21BarN *= 0.25;
-    // Accumulate average to tau21BarN
-    tau22BarN  = Tmp22;
     tau22BarN += ComputeStressTerm(i  ,j+1,k+1, u, v, w, momentumEqn,
                                   DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
                                   z_nd, domain, bc_ptr);
@@ -277,7 +275,7 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
     tau31Prev = ComputeStressTerm(i  ,j  ,k  , u, v, w, momentumEqn,
                                   DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
                                   z_nd, domain, bc_ptr);
-    Tmp31 = tau31Prev;
+    Tmp31 += tau31Prev;
     tau31Prev *= met_h_zeta;
     //************************************************************************************
     // 32 Next

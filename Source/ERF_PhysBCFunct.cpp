@@ -158,9 +158,13 @@
                                                                    z_nd,dxInv);
                         // Populate W face value on bottom boundary
                         if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
+                          dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                          /*
                           dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
                                                                    velx_arr,vely_arr,
                                                                    z_nd,dxInv);
+                          */
+
                         } else {
                           // Populate ghost cells & upper face on top boundary
                           if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
@@ -175,20 +179,19 @@
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
                           if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
-                        }
 
-                        // Populate face values on bottom boundary (except for W)
-                        if (bccomp == BCVars::xvel_bc)
-                        {
-                          if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
-                        }
-                        if (bccomp == BCVars::yvel_bc)
-                        {
-                          if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
-                        }
-
+                          // Populate face values on bottom boundary (except for W)
+                          if (bccomp == BCVars::xvel_bc)
+                          {
+                            if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
+                              dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+                          }
+                          if (bccomp == BCVars::yvel_bc)
+                          {
+                            if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
+                              dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+                          }
+                      }
 #else
                         // Populate ghost cells & upper face on top boundary
                         if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
@@ -215,11 +218,11 @@
                           if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
                             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
                         }
-                        //if (bccomp == BCVars::zvel_bc)
-                        //{
-                        //  if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                        //    dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-                        //}
+                        if (bccomp == BCVars::zvel_bc)
+                        {
+                          if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
+                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                        }
 #endif
                     });
 
