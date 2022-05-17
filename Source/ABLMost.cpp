@@ -107,6 +107,7 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
     Real d_vmM   = vmag_mean;
     Real d_vxM   = vel_mean[0];
     Real d_vyM   = vel_mean[1];
+    Real d_dz    = m_geom[lev].CellSize(2);
 
     const Array4<Real> z0_arr = z_0[lev].array();
 
@@ -146,7 +147,7 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                 Real num1    = (theta-d_thM)*d_vmM;
                 Real num2    = (d_thM-d_sfcT)*vmag;
                 Real moflux  = (num1+num2)*d_utau*d_kappa/(d_phi_h*d_vmM);
-                Real deltaz  = m_geom[lev].CellSize(2) * (zlo - k);
+                Real deltaz  = d_dz * (zlo - k);
 
                 if (!var_is_derived) {
                     dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
@@ -187,7 +188,7 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                 Real vmag  = sqrt(velx*velx+vely*vely);
                 Real stressx = ((velx-d_vxM)*d_vmM + vmag*d_vxM)/
                                (d_vmM*d_vmM) * d_utau*d_utau;
-                Real deltaz  = m_geom[lev].CellSize(2) * (zlo - k);
+                Real deltaz  = d_dz * (zlo - k);
 
                 if (!var_is_derived) {
                     dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho*rho/eta*deltaz;
@@ -227,7 +228,7 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                 Real vmag  = sqrt(velx*velx+vely*vely);
                 Real stressy = ((vely-d_vyM)*d_vmM + vmag*d_vyM) /
                                (d_vmM*d_vmM)*d_utau*d_utau;
-                Real deltaz  = m_geom[lev].CellSize(2) * (zlo - k);
+                Real deltaz  = d_dz * (zlo - k);
 
                 if (!var_is_derived) {
                     dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho*rho/eta*deltaz;
