@@ -164,7 +164,7 @@
                                                                    velx_arr,vely_arr,
                                                                    z_nd,dxInv);
                           */
-                                               
+
                         } else {
                           // Populate ghost cells & upper face on top boundary
                           if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
