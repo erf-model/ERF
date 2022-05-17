@@ -145,12 +145,13 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                 Real vmag    = sqrt(velx*velx+vely*vely);
                 Real num1    = (theta-d_thM)*d_vmM;
                 Real num2    = (d_thM-d_sfcT)*vmag;
-                Real motheta = (num1+num2)*d_utau*d_kappa/d_phi_h;
+                Real moflux  = (num1+num2)*d_utau*d_kappa/(d_phi_h*d_vmM);
+                Real deltaz  = m_geom[lev].CellSize(2) * (zlo - k);
 
                 if (!var_is_derived) {
-                    dest_arr(i,j,k,icomp+n) = rho*(d_sfcT + motheta*rho/eta);
+                    dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
                 } else {
-                    dest_arr(i,j,k,icomp+n) = d_sfcT + motheta/eta;
+                    dest_arr(i,j,k,icomp+n) = theta - moflux/eta*deltaz;
                 }
             });
 
@@ -184,13 +185,14 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                               eta_arr(ie  ,je,zlo,EddyDiff::Mom_v));
 
                 Real vmag  = sqrt(velx*velx+vely*vely);
-                Real vgx   = ((velx-d_vxM)*d_vmM + vmag*d_vxM)/
-                              (d_vmM*d_vmM) * d_utau*d_utau;
+                Real stressx = ((velx-d_vxM)*d_vmM + vmag*d_vxM)/
+                               (d_vmM*d_vmM) * d_utau*d_utau;
+                Real deltaz  = m_geom[lev].CellSize(2) * (zlo - k);
 
                 if (!var_is_derived) {
-                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - vgx*rho/eta;
+                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho*rho/eta*deltaz;
                 } else {
-                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - vgx/eta;
+                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
                 }
         });
 
@@ -223,13 +225,14 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                 eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)+
                              eta_arr(ie,je  ,zlo,EddyDiff::Mom_v));
                 Real vmag  = sqrt(velx*velx+vely*vely);
-                Real vgy   = ((vely-d_vyM)*d_vmM + vmag*d_vyM) /
-                             (d_vmM*d_vmM)*d_utau*d_utau;
+                Real stressy = ((vely-d_vyM)*d_vmM + vmag*d_vyM) /
+                               (d_vmM*d_vmM)*d_utau*d_utau;
+                Real deltaz  = m_geom[lev].CellSize(2) * (zlo - k);
 
                 if (!var_is_derived) {
-                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - vgy*rho/eta;
+                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho*rho/eta*deltaz;
                 } else {
-                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - vgy/eta;
+                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
                 }
         });
     }
