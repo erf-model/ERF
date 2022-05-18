@@ -56,81 +56,88 @@ ERF::GetDataAtTime (int lev, Real time)
 // values in mf when it is passed in are *not* used.
 //
 void
-ERF::FillPatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx)
+ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 {
     int bccomp;
     amrex::Interpolater* mapper = nullptr;
 
-    if (var_idx == Vars::cons)
-    {
-        bccomp = 0;
-        mapper = &cell_cons_interp;
-    }
-    else if (var_idx == Vars::xvel || var_idx == Vars::xmom)
-    {
-        bccomp = NVAR;
-        mapper = &face_linear_interp;
-    }
-    else if (var_idx == Vars::yvel || var_idx == Vars::ymom)
-    {
-        bccomp = NVAR+1;
-        mapper = &face_linear_interp;
-    }
-    else if (var_idx == Vars::zvel || var_idx == Vars::zmom)
-    {
-        bccomp = NVAR+2;
-        mapper = &face_linear_interp;
-    }
+    // *********************************************************************
+    // TODO: if var_idx is momentum, then all instances of get_var(var_idx)
+    //       will have to get velocity & cons and then convert to momentum
+    // *********************************************************************
 
-    if (lev == 0)
-    {
-        TimeInterpolatedData sdata = GetDataAtTime(lev, time);
-        Vector<MultiFab*> smf = {&sdata.get_var(var_idx)}; // todo: if var_idx is momentum, then all instances of get_var(var_idx) will have to get velocity & cons and then convert to momentum
-        Vector<Real> stime = {sdata.get_time()};
+    TimeInterpolatedData fdata = GetDataAtTime(lev, time);
+    Vector<Real> ftime         = {fdata.get_time()};
 
-        ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,sdata,m_bc_extdir_vals,solverChoice,
+    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
+        MultiFab& mf = mfs[var_idx];
+        const int icomp = 0;
+        const int ncomp = mf.nComp();
+
+        if (var_idx == Vars::cons)
+        {
+            bccomp = 0;
+            mapper = &cell_cons_interp;
+        }
+        else if (var_idx == Vars::xvel || var_idx == Vars::xmom)
+        {
+            bccomp = NVAR;
+            mapper = &face_linear_interp;
+        }
+        else if (var_idx == Vars::yvel || var_idx == Vars::ymom)
+        {
+            bccomp = NVAR+1;
+            mapper = &face_linear_interp;
+        }
+        else if (var_idx == Vars::zvel || var_idx == Vars::zmom)
+        {
+            bccomp = NVAR+2;
+            mapper = &face_linear_interp;
+        }
+
+        if (lev == 0)
+        {
+            Vector<MultiFab*> smf = {&fdata.get_var(var_idx)};
+            ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
-                              z_phys_nd[lev], detJ_cc[lev],
+                                  z_phys_nd[lev], detJ_cc[lev],
 #endif
 #ifdef ERF_USE_NETCDF
-                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                  bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              m_most, m_r2d);
-        amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
-                                    geom[lev], physbc, bccomp);
-
-    }
-    else
-    {
-        TimeInterpolatedData cdata = GetDataAtTime(lev-1, time);
-        TimeInterpolatedData fdata = GetDataAtTime(lev  , time);
-        Vector<MultiFab*> cmf = {&cdata.get_var(var_idx)};
-        Vector<MultiFab*> fmf = {&fdata.get_var(var_idx)};
-        Vector<Real> ctime = {cdata.get_time()};
-        Vector<Real> ftime = {fdata.get_time()};
-
-        ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,
+                                  m_most, m_r2d);
+            amrex::FillPatchSingleLevel(mf, time, smf, ftime, 0, icomp, ncomp,
+                                        geom[lev], physbc, bccomp);
+        }
+        else
+        {
+            TimeInterpolatedData cdata = GetDataAtTime(lev-1, time);
+            Vector<Real> ctime = {cdata.get_time()};
+            Vector<MultiFab*> cmf = {&cdata.get_var(var_idx)};
+            Vector<MultiFab*> fmf = {&fdata.get_var(var_idx)};
+            ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
-                               z_phys_nd[lev-1],detJ_cc[lev-1],
+                                   z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
 #ifdef ERF_USE_NETCDF
-                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                               m_most, m_r2d);
-        ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,
+                                   m_most, m_r2d);
+            ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
-                               z_phys_nd[lev],detJ_cc[lev],
+                                   z_phys_nd[lev],detJ_cc[lev],
 #endif
 #ifdef ERF_USE_NETCDF
-                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                               m_most, m_r2d);
+                                   m_most, m_r2d);
 
-        amrex::FillPatchTwoLevels(mf, time, cmf, ctime, fmf, ftime,
-                                  0, icomp, ncomp, geom[lev-1], geom[lev],
-                                  cphysbc, 0, fphysbc, 0, refRatio(lev-1),
-                                  mapper, domain_bcs_type, bccomp);
-    }
+            amrex::FillPatchTwoLevels(mf, time, cmf, ctime, fmf, ftime,
+                                      0, icomp, ncomp, geom[lev-1], geom[lev],
+                                      cphysbc, 0, fphysbc, 0, refRatio(lev-1),
+                                      mapper, domain_bcs_type, bccomp);
+        } // lev > 0
+    } // var_idx
 }
 
 //
