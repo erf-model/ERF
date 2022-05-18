@@ -7,7 +7,6 @@
 inline
 void ComputeTurbulentViscosityPBL(const amrex::MultiFab& xvel,
                                   const amrex::MultiFab& yvel,
-                                  const amrex::MultiFab& zvel,
                                   const amrex::MultiFab& cons_in,
                                   amrex::MultiFab& eddyViscosity,
                                   const amrex::Geometry& geom,

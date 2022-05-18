@@ -98,7 +98,7 @@ void erf_slow_rhs (int level,
                                   eddyDiffs, geom, solverChoice, domain_bcs_type_d);
     }
     if (solverChoice.pbl_type != PBLType::None) {
-        ComputeTurbulentViscosityPBL(xvel, yvel, zvel, S_data[IntVar::cons],
+        ComputeTurbulentViscosityPBL(xvel, yvel, S_data[IntVar::cons],
                                      eddyDiffs, geom, solverChoice, most);
     }
 
