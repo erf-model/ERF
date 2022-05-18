@@ -19,47 +19,10 @@
  * Demetri P Lalas and Corrado F Ratto, January 1996,
  * https://doi.org/10.1142/2975.
  */
-class ABLMost
+
+class ABLMostData
 {
-
 public:
-
-    // Constructor
-    explicit ABLMost(const amrex::Vector<amrex::Geometry>& geom) : m_geom(geom)
-    {
-        amrex::ParmParse pp("erf");
-        pp.query("most.surf_temp", surf_temp);
-        pp.query("most.zref"     , zref);
-        pp.query("most.z0"       , z0_const);
-
-        int nlevs = m_geom.size();
-        z_0.resize(nlevs);
-
-        for (int lev = 0; lev < nlevs; lev++)
-        {
-            // TODO: generalize the "3" for the number of ghost cells
-            amrex::Box bx = amrex::grow(m_geom[lev].Domain(),3);
-            bx.setSmall(2,0);
-            bx.setBig(2,0);
-            z_0[lev].resize(bx,1);
-            z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
-        }
-    };
-
-    void
-    impose_most_bcs(const int lev, const amrex::Box& bx,
-                    const amrex::Array4<amrex::Real>& dest_arr,
-                    const amrex::Array4<amrex::Real>& cons_arr,
-                    const amrex::Array4<amrex::Real>& velx_arr,
-                    const amrex::Array4<amrex::Real>& vely_arr,
-                    const amrex::Array4<amrex::Real>&  eta_arr,
-                    const int idx, const int icomp, const int zlo);
-
-    void
-    update_fluxes(int lev,
-                  amrex::MultiFab& S_new, amrex::MultiFab& U_new,
-                  amrex::MultiFab& V_new, amrex::MultiFab& W_new,
-                  int max_iters = 25);
 
     amrex::Real zref{0.2};           ///< Reference height (m)
     amrex::Real z0_const{0.1};       ///< Roughness height -- default constant value(m)
@@ -80,13 +43,6 @@ public:
     amrex::Real beta_h{5.0}; // https://doi.org/10.1007/BF00240838
     amrex::Real gamma_m{16.0};
     amrex::Real gamma_h{16.0};
-
-    enum ThetaCalcType {
-        HEAT_FLUX = 0,      ///< Heat-flux specified
-        SURFACE_TEMPERATURE ///< Surface temperature specified
-    };
-
-    ThetaCalcType alg_type{HEAT_FLUX};
 
     //AMREX_GPU_DEVICE AMREX_FORCE_INLINE
     //amrex::Real phi_m() const
@@ -134,6 +90,62 @@ public:
             return 2.0 * std::log(0.5 * (1 + x));
         }
     }
+};
+
+class ABLMost : public ABLMostData
+{
+
+public:
+
+    // Constructor
+    explicit ABLMost(const amrex::Vector<amrex::Geometry>& geom) : m_geom(geom)
+    {
+        amrex::ParmParse pp("erf");
+        pp.query("most.surf_temp", surf_temp);
+        pp.query("most.zref"     , zref);
+        pp.query("most.z0"       , z0_const);
+
+        int nlevs = m_geom.size();
+        z_0.resize(nlevs);
+
+        for (int lev = 0; lev < nlevs; lev++)
+        {
+            // TODO: generalize the "3" for the number of ghost cells
+            amrex::Box bx = amrex::grow(m_geom[lev].Domain(),3);
+            bx.setSmall(2,0);
+            bx.setBig(2,0);
+            z_0[lev].resize(bx,1);
+            z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
+        }
+    };
+
+    ABLMostData
+    get_most_data ()
+    {
+        return *this;
+    }
+
+    void
+    impose_most_bcs(const int lev, const amrex::Box& bx,
+                    const amrex::Array4<amrex::Real>& dest_arr,
+                    const amrex::Array4<amrex::Real>& cons_arr,
+                    const amrex::Array4<amrex::Real>& velx_arr,
+                    const amrex::Array4<amrex::Real>& vely_arr,
+                    const amrex::Array4<amrex::Real>&  eta_arr,
+                    const int idx, const int icomp, const int zlo);
+
+    void
+    update_fluxes(int lev,
+                  amrex::MultiFab& S_new, amrex::MultiFab& U_new,
+                  amrex::MultiFab& V_new, amrex::MultiFab& W_new,
+                  int max_iters = 25);
+
+    enum ThetaCalcType {
+        HEAT_FLUX = 0,      ///< Heat-flux specified
+        SURFACE_TEMPERATURE ///< Surface temperature specified
+    };
+
+    ThetaCalcType alg_type{HEAT_FLUX};
 
     void print() const
     {
