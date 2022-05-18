@@ -103,10 +103,6 @@ void WriteBndryPlanes::write_planes(const int t_step, const Real time,
     MultiFab& xvel = vars_new[bndry_lev][Vars::xvel];
     MultiFab& yvel = vars_new[bndry_lev][Vars::yvel];
     MultiFab& zvel = vars_new[bndry_lev][Vars::zvel];
-    //FillPatch(bndry_lev, time, S   , 0, 1, Vars::cons);
-    //FillPatch(bndry_lev, time, xvel, 0, 1, Vars::xvel);
-    //FillPatch(bndry_lev, time, yvel, 0, 1, Vars::yvel);
-    //FillPatch(bndry_lev, time, zvel, 0, 1, Vars::zvel);
 
     const std::string chkname =
         m_filename + Concatenate("/bndry_output", t_step);

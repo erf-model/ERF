@@ -93,10 +93,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
-    FillPatch(lev, time, S_old, 0, Cons::NumVars, Vars::cons);
-    FillPatch(lev, time, U_old, 0, 1, Vars::xvel);
-    FillPatch(lev, time, V_old, 0, 1, Vars::yvel);
-    FillPatch(lev, time, W_old, 0, 1, Vars::zvel);
+    FillPatch(lev, time, vars_old[lev]);
 
     MultiFab* S_crse;
     MultiFab rU_crse, rV_crse, rW_crse;
@@ -155,9 +152,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     flux[1].setVal(0.);
     flux[2].setVal(0.);
 
-    // This fills the valid region and ghost cells of this new MultiFab holding all the cell-centered quantities
-    MultiFab state_mf(ba,dm,nvars,S_old.nGrowVect());
-    FillPatch(lev, time, state_mf, 0, nvars, Vars::cons);
+    // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
+    MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
+    MultiFab::Copy(cons_mf,S_old,0,0,S_old.nComp(),S_old.nGrowVect());
 
     // Pass the 1D arrays if relevant
 #ifdef ERF_USE_TERRAIN
@@ -189,7 +186,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // *****************************************************************
 
     erf_advance(lev,
-                state_mf, S_new,
+                cons_mf, S_new,
                 U_old, V_old, W_old,
                 U_new, V_new, W_new,
                 rU_crse, rV_crse, rW_crse,

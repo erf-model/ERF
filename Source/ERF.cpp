@@ -454,17 +454,28 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
+    Vector<MultiFab> temp_lev_new;
+    Vector<MultiFab> temp_lev_old;
+
+    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
+
+    temp_lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
+    temp_lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
+
+    temp_lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+    temp_lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+
+    temp_lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+    temp_lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+
+    // This will fill the temporary MultiFabs with data from vars_new
+    FillPatch(lev, time, temp_lev_new);
+    FillPatch(lev, time, temp_lev_old);
+
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
-        const     int ncomp  = vars_new[lev][var_idx].nComp();
-        const IntVect nghost = vars_new[lev][var_idx].nGrowVect();
-
-        MultiFab new_v(ba, dm, ncomp, nghost);
-        MultiFab old_v(ba, dm, ncomp, nghost);
-
-        FillPatch(lev, time, new_v, 0, ncomp, var_idx);
-
-        std::swap(new_v, vars_new[lev][var_idx]);
-        std::swap(old_v, vars_old[lev][var_idx]);
+        std::swap(temp_lev_new[var_idx], vars_new[lev][var_idx]);
+        std::swap(temp_lev_old[var_idx], vars_old[lev][var_idx]);
     }
 
     t_new[lev] = time;
@@ -638,10 +649,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     }
 
     // Fill ghost cells/faces
-    FillPatch(lev, time, lev_new[Vars::cons], 0, Cons::NumVars, Vars::cons);
-    FillPatch(lev, time, lev_new[Vars::xvel], 0, 1, Vars::xvel);
-    FillPatch(lev, time, lev_new[Vars::yvel], 0, 1, Vars::yvel);
-    FillPatch(lev, time, lev_new[Vars::zvel], 0, 1, Vars::zvel);
+    FillPatch(lev, time, lev_new);
 
     // Copy from new into old just in case
     int ngs   = lev_new[Vars::cons].nGrow();

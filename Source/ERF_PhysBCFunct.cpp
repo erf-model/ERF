@@ -1,21 +1,21 @@
 #include "AMReX_PhysBCFunct.H"
 #include <ERF_PhysBCFunct.H>
 
-    //
-    // mf is the multifab to be filled
-    // icomp is the index into the MultiFab -- if cell-centered this can be any value
-    //       from 0 to NVAR-1, if face-centered this must be 0
-    // ncomp is the number of components -- if cell-centered (var_idx = 0) this can be any value
-    //       from 1 to NVAR as long as icomp+ncomp <= NVAR-1.  If face-centered this
-    //       must be 1
-    // nghost is how many ghost cells to be filled
-    // time is the time at which the data should be filled
-    // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
-    //     so this follows the BCVars enum
-    //
-    void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,
-                                     Real time, int bccomp)
-    {
+//
+// mf is the multifab to be filled
+// icomp is the index into the MultiFab -- if cell-centered this can be any value
+//       from 0 to NVAR-1, if face-centered this must be 0
+// ncomp is the number of components -- if cell-centered (var_idx = 0) this can be any value
+//       from 1 to NVAR as long as icomp+ncomp <= NVAR-1.  If face-centered this
+//       must be 1
+// nghost is how many ghost cells to be filled
+// time is the time at which the data should be filled
+// bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
+//     so this follows the BCVars enum
+//
+void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,
+                                 Real time, int bccomp)
+{
         if (m_geom.isAllPeriodic()) return;
 
         BL_PROFILE("ERFPhysBCFunct::()");

@@ -102,13 +102,8 @@ ERF::writeToNCColumnFile(const int lev,
   const amrex::Box target_box(IntVect{iloc, jloc, kstart},
                               IntVect{iloc+1, jloc+1, kend});
 
-  //  Need to get these valid in one grow cell for interpolation
-  amrex::MultiFab& S_new = vars_new[lev][Vars::cons];
-  amrex::MultiFab& U_new = vars_new[lev][Vars::xvel];
-  amrex::MultiFab& V_new = vars_new[lev][Vars::yvel];
-  FillPatch(lev, t_new[lev], S_new, 0, Cons::NumVars, Vars::cons);
-  FillPatch(lev, t_new[lev], U_new, 0, 1, Vars::xvel);
-  FillPatch(lev, t_new[lev], V_new, 0, 1, Vars::yvel);
+  //  Need data in one grow cell for interpolation
+  FillPatch(lev, t_new[lev], vars_new[lev]);
 
   // No tiling - we're just interested in one location
   for ( MFIter mfi(S_new); mfi.isValid(); ++mfi){

@@ -241,9 +241,9 @@ private:
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev);
 
-    // compute a new multifab by coping in phi from valid region and filling ghost cells
+    // compute a new multifab by copying in phi from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    void FillPatch (int lev, amrex::Real time, amrex::MultiFab& mf, int icomp, int ncomp, int var_idx);
+    void FillPatch (int lev, amrex::Real time, amrex::Vector<amrex::MultiFab>& mf);
 
     // compute new multifabs by coping in data from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)

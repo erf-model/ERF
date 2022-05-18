@@ -117,6 +117,10 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
+    // We must initialize all the components to 0 because we may not set all of them below
+    //    (which ones depends on which LES / PBL scheme we are using)
+    eddyViscosity.setVal(0.0);
+
     // Compute the turbulent viscosity
     if (solverChoice.les_type == LESType::Smagorinsky)
     {
@@ -173,7 +177,8 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
 
     // Fill in the rest of the turbulent diffusivities
     if (solverChoice.les_type == LESType::Smagorinsky ||
-        solverChoice.les_type == LESType::Deardorff) {
+        solverChoice.les_type == LESType::Deardorff)
+    {
         amrex::Real inv_Pr_t = solverChoice.Pr_t_inv;
         amrex::Real inv_Sc_t = solverChoice.Sc_t_inv;
         amrex::Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
@@ -249,28 +254,25 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
     // Fill interior ghost cells and any ghost cells outside a periodic domain
     eddyViscosity.FillBoundary(geom.periodicity());
 
-    // Now extend to low and high in vertical (assuming not periodic in z)
-    if (!geom.isPeriodic(2))
-    {
+    // Now extend to low and high in vertical
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-            const amrex::Box &bx = mfi.growntilebox(1);
+        const amrex::Box &bx = mfi.growntilebox(1);
 
-            if (!(domain.contains(bx))) {
-                const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
-                amrex::ParallelFor(bx, (int) EddyDiff::NumDiffs, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                {
-                    if (k < dom_lo.z) K(i,j,k,n) = K(i,j,dom_lo.z,n);
-                    if (k > dom_hi.z) K(i,j,k,n) = K(i,j,dom_hi.z,n);
-                });
-            }
-        } //mfi
-    }
+        if (!(domain.contains(bx))) {
+            const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
+            amrex::ParallelFor(bx, (int) EddyDiff::NumDiffs, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                if (k < dom_lo.z) K(i,j,k,n) = K(i,j,dom_lo.z,n);
+                if (k > dom_hi.z) K(i,j,k,n) = K(i,j,dom_hi.z,n);
+            });
+        }
+    } //mfi
 
-} // function call
+} // ComputeTurbulentViscosity
 
 AMREX_GPU_DEVICE
 inline amrex::Real

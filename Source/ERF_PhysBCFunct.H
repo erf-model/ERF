@@ -97,7 +97,6 @@ public:
                 if (solverChoice.pbl_type != PBLType::None) {
                     ComputeTurbulentViscosityPBL(m_data.get_var(Vars::xvel),
                                                  m_data.get_var(Vars::yvel),
-                                                 m_data.get_var(Vars::zvel),
                                                  cons_mf, m_viscosity, geom, solverChoice, m_most);
                 } else {
                     ComputeTurbulentViscosity(m_data.get_var(Vars::xvel),
