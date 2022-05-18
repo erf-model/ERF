@@ -108,6 +108,7 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
     Real d_vxM   = vel_mean[0];
     Real d_vyM   = vel_mean[1];
     Real d_dz    = m_geom[lev].CellSize(2);
+    ABLMostData d_most = get_most_data();
 
     const Array4<Real> z0_arr = z_0[lev].array();
 
@@ -118,7 +119,7 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 int k0 = 0;
-                Real d_phi_h = phi_h(z0_arr(i,j,k0));
+                Real d_phi_h = d_most.phi_h(z0_arr(i,j,k0));
                 Real velx, vely, rho, theta, eta;
                 int ix, jx, iy, jy, ie, je;
 
