@@ -1,3 +1,4 @@
+CEXE_sources += ComputeTurbulentViscosity.cpp
 CEXE_sources += MomentumToVelocity.cpp
 CEXE_sources += VelocityToMomentum.cpp
 CEXE_sources += Interpolation.cpp

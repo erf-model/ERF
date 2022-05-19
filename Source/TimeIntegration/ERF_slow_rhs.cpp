@@ -91,16 +91,8 @@ void erf_slow_rhs (int level,
     //       components come from the LES model or are left as zero.
     // *************************************************************************
     MultiFab eddyDiffs(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),EddyDiff::NumDiffs,1);
-    eddyDiffs.setVal(0.0);
-    if (solverChoice.les_type == LESType::Smagorinsky ||
-        solverChoice.les_type == LESType::Deardorff) {
-        ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                                  eddyDiffs, geom, solverChoice, domain_bcs_type_d);
-    }
-    if (solverChoice.pbl_type != PBLType::None) {
-        ComputeTurbulentViscosityPBL(xvel, yvel, S_data[IntVar::cons],
-                                     eddyDiffs, geom, solverChoice, most);
-    }
+    ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
+                              eddyDiffs, geom, solverChoice, most, domain_bcs_type_d);
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;

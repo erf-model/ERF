@@ -1,6 +1,7 @@
 #ifndef _PBLMODELS_H_
 #define _PBLMODELS_H_
 
+#include "AMReX_MultiFab.H"
 #include "ABLMost.H"
 #include "DirectionSelector.H"
 
