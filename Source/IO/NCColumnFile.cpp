@@ -105,6 +105,10 @@ ERF::writeToNCColumnFile(const int lev,
   //  Need data in one grow cell for interpolation
   FillPatch(lev, t_new[lev], vars_new[lev]);
 
+  MultiFab& S_new = vars_new[lev][Vars::cons];
+  MultiFab& U_new = vars_new[lev][Vars::xvel];
+  MultiFab& V_new = vars_new[lev][Vars::yvel];
+
   // No tiling - we're just interested in one location
   for ( MFIter mfi(S_new); mfi.isValid(); ++mfi){
     const amrex::Array4<Real const> & state = S_new.array(mfi);
