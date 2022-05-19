@@ -1,6 +1,7 @@
 #ifndef _COMPUTE_STRAINRATE_H_
 #define _COMPUTE_STRAINRATE_H_
 
+#include <AMReX_BCRec.H>
 #include <IndexDefines.H>
 
 #ifdef ERF_USE_TERRAIN
