@@ -1,5 +1,6 @@
 #include <ERF.H>
 #include <ERF_PhysBCFunct.H>
+#include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 
 using namespace amrex;
@@ -46,6 +47,28 @@ ERF::GetDataAtTime (int lev, Real time)
     else
     {
         amrex::Error("Requested data at a time outside the interval [t_old, t_new]");
+    }
+
+    // We need to make sure to fill these before we compute the viscosity
+    for (int i = 0; i < Vars::NumTypes; ++i) {
+        data.get_var(Vars::xvel).FillBoundary(geom[lev].periodicity());
+        data.get_var(Vars::yvel).FillBoundary(geom[lev].periodicity());
+        data.get_var(Vars::zvel).FillBoundary(geom[lev].periodicity());
+        data.get_var(Vars::cons).FillBoundary(geom[lev].periodicity());
+    }
+
+    if (m_most) {
+        MultiFab* eddyDiffs = new MultiFab(vars_old[lev][Vars::cons].boxArray(),
+                                           vars_old[lev][Vars::cons].DistributionMap(),
+                                           EddyDiff::NumDiffs,3);
+        bool vert_only = true;
+        ComputeTurbulentViscosity(data.get_var(Vars::xvel), data.get_var(Vars::yvel),
+                                  data.get_var(Vars::zvel), data.get_var(Vars::cons),
+                                  *eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
+        data.add_var(eddyDiffs, data.owning);
+
+        // The viscosity lives after cons,xvel,yvel,zvel which is the "NumTypes" place in "data"
+        data.get_var(Vars::NumTypes).FillBoundary(geom[lev].periodicity());
     }
 
     return data;
@@ -98,7 +121,8 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
         if (lev == 0)
         {
             Vector<MultiFab*> smf = {&fdata.get_var(var_idx)};
-            ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,
+            ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
+                                  m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                                   z_phys_nd[lev], detJ_cc[lev],
 #endif
@@ -115,7 +139,9 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
             Vector<Real> ctime = {cdata.get_time()};
             Vector<MultiFab*> cmf = {&cdata.get_var(var_idx)};
             Vector<MultiFab*> fmf = {&fdata.get_var(var_idx)};
-            ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,
+
+            ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
+                                   m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
@@ -123,7 +149,8 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                                    m_most, m_r2d);
-            ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,
+            ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
+                                   m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev],detJ_cc[lev],
 #endif
@@ -160,6 +187,17 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
         level_data.add_var(&mfs[imf].get(), level_data.non_owning);
     }
     level_data.set_time(time);
+
+    if (m_most) {
+        MultiFab* eddyDiffs = new MultiFab(vars_old[lev][Vars::cons].boxArray(),
+                                           vars_old[lev][Vars::cons].DistributionMap(),
+                                           EddyDiff::NumDiffs,3);
+        bool vert_only = true;
+        ComputeTurbulentViscosity(level_data.get_var(Vars::xvel), level_data.get_var(Vars::yvel),
+                                  level_data.get_var(Vars::zvel), level_data.get_var(Vars::cons),
+                                  *eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
+        level_data.add_var(eddyDiffs, level_data.owning);
+    }
 
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         if (which >= 0 && which != var_idx) continue;
@@ -198,7 +236,8 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
             Vector<MultiFab*> smf { &mf };
             Vector<Real> stime { time };
 
-            ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,m_bc_extdir_vals,solverChoice,
+            ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
+                                  m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                                   z_phys_nd[lev],detJ_cc[lev],
 #endif
@@ -219,7 +258,8 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
             Vector<Real> ctime = {cdata.get_time()};
             Vector<Real> ftime = {level_data.get_time()};
 
-            ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,
+            ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
+                                  m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
@@ -227,7 +267,8 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                                    m_most, m_r2d);
-            ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,m_bc_extdir_vals,solverChoice,
+            ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
+                                  m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev],detJ_cc[lev],
 #endif
@@ -286,7 +327,8 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
     Vector<Real> ctime = {cdata.get_time()};
     Vector<Real> ftime = {fdata.get_time()};
 
-    ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,m_bc_extdir_vals,solverChoice,
+    ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
+                           m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                            z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
@@ -294,7 +336,8 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
                            bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                            m_most, m_r2d);
-    ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,m_bc_extdir_vals,solverChoice,
+    ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
+                           m_bc_extdir_vals,solverChoice,
 #ifdef ERF_USE_TERRAIN
                            z_phys_nd[lev],detJ_cc[lev],
 #endif

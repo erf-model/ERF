@@ -20,7 +20,6 @@ CEXE_sources += ERF_FillPatch.cpp
 CEXE_sources += ERF_SumIQ.cpp
 CEXE_sources += ERF_TimeStepping.cpp
 
-CEXE_headers += ABLFieldInit.H
 CEXE_headers += PlaneAverage.H
 CEXE_headers += VelPlaneAverage.H
 CEXE_headers += DirectionSelector.H

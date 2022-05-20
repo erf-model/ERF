@@ -51,19 +51,15 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 const Box& bx = mfi.fabbox();
 
 #ifdef ERF_USE_TERRAIN
-                // Private data from constructor
                 const Array4<const Real>& z_nd = m_z_phys_nd.const_array(mfi);
-                //const Array4<const Real>& detJ = m_detJ_cc.const_array(mfi);
+#endif
                 const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
                 const auto vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
-                const auto eta_arr  = m_has_most_bcs ? m_viscosity[mfi].array() : Array4<Real>();
-#else
-                // make Array4's for our data
-                const auto velx_arr = m_has_most_bcs ? m_data.get_var(Vars::xvel)[mfi].array() : Array4<Real>();
-                const auto vely_arr = m_has_most_bcs ? m_data.get_var(Vars::yvel)[mfi].array() : Array4<Real>();
-                const auto eta_arr  = m_has_most_bcs ? m_viscosity[mfi].array() : Array4<Real>();
-#endif
-                const auto cons_arr = m_has_most_bcs ? m_data.get_var(Vars::cons)[mfi].array() : Array4<Real>();
+                const auto cons_arr = m_data.get_var(Vars::cons)[mfi].array();
+
+                // Note that we have stored the diffusion coefficients right after the actual data in
+                // TimeInterpolatedData ERF::GetDataAtTime
+                const auto eta_arr  = m_has_most_bcs ? m_data.get_var(Vars::NumTypes)[mfi].array(): Array4<Real>();
 
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here

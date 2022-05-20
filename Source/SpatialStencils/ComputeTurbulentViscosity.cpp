@@ -177,6 +177,8 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
         }
     } //mfi
 
+    eddyViscosity.FillBoundary(geom.periodicity());
+
 } // ComputeTurbulentViscosityLES
 
 void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel,
@@ -197,7 +199,6 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
     //
     eddyViscosity.setVal(0.0);
 
-
     if (most) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.les_type == LESType::Smagorinsky ||
                                          solverChoice.les_type == LESType::Deardorff   ||
@@ -207,11 +208,11 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
         AMREX_ALWAYS_ASSERT(!vert_only);
     }
 
-    if ( ( vert_only &&
-          (solverChoice.pbl_type == PBLType::None) ) ||
-         (!vert_only &&
-          (solverChoice.les_type == LESType::Smagorinsky) ||
-          (solverChoice.les_type == LESType::Deardorff  ) ) ) {
+    if ( (  vert_only  &&
+           (solverChoice.pbl_type == PBLType::None) ) ||
+         (  !vert_only  &&
+           (solverChoice.les_type == LESType::Smagorinsky) ||
+           (solverChoice.les_type == LESType::Deardorff  ) ) ) {
 
             ComputeTurbulentViscosityLES(xvel, yvel, zvel, cons_in, eddyViscosity,
                                          geom, solverChoice,
