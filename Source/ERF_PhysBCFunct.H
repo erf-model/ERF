@@ -84,18 +84,6 @@ public:
                 }
                 if (m_has_most_bcs) break;
             }
-
-            if (m_has_most_bcs) {
-                const auto& cons_mf = m_data.get_var(Vars::cons);
-                m_viscosity.define(cons_mf.boxArray(), cons_mf.DistributionMap(), EddyDiff::NumDiffs, cons_mf.nGrowVect());
-
-                bool vert_only = true;
-                ComputeTurbulentViscosity(m_data.get_var(Vars::xvel),
-                                          m_data.get_var(Vars::yvel),
-                                          m_data.get_var(Vars::zvel),
-                                          cons_mf, m_viscosity, geom, solverChoice, m_most,
-                                          domain_bcs_type_d, vert_only);
-            }
         }
 
     ~ERFPhysBCFunct () {}
@@ -129,7 +117,6 @@ private:
     int           m_var_idx;
     TimeInterpolatedData& m_data;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
-    amrex::MultiFab m_viscosity;
     bool m_has_most_bcs;
 #ifdef ERF_USE_TERRAIN
     const amrex::MultiFab& m_z_phys_nd;

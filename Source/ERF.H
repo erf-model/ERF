@@ -30,7 +30,6 @@
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 #include <DataStruct.H>
-#include <ABLFieldInit.H>
 #include <ABLMost.H>
 #include <Derive.H>
 #include <ERF_ReadBndryPlanes.H>
@@ -693,11 +692,6 @@ private:
     const std::string DataLogName (int i) const noexcept { return datalogname[i]; }
 
 public:
-    // ABL Initialization (from amr-wind)
-    static ABLFieldInit ablinit;
-
-    static bool init_abl;
-
     void writeJobInfo(const std::string& dir) const;
     static void writeBuildInfo(std::ostream& os);
 };

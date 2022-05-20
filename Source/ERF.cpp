@@ -16,8 +16,6 @@ amrex::Real ERF::previousCPUTimeUsed = 0.0;
 Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
-ABLFieldInit ERF::ablinit;
-bool         ERF::init_abl = false;
 
 // Create dens_hse and pres_hse with one ghost cell
 int ERF::ng_dens_hse = 1;
@@ -308,15 +306,6 @@ ERF::InitData ()
     // For now we initialize rho_KE to 0
     for (int lev = finest_level-1; lev >= 0; --lev)
         vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
-
-    // This defaults to false; is only true if we want to call ABLFieldInit::init_params
-    ParmParse pp("erf");
-    pp.query("init_abl", init_abl);
-
-    if (init_abl)
-    {
-        ablinit.init_params();
-    }
 
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
