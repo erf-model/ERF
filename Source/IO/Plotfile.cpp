@@ -144,10 +144,16 @@ ERF::PlotFileVarNames () const
 
 // write plotfile to disk
 void
-ERF::WritePlotFile () const
+ERF::WritePlotFile ()
 {
     const Vector<std::string> varnames = PlotFileVarNames();
     const int ncomp_mf = varnames.size();
+
+    // We fillpatch here because some of the derived quantities require derivatives
+    //     which require ghost cells to be filled
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        FillPatch(lev, t_new[lev], vars_new[lev]);
+    }
 
     if (ncomp_mf == 0)
         return;
@@ -210,6 +216,8 @@ ERF::WritePlotFile () const
 
         // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
         calculate_derived("pressure",    derived::erf_derpres);
+        calculate_derived("dpdx",        derived::erf_derdpdx);
+        calculate_derived("dpdy",        derived::erf_derdpdy);
         calculate_derived("soundspeed",  derived::erf_dersoundspeed);
         calculate_derived("temp",        derived::erf_dertemp);
         calculate_derived("theta",       derived::erf_dertheta);
@@ -235,6 +243,38 @@ ERF::WritePlotFile () const
             mf_comp += 1;
         }
 
+#ifdef ERF_USE_TERRAIN
+        if (containerHasElement(plot_deriv_names, "pres_hse_x"))
+        {
+            Real dxInv = Geom()[lev].InvCellSizeArray()[0];
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real      >&  derdat =       mf[lev].array(mfi);
+                const Array4<Real const>& phsedat = pres_hse[lev].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i, j, k, mf_comp) = (phsedat(i+1,j,k) - phsedat(i-1,j,k)) * 0.5 * dxInv;
+                });
+            }
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_deriv_names, "pres_hse_y"))
+        {
+            Real dyInv = Geom()[lev].InvCellSizeArray()[1];
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real      >& derdat = mf[lev].array(mfi);
+                const Array4<Real const>& phsedat = pres_hse[lev].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i, j, k, mf_comp) = (phsedat(i,j+1,k) - phsedat(i,j-1,k)) * 0.5 * dyInv;
+                });
+            }
+            mf_comp += 1;
+        }
+#endif
+
         if (containerHasElement(plot_deriv_names, "dens_hse"))
         {
 #ifdef ERF_USE_TERRAIN
@@ -242,8 +282,7 @@ ERF::WritePlotFile () const
 #else
             auto d_dens_hse_lev = d_dens_hse[lev].dataPtr();
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
+            { const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i, j, k, mf_comp) = d_dens_hse_lev[k+ng_dens_hse];
@@ -330,7 +369,6 @@ ERF::WritePlotFile () const
             for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
                 Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
-                Array4<const Real>  z_arr = z_phys_nd[lev].const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                     mf_arr(i,j,k,2) -= k * dz;
                 });
@@ -339,7 +377,7 @@ ERF::WritePlotFile () const
                                                GetVecOfConstPtrs(mf),
                                                GetVecOfConstPtrs(mf_nd),
                                                varnames,
-                                               Geom(), t_new[0], istep, refRatio());
+                                               t_new[0], istep, refRatio());
 #else
             WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                            GetVecOfConstPtrs(mf),
@@ -418,7 +456,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
                                          const Vector<const MultiFab*>& mf,
                                          const Vector<const MultiFab*>& mf_nd,
                                          const Vector<std::string>& varnames,
-                                         const Vector<Geometry>& geom, Real time,
+                                         Real time,
                                          const Vector<int>& level_steps,
                                          const Vector<IntVect>& ref_ratio,
                                          const std::string &versionName,
@@ -429,12 +467,9 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
     BL_PROFILE("WriteMultiLevelPlotfileWithTerrain()");
 
     BL_ASSERT(nlevels <= mf.size());
-    BL_ASSERT(nlevels <= geom.size());
     BL_ASSERT(nlevels <= ref_ratio.size()+1);
     BL_ASSERT(nlevels <= level_steps.size());
     BL_ASSERT(mf[0]->nComp() == varnames.size());
-
-    int finest_level = nlevels-1;
 
     bool callBarrier(false);
     PreBuildDirectorHierarchy(plotfilename, levelPrefix, nlevels, callBarrier);
@@ -462,7 +497,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
                                                     std::ofstream::binary);
             if( ! HeaderFile.good()) FileOpenFailed(HeaderFileName);
             WriteGenericPlotfileHeaderWithTerrain(HeaderFile, nlevels, boxArrays, varnames,
-                                                  geom, time, level_steps, ref_ratio, versionName,
+                                                  time, level_steps, ref_ratio, versionName,
                                                   levelPrefix, mfPrefix);
         };
 
@@ -507,7 +542,6 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                             int nlevels,
                                             const Vector<BoxArray> &bArray,
                                             const Vector<std::string> &varnames,
-                                            const Vector<Geometry> &geom,
                                             Real time,
                                             const Vector<int> &level_steps,
                                             const Vector<IntVect> &ref_ratio,
@@ -516,11 +550,8 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                             const std::string &mfPrefix) const
 {
         BL_ASSERT(nlevels <= bArray.size());
-        BL_ASSERT(nlevels <= geom.size());
         BL_ASSERT(nlevels <= ref_ratio.size()+1);
         BL_ASSERT(nlevels <= level_steps.size());
-
-        int finest_level(nlevels - 1);
 
         HeaderFile.precision(17);
 

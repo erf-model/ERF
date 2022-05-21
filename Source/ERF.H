@@ -167,7 +167,7 @@ public:
             InputSoundingData const &inputSoundingData);
 
     // write plotfile to disk
-    void WritePlotFile () const;
+    void WritePlotFile ();
 
 #ifdef ERF_USE_TERRAIN
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
@@ -175,7 +175,6 @@ public:
                                              const amrex::Vector<const amrex::MultiFab*> &mf,
                                              const amrex::Vector<const amrex::MultiFab*> &mf_nd,
                                              const amrex::Vector<std::string> &varnames,
-                                             const amrex::Vector<amrex::Geometry> &geom,
                                              amrex::Real time,
                                              const amrex::Vector<int> &level_steps,
                                              const amrex::Vector<amrex::IntVect> &ref_ratio,
@@ -189,7 +188,6 @@ public:
                                                 int nlevels,
                                                 const amrex::Vector<amrex::BoxArray> &bArray,
                                                 const amrex::Vector<std::string> &varnames,
-                                                const amrex::Vector<amrex::Geometry> &geom,
                                                 amrex::Real time,
                                                 const amrex::Vector<int> &level_steps,
                                                 const amrex::Vector<amrex::IntVect> &ref_ratio,
@@ -205,7 +203,7 @@ public:
 
     void erf_enforce_hse(int lev,
                          amrex::MultiFab& dens, amrex::MultiFab& pres,
-                         amrex::MultiFab& z_nd, amrex::MultiFab& z_cc);
+                         amrex::MultiFab& z_cc);
 #else
     void erf_enforce_hse(int lev,
                          amrex::Vector<amrex::Real>& dens,
@@ -517,8 +515,9 @@ private:
                                                  };
 #endif
 
-    const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE",
-                                                    "scalar","pres_hse", "dens_hse", "pert_pres", "pert_dens", "z_phys", "detJ"};
+    // Note that the order of variable names here must match the order in Derive.cpp
+    const amrex::Vector<std::string> derived_names {"pressure", "dpdx", "dpdy", "soundspeed", "temp", "theta", "KE", "QKE", "scalar",
+                                                    "pres_hse", "pres_hse_x", "pres_hse_y", "dens_hse", "pert_pres", "pert_dens", "z_phys", "detJ"};
 
     // algorithm choices
     static SolverChoice solverChoice;

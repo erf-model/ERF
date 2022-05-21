@@ -34,12 +34,11 @@ inline amrex::Real
 ComputeS11(const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& u,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Real& met_h_xi, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta)
+           const amrex::Real& met_h_xi, const amrex::Real& /*met_h_eta*/, const amrex::Real& met_h_zeta)
 {
   amrex::Real GradUz;
   amrex::Real strainRate = 0;
   amrex::Real dx_inv = cellSizeInv[0];
-  amrex::Real dy_inv = cellSizeInv[1];
   amrex::Real dz_inv = cellSizeInv[2];
 
   // At cell center
@@ -58,11 +57,10 @@ inline amrex::Real
 ComputeS22(const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& v,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Real& met_h_xi, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta)
+           const amrex::Real& /*met_h_xi*/, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta)
 {
   amrex::Real GradVz;
   amrex::Real strainRate = 0;
-  amrex::Real dx_inv = cellSizeInv[0];
   amrex::Real dy_inv = cellSizeInv[1];
   amrex::Real dz_inv = cellSizeInv[2];
 
@@ -82,11 +80,9 @@ inline amrex::Real
 ComputeS33(const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& w,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Real& met_h_xi, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta)
+           const amrex::Real& /*met_h_xi*/, const amrex::Real& /*met_h_eta*/, const amrex::Real& met_h_zeta)
 {
   amrex::Real strainRate = 0;
-  amrex::Real dx_inv = cellSizeInv[0];
-  amrex::Real dy_inv = cellSizeInv[1];
   amrex::Real dz_inv = cellSizeInv[2];
 
   strainRate = ( w(i, j, k) - w(i, j, k-1) ) * dz_inv / met_h_zeta ;
@@ -151,13 +147,12 @@ ComputeS13(const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& /*v*/,
            const amrex::Array4<amrex::Real const>& w,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Real& met_h_xi, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta,
+           const amrex::Real& met_h_xi, const amrex::Real& /*met_h_eta*/, const amrex::Real& met_h_zeta,
            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   amrex::Real GradWz;
   amrex::Real strainRate = 0;
   amrex::Real dx_inv = cellSizeInv[0];
-  amrex::Real dy_inv = cellSizeInv[1];
   amrex::Real dz_inv = cellSizeInv[2];
 
   if (k == domain.smallEnd(2) && is_on_face(bc_ptr[BCVars::xvel_bc].lo(2))) {
@@ -196,12 +191,11 @@ ComputeS23(const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& v,
            const amrex::Array4<amrex::Real const>& w,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Real& met_h_xi, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta,
+           const amrex::Real& /*met_h_xi*/, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta,
            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   amrex::Real GradWz;
   amrex::Real strainRate = 0;
-  amrex::Real dx_inv = cellSizeInv[0];
   amrex::Real dy_inv = cellSizeInv[1];
   amrex::Real dz_inv = cellSizeInv[2];
 
