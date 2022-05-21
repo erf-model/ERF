@@ -35,7 +35,7 @@ public:
 };
 
 inline VelPlaneAverage::VelPlaneAverage(amrex::Geometry geom_in)
-     : m_geom(geom_in) 
+     : m_geom(geom_in)
 {
     m_xlo   = m_geom.ProbLo(2);
     m_dz    = m_geom.CellSize(2);

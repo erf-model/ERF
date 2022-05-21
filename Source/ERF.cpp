@@ -440,7 +440,7 @@ ERF::InitData ()
 
 }
 
-void 
+void
 ERF::restart()
 {
 #ifdef ERF_USE_NETCDF
@@ -574,7 +574,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #endif
 }
 
-void 
+void
 ERF::init_only(int lev, Real time)
 {
     t_new[lev] = time;

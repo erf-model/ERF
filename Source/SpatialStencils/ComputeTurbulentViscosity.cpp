@@ -101,7 +101,7 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             amrex::Box bx = mfi.growntilebox(1);
             if (l_vert_only)

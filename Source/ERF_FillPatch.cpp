@@ -32,7 +32,7 @@ ERF::GetDataAtTime (int lev, Real time)
         // do first order interpolation in time between [t_old[lev], t_new[lev]]
         // time interpolation includes the ghost cells
         for (int i = 0; i < Vars::NumTypes; ++i) {
-            MultiFab* mf_temp = new MultiFab(vars_new[lev][i].boxArray(), 
+            MultiFab* mf_temp = new MultiFab(vars_new[lev][i].boxArray(),
                                              vars_new[lev][i].DistributionMap(),
                                              vars_new[lev][i].nComp(), vars_new[lev][i].nGrowVect());
             mf_temp->setVal(0.0_rt);
@@ -157,7 +157,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
     // It is important that we apply the MOST bcs after we have imposed all the others
     //    so that we have enough information in the ghost cells to calculate the viscosity
     //
-    if (m_most) 
+    if (m_most)
     {
         MultiFab eddyDiffs(fdata.get_var(Vars::cons).boxArray(),
                            fdata.get_var(Vars::cons).DistributionMap(),
@@ -167,8 +167,8 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                   fdata.get_var(Vars::zvel), fdata.get_var(Vars::cons),
                                   eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
         eddyDiffs.FillBoundary(geom[lev].periodicity());
-    
-        for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) 
+
+        for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
         {
             MultiFab& mf = mfs[var_idx];
             const int icomp = 0;
@@ -177,7 +177,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
             {
                 const Box& bx       = mfs[var_idx][mfi].box();
                       auto dest_arr = mfs[var_idx][mfi].array();
-    
+
                 const auto velx_arr = fdata.get_var(Vars::xvel)[mfi].array();
                 const auto vely_arr = fdata.get_var(Vars::yvel)[mfi].array();
                 const auto cons_arr = fdata.get_var(Vars::cons)[mfi].array();
@@ -212,7 +212,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
     }
     level_data.set_time(time);
 
-    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) 
+    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
     {
         if (rho_only && var_idx != Vars::cons) continue;
 
@@ -258,7 +258,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                                    m_most, m_r2d);
-            
+
             amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
                                         geom[lev], physbc, bccomp);
         }
@@ -305,18 +305,18 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
     // It is important that we apply the MOST bcs after we have imposed all the others
     //    so that we have enough information in the ghost cells to calculate the viscosity
     //
-    if (!rho_only && m_most) 
+    if (!rho_only && m_most)
     {
         MultiFab eddyDiffs(mfs[Vars::cons].get().boxArray(),
                            mfs[Vars::cons].get().DistributionMap(),
                            EddyDiff::NumDiffs,3);
         bool vert_only = true;
-        ComputeTurbulentViscosity(mfs[Vars::xvel].get(), mfs[Vars::yvel].get(), 
-                                  mfs[Vars::zvel].get(), mfs[Vars::cons].get(),  
+        ComputeTurbulentViscosity(mfs[Vars::xvel].get(), mfs[Vars::yvel].get(),
+                                  mfs[Vars::zvel].get(), mfs[Vars::cons].get(),
                                   eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
         eddyDiffs.FillBoundary(geom[lev].periodicity());
-    
-        for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) 
+
+        for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
         {
             MultiFab& mf = mfs[var_idx].get();
             const int icomp = 0;
@@ -325,7 +325,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
             {
                 const Box& bx       = mf[mfi].box();
                       auto dest_arr = mf[mfi].array();
-    
+
                 const auto velx_arr = level_data.get_var(Vars::xvel)[mfi].array();
                 const auto vely_arr = level_data.get_var(Vars::yvel)[mfi].array();
                 const auto cons_arr = level_data.get_var(Vars::cons)[mfi].array();
