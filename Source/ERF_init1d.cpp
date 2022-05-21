@@ -53,7 +53,7 @@ ERF::initHSE()
     {
         erf_init_dens_hse(dens_hse[lev], z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
 
-        erf_enforce_hse(lev, dens_hse[lev], pres_hse[lev], z_phys_nd[lev], z_phys_cc[lev]);
+        erf_enforce_hse(lev, dens_hse[lev], pres_hse[lev], z_phys_cc[lev]);
     }
 #else
     //
@@ -93,11 +93,10 @@ ERF::initHSE()
 void
 ERF::erf_enforce_hse(int lev,
                      MultiFab& dens, MultiFab& pres,
-                     MultiFab& z_nd, MultiFab& z_cc)
+                     MultiFab& z_cc)
 {
     amrex::Real l_gravity = solverChoice.gravity;
 
-    const auto geomdata = geom[lev].data();
     int nz = geom[lev].Domain().length(2);
 
     const Box& domain = geom[lev].Domain();
@@ -121,7 +120,6 @@ ERF::erf_enforce_hse(int lev,
 
         Array4<Real>  rho_arr = dens.array(mfi);
         Array4<Real> pres_arr = pres.array(mfi);
-        Array4<Real> znd_arr  = z_nd.array(mfi);
         Array4<Real> zcc_arr  = z_cc.array(mfi);
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {

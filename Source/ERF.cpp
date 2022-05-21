@@ -326,6 +326,14 @@ ERF::InitData ()
         const Real time = 0.0;
         InitFromScratch(time);
 
+#ifdef ERF_USE_TERRAIN
+        for (int lev = 0; lev <= finest_level; lev++)
+        {
+            init_ideal_terrain(lev);
+            make_metrics(lev);
+        }
+#endif
+
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
 
@@ -344,14 +352,16 @@ ERF::InitData ()
             last_check_file_step = 0;
         }
 
-#ifdef ERF_USE_TERRAIN
-        for (int lev = 0; lev <= finest_level; lev++)
-            init_ideal_terrain(lev);
-#endif
-
     } else { // Restart from a checkpoint
 
         restart();
+
+#ifdef ERF_USE_TERRAIN
+        // This must come after the call to restart because that
+        //      is where we read in the mesh data
+        for (int lev = finest_level-1; lev >= 0; --lev)
+            make_metrics(lev);
+#endif
     }
 
     if (input_bndry_planes) {
@@ -365,11 +375,6 @@ ERF::InitData ()
         amrex::Real dt_dummy = 1.e200;
         m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
     }
-
-#ifdef ERF_USE_TERRAIN
-    for (int lev = finest_level-1; lev >= 0; --lev)
-        make_metrics(lev);
-#endif
 
     // Initialize flux registers (whether we start from scratch or restart)
     if (do_reflux) {
@@ -535,7 +540,7 @@ ERF::ClearLevel (int lev)
 // (overrides the pure virtual function in AmrCore)
 // main.cpp --> ERF::InitData --> InitFromScratch --> MakeNewGrids --> MakeNewLevelFromScratch
 //                                       restart  --> MakeNewGrids --> MakeNewLevelFromScratch
-void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
+void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
                                    const DistributionMapping& dm)
 {
     // Set BoxArray grids and DistributionMapping dmap in AMReX_AmrMesh.H class

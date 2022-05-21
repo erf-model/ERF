@@ -54,7 +54,6 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 const Array4<const Real>& z_nd = m_z_phys_nd.const_array(mfi);
                 const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
                 const auto vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
-                const auto cons_arr = m_data.get_var(Vars::cons)[mfi].array();
 #endif
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here

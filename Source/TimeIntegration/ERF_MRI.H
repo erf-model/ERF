@@ -247,7 +247,7 @@ public:
         return timestep;
     }
 
-    void time_interpolate (const T& /* S_new */, const T& S_old, amrex::Real timestep_fraction, T& data) {}
+    void time_interpolate (const T& /* S_new */, const T& /*S_old*/, amrex::Real /*timestep_fraction*/, T& /*data*/) {}
 
     void map_data (std::function<void(T&)> Map)
     {
