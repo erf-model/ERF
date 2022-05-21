@@ -57,54 +57,6 @@ erf_derpres(
   });
 }
 
-#ifdef ERF_USE_TERRAIN
-void
-erf_derdpdx(
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int /*dcomp*/,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& geomdata,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
-{
-  auto const dat = datfab.array();
-  auto dpfab     = derfab.array();
-
-  amrex::Real dxInv = geomdata.InvCellSizeArray()[0];
-
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      dpfab(i,j,k) = 0.5 * (getPgivenRTh(dat(i+1,j,k,RhoTheta_comp)) -
-                            getPgivenRTh(dat(i-1,j,k,RhoTheta_comp)) ) * dxInv;
-  });
-}
-
-void
-erf_derdpdy(
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int /*dcomp*/,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& geomdata,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
-{
-  auto const dat = datfab.array();
-  auto dpfab     = derfab.array();
-
-  amrex::Real dyInv = geomdata.InvCellSizeArray()[1];
-
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      dpfab(i,j,k) = 0.5 * (getPgivenRTh(dat(i,j+1,k,RhoTheta_comp)) -
-                            getPgivenRTh(dat(i,j-1,k,RhoTheta_comp)) ) * dyInv;
-  });
-}
-#endif
-
 void
 erf_dersoundspeed(
   const amrex::Box& bx,

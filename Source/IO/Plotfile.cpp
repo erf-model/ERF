@@ -3,6 +3,10 @@
 #include "AMReX_Interp_3D_C.H"
 #include "AMReX_PlotFileUtil.H"
 
+#ifdef ERF_USE_TERRAIN
+#include "TerrainMetrics.H"
+#endif
+
 using namespace amrex;
 
 // get plotfile name
@@ -216,8 +220,6 @@ ERF::WritePlotFile ()
 
         // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
         calculate_derived("pressure",    derived::erf_derpres);
-        calculate_derived("dpdx",        derived::erf_derdpdx);
-        calculate_derived("dpdy",        derived::erf_derdpdy);
         calculate_derived("soundspeed",  derived::erf_dersoundspeed);
         calculate_derived("temp",        derived::erf_dertemp);
         calculate_derived("theta",       derived::erf_dertheta);
@@ -242,38 +244,6 @@ ERF::WritePlotFile ()
 #endif
             mf_comp += 1;
         }
-
-#ifdef ERF_USE_TERRAIN
-        if (containerHasElement(plot_deriv_names, "pres_hse_x"))
-        {
-            Real dxInv = Geom()[lev].InvCellSizeArray()[0];
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real      >&  derdat =       mf[lev].array(mfi);
-                const Array4<Real const>& phsedat = pres_hse[lev].const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = (phsedat(i+1,j,k) - phsedat(i-1,j,k)) * 0.5 * dxInv;
-                });
-            }
-            mf_comp += 1;
-        }
-
-        if (containerHasElement(plot_deriv_names, "pres_hse_y"))
-        {
-            Real dyInv = Geom()[lev].InvCellSizeArray()[1];
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real      >& derdat = mf[lev].array(mfi);
-                const Array4<Real const>& phsedat = pres_hse[lev].const_array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = (phsedat(i,j+1,k) - phsedat(i,j-1,k)) * 0.5 * dyInv;
-                });
-            }
-            mf_comp += 1;
-        }
-#endif
 
         if (containerHasElement(plot_deriv_names, "dens_hse"))
         {
@@ -341,7 +311,193 @@ ERF::WritePlotFile ()
             mf_comp ++;
         }
 
+        if (containerHasElement(plot_deriv_names, "dpdx"))
+        {
+            auto dxInv = geom[lev].InvCellSizeArray();
+            MultiFab pres(vars_new[lev][Vars::cons].boxArray(), vars_new[lev][Vars::cons].DistributionMap(), 1, 1);
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                // First define pressure on grown box
+                const Box& gbx = mfi.growntilebox(1);
+                const Array4<Real> & p_arr  = pres.array(mfi);
+                const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    p_arr(i,j,k) = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp));
+                });
+            }
+            pres.FillBoundary(geom[lev].periodicity());
+
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                // Now compute pressure gradient on valid box
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat = mf[lev].array(mfi);
+                const Array4<Real> & p_arr  = pres.array(mfi);
 #ifdef ERF_USE_TERRAIN
+                const Array4<Real const>& z_nd  = z_phys_nd[lev].const_array(mfi);
+#endif
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+#ifdef ERF_USE_TERRAIN
+                    Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
+                    ComputeMetricAtIface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                    Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                    Real gp_zeta_on_iface_lo = (k == 0) ?
+                        0.5 * dxInv[2] * (
+                        p_arr(i,j,k+1) + p_arr(i-1,j,k+1) - p_arr(i,j,k) - p_arr(i-1,j,k)):
+                        0.25 * dxInv[2] * (
+                          p_arr(i,j,k+1) + p_arr(i-1,j,k+1) - p_arr(i,j,k-1) - p_arr(i-1,j,k-1));
+                    amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
+
+                    Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
+                    ComputeMetricAtIface(i+1,j,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                    Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
+                    Real gp_zeta_on_iface_hi = (k == 0) ?
+                        0.5 * dxInv[2] * (
+                        p_arr(i+1,j,k+1) + p_arr(i,j,k+1) - p_arr(i+1,j,k) - p_arr(i,j,k)):
+                        0.25 * dxInv[2] * (
+                          p_arr(i+1,j,k+1) + p_arr(i,j,k+1) - p_arr(i+1,j,k-1) - p_arr(i,j,k-1));
+                    amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
+
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
+#else
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i+1,j,k) - p_arr(i-1,j,k)) * dxInv[0];
+#endif
+                });
+            }
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_deriv_names, "dpdy"))
+        {
+            auto dxInv = geom[lev].InvCellSizeArray();
+
+            MultiFab pres(vars_new[lev][Vars::cons].boxArray(), vars_new[lev][Vars::cons].DistributionMap(), 1, 1);
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                // First define pressure on grown box
+                const Box& gbx = mfi.growntilebox(1);
+                const Array4<Real> & p_arr  = pres.array(mfi);
+                const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    p_arr(i,j,k) = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp));
+                });
+            }
+            pres.FillBoundary(geom[lev].periodicity());
+
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                // Now compute pressure gradient on valid box
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat = mf[lev].array(mfi);
+                const Array4<Real> & p_arr  = pres.array(mfi);
+#ifdef ERF_USE_TERRAIN
+                const Array4<Real const>& z_nd  = z_phys_nd[lev].const_array(mfi);
+#endif
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+#ifdef ERF_USE_TERRAIN
+                    Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
+                    ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                    Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                    Real gp_zeta_on_jface_lo = (k == 0) ?
+                        0.5 * dxInv[2] * (
+                          p_arr(i,j,k+1) + p_arr(i,j-1,k+1) - p_arr(i,j,k) - p_arr(i,j-1,k)):
+                        0.25 * dxInv[2] * (
+                          p_arr(i,j,k+1) + p_arr(i,j-1,k+1) - p_arr(i,j,k-1) - p_arr(i,j-1,k-1));
+                    amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
+
+                    Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
+                    ComputeMetricAtJface(i,j+1,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                    Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
+                    Real gp_zeta_on_jface_hi = (k == 0) ?
+                        0.5 * dxInv[2] * (
+                          p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k) - p_arr(i,j,k)):
+                        0.25 * dxInv[2] * (
+                          p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k-1) - p_arr(i,j,k-1));
+                    amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
+    
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
+#else
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i,j+1,k) - p_arr(i,j-1,k)) * dxInv[1];
+#endif
+                });
+            }
+            mf_comp ++;
+        }
+
+#ifdef ERF_USE_TERRAIN
+
+        if (containerHasElement(plot_deriv_names, "pres_hse_x"))
+        {
+            auto dxInv = geom[lev].InvCellSizeArray();
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real      >&  derdat =       mf[lev].array(mfi);
+                const Array4<Real const>&   p_arr = pres_hse[lev].const_array(mfi);
+                const Array4<Real const>& z_nd  = z_phys_nd[lev].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
+                    ComputeMetricAtIface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                    Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                    Real gp_zeta_on_iface_lo = (k == 0) ?
+                        0.5 * dxInv[2] * (
+                        p_arr(i,j,k+1) + p_arr(i-1,j,k+1) - p_arr(i,j,k) - p_arr(i-1,j,k)):
+                        0.25 * dxInv[2] * (
+                          p_arr(i,j,k+1) + p_arr(i-1,j,k+1) - p_arr(i,j,k-1) - p_arr(i-1,j,k-1));
+                    amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
+
+                    Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
+                    ComputeMetricAtIface(i+1,j,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                    Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
+                    Real gp_zeta_on_iface_hi = (k == 0) ?
+                        0.5 * dxInv[2] * (
+                        p_arr(i+1,j,k+1) + p_arr(i,j,k+1) - p_arr(i+1,j,k) - p_arr(i,j,k)):
+                        0.25 * dxInv[2] * (
+                          p_arr(i+1,j,k+1) + p_arr(i,j,k+1) - p_arr(i+1,j,k-1) - p_arr(i,j,k-1));
+                    amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
+
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
+                });
+            }
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_deriv_names, "pres_hse_y"))
+        {
+            auto dxInv = geom[lev].InvCellSizeArray();
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real      >& derdat = mf[lev].array(mfi);
+                const Array4<Real const>&   p_arr = pres_hse[lev].const_array(mfi);
+                const Array4<Real const>& z_nd  = z_phys_nd[lev].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
+                    ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                    Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                    Real gp_zeta_on_jface_lo = (k == 0) ?
+                        0.5 * dxInv[2] * (
+                          p_arr(i,j,k+1) + p_arr(i,j-1,k+1) - p_arr(i,j,k) - p_arr(i,j-1,k)):
+                        0.25 * dxInv[2] * (
+                          p_arr(i,j,k+1) + p_arr(i,j-1,k+1) - p_arr(i,j,k-1) - p_arr(i,j-1,k-1));
+                    amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
+
+                    Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
+                    ComputeMetricAtJface(i,j+1,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                    Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
+                    Real gp_zeta_on_jface_hi = (k == 0) ?
+                        0.5 * dxInv[2] * (
+                          p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k) - p_arr(i,j,k)):
+                        0.25 * dxInv[2] * (
+                          p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k-1) - p_arr(i,j,k-1));
+                    amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
+    
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
+                });
+            }
+            mf_comp += 1;
+        }
+
         if (containerHasElement(plot_deriv_names, "z_phys"))
         {
             MultiFab::Copy(mf[lev],z_phys_cc[lev],0,mf_comp,1,0);
