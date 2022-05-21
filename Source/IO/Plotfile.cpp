@@ -414,7 +414,7 @@ ERF::WritePlotFile ()
                         0.25 * dxInv[2] * (
                           p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k-1) - p_arr(i,j,k-1));
                     amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
-    
+
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
 #else
                     derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i,j+1,k) - p_arr(i,j-1,k)) * dxInv[1];
@@ -491,7 +491,7 @@ ERF::WritePlotFile ()
                         0.25 * dxInv[2] * (
                           p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k-1) - p_arr(i,j,k-1));
                     amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
-    
+
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
                 });
             }
