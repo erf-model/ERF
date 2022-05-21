@@ -84,6 +84,12 @@ public:
     // Initialize multilevel data
     void InitData ();
 
+    // Init (NOT restart or regrid)
+    void init_only (int lev, amrex::Real time);
+
+    // Restart
+    void restart ();
+
     // Called after every level 0 timestep
     void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
 
@@ -253,7 +259,8 @@ private:
     // NOTE: mfs should always contain {cons, xvel, yvel, zvel} multifab data.
     // if which_var is supplied, then only fill the specified variable in the vector of mfs
     void FillIntermediatePatch (int lev, amrex::Real time,
-                                amrex::Vector<std::reference_wrapper<amrex::MultiFab> > mfs, int which_var = -1);
+                                amrex::Vector<std::reference_wrapper<amrex::MultiFab> > mfs,
+                                bool rho_only = false);
 
     // fill an entire multifab by interpolating from the coarser level
     // this comes into play when a new level of refinement appears

@@ -52,15 +52,10 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
 
 #ifdef ERF_USE_TERRAIN
                 const Array4<const Real>& z_nd = m_z_phys_nd.const_array(mfi);
-#endif
                 const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
                 const auto vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
                 const auto cons_arr = m_data.get_var(Vars::cons)[mfi].array();
-
-                // Note that we have stored the diffusion coefficients right after the actual data in
-                // TimeInterpolatedData ERF::GetDataAtTime
-                const auto eta_arr  = m_has_most_bcs ? m_data.get_var(Vars::NumTypes)[mfi].array(): Array4<Real>();
-
+#endif
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
                 //!
@@ -71,15 +66,18 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                     //      0 is used as starting index for bcrs
                     amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
-                    // Set bc-type at low z to reflect_odd for zvel/zmom when using MOST BCs
-                    for (int i = 0; i < bcrs.size(); i++) {
+                    // Set bc-type at low z to reflect_odd for all vels when using MOST BCs
+                    if (m_most)
+                    {
+                        for (int i = 0; i < bcrs.size(); i++) {
                         // ori = 2 is the zlo side
-                        if (bcrs[i].data()[2] == static_cast<int>(ERFBCType::MOST)) {
-                            if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) {
+                        if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom ||
+                            m_var_idx == Vars::yvel || m_var_idx == Vars::ymom ||
+                            m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) {
                                 bcrs[i].setLo(2, ERFBCType::reflect_odd);
-                            }
-                        }
-                    }
+                            } // if
+                        } // bcrs
+                    } // if most
 
                     // Call the default fill functions
                     //! Note that we pass 0 as starting component of bcrs.
@@ -405,31 +403,6 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                         });
                     }
 #endif
-                    int zlo = m_geom.Domain().smallEnd(2);
-
-                    // Now handle the MOST bc if we have any
-                    if ( bx.smallEnd()[2] < zlo)
-                    {
-                        if ( (m_var_idx == Vars::cons && bcrs[Cons::RhoTheta].lo(2) == ERFBCType::MOST) ||
-                             (m_var_idx == Vars::xvel && bcrs[0].lo(2) == ERFBCType::MOST) ||
-                             (m_var_idx == Vars::yvel && bcrs[0].lo(2) == ERFBCType::MOST) )
-                        {
-                            m_most->impose_most_bcs(m_lev, bx, dest_array, cons_arr, velx_arr, vely_arr, eta_arr,
-                                                    m_var_idx, icomp, zlo);
-                        } else if (m_var_idx == Vars::zvel || m_var_idx == Vars::zmom)
-                        {
-#ifndef ERF_USE_TERRAIN
-                            // MOST doesn't change the fact that w is reflect-odd at bottom boundary
-                            Box b2d = bx; // Copy constructor
-                            b2d.setBig(2,zlo-1);
-                            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                                dest_array(i,j,k,icomp) = (zlo-k+1)*dest_array(i,j,zlo  ,icomp) -
-                                                          (zlo-k  )*dest_array(i,j,zlo+1,icomp);
-                            });
-#endif
-                        }
-                    } // bottom boundary only
-
                 } // !gdomain.contains(bx)
             } // MFIter
         } // OpenMP

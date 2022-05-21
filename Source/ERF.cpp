@@ -296,25 +296,12 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 }
 
-// initializes multilevel data
+// This is called from main.cpp and handles all initialization, whether from start or restart
 void
 ERF::InitData ()
 {
     // Initialize the start time for our CPU-time tracker
     startCPUTime = amrex::ParallelDescriptor::second();
-
-    // For now we initialize rho_KE to 0
-    for (int lev = finest_level-1; lev >= 0; --lev)
-        vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
-
-    if (input_bndry_planes) {
-        // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
-        amrex::Print() << "Defining r2d for the first time " << std::endl;
-        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
-
-        // Read the "time.dat" file to know what data is available
-        m_r2d->read_time_file();
-    }
 
     // Map the words in the inputs file to BC types, then translate
     //     those types into what they mean for each variable
@@ -332,12 +319,17 @@ ERF::InitData ()
     if (restart_chkfile == "") {
         // start simulation from the beginning
 
-        const Real time = 0.0;
-        InitFromScratch(time);
-        AverageDown();
-
+        // For now we initialize rho_KE to 0
         for (int lev = finest_level-1; lev >= 0; --lev)
             vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
+
+        const Real time = 0.0;
+        InitFromScratch(time);
+
+        for (int lev = 0; lev <= finest_level; lev++)
+            init_only(lev, time);
+
+        AverageDown();
 
         if (check_int > 0)
         {
@@ -352,18 +344,32 @@ ERF::InitData ()
             last_check_file_step = 0;
         }
 
-    } else { // Restart from a checkpoint
-#ifdef ERF_USE_NETCDF
-        if (plot_type == "netcdf") {
-           ReadNCCheckpointFile();
-        }
+#ifdef ERF_USE_TERRAIN
+        for (int lev = 0; lev <= finest_level; lev++)
+            init_ideal_terrain(lev);
 #endif
-        if (plot_type == "native") {
-           ReadCheckpointFile();
-        }
-        // We set this here so that we don't over-write the checkpoint file we just started from
-        last_check_file_step = istep[0];
+
+    } else { // Restart from a checkpoint
+
+        restart();
     }
+
+    if (input_bndry_planes) {
+        // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
+        amrex::Print() << "Defining r2d for the first time " << std::endl;
+        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
+
+        // Read the "time.dat" file to know what data is available
+        m_r2d->read_time_file();
+
+        amrex::Real dt_dummy = 1.e200;
+        m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
+    }
+
+#ifdef ERF_USE_TERRAIN
+    for (int lev = finest_level-1; lev >= 0; --lev)
+        make_metrics(lev);
+#endif
 
     // Initialize flux registers (whether we start from scratch or restart)
     if (do_reflux) {
@@ -406,6 +412,48 @@ ERF::InitData ()
             m_w2d->write_planes(0, time, vars_new);
         }
     }
+
+    // configure ABLMost params if used MostWall boundary condition
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == BC::MOST)
+    {
+        m_most = std::make_unique<ABLMost>(geom);
+        for (int lev = 0; lev <= finest_level; lev++)
+            setupABLMost(lev);
+    }
+
+    // Fill ghost cells/faces
+    for (int lev = finest_level-1; lev >= 0; --lev)
+    {
+        auto& lev_new = vars_new[lev];
+        auto& lev_old = vars_old[lev];
+
+        FillPatch(lev, t_new[lev], lev_new);
+
+        // Copy from new into old just in case
+        int ngs   = lev_new[Vars::cons].nGrow();
+        int ngvel = lev_new[Vars::xvel].nGrow();
+        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,ngs);
+        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
+        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,ngvel);
+    }
+
+}
+
+void 
+ERF::restart()
+{
+#ifdef ERF_USE_NETCDF
+    if (plot_type == "netcdf") {
+       ReadNCCheckpointFile();
+    }
+#endif
+    if (plot_type == "native") {
+       ReadCheckpointFile();
+    }
+
+    // We set this here so that we don't over-write the checkpoint file we just started from
+    last_check_file_step = istep[0];
 }
 
 // Make a new level using provided BoxArray and DistributionMapping and
@@ -483,11 +531,17 @@ ERF::ClearLevel (int lev)
 }
 
 // Make a new level from scratch using provided BoxArray and DistributionMapping.
-// Only used during initialization.
-// overrides the pure virtual function in AmrCore
+// This is called both for initialization and for restart
+// (overrides the pure virtual function in AmrCore)
+// main.cpp --> ERF::InitData --> InitFromScratch --> MakeNewGrids --> MakeNewLevelFromScratch
+//                                       restart  --> MakeNewGrids --> MakeNewLevelFromScratch
 void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
                                    const DistributionMapping& dm)
 {
+    // Set BoxArray grids and DistributionMapping dmap in AMReX_AmrMesh.H class
+    SetBoxArray(lev, ba);
+    SetDistributionMap(lev, dm);
+
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
     int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
@@ -508,9 +562,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
-    t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
-
 #ifdef ERF_USE_TERRAIN
     pres_hse[lev].define(ba,dm,1,1);
     dens_hse[lev].define(ba,dm,1,1);
@@ -521,14 +572,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     ba_nd.surroundingNodes();
     z_phys_nd[lev].define(ba_nd,dm,1,1);
 #endif
+}
 
-    // Read enough of the boundary plane data to make it through the FillPatch at this time
-    if (input_bndry_planes)
-    {
-        amrex::Real dt_dummy = 1.e-200;
-        m_r2d->read_input_files(time,dt_dummy,m_bc_extdir_vals);
-    }
-
+void 
+ERF::init_only(int lev, Real time)
+{
+    t_new[lev] = time;
+    t_old[lev] = time - 1.e200;
 
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
@@ -552,6 +602,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #endif //ERF_USE_NETCDF
     }
 
+    auto& lev_new = vars_new[lev];
+
     // Loop over grids at this level to initialize our grid data
     lev_new[Vars::cons].setVal(0.0);
     lev_new[Vars::xvel].setVal(0.0);
@@ -559,11 +611,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::zvel].setVal(0.0);
 
     if (init_type == "custom" || init_type == "input_sounding") {
-
-#ifdef ERF_USE_TERRAIN
-        init_ideal_terrain(lev);
-        make_metrics(lev);
-#endif
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -595,6 +642,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             }
         } //mfi
     } // init_type == "custom" || init_type == "input_sounding"
+
 #ifdef ERF_USE_NETCDF
     else if (init_type == "ideal" || init_type == "real") {
 #ifdef _OPENMP
@@ -617,10 +665,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
           init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
 #endif
         }
-
-#ifdef ERF_USE_TERRAIN
-        make_metrics(lev);
-#endif
     } // init_type == "ideal" || init_type == "real"
 #endif //ERF_USE_NETCDF
 
@@ -629,24 +673,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
-
-    // configure ABLMost params if used MostWall boundary condition
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == BC::MOST)
-    {
-        if (lev == 0) m_most = std::make_unique<ABLMost>(geom);
-        setupABLMost(lev);
-    }
-
-    // Fill ghost cells/faces
-    FillPatch(lev, time, lev_new);
-
-    // Copy from new into old just in case
-    int ngs   = lev_new[Vars::cons].nGrow();
-    int ngvel = lev_new[Vars::xvel].nGrow();
-    MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,ngs);
-    MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
-    MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
-    MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,ngvel);
 }
 
 // read in some parameters from inputs file

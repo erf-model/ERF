@@ -100,8 +100,8 @@ ERF::WriteCheckpointFile () const
 
    // write the MultiFab data to, e.g., chk00010/Level_0/
    // Here we make copies of the MultiFab with no ghost cells
-   for (int lev = 0; lev <= finest_level; ++lev) {
-
+   for (int lev = 0; lev <= finest_level; ++lev)
+   {
        MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
        MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,NVAR,0);
        VisMF::Write(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
@@ -117,6 +117,13 @@ ERF::WriteCheckpointFile () const
        MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
        MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
        VisMF::Write(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
+
+#ifdef ERF_USE_TERRAIN
+       // Note that we write the ghost cells of z_phys_nd (unlike above)
+       MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,0);
+       MultiFab::Copy(z_height,z_phys_nd[lev],0,0,1,1);
+       VisMF::Write(z_height, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
+#endif
    }
 }
 
@@ -199,9 +206,6 @@ ERF::ReadCheckpointFile ()
         }
     }
 
-    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
-
     for (int lev = 0; lev <= finest_level; ++lev) {
 
         // read in level 'lev' BoxArray from Header
@@ -212,36 +216,15 @@ ERF::ReadCheckpointFile ()
         // create a distribution mapping
         DistributionMapping dm { ba, ParallelDescriptor::NProcs() };
 
-        // set BoxArray grids and DistributionMapping dmap in AMReX_AmrMesh.H class
-        SetBoxArray(lev, ba);
-        SetDistributionMap(lev, dm);
-
-        // build MultiFab data
-        int ncomp = Cons::NumVars;
-
-        auto& lev_old = vars_old[lev];
-        auto& lev_new = vars_new[lev];
-
-        lev_new[Vars::cons].define(grids[lev], dmap[lev], ncomp, ngrow_state);
-        lev_old[Vars::cons].define(grids[lev], dmap[lev], ncomp, ngrow_state);
-
-        //!don: get the ghost cells right here
-        lev_new[Vars::xvel].define(convert(grids[lev], IntVect(1,0,0)), dmap[lev], 1, ngrow_vels);
-        lev_old[Vars::xvel].define(convert(grids[lev], IntVect(1,0,0)), dmap[lev], 1, ngrow_vels);
-
-        lev_new[Vars::yvel].define(convert(grids[lev], IntVect(0,1,0)), dmap[lev], 1, ngrow_vels);
-        lev_old[Vars::yvel].define(convert(grids[lev], IntVect(0,1,0)), dmap[lev], 1, ngrow_vels);
-
-        lev_new[Vars::zvel].define(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 1, ngrow_vels);
-        lev_old[Vars::zvel].define(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 1, ngrow_vels);
+        MakeNewLevelFromScratch (lev, t_new[lev], ba, dm);
     }
 
     // read in the MultiFab data
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-
         MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
         VisMF::Read(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
+        //vars_new[lev][Vars::cons].setVal(0.);
         MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,Cons::NumVars,0);
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
@@ -256,10 +239,11 @@ ERF::ReadCheckpointFile ()
         VisMF::Read(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
-        // Copy from new into old just in case
-        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,NVAR,0);
-        MultiFab::Copy(vars_old[lev][Vars::xvel],vars_new[lev][Vars::xvel],0,0,1,0);
-        MultiFab::Copy(vars_old[lev][Vars::yvel],vars_new[lev][Vars::yvel],0,0,1,0);
-        MultiFab::Copy(vars_old[lev][Vars::zvel],vars_new[lev][Vars::zvel],0,0,1,0);
+#ifdef ERF_USE_TERRAIN
+       // Note that we read the ghost cells of z_phys_nd (unlike above)
+       MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,0);
+       VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
+       MultiFab::Copy(z_phys_nd[lev],z_height,0,0,1,1);
+#endif
     }
 }

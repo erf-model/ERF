@@ -150,13 +150,16 @@ void ERF::erf_advance(int level,
         }
 
         // ***************************************************************************************
-        // Call FillPatch routines for cell-centered data
+        // Call FillPatch routines for the density only because we need it to convert between
+        //      momentum and velocity
         // This fills ghost cells/faces from
         //     1) coarser level if lev > 0
         //     2) physical boundaries
         //     3) other grids at the same level
         // ***************************************************************************************
-        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new}, Vars::cons);
+        bool rho_only = true;
+        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
+                              rho_only);
 
         // Here we don't use include any of the ghost region because we have only updated
         //      momentum on valid faces
@@ -168,15 +171,13 @@ void ERF::erf_advance(int level,
                            IntVect::TheZeroVector());
 
         // ***************************************************************************************
-        // Call FillPatch routines for face-centered velocity components
+        // Call FillPatch routines for all data
         // This fills ghost cells/faces from
         //     1) coarser level if lev > 0
         //     2) physical boundaries
         //     3) other grids at the same level
         // ***************************************************************************************
-        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new}, Vars::xvel);
-        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new}, Vars::yvel);
-        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new}, Vars::zvel);
+        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new});
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density
