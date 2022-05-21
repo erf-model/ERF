@@ -32,7 +32,8 @@ ERF::GetDataAtTime (int lev, Real time)
         // do first order interpolation in time between [t_old[lev], t_new[lev]]
         // time interpolation includes the ghost cells
         for (int i = 0; i < Vars::NumTypes; ++i) {
-            MultiFab* mf_temp = new MultiFab(vars_new[lev][i].boxArray(), dmap[lev],
+            MultiFab* mf_temp = new MultiFab(vars_new[lev][i].boxArray(),
+                                             vars_new[lev][i].DistributionMap(),
                                              vars_new[lev][i].nComp(), vars_new[lev][i].nGrowVect());
             mf_temp->setVal(0.0_rt);
 
@@ -55,20 +56,6 @@ ERF::GetDataAtTime (int lev, Real time)
         data.get_var(Vars::yvel).FillBoundary(geom[lev].periodicity());
         data.get_var(Vars::zvel).FillBoundary(geom[lev].periodicity());
         data.get_var(Vars::cons).FillBoundary(geom[lev].periodicity());
-    }
-
-    if (m_most) {
-        MultiFab* eddyDiffs = new MultiFab(vars_old[lev][Vars::cons].boxArray(),
-                                           vars_old[lev][Vars::cons].DistributionMap(),
-                                           EddyDiff::NumDiffs,3);
-        bool vert_only = true;
-        ComputeTurbulentViscosity(data.get_var(Vars::xvel), data.get_var(Vars::yvel),
-                                  data.get_var(Vars::zvel), data.get_var(Vars::cons),
-                                  *eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
-        data.add_var(eddyDiffs, data.owning);
-
-        // The viscosity lives after cons,xvel,yvel,zvel which is the "NumTypes" place in "data"
-        data.get_var(Vars::NumTypes).FillBoundary(geom[lev].periodicity());
     }
 
     return data;
@@ -122,7 +109,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
         {
             Vector<MultiFab*> smf = {&fdata.get_var(var_idx)};
             ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
-                                  m_bc_extdir_vals,solverChoice,
+                                  m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
                                   z_phys_nd[lev], detJ_cc[lev],
 #endif
@@ -141,7 +128,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
             Vector<MultiFab*> fmf = {&fdata.get_var(var_idx)};
 
             ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
-                                   m_bc_extdir_vals,solverChoice,
+                                   m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
@@ -150,7 +137,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 #endif
                                    m_most, m_r2d);
             ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
-                                   m_bc_extdir_vals,solverChoice,
+                                   m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev],detJ_cc[lev],
 #endif
@@ -165,16 +152,53 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                       mapper, domain_bcs_type, bccomp);
         } // lev > 0
     } // var_idx
+
+    //
+    // It is important that we apply the MOST bcs after we have imposed all the others
+    //    so that we have enough information in the ghost cells to calculate the viscosity
+    //
+    if (m_most)
+    {
+        MultiFab eddyDiffs(fdata.get_var(Vars::cons).boxArray(),
+                           fdata.get_var(Vars::cons).DistributionMap(),
+                           EddyDiff::NumDiffs,3);
+        bool vert_only = true;
+        ComputeTurbulentViscosity(fdata.get_var(Vars::xvel), fdata.get_var(Vars::yvel),
+                                  fdata.get_var(Vars::zvel), fdata.get_var(Vars::cons),
+                                  eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
+        eddyDiffs.FillBoundary(geom[lev].periodicity());
+
+        for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
+        {
+            MultiFab& mf = mfs[var_idx];
+            const int icomp = 0;
+
+            for (MFIter mfi(mf); mfi.isValid(); ++mfi)
+            {
+                const Box& bx       = mfs[var_idx][mfi].box();
+                      auto dest_arr = mfs[var_idx][mfi].array();
+
+                const auto velx_arr = fdata.get_var(Vars::xvel)[mfi].array();
+                const auto vely_arr = fdata.get_var(Vars::yvel)[mfi].array();
+                const auto cons_arr = fdata.get_var(Vars::cons)[mfi].array();
+                const auto  eta_arr = eddyDiffs[mfi].array();
+
+                int zlo = 0;
+                m_most->impose_most_bcs(lev,bx,dest_arr,cons_arr,velx_arr,vely_arr,eta_arr,var_idx,icomp,zlo);
+            } // mf
+        } // var_idx
+    } // most
 }
 
 //
 // Fill valid and ghost data in the MultiFabs in "mfs"
 // mfs is a Vector<std::reference_wrapper<MultiFab> > containing, in order: cons, xvel, yvel, and zvel data
 // This version fills the MultiFabs mfs in valid regions with the values in "mfs" when it is passed in;
-// it is used only to compute ghost values for interemediate stages of a time integrator.
+// it is used only to compute ghost values for intermediate stages of a time integrator.
 //
 void
-ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<MultiFab> > mfs, int which)
+ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<MultiFab> > mfs,
+                            bool rho_only)
 {
     int bccomp;
     amrex::Interpolater* mapper;
@@ -188,22 +212,15 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
     }
     level_data.set_time(time);
 
-    if (m_most) {
-        MultiFab* eddyDiffs = new MultiFab(vars_old[lev][Vars::cons].boxArray(),
-                                           vars_old[lev][Vars::cons].DistributionMap(),
-                                           EddyDiff::NumDiffs,3);
-        bool vert_only = true;
-        ComputeTurbulentViscosity(level_data.get_var(Vars::xvel), level_data.get_var(Vars::yvel),
-                                  level_data.get_var(Vars::zvel), level_data.get_var(Vars::cons),
-                                  *eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
-        level_data.add_var(eddyDiffs, level_data.owning);
-    }
+    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
+    {
+        if (rho_only && var_idx != Vars::cons) continue;
 
-    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
-        if (which >= 0 && which != var_idx) continue;
         MultiFab& mf = mfs[var_idx].get();
         const int icomp = 0;
-        const int ncomp = mf.nComp();
+        int ncomp = mf.nComp();
+
+        if (rho_only && var_idx == Vars::cons) ncomp = 1;
 
         if (var_idx == Vars::cons)
         {
@@ -225,10 +242,6 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
             bccomp = NVAR+2;
             mapper = &face_linear_interp;
         }
-        else
-        {
-
-        }
 
         if (lev == 0)
         {
@@ -237,7 +250,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
             Vector<Real> stime { time };
 
             ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
-                                  m_bc_extdir_vals,solverChoice,
+                                  m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
                                   z_phys_nd[lev],detJ_cc[lev],
 #endif
@@ -245,6 +258,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                                    m_most, m_r2d);
+
             amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
                                         geom[lev], physbc, bccomp);
         }
@@ -259,7 +273,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
             Vector<Real> ftime = {level_data.get_time()};
 
             ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
-                                  m_bc_extdir_vals,solverChoice,
+                                  m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
@@ -268,7 +282,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 #endif
                                    m_most, m_r2d);
             ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
-                                  m_bc_extdir_vals,solverChoice,
+                                  m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
                                    z_phys_nd[lev],detJ_cc[lev],
 #endif
@@ -286,6 +300,42 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
             std::swap(mf_temp, mf);
         }
     }
+
+    //
+    // It is important that we apply the MOST bcs after we have imposed all the others
+    //    so that we have enough information in the ghost cells to calculate the viscosity
+    //
+    if (!rho_only && m_most)
+    {
+        MultiFab eddyDiffs(mfs[Vars::cons].get().boxArray(),
+                           mfs[Vars::cons].get().DistributionMap(),
+                           EddyDiff::NumDiffs,3);
+        bool vert_only = true;
+        ComputeTurbulentViscosity(mfs[Vars::xvel].get(), mfs[Vars::yvel].get(),
+                                  mfs[Vars::zvel].get(), mfs[Vars::cons].get(),
+                                  eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
+        eddyDiffs.FillBoundary(geom[lev].periodicity());
+
+        for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
+        {
+            MultiFab& mf = mfs[var_idx].get();
+            const int icomp = 0;
+
+            for (MFIter mfi(mf); mfi.isValid(); ++mfi)
+            {
+                const Box& bx       = mf[mfi].box();
+                      auto dest_arr = mf[mfi].array();
+
+                const auto velx_arr = level_data.get_var(Vars::xvel)[mfi].array();
+                const auto vely_arr = level_data.get_var(Vars::yvel)[mfi].array();
+                const auto cons_arr = level_data.get_var(Vars::cons)[mfi].array();
+                const auto  eta_arr = eddyDiffs[mfi].array();
+
+                int zlo = 0;
+                m_most->impose_most_bcs(lev,bx,dest_arr,cons_arr,velx_arr,vely_arr,eta_arr,var_idx,icomp,zlo);
+            } // mf
+        } // var_idx
+    } // most
 }
 
 // Fill an entire multifab by interpolating from the coarser level -- this is used
@@ -328,7 +378,7 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
     Vector<Real> ftime = {fdata.get_time()};
 
     ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
-                           m_bc_extdir_vals,solverChoice,
+                           m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
                            z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
@@ -337,7 +387,7 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
 #endif
                            m_most, m_r2d);
     ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
-                           m_bc_extdir_vals,solverChoice,
+                           m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
                            z_phys_nd[lev],detJ_cc[lev],
 #endif

@@ -9,23 +9,25 @@ void ABLMost::update_fluxes(int lev,
                             amrex::MultiFab& V_new, amrex::MultiFab& W_new,
                             int max_iters)
 {
-    PlaneAverage Thave(&Theta_new, m_geom[lev], 2, true);
-    PlaneAverage vxave(&U_new, m_geom[lev], 2, true);
-    PlaneAverage vyave(&V_new, m_geom[lev], 2, true);
-    PlaneAverage vzave(&W_new, m_geom[lev], 2, true);
-    VelPlaneAverage vmagave({&U_new,&V_new,&W_new}, m_geom[lev], 2, true);
+    PlaneAverage Thave(&Theta_new, m_geom[lev], 2);
+    PlaneAverage vxave(&U_new, m_geom[lev], 2);
+    PlaneAverage vyave(&V_new, m_geom[lev], 2);
+    PlaneAverage vzave(&W_new, m_geom[lev], 2);
 
     Thave.compute_averages(ZDir(), Thave.field());
     vxave.compute_averages(ZDir(), vxave.field());
     vyave.compute_averages(ZDir(), vyave.field());
     vzave.compute_averages(ZDir(), vzave.field());
-    vmagave.compute_hvelmag_averages(ZDir(), 0, 1, vmagave.field());
 
     vel_mean[0] = vxave.line_average_interpolated(zref, 0);
     vel_mean[1] = vyave.line_average_interpolated(zref, 0);
     vel_mean[2] = vzave.line_average_interpolated(zref, 0);
-    vmag_mean   = vmagave.line_hvelmag_average_interpolated(zref);
     theta_mean  = Thave.line_average_interpolated(zref, 0);
+
+    // Construct horizontal averages of magnitude of horiz. velocity
+    VelPlaneAverage vmagave(m_geom[lev]);
+    vmagave.compute_hvelmag_averages(U_new,V_new);
+    vmag_mean   = vmagave.line_hvelmag_average_interpolated(zref);
 
     constexpr amrex::Real eps = 1.0e-16;
     amrex::Real zeta = 0.0;
@@ -87,8 +89,6 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
                          const Array4<Real>&  eta_arr,
                          const int idx, const int icomp, const int zlo)
 {
-    // check idx to distinguish between Vars::Dvel and Vars::Dmom
-    // (in Legacy this was controlled by the is_derived flag)
     bool var_is_derived = false;
     if (idx == Vars::xvel || idx == Vars::yvel) {
         var_is_derived = true;
@@ -118,44 +118,43 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
         int n = Cons::RhoTheta;
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-                int k0 = 0;
-                Real d_phi_h = d_most.phi_h(z0_arr(i,j,k0));
-                Real velx, vely, rho, theta, eta;
-                int ix, jx, iy, jy, ie, je;
+            Real d_phi_h = d_most.phi_h(z0_arr(i,j,zlo));
+            Real velx, vely, rho, theta, eta;
+            int ix, jx, iy, jy, ie, je;
 
-                ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
-                jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
-                ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
-                jx = jx > ubound(velx_arr).y ? ubound(velx_arr).y : jx;
+            ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
+            jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
+            ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
+            jx = jx > ubound(velx_arr).y ? ubound(velx_arr).y : jx;
 
-                iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
-                jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-                iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
-                jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
+            iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
+            jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
+            iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
+            jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
-                ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-                je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-                je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
 
-                velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix+1,jx,zlo));
-                vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
-                rho   = cons_arr(ie,je,zlo,Rho_comp);
-                theta = cons_arr(ie,je,zlo,RhoTheta_comp)/rho;
-                eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v);
+            velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix+1,jx,zlo));
+            vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
+            rho   = cons_arr(ie,je,zlo,Rho_comp);
+            theta = cons_arr(ie,je,zlo,RhoTheta_comp)/rho;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v);
 
-                Real vmag    = sqrt(velx*velx+vely*vely);
-                Real num1    = (theta-d_thM)*d_vmM;
-                Real num2    = (d_thM-d_sfcT)*vmag;
-                Real moflux  = (num1+num2)*d_utau*d_kappa/(d_phi_h*d_vmM);
-                Real deltaz  = d_dz * (zlo - k);
+            Real vmag    = sqrt(velx*velx+vely*vely);
+            Real num1    = (theta-d_thM)*d_vmM;
+            Real num2    = (d_thM-d_sfcT)*vmag;
+            Real moflux  = (num1+num2)*d_utau*d_kappa/(d_phi_h*d_vmM);
+            Real deltaz  = d_dz * (zlo - k);
 
-                if (!var_is_derived) {
-                    dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
-                } else {
-                    dest_arr(i,j,k,icomp+n) = theta - moflux/eta*deltaz;
-                }
-            });
+            if (!var_is_derived) {
+                dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+            } else {
+                dest_arr(i,j,k,icomp+n) = theta - moflux/eta*deltaz;
+            }
+        });
 
     } else if (idx == Vars::xvel || idx == Vars::xmom) { //for velx
 

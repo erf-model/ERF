@@ -48,7 +48,6 @@ public:
                     const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                     const int& var_idx, TimeInterpolatedData& data,
                     amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
-                    const SolverChoice& solverChoice,
 #ifdef ERF_USE_TERRAIN
                     const amrex::MultiFab& z_phys_nd,
                     const amrex::MultiFab& detJ_cc,

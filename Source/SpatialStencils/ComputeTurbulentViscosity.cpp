@@ -11,7 +11,8 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
                                   const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
                                   const amrex::Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d)
+                                  const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+                                  bool vert_only)
 {
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
 
@@ -22,9 +23,13 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
+    const int klo = dom_lo.z;
+
     // We must initialize all the components to 0 because we may not set all of them below
     //    (which ones depends on which LES / PBL scheme we are using)
     eddyViscosity.setVal(0.0);
+
+    bool l_vert_only = vert_only;
 
     // Compute the turbulent viscosity
     if (solverChoice.les_type == LESType::Smagorinsky)
@@ -37,7 +42,9 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
 #endif
       for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const amrex::Box &bx = mfi.growntilebox(1);
+        amrex::Box bx = mfi.growntilebox(1);
+        if (l_vert_only)
+            bx.setRange(2,klo,1);
 
         const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
         const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
@@ -66,7 +73,9 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
 #endif
       for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const amrex::Box &bx = mfi.growntilebox(1);
+        amrex::Box bx = mfi.growntilebox(1);
+        if (l_vert_only)
+            bx.setRange(2,klo,1);
 
         const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
         const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
@@ -92,9 +101,14 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const amrex::Box &bx = mfi.growntilebox(1);
+        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            amrex::Box bx = mfi.growntilebox(1);
+            if (l_vert_only)
+                bx.setRange(2,klo,1);
+
             const amrex::Array4<amrex::Real> &K = eddyViscosity.array(mfi);
+
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Get eddy diffusivities from the eddy viscosity
@@ -210,17 +224,17 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
 
     if ( (  vert_only  &&
            (solverChoice.pbl_type == PBLType::None) ) ||
-         (  !vert_only  &&
-           (solverChoice.les_type == LESType::Smagorinsky) ||
-           (solverChoice.les_type == LESType::Deardorff  ) ) ) {
+         (  !vert_only &&
+          ((solverChoice.les_type == LESType::Smagorinsky) ||
+           (solverChoice.les_type == LESType::Deardorff  )) ) ) {
 
             ComputeTurbulentViscosityLES(xvel, yvel, zvel, cons_in, eddyViscosity,
                                          geom, solverChoice,
-                                         domain_bcs_type_d);
+                                         domain_bcs_type_d, vert_only);
     }
 
     if (solverChoice.pbl_type != PBLType::None) {
             ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                         geom, solverChoice, most);
+                                         geom, solverChoice, most, vert_only);
     }
 }
