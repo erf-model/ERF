@@ -837,3 +837,35 @@ If ``erf.init_type`` is set to ``"ideal"`` or ``"real"``, then ``erf.nc_init_fil
 If ``erf.init_type`` is set to ``"real"``, then ``erf.nc_bdy_file`` **must** be provided.
 
 If ``erf.init_type`` is set to ``"input_sounding"``, then ``erf.input_sounding_file`` **must** be provided.
+
+
+Terrain Smoothing
+=================
+
+Currently, ERF has 2 methods of controlling the terrain-fitted coordinates:
+
+- Basic Terain Following (BTF):
+    The influence of the terrain decreases linearly with height.
+- Smoothed Terrain Following (STF):
+    Small-scale terrain structures are progressively smoothed out of the coordinate system as height increases.
+    
+List of Parameters
+------------------
+
++-----------------------------+-------------------+--------------------+------------+
+| Parameter                   | Definition        | Acceptable         | Default    |
+|                             |                   | Values             |            |
++=============================+===================+====================+============+
+| **erf.terrain_smoothing**   | specify terrain   | “*0*"              | “*0*”      |
+|                             | following         | “*1*”              |            |
++-----------------------------+-------------------+--------------------+------------+
+
+
+Examples of Usage
+-----------------
+
+-  **erf.terrain_smoothing**  = “*0*”
+    BTF is used when generating the terrain following coordinate.
+
+-  **erf.terrain_smoothing**  = “*1*”
+    STF is used when generating the terrain following coordinate.
