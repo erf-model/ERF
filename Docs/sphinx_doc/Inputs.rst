@@ -856,16 +856,16 @@ List of Parameters
 | Parameter                   | Definition        | Acceptable         | Default    |
 |                             |                   | Values             |            |
 +=============================+===================+====================+============+
-| **erf.terrain_smoothing**   | specify terrain   | “*0*"              | “*0*”      |
-|                             | following         | “*1*”              |            |
+| **erf.terrain_smoothing**   | specify terrain   | 0                  | 0          |
+|                             | following         | 1                  |            |
 +-----------------------------+-------------------+--------------------+------------+
 
 
 Examples of Usage
 -----------------
 
--  **erf.terrain_smoothing**  = “*0*”
+-  **erf.terrain_smoothing**  = 0
     BTF is used when generating the terrain following coordinate.
 
--  **erf.terrain_smoothing**  = “*1*”
+-  **erf.terrain_smoothing**  = 1
     STF is used when generating the terrain following coordinate.
