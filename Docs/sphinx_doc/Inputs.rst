@@ -856,7 +856,7 @@ List of Parameters
 | Parameter                   | Definition        | Acceptable         | Default    |
 |                             |                   | Values             |            |
 +=============================+===================+====================+============+
-| **erf.terrain_smoothing**   | specify terrain   | 0                  | 0          |
+| **erf.terrain_smoothing**   | specify terrain   | 0,                 | 0          |
 |                             | following         | 1                  |            |
 +-----------------------------+-------------------+--------------------+------------+
 
