@@ -1,9 +1,7 @@
-#include "AMReX_ParmParse.H"
-#include "ERF.H"
-#include "ERF_Constants.H"
-#include "IndexDefines.H"
-
-using namespace amrex;
+#include <AMReX_ParmParse.H>
+#include <ERF.H>
+#include <ERF_Constants.H>
+#include <IndexDefines.H>
 
 #ifdef ERF_USE_TERRAIN
 void
@@ -13,39 +11,39 @@ ERF::init_ideal_terrain(int lev)
     auto ProbLoArr = geom[lev].ProbLoArray();
     auto ProbHiArr = geom[lev].ProbHiArray();
 
-    // 2 a is the high point of the hill
-    Real a = 0.5;
+    // User function parameters
+    amrex::Real a = 0.5;
+    amrex::Real num = 8 * a * a * a;
+    amrex::Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
+    amrex::Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
 
-    Real num = 8 * a * a * a;
-    Real ztop = ProbHiArr[2];
+    // Populate bottom plane
+    int k0 = 0;
 
-    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-    Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
-
-    for ( MFIter mfi(z_phys_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for ( amrex::MFIter mfi(z_phys_nd[lev],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        const Box& gbx = mfi.growntilebox(1);
-        Array4<Real> z_arr = z_phys_nd[lev].array(mfi);
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+        const amrex::Box& vbx = mfi.validbox();
+        amrex::Box xybx = vbx;
+        xybx.setRange(2,0);
+        
+        amrex::Array4<amrex::Real> const& z_arr = z_phys_nd[lev].array(mfi);
+        
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
             // Location of nodes
-            Real x = (i * dx[0] - xcen);
-            Real y = j * dx[1] - ycen;
-            Real z = k * dx[2];
+            amrex::Real x = (i  * dx[0] - xcen);
+            amrex::Real y = (j  * dx[1] - ycen);
+            amrex::Real z =  k0 * dx[2];
 
             // WoA Hill in x-direction
-            Real woa = num / (x*x + 4 * a * a);
+            amrex::Real height = num / (x*x + 4 * a * a);
 
-            // WoA Hill in y-direction
-            // Real woa = num / (y*y + 4 * a * a);
-
-            // This is the BTF model from p2163 of Klemp2011
-            z_arr(i,j,k) = z + (1. - (z/ztop)) * woa;
+            // Populate terrain height
+            z_arr(i,j,k0) = height;
 
             // Flat terrain with z = 0 at k = 0
-            //z_arr(i,j,k) = z;
+            //z_arr(i,j,k0) = z;
         });
     }
-    z_phys_nd[lev].FillBoundary(geom[lev].periodicity());
 }
 #endif

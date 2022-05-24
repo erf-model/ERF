@@ -198,9 +198,6 @@ public:
     // Define z_phys_nd on nodes using an analytical expression
     void init_ideal_terrain(int lev);
 
-    // Define z_phys_cc and detJ_cc on cell centers by averaging z_phys_nd
-    void make_metrics(int lev);
-
     void erf_enforce_hse(int lev,
                          amrex::MultiFab& dens, amrex::MultiFab& pres,
                          amrex::MultiFab& z_cc);

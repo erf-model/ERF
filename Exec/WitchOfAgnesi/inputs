@@ -47,6 +47,16 @@ erf.use_rayleigh_damping = false
 erf.spatial_order = 2
 erf.les_type = "None"
 
+# MULTILEVEL
+amr.max_level = 0
+amr.ref_ratio_vect = 2 2 1
+amr.refinement_indicators = box1
+amr.box1.max_level = 1
+amr.box1.in_box_lo =  2. 0.25
+amr.box1.in_box_hi =  8. 0.75
+
+# TERRRAIN GRID TYPE
+erf.terrain_smoothing = 0
 
 # Diffusion coefficient from Straka, K = 75 m^2/s
 erf.molec_diff_type = "ConstantAlpha"
