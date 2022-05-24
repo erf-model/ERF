@@ -8,76 +8,80 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 void
-ERF::init_from_wrfinput(const amrex::Box& bx, FArrayBox& state_fab,
+ERF::init_from_wrfinput(int lev, const amrex::Box& bx, FArrayBox& state_fab,
                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab, FArrayBox& z_vel_fab
 #ifdef ERF_USE_TERRAIN
                        ,FArrayBox& z_phys
 #endif // ERF_USE_TERRAIN
                                        )
 {
-    //
-    // FArrayBox to FArrayBox copy does "copy on intersection"
-    // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
-    //
-    // This copies x-vel
-    x_vel_fab.template copy<RunOn::Device>(NC_xvel_fab);
+    for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
+    {
+        amrex::Print() << "BX FROM NETCDF " << state_fab.box() << std::endl;
+        //
+        // FArrayBox to FArrayBox copy does "copy on intersection"
+        // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
+        //
+        // This copies x-vel
+        x_vel_fab.template copy<RunOn::Device>(NC_xvel_fab[lev][idx]);
 
-    // This copies y-vel
-    y_vel_fab.template copy<RunOn::Device>(NC_yvel_fab);
+        // This copies y-vel
+        y_vel_fab.template copy<RunOn::Device>(NC_yvel_fab[lev][idx]);
 
-    // This copies z-vel
-    z_vel_fab.template copy<RunOn::Device>(NC_xvel_fab);
+        // This copies z-vel
+        z_vel_fab.template copy<RunOn::Device>(NC_zvel_fab[lev][idx]);
 
-    // We first initialize all state_fab variables to zero
-    state_fab.template setVal<RunOn::Device>(0.);
+        // We first initialize all state_fab variables to zero
+        state_fab.template setVal<RunOn::Device>(0.);
 
-    // This copies the density
-    state_fab.template copy<RunOn::Device>(NC_rho_fab, 0, Rho_comp, 1);
+        // This copies the density
+        state_fab.template copy<RunOn::Device>(NC_rho_fab[lev][idx], 0, Rho_comp, 1);
 
-    // This copies (rho*theta)
-    state_fab.template copy<RunOn::Device>(NC_rhotheta_fab, 0, RhoTheta_comp, 1);
+        // This copies (rho*theta)
+        state_fab.template copy<RunOn::Device>(NC_rhotheta_fab[lev][idx], 0, RhoTheta_comp, 1);
 
 #ifdef ERF_USE_TERRAIN
-    // This copies from NC_zphys on z-faces to z_phys_nd on nodes
-    Array4<Real>    z_arr   = z_phys.array();
-    Array4<Real> nc_phb_arr = NC_PHB_fab.array();
-    Array4<Real> nc_ph_arr  = NC_PH_fab.array();
+        // This copies from NC_zphys on z-faces to z_phys_nd on nodes
+        Array4<Real>    z_arr   = z_phys.array();
+        Array4<Real> nc_phb_arr = NC_PHB_fab[lev][idx].array();
+        Array4<Real> nc_ph_arr  = NC_PH_fab[lev][idx].array();
 
-    const Box& z_phys_box(z_phys.box());
+        const Box& z_phys_box(z_phys.box());
 
-    Box nodal_dom = amrex::surroundingNodes(geom[0].Domain());
+        Box nodal_box = amrex::surroundingNodes(NC_PHB_fab[lev][idx].box());
 
-    int ilo = nodal_dom.smallEnd()[0];
-    int ihi = nodal_dom.bigEnd()[0];
-    int jlo = nodal_dom.smallEnd()[1];
-    int jhi = nodal_dom.bigEnd()[1];
-    int klo = nodal_dom.smallEnd()[2];
-    int khi = nodal_dom.bigEnd()[2];
+        int ilo = nodal_box.smallEnd()[0];
+        int ihi = nodal_box.bigEnd()[0];
+        int jlo = nodal_box.smallEnd()[1];
+        int jhi = nodal_box.bigEnd()[1];
+        int klo = nodal_box.smallEnd()[2];
+        int khi = nodal_box.bigEnd()[2];
 
-    //
-    // We must be careful not to read out of bounds of the WPS data
-    //
-    amrex::ParallelFor(z_phys_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        int ii = std::max(std::min(i,ihi-1),ilo+1);
-        int jj = std::max(std::min(j,jhi-1),jlo+1);
-        if (k < 0) {
-            Real z_klo   =  0.25 * ( nc_ph_arr (ii,jj,klo  ) +  nc_ph_arr(ii-1,jj,klo  ) + nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
-                                     nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(ii-1,jj,klo  ) + nc_phb_arr(ii,jj-1,klo  ) + nc_phb_arr(ii-1,jj-1,klo) ) / CONST_GRAV;
-            Real z_klop1 =  0.25 * ( nc_ph_arr (ii,jj,klo+1) +  nc_ph_arr(ii-1,jj,klo+1) + nc_ph_arr (ii,jj-1,klo+1) + nc_ph_arr (ii-1,jj-1,klo+1) +
-                                     nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(ii-1,jj,klo+1) + nc_phb_arr(ii,jj-1,klo+1) + nc_phb_arr(ii-1,jj-1,klo+1) ) / CONST_GRAV;
-            z_arr(i, j, k) = 2.0 * z_klo - z_klop1;
-        } else if (k > khi) {
-            Real z_khi   =  0.25 * ( nc_ph_arr (ii,jj,khi  ) + nc_ph_arr (ii-1,jj,khi  ) + nc_ph_arr (ii,jj-1,khi  ) + nc_ph_arr (ii-1,jj-1,khi) +
-                                     nc_phb_arr(ii,jj,khi  ) + nc_phb_arr(ii-1,jj,khi  ) + nc_phb_arr(ii,jj-1,khi  ) + nc_phb_arr(ii-1,jj-1,khi) ) / CONST_GRAV;
-            Real z_khim1 =  0.25 * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (ii-1,jj,khi-1) + nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
-                                     nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(ii-1,jj,khi-1) + nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
-            z_arr(i, j, k) = 2.0 * z_khi - z_khim1;
-          } else {
-            z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj,k) +  nc_ph_arr(ii-1,jj,k) +  nc_ph_arr(ii,jj-1,k) +  nc_ph_arr(ii-1,jj-1,k) +
-                                      nc_phb_arr(ii,jj,k) + nc_phb_arr(ii-1,jj,k) + nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
-        } // k
-    });
+        //
+        // We must be careful not to read out of bounds of the WPS data
+        //
+        amrex::ParallelFor(z_phys_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            int ii = std::max(std::min(i,ihi-1),ilo+1);
+            int jj = std::max(std::min(j,jhi-1),jlo+1);
+            if (k < 0) {
+                Real z_klo   =  0.25 * ( nc_ph_arr (ii,jj,klo  ) +  nc_ph_arr(ii-1,jj,klo  ) + nc_ph_arr (ii,jj-1,klo  ) + nc_ph_arr (ii-1,jj-1,klo) +
+                                         nc_phb_arr(ii,jj,klo  ) + nc_phb_arr(ii-1,jj,klo  ) + nc_phb_arr(ii,jj-1,klo  ) + nc_phb_arr(ii-1,jj-1,klo) ) / CONST_GRAV;
+                Real z_klop1 =  0.25 * ( nc_ph_arr (ii,jj,klo+1) +  nc_ph_arr(ii-1,jj,klo+1) + nc_ph_arr (ii,jj-1,klo+1) + nc_ph_arr (ii-1,jj-1,klo+1) +
+                                         nc_phb_arr(ii,jj,klo+1) + nc_phb_arr(ii-1,jj,klo+1) + nc_phb_arr(ii,jj-1,klo+1) + nc_phb_arr(ii-1,jj-1,klo+1) ) / CONST_GRAV;
+                z_arr(i, j, k) = 2.0 * z_klo - z_klop1;
+            } else if (k > khi) {
+                Real z_khi   =  0.25 * ( nc_ph_arr (ii,jj,khi  ) + nc_ph_arr (ii-1,jj,khi  ) + nc_ph_arr (ii,jj-1,khi  ) + nc_ph_arr (ii-1,jj-1,khi) +
+                                         nc_phb_arr(ii,jj,khi  ) + nc_phb_arr(ii-1,jj,khi  ) + nc_phb_arr(ii,jj-1,khi  ) + nc_phb_arr(ii-1,jj-1,khi) ) / CONST_GRAV;
+                Real z_khim1 =  0.25 * ( nc_ph_arr (ii,jj,khi-1) + nc_ph_arr (ii-1,jj,khi-1) + nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
+                                         nc_phb_arr(ii,jj,khi-1) + nc_phb_arr(ii-1,jj,khi-1) + nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
+                z_arr(i, j, k) = 2.0 * z_khi - z_khim1;
+              } else {
+                z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj,k) +  nc_ph_arr(ii-1,jj,k) +  nc_ph_arr(ii,jj-1,k) +  nc_ph_arr(ii-1,jj-1,k) +
+                                          nc_phb_arr(ii,jj,k) + nc_phb_arr(ii-1,jj,k) + nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
+            } // k
+        });
 #endif
+    } // idx
 }
 #endif // ERF_USE_NETCDF
 

@@ -70,6 +70,7 @@ amr.max_level = 1
 amr.ref_ratio_vect = 2 2 1
 amr.refinement_indicators = box1
 
+amr.box1.max_level = 1
 amr.box1.in_box_lo =  256 256
 amr.box1.in_box_hi =  768 768
 

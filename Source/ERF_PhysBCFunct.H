@@ -18,7 +18,6 @@
 #include <DataStruct.H>
 #include <PBLModels.H>
 #include <EddyViscosity.H>
-#include <ABLMost.H>
 
 #ifdef ERF_USE_TERRAIN
 #include "TerrainMetrics.H"
@@ -58,7 +57,6 @@ public:
                     const amrex::Vector<amrex::FArrayBox>& bdy_data_ylo,
                     const amrex::Vector<amrex::FArrayBox>& bdy_data_yhi,
 #endif
-                    std::unique_ptr<ABLMost>&         most,
                     std::unique_ptr<ReadBndryPlanes>& r2d)
         : m_lev(lev), m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
           m_var_idx(var_idx), m_data(data), m_bc_extdir_vals(bc_extdir_vals),
@@ -71,19 +69,8 @@ public:
           m_bdy_data_ylo(bdy_data_ylo),
           m_bdy_data_yhi(bdy_data_yhi),
 #endif
-          m_most(most), m_r2d(r2d)
-        {
-            m_has_most_bcs = false;
-            for (const auto& bcr : domain_bcs_type) {
-                for (amrex::OrientationIter oiter; oiter && !m_has_most_bcs; ++oiter) {
-                    int side = (int) oiter();
-                    if (bcr.data()[side] == static_cast<int>(ERFBCType::MOST)) {
-                        m_has_most_bcs = true;
-                    }
-                }
-                if (m_has_most_bcs) break;
-            }
-        }
+          m_r2d(r2d)
+          {}
 
     ~ERFPhysBCFunct () {}
 
@@ -116,12 +103,10 @@ private:
     int           m_var_idx;
     TimeInterpolatedData& m_data;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
-    bool m_has_most_bcs;
 #ifdef ERF_USE_TERRAIN
     const amrex::MultiFab& m_z_phys_nd;
     const amrex::MultiFab& m_detJ_cc;
 #endif
-    std::unique_ptr<ABLMost>&         m_most;
     std::unique_ptr<ReadBndryPlanes>& m_r2d;
 #ifdef ERF_USE_NETCDF
     const amrex::Vector<amrex::FArrayBox>& m_bdy_data_xlo;

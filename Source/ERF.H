@@ -217,7 +217,8 @@ public:
                              const amrex::Real time);
 
     // Copy from the NC*fabs into the MultiFabs holding the initial data
-    void init_from_wrfinput(const amrex::Box& bx,        amrex::FArrayBox& state_fab,
+    void init_from_wrfinput(int lev,
+                            const amrex::Box& bx,        amrex::FArrayBox& state_fab,
                             amrex::FArrayBox& x_vel_fab, amrex::FArrayBox& y_vel_fab,
                             amrex::FArrayBox& z_vel_fab
 #ifdef ERF_USE_TERRAIN
@@ -325,7 +326,7 @@ private:
                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
 
     // Read the netcdf wrfinput file once
-    void read_from_wrfinput();
+    void read_from_wrfinput(int lev);
 
     // Read the netcdf wrfbdy file once
     void read_from_wrfbdy();
@@ -336,11 +337,11 @@ private:
                           amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                           amrex::Vector<amrex::FArrayBox*> T_lateral);
 
-    // *** *** FArrayBox's for holding the INITIAL data
+    // *** *** Vectors (over levels) of FArrayBox's for holding the INITIAL data
     // Data read from the wrfinput NetCDF file
-    amrex::FArrayBox NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
-    amrex::FArrayBox NC_rho_fab, NC_rhotheta_fab;
-    amrex::FArrayBox NC_p_base_fab, NC_p_pert_fab;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_rho_fab, NC_rhotheta_fab;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_p_base_fab, NC_p_pert_fab;
 
     // *** *** FArrayBox's for holding the SURFACE data
     // Data read from the wrfinput NetCDF file
@@ -367,8 +368,8 @@ private:
     amrex::FArrayBox NC_T_BXS_fab, NC_T_BXE_fab, NC_T_BYS_fab, NC_T_BYE_fab; // The four lateral boundaries for potential temperature
 
 #ifdef ERF_USE_TERRAIN
-    amrex::FArrayBox NC_PH_fab;
-    amrex::FArrayBox NC_PHB_fab;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_PH_fab;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_PHB_fab;
 #endif
 #endif // ERF_USE_NETCDF
 
@@ -419,6 +420,9 @@ private:
 
     ////////////////
     // private data members
+
+    amrex::Vector<int> num_boxes_at_level;                   // how many boxes specified at each level by tagging criteria
+    amrex::Vector<amrex::Vector<amrex::Box>> boxes_at_level; //      the boxes specified at each level by tagging criteria
 
     amrex::Vector<int> istep;      // which step?
     amrex::Vector<int> nsubsteps;  // how many substeps on each level?
@@ -545,7 +549,7 @@ private:
     static std::string init_type;
 
     // NetCDF initialization (wrfinput) file
-    static std::string nc_init_file;
+    static amrex::Vector<amrex::Vector<std::string>> nc_init_file;
 
     // NetCDF initialization (wrfbdy) file
     static std::string nc_bdy_file;
@@ -598,7 +602,7 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_qc;
 #endif
 
-    static void refinement_criteria_setup();
+    void refinement_criteria_setup();
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
