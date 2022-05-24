@@ -2,8 +2,12 @@
 #define _TERRAIN_METRIC_H_
 
 #include <AMReX.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
-#include "IndexDefines.H"
+#include <IndexDefines.H>
+
+// Declaration for terrain grid initialization
+void init_terrain_grid(int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_nd);
 
 //*****************************************************************************************
 // Compute terrain metric terms at cell-center
@@ -562,5 +566,39 @@ amrex::Real WFromOmegaBC(int i, int j, int k, amrex::Real omega,
 
   amrex::Real w = met_zlo_xi * vec_zlo_xi + met_zlo_eta * vec_zlo_eta + omega;
   return w;
+}
+
+//*****************************************************************************************
+// Compute detJ & z_phys at cell-center
+//*****************************************************************************************
+inline
+void make_metrics(amrex::Geometry& geom,
+                  amrex::MultiFab& z_phys_nd,
+                  amrex::MultiFab& z_phys_cc,
+                  amrex::MultiFab& detJ_cc)
+{
+    auto dx = geom.CellSize();
+    amrex::Real dzInv = 1.0/dx[2];
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( amrex::MFIter mfi(z_phys_cc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        const amrex::Box& gbx = mfi.growntilebox(1);
+        amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
+        amrex::Array4<amrex::Real      > z_cc = z_phys_cc.array(mfi);
+        amrex::Array4<amrex::Real      > detJ = detJ_cc.array(mfi);
+        amrex::ParallelFor(gbx, [=]
+           AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+               z_cc(i, j, k) = .125 * (
+                       z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
+                      +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
+               detJ(i, j, k) = .25 * dzInv * (
+                       z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
+                      -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
+               });
+    }
+    detJ_cc.FillBoundary(geom.periodicity());
 }
 #endif
