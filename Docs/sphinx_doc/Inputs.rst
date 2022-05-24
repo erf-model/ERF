@@ -848,7 +848,7 @@ Currently, ERF has 2 methods of controlling the terrain-fitted coordinates:
     The influence of the terrain decreases linearly with height.
 - Smoothed Terrain Following (STF):
     Small-scale terrain structures are progressively smoothed out of the coordinate system as height increases.
-    
+
 List of Parameters
 ------------------
 

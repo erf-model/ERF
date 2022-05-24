@@ -10,7 +10,33 @@ using namespace amrex;
 
 ProbParm parms;
 
-#ifndef ERF_USE_TERRAIN
+#ifdef ERF_USE_TERRAIN
+void
+erf_init_dens_hse(amrex::MultiFab& rho_hse,
+                  const amrex::MultiFab& z_phys_nd,
+                  const amrex::MultiFab& z_phys_cc,
+                  amrex::Geometry const& geom)
+{
+    Print() << "Fill this up as desired...Needed for linking" << std::endl;
+}
+void
+init_custom_prob(
+        const amrex::Box& bx,
+        amrex::Array4<amrex::Real> const& state,
+        amrex::Array4<amrex::Real> const& x_vel,
+        amrex::Array4<amrex::Real> const& y_vel,
+        amrex::Array4<amrex::Real> const& z_vel,
+        amrex::Array4<amrex::Real> const& r_hse,
+        amrex::Array4<amrex::Real> const& p_hse,
+        amrex::Array4<amrex::Real const> const& z_nd,
+        amrex::Array4<amrex::Real const> const& z_cc,
+        amrex::GeometryData const& geomdata)
+{
+    Print() << "Fill this up as desired...Needed for linking" << std::endl;
+}
+
+#else //ERF_USE_TERRAIN = FALSE
+
 void
 init_isentropic_hse(const Real& r_sfc, const Real& theta,
                           Real* r,           Real* p,
@@ -227,7 +253,8 @@ init_custom_prob(
 
   amrex::Gpu::streamSynchronize();
 }
-#endif
+
+#endif //ERF_USE_TERRAIN
 
 void
 erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
