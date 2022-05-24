@@ -32,6 +32,7 @@ void add_par () {
 
    pp.add("max_grid_size",2048);
    pp.add("blocking_factor",1);
+   pp.add("n_error_buf",0);
 }
 
 int main(int argc, char* argv[])

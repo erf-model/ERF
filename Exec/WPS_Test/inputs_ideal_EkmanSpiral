@@ -58,7 +58,6 @@ prob.T_0 = 300.0
 
 # INITIALIZATION WITH ATM DATA
 erf.init_type = "ideal"
-erf.nc_init_file = "wrfinput_d01"
-#erf.nc_init_file = "/home/pkjha/Desktop/netcdf_files/ideal_output_ekman/wrfinput_d01"
+erf.nc_init_file_0 = "wrfinput_d01"
 
 FILE = ./inputs.time_integration

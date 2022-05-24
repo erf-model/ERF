@@ -116,7 +116,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 #ifdef ERF_USE_NETCDF
                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                                  m_most, m_r2d);
+                                  m_r2d);
             amrex::FillPatchSingleLevel(mf, time, smf, ftime, 0, icomp, ncomp,
                                         geom[lev], physbc, bccomp);
         }
@@ -135,7 +135,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 #ifdef ERF_USE_NETCDF
                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                                   m_most, m_r2d);
+                                   m_r2d);
             ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
                                    m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
@@ -144,7 +144,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 #ifdef ERF_USE_NETCDF
                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                                   m_most, m_r2d);
+                                   m_r2d);
 
             amrex::FillPatchTwoLevels(mf, time, cmf, ctime, fmf, ftime,
                                       0, icomp, ncomp, geom[lev-1], geom[lev],
@@ -156,6 +156,8 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
     //
     // It is important that we apply the MOST bcs after we have imposed all the others
     //    so that we have enough information in the ghost cells to calculate the viscosity
+    // Note that we don't test on the BCRec's for these variables because those have been set
+    //      to match those of no-slip-wall in order to fill values before computing viscosity
     //
     if (m_most)
     {
@@ -257,7 +259,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 #ifdef ERF_USE_NETCDF
                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                                   m_most, m_r2d);
+                                   m_r2d);
 
             amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
                                         geom[lev], physbc, bccomp);
@@ -280,7 +282,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 #ifdef ERF_USE_NETCDF
                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                                   m_most, m_r2d);
+                                   m_r2d);
             ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
                                   m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
@@ -289,7 +291,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 #ifdef ERF_USE_NETCDF
                                    bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                                   m_most, m_r2d);
+                                   m_r2d);
 
             amrex::FillPatchTwoLevels(mf_temp, time, cmf, ctime, fmf, ftime,
                                     0, icomp, ncomp, geom[lev-1], geom[lev],
@@ -385,7 +387,7 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
 #ifdef ERF_USE_NETCDF
                            bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                           m_most, m_r2d);
+                           m_r2d);
     ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
                            m_bc_extdir_vals,
 #ifdef ERF_USE_TERRAIN
@@ -394,7 +396,7 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
 #ifdef ERF_USE_NETCDF
                            bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                           m_most, m_r2d);
+                           m_r2d);
 
     amrex::InterpFromCoarseLevel(mf, time, *cmf[0], 0, icomp, ncomp, geom[lev-1], geom[lev],
                                     cphysbc, 0, fphysbc, 0, refRatio(lev-1),

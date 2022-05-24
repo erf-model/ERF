@@ -65,19 +65,6 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                     //      0 is used as starting index for bcrs
                     amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
-                    // Set bc-type at low z to reflect_odd for all vels when using MOST BCs
-                    if (m_most)
-                    {
-                        for (int i = 0; i < bcrs.size(); i++) {
-                        // ori = 2 is the zlo side
-                        if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom ||
-                            m_var_idx == Vars::yvel || m_var_idx == Vars::ymom ||
-                            m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) {
-                                bcrs[i].setLo(2, ERFBCType::reflect_odd);
-                            } // if
-                        } // bcrs
-                    } // if most
-
                     // Call the default fill functions
                     //! Note that we pass 0 as starting component of bcrs.
                     GpuBndryFuncFab<NullFill> bndry_fill_cc_fc_nd(NullFill{});

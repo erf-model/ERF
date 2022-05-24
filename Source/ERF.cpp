@@ -51,8 +51,8 @@ std::string ERF::plotfile_type    = "amrex";
 // init_type:  "custom", "ideal", "real", "input_sounding"
 std::string ERF::init_type        = "custom";
 
-// NetCDF wrfinput (initialization) file
-std::string ERF::nc_init_file = ""; // Must provide via input
+// NetCDF wrfinput (initialization) file(s)
+amrex::Vector<amrex::Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
 
 // NetCDF wrfbdy (lateral boundary) file
 std::string ERF::nc_bdy_file = ""; // Must provide via input
@@ -134,14 +134,6 @@ ERF::ERF ()
         vars_new[lev].resize(Vars::NumTypes);
         vars_old[lev].resize(Vars::NumTypes);
     }
-
-#ifdef ERF_USE_TERRAIN
-    z_phys_nd.resize(nlevs_max);
-    z_phys_cc.resize(nlevs_max);
-    detJ_cc.resize(nlevs_max);
-    dens_hse.resize(nlevs_max);
-    pres_hse.resize(nlevs_max);
-#endif
 
     flux_registers.resize(nlevs_max);
 
@@ -319,12 +311,12 @@ ERF::InitData ()
     if (restart_chkfile == "") {
         // start simulation from the beginning
 
+        const Real time = 0.0;
+        InitFromScratch(time);
+
         // For now we initialize rho_KE to 0
         for (int lev = finest_level-1; lev >= 0; --lev)
             vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
-
-        const Real time = 0.0;
-        InitFromScratch(time);
 
 #ifdef ERF_USE_TERRAIN
         for (int lev = 0; lev <= finest_level; lev++)
@@ -387,6 +379,16 @@ ERF::InitData ()
 
     initHSE();
 
+    // Configure ABLMost params if used MostWall boundary condition
+    // NOTE: we must set up the MOST routine before calling WritePlotFile because
+    //       WritePlotFile calls FillPatch in order to compute gradients
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == BC::MOST)
+    {
+        m_most = std::make_unique<ABLMost>(geom);
+        for (int lev = 0; lev <= finest_level; lev++)
+            setupABLMost(lev);
+    }
+
     if (plot_int > 0)
     {
         if ( (restart_chkfile == "") ||
@@ -416,14 +418,6 @@ ERF::InitData ()
         if (time >= bndry_output_planes_start_time) {
             m_w2d->write_planes(0, time, vars_new);
         }
-    }
-
-    // configure ABLMost params if used MostWall boundary condition
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == BC::MOST)
-    {
-        m_most = std::make_unique<ABLMost>(geom);
-        for (int lev = 0; lev <= finest_level; lev++)
-            setupABLMost(lev);
     }
 
     // Fill ghost cells/faces
@@ -568,6 +562,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
 #ifdef ERF_USE_TERRAIN
+    z_phys_nd.resize(lev+1);
+    z_phys_cc.resize(lev+1);
+    detJ_cc.resize(lev+1);
+    dens_hse.resize(lev+1);
+    pres_hse.resize(lev+1);
+
     pres_hse[lev].define(ba,dm,1,1);
     dens_hse[lev].define(ba,dm,1,1);
     z_phys_cc[lev].define(ba,dm,1,1);
@@ -576,6 +576,19 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     BoxArray ba_nd(ba);
     ba_nd.surroundingNodes();
     z_phys_nd[lev].define(ba_nd,dm,1,1);
+#endif
+
+#ifdef ERF_USE_NETCDF
+    NC_xvel_fab.resize(lev+1);
+    NC_yvel_fab.resize(lev+1);
+    NC_zvel_fab.resize(lev+1);
+    NC_rho_fab.resize(lev+1);
+    NC_rhotheta_fab.resize(lev+1);
+
+#ifdef ERF_USE_TERRAIN
+    NC_PH_fab.resize(lev+1);
+    NC_PHB_fab.resize(lev+1);
+#endif
 #endif
 }
 
@@ -592,20 +605,23 @@ ERF::init_only(int lev, Real time)
                 amrex::Error("input_sounding file name must be provided via input");
             input_sounding_data.read_from_file(input_sounding_file);
         }
+    }
 
 #ifdef ERF_USE_NETCDF
-        if (init_type == "ideal" || init_type == "real") {
-            if (nc_init_file.empty())
-                amrex::Error("NetCDF initialization file name must be provided via input");
-            read_from_wrfinput();
+     // Note that we read the initial data at all the levels
+    if (init_type == "ideal" || init_type == "real") {
+        if (nc_init_file.size() == 0)
+            amrex::Error("NetCDF initialization file name must be provided via input");
+        read_from_wrfinput(lev);
         }
-        if (init_type == "real") {
+    if (lev == 0) {
+        if (init_type == "real" && (!geom[0].isPeriodic(0) || !geom[0].isPeriodic(1))) {
             if (nc_bdy_file.empty())
                 amrex::Error("NetCDF boundary file name must be provided via input");
             //read_from_wrfbdy(); // TODO: Uncomment after it's working correctly
         }
-#endif //ERF_USE_NETCDF
     }
+#endif //ERF_USE_NETCDF
 
     auto& lev_new = vars_new[lev];
 
@@ -664,7 +680,7 @@ ERF::init_only(int lev, Real time)
 
 #ifdef ERF_USE_TERRAIN
           FArrayBox& z_phys_nd_fab = z_phys_nd[lev][mfi];
-          init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab,
+          init_from_wrfinput(lev, bx, cons_fab, xvel_fab, yvel_fab, zvel_fab,
                              z_phys_nd_fab);
 #else
           init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
@@ -752,27 +768,6 @@ ERF::ReadParameters ()
         AMREX_ASSERT(cfl > 0. || fixed_dt > 0.);
     }
 
-    {  // How to initialize
-        ParmParse pp("erf");
-        pp.query("init_type",init_type);
-        if (init_type != "custom" &&
-            init_type != "ideal" &&
-            init_type != "real" &&
-            init_type != "input_sounding")
-        {
-            amrex::Error("init_type must be custom, ideal, real, or input_sounding");
-        }
-
-        // NetCDF wrfinput initialization file
-        pp.query("nc_init_file", nc_init_file);
-
-        // NetCDF wrfbdy lateral boundary file
-        pp.query("nc_bdy_file", nc_bdy_file);
-
-        // Text input_sounding file
-        pp.query("input_sounding_file", input_sounding_file);
-    }
-
     {  // Mesh refinement
 
         ParmParse pp("erf");
@@ -790,6 +785,51 @@ ERF::ReadParameters ()
         } else {
             amrex::Error("Unknown coupling type");
         }
+    }
+
+    {  // How to initialize
+        ParmParse pp("erf");
+        pp.query("init_type",init_type);
+        if (init_type != "custom" &&
+            init_type != "ideal" &&
+            init_type != "real" &&
+            init_type != "input_sounding")
+        {
+            amrex::Error("init_type must be custom, ideal, real, or input_sounding");
+        }
+
+        // We use this to keep track of how many boxes we read in from WRF initialization
+        num_boxes_at_level.resize(max_level+1,0);
+            boxes_at_level.resize(max_level+1);
+
+        // We always have exactly one file at level 0
+        num_boxes_at_level[0] = 1;
+
+#ifdef ERF_USE_NETCDF
+        nc_init_file.resize(max_level+1);
+
+        // NetCDF wrfinput initialization files -- possibly multiple files at each of multiple levels
+        //        but we always have exactly one file at level 0
+        for (int i = 0; i <= max_level; i++)
+        {
+            const std::string nc_file_names = amrex::Concatenate("nc_init_file_",i,1);
+            if (pp.contains(nc_file_names.c_str()))
+            {
+                int num_files = pp.countval(nc_file_names.c_str());
+                num_boxes_at_level[i] = num_files;
+                nc_init_file[i].resize(num_files);
+                pp.queryarr(nc_file_names.c_str(), nc_init_file[i],0,num_files);
+                for (int j = 0; j < num_files; j++)
+                    amrex::Print() << "Reading NC init file at level " << i << " and index " << j << " : " << nc_init_file[i][j] << std::endl;
+            }
+        }
+
+        // NetCDF wrfbdy lateral boundary file
+        pp.query("nc_bdy_file", nc_bdy_file);
+#endif
+
+        // Text input_sounding file
+        pp.query("input_sounding_file", input_sounding_file);
     }
 
     {  // Output format
@@ -967,129 +1007,154 @@ ERF::setupABLMost (int lev)
 
 #ifdef ERF_USE_NETCDF
 void
-ERF::read_from_wrfinput()
+ERF::read_from_wrfinput(int lev)
 {
-    auto domain = geom[0].Domain();
+    Box input_box;
 
-    // We allocate these here so they exist on all ranks
-    Box ubx(domain); ubx.surroundingNodes(0);
-    Box vbx(domain); vbx.surroundingNodes(1);
-    Box wbx(domain); wbx.surroundingNodes(2);
-
-    NC_xvel_fab.resize(ubx,1);
-    NC_yvel_fab.resize(vbx,1);
-    NC_zvel_fab.resize(wbx,1);
-    NC_rho_fab.resize(domain,1);
-    NC_rhotheta_fab.resize(domain,1);
+    NC_xvel_fab[lev].resize(num_boxes_at_level[lev]);
+    NC_yvel_fab[lev].resize(num_boxes_at_level[lev]);
+    NC_zvel_fab[lev].resize(num_boxes_at_level[lev]);
+    NC_rho_fab[lev].resize(num_boxes_at_level[lev]);
+    NC_rhotheta_fab[lev].resize(num_boxes_at_level[lev]);
 
 #ifdef ERF_USE_TERRAIN
-    NC_PH_fab.resize(wbx,1);
-    NC_PHB_fab.resize(wbx,1);
+    NC_PH_fab[lev].resize(num_boxes_at_level[lev]);
+    NC_PHB_fab[lev].resize(num_boxes_at_level[lev]);
+#endif
+
+    for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
+    {
+        if (lev == 0) {
+            input_box = geom[0].Domain();
+        } else {
+            input_box = boxes_at_level[lev][idx];
+        }
+
+        // We allocate these here so they exist on all ranks
+        Box ubx(input_box); ubx.surroundingNodes(0);
+        Box vbx(input_box); vbx.surroundingNodes(1);
+        Box wbx(input_box); wbx.surroundingNodes(2);
+
+        NC_xvel_fab[lev][idx].resize(ubx,1);
+        NC_yvel_fab[lev][idx].resize(vbx,1);
+        NC_zvel_fab[lev][idx].resize(wbx,1);
+        NC_rho_fab[lev][idx].resize(input_box,1);
+        NC_rhotheta_fab[lev][idx].resize(input_box,1);
+
+#ifdef ERF_USE_TERRAIN
+        NC_PH_fab[lev][idx].resize(wbx,1);
+        NC_PHB_fab[lev][idx].resize(wbx,1);
 #endif
 
 #ifdef AMREX_USE_GPU
-    FArrayBox host_NC_xvel_fab(NC_xvel_fab.box(), NC_xvel_fab.nComp(),amrex::The_Pinned_Arena());
-    FArrayBox host_NC_yvel_fab(NC_yvel_fab.box(), NC_yvel_fab.nComp(),amrex::The_Pinned_Arena());
-    FArrayBox host_NC_zvel_fab(NC_zvel_fab.box(), NC_zvel_fab.nComp(),amrex::The_Pinned_Arena());
-    FArrayBox host_NC_rho_fab (NC_rho_fab.box(), NC_rho_fab.nComp(),amrex::The_Pinned_Arena());
-    FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab.box(), NC_rhotheta_fab.nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_xvel_fab   (NC_xvel_fab[lev][idx].box(),     NC_xvel_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_yvel_fab   (NC_yvel_fab[lev][idx].box(),     NC_yvel_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_zvel_fab   (NC_zvel_fab[lev][idx].box(),     NC_zvel_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_rho_fab    (NC_rho_fab[lev][idx].box(),      NC_rho_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+       FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab[lev][idx].box(), NC_rhotheta_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
 #ifdef ERF_USE_TERRAIN
-    FArrayBox host_NC_PH_fab(NC_PH_fab.box(), NC_PH_fab.nComp(),amrex::The_Pinned_Arena());
-    FArrayBox host_NC_PHB_fab(NC_PHB_fab.box(), NC_PHB_fab.nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_PH_fab (NC_PH_fab[lev][idx].box(),  NC_PH_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_PHB_fab(NC_PHB_fab[lev][idx].box(), NC_PHB_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
 #endif
 #else
-    FArrayBox host_NC_xvel_fab    (NC_xvel_fab    , amrex::make_alias, 0, NC_xvel_fab.nComp());
-    FArrayBox host_NC_yvel_fab    (NC_yvel_fab    , amrex::make_alias, 0, NC_yvel_fab.nComp());
-    FArrayBox host_NC_zvel_fab    (NC_zvel_fab    , amrex::make_alias, 0, NC_zvel_fab.nComp());
-    FArrayBox host_NC_rho_fab     (NC_rho_fab     , amrex::make_alias, 0, NC_rho_fab.nComp());
-    FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab, amrex::make_alias, 0, NC_rhotheta_fab.nComp());
+        FArrayBox host_NC_xvel_fab    (NC_xvel_fab[lev][idx]    , amrex::make_alias, 0, NC_xvel_fab[lev][idx].nComp());
+        FArrayBox host_NC_yvel_fab    (NC_yvel_fab[lev][idx]    , amrex::make_alias, 0, NC_yvel_fab[lev][idx].nComp());
+        FArrayBox host_NC_zvel_fab    (NC_zvel_fab[lev][idx]    , amrex::make_alias, 0, NC_zvel_fab[lev][idx].nComp());
+        FArrayBox host_NC_rho_fab     (NC_rho_fab[lev][idx]     , amrex::make_alias, 0, NC_rho_fab[lev][idx].nComp());
+        FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab[lev][idx], amrex::make_alias, 0, NC_rhotheta_fab[lev][idx].nComp());
 #ifdef ERF_USE_TERRAIN
-    FArrayBox host_NC_PH_fab      (NC_PH_fab      , amrex::make_alias, 0, NC_PH_fab.nComp());
-    FArrayBox host_NC_PHB_fab     (NC_PHB_fab     , amrex::make_alias, 0, NC_PHB_fab.nComp());
+        FArrayBox host_NC_PH_fab      (NC_PH_fab[lev][idx]      , amrex::make_alias, 0, NC_PH_fab[lev][idx].nComp());
+        FArrayBox host_NC_PHB_fab     (NC_PHB_fab[lev][idx]     , amrex::make_alias, 0, NC_PHB_fab[lev][idx].nComp());
 #endif
 #endif
 
-    if (ParallelDescriptor::IOProcessor())
-    {
-        Vector<FArrayBox*> NC_fabs;
-        Vector<std::string> NC_names;
-        Vector<enum NC_Data_Dims_Type> NC_dim_types;
+        if (ParallelDescriptor::IOProcessor())
+        {
+            Vector<FArrayBox*> NC_fabs;
+            Vector<std::string> NC_names;
+            Vector<enum NC_Data_Dims_Type> NC_dim_types;
 
-        NC_fabs.push_back(&host_NC_xvel_fab);     NC_names.push_back("U");
-        NC_fabs.push_back(&host_NC_yvel_fab);     NC_names.push_back("V");
-        NC_fabs.push_back(&host_NC_zvel_fab);     NC_names.push_back("W");
-        NC_fabs.push_back(&host_NC_rho_fab);      NC_names.push_back("ALB");
-        NC_fabs.push_back(&host_NC_rhotheta_fab); NC_names.push_back("T_INIT");
+            NC_fabs.push_back(&host_NC_xvel_fab);     NC_names.push_back("U");
+            NC_fabs.push_back(&host_NC_yvel_fab);     NC_names.push_back("V");
+            NC_fabs.push_back(&host_NC_zvel_fab);     NC_names.push_back("W");
+            NC_fabs.push_back(&host_NC_rho_fab);      NC_names.push_back("ALB");
+            NC_fabs.push_back(&host_NC_rhotheta_fab); NC_names.push_back("T_INIT");
 
-        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 
 #ifdef ERF_USE_TERRAIN
-        NC_fabs.push_back(&host_NC_PH_fab);  NC_names.push_back("PH");
-        NC_fabs.push_back(&host_NC_PHB_fab); NC_names.push_back("PHB");
+            NC_fabs.push_back(&host_NC_PH_fab);  NC_names.push_back("PH");
+            NC_fabs.push_back(&host_NC_PHB_fab); NC_names.push_back("PHB");
 
-        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 #endif
 
-        // Read the netcdf file and fill these FABs
-        BuildFABsFromWRFInputFile(nc_init_file, NC_names, NC_fabs, NC_dim_types);
+            // Read the netcdf file and fill these FABs
+            // NOTE: right now we are hard-wired to one "domain" per level -- but that can be generalized
+            //       once we know how to determine the level for each input file
+            BuildFABsFromWRFInputFile(nc_init_file[lev][idx], NC_names, NC_fabs, NC_dim_types);
 
-    } // if ParalleDescriptor::IOProcessor()
+        } // if ParalleDescriptor::IOProcessor()
 
-    // We put a barrier here so the rest of the processors wait to do anything until they have the data
-    amrex::ParallelDescriptor::Barrier();
+        // We put a barrier here so the rest of the processors wait to do anything until they have the data
+        amrex::ParallelDescriptor::Barrier();
 
-    // When an FArrayBox is built, space is allocated on every rank.  However, we only
-    //    filled the data in these FABs on the IOProcessor.  So here we broadcast
-    //    the data to every rank.
+        // When an FArrayBox is built, space is allocated on every rank.  However, we only
+        //    filled the data in these FABs on the IOProcessor.  So here we broadcast
+        //    the data to every rank.
 
-    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
-    ParallelDescriptor::Bcast(host_NC_xvel_fab.dataPtr(),NC_xvel_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(host_NC_yvel_fab.dataPtr(),NC_yvel_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(host_NC_zvel_fab.dataPtr(),NC_zvel_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(host_NC_rho_fab.dataPtr(),NC_rho_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(host_NC_rhotheta_fab.dataPtr(),NC_rhotheta_fab.box().numPts(),ioproc);
+        int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+        ParallelDescriptor::Bcast(host_NC_xvel_fab.dataPtr(),NC_xvel_fab[lev][idx].box().numPts(),ioproc);
+        ParallelDescriptor::Bcast(host_NC_yvel_fab.dataPtr(),NC_yvel_fab[lev][idx].box().numPts(),ioproc);
+        ParallelDescriptor::Bcast(host_NC_zvel_fab.dataPtr(),NC_zvel_fab[lev][idx].box().numPts(),ioproc);
+        ParallelDescriptor::Bcast(host_NC_rho_fab.dataPtr(),NC_rho_fab[lev][idx].box().numPts(),ioproc);
+        ParallelDescriptor::Bcast(host_NC_rhotheta_fab.dataPtr(),NC_rhotheta_fab[lev][idx].box().numPts(),ioproc);
 #ifdef ERF_USE_TERRAIN
-    ParallelDescriptor::Bcast(host_NC_PHB_fab.dataPtr(),NC_PHB_fab.box().numPts(),ioproc);
-    ParallelDescriptor::Bcast(host_NC_PH_fab.dataPtr() ,NC_PH_fab.box().numPts() ,ioproc);
+        ParallelDescriptor::Bcast(host_NC_PHB_fab.dataPtr(),NC_PHB_fab[lev][idx].box().numPts(),ioproc);
+        ParallelDescriptor::Bcast(host_NC_PH_fab.dataPtr() ,NC_PH_fab[lev][idx].box().numPts() ,ioproc);
 #endif
 
 #ifdef AMREX_USE_GPU
-     Gpu::copy(Gpu::hostToDevice, host_NC_xvel_fab.dataPtr(), host_NC_xvel_fab.dataPtr()+host_NC_xvel_fab.size(),
-                                       NC_xvel_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_yvel_fab.dataPtr(), host_NC_yvel_fab.dataPtr()+host_NC_yvel_fab.size(),
-                                       NC_yvel_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_zvel_fab.dataPtr(), host_NC_zvel_fab.dataPtr()+host_NC_zvel_fab.size(),
-                                       NC_zvel_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_rho_fab.dataPtr(), host_NC_rho_fab.dataPtr()+host_NC_rho_fab.size(),
-                                       NC_rho_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_rhotheta_fab.dataPtr(), host_NC_rhotheta_fab.dataPtr()+host_NC_rhotheta_fab.size(),
-                                       NC_rhotheta_fab.dataPtr());
+         Gpu::copy(Gpu::hostToDevice, host_NC_xvel_fab.dataPtr(), host_NC_xvel_fab.dataPtr()+host_NC_xvel_fab.size(),
+                                           NC_xvel_fab[lev][idx].dataPtr());
+         Gpu::copy(Gpu::hostToDevice, host_NC_yvel_fab.dataPtr(), host_NC_yvel_fab.dataPtr()+host_NC_yvel_fab.size(),
+                                           NC_yvel_fab[lev][idx].dataPtr());
+         Gpu::copy(Gpu::hostToDevice, host_NC_zvel_fab.dataPtr(), host_NC_zvel_fab.dataPtr()+host_NC_zvel_fab.size(),
+                                           NC_zvel_fab[lev][idx].dataPtr());
+         Gpu::copy(Gpu::hostToDevice, host_NC_rho_fab.dataPtr(), host_NC_rho_fab.dataPtr()+host_NC_rho_fab.size(),
+                                           NC_rho_fab[lev][idx].dataPtr());
+         Gpu::copy(Gpu::hostToDevice, host_NC_rhotheta_fab.dataPtr(), host_NC_rhotheta_fab.dataPtr()+host_NC_rhotheta_fab.size(),
+                                           NC_rhotheta_fab[lev][idx].dataPtr());
 #ifdef ERF_USE_TERRAIN
-     Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(),
-                                       NC_PH_fab.dataPtr());
-     Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(),
-                                       NC_PHB_fab.dataPtr());
+         Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(),
+                                           NC_PH_fab[lev][idx].dataPtr());
+         Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(),
+                                           NC_PHB_fab[lev][idx].dataPtr()); #endif
 #endif
 #endif
 
-    // Convert to rho by inverting
-    NC_rho_fab.template invert<RunOn::Device>(1.0);
+        // Convert to rho by inverting
+        NC_rho_fab[lev][idx].template invert<RunOn::Device>(1.0);
 
-    // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
-    const Real theta_ref = 300.0;
-    NC_rhotheta_fab.template plus<RunOn::Device>(theta_ref);
+        // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
+        const Real theta_ref = 300.0;
+        NC_rhotheta_fab[lev][idx].template plus<RunOn::Device>(theta_ref);
 
-    // Now multiply by rho to get (rho theta) instead of theta
-    NC_rhotheta_fab.template mult<RunOn::Device>(NC_rho_fab,0,0,1);
+        // Now multiply by rho to get (rho theta) instead of theta
+        NC_rhotheta_fab[lev][idx].template mult<RunOn::Device>(NC_rho_fab[lev][idx],0,0,1);
 
-    amrex::Print() << "Successfully loaded data from the wrfinput (output of 'ideal.exe' / 'real.exe') NetCDF file" << std::endl << std::endl;
+        amrex::Print() <<
+          "Successfully loaded data from the wrfinput (output of 'ideal.exe' / 'real.exe') NetCDF file at level " << lev << std::endl;
+    } // idx
 }
+#endif
 
+#ifdef ERF_USE_NETCDF
 void
 ERF::read_from_wrfbdy()
 {

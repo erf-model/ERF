@@ -199,8 +199,8 @@ void erf_slow_rhs (int level,
         const Array4<Real> & pp_arr  = pprime.array(mfi);
         if (rhs_vars != RHSVar::slow) {
             amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e \n",
-                    i,j,k,cell_data(i,j,k,RhoTheta_comp));
+                if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
+                    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
                 AMREX_ALWAYS_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
 #ifdef ERF_USE_TERRAIN
                pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
