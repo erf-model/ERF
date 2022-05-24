@@ -46,10 +46,10 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
                   amrex::Vector<amrex::Real>& /*thetabar*/,
                   amrex::Geometry      const& /*geom*/)
 {
-   amrex::Error("Should never get here for Ekman Spiral problem");
+   amrex::Error("Should never get here for WPS tests problem");
 }
 
-// Shoudln't we get rid of this function when initializing with real atm data?
+// Shouldn't we get rid of this function when initializing with real atm data?
 ///*
 void
 init_custom_prob(

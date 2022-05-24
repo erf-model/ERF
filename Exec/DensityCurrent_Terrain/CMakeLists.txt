@@ -1,4 +1,4 @@
-set(erf_exe_name density_current)
+set(erf_exe_name density_current_terrain)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
