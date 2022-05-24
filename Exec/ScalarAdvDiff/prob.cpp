@@ -68,7 +68,7 @@ init_custom_prob(
 #endif
   amrex::GeometryData const& geomdata)
 {
-  amrex::Print() << "HERE DOING INIT " << bx << std::endl;
+  //amrex::Print() << "HERE DOING INIT " << bx << std::endl;
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
     const amrex::Real* prob_lo = geomdata.ProbLo();

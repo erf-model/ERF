@@ -25,9 +25,9 @@ ERF::init_ideal_terrain(int lev)
         const amrex::Box& vbx = mfi.validbox();
         amrex::Box xybx = vbx;
         xybx.setRange(2,0);
-        
+
         amrex::Array4<amrex::Real> const& z_arr = z_phys_nd[lev].array(mfi);
-        
+
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
             // Location of nodes

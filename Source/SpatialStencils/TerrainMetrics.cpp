@@ -15,11 +15,11 @@ void terrain_fill_domain_bndry_XY(      int &i,          int &j,    const int &k
     // YZ plane ghost cells (zero gradient)
     if(i==imin) dst(i-1,j,k) = src;
     if(i==imax) dst(i+1,j,k) = src;
-    
+
     // XZ plane ghost cells (zero gradient)
     if(j==jmin) dst(i,j-1,k) = src;
     if(j==jmax) dst(i,j+1,k) = src;
-    
+
     // Corner cells along z
     if(i==imin && j==jmin) dst(i-1,j-1,k) = src;
     if(i==imax && j==jmax) dst(i+1,j+1,k) = src;
@@ -29,6 +29,10 @@ void terrain_fill_domain_bndry_XY(      int &i,          int &j,    const int &k
 
 //*****************************************************************************************
 // Compute the terrain grid from BTF or STF model
+//
+// NOTE: Multilevel is not yet working for either of these terrain-following coordinates,
+//       but (we think) the issue is deep in ERF and this code will work once the deeper
+//       problem is fixed. For now, make sure to run on a single level. -mmsanders
 //*****************************************************************************************
 void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_nd)
 {
@@ -42,14 +46,14 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
   int imin = dbx.smallEnd(0); int imax = dbx.bigEnd(0) + 1;
   int jmin = dbx.smallEnd(1); int jmax = dbx.bigEnd(1) + 1;
   int kmin = dbx.smallEnd(2); int kmax = dbx.bigEnd(2) + 1;
-  
+
   // User-selected method from inputs file (BTF default)
   amrex::ParmParse pp("erf");
   int terrain_smoothing = 0;
   pp.query("terrain_smoothing", terrain_smoothing);
 
   switch(terrain_smoothing) {
-    case 0: /* BTF Method */
+    case 0: // BTF Method
     {
       //********************************************************************************
       // Populate z_nd in valid box and account for domain boundary cells (zero grad).
@@ -57,7 +61,7 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
       //********************************************************************************
       int k0 = 0;
       amrex::Real ztop = ProbHiArr[2];
-      
+
       // WoA terms to compute ghost cell values
       amrex::Real a = 0.5;
       amrex::Real num = 8 * a * a * a;
@@ -85,7 +89,7 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
           }
           else
               xybx = vbx;
-          
+
           ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
               // Location of nodes
@@ -99,11 +103,11 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
               // YZ plane ghost cells
               if(i<limin) z_arr(i,j,k) = height;
               if(i>limax) z_arr(i,j,k) = height;
-    
-              // XZ plane ghost cells 
+
+              // XZ plane ghost cells
               if(j<ljmin) z_arr(i,j,k) = height;
               if(j>ljmax) z_arr(i,j,k) = height;
-    
+
               // Corner cells along z
               if(i<limin && j<ljmin) z_arr(i,j,k) = height;
               if(i>limax && j>ljmax) z_arr(i,j,k) = height;
@@ -115,12 +119,12 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
 
               // Fill boundary cells if needed
               if(bxflag || byflag) terrain_fill_domain_bndry_XY(i, j, k, limin, ljmin, limax, ljmax, z_arr(i,j,k), z_arr);
-                              
+
           });
         }
         break;
     }
-    
+
     case 1: // STF Method
     {
         // Get Multifab spanning domain with 1 level of ghost cells
@@ -147,7 +151,7 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
             int ljmin = vbx.smallEnd(1); int ljmax = vbx.bigEnd(1);
             int bxflag  = (limin == imin || limax == imax) ? 1 : 0;
             int byflag  = (ljmin == jmin || ljmax == jmax) ? 1 : 0;
-            
+
             ParallelFor(xybx, [=,&max_h] AMREX_GPU_DEVICE (int i, int j, int) {
 
                 // Populate h with terrain
@@ -270,7 +274,7 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
                 int ljmin = vbx.smallEnd(1); int ljmax = vbx.bigEnd(1);
                 int bxflag  = (limin == imin || limax == imax) ? 1 : 0;
                 int byflag  = (ljmin == jmin || ljmax == jmax) ? 1 : 0;
-                
+
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
                     // Location of nodes
@@ -293,15 +297,15 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
   } //switch
 
   // Fill ghost layers and corners
-  z_phys_nd.FillBoundary(geom.periodicity()); 
+  z_phys_nd.FillBoundary(geom.periodicity());
 
   //********************************************************************************
   // Populate domain boundary cells in z-direction
-  //******************************************************************************** 
+  //********************************************************************************
   for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
        // Only loop the XY-plane of grown box
-       const amrex::Box& vbx = mfi.growntilebox(1);    
+       const amrex::Box& vbx = mfi.growntilebox(1);
        amrex::Box xybx = vbx;
        xybx.setRange(2,0);
        amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
@@ -325,12 +329,12 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
 
        int rank = 0;
        amrex::Print(rank) << gbx << "\n";
-       
+
        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
            amrex::Print(rank) << amrex::IntVect(i,j,k) << "\n";
            amrex::Print(rank) << z_arr(i,j,k) << "\n";
            amrex::Print(rank) << "\n";
        });
    }
-  */  
+  */
 }
