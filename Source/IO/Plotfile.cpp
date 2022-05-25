@@ -338,26 +338,47 @@ ERF::WritePlotFile ()
 #endif
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 #ifdef ERF_USE_TERRAIN
+                    // Pgrad at lower I face
                     Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
                     ComputeMetricAtIface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_xi_zeta);
                     Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
-                    Real gp_zeta_on_iface_lo = (k == 0) ?
-                        0.5 * dxInv[2] * (
-                        p_arr(i,j,k+1) + p_arr(i-1,j,k+1) - p_arr(i,j,k) - p_arr(i-1,j,k)):
-                        0.25 * dxInv[2] * (
-                          p_arr(i,j,k+1) + p_arr(i-1,j,k+1) - p_arr(i,j,k-1) - p_arr(i-1,j,k-1));
+                    Real gp_zeta_on_iface_lo;
+                    if(k==0) {
+                      gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
+                                                              p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
+                                                            - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
+                    } else if(k==bx.bigEnd(2)) {
+                      gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
+                                                              p_arr(i-1,j,k  ) + p_arr(i,j,k  )
+                                                            - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                    } else {
+                      gp_zeta_on_iface_lo = 0.25 * dxInv[2] * (
+                                                               p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
+                                                             - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                    }
                     amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
+                    // Pgrad at higher I face
                     Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
                     ComputeMetricAtIface(i+1,j,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_xi_zeta);
                     Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
-                    Real gp_zeta_on_iface_hi = (k == 0) ?
-                        0.5 * dxInv[2] * (
-                        p_arr(i+1,j,k+1) + p_arr(i,j,k+1) - p_arr(i+1,j,k) - p_arr(i,j,k)):
-                        0.25 * dxInv[2] * (
-                          p_arr(i+1,j,k+1) + p_arr(i,j,k+1) - p_arr(i+1,j,k-1) - p_arr(i,j,k-1));
+                    Real gp_zeta_on_iface_hi;
+                    if(k==0) {
+                      gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
+                                                              p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
+                                                            - p_arr(i+1,j,k  ) - p_arr(i,j,k  ) );
+                    } else if(k==bx.bigEnd(2)) {
+                      gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
+                                                              p_arr(i+1,j,k  ) + p_arr(i,j,k  )
+                                                            - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
+                    } else {
+                      gp_zeta_on_iface_hi = 0.25 * dxInv[2] * (
+                                                               p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
+                                                             - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
+                    }
                     amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
 
+                    // Average P grad to CC
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
 #else
                     derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i+1,j,k) - p_arr(i-1,j,k)) * dxInv[0];
