@@ -122,7 +122,7 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
 
           });
         }
-      
+
         break;
     }
 
@@ -159,22 +159,22 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
 
                   // Bottom boundary
                   int k0 = 0;
-                  
+
                   // Get Array4s
                   auto& h     = ma_h_s[box_no];
                   auto& z_arr = ma_z_phys[box_no];
-                
+
                   // Does the box border the domain?
                   int limin = lbound(h).x; int limax = ubound(h).x;
                   int ljmin = lbound(h).y; int ljmax = ubound(h).y;
                   int bxflag  = (limin == imin || limax == imax) ? 1 : 0;
                   int byflag  = (ljmin == jmin || ljmax == jmax) ? 1 : 0;
-                  
-                  
+
+
                   // Populate h with terrain
                   h(i,j,k0) = z_arr(i,j,k0);
 
-                  
+
                   // Fill boundary cells if needed
                   if(bxflag || byflag){
                     terrain_fill_domain_bndry_XY(i, j, k0, imin, jmin, imax, jmax, z_arr(i,j,k0), z_arr);
@@ -242,7 +242,7 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
 
                 }); //ParReduce
 
-                
+
 
                 ParallelFor(mf2d, amrex::IntVect(1,1,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int)
