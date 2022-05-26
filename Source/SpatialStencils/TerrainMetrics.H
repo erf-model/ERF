@@ -6,8 +6,34 @@
 #include <AMReX_MultiFab.H>
 #include <IndexDefines.H>
 
-// Declaration for terrain grid initialization
-void init_terrain_grid(int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_nd);
+// Declare function for ERF.cpp
+void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_nd);
+
+//*****************************************************************************************
+// Fill domain boundary cells fir terrain grid initialization
+//*****************************************************************************************
+AMREX_GPU_DEVICE
+inline void
+terrain_fill_domain_bndry_XY(     int &i,          int &j,    const int &k,
+                                  const int &imin, const int &jmin,
+                                  const int &imax, const int &jmax,
+                                  const amrex::Real &src,
+                                  amrex::Array4<amrex::Real> const& dst)
+{
+    // YZ plane ghost cells (zero gradient)
+    if(i==imin) dst(i-1,j,k) = src;
+    if(i==imax) dst(i+1,j,k) = src;
+
+    // XZ plane ghost cells (zero gradient)
+    if(j==jmin) dst(i,j-1,k) = src;
+    if(j==jmax) dst(i,j+1,k) = src;
+
+    // Corner cells along z
+    if(i==imin && j==jmin) dst(i-1,j-1,k) = src;
+    if(i==imax && j==jmax) dst(i+1,j+1,k) = src;
+    if(i==imin && j==jmax) dst(i-1,j+1,k) = src;
+    if(i==imax && j==jmin) dst(i+1,j-1,k) = src;
+}
 
 //*****************************************************************************************
 // Compute terrain metric terms at cell-center

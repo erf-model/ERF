@@ -4,30 +4,6 @@
 #define PI 3.141592653589793238462643383279502884197
 
 //*****************************************************************************************
-// Fill domain boundary cells
-//*****************************************************************************************
-void terrain_fill_domain_bndry_XY(      int &i,          int &j,    const int &k,
-                                  const int &imin, const int &jmin,
-                                  const int &imax, const int &jmax,
-                                  const amrex::Real &src,
-                                  amrex::Array4<amrex::Real> const& dst)
-{
-    // YZ plane ghost cells (zero gradient)
-    if(i==imin) dst(i-1,j,k) = src;
-    if(i==imax) dst(i+1,j,k) = src;
-
-    // XZ plane ghost cells (zero gradient)
-    if(j==jmin) dst(i,j-1,k) = src;
-    if(j==jmax) dst(i,j+1,k) = src;
-
-    // Corner cells along z
-    if(i==imin && j==jmin) dst(i-1,j-1,k) = src;
-    if(i==imax && j==jmax) dst(i+1,j+1,k) = src;
-    if(i==imin && j==jmax) dst(i-1,j+1,k) = src;
-    if(i==imax && j==jmin) dst(i+1,j-1,k) = src;
-}
-
-//*****************************************************************************************
 // Compute the terrain grid from BTF or STF model
 //
 // NOTE: Multilevel is not yet working for either of these terrain-following coordinates,
