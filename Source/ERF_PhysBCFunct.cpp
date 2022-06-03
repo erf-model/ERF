@@ -67,7 +67,11 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
 
                     // Call the default fill functions
                     //! Note that we pass 0 as starting component of bcrs.
+#ifdef ERF_USE_TERRAIN
+                    GpuBndryFuncFab<TerrainBcFill> bndry_fill_cc_fc_nd(TerrainBcFill{z_nd});
+#else
                     GpuBndryFuncFab<NullFill> bndry_fill_cc_fc_nd(NullFill{});
+#endif
 
                     // Calls routines to fill all the foextrap, hoextrap, etc types of bc's
                     bndry_fill_cc_fc_nd(bx, dest, icomp, ncomp, m_geom, time, bcrs, 0, bccomp);
@@ -137,13 +141,13 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                                                    velx_arr,vely_arr,
                                                                    z_nd,dxInv);
                         // Populate W face value on bottom boundary
-                        if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                          dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-                          /*
-                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
-                                                                   velx_arr,vely_arr,
-                                                                   z_nd,dxInv);
-                          */
+                        if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
+                            //dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+
+                            dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
+                                                                     velx_arr,vely_arr,
+                                                                     z_nd,dxInv);
+                        }
 
                         } else {
                           // Populate ghost cells & upper face on top boundary
