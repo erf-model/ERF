@@ -44,7 +44,7 @@ struct TerrainBcFill
 {
     const Array4<const Real>& m_z_nd;
 
-    TerrainBcFill(const Array4<const Real>& z_nd): m_z_nd(z_nd){}
+    TerrainBcFill(const amrex::Array4<const amrex::Real>& z_nd): m_z_nd(z_nd){}
 
     AMREX_GPU_DEVICE
     void operator() (const amrex::IntVect& iv, amrex::Array4<amrex::Real> const& dest,
