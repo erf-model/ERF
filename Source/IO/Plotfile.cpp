@@ -347,7 +347,7 @@ ERF::WritePlotFile ()
                       gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
                                                               p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
                                                             - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
-                    } else if(k==bx.bigEnd(2)) {
+                    } else if(k==geom[lev].Domain().bigEnd(2)) {
                       gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
                                                               p_arr(i-1,j,k  ) + p_arr(i,j,k  )
                                                             - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
@@ -367,7 +367,7 @@ ERF::WritePlotFile ()
                       gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
                                                               p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
                                                             - p_arr(i+1,j,k  ) - p_arr(i,j,k  ) );
-                    } else if(k==bx.bigEnd(2)) {
+                    } else if(k==geom[lev].Domain().bigEnd(2)) {
                       gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
                                                               p_arr(i+1,j,k  ) + p_arr(i,j,k  )
                                                             - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
@@ -419,21 +419,39 @@ ERF::WritePlotFile ()
                     Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
                     ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);
                     Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
-                    Real gp_zeta_on_jface_lo = (k == 0) ?
-                        0.5 * dxInv[2] * (
-                          p_arr(i,j,k+1) + p_arr(i,j-1,k+1) - p_arr(i,j,k) - p_arr(i,j-1,k)):
-                        0.25 * dxInv[2] * (
-                          p_arr(i,j,k+1) + p_arr(i,j-1,k+1) - p_arr(i,j,k-1) - p_arr(i,j-1,k-1));
+                    Real gp_zeta_on_jface_lo;
+                    if(k==0) {
+                      gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
+                                                              p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
+                                                            - p_arr(i,j,k  ) - p_arr(i,j-1,k  ) );
+                    } else if(k==geom[lev].Domain().bigEnd(2)) {
+                      gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
+                                                              p_arr(i,j,k  ) + p_arr(i,j-1,k  )
+                                                            - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
+                    } else {
+                      gp_zeta_on_jface_lo = 0.25 * dxInv[2] * (
+                                                               p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
+                                                             - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
+                    }
                     amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
                     Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
                     ComputeMetricAtJface(i,j+1,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_eta_zeta);
                     Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
-                    Real gp_zeta_on_jface_hi = (k == 0) ?
-                        0.5 * dxInv[2] * (
-                          p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k) - p_arr(i,j,k)):
-                        0.25 * dxInv[2] * (
-                          p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k-1) - p_arr(i,j,k-1));
+                    Real gp_zeta_on_jface_hi;
+                    if(k==0) {
+                      gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
+                                                              p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
+                                                            - p_arr(i,j+1,k  ) - p_arr(i,j,k  ) );
+                    } else if(k==geom[lev].Domain().bigEnd(2)) {
+                      gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
+                                                              p_arr(i,j+1,k  ) + p_arr(i,j,k  )
+                                                            - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
+                    } else {
+                      gp_zeta_on_jface_hi = 0.25 * dxInv[2] * (
+                                                               p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
+                                                             - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
+                    }
                     amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
 
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
@@ -460,21 +478,39 @@ ERF::WritePlotFile ()
                     Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
                     ComputeMetricAtIface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_xi_zeta);
                     Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
-                    Real gp_zeta_on_iface_lo = (k == 0) ?
-                        0.5 * dxInv[2] * (
-                        p_arr(i,j,k+1) + p_arr(i-1,j,k+1) - p_arr(i,j,k) - p_arr(i-1,j,k)):
-                        0.25 * dxInv[2] * (
-                          p_arr(i,j,k+1) + p_arr(i-1,j,k+1) - p_arr(i,j,k-1) - p_arr(i-1,j,k-1));
+                    Real gp_zeta_on_iface_lo;
+                    if(k==0) {
+                      gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
+                                                              p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
+                                                            - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
+                    } else if(k==geom[lev].Domain().bigEnd(2)) {
+                      gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
+                                                              p_arr(i-1,j,k  ) + p_arr(i,j,k  )
+                                                            - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                    } else {
+                      gp_zeta_on_iface_lo = 0.25 * dxInv[2] * (
+                                                               p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
+                                                             - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                    }
                     amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
                     Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
                     ComputeMetricAtIface(i+1,j,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_xi_zeta);
                     Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
-                    Real gp_zeta_on_iface_hi = (k == 0) ?
-                        0.5 * dxInv[2] * (
-                        p_arr(i+1,j,k+1) + p_arr(i,j,k+1) - p_arr(i+1,j,k) - p_arr(i,j,k)):
-                        0.25 * dxInv[2] * (
-                          p_arr(i+1,j,k+1) + p_arr(i,j,k+1) - p_arr(i+1,j,k-1) - p_arr(i,j,k-1));
+                    Real gp_zeta_on_iface_hi;
+                    if(k==0) {
+                      gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
+                                                              p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
+                                                            - p_arr(i+1,j,k  ) - p_arr(i,j,k  ) );
+                    } else if(k==geom[lev].Domain().bigEnd(2)) {
+                      gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
+                                                              p_arr(i+1,j,k  ) + p_arr(i,j,k  )
+                                                            - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
+                    } else {
+                      gp_zeta_on_iface_hi = 0.25 * dxInv[2] * (
+                                                               p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
+                                                             - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
+                    }
                     amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
 
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
@@ -496,21 +532,39 @@ ERF::WritePlotFile ()
                     Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
                     ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);
                     Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
-                    Real gp_zeta_on_jface_lo = (k == 0) ?
-                        0.5 * dxInv[2] * (
-                          p_arr(i,j,k+1) + p_arr(i,j-1,k+1) - p_arr(i,j,k) - p_arr(i,j-1,k)):
-                        0.25 * dxInv[2] * (
-                          p_arr(i,j,k+1) + p_arr(i,j-1,k+1) - p_arr(i,j,k-1) - p_arr(i,j-1,k-1));
+                    Real gp_zeta_on_jface_lo;
+                    if(k==0) {
+                      gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
+                                                              p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
+                                                            - p_arr(i,j,k  ) - p_arr(i,j-1,k  ) );
+                    } else if(k==geom[lev].Domain().bigEnd(2)) {
+                      gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
+                                                              p_arr(i,j,k  ) + p_arr(i,j-1,k  )
+                                                            - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
+                    } else {
+                      gp_zeta_on_jface_lo = 0.25 * dxInv[2] * (
+                                                               p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
+                                                             - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
+                    }
                     amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
                     Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
                     ComputeMetricAtJface(i,j+1,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_eta_zeta);
                     Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
-                    Real gp_zeta_on_jface_hi = (k == 0) ?
-                        0.5 * dxInv[2] * (
-                          p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k) - p_arr(i,j,k)):
-                        0.25 * dxInv[2] * (
-                          p_arr(i,j+1,k+1) + p_arr(i,j,k+1) - p_arr(i,j+1,k-1) - p_arr(i,j,k-1));
+                    Real gp_zeta_on_jface_hi;
+                    if(k==0) {
+                      gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
+                                                              p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
+                                                            - p_arr(i,j+1,k  ) - p_arr(i,j,k  ) );
+                    } else if(k==geom[lev].Domain().bigEnd(2)) {
+                      gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
+                                                              p_arr(i,j+1,k  ) + p_arr(i,j,k  )
+                                                            - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
+                    } else {
+                      gp_zeta_on_jface_hi = 0.25 * dxInv[2] * (
+                                                               p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
+                                                             - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
+                    }
                     amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
 
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
