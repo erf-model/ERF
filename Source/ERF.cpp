@@ -1139,7 +1139,7 @@ ERF::read_from_wrfinput(int lev)
          Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(),
                                            NC_PH_fab[lev][idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(),
-                                           NC_PHB_fab[lev][idx].dataPtr()); #endif
+                                           NC_PHB_fab[lev][idx].dataPtr());
 #endif
 #endif
 
