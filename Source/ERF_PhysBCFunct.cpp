@@ -72,7 +72,6 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                     // Calls routines to fill all the foextrap, hoextrap, etc types of bc's
                     bndry_fill_cc_fc_nd(bx, dest, icomp, ncomp, m_geom, time, bcrs, 0, bccomp);
 
-
                     // xlo: ori = 0
                     // ylo: ori = 1
                     // zlo: ori = 2
@@ -119,7 +118,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                 // Loop over ghost cells in bottom XY-plane (valid box)
                                 const amrex::Box& vbx = mfi.validbox();
                                 amrex::Box xybx = vbx;
-                                xybx.setBig(2,0);
+                                xybx.setBig(2,-1);
                                 xybx.setSmall(2,bx.smallEnd()[2]);
                                 int k0 = 0;
                                 // Get the dz cell size
