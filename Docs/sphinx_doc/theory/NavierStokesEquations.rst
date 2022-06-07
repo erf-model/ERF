@@ -223,7 +223,7 @@ Melting
 The rate of melting of snow to for rain can be expressed as
 
 .. math::
-   P_{smlt} = -\frac{2\pi}{\rho L_{j}} \left(K_{a}T_{c}-L_{v}\psi \rho \delta r_{s}\right) n_{0S} \left [0.78\lambda_{S}^{-2}+0.31 S_{c}^{1/3} \Gamma \left(\frac{d+5}{2}\right) c^{1/2} \left(\frac{\rho_{0}}{\rho}\right)^{1/4} \mu^{-1/2} \lambda_{S}^{-(d+5)/2} \right]-\frac{C_{w}T_{c}}{L_{f}}
+   P_{smlt} = -\frac{2\pi}{\rho L_{j}} \left(K_{a}T_{c}-L_{v}\psi \rho \delta r_{s}\right) n_{0S} \left [0.78\lambda_{S}^{-2}+0.31 S_{c}^{1/3} \Gamma \left(\frac{d+5}{2}\right) c^{1/2} \left(\frac{\rho_{0}}{\rho}\right)^{1/4} \mu^{-1/2} \lambda_{S}^{-(d+5)/2} \right]-\left(P_{sacw)+P_{sacr}\right)
 
 Freezing
 ------------------------
