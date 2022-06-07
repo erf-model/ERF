@@ -359,11 +359,20 @@ void erf_slow_rhs (int level,
             Real met_h_xi,met_h_eta,met_h_zeta;
             ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
             Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
-            Real gp_zeta_on_iface = (k == 0) ?
-                0.5 * dxInv[2] * (
-                pp_arr(i,j,k+1) + pp_arr(i-1,j,k+1) - pp_arr(i,j,k) - pp_arr(i-1,j,k)):
-                0.25 * dxInv[2] * (
-                  pp_arr(i,j,k+1) + pp_arr(i-1,j,k+1) - pp_arr(i,j,k-1) - pp_arr(i-1,j,k-1));
+            Real gp_zeta_on_iface;
+            if(k==0) {
+                gp_zeta_on_iface = 0.5 * dxInv[2] * (
+                                                    pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
+                                                  - pp_arr(i-1,j,k  ) - pp_arr(i,j,k  ) );
+            } else if(k==domhi_z) {
+                gp_zeta_on_iface = 0.5 * dxInv[2] * (
+                                                    pp_arr(i-1,j,k  ) + pp_arr(i,j,k  )
+                                                  - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+            } else {
+                gp_zeta_on_iface = 0.25 * dxInv[2] * (
+                                                     pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
+                                                   - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+            }
             amrex::Real gpx = gp_xi - (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
 #else
             amrex::Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
@@ -437,11 +446,20 @@ void erf_slow_rhs (int level,
             Real met_h_xi,met_h_eta,met_h_zeta;
             ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
             Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-            Real gp_zeta_on_jface = (k == 0) ?
-                0.5 * dxInv[2] * (
-                  pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1) - pp_arr(i,j,k) - pp_arr(i,j-1,k)):
-                0.25 * dxInv[2] * (
-                  pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1) - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1));
+            Real gp_zeta_on_jface;
+            if(k==0) {
+                gp_zeta_on_jface = 0.5 * dxInv[2] * (
+                                                    pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
+                                                  - pp_arr(i,j,k  ) - pp_arr(i,j-1,k  ) );
+            } else if(k==domhi_z) {
+                gp_zeta_on_jface = 0.5 * dxInv[2] * (
+                                                    pp_arr(i,j,k  ) + pp_arr(i,j-1,k  )
+                                                  - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+            } else {
+                gp_zeta_on_jface = 0.25 * dxInv[2] * (
+                                                     pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
+                                                   - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+            }
             amrex::Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
 #else
             amrex::Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));

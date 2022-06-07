@@ -217,9 +217,20 @@ void erf_fast_rhs (int level,
                 Real met_h_xi,met_h_eta,met_h_zeta;
                 ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
                 Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
-                Real gp_zeta_on_iface = 0.25 * dzi * (
-                  extrap_arr(i  ,j,k+1) + extrap_arr(i-1,j,k+1)
-                 -extrap_arr(i  ,j,k-1) - extrap_arr(i-1,j,k-1));
+                Real gp_zeta_on_iface;
+                if(k==0) {
+                    gp_zeta_on_iface = 0.5 * dzi * (
+                                                   extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
+                                                 - extrap_arr(i-1,j,k  ) - extrap_arr(i,j,k  ) );
+                } else if(k==domhi_z) {
+                    gp_zeta_on_iface = 0.5 * dzi * (
+                                                   extrap_arr(i-1,j,k  ) + extrap_arr(i,j,k  )
+                                                 - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
+                } else {
+                    gp_zeta_on_iface = 0.25 * dzi * (
+                                                    extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
+                                                  - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
+                }
                 Real gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
 #else
                 Real gpx = (drho_theta_hi - drho_theta_lo)*dxi;
@@ -265,9 +276,20 @@ void erf_fast_rhs (int level,
                 Real met_h_xi,met_h_eta,met_h_zeta;
                 ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
                 Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
-                Real gp_zeta_on_jface = 0.25 * dzi * (
-                   extrap_arr(i,j  ,k+1) + extrap_arr(i,j-1,k+1)
-                 - extrap_arr(i,j  ,k-1) - extrap_arr(i,j-1,k-1) );
+                Real gp_zeta_on_jface;
+                if(k==0) {
+                    gp_zeta_on_jface = 0.5 * dzi * (
+                                                   extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
+                                                 - extrap_arr(i,j,k  ) - extrap_arr(i,j-1,k  ) );
+                } else if(k==domhi_z) {
+                    gp_zeta_on_jface = 0.5 * dzi * (
+                                                   extrap_arr(i,j,k  ) + extrap_arr(i,j-1,k  )
+                                                 - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
+                } else {
+                    gp_zeta_on_jface = 0.25 * dzi * (
+                                                    extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
+                                                  - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
+                }
                 Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
 #else
                 Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
