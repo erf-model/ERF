@@ -125,3 +125,91 @@ The equation of state is now
 
 .. math::
    p = \left( \frac{\rho_d R_d \theta_m}{p_0^{R_d / c_p}} \right)^\gamma
+   
+   
+Single Moment Microphysics Model
+===================================
+The conversion rates among the moist hydrometeors are parameterized assuming that 
+.. math::
+   \frac{\partial N_{m}}{\partial D} = n_{m}(D_{m}) = N_{0m} exp(-\lambda _{m} D_{m})
+   where :math:`N_{0m}` is the intercept parameter, :math:`D_{m}` is the diameters, and 
+.. math::
+   \lambda_{m} = (\frac{\pi \rho_{m} N_{0m}}{q_{m}\rho})^0.25
+   
+The total production rates include the contribution from aggregation, accretion, sublimation, melting, bergeron process, freezing and autoconversion are listed below without derivation, for details, please refer to Yuh-Lang Lin et al's paper (J. Climate Appl. Meteor, 22, 1065, 1983) and Marat F. Khairoutdinov and David A. Randall's paper (J. Atm Sciences, 607, 1983).
+
+Aggregation
+------------------------
+The aggregation rate of ice to form snow is written as:
+.. math::
+  P_{saut} = \alpha_{l}(l_{ci}-l_{I0})
+  where :math:`\alpha_{l}` is the rate coefficient, and :math:`l_{I0}` is the threshold amount for aggregation to occur.
+  
+The rimed snow crystals aggregate to from graupel to form snow can be written as:
+.. math::
+  P_{gaut} = \alpha_{2}(l_{s}-l_{s0})
+  where :math:`\alpha_{2}` is the rate coefficient, and :math:`l_{s0}` is the mass threshold for snow.
+  
+Accretion
+------------------
+The accretion of cloud ice by snow can be written as
+.. math::
+   P_{saci} = \frac{\pi E_{si} n_{0S} cl_{CI}\Tau (3+d)}{4\lambda_{S}^{3+d}}(\frac{\rho_{0}}{\rho})^{0.5}
+   where :math:`E_{si}` is the collection efficiency of the snow for cloud ice.
+
+Similarly, the accretion of cloud water by snow is:
+.. math::
+   P_{sacw} = \frac{\pi E_{sw}n_{0S}cl_{CW} \Tau (3+d)}{4\lambda_{S}^{3+d}}(\frac{\rho_0}{\rho})^0.5
+
+The accretion of cloud ice by rain, which is a sink term for cloud ice, and a source term for snow or hail, can be written:
+.. math::
+   P_{raci} = \frac{\pi E_{ri}n_{0R}al_{CI} \Tau(3+b)}{4\lambda_{R}^{3+b}}(\frac{\rho_{0}}{\rho})^{0.5}
+   
+The accretion of rain due to the presence of cloud ice is:
+.. math::
+   P_{iacr} = \frac{\pi E_{ri}n_{0R}al_{CIW} \Tau(3+b)}{24M_{i}\lambda_{R}^{6+b}}(\frac{\rho_{0}}{\rho})^{0.5}
+   
+The accretion rate of rain for snow is:
+.. math::
+   P_{racs} = \pi E_{sr}n_{0R}n_{0S}|U_{R}-U_{S}|(\frac{\rho_{0}}{\rho})(\frac{5}{\lambda_{S}^{6}}+\frac{2}{\lambda_{S}^{5}\lambda_{R}^{2}}+\frac{0.5}{\lambda_{S}^{4}\lambda_{RR}^{3}})
+   
+The accretion rate of snow for rain is:   
+.. math::
+   P_{racs} = \pi E_{sr}n_{0R}n_{0S}|U_{R}-U_{S}|(\frac{\rho_{w}}{\rho})(\frac{5}{\lambda_{S}^{6}}+\frac{2}{\lambda_{S}^{5}\lambda_{R}^{2}}+\frac{0.5}{\lambda_{S}^{4}\lambda_{RR}^{3}})
+
+The accretion of cloud water forms in either the dry or wet growth rate can be written as:
+.. math::
+   P_{gacw} = \frac{\pi E_{GW}n_{0G}l_{CW}\Tau(3.5)}{4\lambda_{G}^{3.5}}(\frac{4g\rho G}{3C_{D}\rho})^{0.5}
+   
+The accretion of cloud ice forms in either the dry or wet growth rate can be written as:
+.. math::
+   P_{gaci} = \frac{\pi E_{GW}n_{0G}l_{CI}\Tau(3.5)}{4\lambda_{G}^{3.5}}(\frac{4g\rho G}{3C_{D}\rho})^{0.5}
+   
+The accretion of rain forms in either the dry and wet growth rate can be writeen as:   
+.. math::
+   P_{gacr} = \pi^{2}E_{GR}n_{0G}n_{0R}|U_{G}-U_{R}|(\frac{\rho w}{\rho})(\frac{5}{\lambda_{R}^{6}}+\frac{2}{\lambda_R^{5}\lambda_}G}^{2}}+\frac{0.5}{\lambda_{R}^{4}\lambda_{G}^{3}})
+   
+Sublimation
+------------------------
+The depositional growth rate of snow is
+.. math::
+   P_{ssub} = \frac{2\pi(S_{i}-1)}{\rho (A^{''}+B^{''})} n_{0S}[0.78\lambda_{S}^{-2}+0.31S_{c}^{1/3}\Tau(\frac{d+5}{2})c^{1/2}(\frac{\rho_{0}}{\rho})^0.25\mu^{-0.5}\lambda_{S}^{-(d+5)/2}]
+   where :math:`A^{''}=\frac{L_{S}^{2}}{K_{\alpha}R_{w}T^{2}}`, :math:`B^{''}=\frac{1}{\rho r_{si}\psi}`
+   
+Melting
+------------------------
+The rate of melting of snow to for rain can be expressed as
+.. math::
+   P_{smlt} = -\frac{2\pi}{\rho L_{j}}(K_{a}T_{c}-L_{v}\psi \rho \delta r_{s})n_{0S}[0.78\lambda_{S}^{-2}+0.31S_{c}^{1/3}\Tau(\frac{d+5}{2})c^{1/2}(\frac{\rho_{0}}{\rho})^{1/4}\mu^{-1/2}\lambda_{S}^{-(d+5)/2}]-\frac{C_{w}T_{c}}{L_{f}}(P_{sacw)+P_{sacr})
+   
+Freezing
+------------------------
+The raindrop freezing from raindrops to hails can be written as:
+.. math::
+   P_{gfr} = 20\pi^{2}B^{'}n_{0R}(\frac{\rho_{w}}{\rho}){exp[A^{'}(T_{0}-T]-1}\lambda_{R}^{-7}
+
+Evaporation
+------------------------
+The evaporation rate of rain is
+.. math::
+   P_{revp}=2\pi(S-1)n_{0R}[0.78\lambda_{R}^{-2}+0.31S_{c}^{1/3}\Tau[(b+5)/2]a^{1/2}\mu^^{-1/2}(\frac{\rho_{0}}{\rho})^{1/4}\lambda_{R}^{(b+5)/2}](\frac{1}{\rho})(\frac{L_{v}^{2}}{K_{0}R_{w}T^{2}}+\frac{1}{\rho r_{s}\psi})^{-1}
