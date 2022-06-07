@@ -132,6 +132,7 @@ Single Moment Microphysics Model
 The conversion rates among the moist hydrometeors are parameterized assuming that 
 .. math::
    \frac{\partial N_{m}}{\partial D} = n_{m}(D_{m}) = N_{0m} exp(-\lambda _{m} D_{m})
+   
    where :math:`N_{0m}` is the intercept parameter, :math:`D_{m}` is the diameters, and 
 .. math::
    \lambda_{m} = (\frac{\pi \rho_{m} N_{0m}}{q_{m}\rho})^0.25
