@@ -223,7 +223,7 @@ Melting
 The rate of melting of snow to for rain can be expressed as
 
 .. math::
-   P_{smlt} = -\frac{2\pi}{\rho L_{j}}\left(K_{a}T_{c}-L_{v}\psi \rho \delta r_{s}\right) n_{0S}\left[0.78\lambda_{S}^{-2}+0.31S_{c}^{1/3}\Gamma \left(\frac{d+5}{2}\right)c^{1/2}\left(\frac{\rho_{0}}{\rho}\right)^{1/4}\mu^{-1/2}\lambda_{S}^{-(d+5)/2}]-\frac{C_{w}T_{c}}{L_{f}}\left(P_{sacw)+P_{sacr}\right)
+   P_{smlt} = -\frac{2\pi}{\rho L_{j}} \left(K_{a}T_{c}-L_{v}\psi \rho \delta r_{s}\right) n_{0S}\left[0.78\lambda_{S}^{-2}+0.31S_{c}^{1/3}\Gamma \left(\frac{d+5}{2}\right)c^{1/2}\left(\frac{\rho_{0}}{\rho}\right)^{1/4}\mu^{-1/2}\lambda_{S}^{-(d+5)/2}\right]-\frac{C_{w}T_{c}}{L_{f}} \left(P_{sacw)+P_{sacr}\right)
 
 Freezing
 ------------------------
@@ -237,5 +237,5 @@ Evaporation
 The evaporation rate of rain is
 
 .. math::
-   P_{revp}=2\pi(S-1)n_{0R}[0.78\lambda_{R}^{-2}+0.31S_{c}^{1/3}\Gamma[(b+5)/2]a^{1/2}\mu^^{-1/2}(\frac{\rho_{0}}{\rho})^{1/4}\lambda_{R}^{(b+5)/2}](\frac{1}{\rho})(\frac{L_{v}^{2}}{K_{0}R_{w}T^{2}}+\frac{1}{\rho r_{s}\psi})^{-1}
+   P_{revp} = 2\pi(S-1)n_{0R}[0.78\lambda_{R}^{-2}+0.31S_{c}^{1/3}\Gamma[(b+5)/2]a^{1/2}\mu^{-1/2}(\frac{\rho_{0}}{\rho})^{1/4}\lambda_{R}^{(b+5)/2}](\frac{1}{\rho})(\frac{L_{v}^{2}}{K_{0}R_{w}T^{2}}+\frac{1}{\rho r_{s}\psi})^{-1}
 
