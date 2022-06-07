@@ -139,6 +139,23 @@ where :math:`N_{0m}` is the intercept parameter, :math:`D_{m}` is the diameters,
 .. math::
    \lambda_{m} = (\frac{\pi \rho_{m} N_{0m}}{q_{m}\rho})^{0.25}
    
-The total production rates include the contribution from aggregation, accretion, sublimation, melting, bergeron process, freezing and autoconversion are listed below without derivation, for details, please refer to Yuh-Lang Lin et al's paper (J. Climate Appl. Meteor, 22, 1065, 1983) and Marat F. Khairoutdinov and David A. Randall's paper (J. Atm Sciences, 607, 1983).
+The total production rates including the contribution from aggregation, accretion, sublimation, melting, bergeron process, freezing and autoconversion are listed below without derivation, for details, please refer to Yuh-Lang Lin et al (J. Climate Appl. Meteor, 22, 1065, 1983) and Marat F. Khairoutdinov and David A. Randall's (J. Atm Sciences, 607, 1983). The implementation of mcrophysics model is similar to the work of SAM code (http://rossby.msrc.sunysb.edu/~marat/SAM.html)
+
+Aggregation
+------------------------
+The aggregation rate of ice to form snow due to collision-coalescence process can be written as:
+
+.. math::
+  P_{saut} = \alpha_{l}(l_{ci}-l_{I0})
+  
+where :math:`\alpha_{l}` is the rate coefficient, and :math:`l_{I0}` is the threshold amount for aggregation to occur.
+
+And the rimed snow crystals aggregate to from graupel to form snow can be written as:
+
+.. math::
+  P_{gaut} = \alpha_{2}(l_{s}-l_{s0})
+  
+where :math:`\alpha_{2}` is the rate coefficient, and :math:`l_{s0}` is the mass threshold for snow.
+
 
 
