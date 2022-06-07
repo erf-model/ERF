@@ -132,12 +132,12 @@ Single Moment Microphysics Model
 The conversion rates among the moist hydrometeors are parameterized assuming that 
 
 .. math::
-   \frac{\partial N_{m}}{\partial D} = n_{m}(D_{m}) = N_{0m} exp(-\lambda _{m} D_{m})
+   \frac{\partial N_{m}}{\partial D} = n_{m}\left(D_{m}\right) = N_{0m} exp \left(-\lambda _{m} D_{m}\right)
    
    where :math:`N_{0m}` is the intercept parameter, :math:`D_{m}` is the diameters, and 
    
 .. math::
-   \lambda_{m} = (\frac{\pi \rho_{m} N_{0m}}{q_{m}\rho})^0.25
+   \lambda_{m} = (\frac{\pi \rho_{m} N_{0m}}{q_{m}\rho})^{0.25}
    
 The total production rates include the contribution from aggregation, accretion, sublimation, melting, bergeron process, freezing and autoconversion are listed below without derivation, for details, please refer to Yuh-Lang Lin et al's paper (J. Climate Appl. Meteor, 22, 1065, 1983) and Marat F. Khairoutdinov and David A. Randall's paper (J. Atm Sciences, 607, 1983).
 
