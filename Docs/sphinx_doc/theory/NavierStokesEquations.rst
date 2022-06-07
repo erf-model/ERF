@@ -206,7 +206,7 @@ The accretion of cloud ice forms in either the dry or wet growth rate can be wri
 The accretion of rain forms in either the dry and wet growth rate can be writeen as:
 
 .. math::
-   P_{gacr} = \pi^{2}E_{GR}n_{0G}n_{0R}|U_{G}-U_{R}|\left(\frac{\rho w}{\rho}\right)\left(\frac{5}{\lambda_{R}^{6}}+\frac{2}{\lambda_{R}^{5}\lambda_{G}^{2}}+\frac{0.5{\lambda_{R}^{4}\lambda_{G}^{3}}\right)
+   P_{gacr} = \pi^{2}E_{GR}n_{0G}n_{0R}|U_{G}-U_{R}|\left(\frac{\rho w}{\rho}\right)\left(\frac{5}{\lambda_{R}^{6}}+\frac{2}{\lambda_{R}^{5}\lambda_{G}^{2}}+\frac{0.5}{\lambda_{R}^{4}\lambda_{G}^{3}}\right)
 
 
 
