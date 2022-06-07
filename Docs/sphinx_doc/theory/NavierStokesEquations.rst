@@ -134,7 +134,7 @@ The conversion rates among the moist hydrometeors are parameterized assuming tha
 .. math::
    \frac{\partial N_{m}}{\partial D} = n_{m}\left(D_{m}\right) = N_{0m} exp \left(-\lambda _{m} D_{m}\right)
    
-   where :math:`N_{0m}` is the intercept parameter, :math:`D_{m}` is the diameters, and 
+where :math:`N_{0m}` is the intercept parameter, :math:`D_{m}` is the diameters, and 
    
 .. math::
    \lambda_{m} = (\frac{\pi \rho_{m} N_{0m}}{q_{m}\rho})^{0.25}
