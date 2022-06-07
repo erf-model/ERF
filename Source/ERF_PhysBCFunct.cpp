@@ -137,13 +137,13 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                                                    velx_arr,vely_arr,
                                                                    z_nd,dxInv);
                         // Populate W face value on bottom boundary
-                        if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                          dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-                          /*
-                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
-                                                                   velx_arr,vely_arr,
-                                                                   z_nd,dxInv);
-                          */
+                        if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
+                            //dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+
+                            dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
+                                                                     velx_arr,vely_arr,
+                                                                     z_nd,dxInv);
+                        }
 
                         } else {
                           // Populate ghost cells & upper face on top boundary
@@ -205,6 +205,56 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                         }
 #endif
                     });
+
+#ifdef ERF_USE_TERRAIN
+                    // Neumann conditions (d<var>/dn = 0) must be aware of the surface normal with terrain.
+                    // An additional source term arises from d<var>/dx & d<var>/dy & met_h_xi/eta/zeta.
+                    //=====================================================================================
+                    // Only modify scalars, U, or V
+                    if( bccomp <= BCVars::yvel_bc ) {
+                        // Loop over each component
+                        for (int n = 0; n < ncomp; n++) {
+                            // Hit for Neumann condition at kmin
+                            if( bc_ptr[n].lo(2) == ERFBCType::foextrap || bc_ptr[n].lo(2) == ERFBCType::hoextrap) {
+                                // Loop over ghost cells in bottom XY-plane (valid box)
+                                const amrex::Box& vbx = mfi.validbox();
+                                amrex::Box xybx = vbx;
+                                xybx.setBig(2,-1);
+                                xybx.setSmall(2,bx.smallEnd()[2]);
+                                int k0 = 0;
+                                // Get the dz cell size
+                                amrex::GeometryData const& geomdata = m_geom.data();
+                                amrex::Real dz = geomdata.CellSize(2);
+                                // Fill all the Neumann srcs with terrain
+                                ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                                {
+                                    // Get metrics
+                                    amrex::Real met_h_xi,met_h_eta,met_h_zeta;
+                                    if (bccomp == BCVars::yvel_bc) {
+                                        ComputeMetricAtJface(i,j,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
+                                    } else if (bccomp == BCVars::xvel_bc) {
+                                        ComputeMetricAtIface(i,j,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
+                                    } else {
+                                        ComputeMetricAtCellCenter(i,j,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
+                                    }
+
+                                    // GradX at IJK location inside domain
+                                    amrex::Real GradVarx = 0.5 * dxInv[0] * (dest_array(i+1,j,k0) - dest_array(i-1,j,k0));
+
+                                    // GradY at IJK location inside domain
+                                    amrex::Real GradVary = 0.5 * dxInv[1] * (dest_array(i,j+1,k0) - dest_array(i,j-1,k0));
+
+                                    // Prefactor
+                                    amrex::Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
+
+                                    // Accumulate in bottom ghost cell (EXTRAP already populated)
+                                    dest_array(i,j,k) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
+                                });
+                            } // fo/hoextrap
+                        } // ncomp
+                    } // yvel_bc
+
+#endif
 
                     // This uses data read in as BndryRegisters from a previous ERF run
                     if (m_r2d) {

@@ -20,7 +20,7 @@
 #include <EddyViscosity.H>
 
 #ifdef ERF_USE_TERRAIN
-#include "TerrainMetrics.H"
+#include <TerrainMetrics.H>
 #endif
 
 using namespace amrex;

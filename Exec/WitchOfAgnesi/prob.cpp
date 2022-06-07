@@ -10,6 +10,8 @@ using namespace amrex;
 
 #ifdef ERF_USE_TERRAIN
 
+#include <TerrainMetrics.H>
+
 ProbParm parms;
 
 AMREX_GPU_DEVICE
@@ -84,14 +86,13 @@ init_isentropic_hse(int i, int j,
           Real A = p_hse - p_eos;
 
           Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
-          // Gamma * p_0 * std::pow( (R_d * theta / p_0), Gamma) * std::pow(r[k], Gamma-1.0) ;
 
-          Real drho = A / (dpdr + 0.5 * dz_loc * CONST_GRAV);
+          Real drho = A / (dpdr + dz_loc * CONST_GRAV);
 
-          r[k] = std::max(0.9*r[k-1], std::min(r[k] + drho, 1.1*r[k-1]));
+          r[k] = r[k] + drho;
           p[k] = getPgivenRTh(r[k]*theta);
 
-          if (std::abs(drho) < TOL * r[k-1])
+          if (std::abs(drho) < TOL)
           {
               converged_hse = true;
               //amrex::Print() << " converged " << std::endl;
@@ -131,7 +132,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
        b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
        b2d.setRange(2,0);
 
-       ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+       ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
          Array1D<Real,0,255> r;;
          Array1D<Real,0,255> p;;
 
@@ -159,7 +160,7 @@ init_custom_prob(
   amrex::Array4<amrex::Real const> const& z_cc,
   amrex::GeometryData const& geomdata)
 {
-  const int khi              = geomdata.Domain().bigEnd()[2];
+  const int khi = geomdata.Domain().bigEnd()[2];
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
@@ -182,7 +183,7 @@ init_custom_prob(
   Box b2d = surroundingNodes(bx); // Copy constructor
   b2d.setRange(2,0);
 
-  ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+  ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
   {
      Array1D<Real,0,255> r;;
      Array1D<Real,0,255> p;;
@@ -197,12 +198,11 @@ init_custom_prob(
      r_hse(i,j,khi+1) = r_hse(i,j,khi);
   });
 
+  // Geometry (note we must include these here to get the data on device)
+  const auto prob_lo         = geomdata.ProbLo();
+  const auto dx              = geomdata.CellSize();
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-    // Geometry (note we must include these here to get the data on device)
-    const auto prob_lo         = geomdata.ProbLo();
-    const auto dx              = geomdata.CellSize();
-
     const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const amrex::Real z = z_cc(i,j,k);
 
@@ -221,7 +221,7 @@ init_custom_prob(
         dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
     }
 
-    // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
+    // Note: dT is T perturbation, theta_perturbed is theta PLUS perturbation in theta
     amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms.C_p);
 
     // This version perturbs rho but not p
@@ -253,9 +253,13 @@ init_custom_prob(
 
   // Construct a box that is on z-faces
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
-  // Set the z-velocity
+  amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dxInv;
+  dxInv[0] = 1. / dx[0];
+  dxInv[1] = 1. / dx[1];
+  dxInv[2] = 1. / dx[2];
+  // Set the z-velocity from impenetrable condition
   amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    z_vel(i, j, k) = 0.0;
+      z_vel(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel, y_vel, z_nd, dxInv);
   });
 
   amrex::Gpu::streamSynchronize();
