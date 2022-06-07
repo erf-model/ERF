@@ -157,5 +157,56 @@ And the rimed snow crystals aggregate to from graupel to form snow can be writte
   
 where :math:`\alpha_{2}` is the rate coefficient, and :math:`l_{s0}` is the mass threshold for snow.
 
+Accretion
+------------------
+There are several different type of accretional growth mechanisms needs to be included, it is involved the interaction of snow with other classes of hydrometeors, and other classes of hydrometeors interaction with each other.
+
+The accretion of cloud ice by snow can be written as
+
+.. math::
+   P_{saci} = \frac{\pi E_{si} n_{0S} cl_{CI}\Tau (3+d)}{4\lambda_{S}^{3+d}}(\frac{\rho_{0}}{\rho})^{0.5}
+   
+where :math:`E_{si}` is the collection efficiency of the snow for cloud ice.
+
+Similarly, the accretion of cloud water by snow is:
+
+.. math::
+   P_{sacw} = \frac{\pi E_{sw}n_{0S}cl_{CW} \Tau (3+d)}{4\lambda_{S}^{3+d}}(\frac{\rho_0}{\rho})^0.5
+
+The accretion of cloud ice by rain, which is a sink term for cloud ice, and a source term for snow or hail, can be written:
+
+.. math::
+   P_{raci} = \frac{\pi E_{ri}n_{0R}al_{CI} \Tau(3+b)}{4\lambda_{R}^{3+b}}(\frac{\rho_{0}}{\rho})^{0.5}
+
+The accretion of rain due to the presence of cloud ice is:
+
+.. math::
+   P_{iacr} = \frac{\pi E_{ri}n_{0R}al_{CIW} \Tau(3+b)}{24M_{i}\lambda_{R}^{6+b}}(\frac{\rho_{0}}{\rho})^{0.5}
+
+The accretion rate of rain for snow is:
+
+.. math::
+   P_{racs} = \pi E_{sr}n_{0R}n_{0S}|U_{R}-U_{S}|(\frac{\rho_{0}}{\rho})(\frac{5}{\lambda_{S}^{6}}+\frac{2}{\lambda_{S}^{5}\lambda_{R}^{2}}+\frac{0.5}{\lambda_{S}^{4}\lambda_{RR}^{3}})
+   
+The accretion rate of snow for rain is:
+
+.. math::
+   P_{racs} = \pi E_{sr}n_{0R}n_{0S}|U_{R}-U_{S}|(\frac{\rho_{w}}{\rho})(\frac{5}{\lambda_{S}^{6}}+\frac{2}{\lambda_{S}^{5}\lambda_{R}^{2}}+\frac{0.5}{\lambda_{S}^{4}\lambda_{RR}^{3}})
+
+The accretion of cloud water forms in either the dry or wet growth rate can be written as:
+
+.. math::
+   P_{gacw} = \frac{\pi E_{GW}n_{0G}l_{CW}\Tau(3.5)}{4\lambda_{G}^{3.5}}(\frac{4g\rho G}{3C_{D}\rho})^{0.5}
+   
+The accretion of cloud ice forms in either the dry or wet growth rate can be written as:
+
+.. math::
+   P_{gaci} = \frac{\pi E_{GW}n_{0G}l_{CI}\Tau(3.5)}{4\lambda_{G}^{3.5}}(\frac{4g\rho G}{3C_{D}\rho})^{0.5}
+
+The accretion of rain forms in either the dry and wet growth rate can be writeen as:
+
+.. math::
+   P_{gacr} = \pi^{2}E_{GR}n_{0G}n_{0R}|U_{G}-U_{R}|(\frac{\rho w}{\rho})(\frac{5}{\lambda_{R}^{6}}+\frac{2}{\lambda_R^{5}\lambda_}G}^{2}}+\frac{0.5}{\lambda_{R}^{4}\lambda_{G}^{3}})
+
 
 
