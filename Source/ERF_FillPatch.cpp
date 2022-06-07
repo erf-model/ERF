@@ -91,17 +91,17 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
         }
         else if (var_idx == Vars::xvel || var_idx == Vars::xmom)
         {
-            bccomp = NVAR;
+            bccomp = BCVars::xvel_bc;
             mapper = &face_linear_interp;
         }
         else if (var_idx == Vars::yvel || var_idx == Vars::ymom)
         {
-            bccomp = NVAR+1;
+            bccomp = BCVars::yvel_bc;
             mapper = &face_linear_interp;
         }
         else if (var_idx == Vars::zvel || var_idx == Vars::zmom)
         {
-            bccomp = NVAR+2;
+            bccomp = BCVars::zvel_bc;
             mapper = &face_linear_interp;
         }
 
@@ -148,7 +148,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 
             amrex::FillPatchTwoLevels(mf, time, cmf, ctime, fmf, ftime,
                                       0, icomp, ncomp, geom[lev-1], geom[lev],
-                                      cphysbc, 0, fphysbc, 0, refRatio(lev-1),
+                                      cphysbc, bccomp, fphysbc, bccomp, refRatio(lev-1),
                                       mapper, domain_bcs_type, bccomp);
         } // lev > 0
     } // var_idx
