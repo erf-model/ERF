@@ -209,4 +209,33 @@ The accretion of rain forms in either the dry and wet growth rate can be writeen
    P_{gacr} = \pi^{2}E_{GR}n_{0G}n_{0R}|U_{G}-U_{R}|\left(\frac{\rho w}{\rho}\right)\left(\frac{5}{\lambda_{R}^{6}}+\frac{2}{\lambda_{R}^{5}\lambda_{G}^{2}}+\frac{0.5}{\lambda_{R}^{4}\lambda_{G}^{3}}\right)
 
 
+Sublimation
+------------------------
+The depositional growth rate of snow is
+
+.. math::
+   P_{ssub} = \frac{2\pi(S_{i}-1)}{\rho (A^{''}+B^{''})} n_{0S}[0.78\lambda_{S}^{-2}+0.31S_{c}^{1/3}\Tau(\frac{d+5}{2})c^{1/2}(\frac{\rho_{0}}{\rho})^0.25\mu^{-0.5}\lambda_{S}^{-(d+5)/2}]
+   
+where :math:`A^{''}=\frac{L_{S}^{2}}{K_{\alpha}R_{w}T^{2}}`, :math:`B^{''}=\frac{1}{\rho r_{si}\psi}`
+
+Melting
+------------------------
+The rate of melting of snow to for rain can be expressed as
+
+.. math::
+   P_{smlt} = -\frac{2\pi}{\rho L_{j}}(K_{a}T_{c}-L_{v}\psi \rho \delta r_{s})n_{0S}[0.78\lambda_{S}^{-2}+0.31S_{c}^{1/3}\Tau(\frac{d+5}{2})c^{1/2}(\frac{\rho_{0}}{\rho})^{1/4}\mu^{-1/2}\lambda_{S}^{-(d+5)/2}]-\frac{C_{w}T_{c}}{L_{f}}(P_{sacw)+P_{sacr})
+
+Freezing
+------------------------
+The raindrop freezing from raindrops to hails can be written as:
+
+.. math::
+   P_{gfr} = 20\pi^{2}B^{'}n_{0R}(\frac{\rho_{w}}{\rho}){exp[A^{'}(T_{0}-T]-1}\lambda_{R}^{-7}
+
+Evaporation
+------------------------
+The evaporation rate of rain is
+
+.. math::
+   P_{revp}=2\pi(S-1)n_{0R}[0.78\lambda_{R}^{-2}+0.31S_{c}^{1/3}\Tau[(b+5)/2]a^{1/2}\mu^^{-1/2}(\frac{\rho_{0}}{\rho})^{1/4}\lambda_{R}^{(b+5)/2}](\frac{1}{\rho})(\frac{L_{v}^{2}}{K_{0}R_{w}T^{2}}+\frac{1}{\rho r_{s}\psi})^{-1}
 
