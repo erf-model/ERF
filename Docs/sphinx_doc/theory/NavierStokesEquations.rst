@@ -171,7 +171,7 @@ where :math:`E_{si}` is the collection efficiency of the snow for cloud ice.
 Similarly, the accretion of cloud water by snow is:
 
 .. math::
-   P_{sacw} = \frac{\pi E_{sw}n_{0S}cl_{CW} \Gamma (3+d)}{4\lambda_{S}^{3+d}}(\frac{\rho_0}{\rho})^0.5
+   P_{sacw} = \frac{\pi E_{sw}n_{0S}cl_{CW} \Gamma (3+d)}{4\lambda_{S}^{3+d}}(\frac{\rho_0}{\rho})^{0.5}
 
 The accretion of cloud ice by rain, which is a sink term for cloud ice, and a source term for snow or hail, can be written:
 
@@ -206,7 +206,7 @@ The accretion of cloud ice forms in either the dry or wet growth rate can be wri
 The accretion of rain forms in either the dry and wet growth rate can be writeen as:
 
 .. math::
-   P_{gacr} = \pi^{2}E_{GR}n_{0G}n_{0R}|U_{G}-U_{R}|(\frac{\rho w}{\rho})(\frac{5}{\lambda_{R}^{6}}+\frac{2}{\lambda_R^{5}\lambda_}G}^{2}}+\frac{0.5{\lambda_{R}^{4}\lambda_{G}^{3}})
+   P_{gacr} = \pi^{2}E_{GR}n_{0G}n_{0R}|U_{G}-U_{R}|\left(\frac{\rho w}{\rho}\right)\left(\frac{5}{\lambda_{R}^{6}}+\frac{2}{\lambda_R^{5}\lambda_}G}^{2}}+\frac{0.5{\lambda_{R}^{4}\lambda_{G}^{3}}\right)
 
 
 
