@@ -164,7 +164,7 @@ There are several different type of accretional growth mechanisms needs to be in
 The accretion of cloud ice by snow can be written as
 
 .. math::
-   P_{saci} = \frac{\pi E_{si} n_{0S} cl_{CI}\Tau (3+d)}{4\lambda_{S}^{3+d}}(\frac{\rho_{0}}{\rho})^{0.5}
+   P_{saci} = \frac{\pi E_{si} n_{0S} cl_{CI}\Gamma(3+d)}{4\lambda_{S}^{3+d}}(\frac{\rho_{0}}{\rho})^{0.5}
    
 where :math:`E_{si}` is the collection efficiency of the snow for cloud ice.
 
@@ -196,12 +196,12 @@ The accretion rate of snow for rain is:
 The accretion of cloud water forms in either the dry or wet growth rate can be written as:
 
 .. math::
-   P_{gacw} = \frac{\pi E_{GW}n_{0G}l_{CW}\Tau(3.5)}{4\lambda_{G}^{3.5}}(\frac{4g\rho G}{3C_{D}\rho})^{0.5}
+   P_{gacw} = \frac{\pi E_{GW}n_{0G}l_{CW}\Gamma(3.5)}{4\lambda_{G}^{3.5}}(\frac{4g\rho G}{3C_{D}\rho})^{0.5}
    
 The accretion of cloud ice forms in either the dry or wet growth rate can be written as:
 
 .. math::
-   P_{gaci} = \frac{\pi E_{GW}n_{0G}l_{CI}\Tau(3.5)}{4\lambda_{G}^{3.5}}(\frac{4g\rho G}{3C_{D}\rho})^{0.5}
+   P_{gaci} = \frac{\pi E_{GW}n_{0G}l_{CI}\Gamma(3.5)}{4\lambda_{G}^{3.5}}(\frac{4g\rho G}{3C_{D}\rho})^{0.5}
 
 The accretion of rain forms in either the dry and wet growth rate can be writeen as:
 
