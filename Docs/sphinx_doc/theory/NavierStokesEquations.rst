@@ -177,7 +177,7 @@ Autoconversion
 The collision and coalesence of cloud water to from randrops is parameterized as following
 
 .. math::
-   Q_{raut} = \rho\left(q_{c}-q_{c0}\right)^{2}\left[1.2x10^{-4}+{1.569x10^{-12}N_{1}/[D_{0}(q_{c}-q_{c0})]}\right]^{-1}
+   Q_{raut} = \rho\left(q_{c}-q_{c0}\right)^{2}\left[1.2 \times 10^{-4}+{1.569 \times 10^{-12}N_{1}/[D_{0}(q_{c}-q_{c0})]}\right]^{-1}
 
 Evaporation
 ------------------------
