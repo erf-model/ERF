@@ -163,13 +163,14 @@ The accretion of cloud water forms in either the dry or wet growth rate can be w
 The accretion of raindrops by accretion of cloud water is
 
 .. math::
-   Q_{racw} = \frac{\piE_{RW}n_{0R}\alpha q_{c}\Gamma(3+b)}{4\lambda_{R}^{3+b}}(\frac{\rho_{0}}{\rho})^{1/2}
+   Q_{racw} = \frac{\pi E_{RW}n_{0R}\alpha q_{c}\Gamma(3+b)}{4\lambda_{R}^{3+b}}(\frac{\rho_{0}}{\rho})^{1/2}
+   
 The bergeron Process
 ------------------------
 The cloud water transform to snow by deposition and rimming can be written as
 
 .. math::
-   Q_{sfw} = N_{150}\left(\alpha_{1}m_{150}^{\alpha_{2}}+\piE_{iw}\rho q_{c}R_{150}^{2}U_{150}\right)
+   Q_{sfw} = N_{150}\left(\alpha_{1}m_{150}^{\alpha_{2}}+\pi E_{iw}\rho q_{c}R_{150}^{2}U_{150}\right)
    
 Autoconversion
 ------------------------
