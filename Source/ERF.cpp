@@ -495,8 +495,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
-    Vector<MultiFab> temp_lev_new;
-    Vector<MultiFab> temp_lev_old;
+    Vector<MultiFab> temp_lev_new(Vars::NumTypes);
+    Vector<MultiFab> temp_lev_old(Vars::NumTypes);
 
     int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
     int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
@@ -509,6 +509,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     temp_lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
     temp_lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+
+    temp_lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+    temp_lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
     // This will fill the temporary MultiFabs with data from vars_new
     FillPatch(lev, time, temp_lev_new);
