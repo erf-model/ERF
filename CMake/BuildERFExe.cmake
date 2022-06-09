@@ -70,6 +70,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.H
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
+       ${SRC_DIR}/IO/NC_Read_WRF_WPS.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/SpatialStencils/Advection.cpp
@@ -87,7 +88,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs.cpp
-       ${SRC_DIR}/WPS_Interface.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
