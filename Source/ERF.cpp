@@ -691,7 +691,7 @@ ERF::init_only(int lev, Real time)
           init_from_wrfinput(lev, bx, cons_fab, xvel_fab, yvel_fab, zvel_fab,
                              z_phys_nd_fab);
 #else
-          init_from_wrfinput(bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
+          init_from_wrfinput(lev, bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
 #endif
         }
     } // init_type == "ideal" || init_type == "real"
