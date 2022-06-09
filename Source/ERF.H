@@ -222,7 +222,7 @@ public:
                            ,amrex::FArrayBox& z_phys
 #endif
                            );
-#endif
+#endif //ERF_USE_NETCDF
 
 private:
 
