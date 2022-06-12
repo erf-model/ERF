@@ -12,7 +12,7 @@ using namespace amrex;
 //       but (we think) the issue is deep in ERF and this code will work once the deeper
 //       problem is fixed. For now, make sure to run on a single level. -mmsanders
 //*****************************************************************************************
-void 
+void
 init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
 {
   auto dx = geom.CellSizeArray();
@@ -28,11 +28,11 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
   // User-selected method from inputs file (BTF default)
   ParmParse pp("erf");
 
-  // "custom" refers to terrain analytically specified, such as WitchOfAgnesi 
-  std::string terrain_type = "custom"; 
+  // "custom" refers to terrain analytically specified, such as WitchOfAgnesi
+  std::string terrain_type = "custom";
 
   int nz = domain.length(2)+1;
-  amrex::Vector<Real> z_levels_h; 
+  amrex::Vector<Real> z_levels_h;
   z_levels_h.resize(nz);
 
   // This is the default for z_levels
@@ -103,7 +103,7 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
               // Location of nodes
               Real x = (i * dx[0] - xcen);
               Real y = (j * dx[1] - ycen);
-              Real z =  z_lev[k]; 
+              Real z =  z_lev[k];
 
               // WoA Hill for ghost points
               Real height = num / (x*x + 4*a*a);
@@ -137,27 +137,27 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
     case 1: // STF Method
     {
         // Get Multifab spanning domain with 1 level of ghost cells
-        amrex::MultiFab h_mf(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, 1);
-        amrex::MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, 1);
+        MultiFab h_mf(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, 1);
+        MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, 1);
 
         // Save max height for smoothing
         Real max_h;
 
         // Crete 2D MF without allocation
-        amrex::MultiFab mf2d;
+        MultiFab mf2d;
         {
             BoxList bl2d = h_mf.boxArray().boxList();
             for (auto& b : bl2d) {
                 b.setRange(2,0);
             }
             BoxArray ba2d(std::move(bl2d));
-            mf2d = amrex::MultiFab(ba2d, h_mf.DistributionMap(), 1, 0, amrex::MFInfo().SetAlloc(false));
+            mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, 0, amrex::MFInfo().SetAlloc(false));
         }
 
         // Get MultiArray4s from the multifabs
-        amrex::MultiArray4<Real> const& ma_h_s     = h_mf.arrays();
-        amrex::MultiArray4<Real> const& ma_h_s_old = h_mf_old.arrays();
-        amrex::MultiArray4<Real> const& ma_z_phys  = z_phys_nd.arrays();
+        MultiArray4<Real> const& ma_h_s     = h_mf.arrays();
+        MultiArray4<Real> const& ma_h_s_old = h_mf_old.arrays();
+        MultiArray4<Real> const& ma_z_phys  = z_phys_nd.arrays();
 
         // Get max value
         max_h = ParReduce(amrex::TypeList<amrex::ReduceOpMax>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(0),
@@ -197,7 +197,7 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
         h_mf.FillBoundary(geom.periodicity());
 
         // Make h_mf copy for old values
-        amrex::MultiFab::Copy(h_mf_old, h_mf,0,0,1,1);
+        MultiFab::Copy(h_mf_old, h_mf,0,0,1,1);
 
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices
         for (int k = kmin+1; k <= kmax; k++) // skip terrain level
