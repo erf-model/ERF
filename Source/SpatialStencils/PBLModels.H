@@ -13,7 +13,7 @@ void ComputeTurbulentViscosityPBL(const amrex::MultiFab& xvel,
                                   const amrex::Geometry& geom,
                                   const SolverChoice& solverChoice,
                                   std::unique_ptr<ABLMost>& most,
-                                  bool vert_only)
+                                  bool /*vert_only*/)
 {
   // MYNN Level 2.5 PBL Model
   if (solverChoice.pbl_type == PBLType::MYNN25) {

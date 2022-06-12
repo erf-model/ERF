@@ -115,12 +115,13 @@ void ERF::erf_advance(int level,
     // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // ***********************************************************************************************
-    VelocityToMomentum(xvel_old, yvel_old, zvel_old,
+    VelocityToMomentum(xvel_old, xvel_old.nGrowVect(),
+                       yvel_old, yvel_old.nGrowVect(),
+                       zvel_old, zvel_old.nGrowVect(),
                        state_old[IntVar::cons],
                        state_old[IntVar::xmom],
                        state_old[IntVar::ymom],
-                       state_old[IntVar::zmom],
-                       xvel_old.nGrowVect());
+                       state_old[IntVar::zmom]);
 
     // ***********************************************************************************************
     // Initialize the fluxes to zero
@@ -163,12 +164,13 @@ void ERF::erf_advance(int level,
 
         // Here we don't use include any of the ghost region because we have only updated
         //      momentum on valid faces
-        MomentumToVelocity(xvel_new, yvel_new, zvel_new,
+        MomentumToVelocity(xvel_new, IntVect::TheZeroVector(),
+                           yvel_new, IntVect::TheZeroVector(),
+                           zvel_new, IntVect::TheZeroVector(),
                            S_data[IntVar::cons],
                            S_data[IntVar::xmom],
                            S_data[IntVar::ymom],
-                           S_data[IntVar::zmom],
-                           IntVect::TheZeroVector());
+                           S_data[IntVar::zmom]);
 
         // ***************************************************************************************
         // Call FillPatch routines for all data
@@ -181,12 +183,13 @@ void ERF::erf_advance(int level,
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density
-        VelocityToMomentum(xvel_new, yvel_new, zvel_new,
+        VelocityToMomentum(xvel_new, xvel_new.nGrowVect(),
+                           yvel_new, yvel_new.nGrowVect(),
+                           zvel_new, zvel_new.nGrowVect(),
                            S_data[IntVar::cons],
                            S_data[IntVar::xmom],
                            S_data[IntVar::ymom],
-                           S_data[IntVar::zmom],
-                           xvel_new.nGrowVect());
+                           S_data[IntVar::zmom]);
     };
 
     apply_bcs(state_old, old_time);
@@ -307,12 +310,13 @@ void ERF::erf_advance(int level,
     // **************************************************************************************
     // Convert updated momentum to updated velocity on faces after we have taken a timestep
     // **************************************************************************************
-    MomentumToVelocity(xvel_new, yvel_new, zvel_new,
+    MomentumToVelocity(xvel_new, IntVect::TheZeroVector(),
+                       yvel_new, IntVect::TheZeroVector(),
+                       zvel_new, IntVect::TheZeroVector(),
                        state_new[IntVar::cons],
                        state_new[IntVar::xmom],
                        state_new[IntVar::ymom],
-                       state_new[IntVar::zmom],
-                       IntVect::TheZeroVector());
+                       state_new[IntVar::zmom]);
 
     // **************************************************************************************
     // Get the final cell centered variables after the step

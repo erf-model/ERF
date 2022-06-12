@@ -177,7 +177,6 @@ public:
                                              const amrex::Vector<std::string> &varnames,
                                              amrex::Real time,
                                              const amrex::Vector<int> &level_steps,
-                                             const amrex::Vector<amrex::IntVect> &ref_ratio,
                                              const std::string &versionName = "HyperCLaw-V1.1",
                                              const std::string &levelPrefix = "Level_",
                                              const std::string &mfPrefix = "Cell",
@@ -190,7 +189,6 @@ public:
                                                 const amrex::Vector<std::string> &varnames,
                                                 amrex::Real time,
                                                 const amrex::Vector<int> &level_steps,
-                                                const amrex::Vector<amrex::IntVect> &ref_ratio,
                                                 const std::string &versionName,
                                                 const std::string &levelPrefix,
                                                 const std::string &mfPrefix) const;

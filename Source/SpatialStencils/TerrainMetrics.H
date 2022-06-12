@@ -40,6 +40,20 @@ terrain_fill_domain_bndry_XY(     int &i,          int &j,    const int &k,
 //*****************************************************************************************
 // Metric is at cell center
 AMREX_GPU_DEVICE
+inline amrex::Real
+Compute_h_zeta_AtCellCenter(const int &i, const int &j, const int &k,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dyInv = cellSizeInv[1];
+    amrex::Real met_h_zeta = 0.25 * dyInv *
+      ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
+       -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) - z_nd(i,j  ,k+1) - z_nd(i+1,j  ,k+1) );
+    return met_h_zeta;
+}
+
+// Metric is at cell center
+AMREX_GPU_DEVICE
 inline void
 ComputeMetricAtCellCenter(const int &i, const int &j, const int &k,
                           amrex::Real& met_h_xi,
@@ -505,7 +519,7 @@ amrex::Real OmegaFromW(int i, int j, int k, amrex::Real w,
   amrex::Real vec_zlo_eta  = (k == 0) ? 1.5 * (0.5*( v(i,j,k)+v(i,j+1,k))) - 0.5*(0.5*(v(i,j,k+1)+v(i,j+1,k+1))) :
     0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
 
-  amrex::Real omega = -met_zlo_xi * vec_zlo_xi - met_zlo_eta * vec_zlo_eta + w;
+  amrex::Real omega = (k == 0) ? 0.0 : -met_zlo_xi * vec_zlo_xi - met_zlo_eta * vec_zlo_eta + w;
   return omega;
 }
 
@@ -550,12 +564,18 @@ amrex::Real WFromOmegaBC(int i, int j, int k, amrex::Real omega,
   // Clip metric indices for ghost cell BCs
   amrex::Dim3 hi = ubound(z_nd);
   amrex::Dim3 lo = lbound(z_nd);
+#if 0
   int  im = (i  >= hi.x) ? (hi.x-1) : i;
        im = (im <= lo.x) ? (lo.x+1) : im;
   int  jm = (j  >= hi.y) ? (hi.y-1) : j;
        jm = (jm <= lo.y) ? (lo.y+1) : jm;
   int  km = (k  >= hi.z) ? (hi.z-1) : k;
        km = (km <= lo.z) ? (lo.z+1) : km;
+#endif
+
+  int  im = i;
+  int  jm = j;
+  int  km = k;
 
   // This is dh/dxi at z-face (i,j,k-1/2)
   amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
@@ -572,7 +592,7 @@ amrex::Real WFromOmegaBC(int i, int j, int k, amrex::Real omega,
   amrex::Real vec_zlo_eta;
   hi = ubound(u);
   lo = lbound(u);
-  hi.z = hi.z + 1; // nodal for W-velocity
+  hi.z += 1; // nodal for W-velocity
 
   if( k == hi.z) {
     // foextrap to highest k-face

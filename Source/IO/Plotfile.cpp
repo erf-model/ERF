@@ -611,7 +611,7 @@ ERF::WritePlotFile ()
                                                GetVecOfConstPtrs(mf),
                                                GetVecOfConstPtrs(mf_nd),
                                                varnames,
-                                               t_new[0], istep, refRatio());
+                                               t_new[0], istep);
 #else
             WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                            GetVecOfConstPtrs(mf),
@@ -692,7 +692,6 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
                                          const Vector<std::string>& varnames,
                                          Real time,
                                          const Vector<int>& level_steps,
-                                         const Vector<IntVect>& ref_ratio,
                                          const std::string &versionName,
                                          const std::string &levelPrefix,
                                          const std::string &mfPrefix,
@@ -731,7 +730,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
                                                     std::ofstream::binary);
             if( ! HeaderFile.good()) FileOpenFailed(HeaderFileName);
             WriteGenericPlotfileHeaderWithTerrain(HeaderFile, nlevels, boxArrays, varnames,
-                                                  time, level_steps, ref_ratio, versionName,
+                                                  time, level_steps, versionName,
                                                   levelPrefix, mfPrefix);
         };
 
@@ -778,7 +777,6 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                             const Vector<std::string> &varnames,
                                             Real time,
                                             const Vector<int> &level_steps,
-                                            const Vector<IntVect> &ref_ratio,
                                             const std::string &versionName,
                                             const std::string &levelPrefix,
                                             const std::string &mfPrefix) const
