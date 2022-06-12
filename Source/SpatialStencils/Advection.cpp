@@ -367,13 +367,29 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
     Real edgeFluxZYPrev = rho_v_avg *
                           InterpolateFromCellOrFace(i, j  , k, w, 0, rho_v_avg, Coord::y, spatial_order);
 
-    Real centFluxZZNext = (k == domhi_z+1) ? rho_w(i,j,k) * rho_w(i,j,k) :
-        0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1)) *
-            InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
+    Real centFluxZZPrev;
+    Real centFluxZZNext;
 
-    Real centFluxZZPrev = (k == 0) ? rho_w(i,j,k) * rho_w(i,j,k) :
-        0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1)) *
-            InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
+    int local_spatial_order = spatial_order;
+    if (k <= 1 || k >= domhi_z) { 
+        local_spatial_order = std::min(local_spatial_order,2);
+    } else if (k == 2 || k == domhi_z-1) { 
+        local_spatial_order = std::min(local_spatial_order,4);
+    }
+
+    if (k == 0) {
+        centFluxZZPrev = rho_w(i,j,k) * rho_w(i,j,k);
+    } else {
+        centFluxZZPrev = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1)) *
+            InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, local_spatial_order);
+    }
+
+    if (k == domhi_z+1) {
+        centFluxZZNext =  rho_w(i,j,k) * rho_w(i,j,k);
+    } else {
+        centFluxZZNext = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1)) *
+            InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, local_spatial_order);
+    }
 
     Real advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
                       + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
