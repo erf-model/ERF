@@ -3,6 +3,8 @@
 #include <math.h>
 #define PI 3.141592653589793238462643383279502884197
 
+using namespace amrex;
+
 //*****************************************************************************************
 // Compute the terrain grid from BTF or STF model
 //
@@ -10,20 +12,48 @@
 //       but (we think) the issue is deep in ERF and this code will work once the deeper
 //       problem is fixed. For now, make sure to run on a single level. -mmsanders
 //*****************************************************************************************
-void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_nd)
+void 
+init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
 {
   auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();
   auto ProbLoArr = geom.ProbLoArray();
 
   // z_nd is nodal in all directions
-  const amrex::Box& dbx = geom.Domain();
-  int imin = dbx.smallEnd(0); int imax = dbx.bigEnd(0) + 1;
-  int jmin = dbx.smallEnd(1); int jmax = dbx.bigEnd(1) + 1;
-  int kmin = dbx.smallEnd(2); int kmax = dbx.bigEnd(2) + 1;
+  const Box& domain = geom.Domain();
+  int imin = domain.smallEnd(0); int imax = domain.bigEnd(0) + 1;
+  int jmin = domain.smallEnd(1); int jmax = domain.bigEnd(1) + 1;
+  int kmin = domain.smallEnd(2); int kmax = domain.bigEnd(2) + 1;
 
   // User-selected method from inputs file (BTF default)
-  amrex::ParmParse pp("erf");
+  ParmParse pp("erf");
+
+  // "custom" refers to terrain analytically specified, such as WitchOfAgnesi 
+  std::string terrain_type = "custom"; 
+
+  int nz = domain.length(2)+1;
+  amrex::Vector<Real> z_levels_h; 
+  z_levels_h.resize(nz);
+
+  // This is the default for z_levels
+  for (int k = 0; k < nz; k++)
+  {
+      z_levels_h[k] = k * dx[2];
+  }
+
+  // But we can read them in from the inputs file as an alternative
+  int n_zlevels = pp.queryarr("terrain_z_levels", z_levels_h, 0, nz);
+  if (n_zlevels > 0 && n_zlevels != nz)
+      amrex::Abort("You must specify a z_level for every value of k");
+
+   amrex::Gpu::DeviceVector<Real> z_levels_d;
+  z_levels_d.resize(nz);
+#ifdef AMREX_USE_GPU
+    Gpu::htod_memcpy(z_levels_d.data(), z_levels_h.data(), sizeof(Real)*nz);
+#else
+    std::memcpy(z_levels_d.data(), z_levels_h.data(), sizeof(Real)*nz);
+#endif
+
   int terrain_smoothing = 0;
   pp.query("terrain_smoothing", terrain_smoothing);
 
@@ -35,22 +65,23 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
       // Top and bottom z boundary populated at end (fillboundary doesn't touch these)
       //********************************************************************************
       int k0 = 0;
-      amrex::Real ztop = ProbHiArr[2];
+      Real ztop = ProbHiArr[2];
 
       // WoA terms to compute ghost cell values
-      amrex::Real a = 0.5;
-      amrex::Real num = 8 * a * a * a;
-      amrex::Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-      amrex::Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
+      Real a = 0.5;
+      Real num = 8 * a * a * a;
+      Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
+      Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
 
       int ngrow = z_phys_nd.nGrow();
 
       for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
       {
           //use valid box to get domain bounds in all cases
-          const amrex::Box& vbx = mfi.validbox();
+          const Box& vbx = mfi.validbox();
 
-          amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+          Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+          auto const& z_lev = z_levels_d.data();
 
           // Does the box border the domain
           int limin = vbx.smallEnd(0); int limax = vbx.bigEnd(0);
@@ -59,7 +90,7 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
           int bxflag  = (limin == imin || limax == imax) ? 1 : 0;
           int byflag  = (ljmin == jmin || ljmax == jmax) ? 1 : 0;
 
-          amrex::Box xybx;
+          Box xybx;
           if (lev > 0) {
               xybx = mfi.growntilebox(ngrow);
               xybx.setRange(2,0,lkmax+ngrow);
@@ -70,12 +101,12 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
           ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
               // Location of nodes
-              amrex::Real x = (i * dx[0] - xcen);
-              amrex::Real y = (j * dx[1] - ycen);
-              amrex::Real z =  k * dx[2];
+              Real x = (i * dx[0] - xcen);
+              Real y = (j * dx[1] - ycen);
+              Real z =  z_lev[k]; 
 
               // WoA Hill for ghost points
-              amrex::Real height = num / (x*x + 4*a*a);
+              Real height = num / (x*x + 4*a*a);
 
               // YZ plane ghost cells
               if(i<limin) z_arr(i,j,k) = height;
@@ -110,28 +141,28 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
         amrex::MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, 1);
 
         // Save max height for smoothing
-        amrex::Real max_h;
+        Real max_h;
 
         // Crete 2D MF without allocation
         amrex::MultiFab mf2d;
         {
-            amrex::BoxList bl2d = h_mf.boxArray().boxList();
+            BoxList bl2d = h_mf.boxArray().boxList();
             for (auto& b : bl2d) {
                 b.setRange(2,0);
             }
-            amrex::BoxArray ba2d(std::move(bl2d));
+            BoxArray ba2d(std::move(bl2d));
             mf2d = amrex::MultiFab(ba2d, h_mf.DistributionMap(), 1, 0, amrex::MFInfo().SetAlloc(false));
         }
 
         // Get MultiArray4s from the multifabs
-        amrex::MultiArray4<amrex::Real> const& ma_h_s     = h_mf.arrays();
-        amrex::MultiArray4<amrex::Real> const& ma_h_s_old = h_mf_old.arrays();
-        amrex::MultiArray4<amrex::Real> const& ma_z_phys  = z_phys_nd.arrays();
+        amrex::MultiArray4<Real> const& ma_h_s     = h_mf.arrays();
+        amrex::MultiArray4<Real> const& ma_h_s_old = h_mf_old.arrays();
+        amrex::MultiArray4<Real> const& ma_z_phys  = z_phys_nd.arrays();
 
         // Get max value
-        max_h = ParReduce(amrex::TypeList<amrex::ReduceOpMax>{}, amrex::TypeList<amrex::Real>{}, mf2d, amrex::IntVect(0),
+        max_h = ParReduce(amrex::TypeList<amrex::ReduceOpMax>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
-                        -> amrex::GpuTuple<amrex::Real>
+                        -> amrex::GpuTuple<Real>
                 {
 
                   // Bottom boundary
@@ -171,36 +202,36 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices
         for (int k = kmin+1; k <= kmax; k++) // skip terrain level
         {
-            amrex::Real zz = k * dx[2];
-            amrex::Real zz_minus = (k - 1) * dx[2];
+            Real zz = k * dx[2];
+            Real zz_minus = (k - 1) * dx[2];
 
-            amrex::Real gamma_m = 0.5; // min allowed fractional grid spacing
-            amrex::Real z_H = 2.44/(1-gamma_m);
+            Real gamma_m = 0.5; // min allowed fractional grid spacing
+            Real z_H = 2.44/(1-gamma_m);
 
-            amrex::Real foo = cos((PI/2)*(zz/z_H));
-            amrex::Real A;
+            Real foo = cos((PI/2)*(zz/z_H));
+            Real A;
             if(zz < z_H) { A = foo*foo*foo*foo*foo*foo; } // A controls rate of return to atm
             else         { A = 0; }
-            amrex::Real foo_minus = cos((PI/2)*(zz_minus/z_H));
-            amrex::Real A_minus;
+            Real foo_minus = cos((PI/2)*(zz_minus/z_H));
+            Real A_minus;
             if(zz_minus < z_H) { A_minus = foo_minus*foo_minus*foo_minus*foo_minus*foo_minus*foo_minus; } // A controls rate of return to atm
             else               { A_minus = 0; }
 
             unsigned maxIter = 50; // M_k in paper
             unsigned iter = 0;
-            amrex::Real threshold = gamma_m;
-            amrex::Real diff = 1.e20;
+            Real threshold = gamma_m;
+            Real diff = 1.e20;
             while (iter < maxIter && diff > threshold)
             {
-                diff = ParReduce(amrex::TypeList<amrex::ReduceOpMin>{}, amrex::TypeList<amrex::Real>{}, mf2d, amrex::IntVect(0),
+                diff = ParReduce(amrex::TypeList<amrex::ReduceOpMin>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
-                        -> amrex::GpuTuple<amrex::Real>
+                        -> amrex::GpuTuple<Real>
                 {
                     auto& h_s     = ma_h_s[box_no];
                     auto& h_s_old = ma_h_s_old[box_no];
 
-                    amrex::Real h_m    = max_h; //high point of hill
-                    amrex::Real beta_k = 0.2*std::min(zz/(2*h_m),1.0); //smoothing coefficient
+                    Real h_m    = max_h; //high point of hill
+                    Real beta_k = 0.2*std::min(zz/(2*h_m),1.0); //smoothing coefficient
 
                     if (iter == 0) {
                         h_s(i,j,k) = h_s_old(i,j,k-1) + beta_k*(h_s_old(i+1,j  ,k-1)
@@ -243,11 +274,11 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
             for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
                 // Only loop the XY-plane of valid box
-                const amrex::Box& vbx = mfi.validbox();
-                amrex::Box xybx = vbx;
+                const Box& vbx = mfi.validbox();
+                Box xybx = vbx;
                 xybx.setRange(2,0);
-                amrex::Array4<amrex::Real> const& h_s   = h_mf_old.array(mfi);
-                amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+                Array4<Real> const& h_s   = h_mf_old.array(mfi);
+                Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
                 // Does the box border the domain?
                 int limin = vbx.smallEnd(0); int limax = vbx.bigEnd(0);
@@ -258,7 +289,7 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
                     // Location of nodes
-                    amrex::Real z = k * dx[2];
+                    Real z = k * dx[2];
 
                     // STF model from p2164 of Klemp2011
                     z_arr(i,j,k) = z + A*h_s(i,j,k);
@@ -282,13 +313,13 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
   //********************************************************************************
   // Populate domain boundary cells in z-direction
   //********************************************************************************
-  for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+  for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
        // Only loop the XY-plane of grown box
-       const amrex::Box& vbx = mfi.growntilebox(1);
-       amrex::Box xybx = vbx;
+       const Box& vbx = mfi.growntilebox(1);
+       Box xybx = vbx;
        xybx.setRange(2,0);
-       amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+       Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
 
@@ -301,11 +332,11 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
 
   /*
   // Debug
-  for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+  for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
-       const amrex::Box& gbx = mfi.growntilebox(1);
+       const Box& gbx = mfi.growntilebox(1);
        amrex::Print() << "Ann print: " << z_phys_nd[mfi].box() << std::endl;
-       amrex::Array4<amrex::Real> z_arr = z_phys_nd.array(mfi);
+       Array4<Real> z_arr = z_phys_nd.array(mfi);
 
        int rank = 0;
        amrex::Print(rank) << gbx << "\n";
