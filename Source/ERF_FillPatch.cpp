@@ -71,11 +71,6 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
     int bccomp;
     amrex::Interpolater* mapper = nullptr;
 
-    // *********************************************************************
-    // TODO: if var_idx is momentum, then all instances of get_var(var_idx)
-    //       will have to get velocity & cons and then convert to momentum
-    // *********************************************************************
-
     TimeInterpolatedData fdata = GetDataAtTime(lev, time);
     Vector<Real> ftime         = {fdata.get_time()};
 
@@ -89,20 +84,22 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
             bccomp = 0;
             mapper = &cell_cons_interp;
         }
-        else if (var_idx == Vars::xvel || var_idx == Vars::xmom)
+        else if (var_idx == Vars::xvel)
         {
             bccomp = BCVars::xvel_bc;
             mapper = &face_linear_interp;
         }
-        else if (var_idx == Vars::yvel || var_idx == Vars::ymom)
+        else if (var_idx == Vars::yvel)
         {
             bccomp = BCVars::yvel_bc;
             mapper = &face_linear_interp;
         }
-        else if (var_idx == Vars::zvel || var_idx == Vars::zmom)
+        else if (var_idx == Vars::zvel)
         {
             bccomp = BCVars::zvel_bc;
             mapper = &face_linear_interp;
+        } else {
+          amrex::Abort("Dont recognize this variable type in ERF_Fillpatch");
         }
 
         if (lev == 0)

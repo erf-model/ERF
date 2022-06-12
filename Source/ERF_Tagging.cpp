@@ -65,16 +65,16 @@ ERF::refinement_criteria_setup()
                 info.SetRealBox(realbox);
             }
             if (ppr.countval("start_time") > 0) {
-                Real min_time; ppr.get("start_time",min_time);
-                info.SetMinTime(min_time);
+                Real ref_min_time; ppr.get("start_time",ref_min_time);
+                info.SetMinTime(ref_min_time);
             }
             if (ppr.countval("end_time") > 0) {
-                Real max_time; ppr.get("end_time",max_time);
-                info.SetMaxTime(max_time);
+                Real ref_max_time; ppr.get("end_time",ref_max_time);
+                info.SetMaxTime(ref_max_time);
             }
             if (ppr.countval("max_level") > 0) {
-                int max_level; ppr.get("max_level",max_level);
-                info.SetMaxLevel(max_level);
+                int ref_max_level; ppr.get("max_level",ref_max_level);
+                info.SetMaxLevel(ref_max_level);
             }
 
             if (ppr.countval("value_greater")) {

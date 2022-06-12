@@ -364,7 +364,7 @@ void erf_slow_rhs (int level,
                 gp_zeta_on_iface = 0.5 * dxInv[2] * (
                                                     pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
                                                   - pp_arr(i-1,j,k  ) - pp_arr(i,j,k  ) );
-            } else if(k==domhi_z) {
+            } else if (k==domhi_z) {
                 gp_zeta_on_iface = 0.5 * dxInv[2] * (
                                                     pp_arr(i-1,j,k  ) + pp_arr(i,j,k  )
                                                   - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
@@ -451,7 +451,7 @@ void erf_slow_rhs (int level,
                 gp_zeta_on_jface = 0.5 * dxInv[2] * (
                                                     pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
                                                   - pp_arr(i,j,k  ) - pp_arr(i,j-1,k  ) );
-            } else if(k==domhi_z) {
+            } else if (k==domhi_z) {
                 gp_zeta_on_jface = 0.5 * dxInv[2] * (
                                                     pp_arr(i,j,k  ) + pp_arr(i,j-1,k  )
                                                   - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
@@ -508,7 +508,7 @@ void erf_slow_rhs (int level,
                  ( (k == vlo_z && mlo_z(i,j,k)) || (k == vhi_z+1 && mhi_z(i,j,k)) );
             }
 
-            if (!on_coarse_fine_boundary)
+            if (!on_coarse_fine_boundary && k > 0)
             {
 
             // Add advective terms
@@ -516,10 +516,11 @@ void erf_slow_rhs (int level,
 #ifdef ERF_USE_TERRAIN
                                                        z_nd, detJ,
 #endif
-                                                       dxInv, l_spatial_order);
+                                                       dxInv, l_spatial_order, domhi_z);
 
             // Add diffusive terms
-            rho_w_rhs(i, j, k) += DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
+            int k_diff = (k == domhi_z+1) ? domhi_z : k;
+            rho_w_rhs(i, j, k) += DiffusionSrcForMom(i, j, k_diff, u, v, w, cell_data,
                                                      MomentumEqn::z, dxInv, K_turb, solverChoice,
 #ifdef ERF_USE_TERRAIN
                                                      z_nd, detJ,

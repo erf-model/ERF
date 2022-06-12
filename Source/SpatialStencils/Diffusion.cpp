@@ -17,6 +17,11 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
                    const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
                    const Box& domain, const amrex::BCRec* bc_ptr)
 {
+  if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
+       (solverChoice.les_type        ==       LESType::None) &&
+       (solverChoice.pbl_type        ==       PBLType::None) ) {
+          return 0.;
+  } else {
   auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
   Real diffContrib = 0.0;
 
@@ -406,6 +411,7 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
   }
 
   return diffContrib;
+  }
 }
 
 #else
@@ -420,6 +426,11 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
                             const SolverChoice &solverChoice,
                             const Box& domain, const amrex::BCRec* bc_ptr)
 {
+  if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
+       (solverChoice.les_type        ==       LESType::None) &&
+       (solverChoice.pbl_type        ==       PBLType::None) ) {
+          return 0.;
+  } else {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real diffContrib = 0.0;
 
@@ -503,6 +514,7 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
     }
 
     return diffContrib;
+    }
 }
 #endif
 
@@ -515,6 +527,11 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
                      const SolverChoice &solverChoice,
                      const enum Coord& coordDir)
 {
+  if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
+       (solverChoice.les_type        ==       LESType::None) &&
+       (solverChoice.pbl_type        ==       PBLType::None) ) {
+          return 0.;
+  } else {
   // Get indices of states to left and right of the face on which we want the flux
   const int il = i - (coordDir == Coord::x);
   const int ir = i;
@@ -598,6 +615,7 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
       (cell_prim(ir, jr, kr, prim_index) - cell_prim(il, jl, kl, prim_index));
 
   return diffusionFlux;
+    }
 }
 
 AMREX_GPU_DEVICE
@@ -610,6 +628,11 @@ DiffusionSrcForState(const int &i, const int &j, const int &k,
                               const Array4<Real>& K_turb,
                               const SolverChoice &solverChoice)
 {
+  if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
+       (solverChoice.les_type        ==       LESType::None) &&
+       (solverChoice.pbl_type        ==       PBLType::None) ) {
+          return 0.;
+  } else {
   const amrex::Real dx_inv = cellSizeInv[0];
   const amrex::Real dy_inv = cellSizeInv[1];
   const amrex::Real dz_inv = cellSizeInv[2];
@@ -632,4 +655,5 @@ DiffusionSrcForState(const int &i, const int &j, const int &k,
      +(zflux(i,j,k+1,qty_index) - zflux(i,j,k  ,qty_index)) * dz_inv;  // Diffusive flux in z-dir
 
   return diffusionSrc;
+  }
 }

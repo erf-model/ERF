@@ -19,7 +19,7 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
                     const int& spatial_order)
 {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-    Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
+    Real rho_u_avg, rho_v_avg, rho_w_avg;
 
     Real met_h_xi, met_h_eta,  met_h_zeta;
 
@@ -27,20 +27,14 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
     // X-fluxes (at cell centers)
     // ****************************************************************************************
 
-    // Cell-Center is staggered
-    ComputeMetricAtCellCenter(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
     rho_u_avg = 0.5 * (rho_u(i+1, j, k) + rho_u(i, j, k));
-    Real centFluxXXNext = rho_u_avg * met_h_zeta *
+    Real centFluxXXNext = rho_u_avg * Compute_h_zeta_AtCellCenter(i,j,k,cellSizeInv,z_nd) *
                           InterpolateFromCellOrFace(i+1, j, k, u, 0, rho_u_avg, Coord::x, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    // Cell-Center is staggered
-    ComputeMetricAtCellCenter(i-1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
     rho_u_avg = 0.5 * (rho_u(i-1, j, k) + rho_u(i, j, k));
-    Real centFluxXXPrev = rho_u_avg * met_h_zeta *
+    Real centFluxXXPrev = rho_u_avg * Compute_h_zeta_AtCellCenter(i-1,j,k,cellSizeInv,z_nd) *
                           InterpolateFromCellOrFace(i  , j, k, u, 0, rho_u_avg, Coord::x, spatial_order);
 
     // ****************************************************************************************
@@ -67,31 +61,18 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
     // Z-fluxes (at edges in j-direction)
     // ****************************************************************************************
 
-    // Metric is at edge and center Y (magenta cross)
-    ComputeMetricAtEdgeCenterJ(i  ,j  ,k+1,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_xi_eta);
-
-    vec = -met_h_xi  * 0.5   * (rho_u(i,j,k) + rho_u(i,j,k+1))
-          -met_h_eta * 0.125 * (
-             rho_v(i,j,k  ) + rho_v(i-1,j,k  ) + rho_v(i,j+1,k  ) + rho_v(i-1,j+1,k  ) +
-             rho_v(i,j,k+1) + rho_v(i-1,j,k+1) + rho_v(i,j+1,k+1) + rho_v(i-1,j+1,k+1) )
-          +0.5 * (rho_w(i,j,k+1) + rho_w(i-1,j,k+1));
-    Real edgeFluxXZNext = vec *
-                          InterpolateFromCellOrFace(i, j, k+1, u, 0, rho_w_avg, Coord::z, spatial_order);
+    Real edgeFluxXZNext = 0.5 *
+        ( OmegaFromW(i  ,j,k+1,rho_w(i  ,j,k+1),rho_u,rho_v,z_nd,cellSizeInv)
+         +OmegaFromW(i-1,j,k+1,rho_w(i-1,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) ) *
+        InterpolateFromCellOrFace(i, j, k+1, u, 0, rho_w_avg, Coord::z, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    // Metric is at edge and center Y (magenta cross)
-    ComputeMetricAtEdgeCenterJ(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_xi_eta);
+    Real edgeFluxXZPrev = 0.5 *
+        ( OmegaFromW(i  ,j,k,rho_w(i  ,j,k),rho_u,rho_v,z_nd,cellSizeInv)
+         +OmegaFromW(i-1,j,k,rho_w(i-1,j,k),rho_u,rho_v,z_nd,cellSizeInv) ) *
+        InterpolateFromCellOrFace(i, j, k  , u, 0, rho_w_avg, Coord::z, spatial_order);
 
-    vec = -met_h_xi  * 0.5 * (rho_u(i,j,k) + rho_u(i,j,k-1))
-          -met_h_eta * 0.125 * (
-             rho_v(i,j,k  ) + rho_v(i-1,j,k  ) + rho_v(i,j+1,k  ) + rho_v(i-1,j+1,k  ) +
-             rho_v(i,j,k-1) + rho_v(i-1,j,k-1) + rho_v(i,j+1,k-1) + rho_v(i-1,j+1,k-1) )
-          +0.5 * (rho_w(i,j,k) + rho_w(i-1,j,k));
-    Real edgeFluxXZPrev = vec *
-                          InterpolateFromCellOrFace(i, j, k  , u, 0, rho_w_avg, Coord::z, spatial_order);
-
-    // ****************************************************************************************
     // ****************************************************************************************
 
     Real advectionSrc = (centFluxXXNext - centFluxXXPrev) * dxInv
@@ -157,7 +138,7 @@ AdvectionSrcForYMom(const int &i, const int &j, const int &k,
                     const int& spatial_order)
 {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-    Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
+    Real rho_u_avg, rho_v_avg, rho_w_avg;
 
     Real met_h_xi, met_h_eta,  met_h_zeta;
 
@@ -185,52 +166,33 @@ AdvectionSrcForYMom(const int &i, const int &j, const int &k,
     // y-fluxes (at cell centers)
     // ****************************************************************************************
 
-    // Cell-Center is staggered
-    ComputeMetricAtCellCenter(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
     rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j, k));
-    Real centFluxYYNext = rho_v_avg * met_h_zeta *
+    Real centFluxYYNext = rho_v_avg * Compute_h_zeta_AtCellCenter(i,j,k,cellSizeInv,z_nd) *
                           InterpolateFromCellOrFace(i, j+1, k, v, 0, rho_v_avg, Coord::y, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    // Cell-Center is staggered
-    ComputeMetricAtCellCenter(i  ,j-1,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
     rho_v_avg = 0.5 * (rho_v(i, j-1, k) + rho_v(i, j, k));
-    Real centFluxYYPrev = rho_v_avg * met_h_zeta *
+    Real centFluxYYPrev = rho_v_avg * Compute_h_zeta_AtCellCenter(i,j-1,k,cellSizeInv,z_nd) *
                           InterpolateFromCellOrFace(i  , j, k, v, 0, rho_v_avg, Coord::y, spatial_order);
 
 
     // ****************************************************************************************
-    // Z-fluxes (at edges in i-direction)
+    // Z-fluxes (at edges in j-direction)
     // ****************************************************************************************
 
-    // Metric is at edge and center I (purple hexagon)
-    ComputeMetricAtEdgeCenterI(i  ,j  ,k+1,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_xi_eta);
-
-    vec = -met_h_eta * 0.5 * (rho_v(i,j,k) + rho_v(i,j,k+1))
-          -met_h_xi  * 0.125 * (
-             rho_u(i,j,k  ) + rho_u(i,j-1,k  ) + rho_u(i+1,j,k  ) + rho_u(i+1,j-1,k  ) +
-             rho_u(i,j,k+1) + rho_u(i,j-1,k+1) + rho_u(i+1,j,k+1) + rho_u(i+1,j-1,k+1) )
-          +0.5 * (rho_w(i,j,k+1) + rho_w(i,j-1,k+1));
-    Real edgeFluxYZNext = vec *
-                          InterpolateFromCellOrFace(i, j, k+1, v, 0, rho_w_avg, Coord::z, spatial_order);
+    Real edgeFluxYZNext = 0.5 *
+        ( OmegaFromW(i,j  ,k,rho_w(i,j  ,k+1),rho_u,rho_v,z_nd,cellSizeInv)
+         +OmegaFromW(i,j-1,k,rho_w(i,j-1,k+1),rho_u,rho_v,z_nd,cellSizeInv) ) *
+        InterpolateFromCellOrFace(i, j, k+1, v, 0, rho_w_avg, Coord::z, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    // Metric is at edge and center I (purple hexagon)
-    ComputeMetricAtEdgeCenterI(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_xi_eta);
+    Real edgeFluxYZPrev = 0.5 *
+        ( OmegaFromW(i,j  ,k,rho_w(i,j  ,k),rho_u,rho_v,z_nd,cellSizeInv)
+         +OmegaFromW(i,j-1,k,rho_w(i,j-1,k),rho_u,rho_v,z_nd,cellSizeInv) ) *
+        InterpolateFromCellOrFace(i, j, k  , v, 0, rho_w_avg, Coord::z, spatial_order);
 
-    vec = -met_h_eta * 0.5 * (rho_v(i,j,k) + rho_v(i,j,k-1))
-          -met_h_xi  * 0.125 * (
-             rho_u(i,j,k  ) + rho_u(i,j-1,k  ) + rho_u(i+1,j,k  ) + rho_u(i+1,j-1,k  ) +
-             rho_u(i,j,k-1) + rho_u(i,j-1,k-1) + rho_u(i+1,j,k-1) + rho_u(i+1,j-1,k-1) )
-          +0.5 * (rho_w(i,j,k) + rho_w(i,j-1,k));
-    Real edgeFluxYZPrev = vec *
-                          InterpolateFromCellOrFace(i, j, k  , v, 0, rho_w_avg, Coord::z, spatial_order);
-
-    // ****************************************************************************************
     // ****************************************************************************************
 
     Real advectionSrc = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv
@@ -292,7 +254,7 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                     const Array4<const Real>& w,
                     const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                    const int& spatial_order)
+                    const int& spatial_order, const int& domhi_z)
 {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
@@ -348,11 +310,12 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
 
     // This is at the cell (i,j,k)
     vec  = -met_h_xi  * 0.5 * ( rho_u(i,j,k) + rho_u(i+1,j  ,k))
-           -met_h_eta * 0.5 * ( rho_v(i,j,k) + rho_v(i  ,j+1,k))
-           +            0.5 * ( rho_w(i,j,k) + rho_w(i  ,j  ,k+1));
+           -met_h_eta * 0.5 * ( rho_v(i,j,k) + rho_v(i  ,j+1,k));
+    vec += (k == domhi_z+1) ? rho_w(i,j,k) : 0.5 * ( rho_w(i,j,k) + rho_w(i  ,j  ,k+1));
 
-    Real centFluxZZNext = vec *
-                          InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
+    Real centFluxZZNext = vec;
+    centFluxZZNext *= (k == domhi_z+1) ? rho_w(i,j,k) :
+        InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
@@ -361,10 +324,11 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
 
     // This is at the cell (i,j,k-1)
     vec  = -met_h_xi  * 0.5 * ( rho_u(i,j,k-1) + rho_u(i+1,j  ,k-1))
-           -met_h_eta * 0.5 * ( rho_v(i,j,k-1) + rho_v(i  ,j+1,k-1))
-           +            0.5 * ( rho_w(i,j,k-1) + rho_w(i  ,j  ,k  ));
+           -met_h_eta * 0.5 * ( rho_v(i,j,k-1) + rho_v(i  ,j+1,k-1));
+    vec += (k == 0) ? rho_w(i,j,k) : 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
 
-    Real centFluxZZPrev = vec *
+    Real centFluxZZPrev = vec;
+    centFluxZZPrev *= (k == 0) ? rho_w(i,j,k) :
                           InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
 
     Real advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
@@ -382,7 +346,7 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                     const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
                     const Array4<const Real>& w,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                    const int& spatial_order)
+                    const int& spatial_order, const int& domhi_z)
 {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real rho_u_avg, rho_v_avg, rho_w_avg;
@@ -403,13 +367,29 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
     Real edgeFluxZYPrev = rho_v_avg *
                           InterpolateFromCellOrFace(i, j  , k, w, 0, rho_v_avg, Coord::y, spatial_order);
 
-    rho_w_avg = 0.5*(rho_w(i, j  , k+1) + rho_w(i, j, k));
-    Real centFluxZZNext = rho_w_avg *
-                          InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
+    Real centFluxZZPrev;
+    Real centFluxZZNext;
 
-    rho_w_avg = 0.5*(rho_w(i, j  , k-1) + rho_w(i, j, k));
-    Real centFluxZZPrev = rho_w_avg *
-                          InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
+    int local_spatial_order = spatial_order;
+    if (k <= 1 || k >= domhi_z) {
+        local_spatial_order = std::min(local_spatial_order,2);
+    } else if (k == 2 || k == domhi_z-1) {
+        local_spatial_order = std::min(local_spatial_order,4);
+    }
+
+    if (k == 0) {
+        centFluxZZPrev = rho_w(i,j,k) * rho_w(i,j,k);
+    } else {
+        centFluxZZPrev = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1)) *
+            InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, local_spatial_order);
+    }
+
+    if (k == domhi_z+1) {
+        centFluxZZNext =  rho_w(i,j,k) * rho_w(i,j,k);
+    } else {
+        centFluxZZNext = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1)) *
+            InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, local_spatial_order);
+    }
 
     Real advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
                       + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
@@ -467,7 +447,7 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
     // ****************************************************************************************
 
     Real zflux_hi = OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv);
-    Real zflux_lo = OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv);
+    Real zflux_lo = (k == 0) ? 0.0_rt : OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv);
 #else
     Real xflux_hi = rho_u(i+1,j,k);
     Real xflux_lo = rho_u(i  ,j,k);

@@ -10,10 +10,14 @@ using namespace amrex;
 /**
  * Convert velocity to momentum.
  */
-void VelocityToMomentum( const MultiFab& xvel_in, const MultiFab& yvel_in, const MultiFab& zvel_in,
+void VelocityToMomentum( const MultiFab& xvel_in,
+                         const IntVect& xvel_ngrow,
+                         const MultiFab& yvel_in,
+                         const IntVect& yvel_ngrow,
+                         const MultiFab& zvel_in,
+                         const IntVect& zvel_ngrow,
                          const MultiFab& cons_in,
-                         MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
-                         const IntVect& ngrow)
+                         MultiFab& xmom, MultiFab& ymom, MultiFab& zmom)
 {
     BL_PROFILE_VAR("VelocityToMomentum()",VelocityToMomentum);
 
@@ -23,9 +27,9 @@ void VelocityToMomentum( const MultiFab& xvel_in, const MultiFab& yvel_in, const
 #endif
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& tbx = amrex::grow(mfi.nodaltilebox(0),ngrow);
-        const Box& tby = amrex::grow(mfi.nodaltilebox(1),ngrow);
-        const Box& tbz = amrex::grow(mfi.nodaltilebox(2),ngrow);
+        const Box& tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow);
+        const Box& tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow);
+        const Box& tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow);
 
         // Conserved/state variables on cell centers -- we use this for density
         const Array4<const Real>& cons = cons_in.array(mfi);

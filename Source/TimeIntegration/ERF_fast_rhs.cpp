@@ -62,7 +62,7 @@ void erf_fast_rhs (int level,
 
     MultiFab Delta_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
     MultiFab Delta_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
-    MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, 1);
+    MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,0));
     MultiFab Delta_rho  (            ba                , dm, 1, 1);
     MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
 
@@ -71,13 +71,13 @@ void erf_fast_rhs (int level,
     //    so that we don't have to fill ghost cells of the new MultiFabs
     MultiFab::Copy(Delta_rho_u    , S_data[IntVar::xmom], 0, 0, 1, 1);
     MultiFab::Copy(Delta_rho_v    , S_data[IntVar::ymom], 0, 0, 1, 1);
-    MultiFab::Copy(Delta_rho_w    , S_data[IntVar::zmom], 0, 0, 1, 1);
+    MultiFab::Copy(Delta_rho_w    , S_data[IntVar::zmom], 0, 0, 1, IntVect(1,1,0));
     MultiFab::Copy(Delta_rho      , S_data[IntVar::cons], Rho_comp     , 0, 1,1);
     MultiFab::Copy(Delta_rho_theta, S_data[IntVar::cons], RhoTheta_comp, 0, 1,1);
 
     MultiFab::Subtract(Delta_rho_u    , S_stage_data[IntVar::xmom], 0, 0, 1, 1);
     MultiFab::Subtract(Delta_rho_v    , S_stage_data[IntVar::ymom], 0, 0, 1, 1);
-    MultiFab::Subtract(Delta_rho_w    , S_stage_data[IntVar::zmom], 0, 0, 1, 1);
+    MultiFab::Subtract(Delta_rho_w    , S_stage_data[IntVar::zmom], 0, 0, 1, IntVect(1,1,0));
     MultiFab::Subtract(Delta_rho      , S_stage_data[IntVar::cons], Rho_comp     , 0, 1, 1);
     MultiFab::Subtract(Delta_rho_theta, S_stage_data[IntVar::cons], RhoTheta_comp, 0, 1, 1);
 
@@ -89,7 +89,7 @@ void erf_fast_rhs (int level,
     // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
     MultiFab::Copy(New_rho_u, Delta_rho_u, 0, 0, 1, 1);
     MultiFab::Copy(New_rho_v, Delta_rho_v, 0, 0, 1, 1);
-    MultiFab::Copy(New_rho_w, Delta_rho_w, 0, 0, 1, 1);
+    MultiFab::Copy(New_rho_w, Delta_rho_w, 0, 0, 1, IntVect(1,1,0));
 
     // *************************************************************************
     // Set gravity as a vector

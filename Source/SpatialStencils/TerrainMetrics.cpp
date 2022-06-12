@@ -12,7 +12,6 @@
 //*****************************************************************************************
 void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_nd)
 {
-
   auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();
   auto ProbLoArr = geom.ProbLoArray();
@@ -44,6 +43,8 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
       amrex::Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
       amrex::Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
 
+      int ngrow = z_phys_nd.nGrow();
+
       for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
       {
           //use valid box to get domain bounds in all cases
@@ -60,8 +61,8 @@ void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_
 
           amrex::Box xybx;
           if (lev > 0) {
-              xybx = mfi.growntilebox(1);
-              xybx.setRange(2,0,lkmax+1);
+              xybx = mfi.growntilebox(ngrow);
+              xybx.setRange(2,0,lkmax+ngrow);
           }
           else
               xybx = vbx;
