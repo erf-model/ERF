@@ -371,9 +371,9 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
     Real centFluxZZNext;
 
     int local_spatial_order = spatial_order;
-    if (k <= 1 || k >= domhi_z) { 
+    if (k <= 1 || k >= domhi_z) {
         local_spatial_order = std::min(local_spatial_order,2);
-    } else if (k == 2 || k == domhi_z-1) { 
+    } else if (k == 2 || k == domhi_z-1) {
         local_spatial_order = std::min(local_spatial_order,4);
     }
 
