@@ -7,33 +7,7 @@
 #include <IndexDefines.H>
 
 // Declare function for ERF.cpp
-void init_terrain_grid( int lev, amrex::Geometry& geom, amrex::MultiFab& z_phys_nd);
-
-//*****************************************************************************************
-// Fill domain boundary cells fir terrain grid initialization
-//*****************************************************************************************
-AMREX_GPU_DEVICE
-inline void
-terrain_fill_domain_bndry_XY(     int &i,          int &j,    const int &k,
-                                  const int &imin, const int &jmin,
-                                  const int &imax, const int &jmax,
-                                  const amrex::Real &src,
-                                  amrex::Array4<amrex::Real> const& dst)
-{
-    // YZ plane ghost cells (zero gradient)
-    if(i==imin) dst(i-1,j,k) = src;
-    if(i==imax) dst(i+1,j,k) = src;
-
-    // XZ plane ghost cells (zero gradient)
-    if(j==jmin) dst(i,j-1,k) = src;
-    if(j==jmax) dst(i,j+1,k) = src;
-
-    // Corner cells along z
-    if(i==imin && j==jmin) dst(i-1,j-1,k) = src;
-    if(i==imax && j==jmax) dst(i+1,j+1,k) = src;
-    if(i==imin && j==jmax) dst(i-1,j+1,k) = src;
-    if(i==imax && j==jmin) dst(i+1,j-1,k) = src;
-}
+void init_terrain_grid( amrex::Geometry& geom, amrex::MultiFab& z_phys_nd);
 
 //*****************************************************************************************
 // Compute terrain metric terms at cell-center
@@ -564,28 +538,16 @@ amrex::Real WFromOmegaBC(int i, int j, int k, amrex::Real omega,
   // Clip metric indices for ghost cell BCs
   amrex::Dim3 hi = ubound(z_nd);
   amrex::Dim3 lo = lbound(z_nd);
-#if 0
-  int  im = (i  >= hi.x) ? (hi.x-1) : i;
-       im = (im <= lo.x) ? (lo.x+1) : im;
-  int  jm = (j  >= hi.y) ? (hi.y-1) : j;
-       jm = (jm <= lo.y) ? (lo.y+1) : jm;
-  int  km = (k  >= hi.z) ? (hi.z-1) : k;
-       km = (km <= lo.z) ? (lo.z+1) : km;
-#endif
-
-  int  im = i;
-  int  jm = j;
-  int  km = k;
 
   // This is dh/dxi at z-face (i,j,k-1/2)
   amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
-    ( z_nd(im+1,jm+1,km  ) + z_nd(im+1,jm  ,km  )    // hi i, lo k
-     -z_nd(im  ,jm+1,km  ) - z_nd(im  ,jm  ,km  ) ); // lo i, lo k
+    ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
+     -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
 
   // This is dh/deta at z-face (i,j,k-1/2)
   amrex::Real met_zlo_eta  = 0.5 * dxInv[1] *
-    ( z_nd(im+1,jm+1,km  ) + z_nd(im  ,jm+1,km  )    // hi j, lo k
-     -z_nd(im+1,jm  ,km  ) - z_nd(im  ,jm  ,km  ) ); // lo j, lo k
+    ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
+     -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
 
   // Clip velocity indices for ghost cell BCs
   amrex::Real vec_zlo_xi;
@@ -629,19 +591,21 @@ void make_metrics(amrex::Geometry& geom,
 #endif
     for ( amrex::MFIter mfi(z_phys_cc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        const amrex::Box& gbx = mfi.growntilebox(1);
+        const amrex::Box& gbx = mfi.growntilebox(amrex::IntVect(1,1,1));
         amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
         amrex::Array4<amrex::Real      > z_cc = z_phys_cc.array(mfi);
         amrex::Array4<amrex::Real      > detJ = detJ_cc.array(mfi);
         amrex::ParallelFor(gbx, [=]
            AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+             if (k >= 0) {
                z_cc(i, j, k) = .125 * (
                        z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                       +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
                detJ(i, j, k) = .25 * dzInv * (
                        z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
                       -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
-               });
+             }
+           });
     }
     detJ_cc.FillBoundary(geom.periodicity());
 }

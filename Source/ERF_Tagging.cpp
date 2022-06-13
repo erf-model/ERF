@@ -51,8 +51,12 @@ ERF::refinement_criteria_setup()
                     num_boxes_at_level[lev_for_box] += 1;
 
                     auto dx = geom[lev_for_box].CellSize();
-                    int ilo = box_lo[0]/dx[0]; int jlo = box_lo[1]/dx[1]; int klo = box_lo[2]/dx[2];
-                    int ihi = box_hi[0]/dx[0]; int jhi = box_hi[1]/dx[1]; int khi = box_hi[2]/dx[2];
+                    int ilo = static_cast<int>(box_lo[0]/dx[0]);
+                    int jlo = static_cast<int>(box_lo[1]/dx[1]);
+                    int klo = static_cast<int>(box_lo[2]/dx[2]);
+                    int ihi = static_cast<int>(box_hi[0]/dx[0]);
+                    int jhi = static_cast<int>(box_hi[1]/dx[1]);
+                    int khi = static_cast<int>(box_hi[2]/dx[2]);
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
                     boxes_at_level[lev_for_box].push_back(bx);
                     amrex::Print() << "Saving in 'boxes at level' as " << bx << std::endl;

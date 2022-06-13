@@ -124,19 +124,18 @@ ERF::erf_enforce_hse(int lev,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             int k0  = 0;
-            // Physical heigh of the terrain at cell center
+            // Physical height of the terrain at cell center
             Real hz = zcc_arr(i,j,k0);
-            // Local displacement
-            Real dz_loc = (zcc_arr(i,j,k0) - zcc_arr(i,j,k0-1));
 
             // Set value at surface from Newton iteration for rho
             pres_arr(i,j,k0  ) = p_0 - hz * rho_arr(i,j,k0) * l_gravity;
+
             // Set ghost cell with dz and rho at boundary
-            pres_arr(i,j,k0-1) = pres_arr(i,j,k0) + dz_loc * rho_arr(i,j,k0) * l_gravity;
+            pres_arr(i,j,k0-1) = p_0 + hz * rho_arr(i,j,k0) * l_gravity;
 
             Real dens_interp;
             for (int k = 1; k <= nz; k++) {
-                dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
+                Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
                 dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                 pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
             }
