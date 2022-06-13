@@ -199,10 +199,10 @@ init_custom_prob(
   });
 
   // Geometry (note we must include these here to get the data on device)
-  const auto prob_lo         = geomdata.ProbLo();
-  const auto dx              = geomdata.CellSize();
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
+    const auto prob_lo  = geomdata.ProbLo();
+    const auto dx       = geomdata.CellSize();
     const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const amrex::Real z = z_cc(i,j,k);
 
@@ -252,6 +252,8 @@ init_custom_prob(
   });
 
   // Construct a box that is on z-faces
+  const auto prob_lo    = geomdata.ProbLo();
+  const auto dx         = geomdata.CellSize();
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
   amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dxInv;
   dxInv[0] = 1. / dx[0];
@@ -263,6 +265,7 @@ init_custom_prob(
   });
 
   amrex::Gpu::streamSynchronize();
+
 }
 
 #else
