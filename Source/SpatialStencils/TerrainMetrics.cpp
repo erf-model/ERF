@@ -13,17 +13,16 @@ using namespace amrex;
 //       problem is fixed. For now, make sure to run on a single level. -mmsanders
 //*****************************************************************************************
 void
-init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
+init_terrain_grid( Geometry& geom, MultiFab& z_phys_nd)
 {
   auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();
-  auto ProbLoArr = geom.ProbLoArray();
 
   // z_nd is nodal in all directions
   const Box& domain = geom.Domain();
-  int imin = domain.smallEnd(0); int imax = domain.bigEnd(0) + 1;
-  int jmin = domain.smallEnd(1); int jmax = domain.bigEnd(1) + 1;
-  int kmin = domain.smallEnd(2); int kmax = domain.bigEnd(2) + 1;
+  int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+  int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
+  int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
 
   // User-selected method from inputs file (BTF default)
   ParmParse pp("erf");
@@ -57,6 +56,8 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
   int terrain_smoothing = 0;
   pp.query("terrain_smoothing", terrain_smoothing);
 
+  int ngrow = z_phys_nd.nGrow();
+
   switch(terrain_smoothing) {
     case 0: // BTF Method
     {
@@ -67,66 +68,22 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
       int k0 = 0;
       Real ztop = ProbHiArr[2];
 
-      // WoA terms to compute ghost cell values
-      Real a = 0.5;
-      Real num = 8 * a * a * a;
-      Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-      Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
-
-      int ngrow = z_phys_nd.nGrow();
-
       for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
       {
-          //use valid box to get domain bounds in all cases
-          const Box& vbx = mfi.validbox();
+          Box xybx;
+          xybx = mfi.growntilebox(ngrow);
+          xybx.setRange(2,0,domhi_z+1);
 
           Array4<Real> const& z_arr = z_phys_nd.array(mfi);
           auto const& z_lev = z_levels_d.data();
 
-          // Does the box border the domain
-          int limin = vbx.smallEnd(0); int limax = vbx.bigEnd(0);
-          int ljmin = vbx.smallEnd(1); int ljmax = vbx.bigEnd(1);
-          int lkmax = vbx.bigEnd(2);
-          int bxflag  = (limin == imin || limax == imax) ? 1 : 0;
-          int byflag  = (ljmin == jmin || ljmax == jmax) ? 1 : 0;
-
-          Box xybx;
-          if (lev > 0) {
-              xybx = mfi.growntilebox(ngrow);
-              xybx.setRange(2,0,lkmax+ngrow);
-          }
-          else
-              xybx = vbx;
-
           ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
-              // Location of nodes
-              Real x = (i * dx[0] - xcen);
-              Real y = (j * dx[1] - ycen);
               Real z =  z_lev[k];
 
-              // WoA Hill for ghost points
-              Real height = num / (x*x + 4*a*a);
-
-              // YZ plane ghost cells
-              if(i<limin) z_arr(i,j,k) = height;
-              if(i>limax) z_arr(i,j,k) = height;
-
-              // XZ plane ghost cells
-              if(j<ljmin) z_arr(i,j,k) = height;
-              if(j>ljmax) z_arr(i,j,k) = height;
-
-              // Corner cells along z
-              if(i<limin && j<ljmin) z_arr(i,j,k) = height;
-              if(i>limax && j>ljmax) z_arr(i,j,k) = height;
-              if(i<limin && j>ljmax) z_arr(i,j,k) = height;
-              if(i>limax && j<ljmin) z_arr(i,j,k) = height;
-
               // Fill non-ghost cells with BTF model from p2163 of Klemp2011
-              z_arr(i,j,k) = z + (1. - (z/ztop)) * z_arr(i,j,k0);
 
-              // Fill boundary cells if needed
-              if(bxflag || byflag) terrain_fill_domain_bndry_XY(i, j, k, limin, ljmin, limax, ljmax, z_arr(i,j,k), z_arr);
+              z_arr(i,j,k) = z + (1. - (z/ztop)) * z_arr(i,j,k0);
 
           });
         }
@@ -137,8 +94,8 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
     case 1: // STF Method
     {
         // Get Multifab spanning domain with 1 level of ghost cells
-        MultiFab h_mf(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, 1);
-        MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, 1);
+        MultiFab h_mf(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow);
+        MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow);
 
         // Save max height for smoothing
         Real max_h;
@@ -151,7 +108,7 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
                 b.setRange(2,0);
             }
             BoxArray ba2d(std::move(bl2d));
-            mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, 0, amrex::MFInfo().SetAlloc(false));
+            mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrow, amrex::MFInfo().SetAlloc(false));
         }
 
         // Get MultiArray4s from the multifabs
@@ -160,11 +117,10 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
         MultiArray4<Real> const& ma_z_phys  = z_phys_nd.arrays();
 
         // Get max value
-        max_h = ParReduce(amrex::TypeList<amrex::ReduceOpMax>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(0),
+        max_h = ParReduce(amrex::TypeList<amrex::ReduceOpMax>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(ngrow,ngrow,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> amrex::GpuTuple<Real>
                 {
-
                   // Bottom boundary
                   int k0 = 0;
 
@@ -172,38 +128,26 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
                   auto& h     = ma_h_s[box_no];
                   auto& z_arr = ma_z_phys[box_no];
 
-                  // Does the box border the domain?
-                  int limin = lbound(h).x + 1; int limax = ubound(h).x - 1;
-                  int ljmin = lbound(h).y + 1; int ljmax = ubound(h).y - 1;
-                  int bxflag  = (limin == imin || limax == imax) ? 1 : 0;
-                  int byflag  = (ljmin == jmin || ljmax == jmax) ? 1 : 0;
-
-
                   // Populate h with terrain
                   h(i,j,k0) = z_arr(i,j,k0);
-
-
-                  // Fill boundary cells if needed
-                  if(bxflag || byflag){
-                    terrain_fill_domain_bndry_XY(i, j, k0, imin, jmin, imax, jmax, z_arr(i,j,k0), z_arr);
-                    terrain_fill_domain_bndry_XY(i, j, k0, imin, jmin, imax, jmax, z_arr(i,j,k0), h    );
-                  }
 
                   // Return height for max
                   return { z_arr(i,j,k0) };
                 });
 
-        // Fill ghost cells (neglects domain boundary)
+        // Fill ghost cells (neglects domain boundary if not periodic)
         h_mf.FillBoundary(geom.periodicity());
 
         // Make h_mf copy for old values
-        MultiFab::Copy(h_mf_old, h_mf,0,0,1,1);
+        MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
 
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices
-        for (int k = kmin+1; k <= kmax; k++) // skip terrain level
+        for (int k = domlo_z+1; k <= domhi_z; k++) // skip terrain level
         {
-            Real zz = k * dx[2];
-            Real zz_minus = (k - 1) * dx[2];
+            auto const& z_lev = z_levels_h.data();
+
+            Real zz       = z_lev[k];
+            Real zz_minus = z_lev[k-1];
 
             Real gamma_m = 0.5; // min allowed fractional grid spacing
             Real z_H = 2.44/(1-gamma_m);
@@ -223,7 +167,7 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
             Real diff = 1.e20;
             while (iter < maxIter && diff > threshold)
             {
-                diff = ParReduce(amrex::TypeList<amrex::ReduceOpMin>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(0),
+                diff = ParReduce(amrex::TypeList<amrex::ReduceOpMin>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(ngrow,ngrow,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> amrex::GpuTuple<Real>
                 {
@@ -233,33 +177,27 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
                     Real h_m    = max_h; //high point of hill
                     Real beta_k = 0.2*std::min(zz/(2*h_m),1.0); //smoothing coefficient
 
+                    int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+                    int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
+
                     if (iter == 0) {
-                        h_s(i,j,k) = h_s_old(i,j,k-1) + beta_k*(h_s_old(i+1,j  ,k-1)
-                                                              + h_s_old(i-1,j  ,k-1)
-                                                              + h_s_old(i  ,j+1,k-1)
-                                                              + h_s_old(i  ,j-1,k-1) - 4*h_s_old(i,j,k-1));
+                        h_s(i,j,k) = h_s_old(i,j,k-1) + beta_k*(h_s_old(ii+1,jj  ,k-1)
+                                                              + h_s_old(ii-1,jj  ,k-1)
+                                                              + h_s_old(ii  ,jj+1,k-1)
+                                                              + h_s_old(ii  ,jj-1,k-1) - 4*h_s_old(ii,jj,k-1));
                     }
                     else {
-                        h_s(i,j,k) = h_s_old(i,j,k) + beta_k*(h_s_old(i+1,j  ,k)
-                                                            + h_s_old(i-1,j  ,k)
-                                                            + h_s_old(i  ,j+1,k)
-                                                            + h_s_old(i  ,j-1,k) - 4*h_s_old(i,j,k));
+                        h_s(i,j,k) = h_s_old(i,j,k) + beta_k*(h_s_old(ii+1,jj  ,k)
+                                                            + h_s_old(ii-1,jj  ,k)
+                                                            + h_s_old(ii  ,jj+1,k)
+                                                            + h_s_old(ii  ,jj-1,k) - 4*h_s_old(ii,jj,k));
                     }
 
                     return { (zz + A * h_s(i,j,k) - (zz_minus + A_minus * h_s(i,j,k-1))) / (zz - zz_minus) };
 
                 }); //ParReduce
 
-
-
-                ParallelFor(mf2d, [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int)
-                {
-                    ma_h_s_old[box_no](i,j,k) = ma_h_s[box_no](i,j,k);
-
-                    // Fill boundary cells
-                    terrain_fill_domain_bndry_XY(i, j, k, imin, jmin, imax, jmax, ma_h_s[box_no](i,j,k), ma_h_s_old[box_no]);
-
-                });
+                MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
 
                 amrex::ParallelDescriptor::ReduceRealMin(diff);
 
@@ -274,28 +212,20 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
             for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
                 // Only loop the XY-plane of valid box
-                const Box& vbx = mfi.validbox();
+                const Box& vbx = mfi.growntilebox(ngrow);
                 Box xybx = vbx;
                 xybx.setRange(2,0);
+
                 Array4<Real> const& h_s   = h_mf_old.array(mfi);
                 Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-
-                // Does the box border the domain?
-                int limin = vbx.smallEnd(0); int limax = vbx.bigEnd(0);
-                int ljmin = vbx.smallEnd(1); int ljmax = vbx.bigEnd(1);
-                int bxflag  = (limin == imin || limax == imax) ? 1 : 0;
-                int byflag  = (ljmin == jmin || ljmax == jmax) ? 1 : 0;
 
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
                     // Location of nodes
-                    Real z = k * dx[2];
+                    Real z = z_lev[k];
 
                     // STF model from p2164 of Klemp2011
                     z_arr(i,j,k) = z + A*h_s(i,j,k);
-
-                    // Fill boundary cells if needed
-                    if(bxflag || byflag) terrain_fill_domain_bndry_XY(i, j, k, imin, jmin, imax, jmax, z_arr(i,j,k), z_arr);
 
                 });
             }//mfi
@@ -307,7 +237,7 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
       }
   } //switch
 
-  // Fill ghost layers and corners
+  // Fill ghost layers and corners (including periodic)
   z_phys_nd.FillBoundary(geom.periodicity());
 
   //********************************************************************************
@@ -316,18 +246,16 @@ init_terrain_grid( int lev, Geometry& geom, MultiFab& z_phys_nd)
   for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
        // Only loop the XY-plane of grown box
-       const Box& vbx = mfi.growntilebox(1);
+       const Box& vbx = mfi.growntilebox(ngrow);
        Box xybx = vbx;
        xybx.setRange(2,0);
+
        Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
+       // Extrapolate top layer
        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
-
-           // Extrapolate top/bottom layer
-           z_arr(i,j,kmin-1) = 2.0*z_arr(i,j,kmin) - z_arr(i,j,kmin+1);
-           z_arr(i,j,kmax+1) = 2.0*z_arr(i,j,kmax) - z_arr(i,j,kmax-1);
-
-           });
+           z_arr(i,j,domhi_z+1) = 2.0*z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1);
+       });
   }
 
   /*

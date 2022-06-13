@@ -336,19 +336,6 @@ ERF::InitData ()
 
         AverageDown();
 
-        if (check_int > 0)
-        {
-#ifdef ERF_USE_NETCDF
-            if (check_type == "netcdf") {
-               WriteNCCheckpointFile();
-            }
-#endif
-            if (check_type == "native") {
-               WriteCheckpointFile();
-            }
-            last_check_file_step = 0;
-        }
-
     } else { // Restart from a checkpoint
 
         restart();
@@ -392,6 +379,19 @@ ERF::InitData ()
         m_most = std::make_unique<ABLMost>(geom);
         for (int lev = 0; lev <= finest_level; lev++)
             setupABLMost(lev);
+    }
+
+    if (restart_chkfile == "" && check_int > 0)
+    {
+#ifdef ERF_USE_NETCDF
+        if (check_type == "netcdf") {
+           WriteNCCheckpointFile();
+        }
+#endif
+        if (check_type == "native") {
+           WriteCheckpointFile();
+        }
+        last_check_file_step = 0;
     }
 
     if (plot_int > 0)
@@ -439,9 +439,8 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,ngs);
         MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
         MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,ngvel);
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
     }
-
 }
 
 void
@@ -583,7 +582,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
     BoxArray ba_nd(ba);
     ba_nd.surroundingNodes();
-    z_phys_nd[lev].define(ba_nd,dm,1,2);
+
+    int ngrow = ComputeGhostCells(solverChoice.spatial_order);
+    z_phys_nd[lev].define(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
 #endif
 
 #ifdef ERF_USE_NETCDF
