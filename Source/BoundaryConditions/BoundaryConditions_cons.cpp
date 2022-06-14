@@ -19,7 +19,6 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
 #endif
                                       int icomp, int ncomp, Real /*time*/, int bccomp)
 {
-
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
@@ -156,16 +155,29 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
             // Fill all the Neumann srcs with terrain
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                // Clip indices for ghost-cells
+                int ii = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                int jj = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+
                 // Get metrics
                 amrex::Real met_h_xi,met_h_eta,met_h_zeta;
 
-                ComputeMetricAtIface(i,j,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
+                ComputeMetricAtIface(ii,jj,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
 
-                // GradX at IJK location inside domain
-                amrex::Real GradVarx = 0.5 * dxInv[0] * (dest_array(i+1,j,k0) - dest_array(i-1,j,k0));
+                // GradX at IJK location inside domain -- this relies on the assumption that we have 
+                // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
+                amrex::Real GradVarx, GradVary;
+                if (i < dom_lo.x-1 || i > dom_hi.x+1)
+                    GradVarx = 0.0;
+                else
+                    GradVarx = 0.5 * dxInv[0] * (dest_array(i+1,j,k0) - dest_array(i-1,j,k0));
 
-                // GradY at IJK location inside domain
-                amrex::Real GradVary = 0.5 * dxInv[1] * (dest_array(i,j+1,k0) - dest_array(i,j-1,k0));
+                // GradY at IJK location inside domain -- this relies on the assumption that we have 
+                // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
+                if (j < dom_lo.y-1 || j > dom_hi.y+1)
+                    GradVary = 0.0;
+                else
+                    GradVary = 0.5 * dxInv[1] * (dest_array(i,j+1,k0) - dest_array(i,j-1,k0));
 
                 // Prefactor
                 amrex::Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
