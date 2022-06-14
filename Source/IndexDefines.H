@@ -134,8 +134,6 @@ enum mathematicalBndryTypes : int { bogus        = -666,
     reflect_even =  1,
     foextrap     =  2,
     ext_dir      =  3,
-    hoextrap     =  4,
-    hoextrapcc   =  5,
     MOST         =  101,
     ext_dir_ingested =  102
 };
