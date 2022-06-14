@@ -15,10 +15,7 @@ void
 erf_init_dens_hse(amrex::MultiFab& rho_hse,
                   const amrex::MultiFab& z_phys_nd,
                   const amrex::MultiFab& z_phys_cc,
-                  amrex::Geometry const& geom)
-{
-    Print() << "Fill this up as desired...Needed for linking" << std::endl;
-}
+                  amrex::Geometry const& geom);
 void
 init_custom_prob(
         const amrex::Box& bx,
@@ -30,10 +27,7 @@ init_custom_prob(
         amrex::Array4<amrex::Real> const& p_hse,
         amrex::Array4<amrex::Real const> const& z_nd,
         amrex::Array4<amrex::Real const> const& z_cc,
-        amrex::GeometryData const& geomdata)
-{
-    Print() << "Fill this up as desired...Needed for linking" << std::endl;
-}
+        amrex::GeometryData const& geomdata);
 
 #else //ERF_USE_TERRAIN = FALSE
 

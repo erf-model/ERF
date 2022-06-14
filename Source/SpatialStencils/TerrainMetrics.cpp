@@ -43,6 +43,7 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
   }
 
   // But we can read them in from the inputs file as an alternative
+  pp.queryarr("terrain_z_levels", z_levels_h, 0, nz);
   int n_zlevels = pp.queryarr("terrain_z_levels", z_levels_h, 0, nz);
   if (n_zlevels > 0 && n_zlevels != nz)
       amrex::Abort("You must specify a z_level for every value of k");
