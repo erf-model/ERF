@@ -64,8 +64,8 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
             if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
 #ifdef ERF_USE_TERRAIN
-                dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,dest_array(i,j,k,icomp+n),
-                                                         velx_array,vely_array,z_nd,dxInv);
+                dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_array(i,j,k,icomp+n),
+                                                       velx_array,vely_array,z_nd,dxInv);
 #endif
             } else if (bc_ptr[n].lo(0) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(dom_lo.x,j,k,icomp+n);
@@ -81,8 +81,8 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
             if (bc_ptr[n].hi(0) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
 #ifdef ERF_USE_TERRAIN
-                dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,dest_array(i,j,k,icomp+n),
-                                                         velx_array,vely_array,z_nd,dxInv);
+                dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_array(i,j,k,icomp+n),
+                                                       velx_array,vely_array,z_nd,dxInv);
 #endif
             } else if (bc_ptr[n].hi(0) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(dom_hi.x,j,k,icomp+n);
@@ -99,8 +99,8 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
             if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
 #ifdef ERF_USE_TERRAIN
-                dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,dest_array(i,j,k,icomp+n),
-                                                         velx_array,vely_array,z_nd,dxInv);
+                dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_array(i,j,k,icomp+n),
+                                                       velx_array,vely_array,z_nd,dxInv);
 #endif
             } else if (bc_ptr[n].lo(1) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,dom_lo.y,k,icomp+n);
@@ -116,8 +116,8 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
             if (bc_ptr[n].hi(1) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
 #ifdef ERF_USE_TERRAIN
-                dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,dest_array(i,j,k,icomp+n),
-                                                         velx_array,vely_array,z_nd,dxInv);
+                dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_array(i,j,k,icomp+n),
+                                                       velx_array,vely_array,z_nd,dxInv);
 #endif
             } else if (bc_ptr[n].hi(1) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,dom_hi.y,k,icomp+n);
@@ -162,14 +162,14 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
         if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
 #ifdef ERF_USE_TERRAIN
-            dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
-                                                     velx_array,vely_array,z_nd,dxInv);
+            dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
+                                                   velx_array,vely_array,z_nd,dxInv);
 #endif
         } else if (k == dom_hi.z+1 && bc_ptr[n].hi(2) == ERFBCType::ext_dir) {
             dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
 #ifdef ERF_USE_TERRAIN
-            dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][5],
-                                                     velx_array,vely_array,z_nd,dxInv);
+            dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],
+                                                   velx_array,vely_array,z_nd,dxInv);
 #endif
         }
     });
