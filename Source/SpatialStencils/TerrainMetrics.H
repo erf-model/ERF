@@ -517,58 +517,8 @@ amrex::Real WFromOmega(int i, int j, int k, amrex::Real omega,
   // Use extrapolation instead of interpolation if at the bottom boundary
   amrex::Real vec_zlo_xi   = (k == 0) ? 1.5 * (0.5*(u(i,j,k)+u(i+1,j,k))) - 0.5*(0.5*(u(i,j,k+1)+u(i+1,j,k+1))) :
     0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
-  amrex::Real vec_zlo_eta  = (k == 0) ? 1.5 * (0.5*( v(i,j,k)+v(i,j+1,k))) - 0.5*(0.5*(v(i,j,k+1)+v(i,j+1,k+1))) :
+  amrex::Real vec_zlo_eta  = (k == 0) ? 1.5 * (0.5*(v(i,j,k)+v(i,j+1,k))) - 0.5*(0.5*(v(i,j,k+1)+v(i,j+1,k+1))) :
     0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
-
-  amrex::Real w = met_zlo_xi * vec_zlo_xi + met_zlo_eta * vec_zlo_eta + omega;
-  return w;
-}
-
-// This routine follows WFromOmega with clipping at the boundary:
-// Terrain metrics at the boundary are used for ghost cells (0 gradient).
-// U & V are extrapolated to the top & bottom k faces.
-AMREX_GPU_DEVICE
-inline
-amrex::Real WFromOmegaBC(int i, int j, int k, amrex::Real omega,
-                         const amrex::Array4<const amrex::Real>& u,
-                         const amrex::Array4<const amrex::Real>& v,
-                         const amrex::Array4<const amrex::Real>& z_nd,
-                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
-{
-  // Clip metric indices for ghost cell BCs
-  amrex::Dim3 hi = ubound(z_nd);
-  amrex::Dim3 lo = lbound(z_nd);
-
-  // This is dh/dxi at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
-    ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
-     -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
-
-  // This is dh/deta at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_eta  = 0.5 * dxInv[1] *
-    ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
-     -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
-
-  // Clip velocity indices for ghost cell BCs
-  amrex::Real vec_zlo_xi;
-  amrex::Real vec_zlo_eta;
-  hi = ubound(u);
-  lo = lbound(u);
-  hi.z += 1; // nodal for W-velocity
-
-  if( k == hi.z) {
-    // foextrap to highest k-face
-    vec_zlo_xi  = 0.75*( u(i,j,k-1)+u(i+1,j,k-1) ) - 0.25*( u(i,j,k-2)+u(i+1,j,k-2) );
-    vec_zlo_eta = 0.75*( v(i,j,k-1)+v(i,j+1,k-1) ) - 0.25*( v(i,j,k-2)+v(i,j+1,k-2) );
-  } else if (k == lo.z) {
-    // foextrap to lowest k-face
-    vec_zlo_xi  = 0.75*( u(i,j,k)+u(i+1,j,k) ) - 0.25*( u(i,j,k+1)+u(i+1,j,k+1) );
-    vec_zlo_eta = 0.75*( v(i,j,k)+v(i,j+1,k) ) - 0.25*( v(i,j,k+1)+v(i,j+1,k+1) );
-  } else {
-    // Valid ghost cell for u & v
-    vec_zlo_xi  = 0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
-    vec_zlo_eta = 0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
-  }
 
   amrex::Real w = met_zlo_xi * vec_zlo_xi + met_zlo_eta * vec_zlo_eta + omega;
   return w;
@@ -586,26 +536,32 @@ void make_metrics(amrex::Geometry& geom,
     auto dx = geom.CellSize();
     amrex::Real dzInv = 1.0/dx[2];
 
+    // Domain valid box (z_nd is nodal)
+    const amrex::Box& domain = geom.Domain();
+    int domlo_z = domain.smallEnd(2);
+
+    // Number of ghost cells
+    int ngrow = z_phys_cc.nGrow();
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for ( amrex::MFIter mfi(z_phys_cc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        const amrex::Box& gbx = mfi.growntilebox(amrex::IntVect(1,1,1));
+        const amrex::Box& gbx = mfi.growntilebox(ngrow);
         amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
         amrex::Array4<amrex::Real      > z_cc = z_phys_cc.array(mfi);
         amrex::Array4<amrex::Real      > detJ = detJ_cc.array(mfi);
-        amrex::ParallelFor(gbx, [=]
-           AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-             if (k >= 0) {
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (k >= domlo_z) {
                z_cc(i, j, k) = .125 * (
                        z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                       +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
                detJ(i, j, k) = .25 * dzInv * (
                        z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
                       -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
-             }
-           });
+            }
+       });
     }
     detJ_cc.FillBoundary(geom.periodicity());
 }
