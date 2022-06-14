@@ -9,6 +9,12 @@ include $(ERF_SOURCE_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_SOURCE_DIR)
 INCLUDE_LOCATIONS += $(ERF_SOURCE_DIR)
 
+ERF_BC_DIR = $(ERF_SOURCE_DIR)/BoundaryConditions
+include $(ERF_BC_DIR)/Make.package
+
+VPATH_LOCATIONS   += $(ERF_BC_DIR)
+INCLUDE_LOCATIONS += $(ERF_BC_DIR)
+
 ERF_SPATIAL_DIR = $(ERF_SOURCE_DIR)/SpatialStencils
 include $(ERF_SPATIAL_DIR)/Make.package
 
