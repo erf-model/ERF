@@ -91,8 +91,8 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                         z_nd,dxInv,
 #endif
                                         icomp,ncomp,time,bccomp);
-                    } else { 
-                        amrex::Abort("Dont know this var_idx in ERF_PhysBC"); 
+                    } else {
+                        amrex::Abort("Dont know this var_idx in ERF_PhysBC");
                     }
 
                     // ****************************************************************************

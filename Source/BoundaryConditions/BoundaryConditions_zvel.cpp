@@ -14,8 +14,8 @@
 //
 void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box& bx, const Box& domain,
 #ifdef ERF_USE_TERRAIN
-                                      const Array4<Real>& velx_array, 
-                                      const Array4<Real>& vely_array, const Array4<Real const>& z_nd, 
+                                      const Array4<Real>& velx_array,
+                                      const Array4<Real>& vely_array, const Array4<Real const>& z_nd,
                                       const GpuArray<Real,AMREX_SPACEDIM> dxInv,
 #endif
                                       int icomp, int ncomp, Real /*time*/, int bccomp)
