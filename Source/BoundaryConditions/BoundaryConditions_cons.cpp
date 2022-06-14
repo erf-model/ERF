@@ -164,7 +164,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
 
                 ComputeMetricAtIface(ii,jj,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
 
-                // GradX at IJK location inside domain -- this relies on the assumption that we have 
+                // GradX at IJK location inside domain -- this relies on the assumption that we have
                 // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                 amrex::Real GradVarx, GradVary;
                 if (i < dom_lo.x-1 || i > dom_hi.x+1)
@@ -172,7 +172,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
                 else
                     GradVarx = 0.5 * dxInv[0] * (dest_array(i+1,j,k0) - dest_array(i-1,j,k0));
 
-                // GradY at IJK location inside domain -- this relies on the assumption that we have 
+                // GradY at IJK location inside domain -- this relies on the assumption that we have
                 // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                 if (j < dom_lo.y-1 || j > dom_hi.y+1)
                     GradVary = 0.0;
