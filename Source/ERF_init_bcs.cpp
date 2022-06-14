@@ -256,14 +256,12 @@ void ERF::init_bcs ()
             else if (bct == BC::slip_wall)
             {
                 if (side == Orientation::low) {
-                    // Tangential directions have hoextrap
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::foextrap);
                     // Only normal direction has ext_dir
                     domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::ext_dir);
 
                 } else {
-                    // Tangential directions have hoextrap
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::foextrap);
                     // Only normal direction has ext_dir

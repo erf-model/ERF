@@ -4,9 +4,6 @@ CEXE_sources += ERF_init.cpp
 CEXE_headers += ERF.H
 CEXE_headers += prob_common.H
 
-CEXE_headers += ABLMost.H
-CEXE_sources += ABLMost.cpp
-
 CEXE_headers += ERF_Math.H
 CEXE_headers += IndexDefines.H
 CEXE_headers += EOS.H
@@ -16,7 +13,6 @@ CEXE_headers += ERF_Constants.H
 CEXE_sources += ERF_init_bcs.cpp
 CEXE_sources += ERF_init1d.cpp
 CEXE_sources += ERF_Tagging.cpp
-CEXE_sources += ERF_FillPatch.cpp
 CEXE_sources += ERF_SumIQ.cpp
 CEXE_sources += ERF_TimeStepping.cpp
 
@@ -26,7 +22,3 @@ CEXE_headers += DirectionSelector.H
 
 CEXE_sources += Derive.cpp
 CEXE_headers += Derive.H
-
-CEXE_sources += ERF_PhysBCFunct.cpp
-CEXE_headers += ERF_PhysBCFunct.H
-CEXE_headers += TimeInterpolatedData.H

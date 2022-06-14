@@ -46,31 +46,61 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
             // Do all BCs except MOST
             for (MFIter mfi(mf); mfi.isValid(); ++mfi)
             {
-                FArrayBox& dest = mf[mfi];
-                const Array4<Real>& dest_array = mf.array(mfi);
+                const Array4<Real>& dest_arr = mf.array(mfi);
                 const Box& bx = mfi.fabbox();
 
 #ifdef ERF_USE_TERRAIN
                 const Array4<const Real>& z_nd = m_z_phys_nd.const_array(mfi);
-                const auto velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
-                const auto vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
+                const Array4<      Real>& velx_arr = m_data.get_var(Vars::xvel)[mfi].array();
+                const Array4<      Real>& vely_arr = m_data.get_var(Vars::yvel)[mfi].array();
 #endif
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
                 //!
                 if (!gdomain.contains(bx))
                 {
-                    //! Based on BCRec for the domain, we need to make BCRec for this Box
+                    // ****************************************************************************
+                    if (m_var_idx == Vars::xvel) {
+                        AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
+                        impose_xvel_bcs(dest_arr,bx,domain,
+#ifdef ERF_USE_TERRAIN
+                                        z_nd,dxInv,
+#endif
+                                        icomp,ncomp,time,bccomp);
+
+                    } else if (m_var_idx == Vars::yvel) {
+                        AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
+                        impose_yvel_bcs(dest_arr,bx,domain,
+#ifdef ERF_USE_TERRAIN
+                                        z_nd,dxInv,
+#endif
+                                        icomp,ncomp,time,bccomp);
+
+                    } else if (m_var_idx == Vars::zvel) {
+                        AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
+                        impose_zvel_bcs(dest_arr,bx,domain,
+#ifdef ERF_USE_TERRAIN
+                                        velx_arr,vely_arr,z_nd,dxInv,
+#endif
+                                        icomp,ncomp,time,bccomp);
+
+                    } else if (m_var_idx == Vars::cons) {
+                        AMREX_ALWAYS_ASSERT(icomp == 0 && icomp+ncomp <= NVAR);
+                        impose_cons_bcs(dest_arr,bx,domain,
+#ifdef ERF_USE_TERRAIN
+                                        z_nd,dxInv,
+#endif
+                                        icomp,ncomp,time,bccomp);
+                    } else { 
+                        amrex::Abort("Dont know this var_idx in ERF_PhysBC"); 
+                    }
+
+                    // ****************************************************************************
+                    // Based on BCRec for the domain, we need to make BCRec for this Box
                     // bccomp is used as starting index for m_domain_bcs_type
                     //      0 is used as starting index for bcrs
+                    // ****************************************************************************
                     amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
-
-                    // Call the default fill functions
-                    //! Note that we pass 0 as starting component of bcrs.
-                    GpuBndryFuncFab<NullFill> bndry_fill_cc_fc_nd(NullFill{});
-
-                    // Calls routines to fill all the foextrap, hoextrap, etc types of bc's
-                    bndry_fill_cc_fc_nd(bx, dest, icomp, ncomp, m_geom, time, bcrs, 0, bccomp);
 
                     // xlo: ori = 0
                     // ylo: ori = 1
@@ -87,174 +117,8 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                     std::memcpy
                         (bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #endif
-
-                    if (m_var_idx == Vars::xvel || m_var_idx == Vars::xmom ||
-                        m_var_idx == Vars::yvel || m_var_idx == Vars::ymom ||
-                        m_var_idx == Vars::zvel || m_var_idx == Vars::zmom) {
-                        AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
-                    } else {
-                        AMREX_ALWAYS_ASSERT(icomp+ncomp <= NVAR);
-                    }
-
-                    amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>,
-                                                                 AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
-
-                    for (int i = 0; i < ncomp; i++)
-                        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-                            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
-
                     const amrex::BCRec* bc_ptr = bcrs_d.data();
 
-                    // Fill here all the "generic" ext_dir bc's
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
-                    {
-#ifdef ERF_USE_TERRAIN
-                      // BC for W with terrain (U & V filled before W)
-                      if (bccomp == BCVars::zvel_bc) {
-                        // Populate W ghost cells & upper face on top boundary
-                        if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][0],
-                                                                   velx_arr,vely_arr,
-                                                                   z_nd,dxInv);
-                        if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][1],
-                                                                   velx_arr,vely_arr,
-                                                                   z_nd,dxInv);
-                        if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
-                                                                   velx_arr,vely_arr,
-                                                                   z_nd,dxInv);
-                        if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir)
-                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][3],
-                                                                   velx_arr,vely_arr,
-                                                                   z_nd,dxInv);
-                        if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir)
-                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][4],
-                                                                   velx_arr,vely_arr,
-                                                                   z_nd,dxInv);
-                        if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
-                          dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][5],
-                                                                   velx_arr,vely_arr,
-                                                                   z_nd,dxInv);
-                        // Populate W face value on bottom boundary
-                        if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-                            //dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-
-                            dest_array(i,j,k,icomp+n) = WFromOmegaBC(i,j,k,l_bc_extdir_vals_d[n][2],
-                                                                     velx_arr,vely_arr,
-                                                                     z_nd,dxInv);
-                        }
-
-                        } else {
-                          // Populate ghost cells & upper face on top boundary
-                          if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
-                          if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
-                          if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-                          if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
-                          if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
-                          if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
-
-                          // Populate face values on bottom boundary (except for W)
-                          if (bccomp == BCVars::xvel_bc)
-                          {
-                            if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                              dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
-                          }
-                          if (bccomp == BCVars::yvel_bc)
-                          {
-                            if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                              dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
-                          }
-                      }
-#else
-                        // Populate ghost cells & upper face on top boundary
-                        if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
-                        if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
-                        if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-                        if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
-                        if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
-                        if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
-
-                        // Populate face values on bottom boundary
-                        if (bccomp == BCVars::xvel_bc)
-                        {
-                          if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
-                        }
-                        if (bccomp == BCVars::yvel_bc)
-                        {
-                          if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
-                        }
-                        if (bccomp == BCVars::zvel_bc)
-                        {
-                          if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir)
-                            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-                        }
-#endif
-                    });
-
-#ifdef ERF_USE_TERRAIN
-                    // Neumann conditions (d<var>/dn = 0) must be aware of the surface normal with terrain.
-                    // An additional source term arises from d<var>/dx & d<var>/dy & met_h_xi/eta/zeta.
-                    //=====================================================================================
-                    // Only modify scalars, U, or V
-                    if( bccomp <= BCVars::yvel_bc ) {
-                        // Loop over each component
-                        for (int n = 0; n < ncomp; n++) {
-                            // Hit for Neumann condition at kmin
-                            if( bc_ptr[n].lo(2) == ERFBCType::foextrap || bc_ptr[n].lo(2) == ERFBCType::hoextrap) {
-                                // Loop over ghost cells in bottom XY-plane (valid box)
-                                const amrex::Box& vbx = mfi.validbox();
-                                amrex::Box xybx = vbx;
-                                xybx.setBig(2,-1);
-                                xybx.setSmall(2,bx.smallEnd()[2]);
-                                int k0 = 0;
-                                // Get the dz cell size
-                                amrex::GeometryData const& geomdata = m_geom.data();
-                                amrex::Real dz = geomdata.CellSize(2);
-                                // Fill all the Neumann srcs with terrain
-                                ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                                {
-                                    // Get metrics
-                                    amrex::Real met_h_xi,met_h_eta,met_h_zeta;
-                                    if (bccomp == BCVars::yvel_bc) {
-                                        ComputeMetricAtJface(i,j,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
-                                    } else if (bccomp == BCVars::xvel_bc) {
-                                        ComputeMetricAtIface(i,j,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
-                                    } else {
-                                        ComputeMetricAtCellCenter(i,j,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
-                                    }
-
-                                    // GradX at IJK location inside domain
-                                    amrex::Real GradVarx = 0.5 * dxInv[0] * (dest_array(i+1,j,k0) - dest_array(i-1,j,k0));
-
-                                    // GradY at IJK location inside domain
-                                    amrex::Real GradVary = 0.5 * dxInv[1] * (dest_array(i,j+1,k0) - dest_array(i,j-1,k0));
-
-                                    // Prefactor
-                                    amrex::Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
-
-                                    // Accumulate in bottom ghost cell (EXTRAP already populated)
-                                    dest_array(i,j,k) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
-                                });
-                            } // fo/hoextrap
-                        } // ncomp
-                    } // yvel_bc
-
-#endif
 
                     // This uses data read in as BndryRegisters from a previous ERF run
                     if (m_r2d) {
@@ -273,32 +137,32 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                             if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
                                 int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                 int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                dest_array(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
+                                dest_arr(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
                             }
                             if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
                                 int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                 int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                dest_array(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
+                                dest_arr(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
                             }
                             if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
                                 // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                 // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                                // dest_array(i,j,k,icomp+n) = bdatzlo(ib,jb,dom_lo.z-1,bccomp+n);
+                                // dest_arr(i,j,k,icomp+n) = bdatzlo(ib,jb,dom_lo.z-1,bccomp+n);
                             }
                             if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested) {
                                 int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                 int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                dest_array(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bccomp+n);
+                                dest_arr(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bccomp+n);
                             }
                             if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir_ingested) {
                                 int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                 int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                dest_array(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bccomp+n);
+                                dest_arr(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bccomp+n);
                             }
                             if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested) {
                                 // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                 // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                                // dest_array(i,j,k,icomp+n) = bdatzhi(ib,jb,dom_hi.z+1,bccomp+n);
+                                // dest_arr(i,j,k,icomp+n) = bdatzhi(ib,jb,dom_hi.z+1,bccomp+n);
                             }
 
                             if (bccomp == BCVars::xvel_bc)
@@ -306,7 +170,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                 if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
                                     int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                     int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                    dest_array(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
+                                    dest_arr(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
                                 }
                             }
                             if (bccomp == BCVars::yvel_bc)
@@ -314,7 +178,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                 if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
                                     int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                     int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                    dest_array(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
+                                    dest_arr(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
                                 }
                             }
                             if (bccomp == BCVars::zvel_bc)
@@ -322,7 +186,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                 if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
                                     // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                     // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                                    // dest_array(i,j,k,icomp+n) = bdatzlo(ib,jb,dom_lo.z-1,bccomp+n);
+                                    // dest_arr(i,j,k,icomp+n) = bdatzlo(ib,jb,dom_lo.z-1,bccomp+n);
                                 }
                             }
                         });
@@ -375,37 +239,37 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                             if (i < dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
                                 int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                 int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                dest_array(i,j,k,icomp+n) = oma * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp+n)
+                                dest_arr(i,j,k,icomp+n) = oma * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp+n)
                                                         + alpha * bdatxlo_np1(dom_lo.x-1,jb,kb,bccomp+n);
                             }
                             if (j < dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
                                 int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                 int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                dest_array(i,j,k,icomp+n) = oma * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp+n)
+                                dest_arr(i,j,k,icomp+n) = oma * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp+n)
                                                         + alpha * bdatylo_np1(ib,dom_lo.y-1,kb,bccomp+n);
                             }
                             if (k < dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
                                 // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                 // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                                // dest_array(i,j,k,icomp+n) = oma * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp+n)
+                                // dest_arr(i,j,k,icomp+n) = oma * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp+n)
                                 //                         + alpha * bdatzlo_np1(ib,jb,dom_lo.z-1,bccomp+n);
                             }
                             if (i > dom_hi.x && bc_ptr[n].hi(0) == ERFBCType::ext_dir_ingested) {
                                 int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                 int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                dest_array(i,j,k,icomp+n) = oma * bdatxhi_n  (dom_hi.x+1,jb,kb,bccomp+n)
+                                dest_arr(i,j,k,icomp+n) = oma * bdatxhi_n  (dom_hi.x+1,jb,kb,bccomp+n)
                                                         + alpha * bdatxhi_np1(dom_hi.x+1,jb,kb,bccomp+n);
                             }
                             if (j > dom_hi.y && bc_ptr[n].hi(1) == ERFBCType::ext_dir_ingested) {
                                 int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                 int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                dest_array(i,j,k,icomp+n) = oma * bdatyhi_n  (ib,dom_hi.y+1,kb,bccomp+n)
+                                dest_arr(i,j,k,icomp+n) = oma * bdatyhi_n  (ib,dom_hi.y+1,kb,bccomp+n)
                                                         + alpha * bdatyhi_np1(ib,dom_hi.y+1,kb,bccomp+n);
                             }
                             if (k > dom_hi.z && bc_ptr[n].hi(2) == ERFBCType::ext_dir_ingested) {
                                 // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                 // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                                // dest_array(i,j,k,icomp+n) = oma * bdatzhi_n  (ib,jb,dom_hi.z+1,bccomp+n)
+                                // dest_arr(i,j,k,icomp+n) = oma * bdatzhi_n  (ib,jb,dom_hi.z+1,bccomp+n)
                                 //                         + alpha * bdatzhi_np1(ib,jb,dom_hi.z+1,bccomp+n);
                             }
 
@@ -414,7 +278,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                 if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir_ingested) {
                                     int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                                     int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                    dest_array(i,j,k,icomp+n) = oma * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp+n)
+                                    dest_arr(i,j,k,icomp+n) = oma * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp+n)
                                                             + alpha * bdatxlo_np1(dom_lo.x-1,jb,kb,bccomp+n);
                                 }
                             }
@@ -423,7 +287,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                 if (j == dom_lo.y && bc_ptr[n].lo(1) == ERFBCType::ext_dir_ingested) {
                                     int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                     int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                                    dest_array(i,j,k,icomp+n) = oma * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp+n)
+                                    dest_arr(i,j,k,icomp+n) = oma * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp+n)
                                                             + alpha * bdatylo_np1(ib,dom_lo.y-1,kb,bccomp+n);
                                 }
                             }
@@ -432,7 +296,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                                 if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir_ingested) {
                                     // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                                     // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                                    // dest_array(i,j,k,icomp+n) = oma * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp+n)
+                                    // dest_arr(i,j,k,icomp+n) = oma * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp+n)
                                     //                         + alpha * bdatzlo_np1(ib,jb,dom_lo.z-1,bccomp+n);
                                 }
                             }

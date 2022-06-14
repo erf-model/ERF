@@ -89,6 +89,36 @@ public:
     void operator() (amrex::MultiFab& mf, int icomp, int ncomp, amrex::IntVect const& nghost,
                      amrex::Real time, int bccomp);
 
+    void impose_xvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
+#ifdef ERF_USE_TERRAIN
+                          const amrex::Array4<Real const>& z_nd,
+                          const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+#endif
+                          int icomp, int ncomp, amrex::Real time, int bccomp);
+
+    void impose_yvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
+#ifdef ERF_USE_TERRAIN
+                          const amrex::Array4<Real const>& z_nd,
+                          const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+#endif
+                          int icomp, int ncomp, amrex::Real time, int bccomp);
+
+    void impose_zvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
+#ifdef ERF_USE_TERRAIN
+                          const amrex::Array4<Real>& velx_arr, const amrex::Array4<Real>& vely_arr, 
+                          const amrex::Array4<Real const>& z_nd,
+                          const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+#endif
+                          int icomp, int ncomp, amrex::Real time, int bccomp);
+
+    void impose_cons_bcs (const amrex::Array4<Real>& mf, const amrex::Box& bx, const amrex::Box& domain,
+#ifdef ERF_USE_TERRAIN
+                          const amrex::Array4<Real const>& z_nd,
+                          const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+#endif
+                          int icomp, int ncomp, amrex::Real time, int bccomp);
+
+
     // For backward compatibility
     void FillBoundary (amrex::MultiFab& mf, int dcomp, int ncomp, amrex::IntVect const& nghost,
                        amrex::Real time, int bccomp) {

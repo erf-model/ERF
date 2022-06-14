@@ -61,11 +61,15 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_SumIQ.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/ERF_ComputeTimestep.cpp
-       ${SRC_DIR}/ERF_FillPatch.cpp
-       ${SRC_DIR}/ABLMost.H
-       ${SRC_DIR}/ABLMost.cpp
-       ${SRC_DIR}/ERF_PhysBCFunct.cpp
        ${SRC_DIR}/ERF_TimeStepping.cpp
+       ${SRC_DIR}/BoundaryConditions/ABLMost.H
+       ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
+       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_cons.cpp
+       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_xvel.cpp
+       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_yvel.cpp
+       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_zvel.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.H
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
@@ -116,6 +120,7 @@ function(build_erf_lib erf_lib_name)
 
   #ERF include directories
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR})
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/BoundaryConditions)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/SpatialStencils)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
