@@ -2,7 +2,7 @@
 #include <ERF_PhysBCFunct.H>
 
 //
-// dest_array is the Array4 to be filled
+// dest_arr is the Array4 to be filled
 // icomp is the index into the MultiFab -- if cell-centered this can be any value
 //       from 0 to NVAR-1, if face-centered this must be 0
 // ncomp is the number of components -- if cell-centered (var_idx = 0) this can be any value
@@ -12,7 +12,7 @@
 // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
 //     so this follows the BCVars enum
 //
-void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_array, const Box& bx, const Box& domain,
+void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
 #ifdef ERF_USE_TERRAIN
                                       const Array4<Real const>& z_nd,
                                       const GpuArray<Real,AMREX_SPACEDIM> dxInv,
@@ -56,25 +56,25 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_array, const Box&
         if (i < dom_lo.x) {
             int iflip = dom_lo.x - i;
             if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
             } else if (bc_ptr[n].lo(0) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(dom_lo.x,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(dom_lo.x,j,k,icomp+n);
             } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(iflip,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
             } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(iflip,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
             }
 
         } else if (i > dom_hi.x+1) {
             int iflip =  2*(dom_hi.x + 1) - i;
             if (bc_ptr[n].hi(0) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
             } else if (bc_ptr[n].hi(0) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(dom_hi.x,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(dom_hi.x+1,j,k,icomp+n);
             } else if (bc_ptr[n].hi(0) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(iflip,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
             } else if (bc_ptr[n].hi(0) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(iflip,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
             }
         }
 
@@ -82,24 +82,24 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_array, const Box&
         if (j < dom_lo.y) {
             int jflip = dom_lo.y - 1 - j;
             if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
             } else if (bc_ptr[n].lo(1) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,dom_lo.y,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_lo.y,k,icomp+n);
             } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,jflip,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,jflip,k,icomp+n);
             } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(i,jflip,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(i,jflip,k,icomp+n);
             }
         } else if (j > dom_hi.y) {
             int jflip =  2*dom_hi.y + 1 - j;
             if (bc_ptr[n].hi(1) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
             } else if (bc_ptr[n].hi(1) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,dom_hi.y,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_hi.y,k,icomp+n);
             } else if (bc_ptr[n].hi(1) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,jflip,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,jflip,k,icomp+n);
             } else if (bc_ptr[n].hi(1) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(i,jflip,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(i,jflip,k,icomp+n);
             }
         }
     });
@@ -110,33 +110,33 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_array, const Box&
         if (k < dom_lo.z) {
             int kflip = dom_lo.z - 1 - k;
             if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
             } else if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,j,dom_lo.z,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_lo.z,icomp+n);
             } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,j,kflip,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
             } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(i,j,kflip,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
             }
 
         } else if (k > dom_hi.z) {
             int kflip =  2*dom_hi.z + 1 - k;
             if (bc_ptr[n].hi(2) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
             } else if (bc_ptr[n].hi(2) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,j,dom_hi.z,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_hi.z,icomp+n);
             } else if (bc_ptr[n].hi(2) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,j,kflip,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
             } else if (bc_ptr[n].hi(2) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(i,j,kflip,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
             }
         }
 
         // We only set the values on the domain faces themselves if EXT_DIR
         if (i == dom_lo.x && bc_ptr[n].lo(0) == ERFBCType::ext_dir)
-            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+            dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
         if (i == dom_hi.x+1 && bc_ptr[n].lo(3) == ERFBCType::ext_dir)
-            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
+            dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
     });
 
 #ifdef ERF_USE_TERRAIN
@@ -177,20 +177,20 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_array, const Box&
                 if (i < dom_lo.x-1 || i > dom_hi.x+2)
                     GradVarx = 0.0;
                 else
-                    GradVarx = 0.5 * dxInv[0] * (dest_array(i+1,j,k0) - dest_array(i-1,j,k0));
+                    GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0) - dest_arr(i-1,j,k0));
 
                 // Grady at IJK location inside domain -- this relies on the assumption that we have
                 // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                 if (j < dom_lo.y-1 || j > dom_hi.y+1)
                     GradVary = 0.0;
                 else
-                    GradVary = 0.5 * dxInv[1] * (dest_array(i,j+1,k0) - dest_array(i,j-1,k0));
+                    GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0) - dest_arr(i,j-1,k0));
 
                 // Prefactor
                 amrex::Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
 
                 // Accumulate in bottom ghost cell (EXTRAP already populated)
-                dest_array(i,j,k) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
+                dest_arr(i,j,k) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
             });
         } // foextrap
     } // ncomp
