@@ -263,7 +263,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
         }
         else
         {
-            MultiFab mf_temp(mf.boxArray(), mf.DistributionMap(), mf.nComp(), mf.nGrowVect());
+            MultiFab mf_temp(mf.boxArray(), mf.DistributionMap(), ncomp, mf.nGrowVect());
 
             TimeInterpolatedData cdata = GetDataAtTime(lev-1, time);
             Vector<MultiFab*> cmf = {&cdata.get_var(var_idx)};
@@ -296,7 +296,10 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
                                     mapper, domain_bcs_type, bccomp);
 
             // Replace mf with mf_temp
-            std::swap(mf_temp, mf);
+            if (ncomp == mf.nComp())
+                std::swap(mf_temp, mf);
+            else
+                MultiFab::Copy(mf,mf_temp,0,0,1,mf.nGrowVect());
         }
     }
 
