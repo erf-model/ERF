@@ -105,7 +105,8 @@ public:
 
     void impose_zvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
 #ifdef ERF_USE_TERRAIN
-                          const amrex::Array4<Real>& velx_arr, const amrex::Array4<Real>& vely_arr,
+                          const amrex::Array4<Real const>& velx_arr,
+                          const amrex::Array4<Real const>& vely_arr,
                           const amrex::Array4<Real const>& z_nd,
                           const GpuArray<Real,AMREX_SPACEDIM> dxInv,
 #endif

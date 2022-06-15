@@ -2,7 +2,7 @@
 #include <ERF_PhysBCFunct.H>
 
 //
-// dest_array is the Array4 to be filled
+// dest_arr is the Array4 to be filled
 // icomp is the index into the MultiFab -- if cell-centered this can be any value
 //       from 0 to NVAR-1, if face-centered this must be 0
 // ncomp is the number of components -- if cell-centered (var_idx = 0) this can be any value
@@ -12,10 +12,11 @@
 // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
 //     so this follows the BCVars enum
 //
-void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box& bx, const Box& domain,
+void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
 #ifdef ERF_USE_TERRAIN
-                                      const Array4<Real>& velx_array,
-                                      const Array4<Real>& vely_array, const Array4<Real const>& z_nd,
+                                      const Array4<Real const>& velx_arr,
+                                      const Array4<Real const>& vely_arr,
+                                      const Array4<Real const>& z_nd_arr,
                                       const GpuArray<Real,AMREX_SPACEDIM> dxInv,
 #endif
                                       int icomp, int ncomp, Real /*time*/, int bccomp)
@@ -62,34 +63,34 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
         if (i < dom_lo.x) {
             int iflip = dom_lo.x - 1 - i;
             if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
 #ifdef ERF_USE_TERRAIN
-                dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_array(i,j,k,icomp+n),
-                                                       velx_array,vely_array,z_nd,dxInv);
+                dest_arr(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_arr(i,j,k,icomp+n),
+                                                       velx_arr,vely_arr,z_nd_arr,dxInv);
 #endif
             } else if (bc_ptr[n].lo(0) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(dom_lo.x,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(dom_lo.x,j,k,icomp+n);
             } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(iflip,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
             } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(iflip,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
             }
 
         // Hi-x boundary
         } else if (i > dom_hi.x) {
             int iflip = 2*dom_hi.x + 1 - i;
             if (bc_ptr[n].hi(0) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
 #ifdef ERF_USE_TERRAIN
-                dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_array(i,j,k,icomp+n),
-                                                       velx_array,vely_array,z_nd,dxInv);
+                dest_arr(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_arr(i,j,k,icomp+n),
+                                                       velx_arr,vely_arr,z_nd_arr,dxInv);
 #endif
             } else if (bc_ptr[n].hi(0) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(dom_hi.x,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(dom_hi.x,j,k,icomp+n);
             } else if (bc_ptr[n].hi(0) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(iflip,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
             } else if (bc_ptr[n].hi(0) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(iflip,j,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
             }
         }
 
@@ -97,34 +98,34 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
         if (j < dom_lo.y) {
             int jflip = dom_lo.y - 1 - j;
             if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
 #ifdef ERF_USE_TERRAIN
-                dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_array(i,j,k,icomp+n),
-                                                       velx_array,vely_array,z_nd,dxInv);
+                dest_arr(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_arr(i,j,k,icomp+n),
+                                                       velx_arr,vely_arr,z_nd_arr,dxInv);
 #endif
             } else if (bc_ptr[n].lo(1) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,dom_lo.y,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_lo.y,k,icomp+n);
             } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,jflip,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,jflip,k,icomp+n);
             } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(i,jflip,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(i,jflip,k,icomp+n);
             }
 
         // Hi-y boundary
         } else if (j > dom_hi.y) {
             int jflip =  2*dom_hi.y + 1 - j;
             if (bc_ptr[n].hi(1) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
 #ifdef ERF_USE_TERRAIN
-                dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_array(i,j,k,icomp+n),
-                                                       velx_array,vely_array,z_nd,dxInv);
+                dest_arr(i,j,k,icomp+n) = WFromOmega(i,j,k,dest_arr(i,j,k,icomp+n),
+                                                       velx_arr,vely_arr,z_nd_arr,dxInv);
 #endif
             } else if (bc_ptr[n].hi(1) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,dom_hi.y,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_hi.y,k,icomp+n);
             } else if (bc_ptr[n].hi(1) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,jflip,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,jflip,k,icomp+n);
             } else if (bc_ptr[n].hi(1) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(i,jflip,k,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(i,jflip,k,icomp+n);
             }
         }
     });
@@ -135,41 +136,41 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
         if (k < dom_lo.z) {
             int kflip = dom_lo.z - k;
             if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
             } else if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,j,dom_lo.z,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_lo.z,icomp+n);
             } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,j,kflip,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
             } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(i,j,kflip,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
             }
 
         // Hi-z boundary
         } else if (k > dom_hi.z+1) {
             int kflip =  2*(dom_hi.z + 1) - k;
             if (bc_ptr[n].hi(5) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
+                dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
             } else if (bc_ptr[n].hi(5) == ERFBCType::foextrap) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,j,dom_hi.z,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_hi.z+1,icomp+n);
             } else if (bc_ptr[n].hi(5) == ERFBCType::reflect_even) {
-                dest_array(i,j,k,icomp+n) =  dest_array(i,j,kflip,icomp+n);
+                dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
             } else if (bc_ptr[n].hi(5) == ERFBCType::reflect_odd) {
-                dest_array(i,j,k,icomp+n) = -dest_array(i,j,kflip,icomp+n);
+                dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
             }
         }
 
         // Populate face values on z-boundaries themselves only if EXT_DIR
         if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+            dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
 #ifdef ERF_USE_TERRAIN
-            dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
-                                                   velx_array,vely_array,z_nd,dxInv);
+            dest_arr(i,j,k,icomp+n) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
+                                                   velx_arr,vely_arr,z_nd_arr,dxInv);
 #endif
         } else if (k == dom_hi.z+1 && bc_ptr[n].hi(2) == ERFBCType::ext_dir) {
-            dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
+            dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
 #ifdef ERF_USE_TERRAIN
-            dest_array(i,j,k,icomp+n) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],
-                                                   velx_array,vely_array,z_nd,dxInv);
+            dest_arr(i,j,k,icomp+n) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],
+                                                   velx_arr,vely_arr,z_nd_arr,dxInv);
 #endif
         }
     });
