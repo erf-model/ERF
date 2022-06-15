@@ -174,8 +174,14 @@ public:
         const amrex::Vector<int> scomp_slow = {  2,0,0,0,  2,  2,  2};
         const amrex::Vector<int> ncomp_slow = {nsv,0,0,0,nsv,nsv,nsv};
 
-        const amrex::Vector<int> scomp_rth  = {1,0,0,0,0,0,0};
-        const amrex::Vector<int> ncomp_rth  = {1,0,0,0,0,0,0};
+        // We copy (rho theta) and the velocities here -- the velocities
+        //    will be over-written in slow_rhs on all valid faces but we
+        //    use this copy to fill in the ghost locations which will
+        //    be needed for metric terms
+        const amrex::Vector<int> scomp_vels = {0,0,0,0,0,0,0};
+        const amrex::Vector<int> ncomp_vels = {0,1,1,1,0,0,0};
+        amrex::IntegratorOps<T>::Copy(*S_scratch, S_old, scomp_vels, ncomp_vels);
+
 
         for (int nrk = 0; nrk < 3; nrk++)
         {
@@ -194,6 +200,8 @@ public:
             amrex::IntegratorOps<T>::Copy(*S_sum    , S_new, scomp_slow, ncomp_slow);
 
             // S_scratch will hold (rho theta) from the previous fast timestep
+            const amrex::Vector<int> scomp_rth  = {1,0,0,0,0,0,0};
+            const amrex::Vector<int> ncomp_rth  = {1,0,0,0,0,0,0};
             amrex::IntegratorOps<T>::Copy(*S_scratch, S_old, scomp_rth, ncomp_rth);
 
             // S_scratch also holds the average momenta over the fast iterations --
