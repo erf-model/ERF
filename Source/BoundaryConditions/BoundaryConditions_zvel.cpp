@@ -60,7 +60,7 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
     {
         // Lo-x boundary
         if (i < dom_lo.x) {
-            int iflip = dom_lo.x-1-i;
+            int iflip = dom_lo.x - 1 - i;
             if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
 #ifdef ERF_USE_TERRAIN
@@ -95,7 +95,7 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
 
         // Lo-y boundary
         if (j < dom_lo.y) {
-            int jflip = dom_lo.y + 1 - j;
+            int jflip = dom_lo.y - 1 - j;
             if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
 #ifdef ERF_USE_TERRAIN
@@ -133,7 +133,7 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
     {
         // Lo-z boundary
         if (k < dom_lo.z) {
-            int kflip = dom_lo.z+1-i;
+            int kflip = dom_lo.z - k;
             if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
             } else if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
@@ -146,7 +146,7 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_array, const Box&
 
         // Hi-z boundary
         } else if (k > dom_hi.z+1) {
-            int kflip =  2*dom_hi.z + 1 - i;
+            int kflip =  2*(dom_hi.z + 1) - k;
             if (bc_ptr[n].hi(5) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
             } else if (bc_ptr[n].hi(5) == ERFBCType::foextrap) {
