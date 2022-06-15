@@ -32,6 +32,8 @@ void ERF::erf_advance(int level,
 {
     BL_PROFILE_VAR("erf_advance()",erf_advance);
 
+    if (verbose) amrex::Print() << "Starting advance at level " << level << std::endl;
+
     int nvars = cons_old.nComp();
 
     const BoxArray& ba            = cons_old.boxArray();
@@ -200,7 +202,7 @@ void ERF::erf_advance(int level,
                        const Vector<MultiFab>& S_data,
                        const Real time,
                        const int rhs_vars=RHSVar::all) {
-        if (verbose) Print() << "Calling rhs, time = " << time << std::endl;
+        if (verbose) amrex::Print() << "Calling rhs at level " << level << ", time = " << time << std::endl;
         Vector <MultiFab> S_scratch;
         erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
                      xvel_new, yvel_new, zvel_new,
@@ -224,7 +226,7 @@ void ERF::erf_advance(int level,
                                   Vector<MultiFab>& S_scratch,
                             const Real time,
                             const int rhs_vars=RHSVar::all) {
-        if (verbose) Print() << "Calling slow rhs, time = " << time << std::endl;
+        if (verbose) Print() << "Calling slow rhs at level " << level << ", time = " << time << std::endl;
         erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
                      xvel_new, yvel_new, zvel_new,
                      source, advflux, diffflux,
@@ -247,7 +249,7 @@ void ERF::erf_advance(int level,
                                   Vector<MultiFab>& S_scratch,
                             const Real fast_dt, const Real inv_fac)
     {
-        if (verbose) Print() << "  Calling fast rhs with dtau = " << fast_dt << std::endl;
+        if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << fast_dt << std::endl;
         erf_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
                      S_data, S_scratch, advflux, fine_geom, ifr, solverChoice,
 #ifdef ERF_USE_TERRAIN
@@ -331,4 +333,5 @@ void ERF::erf_advance(int level,
     // One final BC fill
     amrex::Real new_time = old_time + dt_advance;
     FillIntermediatePatch(level, new_time, {cons_new, xvel_new, yvel_new, zvel_new});
+    if (verbose) Print() << "Done with advance at level " << level << std::endl;
 }

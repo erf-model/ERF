@@ -50,14 +50,47 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
             l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
 
+    // First do all ext_dir bcs
+    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+    {
+        if (i < dom_lo.x) {
+            if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
+                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+            }
+        } else if (i > dom_hi.x) {
+            if (bc_ptr[n].hi(0) == ERFBCType::ext_dir) {
+                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
+            }
+        }
+        if (j < dom_lo.y) {
+            if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
+                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+            }
+        } else if (j > dom_hi.y) {
+            if (bc_ptr[n].hi(1) == ERFBCType::ext_dir) {
+                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
+            }
+        }
+
+        if (k < dom_lo.z) {
+            if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
+                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+            }
+        } else if (k > dom_hi.z) {
+            if (bc_ptr[n].hi(2) == ERFBCType::ext_dir) {
+                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
+            }
+        }
+    });
+
+    // Next do ghost cells in x-direction but not reaching out in y
+    // The corners we miss here will be covered in the y-loop below or by periodicity
     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
     {
         // Populate ghost cells on lo-x and hi-x domain boundaries
-        if (i < dom_lo.x) {
+        if (i < dom_lo.x && k >= dom_lo.z && k <= dom_hi.z) {
             int iflip = dom_lo.x - 1 - i;
-            if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
-            } else if (bc_ptr[n].lo(0) == ERFBCType::foextrap) {
+            if (bc_ptr[n].lo(0) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(dom_lo.x,j,k,icomp+n);
             } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_even) {
                 dest_array(i,j,k,icomp+n) =  dest_array(iflip,j,k,icomp+n);
@@ -65,11 +98,9 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
                 dest_array(i,j,k,icomp+n) = -dest_array(iflip,j,k,icomp+n);
             }
 
-        } else if (i > dom_hi.x) {
+        } else if (i > dom_hi.x && k >= dom_lo.z && k <= dom_hi.z) {
             int iflip =  2*dom_hi.x + 1 - i;
-            if (bc_ptr[n].hi(0) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
-            } else if (bc_ptr[n].hi(0) == ERFBCType::foextrap) {
+            if (bc_ptr[n].hi(0) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(dom_hi.x,j,k,icomp+n);
             } else if (bc_ptr[n].hi(0) == ERFBCType::reflect_even) {
                 dest_array(i,j,k,icomp+n) =  dest_array(iflip,j,k,icomp+n);
@@ -79,22 +110,18 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
         }
 
         // Populate ghost cells on lo-y and hi-y domain boundaries
-        if (j < dom_lo.y) {
+        if (j < dom_lo.y && k >= dom_lo.z && k <= dom_hi.z) {
             int jflip = dom_lo.y - 1 - j;
-            if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
-            } else if (bc_ptr[n].lo(1) == ERFBCType::foextrap) {
+            if (bc_ptr[n].lo(1) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,dom_lo.y,k,icomp+n);
             } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_even) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,jflip,k,icomp+n);
             } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_odd) {
                 dest_array(i,j,k,icomp+n) = -dest_array(i,jflip,k,icomp+n);
             }
-        } else if (j > dom_hi.y) {
+        } else if (j > dom_hi.y && k >= dom_lo.z && k <= dom_hi.z) {
             int jflip =  2*dom_hi.y + 1 - j;
-            if (bc_ptr[n].hi(1) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
-            } else if (bc_ptr[n].hi(1) == ERFBCType::foextrap) {
+            if (bc_ptr[n].hi(1) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,dom_hi.y,k,icomp+n);
             } else if (bc_ptr[n].hi(1) == ERFBCType::reflect_even) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,jflip,k,icomp+n);
@@ -109,9 +136,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
         // Populate ghost cells on lo-z and hi-z domain boundaries
         if (k < dom_lo.z) {
             int kflip = dom_lo.z - 1 - i;
-            if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
-            } else if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
+            if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,j,dom_lo.z,icomp+n);
             } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_even) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,j,kflip,icomp+n);
@@ -121,9 +146,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
 
         } else if (k > dom_hi.z) {
             int kflip =  2*dom_hi.z + 1 - i;
-            if (bc_ptr[n].hi(2) == ERFBCType::ext_dir) {
-                dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
-            } else if (bc_ptr[n].hi(2) == ERFBCType::foextrap) {
+            if (bc_ptr[n].hi(2) == ERFBCType::foextrap) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,j,dom_hi.z,icomp+n);
             } else if (bc_ptr[n].hi(2) == ERFBCType::reflect_even) {
                 dest_array(i,j,k,icomp+n) =  dest_array(i,j,kflip,icomp+n);
