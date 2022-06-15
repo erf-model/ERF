@@ -12,7 +12,7 @@ ERF::init_ideal_terrain(int lev)
     auto ProbHiArr = geom[lev].ProbHiArray();
 
     // Number of ghost cells
-    int ngrow = z_phys_nd[lev].nGrow(); 
+    int ngrow = z_phys_nd[lev].nGrow();
 
     // Bottom of domain
     int k0 = 0;
