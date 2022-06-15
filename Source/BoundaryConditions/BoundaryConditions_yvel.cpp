@@ -22,6 +22,9 @@ void ERFPhysBCFunct::impose_yvel_bcs (const Array4<Real>& dest_arr, const Box& b
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
+    const auto&  bx_lo = amrex::lbound(bx);
+    const auto&  bx_hi = amrex::ubound(bx);
+
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
@@ -175,13 +178,21 @@ void ERFPhysBCFunct::impose_yvel_bcs (const Array4<Real>& dest_arr, const Box& b
                 amrex::Real GradVarx, GradVary;
                 if (i < dom_lo.x-1 || i > dom_hi.x+1)
                     GradVarx = 0.0;
+                else if (i+1 > bx_hi.x)
+                    GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0) - dest_arr(i-1,j,k0));
+                else if (i-1 < bx_lo.x)
+                    GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0) - dest_arr(i  ,j,k0));
                 else
                     GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0) - dest_arr(i-1,j,k0));
 
                 // GradY at IJK location inside domain -- this relies on the assumption that we have
                 // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
-                if (j < dom_lo.y-1 || j > dom_hi.y+2)
+                if (j < dom_lo.y-1 || j > dom_hi.y+1)
                     GradVary = 0.0;
+                else if (j+1 > bx_hi.y)
+                    GradVary =       dxInv[1] * (dest_arr(i,j  ,k0) - dest_arr(i,j-1,k0));
+                else if (j-1 < bx_lo.y)
+                    GradVary =       dxInv[1] * (dest_arr(i,j+1,k0) - dest_arr(i,j  ,k0));
                 else
                     GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0) - dest_arr(i,j-1,k0));
 
