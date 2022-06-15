@@ -25,8 +25,8 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.use_native_mri = 1
-erf.fixed_dt       = 1.0      # fixed time step [s] -- Straka et al 1993
-erf.fixed_fast_dt  = 0.25     # fixed time step [s] -- Straka et al 1993
+erf.fixed_dt       = 0.5      # fixed time step [s] -- Straka et al 1993
+erf.fixed_fast_dt  = 0.125    # fixed time step [s] -- Straka et al 1993
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -64,3 +64,13 @@ erf.alpha_T = 0.0 # [m^2/s]
 # PROBLEM PARAMETERS (optional)
 prob.T_0 = 300.0
 prob.U_0 = 0.0
+
+amr.max_level = 1
+amr.ref_ratio_vect = 2 2 1
+amr.refinement_indicators = box1
+
+amr.box1.max_level = 1
+amr.box1.in_box_lo =     0.   0.
+amr.box1.in_box_hi =  1600. 400.
+
+erf.coupling_type = "TwoWay"

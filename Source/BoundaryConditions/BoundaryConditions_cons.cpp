@@ -54,7 +54,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
     {
         // Populate ghost cells on lo-x and hi-x domain boundaries
         if (i < dom_lo.x) {
-            int iflip = dom_lo.x +1 - i;
+            int iflip = dom_lo.x - 1 - i;
             if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
             } else if (bc_ptr[n].lo(0) == ERFBCType::foextrap) {
@@ -80,7 +80,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
 
         // Populate ghost cells on lo-y and hi-y domain boundaries
         if (j < dom_lo.y) {
-            int jflip = dom_lo.y + 1 - j;
+            int jflip = dom_lo.y - 1 - j;
             if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
             } else if (bc_ptr[n].lo(1) == ERFBCType::foextrap) {
@@ -108,7 +108,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_array, const Box&
     {
         // Populate ghost cells on lo-z and hi-z domain boundaries
         if (k < dom_lo.z) {
-            int kflip = dom_lo.z+1-i;
+            int kflip = dom_lo.z - 1 - i;
             if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
                 dest_array(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
             } else if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
