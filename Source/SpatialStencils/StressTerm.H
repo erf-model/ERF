@@ -54,11 +54,16 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
                    const amrex::Array4<const amrex::Real>& z_nd,
                    const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
+    // We don't want to compute strain or expansion below the bottom surface
+    const auto& dom_lo = amrex::lbound(domain);
+    const auto& dom_hi = amrex::ubound(domain);
+    int kk = std::min(std::max(k,dom_lo.z),dom_hi.z);
+
     // S_ij term
-    amrex::Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv, z_nd, domain, bc_ptr);
+    amrex::Real strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, cellSizeInv, z_nd, domain, bc_ptr);
 
     // D_ij term
-    amrex::Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, z_nd, cellSizeInv);
+    amrex::Real expansionRate = ComputeExpansionRate(i, j, kk, u, v, w, momentumEqn, diffDir, z_nd, cellSizeInv);
 
     // sigma_ij = S_ij - D_ij
     amrex::Real strainRateDeviatoric = strainRate - expansionRate;

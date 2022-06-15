@@ -173,9 +173,10 @@ ComputeS13(const int &i, const int &j, const int &k,
   }
 
   // At EdgeCenterJ
-  GradWz = 0.25 * dz_inv *
-    ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
-     -w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
+  if (k == 0)
+      GradWz = 0.5  * dz_inv * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1) -w(i  ,j  ,k  ) - w(i-1,j  ,k  ) );
+  else
+      GradWz = 0.25 * dz_inv * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1) -w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
 
   strainRate += -(met_h_xi/met_h_zeta)*GradWz;
 
@@ -217,9 +218,10 @@ ComputeS23(const int &i, const int &j, const int &k,
   }
 
   // At EdgeCenterI
-  GradWz = 0.25 * dz_inv *
-    ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
-     -w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
+  if (k == 0)
+      GradWz = 0.5  * dz_inv * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1) -w(i  ,j  ,k  ) - w(i  ,j-1,k  ) );
+  else
+      GradWz = 0.25 * dz_inv * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1) -w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
 
   strainRate += -(met_h_eta/met_h_zeta)*GradWz;
 
