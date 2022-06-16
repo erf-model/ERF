@@ -164,6 +164,7 @@ amrex::Real DiffusionSrcForMomWithTerrain(
                        const amrex::Box& domain, const amrex::BCRec* bc_ptr);
 #endif
 
+AMREX_GPU_DEVICE
 amrex::Real DiffusionSrcForMom(
                        const int &i, const int &j, const int &k,
                        const amrex::Array4<const amrex::Real>& u,
