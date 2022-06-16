@@ -147,6 +147,23 @@ amrex::Real ComputeStressTerm (
                        const SolverChoice &solverChoice,
                        const amrex::Box& domain, const amrex::BCRec* bc_ptr);
 
+#ifdef ERF_USE_TERRAIN
+AMREX_GPU_DEVICE
+amrex::Real DiffusionSrcForMomWithTerrain(
+                       const int &i, const int &j, const int &k,
+                       const amrex::Array4<const amrex::Real>& u,
+                       const amrex::Array4<const amrex::Real>& v,
+                       const amrex::Array4<const amrex::Real>& w,
+                       const amrex::Array4<const amrex::Real>& cons,
+                       const enum MomentumEqn &momentumEqn,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
+                       const amrex::Array4<amrex::Real>& Ksmag,
+                       const SolverChoice &solverChoice,
+                       const amrex::Array4<const amrex::Real>& z_nd,
+                       const amrex::Array4<const amrex::Real>& detJ,
+                       const amrex::Box& domain, const amrex::BCRec* bc_ptr);
+#endif
+
 AMREX_GPU_DEVICE
 amrex::Real DiffusionSrcForMom(
                        const int &i, const int &j, const int &k,
@@ -158,10 +175,6 @@ amrex::Real DiffusionSrcForMom(
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                        const amrex::Array4<amrex::Real>& Ksmag,
                        const SolverChoice &solverChoice,
-#ifdef ERF_USE_TERRAIN
-                       const amrex::Array4<const amrex::Real>& z_nd,
-                       const amrex::Array4<const amrex::Real>& detJ,
-#endif
                        const amrex::Box& domain, const amrex::BCRec* bc_ptr);
 
 AMREX_GPU_DEVICE

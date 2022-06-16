@@ -341,23 +341,33 @@ void erf_slow_rhs (int level,
 
             // Add advective terms
             rho_u_rhs(i, j, k) += -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, u,
+
 #ifdef ERF_USE_TERRAIN
                                                        z_nd, detJ,
 #endif
                                                        dxInv, l_spatial_order);
 
             // Add diffusive terms
-            rho_u_rhs(i, j, k) += DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
-                                                     MomentumEqn::x, dxInv, K_turb, solverChoice,
+            amrex::Real diff_update;
 #ifdef ERF_USE_TERRAIN
-                                                     z_nd, detJ,
+            if (k < domhi_z)
+                diff_update = DiffusionSrcForMomWithTerrain(i, j, k, u, v, w, cell_data,
+                                                         MomentumEqn::x, dxInv, K_turb, solverChoice,
+                                                         z_nd, detJ, domain, bc_ptr);
+            else
 #endif
-                                                     domain, bc_ptr);
+                diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
+                                                 MomentumEqn::x, dxInv, K_turb, solverChoice,
+                                                 domain, bc_ptr);
+            rho_u_rhs(i, j, k) += diff_update;
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
-            Real met_h_xi,met_h_eta,met_h_zeta;
+
+            Real met_h_xi, met_h_eta, met_h_zeta;
+
             ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
+
             Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
             Real gp_zeta_on_iface;
             if(k==0) {
@@ -434,12 +444,18 @@ void erf_slow_rhs (int level,
                                                        dxInv, l_spatial_order);
 
             // Add diffusive terms
-            rho_v_rhs(i, j, k) += DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
-                                                     MomentumEqn::y, dxInv, K_turb, solverChoice,
+            amrex::Real diff_update;
 #ifdef ERF_USE_TERRAIN
-                                                     z_nd, detJ,
+            if (k < domhi_z)
+                diff_update = DiffusionSrcForMomWithTerrain(i, j, k, u, v, w, cell_data,
+                                                            MomentumEqn::y, dxInv, K_turb, solverChoice,
+                                                            z_nd, detJ, domain, bc_ptr);
+            else
 #endif
-                                                     domain, bc_ptr);
+                diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
+                                                 MomentumEqn::y, dxInv, K_turb, solverChoice,
+                                                 domain, bc_ptr);
+             rho_v_rhs(i, j, k) += diff_update;
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
@@ -520,12 +536,18 @@ void erf_slow_rhs (int level,
 
             // Add diffusive terms
             int k_diff = (k == domhi_z+1) ? domhi_z : k;
-            rho_w_rhs(i, j, k) += DiffusionSrcForMom(i, j, k_diff, u, v, w, cell_data,
-                                                     MomentumEqn::z, dxInv, K_turb, solverChoice,
+            amrex::Real diff_update;
 #ifdef ERF_USE_TERRAIN
-                                                     z_nd, detJ,
+            if (k < domhi_z)
+                diff_update = DiffusionSrcForMomWithTerrain(i, j, k_diff, u, v, w, cell_data,
+                                                            MomentumEqn::z, dxInv, K_turb, solverChoice,
+                                                            z_nd, detJ, domain, bc_ptr);
+            else
 #endif
-                                                     domain, bc_ptr);
+                diff_update = DiffusionSrcForMom(i, j, k_diff, u, v, w, cell_data,
+                                                 MomentumEqn::z, dxInv, K_turb, solverChoice,
+                                                 domain, bc_ptr);
+            rho_w_rhs(i, j, k) += diff_update;
 
             // Add pressure gradient
 #ifdef ERF_USE_TERRAIN
@@ -582,7 +604,6 @@ void erf_slow_rhs (int level,
             if (k == 0) {
                 rho_w_rhs(i,j,k) = 0.;
             } else if (k == domhi_z+1) {
-                //rho_w_rhs(i, j, k) = rho_w_rhs(i,j,k-1);
                 rho_w_rhs(i, j, k) = 0.;
             }
 

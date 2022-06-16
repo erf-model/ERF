@@ -8,7 +8,8 @@
 
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeExpansionRate(const int &i, const int &j, const int &k,
+ComputeExpansionRateWithTerrain(
+                     const int &i, const int &j, const int &k,
                      const amrex::Array4<const amrex::Real>& u,
                      const amrex::Array4<const amrex::Real>& v,
                      const amrex::Array4<const amrex::Real>& w,
@@ -20,7 +21,6 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
     amrex::Real dx_inv = cellSizeInv[0];
     amrex::Real dy_inv = cellSizeInv[1];
     amrex::Real dz_inv = cellSizeInv[2];
-
 
     amrex::Real Omega_hi,Omega_lo;
     amrex::Real met_h_xi,met_h_eta,met_h_zeta;
@@ -148,8 +148,8 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
                   ComputeMetricAtCellCenter(i  ,j  ,k-1,
                                             met_h_xi,met_h_eta,met_h_zeta,
                                             cellSizeInv,z_nd,TerrainMet::h_zeta);
-
                   expansionRate /= met_h_zeta;
+
                   break;
                 default:
                   amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -161,8 +161,8 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
 
     return (1.0/3.0) * expansionRate;
 }
+#endif
 
-#else
 AMREX_GPU_DEVICE
 inline amrex::Real
 ComputeExpansionRate(const int &i, const int &j, const int &k,
@@ -171,7 +171,8 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
                      const amrex::Array4<const amrex::Real>& w,
                      const enum MomentumEqn &momentumEqn,
                      const enum DiffusionDir &diffDir,
-                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv) {
+                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
+{
     amrex::Real dx_inv = cellSizeInv[0];
     amrex::Real dy_inv = cellSizeInv[1];
     amrex::Real dz_inv = cellSizeInv[2];
@@ -237,6 +238,4 @@ ComputeExpansionRate(const int &i, const int &j, const int &k,
 
     return (1.0/3.0) * expansionRate;
 }
-#endif
-
 #endif

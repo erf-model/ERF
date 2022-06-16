@@ -6,12 +6,7 @@
 
 #ifdef ERF_USE_TERRAIN
 #include <TerrainMetrics.H>
-
-// Note:  if the boundary condition type is ext_dir, it means that the velocity is fixed
-//        on that face, so we use a special stencil that understands the value is
-//        at the face, not at half a grid cell away from the face.   The stencils below also
-//        allow for the Dirichlet value to be non-zero.  A wall boundary condition will generate
-//        Dirichlet bc in the z-direction; inflow will generate Dirichlet bc in the lateral directions.
+#endif
 
 AMREX_GPU_DEVICE
 inline bool
@@ -24,6 +19,14 @@ is_on_face(int bc_in)
     }
 }
 
+// Note:  if the boundary condition type is ext_dir, it means that the velocity is fixed
+//        on that face, so we use a special stencil that understands the value is
+//        at the face, not at half a grid cell away from the face.   The stencils below also
+//        allow for the Dirichlet value to be non-zero.  A wall boundary condition will generate
+//        Dirichlet bc in the z-direction; inflow will generate Dirichlet bc in the lateral directions.
+
+#ifdef ERF_USE_TERRAIN
+
 // AML: Stress tensor only implemented for the case h_xi = h_eta = 0!
 
 //*****************************************************************************************
@@ -31,7 +34,8 @@ is_on_face(int bc_in)
 //*****************************************************************************************
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeS11(const int &i, const int &j, const int &k,
+ComputeS11WithTerrain(
+           const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& u,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
            const amrex::Real& met_h_xi, const amrex::Real& /*met_h_eta*/, const amrex::Real& met_h_zeta)
@@ -54,7 +58,8 @@ ComputeS11(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeS22(const int &i, const int &j, const int &k,
+ComputeS22WithTerrain(
+           const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& v,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
            const amrex::Real& /*met_h_xi*/, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta)
@@ -77,7 +82,8 @@ ComputeS22(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeS33(const int &i, const int &j, const int &k,
+ComputeS33WithTerrain(
+           const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& w,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
            const amrex::Real& /*met_h_xi*/, const amrex::Real& /*met_h_eta*/, const amrex::Real& met_h_zeta)
@@ -92,7 +98,8 @@ ComputeS33(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeS12(const int &i, const int &j, const int &k,
+ComputeS12WithTerrain(
+           const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& u,
            const amrex::Array4<amrex::Real const>& v,
            const amrex::Array4<amrex::Real const>& /*w*/,
@@ -142,7 +149,8 @@ ComputeS12(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeS13(const int &i, const int &j, const int &k,
+ComputeS13WithTerrain(
+           const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& u,
            const amrex::Array4<amrex::Real const>& /*v*/,
            const amrex::Array4<amrex::Real const>& w,
@@ -187,7 +195,8 @@ ComputeS13(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeS23(const int &i, const int &j, const int &k,
+ComputeS23WithTerrain(
+           const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& /*u*/,
            const amrex::Array4<amrex::Real const>& v,
            const amrex::Array4<amrex::Real const>& w,
@@ -232,7 +241,8 @@ ComputeS23(const int &i, const int &j, const int &k,
 
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeS21(const int &i, const int &j, const int &k,
+ComputeS21WithTerrain(
+           const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& u,
            const amrex::Array4<amrex::Real const>& v,
            const amrex::Array4<amrex::Real const>& w,
@@ -240,14 +250,15 @@ ComputeS21(const int &i, const int &j, const int &k,
            const amrex::Real& met_h_xi, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta,
            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-  return ComputeS12(i,j,k,u,v,w,cellSizeInv,
+  return ComputeS12WithTerrain(i,j,k,u,v,w,cellSizeInv,
             met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
 }
 
 // Metrics introduce asymmetry into strain-rate
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeS31(const int &i, const int &j, const int &k,
+ComputeS31WithTerrain(
+           const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& u,
            const amrex::Array4<amrex::Real const>& v,
            const amrex::Array4<amrex::Real const>& w,
@@ -255,13 +266,14 @@ ComputeS31(const int &i, const int &j, const int &k,
            const amrex::Real& met_h_xi, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta,
            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
- return ComputeS13(i,j,k,u,v,w,cellSizeInv,
+ return ComputeS13WithTerrain(i,j,k,u,v,w,cellSizeInv,
             met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
 }
 
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeS32(const int &i, const int &j, const int &k,
+ComputeS32WithTerrain(
+           const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& u,
            const amrex::Array4<amrex::Real const>& v,
            const amrex::Array4<amrex::Real const>& w,
@@ -269,7 +281,7 @@ ComputeS32(const int &i, const int &j, const int &k,
            const amrex::Real& met_h_xi, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta,
            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-  return ComputeS23(i,j,k,u,v,w,cellSizeInv,
+  return ComputeS23WithTerrain(i,j,k,u,v,w,cellSizeInv,
             met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
 }
 
@@ -278,7 +290,8 @@ ComputeS32(const int &i, const int &j, const int &k,
 //****************************************************************************************
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeStrainRate(const int &i, const int &j, const int &k,
+ComputeStrainRateWithTerrain(
+                  const int &i, const int &j, const int &k,
                   const amrex::Array4<amrex::Real const>& u,
                   const amrex::Array4<amrex::Real const>& v,
                   const amrex::Array4<amrex::Real const>& w,
@@ -297,20 +310,20 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       // Cell-Center is staggered
       ComputeMetricAtCellCenter(i-1,j,k,met_h_xi,met_h_eta,met_h_zeta,
                                 cellSizeInv,z_nd,TerrainMet::h_xi_zeta);
-      strainRate = ComputeS11(i,j,k,u,cellSizeInv,
+      strainRate = ComputeS11WithTerrain(i,j,k,u,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta);
       break;
     case DiffusionDir::y: // S12
       ComputeMetricAtEdgeCenterK(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
                                  cellSizeInv,z_nd,TerrainMet::all);
-      strainRate = ComputeS12(i,j,k,u,v,w,cellSizeInv,
+      strainRate = ComputeS12WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
     case DiffusionDir::z: // S13
       ComputeMetricAtEdgeCenterJ(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
                                  cellSizeInv,z_nd,TerrainMet::h_xi_zeta);
-      strainRate = ComputeS13(i,j,k,u,v,w,cellSizeInv,
+      strainRate = ComputeS13WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
@@ -323,7 +336,7 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
     case DiffusionDir::x: // S21
       ComputeMetricAtEdgeCenterK(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
                                  cellSizeInv,z_nd,TerrainMet::all);
-      strainRate = ComputeS21(i,j,k,u,v,w,cellSizeInv,
+      strainRate = ComputeS21WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
@@ -331,13 +344,13 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       // Cell-Center is staggered
       ComputeMetricAtCellCenter(i,j-1,k,met_h_xi,met_h_eta,met_h_zeta,
                                 cellSizeInv,z_nd,TerrainMet::h_eta_zeta);
-      strainRate = ComputeS22(i,j,k,v,cellSizeInv,
+      strainRate = ComputeS22WithTerrain(i,j,k,v,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta);
       break;
     case DiffusionDir::z: // S23
       ComputeMetricAtEdgeCenterI(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
                                  cellSizeInv,z_nd,TerrainMet::h_eta_zeta);
-      strainRate = ComputeS23(i,j,k,u,v,w,cellSizeInv,
+      strainRate = ComputeS23WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
@@ -350,14 +363,14 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
     case DiffusionDir::x: // S31
       ComputeMetricAtEdgeCenterJ(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
                                  cellSizeInv,z_nd,TerrainMet::h_xi_zeta);
-      strainRate = ComputeS31(i,j,k,u,v,w,cellSizeInv,
+      strainRate = ComputeS31WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
     case DiffusionDir::y: // S32
       ComputeMetricAtEdgeCenterI(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
                                  cellSizeInv,z_nd,TerrainMet::h_eta_zeta);
-      strainRate = ComputeS32(i,j,k,u,v,w,cellSizeInv,
+      strainRate = ComputeS32WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
@@ -365,7 +378,7 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
       // Cell-Center is staggered
       ComputeMetricAtCellCenter(i,j,k-1,met_h_xi,met_h_eta,met_h_zeta,
                                 cellSizeInv,z_nd,TerrainMet::h_zeta);
-      strainRate = ComputeS33(i,j,k,w,cellSizeInv,
+      strainRate = ComputeS33WithTerrain(i,j,k,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta);
       break;
     default:
@@ -378,24 +391,7 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
 
   return strainRate;
 }
-
-#else
-// Note:  if the boundary condition type is ext_dir, it means that the velocity is fixed
-//        on that face, so we use a special stencil that understands the value is
-//        at the face, not at half a grid cell away from the face.   The stencils below also
-//        allow for the Dirichlet value to be non-zero.  A wall boundary condition will generate
-//        Dirichlet bc in the z-direction; inflow will generate Dirichlet bc in the lateral directions.
-
-AMREX_GPU_DEVICE
-inline bool
-is_on_face(int bc_in)
-{
-    if ( (bc_in == ERFBCType::ext_dir) || (bc_in == ERFBCType::ext_dir_ingested) ) {
-        return true;
-    } else {
-        return false;
-    }
-}
+#endif
 
 AMREX_GPU_DEVICE
 inline amrex::Real
@@ -625,6 +621,5 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
 
   return strainRate;
 }
-#endif
 
 #endif
