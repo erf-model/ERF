@@ -57,7 +57,11 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+#ifdef ERF_USE_TERRAIN
+            amrex::Real SmnSmn = ComputeSmnSmnWithTerrain(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
+#else
             amrex::Real SmnSmn = ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
+#endif
 
             // Note the positive sign, which aligns well with the positive sign in the diffusion term for momentum equation
             K(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);

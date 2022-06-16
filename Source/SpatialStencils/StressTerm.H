@@ -38,11 +38,12 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
     return stressTerm;
 }
 
-#ifdef ERF_USE_TERRAIN
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
+#ifdef ERF_USE_TERRAIN
 AMREX_GPU_DEVICE
 inline amrex::Real
-ComputeStressTerm (const int &i, const int &j, const int &k,
+ComputeStressTermWithTerrain (
+                   const int &i, const int &j, const int &k,
                    const amrex::Array4<const amrex::Real>& u,
                    const amrex::Array4<const amrex::Real>& v,
                    const amrex::Array4<const amrex::Real>& w,
@@ -54,16 +55,27 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
                    const amrex::Array4<const amrex::Real>& z_nd,
                    const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-    // We don't want to compute strain or expansion below the bottom surface
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
-    int kk = std::min(std::max(k,dom_lo.z),dom_hi.z);
+
+    // We don't want to compute strain or expansion below the bottom surface
+    int kk = std::max(k,dom_lo.z);
+
+    amrex::Real strainRate, expansionRate;
 
     // S_ij term
-    amrex::Real strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, cellSizeInv, z_nd, domain, bc_ptr);
+    if ( (momentumEqn == MomentumEqn::z && k <= dom_hi.z) ||
+         (momentumEqn != MomentumEqn::z && k <  dom_hi.z) )
+        strainRate = ComputeStrainRateWithTerrain(i, j, kk, u, v, w, momentumEqn, diffDir, cellSizeInv, z_nd, domain, bc_ptr);
+    else
+        strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, cellSizeInv, domain, bc_ptr);
 
     // D_ij term
-    amrex::Real expansionRate = ComputeExpansionRate(i, j, kk, u, v, w, momentumEqn, diffDir, z_nd, cellSizeInv);
+    if ( (momentumEqn == MomentumEqn::z && k <= dom_hi.z) ||
+         (momentumEqn != MomentumEqn::z && k <  dom_hi.z) )
+        expansionRate = ComputeExpansionRateWithTerrain(i, j, kk, u, v, w, momentumEqn, diffDir, z_nd, cellSizeInv);
+    else
+        expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
 
     // sigma_ij = S_ij - D_ij
     amrex::Real strainRateDeviatoric = strainRate - expansionRate;
@@ -72,9 +84,8 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
 
     return stressTerm;
 }
+#endif
 
-#else
-// Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
 AMREX_GPU_DEVICE
 inline amrex::Real
 ComputeStressTerm (const int &i, const int &j, const int &k,
@@ -88,17 +99,25 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
                    const SolverChoice &solverChoice,
                    const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-    amrex::Real strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv, domain, bc_ptr);
+    const auto& dom_lo = amrex::lbound(domain);
+
+    // We don't want to compute strain or expansion below the bottom surface
+    int kk = std::max(k,dom_lo.z);
+
+    amrex::Real strainRate, expansionRate;
+
+    // S_ij term
+    strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, cellSizeInv, domain, bc_ptr);
 
     // D_ij term
-    amrex::Real expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
+    expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
 
-    amrex::Real strainRateDeviatoric = strainRate - expansionRate; // sigma_ij = S_ij - D_ij
+    // sigma_ij = S_ij - D_ij
+    amrex::Real strainRateDeviatoric = strainRate - expansionRate;
 
-    amrex::Real stressTerm = ComputeStressGivenRates(i,j,k,momentumEqn,diffDir,K_turb,solverChoice, strainRateDeviatoric);
+    amrex::Real stressTerm = ComputeStressGivenRates(i, j, k, momentumEqn, diffDir, K_turb, solverChoice, strainRateDeviatoric);
 
     return stressTerm;
 }
-#endif
 
 #endif
