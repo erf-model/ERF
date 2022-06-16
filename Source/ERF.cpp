@@ -584,7 +584,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     ba_nd.surroundingNodes();
 
     // We need this to be one greater than the ghost cells to handle levels > 0
-    int ngrow = ComputeGhostCells(solverChoice.spatial_order)+1;
+    int ngrow = ComputeGhostCells(solverChoice.spatial_order)+2;
     z_phys_nd[lev].define(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
 #endif
 

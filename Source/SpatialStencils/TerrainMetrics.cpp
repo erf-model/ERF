@@ -90,8 +90,8 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
     case 1: // STF Method
     {
         // Get Multifab spanning domain with 1 level of ghost cells
-        MultiFab h_mf(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow);
-        MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow);
+        MultiFab h_mf(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
+        MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
 
         // Save max height for smoothing
         Real max_h;
@@ -163,6 +163,7 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
             Real diff        = 1.e20;
             while (iter < maxIter && diff > threshold)
             {
+
                 diff = ParReduce(amrex::TypeList<amrex::ReduceOpMin>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(ngrow,ngrow,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> amrex::GpuTuple<Real>
@@ -205,15 +206,18 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
 
             } //while
 
+
             //Populate z_phys_nd by solving z_arr(i,j,k) = z + A*h_s(i,j,k)
             for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
+
                 // Grown box with no z range
                 Box xybx = mfi.growntilebox(ngrow);
                 xybx.setRange(2,0);
 
                 Array4<Real> const& h_s   = h_mf_old.array(mfi);
                 Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+
 
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
@@ -236,12 +240,13 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
   // Fill ghost layers and corners (including periodic)
   z_phys_nd.FillBoundary(geom.periodicity());
 
+
   //********************************************************************************
   // Populate domain boundary cells in z-direction
   //********************************************************************************
   for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
-       // Grown box with no z range
+      // Grown box with no z range
       Box xybx = mfi.growntilebox(ngrow);
       xybx.setRange(2,0);
 
