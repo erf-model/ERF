@@ -52,7 +52,7 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
    amrex::Gpu::DeviceVector<Real> z_levels_d;
    z_levels_d.resize(nz);
 #ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy(z_levels_d.data(), z_levels_h.data(), sizeof(Real)*nz);
+    Gpu::htod_memcpy_async(z_levels_d.data(), z_levels_h.data(), sizeof(Real)*nz);
 #else
     std::memcpy(z_levels_d.data(), z_levels_h.data(), sizeof(Real)*nz);
 #endif
@@ -140,10 +140,10 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices
         for (int k = domlo_z+1; k <= domhi_z; k++) // skip terrain level
         {
-            auto const& z_lev = z_levels_d.data();
+            auto const& z_lev_h = z_levels_h.data();
 
-            Real zz       = z_lev[k];
-            Real zz_minus = z_lev[k-1];
+            Real zz       = z_lev_h[k];
+            Real zz_minus = z_lev_h[k-1];
 
             Real gamma_m = 0.5; // min allowed fractional grid spacing
             Real z_H     = 2.44/(1-gamma_m);
@@ -206,6 +206,7 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
 
             } //while
 
+            auto const& z_lev_d = z_levels_d.data();
 
             //Populate z_phys_nd by solving z_arr(i,j,k) = z + A*h_s(i,j,k)
             for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -222,7 +223,7 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
                     // Location of nodes
-                    Real z = z_lev[k];
+                    Real z = z_lev_d[k];
 
                     // STF model from p2164 of Klemp2011
                     z_arr(i,j,k) = z + A*h_s(i,j,k);
