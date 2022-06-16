@@ -40,7 +40,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
 
     amrex::Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
 #ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
+    Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #else
     std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #endif
@@ -167,7 +167,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
     // Loop over each component
     for (int n = 0; n < ncomp; n++) {
         // Hit for Neumann condition at kmin
-        if( bc_ptr[n].lo(2) == ERFBCType::foextrap) {
+        if( bcrs[n].lo(2) == ERFBCType::foextrap) {
             // Loop over ghost cells in bottom XY-plane (valid box)
             amrex::Box xybx = bx;
             xybx.setBig(2,-1);
@@ -223,4 +223,6 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
     } // ncomp
 
 #endif
+
+    Gpu::streamSynchronize();
 }

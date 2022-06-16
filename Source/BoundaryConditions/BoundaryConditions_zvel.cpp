@@ -44,7 +44,7 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
 
     amrex::Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
 #ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
+    Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #else
     std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #endif
@@ -176,4 +176,6 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
 #endif
         }
     });
+
+    Gpu::streamSynchronize();
 }

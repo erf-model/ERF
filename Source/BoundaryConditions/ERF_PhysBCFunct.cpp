@@ -150,7 +150,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
 
                     amrex::Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
 #ifdef AMREX_USE_GPU
-                    Gpu::htod_memcpy
+                    Gpu::htod_memcpy_async
                         (bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #else
                     std::memcpy
@@ -342,6 +342,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                         });
                     }
 #endif
+                    Gpu::streamSynchronize(); // because of bcrs_d
                 } // !gdomain.contains(bx)
             } // MFIter
         } // OpenMP
