@@ -130,7 +130,7 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
                   // Return height for max
                   return { z_arr(i,j,k0) };
                 });
- 
+
         // Fill ghost cells (neglects domain boundary if not periodic)
         h_mf.FillBoundary(geom.periodicity());
 
@@ -163,7 +163,7 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
             Real diff        = 1.e20;
             while (iter < maxIter && diff > threshold)
             {
- 
+
                 diff = ParReduce(amrex::TypeList<amrex::ReduceOpMin>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(ngrow,ngrow,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> amrex::GpuTuple<Real>
