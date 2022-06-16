@@ -19,10 +19,10 @@ Compute_h_zeta_AtCellCenter(const int &i, const int &j, const int &k,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                             const amrex::Array4<const amrex::Real>& z_nd)
 {
-    amrex::Real dyInv = cellSizeInv[1];
-    amrex::Real met_h_zeta = 0.25 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) - z_nd(i,j  ,k+1) - z_nd(i+1,j  ,k+1) );
+    amrex::Real dzInv = cellSizeInv[2];
+    amrex::Real met_h_zeta = 0.25 * dzInv *
+      ( z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
+       -z_nd(i+1,j,k  ) - z_nd(i+1,j+1,k  ) - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
     return met_h_zeta;
 }
 
