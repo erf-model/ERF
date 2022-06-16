@@ -140,7 +140,7 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices
         for (int k = domlo_z+1; k <= domhi_z; k++) // skip terrain level
         {
-            auto const& z_lev = z_levels_h.data();
+            auto const& z_lev = z_levels_d.data();
 
             Real zz       = z_lev[k];
             Real zz_minus = z_lev[k-1];
