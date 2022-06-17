@@ -54,12 +54,6 @@ ERF::init_ideal_terrain(int lev)
 
             // Populate terrain height
             z_arr(i,j,k0) = height;
-
-            // Set a "ghost" hill one dz below the actual hill
-            z_arr(i,j,k0-1) = height - dx[2];
-
-            // Flat terrain with z = 0 at k = 0
-            //z_arr(i,j,k0) = z;
         });
     }
 }

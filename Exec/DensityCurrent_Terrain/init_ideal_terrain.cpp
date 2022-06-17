@@ -29,9 +29,6 @@ ERF::init_ideal_terrain(int lev)
 
             // Flat terrain with z = 0 at k = 0
             z_arr(i,j,k0) = 0.0;
-
-            // Set a "ghost" layer one dz below the surface
-            z_arr(i,j,k0-1) = -dx[2];
         });
     }
 }
