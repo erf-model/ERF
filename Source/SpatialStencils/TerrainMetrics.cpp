@@ -60,6 +60,12 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
   // Number of ghost cells
   int ngrow = z_phys_nd.nGrow();
 
+  int imin = domlo_x; if (geom.isPeriodic(0)) imin -= z_phys_nd.nGrowVect()[0];
+  int jmin = domlo_y; if (geom.isPeriodic(1)) jmin -= z_phys_nd.nGrowVect()[1];
+
+  int imax = domhi_x; if (geom.isPeriodic(0)) imax += z_phys_nd.nGrowVect()[0];
+  int jmax = domhi_y; if (geom.isPeriodic(1)) jmax += z_phys_nd.nGrowVect()[1];
+
   switch(terrain_smoothing) {
     case 0: // BTF Method
     {
@@ -70,17 +76,27 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
       {
           // Grown box with corrected ghost cells at top
           Box gbx = mfi.growntilebox(ngrow);
-          gbx.setRange(2,domlo_z+1,domhi_z+1);
+          gbx.setRange(2,domlo_z,domhi_z+1);
 
           Array4<Real> const& z_arr = z_phys_nd.array(mfi);
           auto const&         z_lev = z_levels_d.data();
 
-          ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+          ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+          {
               // Vertical grid stretching
               Real z =  z_lev[k];
 
-              // Fill non-ghost cells with BTF model from p2163 of Klemp2011
-              z_arr(i,j,k) = z + (1. - (z/ztop)) * z_arr(i,j,k0);
+              int ii = amrex::max(amrex::min(i,imax),imin);
+              int jj = amrex::max(amrex::min(j,jmax),jmin);
+
+              // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
+              if (k == k0) {
+                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
+                  z_arr(i,j,k0-1) = z_arr(ii,jj,k0) - dx[2];
+              }
+
+              // Fill levels using BTF model from p2163 of Klemp2011
+              z_arr(i,j,k) = z + (1. - (z/ztop)) * z_arr(ii,jj,k0);
           });
         }
 
@@ -123,6 +139,13 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
                   // Get Array4s
                   auto& h     = ma_h_s[box_no];
                   auto& z_arr = ma_z_phys[box_no];
+
+                  int ii = amrex::max(amrex::min(i,imax),imin);
+                  int jj = amrex::max(amrex::min(j,jmax),jmin);
+
+                  // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
+                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
+                  z_arr(i,j,k0-1) = z_arr(ii,jj,k0) - dx[2];
 
                   // Populate h with terrain
                   h(i,j,k0) = z_arr(i,j,k0);
