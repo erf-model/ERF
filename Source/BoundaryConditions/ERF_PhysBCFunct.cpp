@@ -105,7 +105,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
 #ifdef ERF_USE_TERRAIN
                                         z_nd_arr,dxInv,
 #endif
-                                        icomp,ncomp,time,bccomp);
+                                        time,bccomp);
 
                     } else if (m_var_idx == Vars::yvel) {
                         AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
@@ -113,7 +113,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
 #ifdef ERF_USE_TERRAIN
                                         z_nd_arr,dxInv,
 #endif
-                                        icomp,ncomp,time,bccomp);
+                                        time,bccomp);
 
                     } else if (m_var_idx == Vars::zvel) {
                         AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
@@ -121,7 +121,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
 #ifdef ERF_USE_TERRAIN
                                         velx_arr,vely_arr,z_nd_arr,dxInv,
 #endif
-                                        icomp,ncomp,time,bccomp);
+                                        time,bccomp);
 
                     } else if (m_var_idx == Vars::cons) {
                         AMREX_ALWAYS_ASSERT(icomp == 0 && icomp+ncomp <= NVAR);

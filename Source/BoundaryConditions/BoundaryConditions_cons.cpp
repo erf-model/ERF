@@ -196,28 +196,28 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                 if (i < dom_lo.x-1 || i > dom_hi.x+1)
                     GradVarx = 0.0;
                 else if (i+1 > bx_hi.x)
-                    GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0) - dest_arr(i-1,j,k0));
+                    GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,n) - dest_arr(i-1,j,k0,n));
                 else if (i-1 < bx_lo.x)
-                    GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0) - dest_arr(i  ,j,k0));
+                    GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i  ,j,k0,n));
                 else
-                    GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0) - dest_arr(i-1,j,k0));
+                    GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i-1,j,k0,n));
 
                 // GradY at IJK location inside domain -- this relies on the assumption that we have
                 // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                 if (j < dom_lo.y-1 || j > dom_hi.y+1)
                     GradVary = 0.0;
                 else if (j+1 > bx_hi.y)
-                    GradVary =       dxInv[1] * (dest_arr(i,j  ,k0) - dest_arr(i,j-1,k0));
+                    GradVary =       dxInv[1] * (dest_arr(i,j  ,k0,n) - dest_arr(i,j-1,k0,n));
                 else if (j-1 < bx_lo.y)
-                    GradVary =       dxInv[1] * (dest_arr(i,j+1,k0) - dest_arr(i,j  ,k0));
+                    GradVary =       dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j  ,k0,n));
                 else
-                    GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0) - dest_arr(i,j-1,k0));
+                    GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j-1,k0,n));
 
                 // Prefactor
                 amrex::Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
 
                 // Accumulate in bottom ghost cell (EXTRAP already populated)
-                dest_arr(i,j,k) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
+                dest_arr(i,j,k,n) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
             });
         } // foextrap
     } // ncomp
