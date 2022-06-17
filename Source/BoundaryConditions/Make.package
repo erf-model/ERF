@@ -12,3 +12,7 @@ CEXE_sources += ERF_PhysBCFunct.cpp
 CEXE_headers += ERF_PhysBCFunct.H
 
 CEXE_headers += TimeInterpolatedData.H
+
+CEXE_headers += DirectionSelector.H
+CEXE_headers += PlaneAverage.H
+CEXE_headers += VelPlaneAverage.H

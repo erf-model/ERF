@@ -8,17 +8,11 @@ CEXE_headers += ERF_Math.H
 CEXE_headers += IndexDefines.H
 CEXE_headers += EOS.H
 CEXE_headers += DataStruct.H
-CEXE_sources += ERF_ComputeTimestep.cpp
 CEXE_headers += ERF_Constants.H
 CEXE_sources += ERF_init_bcs.cpp
 CEXE_sources += ERF_init1d.cpp
 CEXE_sources += ERF_Tagging.cpp
 CEXE_sources += ERF_SumIQ.cpp
-CEXE_sources += ERF_TimeStepping.cpp
-
-CEXE_headers += PlaneAverage.H
-CEXE_headers += VelPlaneAverage.H
-CEXE_headers += DirectionSelector.H
 
 CEXE_sources += Derive.cpp
 CEXE_headers += Derive.H

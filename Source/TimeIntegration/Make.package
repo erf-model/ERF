@@ -1,3 +1,5 @@
+CEXE_sources += ERF_ComputeTimestep.cpp
+CEXE_sources += ERF_TimeStepping.cpp
 CEXE_sources += TimeIntegration_driver.cpp
 CEXE_sources += ERF_slow_rhs.cpp
 CEXE_sources += ERF_fast_rhs.cpp
