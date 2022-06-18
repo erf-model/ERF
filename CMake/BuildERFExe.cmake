@@ -60,8 +60,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_init1d.cpp
        ${SRC_DIR}/ERF_SumIQ.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
-       ${SRC_DIR}/ERF_ComputeTimestep.cpp
-       ${SRC_DIR}/ERF_TimeStepping.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.H
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_cons.cpp
@@ -70,6 +68,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_zvel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
+       ${SRC_DIR}/BoundaryConditions/PlaneAverage.H
+       ${SRC_DIR}/BoundaryConditions/VelPlaneAverage.H
+       ${SRC_DIR}/BoundaryConditions/DirectionSelector.H
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.H
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
@@ -88,6 +89,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SpatialStencils/ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/SpatialStencils/MomentumToVelocity.cpp
        ${SRC_DIR}/SpatialStencils/VelocityToMomentum.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_TimeStepping.cpp
        ${SRC_DIR}/TimeIntegration/ERF_MRI.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
