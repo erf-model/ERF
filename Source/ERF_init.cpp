@@ -17,7 +17,6 @@ ERF::init_from_wrfinput(int lev, const amrex::Box& bx, FArrayBox& state_fab,
 {
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
     {
-        amrex::Print() << "BX FROM NETCDF " << state_fab.box() << std::endl;
         //
         // FArrayBox to FArrayBox copy does "copy on intersection"
         // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks

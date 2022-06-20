@@ -1,7 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 999999
 stop_time = 900.0
-max_step = 10
+max_step = 100
 
 amrex.fpe_trap_invalid = 1
 
@@ -25,8 +25,8 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.use_native_mri = 1
-erf.fixed_dt       = 0.5      # fixed time step [s] -- Straka et al 1993
-erf.fixed_fast_dt  = 0.125    # fixed time step [s] -- Straka et al 1993
+erf.fixed_dt       = 1.0      # fixed time step [s] -- Straka et al 1993
+erf.fixed_fast_dt  = 0.25     # fixed time step [s] -- Straka et al 1993
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -42,7 +42,7 @@ amr.check_int       = -57600      # number of timesteps between checkpoints
 
 # PLOTFILES
 amr.plot_file         = plt        # root name of plotfile
-amr.plot_int          = 1000       # number of timesteps between plotfiles
+amr.plot_int          = 100        # number of timesteps between plotfiles
 amr.plot_vars         = density x_velocity y_velocity z_velocity
 amr.derive_plot_vars  = pressure theta pres_hse dens_hse pert_pres pert_dens
 

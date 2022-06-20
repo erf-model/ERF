@@ -623,12 +623,12 @@ ERF::init_only(int lev, Real time)
         if (nc_init_file.size() == 0)
             amrex::Error("NetCDF initialization file name must be provided via input");
         read_from_wrfinput(lev);
-        }
+    }
     if (lev == 0) {
         if (init_type == "real" && (!geom[0].isPeriodic(0) || !geom[0].isPeriodic(1))) {
             if (nc_bdy_file.empty())
                 amrex::Error("NetCDF boundary file name must be provided via input");
-            //read_from_wrfbdy(); // TODO: Uncomment after it's working correctly
+            read_from_wrfbdy();
         }
     }
 #endif //ERF_USE_NETCDF

@@ -19,8 +19,8 @@ using PlaneVector = amrex::Vector<amrex::FArrayBox>;
  NetCDF variables of dimensions Time         : "P_TOP" etc.
 
  // Read from wrfbdy
- NetCDF variables of dimensions Time_BdyWidth_BT_SN         : "NC_U_BXS_fab", "NC_U_BXE_fab", "V_BXS", "V_BXE" etc.
- NetCDF variables of dimensions Time_BdyWidth_BT_WE         : "NC_U_BYS_fab", "NC_U_BYE_fab", "V_BYS", "V_BYE" etc.
+ NetCDF variables of dimensions Time_BdyWidth_BT_SN         : "U_BXS", "U_BXE", "V_BXS", "V_BXE" etc.
+ NetCDF variables of dimensions Time_BdyWidth_BT_WE         : "U_BYS", "U_BYE", "V_BYS", "V_BYE" etc.
 */
 enum class NC_Data_Dims_Type {
     Time_BT_SN_WE,
@@ -37,10 +37,10 @@ void BuildFABsFromWRFInputFile(const std::string &fname,
                                amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types);
 
 int BuildFABsFromWRFBdyFile(const std::string &fname,
-                            amrex::Vector<amrex::FArrayBox>& bdy_data_xlo,
-                            amrex::Vector<amrex::FArrayBox>& bdy_data_xhi,
-                            amrex::Vector<amrex::FArrayBox>& bdy_data_ylo,
-                            amrex::Vector<amrex::FArrayBox>& bdy_data_yhi);
+                            amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                            amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                            amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                            amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
 //
 // NDArray is the datatype designed to hold any data, including scalars, multidimensional
@@ -164,13 +164,13 @@ void ReadMetgridOutputFile(const std::string  &fname, amrex::Vector<std::string>
       int west_east_stag     = static_cast<int>(ncf.dim("west_east_stag").len());
 
       //amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
-     // This following dimension defined based on different timestep, the dimensional name
-     // varies at different NetCDF output.
-     // TODO: should we keep reading this information from the NetCDF file? we actually don't use it.
-     //
-     // int z_dimension0012    = static_cast<int>(ncf.dim("z-dimension0012").len());
-     // int z_dimension0016    = static_cast<int>(ncf.dim("z-dimension0016").len());
-     // int z_dimension0024    = static_cast<int>(ncf.dim("z-dimension0024").len());
+      // This following dimension defined based on different timestep, the dimensional name
+      // varies at different NetCDF output.
+      // TODO: should we keep reading this information from the NetCDF file? we actually don't use it.
+      //
+      // int z_dimension0012    = static_cast<int>(ncf.dim("z-dimension0012").len());
+      // int z_dimension0016    = static_cast<int>(ncf.dim("z-dimension0016").len());
+      // int z_dimension0024    = static_cast<int>(ncf.dim("z-dimension0024").len());
 
       for (auto n=0; n<arrays.size(); ++n) {
          // read the data from NetCDF file
@@ -250,13 +250,12 @@ void ReadWRFBdyFile(const std::string& fname, amrex::Vector<std::string> names,
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
-        //amrex::Print() << "opening netcdf file " << "\n";
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
-        //amrex::Print() << "Successfully opened netcdf file " << "\n";
 
         // get the dimension information
         int Time               = static_cast<int>(ncf.dim("Time").len());
-       // Vector<std::string> time_stamps = static_cast<std::string>(ncf.dim("Time"));
+        // amrex::Vector<std::string> time_stamps = static_cast<std::string>(ncf.dim("Time"));
+
         int DateStrLen         = static_cast<int>(ncf.dim("DateStrLen").len());
         int west_east          = static_cast<int>(ncf.dim("west_east").len());
         int south_north        = static_cast<int>(ncf.dim("south_north").len());

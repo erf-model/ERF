@@ -60,9 +60,6 @@ BuildFABsFromWRFInputFile(const std::string &fname,
                     amrex::Error("Unrecognized NetCDF data dimensions type");
             }
 
-            int tot_size = (bigEnd[0] + 1) * (bigEnd[1] + 1) * (bigEnd[2] + 1);
-            // amrex::Print() << "Total points in the box constructed from netCDF variable: " << tot_size << std::endl;
-
             amrex::IntVect boxType{0, 0, 0};
             if (nc_var_names[i] == "U") boxType = amrex::IntVect(1,0,0);
             if (nc_var_names[i] == "V") boxType = amrex::IntVect(0,1,0);
@@ -79,9 +76,6 @@ BuildFABsFromWRFInputFile(const std::string &fname,
                 auto dataPtr = fab_vars[i]->dataPtr(k);
                 for (int n(0); n < num_pts; ++n) {
                     *(dataPtr+n) = static_cast<Real>(*(arrays[i].get_data()+n));
-//                    if (n % 5000 == 0)
-//                        //amrex::Print() << "n: " << n << ", data[n]: " << *(dataPtr+n) << std::endl;
-//                        amrex::Print() << "n: " << n << ", data[n]: " << *(arrays[i].get_data()+n) << std::endl;
                 }
             }
         }
@@ -90,10 +84,10 @@ BuildFABsFromWRFInputFile(const std::string &fname,
 
 int
 BuildFABsFromWRFBdyFile(const std::string &fname,
-                        amrex::Vector<FArrayBox>& bdy_data_xlo,
-                        amrex::Vector<FArrayBox>& bdy_data_xhi,
-                        amrex::Vector<FArrayBox>& bdy_data_ylo,
-                        amrex::Vector<FArrayBox>& bdy_data_yhi)
+                        amrex::Vector<amrex::Vector<FArrayBox>>& bdy_data_xlo,
+                        amrex::Vector<amrex::Vector<FArrayBox>>& bdy_data_xhi,
+                        amrex::Vector<amrex::Vector<FArrayBox>>& bdy_data_ylo,
+                        amrex::Vector<amrex::Vector<FArrayBox>>& bdy_data_yhi)
 {
     int ntimes;
     if (amrex::ParallelDescriptor::IOProcessor())
@@ -135,6 +129,38 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
 
         ntimes = arrays[0].get_vshape()[0];
 
+        // Our outermost loop is time
+        bdy_data_xlo.resize(ntimes);
+        bdy_data_xhi.resize(ntimes);
+        bdy_data_ylo.resize(ntimes);
+        bdy_data_yhi.resize(ntimes);
+
+        for (int n = 1; n < ntimes; n++) {
+
+            bdy_data_xlo[n].push_back(FArrayBox(bdy_data_xlo[0][0].box(),1)); // U
+            bdy_data_xlo[n].push_back(FArrayBox(bdy_data_xlo[0][1].box(),1)); // V
+            bdy_data_xlo[n].push_back(FArrayBox(bdy_data_xlo[0][2].box(),1)); // W
+            bdy_data_xlo[n].push_back(FArrayBox(bdy_data_xlo[0][3].box(),1)); // T
+
+            Vector<FArrayBox> xhi_plane_data;
+            bdy_data_xhi[n].push_back(FArrayBox(bdy_data_xhi[0][0].box(),1)); // U
+            bdy_data_xhi[n].push_back(FArrayBox(bdy_data_xhi[0][1].box(),1)); // V
+            bdy_data_xhi[n].push_back(FArrayBox(bdy_data_xhi[0][2].box(),1)); // W
+            bdy_data_xhi[n].push_back(FArrayBox(bdy_data_xhi[0][3].box(),1)); // T
+
+            Vector<FArrayBox> ylo_plane_data;
+            bdy_data_ylo[n].push_back(FArrayBox(bdy_data_ylo[0][0].box(),1)); // U
+            bdy_data_ylo[n].push_back(FArrayBox(bdy_data_ylo[0][1].box(),1)); // V
+            bdy_data_ylo[n].push_back(FArrayBox(bdy_data_ylo[0][2].box(),1)); // W
+            bdy_data_ylo[n].push_back(FArrayBox(bdy_data_ylo[0][3].box(),1)); // T
+
+            Vector<FArrayBox> yhi_plane_data;
+            bdy_data_yhi[n].push_back(FArrayBox(bdy_data_yhi[0][0].box(),1)); // U
+            bdy_data_yhi[n].push_back(FArrayBox(bdy_data_yhi[0][1].box(),1)); // V
+            bdy_data_yhi[n].push_back(FArrayBox(bdy_data_yhi[0][2].box(),1)); // W
+            bdy_data_yhi[n].push_back(FArrayBox(bdy_data_yhi[0][3].box(),1)); // T
+        }
+
         for (int i = 0; i < nc_var_names.size(); i++)
         {
             amrex::Print() << "Building FAB for the the NetCDF variable : " << nc_var_names[i] << std::endl;
@@ -153,33 +179,6 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
 
             // Assert that all data has the same number of time snapshots
             AMREX_ALWAYS_ASSERT(arrays[i].get_vshape()[0] == ntimes);
-
-            /*
-            //TODO:
-             Should we use Vector<Vector<FArrayBox>> for bdy_data_xlo,
-             where the outer index is for time and inner is for variables = {U, V, W, T} with different stagger ?
-             */
-            // Add enough space to hold all the time snapshots
-            Box bx_xlo = bdy_data_xlo[0].box();
-            int nc_xlo = bdy_data_xlo[0].nComp();
-            for (int n = 1; n < ntimes; n++) {
-                bdy_data_xlo.push_back(amrex::FArrayBox(bx_xlo,nc_xlo));
-            }
-            Box bx_xhi = bdy_data_xhi[0].box();
-            int nc_xhi = bdy_data_xhi[0].nComp();
-            for (int n = 1; n < ntimes; n++) {
-                bdy_data_xhi.push_back(amrex::FArrayBox(bx_xhi,nc_xhi));
-            }
-            Box bx_ylo = bdy_data_ylo[0].box();
-            int nc_ylo = bdy_data_ylo[0].nComp();
-            for (int n = 1; n < ntimes; n++) {
-                bdy_data_ylo.push_back(amrex::FArrayBox(bx_ylo,nc_ylo));
-            }
-            Box bx_yhi = bdy_data_yhi[0].box();
-            int nc_yhi = bdy_data_yhi[0].nComp();
-            for (int n = 1; n < ntimes; n++) {
-                bdy_data_yhi.push_back(amrex::FArrayBox(bx_yhi,nc_yhi));
-            }
 
             //
             // NOTE: we always define the box here to be on the low side, but this won't matter
@@ -203,7 +202,7 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
                     // amrex::Print() << "SHAPE 1 " << arrays[i].get_vshape()[1] << std::endl;
                     // amrex::Print() << "SHAPE 2 " << arrays[i].get_vshape()[2] << std::endl;
                     // amrex::Print() << "SHAPE 3 " << arrays[i].get_vshape()[3] << std::endl;
-                    //bigEnd[0] = arrays[i].get_vshape()[1] - 1;
+                    bigEnd[0] = arrays[i].get_vshape()[1] - 1;
                     bigEnd[0] = arrays[i].get_vshape()[3] - 1;
                     smallEnd[1] = -1;
                     bigEnd[1]   = -1;
@@ -226,39 +225,44 @@ BuildFABsFromWRFBdyFile(const std::string &fname,
             int tot_size = shape_data[0]*shape_data[1]*shape_data[2]*shape_data[3];
             // amrex::Print() << "Total points in the box constructed from netCDF variable: " << tot_size << std::endl;
 
-            amrex::IntVect boxType{0, 0, 0};
-            amrex::Box bx = amrex::Box(smallEnd, bigEnd, boxType);
+            //amrex::IntVect boxType{0, 0, 0};
+            //amrex::Box bx = amrex::Box(smallEnd, bigEnd, boxType);
             // amrex::Print() << "BX OF INPUT DATA " << bx << std::endl;
 
-            //auto num_pts = bdy_data_xlo[0].box().numPts();
-            //int ncomp  = bdy_data_xlo[0].nComp();
             long num_pts;
             Real* data_ptr;
-            std::string last3 = nc_var_names[i].substr(nc_var_names[i].size()-3, 3);
 
-            for (int nt(0); nt < ntimes; ++nt) {
-              if (last3 == "BXS") {
-                  num_pts = bdy_data_xlo[0].box().numPts();
-                  data_ptr = bdy_data_xlo[nt].dataPtr();
-              } else if (last3 == "BXE") {
-                  num_pts = bdy_data_xhi[0].box().numPts();
-                  data_ptr = bdy_data_xhi[nt].dataPtr();
-              } else if (last3 == "BYS") {
-                  num_pts = bdy_data_ylo[0].box().numPts();
-                  data_ptr = bdy_data_ylo[nt].dataPtr();
-              } else if (last3 == "BYE") {
-                  num_pts = bdy_data_yhi[0].box().numPts();
-                  data_ptr = bdy_data_yhi[nt].dataPtr();
-              }
+            std::string first1 = nc_var_names[i].substr(0,1);
+            int ifab;
+            if      (first1 == "U") ifab = 0;
+            else if (first1 == "V") ifab = 1;
+            else if (first1 == "W") ifab = 2;
+            else if (first1 == "T") ifab = 3;
 
-              //
-              // Here we put the components into the array in the order they are read
-              //
-              int k = i;
-              auto dataPtr = bdy_data_xlo[nt].dataPtr(k);
-              for (int n(0); n < num_pts; ++n) {
-                  *(dataPtr+n) = static_cast<Real>(*(arrays[i].get_data()+n));
-              }
+            std::string  last3 = nc_var_names[i].substr(nc_var_names[i].size()-3, 3);
+
+            for (int nt(0); nt < ntimes; ++nt)
+            {
+                if (last3 == "BXS") {
+                    num_pts  = bdy_data_xlo[nt][ifab].box().numPts();
+                    data_ptr = bdy_data_xlo[nt][ifab].dataPtr();
+                } else if (last3 == "BXE") {
+                    num_pts  = bdy_data_xhi[nt][ifab].box().numPts();
+                    data_ptr = bdy_data_xhi[nt][ifab].dataPtr();
+                } else if (last3 == "BYS") {
+                    num_pts  = bdy_data_ylo[nt][ifab].box().numPts();
+                    data_ptr = bdy_data_ylo[nt][ifab].dataPtr();
+                } else if (last3 == "BYE") {
+                    num_pts  = bdy_data_yhi[nt][ifab].box().numPts();
+                    data_ptr = bdy_data_yhi[nt][ifab].dataPtr();
+                }
+
+                //
+                // Here we put the components into the array in the order they are read
+                //
+                for (int n(0); n < num_pts; ++n) {
+                    *(data_ptr+n) = static_cast<Real>(*(arrays[i].get_data()+n));
+                }
             } // nt
         } //nc_var_names
     } // if IOProcessor
