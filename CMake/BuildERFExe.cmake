@@ -66,6 +66,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_xvel.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_yvel.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_zvel.cpp
+       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_bndryreg.cpp
+       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_wrfbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
        ${SRC_DIR}/BoundaryConditions/PlaneAverage.H
