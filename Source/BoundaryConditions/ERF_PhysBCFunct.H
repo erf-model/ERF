@@ -52,10 +52,10 @@ public:
                     const amrex::MultiFab& detJ_cc,
 #endif
 #ifdef ERF_USE_NETCDF
-                    const amrex::Vector<amrex::FArrayBox>& bdy_data_xlo,
-                    const amrex::Vector<amrex::FArrayBox>& bdy_data_xhi,
-                    const amrex::Vector<amrex::FArrayBox>& bdy_data_ylo,
-                    const amrex::Vector<amrex::FArrayBox>& bdy_data_yhi,
+                    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
 #endif
                     std::unique_ptr<ReadBndryPlanes>& r2d)
         : m_lev(lev), m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
@@ -119,6 +119,17 @@ public:
 #endif
                           int icomp, int ncomp, amrex::Real time, int bccomp);
 
+    void fill_from_bndryregs (const int lev,   const amrex::Box& bx, const amrex::Array4<Real>& dest_arr,
+                              const int icomp, const int bccomp, const int ncomp,
+                              const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                              const amrex::Real time);
+
+#ifdef ERF_USE_NETCDF
+    void fill_from_wrfbdy (const int lev,   const amrex::Box& bx, const amrex::Array4<Real>& dest_arr,
+                           const int icomp, const int bccomp, const int ncomp,
+                           const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                           const amrex::Real time);
+#endif
 
     // For backward compatibility
     void FillBoundary (amrex::MultiFab& mf, int dcomp, int ncomp, amrex::IntVect const& nghost,
@@ -140,10 +151,10 @@ private:
 #endif
     std::unique_ptr<ReadBndryPlanes>& m_r2d;
 #ifdef ERF_USE_NETCDF
-    const amrex::Vector<amrex::FArrayBox>& m_bdy_data_xlo;
-    const amrex::Vector<amrex::FArrayBox>& m_bdy_data_xhi;
-    const amrex::Vector<amrex::FArrayBox>& m_bdy_data_ylo;
-    const amrex::Vector<amrex::FArrayBox>& m_bdy_data_yhi;
+    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xlo;
+    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xhi;
+    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_ylo;
+    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_yhi;
 #endif
 };
 

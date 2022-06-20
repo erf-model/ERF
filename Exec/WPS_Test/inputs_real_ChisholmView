@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 0
+max_step = 1
 stop_time = 1000.0
 
 amrex.fpe_trap_invalid = 1
@@ -11,7 +11,12 @@ geometry.prob_extent = 3750000. 	3750000. 	5000.
 amr.n_cell           = 200   		200   		176
 #amr.blocking_factor  = 1
 
-geometry.is_periodic = 1 1 0
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
 
 zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
@@ -61,4 +66,4 @@ prob.T_0 = 300.0
 # INITIALIZATION WITH ATM DATA
 erf.init_type    = "real"
 erf.nc_init_file_0 = "wrfinput_d01"
-erf.nc_bdy_file = "wrfbdy_d01"
+erf.nc_bdy_file = "wrfbdy_d01_width1"

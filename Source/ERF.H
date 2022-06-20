@@ -341,12 +341,15 @@ private:
     // *** *** FArrayBox's for holding the SURFACE data
     // Data read from the wrfinput NetCDF file
     //TODO: Move the relevant variables under #ifdef ERF_USE_TERRAIN
-    amrex::FArrayBox NC_HGT_fab; // Terrain height (variable HGT in the wrfinput file)
+    amrex::FArrayBox NC_HGT_fab;    // Terrain height (variable HGT in the wrfinput file)
     amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
-    amrex::FArrayBox NC_z0_fab; // Surface Roughness, z0 = z0 (IVGTYP)
-    amrex::FArrayBox NC_PSFC_fab; // Surface pressure
-    amrex::FArrayBox NC_SST_fab; // Sea Surface Temperature; Defined even for land area
-    amrex::FArrayBox NC_TSK_fab; // Surface Skin Temperature; Appears to be same as SST...TODO: Clarify the relation between SST and TSK
+    amrex::FArrayBox NC_z0_fab;     // Surface Roughness, z0 = z0 (IVGTYP)
+    amrex::FArrayBox NC_PSFC_fab;   // Surface pressure
+
+    // TODO: Clarify the relation between SST and TSK
+    amrex::FArrayBox NC_SST_fab;    // Sea Surface Temperature; Defined even for land area
+    amrex::FArrayBox NC_TSK_fab;    // Surface Skin Temperature; Appears to be same as SST...
+
     amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
 
     // *** *** FArrayBox's for holding the LATERAL BOUNDARY data (the four sides)
@@ -356,11 +359,6 @@ private:
     // xlo = BXS, xhi = BXE, ylo = BYS, xhi = BYE
     // XS = X Start, XE = X End, YS = Y Start, YE = Y End
     // TODO: The numbers for variables on {BXS, BXE, BYS, BYE} are very large, while those on {BTXS, BTXE, BTYS, BTYE} are more realistic..
-    //  Need to clarify
-    amrex::FArrayBox NC_U_BXS_fab, NC_U_BXE_fab, NC_U_BYS_fab, NC_U_BYE_fab; // The four lateral boundaries for x-velocity
-    amrex::FArrayBox NC_V_BXS_fab, NC_V_BXE_fab, NC_V_BYS_fab, NC_V_BYE_fab; // The four lateral boundaries for y-velocity
-    amrex::FArrayBox NC_W_BXS_fab, NC_W_BXE_fab, NC_W_BYS_fab, NC_W_BYE_fab; // The four lateral boundaries for z-velocity
-    amrex::FArrayBox NC_T_BXS_fab, NC_T_BXE_fab, NC_T_BYS_fab, NC_T_BYE_fab; // The four lateral boundaries for potential temperature
 
 #ifdef ERF_USE_TERRAIN
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_PH_fab;
@@ -370,24 +368,16 @@ private:
 
     // Struct for working with the sounding data we take as an input
     InputSoundingData input_sounding_data;
-    // FArrayBoxs for holding the data read from the wrfbdy NetCDF file
-    amrex::Vector<amrex::FArrayBox> bdy_data_xlo;
-    amrex::Vector<amrex::FArrayBox> bdy_data_xhi;
-    amrex::Vector<amrex::FArrayBox> bdy_data_ylo;
-    amrex::Vector<amrex::FArrayBox> bdy_data_yhi;
+
+    // Vectors (over time) of Vector (over variables) of FArrayBoxs for holding the data read from the wrfbdy NetCDF file
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xlo;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xhi;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_ylo;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
 #ifdef ERF_USE_TERRAIN
     // Define z_phys_nd on nodes using an analytical expression
     //void init_ideal_terrain(int lev);
-
-    /*
-     * Alternate data structure considering different dimensions of U, V, W, T on the planes
-     * This should be be member of ERF class.
-     */
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_x_lo;
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_x_hi;
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_y_lo;
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_y_hi;
 #endif
 
     // write checkpoint file to disk
