@@ -113,7 +113,7 @@ the mixing ratios of water vapor and cloud water, respectively.
 
   \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p) + Q
 
-where :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_p)` is the total mass density,
+where :math:`q_T` is total nonprecipitating water (water vapor :math:`q_v` + cloud water :math:`q_c` + cloud ice :math:`q_i`), and :math:`q_p` is the total precipitating water (rain :math:`q_r` + snow :math:`q_s` + graupel :math:`q_g`). :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_p)` is the total mass density,
 and :math:`Q` represents the transformation of cloud water to precipitating water through condensation.
 
 .. math::
