@@ -149,13 +149,13 @@ private:
     const amrex::MultiFab& m_z_phys_nd;
     const amrex::MultiFab& m_detJ_cc;
 #endif
-    std::unique_ptr<ReadBndryPlanes>& m_r2d;
 #ifdef ERF_USE_NETCDF
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xlo;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xhi;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_ylo;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_yhi;
 #endif
+    std::unique_ptr<ReadBndryPlanes>& m_r2d;
 };
 
 #endif

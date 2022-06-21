@@ -9,13 +9,14 @@ CEXE_sources += ERF_WriteBndryPlanes.cpp
 CEXE_sources += ERF_ReadBndryPlanes.cpp
 
 ifeq ($(USE_NETCDF), TRUE)
+  CEXE_sources += ReadFromWRFBdy.cpp
+  CEXE_sources += ERF_read_from_wrfinput.cpp
   CEXE_sources += NCBuildFABs.cpp
   CEXE_sources += NCInterface.cpp
   CEXE_sources += NCPlotFile.cpp
   CEXE_sources += NCColumnFile.cpp
   CEXE_sources += NCCheckpoint.cpp
   CEXE_sources += NCMultiFabFile.cpp
-  CEXE_sources += NC_Read_WRF_WPS.cpp
   CEXE_headers += NCWpsFile.H
   CEXE_headers += NCInterface.H
   CEXE_headers += NCPlotFile.H

@@ -323,9 +323,6 @@ private:
     // Read the netcdf wrfinput file once
     void read_from_wrfinput(int lev);
 
-    // Read the netcdf wrfbdy file once
-    void read_from_wrfbdy();
-
     // Copy from the NC*fabs into the MultiFabs holding the boundary data
     void init_from_wrfbdy(amrex::Vector<amrex::FArrayBox*> x_vel_lateral,
                           amrex::Vector<amrex::FArrayBox*> y_vel_lateral,
