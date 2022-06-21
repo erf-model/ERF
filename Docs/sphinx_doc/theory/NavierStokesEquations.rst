@@ -109,16 +109,16 @@ the mixing ratios of water vapor and cloud water, respectively.
 
   \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
 
-  \frac{\partial (\rho_d q_v)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_v) - Q
+  \frac{\partial (\rho_d q_T)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_T) - Q
 
-  \frac{\partial (\rho_d q_c)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_c) + Q
+  \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p) + Q
 
-where :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_v + q_c)` is the total mass density,
-and :math:`Q` represents the transformation of water vapor to cloud water through condensation.
+where :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_p)` is the total mass density,
+and :math:`Q` represents the transformation of cloud water to precipitating water through condensation.
 
 .. math::
 
-  \theta_m = (1 + \frac{R_v}{R_d} q_v) \theta
+  \theta_m = (1 + \frac{R_v}{R_d} q_T) \theta
 
 is the modified potential temperature.  Here :math:`R_v` is the gas constant for water vapor and :math:`R_v / R_d \approx 1.61.`
 The equation of state is now
