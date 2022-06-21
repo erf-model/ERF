@@ -148,12 +148,7 @@ The total production rates including the contribution from aggregation, accretio
 
 Accretion
 ------------------
-There are several different type of accretional growth mechanisms needs to be included, it is involved the interaction of snow with other classes of hydrometeors, and other classes of hydrometeors interaction with each other.
-
-The accretion of cloud water by snow is:
-
-.. math::
-   Q_{sacw} = \frac{\pi E_{sw}n_{0S}q_{c} \Gamma (3+d)}{4\lambda_{S}^{3+d}}(\frac{\rho_0}{\rho})^{0.5}
+There are several different type of accretional growth mechanisms needs to be included, it is involved the interaction of water vapor and cloud water with rain water.
 
 The accretion of cloud water forms in either the dry or wet growth rate can be written as:
 
