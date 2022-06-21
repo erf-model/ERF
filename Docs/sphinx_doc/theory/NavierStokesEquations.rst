@@ -113,12 +113,12 @@ the mixing ratios of water vapor and cloud water, respectively.
 
   \frac{\partial (\rho_d q_r)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_r) + Q
 
-where :math:`q_T` is total nonprecipitating water (water vapor :math:`q_v` + cloud water :math:`q_c`), and :math:`q_r` is the total rain water. :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_p)` is the total mass density,
+where :math:`q_T` is total nonprecipitating water (water vapor :math:`q_v` + cloud water :math:`q_c`), and :math:`q_r` is the total rain water. :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_r)` is the total mass density,
 and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
 
 .. math::
 
-  \theta_m = (1 + \frac{R_v}{R_d} q_T) \theta
+  \theta_m = (1 + \frac{R_v}{R_d} q_v) \theta
 
 is the modified potential temperature.  Here :math:`R_v` is the gas constant for water vapor and :math:`R_v / R_d \approx 1.61.`
 The equation of state is now
