@@ -83,6 +83,14 @@ int         ERF::input_bndry_planes             = 0;
 
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
+#ifdef ERF_USE_NETCDF
+void read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
+                      Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                      Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                      Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                      Vector<Vector<FArrayBox>>& bdy_data_yhi);
+#endif
+
 // constructor - reads in parameters from inputs file
 //             - sizes multilevel arrays and data structures
 //             - initializes BCRec boundary condition object
@@ -628,7 +636,7 @@ ERF::init_only(int lev, Real time)
         if (init_type == "real" && (!geom[0].isPeriodic(0) || !geom[0].isPeriodic(1))) {
             if (nc_bdy_file.empty())
                 amrex::Error("NetCDF boundary file name must be provided via input");
-            read_from_wrfbdy();
+            read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi);
         }
     }
 #endif //ERF_USE_NETCDF

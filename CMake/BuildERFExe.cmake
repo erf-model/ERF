@@ -41,6 +41,8 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/IO/NCPlotFile.cpp
                    ${SRC_DIR}/IO/NCCheckpoint.cpp
                    ${SRC_DIR}/IO/NCMultiFabFile.cpp
+                   ${SRC_DIR}/IO/ReadFromWRFBdy.cpp
+                   ${SRC_DIR}/IO/ReadFromWRFInput.cpp
                    ${SRC_DIR}/IO/NCColumnFile.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
@@ -78,7 +80,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.H
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
-       ${SRC_DIR}/IO/NC_Read_WRF_WPS.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/SpatialStencils/Advection.cpp
