@@ -49,7 +49,7 @@ BuildFABsFromWRFInputFile(const std::string &fname,
                 case NC_Data_Dims_Type::Time_BT:
                     bigEnd[0] = 0;
                     bigEnd[1] = 0;
-                    bigEnd[2] = arrays[0].get_vshape()[1] - 1;
+                    bigEnd[2] = arrays[i].get_vshape()[1] - 1;
                     break;
                 case NC_Data_Dims_Type::Time:
                     bigEnd[0] = 0;

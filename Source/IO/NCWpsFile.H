@@ -254,7 +254,6 @@ void ReadWRFBdyFile(const std::string& fname, amrex::Vector<std::string> names,
 
         // get the dimension information
         int Time               = static_cast<int>(ncf.dim("Time").len());
-        // amrex::Vector<std::string> time_stamps = static_cast<std::string>(ncf.dim("Time"));
 
         int DateStrLen         = static_cast<int>(ncf.dim("DateStrLen").len());
         int west_east          = static_cast<int>(ncf.dim("west_east").len());

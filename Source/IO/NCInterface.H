@@ -150,11 +150,11 @@ struct NCVar
 
     //! Read a chunk of data from the file
     void
-    get(char**, const std::vector<size_t>&, const std::vector<size_t>&) const;
+    get(char*, const std::vector<size_t>&, const std::vector<size_t>&) const;
 
     //! Read a chunk of data with strides
     void
-    get(char**,
+    get(char*,
         const std::vector<size_t>&,
         const std::vector<size_t>&,
         const std::vector<ptrdiff_t>&) const;

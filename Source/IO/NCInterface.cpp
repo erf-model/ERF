@@ -225,21 +225,21 @@ void NCVar::get(
 }
 
 void NCVar::get(
-        char** dptr,
+        char* dptr,
         const std::vector<size_t>& start,
         const std::vector<size_t>& count) const
 {
     check_nc_error(
-            nc_get_vara_string(ncid, varid, start.data(), count.data(), dptr));
+            nc_get_vara_text(ncid, varid, start.data(), count.data(), dptr));
 }
 
 void NCVar::get(
-        char** dptr,
+        char* dptr,
         const std::vector<size_t>& start,
         const std::vector<size_t>& count,
         const std::vector<ptrdiff_t>& stride) const
 {
-    check_nc_error(nc_get_vars_string(
+    check_nc_error(nc_get_vars_text(
             ncid, varid, start.data(), count.data(), stride.data(), dptr));
 }
 

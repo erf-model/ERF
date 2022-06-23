@@ -14,6 +14,31 @@
 
 using namespace amrex;
 
+//TODO: Move this function to a suitable file
+
+// Converts UTC time string to a time_t value.
+std::time_t getEpochTime(const std::wstring& dateTime)
+{
+    // Let's consider we are getting all the input in
+    // this format: '2014-07-25_20:17:22'
+    // A better approach would be to pass in the format as well.
+    static const std::wstring dateTimeFormat{ L"%Y-%m-%d_%H:%M:%S" };
+
+    // Create a stream which we will use to parse the string,
+    // which we provide to constructor of stream to fill the buffer.
+    std::wistringstream ss{ dateTime };
+
+    // Create a tm object to store the parsed date and time.
+    std::tm dt;
+
+    // Now we read from buffer using get_time manipulator
+    // and formatting the input appropriately.
+    ss >> std::get_time(&dt, dateTimeFormat.c_str());
+
+    // Convert the tm structure to time_t value and return.
+    return std::mktime(&dt);
+}
+
 #ifdef ERF_USE_NETCDF
 void
 read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
@@ -127,7 +152,6 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
     if (ParallelDescriptor::IOProcessor())
     {
         // Read the netcdf file and fill these FABs
-        // ntimes = BuildFABsFromWRFBdyFile(nc_bdy_file, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
 
         Vector<std::string> nc_var_names;
         Vector<enum NC_Data_Dims_Type> NC_dim_types;
@@ -157,14 +181,35 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
         amrex::Vector<RARRAY> arrays(nc_var_names.size());
         ReadWRFBdyFile(nc_bdy_file, nc_var_names, arrays);
 
-        using CharArray = NDArray<char*>;
+        // Read the time stamps
+        using CharArray = NDArray<char>;
         amrex::Vector<CharArray> array_ts(1);
-        //ReadWRFBdyFile(nc_bdy_file, {"Times"}, array_ts);
+        ReadWRFBdyFile(nc_bdy_file, {"Times"}, array_ts);
 
-        ntimes = arrays[0].get_vshape()[0];
+        //ntimes = arrays[0].get_vshape()[0];
+        ntimes = array_ts[0].get_vshape()[0];
+        auto dateStrLen = array_ts[0].get_vshape()[1];
+        auto numCharInTimes = ntimes*dateStrLen;
+        char timeStamps[ntimes][dateStrLen];
+
+        // Fill up the characters read
+        for (int nt(0); nt < ntimes; nt++)
+            for (int dateStrCt(0); dateStrCt < dateStrLen; dateStrCt++) {
+                auto n = nt*dateStrLen + dateStrCt;
+                timeStamps[nt][dateStrCt] = *(array_ts[0].get_data() + n);
+            }
+
+        Vector<std::string> timeStampsString;
+        Vector<std::time_t> epochTimes;
+        for (int nt(0); nt < ntimes; nt++) {
+            std::string str(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
+            std::wstring wstr(str.begin(), str.end());
+            auto epochTime = getEpochTime(wstr);
+            timeStampsString.push_back(str);
+            epochTimes.push_back(epochTime);
+        }
 
         int nvars = nc_var_names.size();
-
         // Our outermost loop is time
         bdy_data_xlo.resize(ntimes);
         bdy_data_xhi.resize(ntimes);
