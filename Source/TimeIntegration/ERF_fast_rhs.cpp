@@ -328,12 +328,12 @@ void erf_fast_rhs (int level,
         b2d.setRange(2,0);
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
-            Array1D<Real,0,255> coeff_A;
-            Array1D<Real,0,255> coeff_B;
-            Array1D<Real,0,255> coeff_C;
-            Array1D<Real,0,255> RHS;
-            Array1D<Real,0,255> soln;
-            Array1D<Real,0,255> gam;
+            Array1D<Real,0,256> coeff_A;
+            Array1D<Real,0,256> coeff_B;
+            Array1D<Real,0,256> coeff_C;
+            Array1D<Real,0,256> RHS;
+            Array1D<Real,0,256> soln;
+            Array1D<Real,0,256> gam;
 
             //Note we don't act on the bottom or top boundaries of the domain
             for (int k = klo+1; k < khi; ++k)
