@@ -130,15 +130,11 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
       dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
   }
 
-  if (verbose) {
-      if ( dt_fast_ratio%2 == 0) { // if already even
-          amrex::Print() << "ratio is: " << dt_fast_ratio << std::endl;
-      } else {
-          amrex::Print() << "smallest ratio is: " << dt_fast_ratio << std::endl;
-          dt_fast_ratio += 1;
-          amrex::Print() << "but smallest even ratio is: " << dt_fast_ratio << std::endl;
-      }
-  }
+  // Force time step ratio to be an even value
+  if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
+
+  if (verbose)
+    amrex::Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
 
   if (fixed_dt > 0.0) {
     return fixed_dt;
