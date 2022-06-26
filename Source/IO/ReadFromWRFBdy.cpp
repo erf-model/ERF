@@ -16,27 +16,28 @@ using namespace amrex;
 
 //TODO: Move this function to a suitable file
 
+//#define _XOPEN_SOURCE
 // Converts UTC time string to a time_t value.
-std::time_t getEpochTime(const std::wstring& dateTime)
+std::time_t getEpochTime(const std::string& dateTime, const std::string& dateTimeFormat)
 {
-    // Let's consider we are getting all the input in
-    // this format: '2014-07-25_20:17:22'
-    // A better approach would be to pass in the format as well.
-    static const std::wstring dateTimeFormat{ L"%Y-%m-%d_%H:%M:%S" };
-
     // Create a stream which we will use to parse the string,
     // which we provide to constructor of stream to fill the buffer.
-    std::wistringstream ss{ dateTime };
+    std::istringstream ss{ dateTime };
 
     // Create a tm object to store the parsed date and time.
-    std::tm dt;
+    std::tm tmTime;
+    memset(&tmTime, 0, sizeof(tmTime));
 
     // Now we read from buffer using get_time manipulator
     // and formatting the input appropriately.
-    ss >> std::get_time(&dt, dateTimeFormat.c_str());
+    strptime(dateTime.c_str(), dateTimeFormat.c_str(), &tmTime);
 
     // Convert the tm structure to time_t value and return.
-    return std::mktime(&dt);
+    auto epoch = std::mktime(&tmTime);
+    Print() << "Time Stamp: "<< std::put_time(&tmTime, "%c")
+            << " , Epoch: " << epoch << std::endl;
+
+    return epoch;
 }
 
 #ifdef ERF_USE_NETCDF
@@ -75,6 +76,8 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
 
     int ntimes;
     Real timeInterval;
+    const std::string dateTimeFormat ="%Y-%m-%d_%H:%M:%S";
+
     if (ParallelDescriptor::IOProcessor())
     {
         // Read the netcdf file and fill these FABs
@@ -127,11 +130,11 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
         Vector<std::string> timeStampsString;
         Vector<std::time_t> epochTimes;
         for (int nt(0); nt < ntimes; nt++) {
-            std::string str(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
-            std::wstring wstr(str.begin(), str.end());
-            auto epochTime = getEpochTime(wstr);
-            timeStampsString.push_back(str);
+            std::string date(&timeStamps[nt][0], &timeStamps[nt][dateStrLen-1]+1);
+            auto epochTime = getEpochTime(date, dateTimeFormat);
+            timeStampsString.push_back(date);
             epochTimes.push_back(epochTime);
+
             if (nt == 1)
                 timeInterval = epochTimes[1] - epochTimes[0];
             else if (nt >= 1)
