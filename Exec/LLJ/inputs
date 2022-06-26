@@ -1,0 +1,76 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 10
+stop_time = 1000.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+
+#Level 0:  dx = dy = 3;  dz = 3.
+#Level 1:  dx = dy = 1;  dz = 3.
+geometry.prob_extent = 585.0  363.0  180.0
+
+#Level 0 size of index space
+amr.n_cell           = 195    121     60
+
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.use_native_mri     = 1
+erf.fixed_dt           = 0.5  # fixed time step depending on grid resolution
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v                = 1       # verbosity in Amr.cpp
+
+# CHECKPOINT FILES
+amr.check_file      = chk        # root name of checkpoint file
+amr.check_int       =-100        # number of timesteps between checkpoints
+
+# PLOTFILES
+amr.plot_file         = plt        # root name of plotfile
+amr.plot_int          = 1          # number of timesteps between plotfiles
+amr.plot_vars         =  density rhotheta x_velocity y_velocity z_velocity
+amr.derive_plot_vars  = pressure temp theta pres_hse z_phys
+amr.derive_plot_vars  = theta
+
+# SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+erf.use_gravity = true
+erf.spatial_order = 2
+
+erf.les_type         = "None"
+erf.molec_diff_type  = "Constant"
+erf.dynamicViscosity = 5.0
+
+# PROBLEM PARAMETERS (optional)
+prob.rho_0 = 1.0
+prob.T_0 = 300.0
+
+amr.max_level = 1
+amr.ref_ratio_vect = 3 3 1
+amr.refinement_indicators = box1
+
+amr.box1.max_level = 1
+amr.box1.in_box_lo =   60.  51.
+amr.box1.in_box_hi =  525. 309.
+
+erf.coupling_type = "TwoWay"
+
+# INITIALIZATION WITH ATM DATA
+erf.init_type    = "real"
+erf.nc_init_file_0 = "wrfinput_d01" 
+erf.nc_init_file_1 = "wrfinput_d02" 
+erf.nc_bdy_file    = "wrfbdy_d01" 

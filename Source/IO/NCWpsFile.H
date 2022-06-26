@@ -62,7 +62,7 @@ struct NDArray
    }
 
    // default constructor
-   NDArray() : name{"null"}, data{nullptr}, ref_counted{1}, owned{false} {}
+   NDArray() : name{"null"}, ref_counted{1}, owned{false}, data{nullptr} {}
 
    // copy constructor
    NDArray(const NDArray& array) {
@@ -108,7 +108,8 @@ struct NDArray
    // return the total number of data
    size_t ndim() {
      size_t num = 1;
-     for (auto i=0; i<shape.size(); ++i) num *= shape[i];
+     int isize = static_cast<int>(shape.size());
+     for (auto i=0; i<isize; ++i) num *= shape[i];
      return num;
    }
 
@@ -120,9 +121,9 @@ struct NDArray
  private:
    std::string name;
    std::vector<size_t> shape;
-   DType* data;
-   bool owned;
    mutable std::atomic<size_t> ref_counted;
+   bool owned;
+   DType* data;
 };
 
 //
@@ -180,7 +181,8 @@ void ReadMetgridOutputFile(const std::string  &fname, amrex::Vector<std::string>
          auto numPts               = arrays[n].ndim();
          DType* dataPtr            = arrays[n].get_data();
 
-         std::vector<size_t> start(shape.size(), 0);
+         int isize = static_cast<int>(shape.size());
+         std::vector<size_t> start(isize, 0);
          amrex::Print() << "Variable name= " << vname << " ; numPts read from NetCDF file= " << numPts  << std::endl;
          ncf.var(vname).get(dataPtr, start, shape);
       }
@@ -194,7 +196,7 @@ template<typename DType>
 void ReadWRFInputFile(const std::string& fname, amrex::Vector<std::string> names,
                       amrex::Vector<NDArray<DType> >& arrays) {
 
-    amrex::Print() << "Reading NetCDF wrfinput (output of ideal.exe/real.exe) file: " << fname << "\n";
+    amrex::Print() << "Reading NetCDF wrfinput file: " << fname << "\n";
     amrex::Print() << "names.size(): " << names.size()<< "\n";
     amrex::Print() << "arrays.size(): " << arrays.size()<< "\n";
 
@@ -206,6 +208,7 @@ void ReadWRFInputFile(const std::string& fname, amrex::Vector<std::string> names
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
         //amrex::Print() << "Successfully opened netcdf file " << "\n";
 
+        /*
         // get the dimension information
         int Time               = static_cast<int>(ncf.dim("Time").len());
         int DateStrLen         = static_cast<int>(ncf.dim("DateStrLen").len());
@@ -215,6 +218,7 @@ void ReadWRFInputFile(const std::string& fname, amrex::Vector<std::string> names
         int bottom_top_stag    = static_cast<int>(ncf.dim("bottom_top_stag").len());
         int west_east_stag     = static_cast<int>(ncf.dim("west_east_stag").len());
         int south_north_stag   = static_cast<int>(ncf.dim("south_north_stag").len());
+        */
 
         //amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
         for (auto n=0; n<arrays.size(); ++n) {
@@ -222,10 +226,11 @@ void ReadWRFInputFile(const std::string& fname, amrex::Vector<std::string> names
             std::string vname         = names[n];
             std::vector<size_t> shape = ncf.var(vname).shape();
             arrays[n]                 = NDArray<DType>(vname,shape);
-            auto numPts               = arrays[n].ndim();
+            // auto numPts               = arrays[n].ndim();
             DType* dataPtr            = arrays[n].get_data();
 
-            std::vector<size_t> start(shape.size(), 0);
+            int isize = static_cast<int>(shape.size());
+            std::vector<size_t> start(isize, 0);
             // amrex::Print() << "NetCDF Variable name = " << vname << "; numPts read from NetCDF file/var = " << numPts << std::endl;
             // amrex::Print()  << "Dims of the variable = (";
             // for (auto &dim:shape)
@@ -242,7 +247,7 @@ template<typename DType>
 void ReadWRFBdyFile(const std::string& fname, amrex::Vector<std::string> names,
                       amrex::Vector<NDArray<DType> >& arrays) {
 
-    amrex::Print() << "Reading NetCDF wrfbdy (output of real.exe) file: " << fname << "\n";
+    amrex::Print() << "Reading NetCDF wrfbdy file: " << fname << "\n";
     amrex::Print() << "names.size(): " << names.size()<< "\n";
     amrex::Print() << "arrays.size(): " << arrays.size()<< "\n";
 
@@ -252,9 +257,9 @@ void ReadWRFBdyFile(const std::string& fname, amrex::Vector<std::string> names,
     {
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
 
+        /*
         // get the dimension information
         int Time               = static_cast<int>(ncf.dim("Time").len());
-
         int DateStrLen         = static_cast<int>(ncf.dim("DateStrLen").len());
         int west_east          = static_cast<int>(ncf.dim("west_east").len());
         int south_north        = static_cast<int>(ncf.dim("south_north").len());
@@ -263,6 +268,7 @@ void ReadWRFBdyFile(const std::string& fname, amrex::Vector<std::string> names,
         int west_east_stag     = static_cast<int>(ncf.dim("west_east_stag").len());
         int south_north_stag   = static_cast<int>(ncf.dim("south_north_stag").len());
         int bdy_width          = static_cast<int>(ncf.dim("bdy_width").len());
+        */
 
         //amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
         for (auto n=0; n<arrays.size(); ++n) {
@@ -270,7 +276,7 @@ void ReadWRFBdyFile(const std::string& fname, amrex::Vector<std::string> names,
             std::string vname         = names[n];
             std::vector<size_t> shape = ncf.var(vname).shape();
             arrays[n]                 = NDArray<DType>(vname,shape);
-            auto numPts               = arrays[n].ndim();
+            // auto numPts               = arrays[n].ndim();
             DType* dataPtr            = arrays[n].get_data();
 
             std::vector<size_t> start(shape.size(), 0);

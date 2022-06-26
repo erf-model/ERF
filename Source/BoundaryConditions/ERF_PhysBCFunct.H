@@ -56,6 +56,7 @@ public:
                     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                    const amrex::Real bdy_time_interval,
 #endif
                     std::unique_ptr<ReadBndryPlanes>& r2d)
         : m_lev(lev), m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
@@ -68,6 +69,7 @@ public:
           m_bdy_data_xhi(bdy_data_xhi),
           m_bdy_data_ylo(bdy_data_ylo),
           m_bdy_data_yhi(bdy_data_yhi),
+          m_bdy_time_interval(bdy_time_interval),
 #endif
           m_r2d(r2d)
           {}
@@ -128,7 +130,7 @@ public:
     void fill_from_wrfbdy (const int lev,   const amrex::Box& bx, const amrex::Array4<Real>& dest_arr,
                            const int icomp, const int bccomp, const int ncomp,
                            const amrex::Box& domain, const amrex::BCRec* bc_ptr,
-                           const amrex::Real time);
+                           const amrex::Real time, const amrex::Real bdy_time_interval);
 #endif
 
     // For backward compatibility
@@ -154,6 +156,7 @@ private:
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xhi;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_ylo;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_yhi;
+    const amrex::Real m_bdy_time_interval;
 #endif
     std::unique_ptr<ReadBndryPlanes>& m_r2d;
 };

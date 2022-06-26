@@ -47,20 +47,29 @@ ERF::refinement_criteria_setup()
                     box_hi[2] = geom[0].ProbHi(2);
                     realbox = RealBox(&(box_lo[0]),&(box_hi[0]));
 
-                    amrex::Print() << "Reading " << realbox << " at level lev " << lev_for_box << std::endl;
+                    amrex::Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
 
                     auto dx = geom[lev_for_box].CellSize();
                     int ilo = static_cast<int>(box_lo[0]/dx[0]);
                     int jlo = static_cast<int>(box_lo[1]/dx[1]);
                     int klo = static_cast<int>(box_lo[2]/dx[2]);
-                    int ihi = static_cast<int>(box_hi[0]/dx[0]);
-                    int jhi = static_cast<int>(box_hi[1]/dx[1]);
-                    int khi = static_cast<int>(box_hi[2]/dx[2]);
+                    int ihi = static_cast<int>(box_hi[0]/dx[0]-1);
+                    int jhi = static_cast<int>(box_hi[1]/dx[1]-1);
+                    int khi = static_cast<int>(box_hi[2]/dx[2]-1);
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
+                    if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
+                         (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) )
+                         amrex::Error("Fine box is not legit with this ref_ratio");
                     boxes_at_level[lev_for_box].push_back(bx);
                     amrex::Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
+                if (init_type == "real") {
+                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                        amrex::Error("Numbef of boxes doesnt match number of wrfinput files");
+
+                    }
+                }
             }
 
             AMRErrorTagInfo info;
