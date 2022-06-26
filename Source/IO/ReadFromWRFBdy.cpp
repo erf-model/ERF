@@ -1,5 +1,6 @@
 #include "AMReX_FArrayBox.H"
 #include "NCWpsFile.H"
+#include "IndexDefines.H"
 
 #include <sstream>
 #include <string>
@@ -161,13 +162,13 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
             int ivartype;
 
             if        (first1 == "U") {
-                ivartype = 0;
+                ivartype = WRFBdyVars::U;
             } else if (first1 == "V") {
-                ivartype = 1;
+                ivartype = WRFBdyVars::V;
             } else if (first1 == "W") {
-                ivartype = 2;
+                ivartype = WRFBdyVars::W;
             } else if (first1 == "T") {
-                ivartype = 3;
+                ivartype = WRFBdyVars::T;
             }
 
             // arrays[i].get_vshape()[0] : number of times

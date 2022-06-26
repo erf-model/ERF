@@ -51,6 +51,15 @@ namespace BCVars {
     };
 }
 
+namespace WRFBdyVars {
+    enum {
+        U = 0,
+        V = 1,
+        W = 2,
+        T = 3
+    };
+}
+
 namespace RHSVar {
     enum {
         slow = 0,
