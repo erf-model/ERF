@@ -27,29 +27,26 @@ BuildFABsFromWRFInputFile(const std::string &fname,
         amrex::Vector<RARRAY> arrays(nc_var_names.size());
         ReadWRFInputFile(fname, nc_var_names, arrays);
 
-        for (int i = 0; i < nc_var_names.size(); i++)
+        for (int iv = 0; iv < nc_var_names.size(); iv++)
         {
-            amrex::Print() << "Building FAB for the the NetCDF variable : " << nc_var_names[i] << std::endl;
+            amrex::Print() << "Building FAB for the the NetCDF variable : " << nc_var_names[iv] << std::endl;
 
-            // Build the box first using the shape information
-            amrex::IntVect smallEnd{0, 0, 0};
-            amrex::IntVect bigEnd{0, 0, 0};
-
-            switch (NC_dim_types[i]) {
+            /*
+            switch (NC_dim_types[iv]) {
                 case NC_Data_Dims_Type::Time_BT_SN_WE:
-                    bigEnd[0] = arrays[i].get_vshape()[3] - 1;
-                    bigEnd[1] = arrays[i].get_vshape()[2] - 1;
-                    bigEnd[2] = arrays[i].get_vshape()[1] - 1;
+                    bigEnd[0] = arrays[iv].get_vshape()[3] - 1;
+                    bigEnd[1] = arrays[iv].get_vshape()[2] - 1;
+                    bigEnd[2] = arrays[iv].get_vshape()[1] - 1;
                     break;
                 case NC_Data_Dims_Type::Time_SN_WE:
-                    bigEnd[0] = arrays[i].get_vshape()[2] - 1;
-                    bigEnd[1] = arrays[i].get_vshape()[1] - 1;
+                    bigEnd[0] = arrays[iv].get_vshape()[2] - 1;
+                    bigEnd[1] = arrays[iv].get_vshape()[1] - 1;
                     bigEnd[2] = 0;
                     break;
                 case NC_Data_Dims_Type::Time_BT:
                     bigEnd[0] = 0;
                     bigEnd[1] = 0;
-                    bigEnd[2] = arrays[i].get_vshape()[1] - 1;
+                    bigEnd[2] = arrays[iv].get_vshape()[1] - 1;
                     break;
                 case NC_Data_Dims_Type::Time:
                     bigEnd[0] = 0;
@@ -59,25 +56,40 @@ BuildFABsFromWRFInputFile(const std::string &fname,
                 default:
                     amrex::Error("Unrecognized NetCDF data dimensions type");
             }
+            */
 
-            amrex::IntVect boxType{0, 0, 0};
-            if (nc_var_names[i] == "U") boxType = amrex::IntVect(1,0,0);
-            if (nc_var_names[i] == "V") boxType = amrex::IntVect(0,1,0);
-            if (nc_var_names[i] == "W" || nc_var_names[i] == "PH" || nc_var_names[i] == "PHB") {
-                boxType = amrex::IntVect(0,0,1);
-            }
-            amrex::Box bx = amrex::Box(smallEnd, bigEnd, boxType);
-
-            AMREX_ALWAYS_ASSERT(bx == fab_vars[i]->box());
+            // amrex::Print() << "FAB IN BUILD " << fab_vars[iv]->box() << std::endl;
 
             int ncomp  = 1;
-            auto num_pts = fab_vars[i]->box().numPts();
-            for (int k(0); k < ncomp; ++k) {
-                auto dataPtr = fab_vars[i]->dataPtr(k);
+            auto num_pts = fab_vars[iv]->box().numPts();
+
+            // The two versions shown below are equivalent -- we keep both for clarity
+#if 0
+            for (int kcomp(0); kcomp < ncomp; ++kcomp)
+            {
+                auto dataPtr = fab_vars[iv]->dataPtr(kcomp);
                 for (int n(0); n < num_pts; ++n) {
-                    *(dataPtr+n) = static_cast<Real>(*(arrays[i].get_data()+n));
+                    *(dataPtr+n) = static_cast<Real>(*(arrays[iv].get_data()+n));
                 }
             }
+#else
+            Array4<Real> fab_arr = fab_vars[iv]->array();
+            int ns2 = arrays[iv].get_vshape()[2];
+            int ns3 = arrays[iv].get_vshape()[3];
+
+            int ioff = fab_vars[iv]->box().smallEnd()[0];
+            int joff = fab_vars[iv]->box().smallEnd()[1];
+
+            for (int kcomp(0); kcomp < ncomp; ++kcomp)
+            {
+                for (int n(0); n < num_pts; ++n) {
+                    int k  = n / (ns2*ns3);
+                    int j  = (n - k*(ns2*ns3)) / ns3 + joff;
+                    int i  = n - k*(ns2*ns3) - (j-joff) * ns3 + ioff;
+                    fab_arr(i,j,k,kcomp) = static_cast<Real>(*(arrays[iv].get_data()+n));
+                }
+            }
+#endif
         }
     } // if IOProcessor
 }

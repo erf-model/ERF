@@ -366,11 +366,15 @@ private:
     // Struct for working with the sounding data we take as an input
     InputSoundingData input_sounding_data;
 
+#ifdef ERF_USE_NETCDF
     // Vectors (over time) of Vector (over variables) of FArrayBoxs for holding the data read from the wrfbdy NetCDF file
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xlo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xhi;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_ylo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
+
+    amrex::Real bdy_time_interval;
+#endif // ERF_USE_NETCDF
 
 #ifdef ERF_USE_TERRAIN
     // Define z_phys_nd on nodes using an analytical expression
@@ -404,6 +408,7 @@ private:
     // private data members
 
     amrex::Vector<int> num_boxes_at_level;                   // how many boxes specified at each level by tagging criteria
+    amrex::Vector<int> num_files_at_level;                   // how many wrfinput files specified at each level
     amrex::Vector<amrex::Vector<amrex::Box>> boxes_at_level; //      the boxes specified at each level by tagging criteria
 
     amrex::Vector<int> istep;      // which step?

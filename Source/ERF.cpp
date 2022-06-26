@@ -84,7 +84,7 @@ int         ERF::input_bndry_planes             = 0;
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 #ifdef ERF_USE_NETCDF
-void read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
+Real read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                       Vector<Vector<FArrayBox>>& bdy_data_xlo,
                       Vector<Vector<FArrayBox>>& bdy_data_xhi,
                       Vector<Vector<FArrayBox>>& bdy_data_ylo,
@@ -331,11 +331,18 @@ ERF::InitData ()
             vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
 
 #ifdef ERF_USE_TERRAIN
-        for (int lev = 0; lev <= finest_level; lev++)
-        {
-            init_ideal_terrain(lev);
-            init_terrain_grid(geom[lev],z_phys_nd[lev]);
-            make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
+        if (init_type == "ideal") {
+            amrex::Abort("We do not currently support init_type = ideal with terrain");
+        } else if (init_type == "input_sounding") {
+            amrex::Abort("We do not currently support init_type = input_sounding with terrain");
+        }
+
+        if (init_type != "real") {
+            for (int lev = 0; lev <= finest_level; lev++)
+            {
+                init_ideal_terrain(lev);
+                init_terrain_grid(geom[lev],z_phys_nd[lev]);
+            }
         }
 #endif
 
@@ -343,6 +350,13 @@ ERF::InitData ()
             init_only(lev, time);
 
         AverageDown();
+
+#ifdef ERF_USE_TERRAIN
+        for (int lev = 0; lev <= finest_level; lev++)
+        {
+            make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
+        }
+#endif
 
     } else { // Restart from a checkpoint
 
@@ -434,7 +448,7 @@ ERF::InitData ()
     }
 
     // Fill ghost cells/faces
-    for (int lev = finest_level-1; lev >= 0; --lev)
+    for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
@@ -636,7 +650,7 @@ ERF::init_only(int lev, Real time)
         if (init_type == "real" && (!geom[0].isPeriodic(0) || !geom[0].isPeriodic(1))) {
             if (nc_bdy_file.empty())
                 amrex::Error("NetCDF boundary file name must be provided via input");
-            read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi);
+            bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi);
         }
     }
 #endif //ERF_USE_NETCDF
@@ -817,6 +831,9 @@ ERF::ReadParameters ()
         }
 
         // We use this to keep track of how many boxes we read in from WRF initialization
+        num_files_at_level.resize(max_level+1,0);
+
+        // We use this to keep track of how many boxes are specified thru the refinement indicators
         num_boxes_at_level.resize(max_level+1,0);
             boxes_at_level.resize(max_level+1);
 
@@ -828,17 +845,17 @@ ERF::ReadParameters ()
 
         // NetCDF wrfinput initialization files -- possibly multiple files at each of multiple levels
         //        but we always have exactly one file at level 0
-        for (int i = 0; i <= max_level; i++)
+        for (int lev = 0; lev <= max_level; lev++)
         {
-            const std::string nc_file_names = amrex::Concatenate("nc_init_file_",i,1);
+            const std::string nc_file_names = amrex::Concatenate("nc_init_file_",lev,1);
             if (pp.contains(nc_file_names.c_str()))
             {
                 int num_files = pp.countval(nc_file_names.c_str());
-                num_boxes_at_level[i] = num_files;
-                nc_init_file[i].resize(num_files);
-                pp.queryarr(nc_file_names.c_str(), nc_init_file[i],0,num_files);
+                num_files_at_level[lev] = num_files;
+                nc_init_file[lev].resize(num_files);
+                pp.queryarr(nc_file_names.c_str(), nc_init_file[lev],0,num_files);
                 for (int j = 0; j < num_files; j++)
-                    amrex::Print() << "Reading NC init file at level " << i << " and index " << j << " : " << nc_init_file[i][j] << std::endl;
+                    amrex::Print() << "Reading NC init file names at level " << lev << " and index " << j << " : " << nc_init_file[lev][j] << std::endl;
             }
         }
 

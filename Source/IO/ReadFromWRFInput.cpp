@@ -7,7 +7,7 @@ using namespace amrex;
 void
 ERF::read_from_wrfinput(int lev)
 {
-    amrex::Print() << "Loading initial data from NetCDF file " << std::endl;
+    amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
     Box input_box;
 
     NC_xvel_fab[lev].resize(num_boxes_at_level[lev]);
@@ -96,6 +96,7 @@ ERF::read_from_wrfinput(int lev)
             // Read the netcdf file and fill these FABs
             // NOTE: right now we are hard-wired to one "domain" per level -- but that can be generalized
             //       once we know how to determine the level for each input file
+            amrex::Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
             BuildFABsFromWRFInputFile(nc_init_file[lev][idx], NC_names, NC_fabs, NC_dim_types);
 
         } // if ParalleDescriptor::IOProcessor()
@@ -148,7 +149,7 @@ ERF::read_from_wrfinput(int lev)
         NC_rhotheta_fab[lev][idx].template mult<RunOn::Device>(NC_rho_fab[lev][idx],0,0,1);
 
         amrex::Print() <<
-          "Successfully loaded data from the wrfinput (output of 'ideal.exe' / 'real.exe') NetCDF file at level " << lev << std::endl;
+          "Successfully loaded data from the NetCDF file at level " << lev << std::endl;
     } // idx
 }
 #endif // ERF_USE_NETCDF

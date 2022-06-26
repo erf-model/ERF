@@ -22,8 +22,6 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
         BL_PROFILE("ERFPhysBCFunct::()");
 
         const auto& domain = m_geom.Domain();
-        const auto& dom_lo = amrex::lbound(domain);
-        const auto& dom_hi = amrex::ubound(domain);
 
 #ifdef ERF_USE_TERRAIN
         // Private data from constructor
@@ -172,7 +170,8 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                         bccomp_for_wrfbdy = bccomp;
                          ncomp_for_wrfbdy = 1; // (Because we are currently only filling U, V, W, T)
                     }
-                    fill_from_wrfbdy(m_lev, bx, dest_arr, icomp_for_wrfbdy, bccomp_for_wrfbdy, ncomp_for_wrfbdy, domain, bc_ptr, time);
+                    fill_from_wrfbdy(m_lev, bx, dest_arr, icomp_for_wrfbdy, bccomp_for_wrfbdy, ncomp_for_wrfbdy, domain, bc_ptr,
+                                     time, m_bdy_time_interval);
 #endif
                     Gpu::streamSynchronize(); // because of bcrs_d
 
