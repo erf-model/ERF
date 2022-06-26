@@ -37,10 +37,10 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
        amrex::Print() << "FILLING XVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
        ifab = 0; // U
     } else if (bccomp_in == BCVars::yvel_bc) {
-       amrex::Print() << "FILLING XVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
+       amrex::Print() << "FILLING YVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
        ifab = 1; // V
     } else if (bccomp_in == BCVars::zvel_bc) {
-       amrex::Print() << "FILLING XVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
+       amrex::Print() << "FILLING ZVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
        ifab = 2; // W
     } else  if (bccomp_in == BCVars::RhoTheta_bc_comp) {
        amrex::Print() << "FILLING RHO THETA BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
