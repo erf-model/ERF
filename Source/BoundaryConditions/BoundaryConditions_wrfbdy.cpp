@@ -35,16 +35,16 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
 
     if (bccomp_in == BCVars::xvel_bc) {
        amrex::Print() << "FILLING XVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
-       ifab = 0; // U
+       ifab = WRFBdyVars::U; // U
     } else if (bccomp_in == BCVars::yvel_bc) {
        amrex::Print() << "FILLING YVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
-       ifab = 1; // V
+       ifab = WRFBdyVars::V; // V
     } else if (bccomp_in == BCVars::zvel_bc) {
        amrex::Print() << "FILLING ZVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
-       ifab = 2; // W
+       ifab = WRFBdyVars::W; // W
     } else  if (bccomp_in == BCVars::RhoTheta_bc_comp) {
        amrex::Print() << "FILLING RHO THETA BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
-       ifab = 3; // T
+       ifab = WRFBdyVars::T; // T
     } else {
        amrex::Print() << "In fill_from_wrfbdy: icomp = " << icomp << " , bccomp = " << bccomp_in << " , ncomp = " << ncomp << std::endl;
        amrex::Abort("Don't know this bccomp in fill_from_wrfbdy");
