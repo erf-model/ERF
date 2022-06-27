@@ -344,19 +344,17 @@ ERF::InitData ()
                 init_terrain_grid(geom[lev],z_phys_nd[lev]);
             }
         }
+
+        for (int lev = 0; lev <= finest_level; lev++)
+        {
+            make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
+        }
 #endif
 
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
 
         AverageDown();
-
-#ifdef ERF_USE_TERRAIN
-        for (int lev = 0; lev <= finest_level; lev++)
-        {
-            make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
-        }
-#endif
 
     } else { // Restart from a checkpoint
 
