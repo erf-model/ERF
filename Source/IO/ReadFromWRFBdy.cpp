@@ -200,13 +200,13 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 const Box pbx_xlo(plo, phi);
 
                 Box xlo_plane_no_stag(pbx_xlo);
-                Box xlo_plane_x_stag = Box(IntVect(-ng+1,lo[1],lo[2]),IntVect(0,hi[1],hi[2]),{1,0,0});
+                //Box xlo_plane_x_stag = Box(IntVect(-ng+1,lo[1],lo[2]),IntVect(0,hi[1],hi[2]),{1,0,0});
                 Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
                 Box xlo_plane_z_stag = convert(pbx_xlo, {0, 0, 1});
 
                 if        (first1 == "U") {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_x_stag, 1)); // U
+                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // U
                     }
                 } else if (first1 == "V") {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -232,13 +232,13 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 const Box pbx_xhi(plo, phi);
 
                 Box xhi_plane_no_stag(pbx_xhi);
-                Box xhi_plane_x_stag = Box(IntVect(plo[0],lo[1],lo[2]),IntVect(phi[0],hi[1],hi[2]),{1,0,0});
+                //Box xhi_plane_x_stag = Box(IntVect(plo[0],lo[1],lo[2]),IntVect(phi[0],hi[1],hi[2]),{1,0,0});
                 Box xhi_plane_y_stag = convert(pbx_xhi, {0, 1, 0});
                 Box xhi_plane_z_stag = convert(pbx_xhi, {0, 0, 1});
 
                 if        (first1 == "U") {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_x_stag, 1)); // U
+                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // U
                     }
                 } else if (first1 == "V") {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -265,7 +265,7 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
 
                 Box ylo_plane_no_stag(pbx_ylo);
                 Box ylo_plane_x_stag = convert(pbx_ylo, {1, 0, 0});
-                Box ylo_plane_y_stag = Box(IntVect(lo[0],-ng+1,lo[2]),IntVect(hi[0],0,hi[2]),{0,1,0});
+                //Box ylo_plane_y_stag = Box(IntVect(lo[0],-ng+1,lo[2]),IntVect(hi[0],0,hi[2]),{0,1,0});
                 Box ylo_plane_z_stag = convert(pbx_ylo, {0, 0, 1});
 
                 if        (first1 == "U") {
@@ -274,7 +274,7 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     }
                 } else if (first1 == "V") {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_y_stag, 1)); // V
+                        bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1)); // V
                     }
                 } else if (first1 == "W") {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -297,7 +297,7 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
 
                 Box yhi_plane_no_stag(pbx_yhi);
                 Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
-                Box yhi_plane_y_stag = Box(IntVect(lo[0],plo[1],lo[2]),IntVect(hi[0],phi[1],hi[2]),{0,1,0});
+                //Box yhi_plane_y_stag = Box(IntVect(lo[0],plo[1],lo[2]),IntVect(hi[0],phi[1],hi[2]),{0,1,0});
                 Box yhi_plane_z_stag = convert(pbx_yhi, {0, 0, 1});
 
                 if        (first1 == "U") {
@@ -306,7 +306,7 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     }
                 } else if (first1 == "V") {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_y_stag, 1)); // V
+                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); // V
                     }
                 } else if (first1 == "W") {
                     for (int nt(0); nt < ntimes; ++nt) {
