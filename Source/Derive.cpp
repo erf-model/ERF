@@ -53,6 +53,7 @@ erf_derpres(
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
+    AMREX_ALWAYS_ASSERT(rhotheta > 0.);
     pfab(i,j,k) = getPgivenRTh(rhotheta);
   });
 }
@@ -75,6 +76,7 @@ erf_dersoundspeed(
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
     const amrex::Real rho      = dat(i, j, k, Rho_comp);
+    AMREX_ALWAYS_ASSERT(rhotheta > 0.);
     cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta) / rho);
   });
 }
@@ -97,6 +99,7 @@ erf_dertemp(
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const amrex::Real rho = dat(i, j, k, Rho_comp);
     const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
+    AMREX_ALWAYS_ASSERT(rhotheta > 0.);
     tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
   });
 }

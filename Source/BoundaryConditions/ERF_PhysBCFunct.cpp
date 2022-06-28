@@ -174,9 +174,9 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                         fill_from_wrfbdy(m_lev, bx, dest_arr, icomp_for_wrfbdy, bccomp_for_wrfbdy, ncomp_for_wrfbdy,
                                          domain, bc_ptr,
                                          time, m_bdy_time_interval);
+                    }
 #endif
                         Gpu::streamSynchronize(); // because of bcrs_d
-                    }
                 } // !gdomain.contains(bx)
             } // MFIter
         } // OpenMP
