@@ -28,6 +28,11 @@ amrex::Real getPgivenRTh(const amrex::Real rhotheta)
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real getRhoGivenThetaPress (const amrex::Real theta, const amrex::Real p) {
+    return std::pow(p_0, R_d/c_p) * std::pow(p, 1.0/Gamma) / (R_d * theta);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getdPdRgivenConstantTheta(const amrex::Real rho, const amrex::Real theta)
 {
     return Gamma * p_0 * std::pow( (R_d * theta / p_0), Gamma) * std::pow(rho, Gamma-1.0) ;
