@@ -106,6 +106,11 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
         nc_var_names.push_back("T_BYS")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
         nc_var_names.push_back("T_BYE")     ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_BT_WE);
 
+        nc_var_names.push_back("MU_BXS")    ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_SN);
+        nc_var_names.push_back("MU_BXE")    ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_SN);
+        nc_var_names.push_back("MU_BYS")    ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_WE);
+        nc_var_names.push_back("MU_BYE")    ; NC_dim_types.push_back(NC_Data_Dims_Type::Time_BdyWidth_WE);
+
         using RARRAY = NDArray<float>;
         amrex::Vector<RARRAY> arrays(nc_var_names.size());
         ReadWRFBdyFile(nc_bdy_file, nc_var_names, arrays);
@@ -156,25 +161,27 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
         // This loops over every variable on every face, so nvars should be 4 * number of "ivartype" below
         for (int iv = 0; iv < nvars; iv++)
         {
-            amrex::Print() << "Building FAB for the the NetCDF variable : " << nc_var_names[iv] << std::endl;
+            amrex::Print() << "Building FAB for the NetCDF variable : " << nc_var_names[iv] << std::endl;
 
             std::string first1 = nc_var_names[iv].substr(0,1);
-            int ivartype;
+            std::string first2 = nc_var_names[iv].substr(0,2);
+            int bdyVarYype;
 
             if        (first1 == "U") {
-                ivartype = WRFBdyVars::U;
+                bdyVarYype = WRFBdyVars::U;
             } else if (first1 == "V") {
-                ivartype = WRFBdyVars::V;
+                bdyVarYype = WRFBdyVars::V;
             } else if (first1 == "W") {
-                ivartype = WRFBdyVars::W;
+                bdyVarYype = WRFBdyVars::W;
             } else if (first1 == "T") {
-                ivartype = WRFBdyVars::T;
+                bdyVarYype = WRFBdyVars::T;
             }
 
-            // arrays[i].get_vshape()[0] : number of times
-            // arrays[i].get_vshape()[1] : number of points in x-direction
-            // arrays[i].get_vshape()[2] : number of points in z-direction
-            // arrays[i].get_vshape()[3] : number of points in y-direction
+            if        (first2 == "MU") {
+                bdyVarYype = WRFBdyVars::MU;
+            } else if (first2 == "PC") {
+                bdyVarYype = WRFBdyVars::PC;
+            }
 
             // Assert that all data has the same number of time snapshots
             int itimes = static_cast<int>(arrays[iv].get_vshape()[0]);
@@ -186,11 +193,22 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
             // amrex::Print() << "SHAPE3 " << arrays[iv].get_vshape()[3] << std::endl;
 
             std::string  last3 = nc_var_names[iv].substr(nc_var_names[iv].size()-3, 3);
+            int bdyType;
+
+            if        (last3 == "BXS") {
+                bdyType = WRFBdyTypes::x_lo;
+            } else if (last3 == "BXE") {
+                bdyType = WRFBdyTypes::x_hi;
+            } else if (last3 == "BYS") {
+                bdyType = WRFBdyTypes::y_lo;
+            } else if (last3 == "BYE") {
+                bdyType = WRFBdyTypes::y_hi;
+            }
 
             // Width of the boundary region (1 <= ng <= 5)
             int ng = arrays[iv].get_vshape()[1];
 
-            if (last3 == "BXS") {
+            if (bdyType == WRFBdyTypes::x_lo) {
 
                 // *******************************************************************************
                 // xlo bdy
@@ -199,30 +217,40 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 phi[0] = -1 ; phi[1] = hi[1]; phi[2] = hi[2];
                 const Box pbx_xlo(plo, phi);
 
+                Box x_line_no_stag(IntVect(plo[0], plo[1], 0), IntVect(phi[0], phi[1], 0));
+
                 Box xlo_plane_no_stag(pbx_xlo);
                 //Box xlo_plane_x_stag = Box(IntVect(-ng+1,lo[1],lo[2]),IntVect(0,hi[1],hi[2]),{1,0,0});
                 Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
                 Box xlo_plane_z_stag = convert(pbx_xlo, {0, 0, 1});
 
-                if        (first1 == "U") {
+                if        (bdyVarYype == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // U
                     }
-                } else if (first1 == "V") {
+                } else if (bdyVarYype == WRFBdyVars::V) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_y_stag , 1)); // V
                     }
-                } else if (first1 == "W") {
+                } else if (bdyVarYype == WRFBdyVars::W) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_z_stag , 1)); // W
                     }
-                } else if (first1 == "T") {
+                } else if (bdyVarYype == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // T
                     }
+                } else if (bdyVarYype == WRFBdyVars::MU) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_xlo[nt].push_back(FArrayBox(x_line_no_stag, 1)); // MU
+                    }
+                } else if (bdyVarYype == WRFBdyVars::PC) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_xlo[nt].push_back(FArrayBox(x_line_no_stag, 1)); // PC
+                    }
                 }
 
-            } else if (last3 == "BXE") {
+            } else if (bdyType == WRFBdyTypes::x_hi) {
 
                 // *******************************************************************************
                 // xhi bdy
@@ -231,30 +259,40 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 phi[0] = hi[0] + ng; phi[1] = hi[1]; phi[2] = hi[2];
                 const Box pbx_xhi(plo, phi);
 
+                Box x_line_no_stag(IntVect(0, lo[1], 0), IntVect(0, hi[1], 0));
+
                 Box xhi_plane_no_stag(pbx_xhi);
                 //Box xhi_plane_x_stag = Box(IntVect(plo[0],lo[1],lo[2]),IntVect(phi[0],hi[1],hi[2]),{1,0,0});
                 Box xhi_plane_y_stag = convert(pbx_xhi, {0, 1, 0});
                 Box xhi_plane_z_stag = convert(pbx_xhi, {0, 0, 1});
 
-                if        (first1 == "U") {
+                if        (bdyVarYype == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // U
                     }
-                } else if (first1 == "V") {
+                } else if (bdyVarYype == WRFBdyVars::V) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_y_stag , 1)); // V
                     }
-                } else if (first1 == "W") {
+                } else if (bdyVarYype == WRFBdyVars::W) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_z_stag , 1)); // W
                     }
-                } else if (first1 == "T") {
+                } else if (bdyVarYype == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // T
                     }
+                } else if (bdyVarYype == WRFBdyVars::MU) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_xhi[nt].push_back(FArrayBox(x_line_no_stag, 1)); // MU
+                    }
+                } else if (bdyVarYype == WRFBdyVars::PC) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_xhi[nt].push_back(FArrayBox(x_line_no_stag, 1)); // PC
+                    }
                 }
 
-            } else if (last3 == "BYS") {
+            } else if (bdyType == WRFBdyTypes::y_lo) {
 
                 // *******************************************************************************
                 // ylo bdy
@@ -263,30 +301,40 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 phi[1] =  -1; phi[0] = hi[0]; phi[2] = hi[2];
                 const Box pbx_ylo(plo, phi);
 
+                Box y_line_no_stag(IntVect(lo[0], 0, 0), IntVect(hi[0], 0, 0));
+
                 Box ylo_plane_no_stag(pbx_ylo);
                 Box ylo_plane_x_stag = convert(pbx_ylo, {1, 0, 0});
                 //Box ylo_plane_y_stag = Box(IntVect(lo[0],-ng+1,lo[2]),IntVect(hi[0],0,hi[2]),{0,1,0});
                 Box ylo_plane_z_stag = convert(pbx_ylo, {0, 0, 1});
 
-                if        (first1 == "U") {
+                if        (bdyVarYype == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_x_stag , 1)); // U
                     }
-                } else if (first1 == "V") {
+                } else if (bdyVarYype == WRFBdyVars::V) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1)); // V
                     }
-                } else if (first1 == "W") {
+                } else if (bdyVarYype == WRFBdyVars::W) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_z_stag , 1)); // W
                     }
-                } else if (first1 == "T") {
+                } else if (bdyVarYype == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1)); // T
                     }
+                } else if (bdyVarYype == WRFBdyVars::MU) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_ylo[nt].push_back(FArrayBox(y_line_no_stag, 1)); // MU
+                    }
+                } else if (bdyVarYype == WRFBdyVars::PC) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_ylo[nt].push_back(FArrayBox(y_line_no_stag, 1)); // PC
+                    }
                 }
 
-            } else if (last3 == "BYE") {
+            } else if (bdyType == WRFBdyTypes::y_hi) {
 
                 // *******************************************************************************
                 // yhi bdy
@@ -295,26 +343,36 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 phi[1] = hi[1] + ng; phi[0] = hi[0]; phi[2] = hi[2];
                 const Box pbx_yhi(plo, phi);
 
+                Box y_line_no_stag(IntVect(lo[0], 0, 0), IntVect(hi[0], 0, 0));
+
                 Box yhi_plane_no_stag(pbx_yhi);
                 Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
                 //Box yhi_plane_y_stag = Box(IntVect(lo[0],plo[1],lo[2]),IntVect(hi[0],phi[1],hi[2]),{0,1,0});
                 Box yhi_plane_z_stag = convert(pbx_yhi, {0, 0, 1});
 
-                if        (first1 == "U") {
+                if        (bdyVarYype == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_x_stag , 1)); // U
                     }
-                } else if (first1 == "V") {
+                } else if (bdyVarYype == WRFBdyVars::V) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); // V
                     }
-                } else if (first1 == "W") {
+                } else if (bdyVarYype == WRFBdyVars::W) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_z_stag , 1)); // W
                     }
-                } else if (first1 == "T") {
+                } else if (bdyVarYype == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); // T
+                    }
+                } else if (bdyVarYype == WRFBdyVars::MU) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_yhi[nt].push_back(FArrayBox(y_line_no_stag, 1)); // MU
+                    }
+                } else if (bdyVarYype == WRFBdyVars::PC) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_yhi[nt].push_back(FArrayBox(y_line_no_stag, 1)); // PC
                     }
                 }
             }
@@ -327,50 +385,91 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
             // Now fill the data
             for (int nt(0); nt < ntimes; ++nt)
             {
-                Array4<Real> fab_arr;
-                if (last3 == "BXS") {
-                    num_pts  = bdy_data_xlo[nt][ivartype].box().numPts();
-                    fab_arr  = bdy_data_xlo[nt][ivartype].array();
-                    int ioff = bdy_data_xlo[nt][ivartype].smallEnd()[0];
-                    for (int n(0); n < num_pts; ++n) {
-                        int i  = n / (ns2*ns3) + ioff;
-                        int k  = (n - (i-ioff)*(ns2*ns3)) / ns3;
-                        int j  =  n - (i-ioff)*(ns2*ns3) - k * ns3;
-                        fab_arr(i,j,k,0) = static_cast<Real>(*(arrays[iv].get_data()+n));
-                        if (nt == 0 and first1 == "T" and i == -1 and j == 0 and k == 0) amrex::Print() << "T AT XLO " << IntVect(i,j,k) << " " << n << " " <<
-                            fab_arr(i,j,k,0) << std::endl;
+                if (bdyVarYype == WRFBdyVars::U || bdyVarYype == WRFBdyVars::V || bdyVarYype == WRFBdyVars::W || bdyVarYype == WRFBdyVars::T) {
+
+                    Array4<Real> fab_arr;
+                    if (bdyType == WRFBdyTypes::x_lo) {
+                        num_pts = bdy_data_xlo[nt][bdyVarYype].box().numPts();
+                        fab_arr = bdy_data_xlo[nt][bdyVarYype].array();
+                        int ioff = bdy_data_xlo[nt][bdyVarYype].smallEnd()[0];
+                        for (int n(0); n < num_pts; ++n) {
+                            int i = n / (ns2 * ns3) + ioff;
+                            int k = (n - (i - ioff) * (ns2 * ns3)) / ns3;
+                            int j = n - (i - ioff) * (ns2 * ns3) - k * ns3;
+                            fab_arr(i, j, k, 0) = static_cast<Real>(*(arrays[iv].get_data() + n));
+                            if (nt == 0 and first1 == "T" and i == -1 and j == 0 and k == 0)
+                                amrex::Print() << "T AT XLO " << IntVect(i, j, k) << " " << n << " " <<
+                                               fab_arr(i, j, k, 0) << std::endl;
+                        }
+                    } else if (bdyType == WRFBdyTypes::x_hi) {
+                        num_pts = bdy_data_xhi[nt][bdyVarYype].box().numPts();
+                        fab_arr = bdy_data_xhi[nt][bdyVarYype].array();
+                        int ioff = bdy_data_xhi[nt][bdyVarYype].bigEnd()[0] - ng + 1;
+                        for (int n(0); n < num_pts; ++n) {
+                            int i = n / (ns2 * ns3) + ioff;
+                            int k = (n - (i - ioff) * (ns2 * ns3)) / ns3;
+                            int j = n - (i - ioff) * (ns2 * ns3) - k * ns3;
+                            fab_arr(i, j, k, 0) = static_cast<Real>(*(arrays[iv].get_data() + n));
+                        }
+                    } else if (bdyType == WRFBdyTypes::y_lo) {
+                        num_pts = bdy_data_ylo[nt][bdyVarYype].box().numPts();
+                        fab_arr = bdy_data_ylo[nt][bdyVarYype].array();
+                        int joff = bdy_data_ylo[nt][bdyVarYype].smallEnd()[1];
+                        for (int n(0); n < num_pts; ++n) {
+                            int j = n / (ns2 * ns3) + joff;
+                            int k = (n - (j - joff) * (ns2 * ns3)) / ns3;
+                            int i = n - (j - joff) * (ns2 * ns3) - k * ns3;
+                            fab_arr(i, j, k, 0) = static_cast<Real>(*(arrays[iv].get_data() + n));
+                            if (nt == 0 and first1 == "T" and i == 0 and j == -1 and k == 0)
+                                amrex::Print() << "T AT YLO " << IntVect(i, j, k) << " " << n << " " <<
+                                               fab_arr(i, j, k, 0) << std::endl;
+                        }
+                    } else if (bdyType == WRFBdyTypes::y_hi) {
+                        num_pts = bdy_data_yhi[nt][bdyVarYype].box().numPts();
+                        fab_arr = bdy_data_yhi[nt][bdyVarYype].array();
+                        int joff = bdy_data_yhi[nt][bdyVarYype].bigEnd()[1] - ng + 1;
+                        for (int n(0); n < num_pts; ++n) {
+                            int j = n / (ns2 * ns3) + joff;
+                            int k = (n - (j - joff) * (ns2 * ns3)) / ns3;
+                            int i = n - (j - joff) * (ns2 * ns3) - k * ns3;
+                            fab_arr(i, j, k, 0) = static_cast<Real>(*(arrays[iv].get_data() + n));
+                        }
                     }
-                } else if (last3 == "BXE") {
-                    num_pts  = bdy_data_xhi[nt][ivartype].box().numPts();
-                    fab_arr  = bdy_data_xhi[nt][ivartype].array();
-                    int ioff = bdy_data_xhi[nt][ivartype].bigEnd()[0]-ng+1;
-                    for (int n(0); n < num_pts; ++n) {
-                        int i  = n / (ns2*ns3) + ioff;
-                        int k  = (n - (i-ioff)*(ns2*ns3)) / ns3;
-                        int j  =  n - (i-ioff)*(ns2*ns3) - k * ns3;
-                        fab_arr(i,j,k,0) = static_cast<Real>(*(arrays[iv].get_data()+n));
-                    }
-                } else if (last3 == "BYS") {
-                    num_pts = bdy_data_ylo[nt][ivartype].box().numPts();
-                    fab_arr  = bdy_data_ylo[nt][ivartype].array();
-                    int joff = bdy_data_ylo[nt][ivartype].smallEnd()[1];
-                    for (int n(0); n < num_pts; ++n) {
-                        int j  = n / (ns2*ns3) + joff;
-                        int k  = (n - (j-joff)*(ns2*ns3)) / ns3;
-                        int i  =  n - (j-joff)*(ns2*ns3) - k * ns3;
-                        fab_arr(i,j,k,0) = static_cast<Real>(*(arrays[iv].get_data()+n));
-                        if (nt == 0 and first1 == "T" and i == 0 and j == -1 and k == 0) amrex::Print() << "T AT YLO " << IntVect(i,j,k) << " " << n << " " <<
-                            fab_arr(i,j,k,0) << std::endl;
-                    }
-                } else if (last3 == "BYE") {
-                    num_pts  = bdy_data_yhi[nt][ivartype].box().numPts();
-                    fab_arr  = bdy_data_yhi[nt][ivartype].array();
-                    int joff = bdy_data_yhi[nt][ivartype].bigEnd()[1]-ng+1;
-                    for (int n(0); n < num_pts; ++n) {
-                        int j  = n / (ns2*ns3) + joff;
-                        int k  = (n - (j-joff)*(ns2*ns3)) / ns3;
-                        int i  =  n - (j-joff)*(ns2*ns3) - k * ns3;
-                        fab_arr(i,j,k,0) = static_cast<Real>(*(arrays[iv].get_data()+n));
+                } else if (bdyVarYype == WRFBdyVars::MU || bdyVarYype == WRFBdyVars::PC) {
+                    int ncomp  = 1;
+
+                    if (bdyType == WRFBdyTypes::x_lo) {
+                        num_pts = bdy_data_xlo[nt][bdyVarYype].box().numPts();
+                        for (int kcomp(0); kcomp < ncomp; ++kcomp) {
+                            auto dataPtr = bdy_data_xlo[nt][bdyVarYype].dataPtr(kcomp);
+                            for (int n(0); n < num_pts; ++n) {
+                                *(dataPtr+n) = static_cast<Real>(*(arrays[iv].get_data()+n));
+                            }
+                        }
+                    } else if (bdyType == WRFBdyTypes::x_hi) {
+                        num_pts = bdy_data_xhi[nt][bdyVarYype].box().numPts();
+                        for (int kcomp(0); kcomp < ncomp; ++kcomp) {
+                            auto dataPtr = bdy_data_xhi[nt][bdyVarYype].dataPtr(kcomp);
+                            for (int n(0); n < num_pts; ++n) {
+                                *(dataPtr+n) = static_cast<Real>(*(arrays[iv].get_data()+n));
+                            }
+                        }
+                    } else if (bdyType == WRFBdyTypes::y_lo) {
+                        num_pts = bdy_data_ylo[nt][bdyVarYype].box().numPts();
+                        for (int kcomp(0); kcomp < ncomp; ++kcomp) {
+                            auto dataPtr = bdy_data_ylo[nt][bdyVarYype].dataPtr(kcomp);
+                            for (int n(0); n < num_pts; ++n) {
+                                *(dataPtr+n) = static_cast<Real>(*(arrays[iv].get_data()+n));
+                            }
+                        }
+                    } else if (bdyType == WRFBdyTypes::y_hi) {
+                        num_pts = bdy_data_yhi[nt][bdyVarYype].box().numPts();
+                        for (int kcomp(0); kcomp < ncomp; ++kcomp) {
+                            auto dataPtr = bdy_data_yhi[nt][bdyVarYype].dataPtr(kcomp);
+                            for (int n(0); n < num_pts; ++n) {
+                                *(dataPtr+n) = static_cast<Real>(*(arrays[iv].get_data()+n));
+                            }
+                        }
                     }
                 }
             } // nt

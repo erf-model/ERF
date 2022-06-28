@@ -56,10 +56,20 @@ namespace WRFBdyVars {
         U = 0,
         V = 1,
         W = 2,
-        T = 3
+        T = 3,
+        MU = 4, // bdy perturbation dry air mass in column
+        PC = 5  // bdy perturbation dry air mass in column, How come this is same as MU?
     };
 }
 
+namespace WRFBdyTypes {
+    enum {
+        x_lo,
+        x_hi,
+        y_lo,
+        y_hi
+    };
+}
 namespace RHSVar {
     enum {
         slow = 0,

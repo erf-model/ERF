@@ -21,6 +21,8 @@ using PlaneVector = amrex::Vector<amrex::FArrayBox>;
  // Read from wrfbdy
  NetCDF variables of dimensions Time_BdyWidth_BT_SN         : "U_BXS", "U_BXE", "V_BXS", "V_BXE" etc.
  NetCDF variables of dimensions Time_BdyWidth_BT_WE         : "U_BYS", "U_BYE", "V_BYS", "V_BYE" etc.
+ NetCDF variables of dimensions Time_BdyWidth_SN            : "MU_BXS", "MU_BXE", "PC_BXS", "PC_BXE", etc.
+ NetCDF variables of dimensions Time_BdyWidth_WE            : "MU_BYS", "MU_BYE", "PC_BYS", "PC_BYE", etc.
 */
 enum class NC_Data_Dims_Type {
     Time_BT_SN_WE,
@@ -28,7 +30,9 @@ enum class NC_Data_Dims_Type {
     Time_BT,
     Time,
     Time_BdyWidth_BT_SN,
-    Time_BdyWidth_BT_WE
+    Time_BdyWidth_BT_WE,
+    Time_BdyWidth_SN,
+    Time_BdyWidth_WE
 };
 
 void BuildFABsFromWRFInputFile(const std::string &fname,
