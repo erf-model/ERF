@@ -111,7 +111,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                   z_phys_nd[lev], detJ_cc[lev],
 #endif
 #ifdef ERF_USE_NETCDF
-                                  bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
+                                  init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                   m_r2d);
             amrex::FillPatchSingleLevel(mf, time, smf, ftime, 0, icomp, ncomp,
@@ -130,7 +130,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                    z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
 #ifdef ERF_USE_NETCDF
-                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
+                                   init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                    m_r2d);
             ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
@@ -139,7 +139,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                    z_phys_nd[lev],detJ_cc[lev],
 #endif
 #ifdef ERF_USE_NETCDF
-                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
+                                   init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                    m_r2d);
 
@@ -254,7 +254,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
                                   z_phys_nd[lev],detJ_cc[lev],
 #endif
 #ifdef ERF_USE_NETCDF
-                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
+                                   init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                    m_r2d);
 
@@ -277,7 +277,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
                                    z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
 #ifdef ERF_USE_NETCDF
-                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
+                                   init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                    m_r2d);
             ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
@@ -286,7 +286,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
                                    z_phys_nd[lev],detJ_cc[lev],
 #endif
 #ifdef ERF_USE_NETCDF
-                                   bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
+                                   init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                    m_r2d);
 
@@ -385,7 +385,7 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
                            z_phys_nd[lev-1],detJ_cc[lev-1],
 #endif
 #ifdef ERF_USE_NETCDF
-                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
+                           init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                            m_r2d);
     ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
@@ -394,7 +394,7 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
                            z_phys_nd[lev],detJ_cc[lev],
 #endif
 #ifdef ERF_USE_NETCDF
-                           bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
+                           init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                            m_r2d);
 

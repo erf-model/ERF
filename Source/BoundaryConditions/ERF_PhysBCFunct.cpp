@@ -160,21 +160,23 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                     if (m_r2d) fill_from_bndryregs(m_lev, bx, dest_arr, icomp, bccomp, ncomp, domain, bc_ptr, time);
 
 #ifdef ERF_USE_NETCDF
-                    int icomp_for_wrfbdy, ncomp_for_wrfbdy, bccomp_for_wrfbdy;
-                    if (m_var_idx == Vars::cons) {
-                         icomp_for_wrfbdy = RhoTheta_comp;
-                        bccomp_for_wrfbdy = BCVars::RhoTheta_bc_comp;
-                         ncomp_for_wrfbdy = 1; // (Because we are currently only filling U, V, W, T)
-                    } else {
-                         icomp_for_wrfbdy = icomp;
-                        bccomp_for_wrfbdy = bccomp;
-                         ncomp_for_wrfbdy = 1; // (Because we are currently only filling U, V, W, T)
-                    }
-                    fill_from_wrfbdy(m_lev, bx, dest_arr, icomp_for_wrfbdy, bccomp_for_wrfbdy, ncomp_for_wrfbdy, domain, bc_ptr,
-                                     time, m_bdy_time_interval);
+                    if (m_init_type == "real") {
+                        int icomp_for_wrfbdy, ncomp_for_wrfbdy, bccomp_for_wrfbdy;
+                        if (m_var_idx == Vars::cons) {
+                            icomp_for_wrfbdy = RhoTheta_comp;
+                            bccomp_for_wrfbdy = BCVars::RhoTheta_bc_comp;
+                            ncomp_for_wrfbdy = 1; // (Because we are currently only filling U, V, W, T)
+                        } else {
+                            icomp_for_wrfbdy = icomp;
+                            bccomp_for_wrfbdy = bccomp;
+                            ncomp_for_wrfbdy = 1; // (Because we are currently only filling U, V, W, T)
+                        }
+                        fill_from_wrfbdy(m_lev, bx, dest_arr, icomp_for_wrfbdy, bccomp_for_wrfbdy, ncomp_for_wrfbdy,
+                                         domain, bc_ptr,
+                                         time, m_bdy_time_interval);
 #endif
-                    Gpu::streamSynchronize(); // because of bcrs_d
-
+                        Gpu::streamSynchronize(); // because of bcrs_d
+                    }
                 } // !gdomain.contains(bx)
             } // MFIter
         } // OpenMP
