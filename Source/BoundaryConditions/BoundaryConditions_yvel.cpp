@@ -17,8 +17,10 @@ void ERFPhysBCFunct::impose_yvel_bcs (const Array4<Real>& dest_arr, const Box& b
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
+#ifdef ERF_USE_TERRAIN
     const auto&  bx_lo = amrex::lbound(bx);
     const auto&  bx_hi = amrex::ubound(bx);
+#endif
 
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
