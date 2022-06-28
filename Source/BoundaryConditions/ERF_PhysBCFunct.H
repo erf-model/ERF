@@ -52,6 +52,7 @@ public:
                     const amrex::MultiFab& detJ_cc,
 #endif
 #ifdef ERF_USE_NETCDF
+                    const std::string& init_type,
                     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
@@ -65,6 +66,7 @@ public:
           m_z_phys_nd(z_phys_nd), m_detJ_cc(detJ_cc),
 #endif
 #ifdef ERF_USE_NETCDF
+          m_init_type(init_type),
           m_bdy_data_xlo(bdy_data_xlo),
           m_bdy_data_xhi(bdy_data_xhi),
           m_bdy_data_ylo(bdy_data_ylo),
@@ -152,6 +154,7 @@ private:
     const amrex::MultiFab& m_detJ_cc;
 #endif
 #ifdef ERF_USE_NETCDF
+    const std::string m_init_type;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xlo;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xhi;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_ylo;
