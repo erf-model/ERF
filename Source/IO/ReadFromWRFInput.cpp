@@ -161,8 +161,6 @@ ERF::read_from_wrfinput(int lev)
             else
                 rho_pert_arr(i, j, k) = 0.0;
         });
-//        NC_rho_pert_fab[lev][idx].template invert<RunOn::Device>(1.0);// Get rho_prime = 1/AL
-//        if(! (NC_rho_pert_fab[lev][idx].contains_inf() || NC_rho_pert_fab[lev][idx].contains_nan()))
 
         // Add rho_prime to rhp_base to get complete rho, i.e., rho = (1/ALB + 1/AL)
         NC_rho_fab[lev][idx].template plus<RunOn::Device>(NC_rho_pert_fab[lev][idx], 0, 0, 1);

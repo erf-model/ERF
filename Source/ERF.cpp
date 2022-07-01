@@ -616,6 +616,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     NC_yvel_fab.resize(lev+1);
     NC_zvel_fab.resize(lev+1);
     NC_rho_fab.resize(lev+1);
+    NC_rho_pert_fab.resize(lev+1);
     NC_rhotheta_fab.resize(lev+1);
 
 #ifdef ERF_USE_TERRAIN
