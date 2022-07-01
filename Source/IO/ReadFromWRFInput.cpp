@@ -153,7 +153,15 @@ ERF::read_from_wrfinput(int lev)
 
         // Convert to rho by inverting
         NC_rho_fab[lev][idx].template invert<RunOn::Device>(1.0); // Get rho_base = 1/ALB
-        NC_rho_pert_fab[lev][idx].template invert<RunOn::Device>(1.0);// Get rho_prime = 1/AL
+
+        auto rho_pert_arr = NC_rho_pert_fab[lev][idx].array();
+        ParallelFor(NC_rho_pert_fab[lev][idx].box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            if (rho_pert_arr(i, j, k) != 0.0)
+                rho_pert_arr(i, j, k) = 1.0 / rho_pert_arr(i, j, k);
+            else
+                rho_pert_arr(i, j, k) = 0.0;
+        });
+
         // Add rho_prime to rhp_base to get complete rho, i.e., rho = (1/ALB + 1/AL)
         NC_rho_fab[lev][idx].template plus<RunOn::Device>(NC_rho_pert_fab[lev][idx], 0, 0, 1);
 
