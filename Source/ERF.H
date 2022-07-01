@@ -211,6 +211,9 @@ public:
                              const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
                              const amrex::Real time);
 
+    // Read the netcdf wrfinput file once
+    void read_from_wrfinput(int lev);
+
     // Copy from the NC*fabs into the MultiFabs holding the initial data
     void init_from_wrfinput(int lev,
                             const amrex::Box& bx,        amrex::FArrayBox& state_fab,
@@ -220,6 +223,12 @@ public:
                            ,amrex::FArrayBox& z_phys
 #endif
                            );
+
+    // *** *** Vectors (over levels) of FArrayBox's for holding the INITIAL data
+    // Data read from the wrfinput NetCDF file
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_rho_fab, NC_rho_pert_fab, NC_rhotheta_fab;
+    //amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_p_base_fab, NC_p_pert_fab;
 #endif //ERF_USE_NETCDF
 
 private:
@@ -320,20 +329,11 @@ private:
     void createNCColumnFile(const int lev,
                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
 
-    // Read the netcdf wrfinput file once
-    void read_from_wrfinput(int lev);
-
     // Copy from the NC*fabs into the MultiFabs holding the boundary data
     void init_from_wrfbdy(amrex::Vector<amrex::FArrayBox*> x_vel_lateral,
                           amrex::Vector<amrex::FArrayBox*> y_vel_lateral,
                           amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                           amrex::Vector<amrex::FArrayBox*> T_lateral);
-
-    // *** *** Vectors (over levels) of FArrayBox's for holding the INITIAL data
-    // Data read from the wrfinput NetCDF file
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_rho_fab, NC_rho_pert_fab, NC_rhotheta_fab;
-    //amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_p_base_fab, NC_p_pert_fab;
 
     // *** *** FArrayBox's for holding the SURFACE data
     // Data read from the wrfinput NetCDF file
