@@ -37,8 +37,8 @@ enum class NC_Data_Dims_Type {
 
 void BuildFABsFromWRFInputFile(const std::string &fname,
                                amrex::Vector<std::string> nc_var_names,
-                               amrex::Vector<amrex::FArrayBox*> fab_vars);
-                               //amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types);
+                               amrex::Vector<amrex::FArrayBox*> fab_vars,
+                               amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types);
 
 int BuildFABsFromWRFBdyFile(const std::string &fname,
                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,

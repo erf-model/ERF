@@ -14,7 +14,6 @@ ERF::read_from_wrfinput(int lev)
     NC_yvel_fab[lev].resize(num_boxes_at_level[lev]);
     NC_zvel_fab[lev].resize(num_boxes_at_level[lev]);
     NC_rho_fab[lev].resize(num_boxes_at_level[lev]);
-    NC_rho_pert_fab[lev].resize(num_boxes_at_level[lev]);
     NC_rhotheta_fab[lev].resize(num_boxes_at_level[lev]);
 
 #ifdef ERF_USE_TERRAIN
@@ -39,7 +38,6 @@ ERF::read_from_wrfinput(int lev)
         NC_yvel_fab[lev][idx].resize(vbx,1);
         NC_zvel_fab[lev][idx].resize(wbx,1);
         NC_rho_fab[lev][idx].resize(input_box,1);
-        NC_rho_pert_fab[lev][idx].resize(input_box, 1);
         NC_rhotheta_fab[lev][idx].resize(input_box,1);
 
 #ifdef ERF_USE_TERRAIN
@@ -48,12 +46,11 @@ ERF::read_from_wrfinput(int lev)
 #endif
 
 #ifdef AMREX_USE_GPU
-        FArrayBox host_NC_xvel_fab    (NC_xvel_fab[lev][idx].box(),     NC_xvel_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
-        FArrayBox host_NC_yvel_fab    (NC_yvel_fab[lev][idx].box(),     NC_yvel_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
-        FArrayBox host_NC_zvel_fab    (NC_zvel_fab[lev][idx].box(),     NC_zvel_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
-        FArrayBox host_NC_rho_fab     (NC_rho_fab[lev][idx].box(),      NC_rho_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
-        FArrayBox host_NC_rho_pert_fab(NC_rho_pert_fab[lev][idx].box(), NC_rho_pert_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
-        FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab[lev][idx].box(), NC_rhotheta_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_xvel_fab   (NC_xvel_fab[lev][idx].box(),     NC_xvel_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_yvel_fab   (NC_yvel_fab[lev][idx].box(),     NC_yvel_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_zvel_fab   (NC_zvel_fab[lev][idx].box(),     NC_zvel_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_rho_fab    (NC_rho_fab[lev][idx].box(),      NC_rho_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
+       FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab[lev][idx].box(), NC_rhotheta_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
 #ifdef ERF_USE_TERRAIN
         FArrayBox host_NC_PH_fab (NC_PH_fab[lev][idx].box(),  NC_PH_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_PHB_fab(NC_PHB_fab[lev][idx].box(), NC_PHB_fab[lev][idx].nComp(),amrex::The_Pinned_Arena());
@@ -63,7 +60,6 @@ ERF::read_from_wrfinput(int lev)
         FArrayBox host_NC_yvel_fab    (NC_yvel_fab[lev][idx]    , amrex::make_alias, 0, NC_yvel_fab[lev][idx].nComp());
         FArrayBox host_NC_zvel_fab    (NC_zvel_fab[lev][idx]    , amrex::make_alias, 0, NC_zvel_fab[lev][idx].nComp());
         FArrayBox host_NC_rho_fab     (NC_rho_fab[lev][idx]     , amrex::make_alias, 0, NC_rho_fab[lev][idx].nComp());
-        FArrayBox host_NC_rho_pert_fab(NC_rho_pert_fab[lev][idx], amrex::make_alias, 0, NC_rho_pert_fab[lev][idx].nComp());
         FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab[lev][idx], amrex::make_alias, 0, NC_rhotheta_fab[lev][idx].nComp());
 #ifdef ERF_USE_TERRAIN
         FArrayBox host_NC_PH_fab      (NC_PH_fab[lev][idx]      , amrex::make_alias, 0, NC_PH_fab[lev][idx].nComp());
@@ -75,23 +71,19 @@ ERF::read_from_wrfinput(int lev)
         {
             Vector<FArrayBox*> NC_fabs;
             Vector<std::string> NC_names;
-            //Vector<enum NC_Data_Dims_Type> NC_dim_types;
+            Vector<enum NC_Data_Dims_Type> NC_dim_types;
 
             NC_fabs.push_back(&host_NC_xvel_fab);     NC_names.push_back("U");
             NC_fabs.push_back(&host_NC_yvel_fab);     NC_names.push_back("V");
             NC_fabs.push_back(&host_NC_zvel_fab);     NC_names.push_back("W");
             NC_fabs.push_back(&host_NC_rho_fab);      NC_names.push_back("ALB");
-            NC_fabs.push_back(&host_NC_rho_pert_fab), NC_names.push_back("AL");
             NC_fabs.push_back(&host_NC_rhotheta_fab); NC_names.push_back("T_INIT");
 
-            /* We are no longer using NC_Data_Dims_Type, but this data structure could be useful
             NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-            NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-             */
 
 #ifdef ERF_USE_TERRAIN
             NC_fabs.push_back(&host_NC_PH_fab);  NC_names.push_back("PH");
@@ -107,7 +99,7 @@ ERF::read_from_wrfinput(int lev)
             // NOTE: right now we are hard-wired to one "domain" per level -- but that can be generalized
             //       once we know how to determine the level for each input file
             amrex::Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
-            BuildFABsFromWRFInputFile(nc_init_file[lev][idx], NC_names, NC_fabs);
+            BuildFABsFromWRFInputFile(nc_init_file[lev][idx], NC_names, NC_fabs, NC_dim_types);
 
         } // if ParalleDescriptor::IOProcessor()
 
@@ -123,7 +115,6 @@ ERF::read_from_wrfinput(int lev)
         ParallelDescriptor::Bcast(host_NC_yvel_fab.dataPtr(),NC_yvel_fab[lev][idx].box().numPts(),ioproc);
         ParallelDescriptor::Bcast(host_NC_zvel_fab.dataPtr(),NC_zvel_fab[lev][idx].box().numPts(),ioproc);
         ParallelDescriptor::Bcast(host_NC_rho_fab.dataPtr(),NC_rho_fab[lev][idx].box().numPts(),ioproc);
-        ParallelDescriptor::Bcast(host_NC_rho_pert_fab.dataPtr(), NC_rho_pert_fab[lev][idx].box().numPts(), ioproc);
         ParallelDescriptor::Bcast(host_NC_rhotheta_fab.dataPtr(),NC_rhotheta_fab[lev][idx].box().numPts(),ioproc);
 #ifdef ERF_USE_TERRAIN
         ParallelDescriptor::Bcast(host_NC_PHB_fab.dataPtr(),NC_PHB_fab[lev][idx].box().numPts(),ioproc);
@@ -139,8 +130,6 @@ ERF::read_from_wrfinput(int lev)
                                            NC_zvel_fab[lev][idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_rho_fab.dataPtr(), host_NC_rho_fab.dataPtr()+host_NC_rho_fab.size(),
                                            NC_rho_fab[lev][idx].dataPtr());
-         Gpu::copy(Gpu::hostToDevice, host_NC_rho_pert_fab.dataPtr(), host_NC_rho_pert_fab.dataPtr()+host_NC_rho_pert_fab.size(),
-                                           NC_rho_pert_fab[lev][idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_rhotheta_fab.dataPtr(), host_NC_rhotheta_fab.dataPtr()+host_NC_rhotheta_fab.size(),
                                            NC_rhotheta_fab[lev][idx].dataPtr());
 #ifdef ERF_USE_TERRAIN
@@ -152,10 +141,7 @@ ERF::read_from_wrfinput(int lev)
 #endif
 
         // Convert to rho by inverting
-        NC_rho_fab[lev][idx].template invert<RunOn::Device>(1.0); // Get rho_base = 1/ALB
-        NC_rho_pert_fab[lev][idx].template invert<RunOn::Device>(1.0);// Get rho_prime = 1/AL
-        // Add rho_prime to rhp_base to get complete rho, i.e., rho = (1/ALB + 1/AL)
-        NC_rho_fab[lev][idx].template plus<RunOn::Device>(NC_rho_pert_fab[lev][idx], 0, 0, 1);
+        NC_rho_fab[lev][idx].template invert<RunOn::Device>(1.0);
 
         // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
         const Real theta_ref = 300.0;
