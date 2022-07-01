@@ -18,8 +18,8 @@ using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 void
 BuildFABsFromWRFInputFile(const std::string &fname,
                           Vector<std::string> nc_var_names,
-                          Vector<amrex::FArrayBox*> fab_vars,
-                          Vector<enum NC_Data_Dims_Type> NC_dim_types)
+                          Vector<amrex::FArrayBox*> fab_vars)
+                          //Vector<enum NC_Data_Dims_Type> NC_dim_types)
 {
     if (amrex::ParallelDescriptor::IOProcessor())
     {
