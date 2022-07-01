@@ -332,8 +332,8 @@ private:
     // *** *** Vectors (over levels) of FArrayBox's for holding the INITIAL data
     // Data read from the wrfinput NetCDF file
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_rho_fab, NC_rhotheta_fab;
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_p_base_fab, NC_p_pert_fab;
+    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_rho_fab, NC_rho_pert_fab, NC_rhotheta_fab;
+    //amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_p_base_fab, NC_p_pert_fab;
 
     // *** *** FArrayBox's for holding the SURFACE data
     // Data read from the wrfinput NetCDF file
@@ -347,7 +347,7 @@ private:
     amrex::FArrayBox NC_SST_fab;    // Sea Surface Temperature; Defined even for land area
     amrex::FArrayBox NC_TSK_fab;    // Surface Skin Temperature; Appears to be same as SST...
 
-    amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab, NC_rho_inv_pert_fab;
+    amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab;
 
     // *** *** FArrayBox's for holding the LATERAL BOUNDARY data (the four sides)
     // Data read from the wrfbdy NetCDF file
