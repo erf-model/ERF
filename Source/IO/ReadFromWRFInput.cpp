@@ -97,8 +97,10 @@ ERF::read_from_wrfinput(int lev)
             NC_fabs.push_back(&host_NC_PH_fab);  NC_names.push_back("PH");
             NC_fabs.push_back(&host_NC_PHB_fab); NC_names.push_back("PHB");
 
+            /* We are no longer using NC_Data_Dims_Type, but this data structure could be useful
             NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+             */
 #endif
 
             // Read the netcdf file and fill these FABs
