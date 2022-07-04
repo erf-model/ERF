@@ -322,13 +322,13 @@ ERF::InitData ()
         for (int lev = finest_level-1; lev >= 0; --lev)
             vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
 
-#ifdef ERF_USE_TERRAIN
-        if (init_type == "ideal") {
+        if (init_type == "ideal" && solverChoice.use_terrain) {
             amrex::Abort("We do not currently support init_type = ideal with terrain");
-        } else if (init_type == "input_sounding") {
+        } else if (init_type == "input_sounding" && solverChoice.use_terrain) {
             amrex::Abort("We do not currently support init_type = input_sounding with terrain");
         }
 
+#ifdef ERF_USE_TERRAIN
         if (init_type != "real") {
             for (int lev = 0; lev <= finest_level; lev++)
             {
