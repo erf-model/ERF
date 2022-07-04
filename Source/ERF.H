@@ -216,6 +216,16 @@ public:
 #endif
 #endif //ERF_USE_NETCDF
 
+    void init_from_input_sounding(int lev);
+    void init_bx_from_input_sounding(
+            const amrex::Box &bx,
+            amrex::Array4<amrex::Real> const &state,
+            amrex::Array4<amrex::Real> const &x_vel,
+            amrex::Array4<amrex::Real> const &y_vel,
+            amrex::Array4<amrex::Real> const &z_vel,
+            amrex::GeometryData const &geomdata,
+            InputSoundingData const &inputSoundingData);
+
 private:
 
     ///////////////////////////
@@ -233,16 +243,6 @@ private:
     void init_bcs();
 
     void init_custom(int lev);
-
-    void init_from_input_sounding(int lev);
-    void init_bx_from_input_sounding(
-            const amrex::Box &bx,
-            amrex::Array4<amrex::Real> const &state,
-            amrex::Array4<amrex::Real> const &x_vel,
-            amrex::Array4<amrex::Real> const &y_vel,
-            amrex::Array4<amrex::Real> const &z_vel,
-            amrex::GeometryData const &geomdata,
-            InputSoundingData const &inputSoundingData);
 
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput(int lev);
