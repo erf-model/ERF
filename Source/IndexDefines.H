@@ -53,12 +53,15 @@ namespace BCVars {
 
 namespace WRFBdyVars {
     enum {
-        U = 0,
-        V = 1,
-        W = 2,
-        T = 3,
-        MU = 4, // bdy perturbation dry air mass in column
-        PC = 5  // bdy perturbation dry air mass in column, How come this is same as MU?
+        U  = 0,
+        V  = 1,
+        T  = 2,
+#ifdef ERF_USE_MOISTURE
+        QV    , // water vapor
+#endif
+        MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
+        PC    , // p_s - p_top = dry hydrostatic pressure diference between the surface and the model top
+        NumTypes
     };
 }
 

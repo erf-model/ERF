@@ -25,7 +25,7 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
     amrex::Real alpha = (time - n * dT) / dT;
     amrex::Real oma   = 1.0 - alpha;
 
-    int ifab;
+    int ivar;
     // NOTE: we currently only store 1 component for each of bdy_data_xlo etc of each type, so for now we set
     //       bccomp = 0 to use in bdy_data_xlo etc ... but if we start to fill more than one component of cons
     //       we will need to fix this
@@ -35,16 +35,13 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
 
     if (bccomp_in == BCVars::xvel_bc) {
        amrex::Print() << "FILLING XVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
-       ifab = WRFBdyVars::U; // U
+       ivar = WRFBdyVars::U; // U
     } else if (bccomp_in == BCVars::yvel_bc) {
        amrex::Print() << "FILLING YVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
-       ifab = WRFBdyVars::V; // V
-    } else if (bccomp_in == BCVars::zvel_bc) {
-       amrex::Print() << "FILLING ZVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
-       ifab = WRFBdyVars::W; // W
+       ivar = WRFBdyVars::V; // V
     } else  if (bccomp_in == BCVars::RhoTheta_bc_comp) {
        amrex::Print() << "FILLING RHO THETA BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
-       ifab = WRFBdyVars::T; // T
+       ivar = WRFBdyVars::T; // T
     } else {
        amrex::Print() << "In fill_from_wrfbdy: icomp = " << icomp << " , bccomp = " << bccomp_in << " , ncomp = " << ncomp << std::endl;
        amrex::Abort("Don't know this bccomp in fill_from_wrfbdy");
@@ -57,14 +54,14 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
     // as  alpha * (data at time n+1) + (1 - alpha) * (data at time n)
 
     //
-    const auto& bdatxlo_n   = m_bdy_data_xlo[n  ][ifab].const_array();
-    const auto& bdatxlo_np1 = m_bdy_data_xlo[n+1][ifab].const_array();
-    const auto& bdatxhi_n   = m_bdy_data_xhi[n  ][ifab].const_array();
-    const auto& bdatxhi_np1 = m_bdy_data_xhi[n+1][ifab].const_array();
-    const auto& bdatylo_n   = m_bdy_data_ylo[n  ][ifab].const_array();
-    const auto& bdatylo_np1 = m_bdy_data_ylo[n+1][ifab].const_array();
-    const auto& bdatyhi_n   = m_bdy_data_yhi[n  ][ifab].const_array();
-    const auto& bdatyhi_np1 = m_bdy_data_yhi[n+1][ifab].const_array();
+    const auto& bdatxlo_n   = m_bdy_data_xlo[n  ][ivar].const_array();
+    const auto& bdatxlo_np1 = m_bdy_data_xlo[n+1][ivar].const_array();
+    const auto& bdatxhi_n   = m_bdy_data_xhi[n  ][ivar].const_array();
+    const auto& bdatxhi_np1 = m_bdy_data_xhi[n+1][ivar].const_array();
+    const auto& bdatylo_n   = m_bdy_data_ylo[n  ][ivar].const_array();
+    const auto& bdatylo_np1 = m_bdy_data_ylo[n+1][ivar].const_array();
+    const auto& bdatyhi_n   = m_bdy_data_yhi[n  ][ivar].const_array();
+    const auto& bdatyhi_np1 = m_bdy_data_yhi[n+1][ivar].const_array();
 
     // Fill here all the boundary conditions which are supplied by
     // planes we have read in and are interpolating in time

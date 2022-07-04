@@ -311,8 +311,10 @@ ERF::WritePlotFile ()
             mf_comp ++;
         }
 
+#ifdef ERF_USE_TERRAIN
         int klo = geom[lev].Domain().smallEnd(2);
         int khi = geom[lev].Domain().bigEnd(2);
+#endif
 
         if (containerHasElement(plot_deriv_names, "dpdx"))
         {
