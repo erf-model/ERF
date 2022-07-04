@@ -64,6 +64,9 @@ struct SolverChoice {
     {
         amrex::ParmParse pp("erf");
 
+        // Do we have terrain (or grid stretching)?
+        pp.query("use_terrain", use_terrain);
+
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
 
@@ -315,6 +318,14 @@ struct SolverChoice {
             };
         }
     }
+
+#ifdef ERF_USE_TERRAIN
+    // Default is terrain
+    bool        use_terrain            = true;
+#else
+    // Default is no terrain
+    bool        use_terrain            = false;
+#endif
 
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;

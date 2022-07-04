@@ -214,6 +214,21 @@ public:
 #else
                            );
 #endif
+
+    // Copy from the NC*fabs into the MultiFabs holding the initial data
+    void init_state_from_wrfinput(int lev,
+                            amrex::FArrayBox& state_vel_fab, amrex::FArrayBox& x_vel_fab,
+                            amrex::FArrayBox&     y_vel_fab, amrex::FArrayBox& z_vel_fab,
+                            const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
+                            const amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
+                            const amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab);
+
+#ifdef ERF_USE_TERRAIN
+    // Copy from NC_PH* fabs into the MultiFabs holding the terrain data
+    void init_terrain_from_wrfinput(int lev,  amrex::FArrayBox& z_phys,
+                                    const amrex::Vector<amrex::FArrayBox>& NC_PH_fab,
+                                    const amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
+#endif // ERF_USE_TERRAIN
 #endif //ERF_USE_NETCDF
 
     void init_from_input_sounding(int lev);
@@ -246,20 +261,6 @@ private:
 
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput(int lev);
-
-    // Copy from the NC*fabs into the MultiFabs holding the initial data
-    void init_state_from_wrfinput(int lev,
-                            amrex::FArrayBox& state_vel_fab, amrex::FArrayBox& x_vel_fab,
-                            amrex::FArrayBox&     y_vel_fab, amrex::FArrayBox& z_vel_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab);
-#ifdef ERF_USE_TERRAIN
-    // Copy from NC_PH* fabs into the MultiFabs holding the terrain data
-    void init_terrain_from_wrfinput(int lev,  amrex::FArrayBox& z_phys,
-                                    const amrex::Vector<amrex::FArrayBox>& NC_PH_fab,
-                                    const amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
-#endif // ERF_USE_TERRAIN
 #endif // ERF_USE_NETCDF
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
@@ -379,11 +380,6 @@ private:
     amrex::Real bdy_time_interval;
 #endif // ERF_USE_NETCDF
 
-#ifdef ERF_USE_TERRAIN
-    // Define z_phys_nd on nodes using an analytical expression
-    //void init_ideal_terrain(int lev);
-#endif
-
     // write checkpoint file to disk
     void WriteCheckpointFile () const;
 
@@ -428,8 +424,9 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 
-#ifdef ERF_USE_TERRAIN
     amrex::Vector<amrex::MultiFab> z_phys_nd;
+
+#ifdef ERF_USE_TERRAIN
     amrex::Vector<amrex::MultiFab> z_phys_cc;
     amrex::Vector<amrex::MultiFab> detJ_cc;
     amrex::Vector<amrex::MultiFab> pres_hse;

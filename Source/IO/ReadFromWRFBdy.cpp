@@ -534,7 +534,7 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
 }
 
 void
-convert_wrfbdy_data(Vector<Vector<FArrayBox>>& bdy_data,
+convert_wrfbdy_data(const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
                     const FArrayBox& NC_MUB_fab,
                     const FArrayBox& NC_MSFU_fab, const FArrayBox& NC_MSFV_fab,
                     const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
@@ -556,30 +556,29 @@ convert_wrfbdy_data(Vector<Vector<FArrayBox>>& bdy_data,
     Array4<Real const> rth_arr = NC_rhotheta_fab.const_array();
 
     int ntimes = bdy_data.size();
-    const Box& bx_mu  = bdy_data[0][WRFBdyVars::MU].box();
-    const Box& bx_mub = NC_MUB_fab.box();
     for (int nt = 0; nt < ntimes; nt++)
     {
         Array4<Real> bdy_u_arr  = bdy_data[nt][WRFBdyVars::U].array();
         Array4<Real> mu_arr     = bdy_data[nt][WRFBdyVars::MU].array(); // We believe this is cell-centerrd
 
+        int ilo  = domain.smallEnd()[0];
+        int ihi  = domain.bigEnd()[0];
+        int jlo  = domain.smallEnd()[1];
+        int jhi  = domain.bigEnd()[1];
+
         auto& bx_u  = bdy_data[0][WRFBdyVars::U].box();
-        int ilo_mu  = bx_mu.smallEnd()[0];
-        int ihi_mu  = bx_mu.bigEnd()[0];
-        int ilo_mub = bx_mub.smallEnd()[0];
-        int ihi_mub = bx_mub.bigEnd()[0];
         amrex::ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real xmu;
-            if (i == ilo_mu) {
+            if (i == ilo) {
                 xmu  = mu_arr(i,j,0);
-            } else if (i > ihi_mu) {
+            } else if (i > ihi) {
                 xmu  = mu_arr(i-1,j,0);
             } else {
                 xmu = (mu_arr(i,j,0) + mu_arr(i-1,j,0)) * 0.5;
             }
-            if (i == ilo_mub) {
+            if (i == ilo) {
                 xmu +=  mub_arr(i,j,0);
-            } else if (i > ihi_mub) {
+            } else if (i > ihi) {
                 xmu += mub_arr(i-1,j,0);
             } else {
                 xmu += (mub_arr(i,j,0) + mub_arr(i-1,j,0)) * 0.5;
@@ -588,32 +587,28 @@ convert_wrfbdy_data(Vector<Vector<FArrayBox>>& bdy_data,
 
             Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
             Real new_bdy = bdy_u_arr(i,j,k) * msfu_arr(i,j,0) / xmu_mult;
-            if (nt == 0 and std::abs(u_arr(i,j,k) - new_bdy) > 1.e-5) {
-                amrex::Print() << "INIT VS BDY U " << IntVect(i,j,k) << " " << u_arr(i,j,k) << " " << new_bdy <<
-                                   " " << std::abs(u_arr(i,j,k) - new_bdy) << std::endl;
-            }
+            // if (nt == 0 and std::abs(u_arr(i,j,k) - new_bdy) > 1.e-5) {
+            //     amrex::Print() << "INIT VS BDY U " << IntVect(i,j,k) << " " << u_arr(i,j,k) << " " << new_bdy <<
+            //                        " " << std::abs(u_arr(i,j,k) - new_bdy) << std::endl;
+            // }
             bdy_u_arr(i,j,k) = new_bdy;
         });
 
         Array4<Real> bdy_v_arr  = bdy_data[nt][WRFBdyVars::V].array();
 
         auto& bx_v  = bdy_data[0][WRFBdyVars::V].box();
-        int jlo_mu  = bx_mu.smallEnd()[1];
-        int jhi_mu  = bx_mu.bigEnd()[1];
-        int jlo_mub = bx_mub.smallEnd()[1];
-        int jhi_mub = bx_mub.bigEnd()[1];
         amrex::ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real xmu;
-            if (j == jlo_mu) {
+            if (j == jlo) {
                 xmu  = mu_arr(i,j,0);
-            } else if (j > jhi_mu) {
+            } else if (j > jhi) {
                 xmu  = mu_arr(i,j-1,0);
             } else {
                 xmu = (mu_arr(i,j,0) + mu_arr(i,j-1,0)) * 0.5;
             }
-            if (j == jlo_mub) {
+            if (j == jlo) {
                 xmu +=  mub_arr(i,j,0);
-            } else if (j > jhi_mub) {
+            } else if (j > jhi) {
                 xmu += mub_arr(i,j-1,0);
             } else {
                 xmu += (mub_arr(i,j,0) + mub_arr(i,j-1,0)) * 0.5;
@@ -621,10 +616,10 @@ convert_wrfbdy_data(Vector<Vector<FArrayBox>>& bdy_data,
 
             Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
             Real new_bdy = bdy_v_arr(i,j,k) * msfv_arr(i,j,0) / xmu_mult;
-             if (nt == 0 and std::abs(v_arr(i,j,k) - new_bdy) > 1.e-5) {
-                amrex::Print() << "INIT VS BDY V " << IntVect(i,j,k) << " " << v_arr(i,j,k) << " " << new_bdy <<
-                                   " " << std::abs(v_arr(i,j,k) - new_bdy) << std::endl;
-            }
+            // if (nt == 0 and std::abs(v_arr(i,j,k) - new_bdy) > 1.e-5) {
+            //    amrex::Print() << "INIT VS BDY V " << IntVect(i,j,k) << " " << v_arr(i,j,k) << " " << new_bdy <<
+            //                       " " << std::abs(v_arr(i,j,k) - new_bdy) << std::endl;
+            //}
             bdy_v_arr(i,j,k) = new_bdy;
         });
 
@@ -638,10 +633,10 @@ convert_wrfbdy_data(Vector<Vector<FArrayBox>>& bdy_data,
             Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
             Real new_bdy_Th = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
             Real inp_Th = rth_arr(i,j,k) / r_arr(i,j,k);
-            if (nt == 0 and std::abs(inp_Th - new_bdy_Th) > 1.e-6) {
-                amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << inp_Th << " " << new_bdy_Th <<
-                                " " << std::abs(inp_Th - new_bdy_Th) << std::endl;
-            }
+            // if (nt == 0 and std::abs(inp_Th - new_bdy_Th) > 1.e-6) {
+            //     amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << inp_Th << " " << new_bdy_Th <<
+            //                     " " << std::abs(inp_Th - new_bdy_Th) << std::endl;
+            // }
             bdy_t_arr(i,j,k) = new_bdy_Th; // NEED TO CONVERT THIS TO RHO THETA
         });
     } // ntimes
