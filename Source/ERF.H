@@ -156,16 +156,6 @@ public:
 
     void MakeHorizontalAverages();
 
-    void
-    init_from_input_sounding(
-            const amrex::Box &bx,
-            amrex::Array4<amrex::Real> const &state,
-            amrex::Array4<amrex::Real> const &x_vel,
-            amrex::Array4<amrex::Real> const &y_vel,
-            amrex::Array4<amrex::Real> const &z_vel,
-            amrex::GeometryData const &geomdata,
-            InputSoundingData const &inputSoundingData);
-
     // write plotfile to disk
     void WritePlotFile ();
 
@@ -212,29 +202,35 @@ public:
                              const amrex::Real time);
 
     // Read the netcdf wrfinput file once
-    void read_from_wrfinput(int lev);
-
-    // Copy from the NC*fabs into the MultiFabs holding the initial data
-    void init_from_wrfinput(int lev,
-                            const amrex::Box& bx,        amrex::FArrayBox& state_fab,
-                            amrex::FArrayBox& x_vel_fab, amrex::FArrayBox& y_vel_fab,
-                            amrex::FArrayBox& z_vel_fab
+    void read_from_wrfinput(int lev, int idx,
+                            amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_rhop_fab, amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_MUB_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab, amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab
 #ifdef ERF_USE_TERRAIN
-                           ,amrex::FArrayBox& z_phys
-#endif
+                           ,amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
+#else
                            );
-
-    // *** *** Vectors (over levels) of FArrayBox's for holding the INITIAL data
-    // Data read from the wrfinput NetCDF file
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_xvel_fab, NC_yvel_fab, NC_zvel_fab;
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_rho_fab, NC_rho_pert_fab, NC_rhotheta_fab;
-    //amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_p_base_fab, NC_p_pert_fab;
+#endif
 #endif //ERF_USE_NETCDF
+
+    void init_from_input_sounding(int lev);
+    void init_bx_from_input_sounding(
+            const amrex::Box &bx,
+            amrex::Array4<amrex::Real> const &state,
+            amrex::Array4<amrex::Real> const &x_vel,
+            amrex::Array4<amrex::Real> const &y_vel,
+            amrex::Array4<amrex::Real> const &z_vel,
+            amrex::GeometryData const &geomdata,
+            InputSoundingData const &inputSoundingData);
 
 private:
 
-    ////////////////
+    ///////////////////////////
     // private member functions
+    ///////////////////////////
 
     // read in some parameters from inputs file
     void ReadParameters();
@@ -245,6 +241,26 @@ private:
     void init1DArrays();
 
     void init_bcs();
+
+    void init_custom(int lev);
+
+#ifdef ERF_USE_NETCDF
+    void init_from_wrfinput(int lev);
+
+    // Copy from the NC*fabs into the MultiFabs holding the initial data
+    void init_state_from_wrfinput(int lev,
+                            amrex::FArrayBox& state_vel_fab, amrex::FArrayBox& x_vel_fab,
+                            amrex::FArrayBox&     y_vel_fab, amrex::FArrayBox& z_vel_fab,
+                            const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
+                            const amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
+                            const amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab);
+#ifdef ERF_USE_TERRAIN
+    // Copy from NC_PH* fabs into the MultiFabs holding the terrain data
+    void init_terrain_from_wrfinput(int lev,  amrex::FArrayBox& z_phys,
+                                    const amrex::Vector<amrex::FArrayBox>& NC_PH_fab,
+                                    const amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
+#endif // ERF_USE_TERRAIN
+#endif // ERF_USE_NETCDF
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev);
@@ -348,19 +364,6 @@ private:
     amrex::FArrayBox NC_TSK_fab;    // Surface Skin Temperature; Appears to be same as SST...
 
     amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab;
-
-    // *** *** FArrayBox's for holding the LATERAL BOUNDARY data (the four sides)
-    // Data read from the wrfbdy NetCDF file
-    amrex::Vector<std::string> bdyDataTimeStamps;
-    // The correspondence between {BXS, BXE, BYS, BYE} or {BTXS, BTXE, BTYS, BTYE} and {x_lo, x_hi, y_lo, y_hi}
-    // xlo = BXS, xhi = BXE, ylo = BYS, xhi = BYE
-    // XS = X Start, XE = X End, YS = Y Start, YE = Y End
-    // TODO: The numbers for variables on {BXS, BXE, BYS, BYE} are very large, while those on {BTXS, BTXE, BTYS, BTYE} are more realistic..
-
-#ifdef ERF_USE_TERRAIN
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_PH_fab;
-    amrex::Vector<amrex::Vector<amrex::FArrayBox>> NC_PHB_fab;
-#endif
 #endif // ERF_USE_NETCDF
 
     // Struct for working with the sounding data we take as an input

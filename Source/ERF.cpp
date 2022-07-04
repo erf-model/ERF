@@ -83,14 +83,6 @@ int         ERF::input_bndry_planes             = 0;
 
 amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
-#ifdef ERF_USE_NETCDF
-Real read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
-                      Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                      Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                      Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                      Vector<Vector<FArrayBox>>& bdy_data_yhi);
-#endif
-
 // constructor - reads in parameters from inputs file
 //             - sizes multilevel arrays and data structures
 //             - initializes BCRec boundary condition object
@@ -610,20 +602,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     int ngrow = ComputeGhostCells(solverChoice.spatial_order)+2;
     z_phys_nd[lev].define(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
 #endif
-
-#ifdef ERF_USE_NETCDF
-    NC_xvel_fab.resize(lev+1);
-    NC_yvel_fab.resize(lev+1);
-    NC_zvel_fab.resize(lev+1);
-    NC_rho_fab.resize(lev+1);
-    NC_rho_pert_fab.resize(lev+1);
-    NC_rhotheta_fab.resize(lev+1);
-
-#ifdef ERF_USE_TERRAIN
-    NC_PH_fab.resize(lev+1);
-    NC_PHB_fab.resize(lev+1);
-#endif
-#endif
 }
 
 void
@@ -631,31 +609,6 @@ ERF::init_only(int lev, Real time)
 {
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
-
-    // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
-    if (lev == 0) {
-        if (init_type == "input_sounding") {
-            if (input_sounding_file.empty())
-                amrex::Error("input_sounding file name must be provided via input");
-            input_sounding_data.read_from_file(input_sounding_file);
-        }
-    }
-
-#ifdef ERF_USE_NETCDF
-     // Note that we read the initial data at all the levels
-    if (init_type == "ideal" || init_type == "real") {
-        if (nc_init_file.size() == 0)
-            amrex::Error("NetCDF initialization file name must be provided via input");
-        read_from_wrfinput(lev);
-    }
-    if (lev == 0) {
-        if (init_type == "real" && (!geom[0].isPeriodic(0) || !geom[0].isPeriodic(1))) {
-            if (nc_bdy_file.empty())
-                amrex::Error("NetCDF boundary file name must be provided via input");
-            bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi);
-        }
-    }
-#endif //ERF_USE_NETCDF
 
     auto& lev_new = vars_new[lev];
 
@@ -665,63 +618,15 @@ ERF::init_only(int lev, Real time)
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
 
-    if (init_type == "custom" || init_type == "input_sounding") {
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-        for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const Box &bx = mfi.tilebox();
-            const auto &cons_arr = lev_new[Vars::cons].array(mfi);
-            const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
-            const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
-            const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
-
-            if (init_type == "custom") {
-#ifndef ERF_USE_TERRAIN
-                init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
-#else
-                const auto& r_hse_arr = dens_hse[lev].array(mfi);
-                const auto& p_hse_arr = pres_hse[lev].array(mfi);
-                const auto& z_nd_arr  = z_phys_nd[lev].const_array(mfi);
-                const auto& z_cc_arr  = z_phys_cc[lev].const_array(mfi);
-
-                init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                              r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
-                              geom[lev].data());
-#endif
-            }
-            else { // init_type == "input_sounding", simplified problem, shouldn't depend on ERF_USE_TERRAIN
-                init_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                                         geom[lev].data(), input_sounding_data);
-            }
-        } //mfi
-    } // init_type == "custom" || init_type == "input_sounding"
-
+    if (init_type == "input_sounding") {
+        init_from_input_sounding(lev);
+    } else if (init_type == "custom") {
+        init_custom(lev);
 #ifdef ERF_USE_NETCDF
-    else if (init_type == "ideal" || init_type == "real") {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+    } else if (init_type == "ideal" || init_type == "real") {
+        init_from_wrfinput(lev);
 #endif
-        // INITIAL DATA common for "ideal" as well as "real" simulation
-        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            const Box &bx = mfi.tilebox();
-            // Define fabs for holding the initial data
-            FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
-            FArrayBox &xvel_fab = lev_new[Vars::xvel][mfi];
-            FArrayBox &yvel_fab = lev_new[Vars::yvel][mfi];
-            FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
-
-#ifdef ERF_USE_TERRAIN
-          FArrayBox& z_phys_nd_fab = z_phys_nd[lev][mfi];
-          init_from_wrfinput(lev, bx, cons_fab, xvel_fab, yvel_fab, zvel_fab,
-                             z_phys_nd_fab);
-#else
-          init_from_wrfinput(lev, bx, cons_fab, xvel_fab, yvel_fab, zvel_fab);
-#endif
-        }
-    } // init_type == "ideal" || init_type == "real"
-#endif //ERF_USE_NETCDF
+    }
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
     // The data associated with the lower grid ID is considered the correct value.
