@@ -50,6 +50,8 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
 {
     amrex::Print() << "Loading boundary data from NetCDF file " << std::endl;
 
+    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+
     const auto& lo = domain.loVect();
     const auto& hi = domain.hiVect();
 
@@ -61,30 +63,6 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
 
     if (ParallelDescriptor::IOProcessor())
     {
-        // ******************************************************************
-        // Read the netcdf file and fill these FABs
-        // NOTE: the order and number of these must match the WRFBdyVars enum!
-        // WRFBdyVars:  U, V, T, QV, MU, PC
-        // ******************************************************************
-        Vector<std::string> nc_var_names;
-#ifdef ERF_USE_MOISTURE
-        Vector<std::string> nc_var_prefix = {"U","V","T","QV","MU","PC"};
-#else
-        Vector<std::string> nc_var_prefix = {"U","V","T","MU","PC"};
-#endif
-
-        for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
-        {
-           nc_var_names.push_back(nc_var_prefix[ip] + "_BXS");
-           nc_var_names.push_back(nc_var_prefix[ip] + "_BXE");
-           nc_var_names.push_back(nc_var_prefix[ip] + "_BYS");
-           nc_var_names.push_back(nc_var_prefix[ip] + "_BYE");
-        }
-
-        using RARRAY = NDArray<float>;
-        amrex::Vector<RARRAY> arrays(nc_var_names.size());
-        ReadWRFFile(nc_bdy_file, nc_var_names, arrays);
-
         // Read the time stamps
         using CharArray = NDArray<char>;
         amrex::Vector<CharArray> array_ts(1);
@@ -113,76 +91,105 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
             else if (nt >= 1)
                 AMREX_ALWAYS_ASSERT(epochTimes[nt] - epochTimes[nt-1] == timeInterval);
         }
+    }
 
-        // Our outermost loop is time
-        bdy_data_xlo.resize(ntimes);
-        bdy_data_xhi.resize(ntimes);
-        bdy_data_ylo.resize(ntimes);
-        bdy_data_yhi.resize(ntimes);
+    ParallelDescriptor::Bcast(&ntimes,1,ioproc);
+    ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
 
-        amrex::IntVect plo(lo);
-        amrex::IntVect phi(hi);
+    // Even though we may not read in all the variables, we need to make the arrays big enough for them (for now)
+    int nvars = WRFBdyVars::NumTypes*4;
 
-        // Even though we may not read in all the variables, we need to make the arrays big enough for them (for now)
-        int nvars = WRFBdyVars::NumTypes*4;
+    // Our outermost loop is time
+    bdy_data_xlo.resize(ntimes);
+    bdy_data_xhi.resize(ntimes);
+    bdy_data_ylo.resize(ntimes);
+    bdy_data_yhi.resize(ntimes);
 
-        // This loops over every variable on every face, so nvars should be 4 * number of "ivartype" below
-        for (int iv = 0; iv < nvars; iv++)
-        {
-            amrex::Print() << "Building FAB for the NetCDF variable : " << nc_var_names[iv] << std::endl;
+    amrex::IntVect plo(lo);
+    amrex::IntVect phi(hi);
 
-            int bdyVarType;
-
-            std::string first1 = nc_var_names[iv].substr(0,1);
-            std::string first2 = nc_var_names[iv].substr(0,2);
-
-            if        (first1 == "U") {
-                bdyVarType = WRFBdyVars::U;
-            } else if (first1 == "V") {
-                bdyVarType = WRFBdyVars::V;
-            } else if (first1 == "T") {
-                bdyVarType = WRFBdyVars::T;
+    // ******************************************************************
+    // Read the netcdf file and fill these FABs
+    // NOTE: the order and number of these must match the WRFBdyVars enum!
+    // WRFBdyVars:  U, V, T, QV, MU, PC
+    // ******************************************************************
+    Vector<std::string> nc_var_names;
 #ifdef ERF_USE_MOISTURE
-            } else if (first2 == "QV") {
-                bdyVarType = WRFBdyVars::QV;
+    Vector<std::string> nc_var_prefix = {"U","V","T","QV","MU","PC"};
+#else
+    Vector<std::string> nc_var_prefix = {"U","V","T","MU","PC"};
 #endif
-            } else if (first2 == "MU") {
-                bdyVarType = WRFBdyVars::MU;
-            } else if (first2 == "PC") {
-                bdyVarType = WRFBdyVars::PC;
-            } else {
-                amrex::Print() << "Trying to read " << first1 << " or " << first2 << std::endl;
-                amrex::Abort("dont know this variable");
-            }
 
-            // Assert that all data has the same number of time snapshots
-            int itimes = static_cast<int>(arrays[iv].get_vshape()[0]);
-            AMREX_ALWAYS_ASSERT(itimes == ntimes);
+    for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
+    {
+       nc_var_names.push_back(nc_var_prefix[ip] + "_BXS");
+       nc_var_names.push_back(nc_var_prefix[ip] + "_BXE");
+       nc_var_names.push_back(nc_var_prefix[ip] + "_BYS");
+       nc_var_names.push_back(nc_var_prefix[ip] + "_BYE");
+    }
 
-            // amrex::Print() << "SHAPE0 " << arrays[iv].get_vshape()[0] << std::endl;
-            // amrex::Print() << "SHAPE1 " << arrays[iv].get_vshape()[1] << std::endl;
-            // amrex::Print() << "SHAPE2 " << arrays[iv].get_vshape()[2] << std::endl;
-            // amrex::Print() << "SHAPE3 " << arrays[iv].get_vshape()[3] << std::endl;
+    using RARRAY = NDArray<float>;
+    amrex::Vector<RARRAY> arrays(nc_var_names.size());
 
-            std::string  last3 = nc_var_names[iv].substr(nc_var_names[iv].size()-3, 3);
-            int bdyType;
+    int ng;
+    if (ParallelDescriptor::IOProcessor())
+    {
+        ReadWRFFile(nc_bdy_file, nc_var_names, arrays);
 
-            if        (last3 == "BXS") {
-                bdyType = WRFBdyTypes::x_lo;
-            } else if (last3 == "BXE") {
-                bdyType = WRFBdyTypes::x_hi;
-            } else if (last3 == "BYS") {
-                bdyType = WRFBdyTypes::y_lo;
-            } else if (last3 == "BYE") {
-                bdyType = WRFBdyTypes::y_hi;
-            }
+        // Assert that the data has the same number of time snapshots
+        int itimes = static_cast<int>(arrays[0].get_vshape()[0]);
+        AMREX_ALWAYS_ASSERT(itimes == ntimes);
 
-            // Width of the boundary region (1 <= ng <= 5)
-            int ng = arrays[iv].get_vshape()[1];
+        // Width of the boundary region (1 <= ng <= 5)
+        ng = arrays[0].get_vshape()[1];
+    }
+    ParallelDescriptor::Bcast(&ng,1,ioproc);
 
-            Box y_line_no_stag(IntVect(lo[0], 0, 0), IntVect(hi[0], 0, 0));
+    // This loops over every variable on every face, so nvars should be 4 * number of "ivartype" below
+    for (int iv = 0; iv < nvars; iv++)
+    {
+        amrex::Print() << "Building FAB for the NetCDF variable : " << nc_var_names[iv] << std::endl;
 
-            if (bdyType == WRFBdyTypes::x_lo) {
+        int bdyVarType;
+
+        std::string first1 = nc_var_names[iv].substr(0,1);
+        std::string first2 = nc_var_names[iv].substr(0,2);
+
+        if        (first1 == "U") {
+            bdyVarType = WRFBdyVars::U;
+        } else if (first1 == "V") {
+            bdyVarType = WRFBdyVars::V;
+        } else if (first1 == "T") {
+            bdyVarType = WRFBdyVars::T;
+#ifdef ERF_USE_MOISTURE
+        } else if (first2 == "QV") {
+            bdyVarType = WRFBdyVars::QV;
+#endif
+        } else if (first2 == "MU") {
+            bdyVarType = WRFBdyVars::MU;
+        } else if (first2 == "PC") {
+            bdyVarType = WRFBdyVars::PC;
+        } else {
+            amrex::Print() << "Trying to read " << first1 << " or " << first2 << std::endl;
+            amrex::Abort("dont know this variable");
+        }
+
+        std::string  last3 = nc_var_names[iv].substr(nc_var_names[iv].size()-3, 3);
+        int bdyType;
+
+        if        (last3 == "BXS") {
+            bdyType = WRFBdyTypes::x_lo;
+        } else if (last3 == "BXE") {
+            bdyType = WRFBdyTypes::x_hi;
+        } else if (last3 == "BYS") {
+            bdyType = WRFBdyTypes::y_lo;
+        } else if (last3 == "BYE") {
+            bdyType = WRFBdyTypes::y_hi;
+        }
+
+        Box y_line_no_stag(IntVect(lo[0], 0, 0), IntVect(hi[0], 0, 0));
+
+        if (bdyType == WRFBdyTypes::x_lo) {
 
                 // *******************************************************************************
                 // xlo bdy
@@ -349,11 +356,18 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                         bdy_data_yhi[nt].push_back(FArrayBox(yhi_line, 1)); // PC
                     }
                 }
-            }
+        }
 
-            long num_pts;
+        long num_pts;
 
-            // Now fill the data
+        // Now fill the data
+        if (ParallelDescriptor::IOProcessor())
+        {
+            // amrex::Print() << "SHAPE0 " << arrays[iv].get_vshape()[0] << std::endl;
+            // amrex::Print() << "SHAPE1 " << arrays[iv].get_vshape()[1] << std::endl;
+            // amrex::Print() << "SHAPE2 " << arrays[iv].get_vshape()[2] << std::endl;
+            // amrex::Print() << "SHAPE3 " << arrays[iv].get_vshape()[3] << std::endl;
+
             Array4<Real> fab_arr;
             if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
                 bdyVarType == WRFBdyVars::T
@@ -488,22 +502,19 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     }
                 }
             } // bdyVarType
-        } // nc_var_names
-
-    } // if ParalleDescriptor::IOProcessor()
+        } // if ParalleDescriptor::IOProcessor()
+    } // nc_var_names
 
     // We put a barrier here so the rest of the processors wait to do anything until they have the data
     amrex::ParallelDescriptor::Barrier();
 
-    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
-
     // When an FArrayBox is built, space is allocated on every rank.  However, we only
     //    filled the data in these FABs on the IOProcessor.  So here we broadcast
     //    the data to every rank.
-    int nvars = bdy_data_xlo[0].size();
+    int n_per_time = nc_var_prefix.size();
     for (int nt = 0; nt < ntimes; nt++)
     {
-        for (int i = 0; i < nvars; i++)
+        for (int i = 0; i < n_per_time; i++)
         {
             ParallelDescriptor::Bcast(bdy_data_xlo[nt][i].dataPtr(),bdy_data_xlo[nt][i].box().numPts(),ioproc);
             ParallelDescriptor::Bcast(bdy_data_xhi[nt][i].dataPtr(),bdy_data_xhi[nt][i].box().numPts(),ioproc);
