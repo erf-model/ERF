@@ -176,19 +176,9 @@ ERF::read_from_wrfinput(int lev, int idx,
                                            NC_C2H_fab[idx].dataPtr());
 #endif
 
-        // Convert to rho by inverting
-        NC_rho_fab[idx].template invert<RunOn::Device>(1.0); // Get rho_base = 1/ALB
-
-        auto rhop_arr = NC_rhop_fab[idx].array();
-        ParallelFor(NC_rhop_fab[idx].box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            if (rhop_arr(i, j, k) != 0.0)
-                rhop_arr(i, j, k) = 1.0 / rhop_arr(i, j, k);
-            else
-                rhop_arr(i, j, k) = 0.0;
-        });
-
-        // Add rho_prime to rhp_base to get complete rho, i.e., rho = (1/ALB + 1/AL)
+        // WRF decomposes (1/rho) rather than rho so rho = 1/(ALB + AL)
         NC_rho_fab[idx].template plus<RunOn::Device>(NC_rhop_fab[idx], 0, 0, 1);
+        NC_rho_fab[idx].template invert<RunOn::Device>(1.0);
 
         // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
         const Real theta_ref = 300.0;
