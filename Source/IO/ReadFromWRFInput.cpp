@@ -104,7 +104,7 @@ ERF::read_from_wrfinput(int lev, int idx,
             NC_fabs.push_back(&host_NC_zvel_fab);     NC_names.push_back("W"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_rho_fab);      NC_names.push_back("ALB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_rhop_fab),     NC_names.push_back("AL"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-            NC_fabs.push_back(&host_NC_rhotheta_fab); NC_names.push_back("T_INIT"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_fabs.push_back(&host_NC_rhotheta_fab); NC_names.push_back("T"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 #ifdef ERF_USE_TERRAIN
             NC_fabs.push_back(&host_NC_PH_fab);       NC_names.push_back("PH"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_PHB_fab);      NC_names.push_back("PHB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
@@ -180,7 +180,6 @@ ERF::read_from_wrfinput(int lev, int idx,
         NC_rho_fab[idx].template plus<RunOn::Device>(NC_rhop_fab[idx], 0, 0, 1);
         NC_rho_fab[idx].template invert<RunOn::Device>(1.0);
 
-        // The ideal.exe NetCDF file has this ref value subtracted from theta or T_INIT. Need to add in ERF.
         const Real theta_ref = 300.0;
         NC_rhotheta_fab[idx].template plus<RunOn::Device>(theta_ref);
 

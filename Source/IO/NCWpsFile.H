@@ -13,7 +13,7 @@ using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
 /*
  // Read from wrfinput
- NetCDF variables of dimensions Time_BT_SN_WE: "AL", "ALB", "PB", "P", "T_INIT", "U", "V", "W" etc.
+ NetCDF variables of dimensions Time_BT_SN_WE: "AL", "ALB", "PB", "P", "T", "U", "V", "W" etc.
  NetCDF variables of dimensions Time_SN_WE   : "XLAT", "XLONG", "PSFC" etc.
  NetCDF variables of dimensions Time_BT      : "ZNU", "ZNW" etc.
  NetCDF variables of dimensions Time         : "P_TOP" etc.
