@@ -633,10 +633,10 @@ convert_wrfbdy_data(const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
             Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
             Real new_bdy_Th = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
             Real inp_Th = rth_arr(i,j,k) / r_arr(i,j,k);
-            // if (nt == 0 and std::abs(inp_Th - new_bdy_Th) > 1.e-6) {
-            //     amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << inp_Th << " " << new_bdy_Th <<
-            //                     " " << std::abs(inp_Th - new_bdy_Th) << std::endl;
-            // }
+             if (nt == 0 and std::abs(inp_Th - new_bdy_Th) > 1.e-6) {
+                 amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << inp_Th << " " << new_bdy_Th <<
+                                 " " << std::abs(inp_Th - new_bdy_Th) << std::endl;
+             }
             bdy_t_arr(i,j,k) = new_bdy_Th; // NEED TO CONVERT THIS TO RHO THETA
         });
     } // ntimes
