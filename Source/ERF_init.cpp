@@ -17,7 +17,7 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                  Vector<Vector<FArrayBox>>& bdy_data_yhi);
 
 void
-convert_wrfbdy_data(const Box& domain,
+convert_wrfbdy_data(int which, const Box& domain,
                     Vector<Vector<FArrayBox>>& bdy_data,
                     const FArrayBox& NC_MUB_fab,
                     const FArrayBox& NC_MSFU_fab,
@@ -94,16 +94,16 @@ ERF::init_from_wrfinput(int lev)
 
         const Box& domain = geom[lev].Domain();
 
-        convert_wrfbdy_data(domain,bdy_data_xlo,
+        convert_wrfbdy_data(0,domain,bdy_data_xlo,
                             NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_C1H_fab[0], NC_C2H_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
-        convert_wrfbdy_data(domain,bdy_data_xhi,
+        convert_wrfbdy_data(1,domain,bdy_data_xhi,
                             NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_C1H_fab[0], NC_C2H_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
-        convert_wrfbdy_data(domain,bdy_data_ylo,
+        convert_wrfbdy_data(2,domain,bdy_data_ylo,
                             NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_C1H_fab[0], NC_C2H_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
-        convert_wrfbdy_data(domain,bdy_data_yhi,
+        convert_wrfbdy_data(3,domain,bdy_data_yhi,
                             NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_C1H_fab[0], NC_C2H_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
     }
