@@ -32,14 +32,14 @@ amr.max_grid_size_x = 64      # maximum level number allowed
 amr.max_grid_size_y = 64      # maximum level number allowed
 
 # CHECKPOINT FILES
-amr.check_file      = chk        # root name of checkpoint file
-amr.check_int       = 100        # number of timesteps between checkpoints
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
-amr.plot_file       = plt        # root name of plotfile
-amr.plot_int        = 100      # number of timesteps between plotfiles
-amr.plot_vars        =  density x_velocity y_velocity z_velocity
-amr.derive_plot_vars = pressure theta
+erf.plot_file       = plt        # root name of plotfile
+erf.plot_int        = 100      # number of timesteps between plotfiles
+erf.plot_vars        =  density x_velocity y_velocity z_velocity
+erf.derive_plot_vars = pressure theta
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0

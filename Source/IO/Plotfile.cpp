@@ -19,7 +19,7 @@ ERF::PlotFileName (int lev) const
 void
 ERF::setPlotVariables ()
 {
-    ParmParse pp("amr");
+    ParmParse pp("erf");
 
     if (pp.contains("plot_vars"))
     {
