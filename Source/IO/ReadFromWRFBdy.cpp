@@ -582,6 +582,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
             bdy_u_arr(i,j,k) = new_bdy;
         });
 
+#ifndef AMREX_USE_GPU
         if (nt == 0) {
             FArrayBox diff(bx_u,1);
             diff.template copy<RunOn::Device>(bdy_data[0][WRFBdyVars::U]);
@@ -595,6 +596,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
             if (which == 3)
                 amrex::Print() << "Max norm of diff between initial U and bdy U on hi y face: " << diff.norm(0) << std::endl;
         }
+#endif
 
         auto& bx_v  = bdy_data[0][WRFBdyVars::V].box();
         amrex::ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -612,6 +614,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
             bdy_v_arr(i,j,k) = new_bdy;
         });
 
+#ifndef AMREX_USE_GPU
         if (nt == 0) {
             FArrayBox diff(bx_v,1);
             diff.template copy<RunOn::Device>(bdy_data[0][WRFBdyVars::V]);
@@ -625,6 +628,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
             if (which == 3)
                 amrex::Print() << "Max norm of diff between initial V and bdy V on hi y face: " << diff.norm(0) << std::endl;
         }
+#endif
 
 
         auto& bx_t = bdy_data[0][WRFBdyVars::T].box();
@@ -642,6 +646,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
             //}
         });
 
+#ifndef AMREX_USE_GPU
         if (nt == 0) {
             FArrayBox diff(bx_t,1);
             diff.template copy<RunOn::Device>(bdy_data[0][WRFBdyVars::T]);
@@ -656,6 +661,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
             if (which == 3)
                 amrex::Print() << "Max norm of diff between initial rTh and bdy rTh on hi y face: " << diff.norm(0) << std::endl;
         }
+#endif
     } // ntimes
 }
 #endif // ERF_USE_NETCDF
