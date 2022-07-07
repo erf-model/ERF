@@ -24,14 +24,14 @@ ERF::refinement_criteria_setup()
 {
     if (max_level > 0)
     {
-        std::string amr_prefix = "amr";
-        ParmParse ppamr(amr_prefix);
+        std::string pp_prefix = "erf";
+        ParmParse pp(pp_prefix);
         Vector<std::string> refinement_indicators;
-        ppamr.queryarr("refinement_indicators",refinement_indicators,0,ppamr.countval("refinement_indicators"));
+        pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
 
         for (int i=0; i<refinement_indicators.size(); ++i)
         {
-            std::string ref_prefix = amr_prefix + "." + refinement_indicators[i];
+            std::string ref_prefix = pp_prefix + "." + refinement_indicators[i];
 
             ParmParse ppr(ref_prefix);
             RealBox realbox;

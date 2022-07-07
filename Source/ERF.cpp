@@ -645,9 +645,8 @@ ERF::ReadParameters ()
         pp.query("stop_time", stop_time);
     }
 
+    ParmParse pp("erf");
     {
-        ParmParse pp("amr"); // Traditionally, these have prefix, amr.
-
         pp.query("regrid_int", regrid_int);
         pp.query("plot_file", plot_file);
         pp.query("plot_type", plot_type);
@@ -667,10 +666,6 @@ ERF::ReadParameters ()
             for (int i = 0; i < num_datalogs; i++)
                 setRecordDataInfo(i,datalogname[i]);
         }
-    }
-
-    {
-        ParmParse pp("erf");
 
         // Verbosity
         pp.query("v", verbose);
@@ -705,12 +700,8 @@ ERF::ReadParameters ()
         }
 
         AMREX_ASSERT(cfl > 0. || fixed_dt > 0.);
-    }
 
-    {  // Mesh refinement
-
-        ParmParse pp("erf");
-
+        // Mesh refinement
         pp.query("coupling_type",coupling_type);
         if (coupling_type == "OneWay")
         {
@@ -724,10 +715,8 @@ ERF::ReadParameters ()
         } else {
             amrex::Error("Unknown coupling type");
         }
-    }
 
-    {  // How to initialize
-        ParmParse pp("erf");
+        // How to initialize
         pp.query("init_type",init_type);
         if (init_type != "custom" &&
             init_type != "ideal" &&
@@ -772,10 +761,8 @@ ERF::ReadParameters ()
 
         // Text input_sounding file
         pp.query("input_sounding_file", input_sounding_file);
-    }
 
-    {  // Output format
-        ParmParse pp("erf");
+        // Output format
         pp.query("plotfile_type", plotfile_type);
 
         pp.query("output_1d_column", output_1d_column);

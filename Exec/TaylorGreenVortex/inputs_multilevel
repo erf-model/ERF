@@ -27,20 +27,19 @@ integration.rk.type    = 3
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v                = 1       # verbosity in Amr.cpp
-amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
-amr.check_file      = chk        # root name of checkpoint file
-amr.check_int       = 100        # number of timesteps between checkpoints
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
-amr.plot_file        = pltml      # root name of plotfile
-amr.plot_int         = 10       # number of timesteps between plotfiles
-amr.plot_vars        = density rhoadv_0 x_velocity y_velocity z_velocity
-amr.derive_plot_vars = pressure temp theta scalar
+erf.plot_file        = pltml      # root name of plotfile
+erf.plot_int         = 10       # number of timesteps between plotfiles
+erf.plot_vars        = density rhoadv_0 x_velocity y_velocity z_velocity
+erf.derive_plot_vars = pressure temp theta scalar
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
@@ -60,9 +59,10 @@ prob.V_0 = 1.0
 
 amr.max_level = 1
 amr.ref_ratio_vect = 2 2 1
-amr.refinement_indicators = box1
 
-amr.box1.in_box_lo =  1.57 1.57
-amr.box1.in_box_hi =  4.71 4.71
+erf.refinement_indicators = box1
+
+erf.box1.in_box_lo =  1.57 1.57
+erf.box1.in_box_hi =  4.71 4.71
 
 erf.coupling_type = "TwoWay"

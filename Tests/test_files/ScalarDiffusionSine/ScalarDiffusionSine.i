@@ -23,20 +23,19 @@ erf.fixed_mri_dt_ratio   = 4
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v                = 1       # verbosity in Amr.cpp
-amr.data_log         = datlog
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
-amr.check_file      = chk        # root name of checkpoint file
-amr.check_int       = 100        # number of timesteps between checkpoints
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
-amr.plot_file       = plt        # root name of plotfile
-amr.plot_int        = 20        # number of timesteps between plotfiles
-amr.plot_vars        =  density rhoadv_0 x_velocity y_velocity z_velocity
-amr.derive_plot_vars = pressure temp theta
+erf.plot_file       = plt        # root name of plotfile
+erf.plot_int        = 20        # number of timesteps between plotfiles
+erf.plot_vars        =  density rhoadv_0 x_velocity y_velocity z_velocity
+erf.derive_plot_vars = pressure temp theta
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
