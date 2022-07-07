@@ -5,7 +5,7 @@
 
 #ifdef ERF_USE_TERRAIN
 void
-ERF::init_ideal_terrain(int lev)
+ERF::init_custom_terrain(int lev)
 {
     // Domain cell size and real bounds
     auto dx = geom[lev].CellSizeArray();
