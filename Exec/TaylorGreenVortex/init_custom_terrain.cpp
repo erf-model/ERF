@@ -7,7 +7,7 @@ using namespace amrex;
 
 #ifdef ERF_USE_TERRAIN
 void
-ERF::init_ideal_terrain(int lev)
+ERF::init_custom_terrain(int lev)
 {
     auto dx = geom[lev].CellSizeArray();
     auto ProbLoArr = geom[lev].ProbLoArray();

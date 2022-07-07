@@ -1,5 +1,5 @@
 CEXE_headers += prob.H
 CEXE_sources += prob.cpp
 ifeq ($(USE_TERRAIN),TRUE)
-CEXE_sources += init_ideal_terrain.cpp
+CEXE_sources += init_custom_terrain.cpp
 endif

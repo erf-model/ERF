@@ -184,7 +184,7 @@ public:
                                                 const std::string &mfPrefix) const;
 
     // Define z_phys_nd on nodes using an analytical expression
-    void init_ideal_terrain(int lev);
+    void init_custom_terrain(int lev);
 
     void erf_enforce_hse(int lev,
                          amrex::MultiFab& dens, amrex::MultiFab& pres,
