@@ -114,11 +114,7 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
     // WRFBdyVars:  U, V, T, QV, MU, PC
     // ******************************************************************
     Vector<std::string> nc_var_names;
-#ifdef ERF_USE_MOISTURE
-    Vector<std::string> nc_var_prefix = {"U","V","T","QV","MU","PC"};
-#else
-    Vector<std::string> nc_var_prefix = {"U","V","T","MU","PC"};
-#endif
+    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC"};
 
     for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
     {
@@ -161,10 +157,8 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
             bdyVarType = WRFBdyVars::V;
         } else if (first1 == "T") {
             bdyVarType = WRFBdyVars::T;
-#ifdef ERF_USE_MOISTURE
         } else if (first2 == "QV") {
             bdyVarType = WRFBdyVars::QV;
-#endif
         } else if (first2 == "MU") {
             bdyVarType = WRFBdyVars::MU;
         } else if (first2 == "PC") {
@@ -216,12 +210,10 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // T
                     }
-#ifdef ERF_USE_MOISTURE
                 } else if (bdyVarType == WRFBdyVars::QV) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // QV
                     }
-#endif
                 } else if (bdyVarType == WRFBdyVars::MU ||
                            bdyVarType == WRFBdyVars::PC) {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -260,12 +252,10 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // T
                     }
-#ifdef ERF_USE_MOISTURE
                 } else if (bdyVarType == WRFBdyVars::QV) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // QV
                     }
-#endif
                 } else if (bdyVarType == WRFBdyVars::MU ||
                            bdyVarType == WRFBdyVars::PC) {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -300,12 +290,10 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1)); // T
                     }
-#ifdef ERF_USE_MOISTURE
                 } else if (bdyVarType == WRFBdyVars::QV) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1)); // QV
                     }
-#endif
                 } else if (bdyVarType == WRFBdyVars::MU ||
                            bdyVarType == WRFBdyVars::PC) {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -344,12 +332,10 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); //
                     }
-#ifdef ERF_USE_MOISTURE
                 } else if (bdyVarType == WRFBdyVars::QV) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); // QV
                     }
-#endif
                 } else if (bdyVarType == WRFBdyVars::MU ||
                            bdyVarType == WRFBdyVars::PC) {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -370,12 +356,7 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
 
             Array4<Real> fab_arr;
             if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
-                bdyVarType == WRFBdyVars::T
-#ifdef ERF_USE_MOISTURE
-               || bdyVarType == WRFBdyVars::QV)
-#else
-               )
-#endif
+                bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV)
             {
                 int ns2 = arrays[iv].get_vshape()[2];
                 int ns3 = arrays[iv].get_vshape()[3];
@@ -559,6 +540,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
         Array4<Real> bdy_u_arr  = bdy_data[nt][WRFBdyVars::U].array();  // This is face-centered
         Array4<Real> bdy_v_arr  = bdy_data[nt][WRFBdyVars::V].array();
         Array4<Real> bdy_t_arr  = bdy_data[nt][WRFBdyVars::T].array();
+        Array4<Real> bdy_qv_arr = bdy_data[nt][WRFBdyVars::QV].array();
         Array4<Real> mu_arr     = bdy_data[nt][WRFBdyVars::MU].array(); // This is cell-centered
 
         int ilo  = domain.smallEnd()[0];
@@ -631,19 +613,27 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
 #endif
 
 
-        auto& bx_t = bdy_data[0][WRFBdyVars::T].box();
+        auto& bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
+
         amrex::Real theta_ref = 300.;
         amrex::ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
             Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
             Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+
             Real new_bdy_Th = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
-            Real inp_Th = rth_arr(i,j,k) / r_arr(i,j,k);
-            bdy_t_arr(i,j,k) = new_bdy_Th; // NEED TO CONVERT THIS TO RHO THETA
-            //if (nt == 0 and std::abs(inp_Th - new_bdy_Th) > 2.) {
-            //    amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << inp_Th << " " << new_bdy_Th <<
-            //                    " " << std::abs(inp_Th - new_bdy_Th) << std::endl;
-            //}
+
+            Real qv_fac = (1. + bdy_qv_arr(i,j,k) / 0.622 / xmu_mult);
+
+            new_bdy_Th /= qv_fac;
+
+            bdy_t_arr(i,j,k) = new_bdy_Th; // STILL NEED TO CONVERT THIS TO RHO THETA
+
+            // Real inp_Th = rth_arr(i,j,k) / r_arr(i,j,k);
+            // if (nt == 0 and std::abs(inp_Th - new_bdy_Th) > 0.) {
+            //     amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << inp_Th << " " << new_bdy_Th <<
+            //                     " " << std::abs(inp_Th - new_bdy_Th) << std::endl;
+            // }
         });
 
 #ifndef AMREX_USE_GPU
