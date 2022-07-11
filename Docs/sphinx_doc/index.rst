@@ -71,6 +71,13 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    CouplingToAMRWind.rst
 
 .. toctree::
+   :caption: ERF vs WRF
+   :maxdepth: 1
+   :hidden:
+
+   ERFvsWRF.rst
+
+.. toctree::
    :caption: TESTING
    :maxdepth: 1
    :hidden:
