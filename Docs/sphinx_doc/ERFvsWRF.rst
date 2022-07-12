@@ -30,8 +30,6 @@ acoustic and gravity wave modes.  Variable time step capability.
 
 **Initial conditions**: both ERF and WRF have the ability to initialize problems from
 3D "real" data (output of real.exe), "ideal" data (output of ideal.exe) and from 1D input soundings.
-In addition, ERF simulations can be initialized in "custom" mode wherein the user
-writes the initialization routine.
 
 **Lateral boundary conditions**: Periodic, open, symmetric and specified (in wrfbdy* files).
 
@@ -43,6 +41,7 @@ writes the initialization routine.
 wrfinput files).
 
 **Nesting**: One-way or two-way.  Multiple levels and integer ratios.
+
 
 
 Key Differences
@@ -57,3 +56,4 @@ with vertical grid stretching permitted.
 the user writes the initialization routine.
 
 ERF does **not* have the capability for global simulation
+
