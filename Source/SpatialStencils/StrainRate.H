@@ -3,10 +3,7 @@
 
 #include <AMReX_BCRec.H>
 #include <IndexDefines.H>
-
-#ifdef ERF_USE_TERRAIN
 #include <TerrainMetrics.H>
-#endif
 
 AMREX_GPU_DEVICE
 inline bool
@@ -24,8 +21,6 @@ is_on_face(int bc_in)
 //        at the face, not at half a grid cell away from the face.   The stencils below also
 //        allow for the Dirichlet value to be non-zero.  A wall boundary condition will generate
 //        Dirichlet bc in the z-direction; inflow will generate Dirichlet bc in the lateral directions.
-
-#ifdef ERF_USE_TERRAIN
 
 // AML: Stress tensor only implemented for the case h_xi = h_eta = 0!
 
@@ -391,7 +386,6 @@ ComputeStrainRateWithTerrain(
 
   return strainRate;
 }
-#endif
 
 AMREX_GPU_DEVICE
 inline amrex::Real

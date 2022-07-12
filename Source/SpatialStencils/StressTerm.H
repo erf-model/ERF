@@ -39,7 +39,6 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
 }
 
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
-#ifdef ERF_USE_TERRAIN
 AMREX_GPU_DEVICE
 inline amrex::Real
 ComputeStressTermWithTerrain (
@@ -84,7 +83,6 @@ ComputeStressTermWithTerrain (
 
     return stressTerm;
 }
-#endif
 
 AMREX_GPU_DEVICE
 inline amrex::Real

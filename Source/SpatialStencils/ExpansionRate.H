@@ -1,8 +1,6 @@
 #ifndef _COMPUTE_EXPANSIONRATE_H_
 #define _COMPUTE_EXPANSIONRATE_H_
 
-#ifdef ERF_USE_TERRAIN
-
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
 
@@ -161,7 +159,6 @@ ComputeExpansionRateWithTerrain(
 
     return (1.0/3.0) * expansionRate;
 }
-#endif
 
 AMREX_GPU_DEVICE
 inline amrex::Real

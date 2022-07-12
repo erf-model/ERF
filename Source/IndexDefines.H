@@ -159,7 +159,6 @@ enum mathematicalBndryTypes : int { bogus        = -666,
 };
 }
 
-#ifdef ERF_USE_TERRAIN
 namespace TerrainMet {
   enum {
         h_xi=0,
@@ -171,6 +170,4 @@ namespace TerrainMet {
         all
   };
 }
-#endif
-
 #endif
