@@ -11,12 +11,8 @@ ERF::read_from_wrfinput(int lev, int idx,
                         Vector<FArrayBox>& NC_rhop_fab, Vector<FArrayBox>& NC_rhotheta_fab,
                         Vector<FArrayBox>& NC_MUB_fab ,
                         Vector<FArrayBox>& NC_MSFU_fab, Vector<FArrayBox>& NC_MSFV_fab,
-                        Vector<FArrayBox>& NC_C1H_fab , Vector<FArrayBox>& NC_C2H_fab
-#ifdef ERF_USE_TERRAIN
-                      , Vector<FArrayBox>& NC_PH_fab, Vector<FArrayBox>& NC_PHB_fab)
-#else
-                        )
-#endif
+                        Vector<FArrayBox>& NC_C1H_fab , Vector<FArrayBox>& NC_C2H_fab,
+                        Vector<FArrayBox>& NC_PH_fab, Vector<FArrayBox>& NC_PHB_fab)
 {
     amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
     Box input_box;

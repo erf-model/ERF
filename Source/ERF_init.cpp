@@ -44,10 +44,8 @@ ERF::init_from_wrfinput(int lev)
     Vector<FArrayBox> NC_MSFV_fab ; NC_MSFV_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C1H_fab  ; NC_C1H_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C2H_fab  ; NC_C2H_fab.resize(num_boxes_at_level[lev]);
-#ifdef ERF_USE_TERRAIN
-    Vector<FArrayBox> NC_PH_fab ; NC_PH_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_PHB_fab ; NC_PHB_fab.resize(num_boxes_at_level[lev]);
-#endif
+    Vector<FArrayBox> NC_PH_fab   ; NC_PH_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_PHB_fab  ; NC_PHB_fab.resize(num_boxes_at_level[lev]);
 
     if (nc_init_file.size() == 0)
         amrex::Error("NetCDF initialization file name must be provided via input");
@@ -145,7 +143,6 @@ ERF::init_state_from_wrfinput(int lev, FArrayBox& state_fab,
     } // idx
 }
 
-#ifdef ERF_USE_TERRAIN
 void
 ERF::init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
                                 const Vector<FArrayBox>& NC_PH_fab,
@@ -209,7 +206,6 @@ ERF::init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
         });
     } // idx
 }
-#endif // ERF_USE_TERRAIN
 #endif // ERF_USE_NETCDF
 
 void
