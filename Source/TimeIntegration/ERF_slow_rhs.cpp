@@ -11,10 +11,8 @@
 #include <EOS.H>
 #include <ERF.H>
 
-#ifdef ERF_USE_TERRAIN
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
-#endif
 
 using namespace amrex;
 
@@ -34,14 +32,11 @@ void erf_slow_rhs (int level,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<ABLMost>& most,
                    const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-#ifdef ERF_USE_TERRAIN
                    const MultiFab& z_phys_nd,
                    const MultiFab& detJ_cc,
-                   const MultiFab& r0,
-                   const MultiFab& p0,
-#else
+                   const MultiFab* r0,
+                   const MultiFab* p0,
                    const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
-#endif
                    const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                    const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
                    const int rhs_vars)
@@ -183,11 +178,15 @@ void erf_slow_rhs (int level,
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
-#ifdef ERF_USE_TERRAIN
         // These are metric terms for terrain-fitted coordiantes
-        const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
-        const Array4<const Real>& detJ = detJ_cc.const_array(mfi);
-#endif
+        if (solverChoice.use_terrain) {
+            const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
+            const Array4<const Real>& detJ = detJ_cc.const_array(mfi);
+        }
+        else {
+            const Array4<const Real> z_nd;
+            const Array4<const Real> detJ; 
+        } 
 
         const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 

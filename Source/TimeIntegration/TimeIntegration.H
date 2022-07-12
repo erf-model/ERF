@@ -37,15 +37,12 @@ void erf_slow_rhs(int level,
                   const SolverChoice& solverChoice,
                   std::unique_ptr<ABLMost>& most,
                   const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-#ifdef ERF_USE_TERRAIN
                   const amrex::MultiFab& z_phys_nd,
                   const amrex::MultiFab& detJ_cc,
-                  const amrex::MultiFab& r0,
-                  const amrex::MultiFab& p0,
-#else
+                  const amrex::MultiFab* r0,
+                  const amrex::MultiFab* p0,
                   const amrex::Real* dptr_dens_hse,
                   const amrex::Real* dptr_pres_hse,
-#endif
                   const amrex::Real* dptr_rayleigh_tau,
                   const amrex::Real* dptr_rayleigh_ubar,
                   const amrex::Real* dptr_rayleigh_vbar,
@@ -66,8 +63,8 @@ void erf_fast_rhs (int level,
 #ifdef ERF_USE_TERRAIN
                    const amrex::MultiFab& z_phys_nd,
                    const amrex::MultiFab& detJ_cc,
-                   const amrex::MultiFab& r0,
-                   const amrex::MultiFab& p0,
+                   const amrex::MultiFab* r0,
+                   const amrex::MultiFab* p0,
 #else
                    const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
 #endif
