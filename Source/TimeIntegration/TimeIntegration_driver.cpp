@@ -201,6 +201,7 @@ void ERF::erf_advance(int level,
                        const int rhs_vars=RHSVar::all) {
         if (verbose) amrex::Print() << "Calling rhs at level " << level << ", time = " << time << std::endl;
         Vector <MultiFab> S_scratch;
+        amrex::Print() << "Calling erf_slow from rhs_fun" << std::endl;//****************
         erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
                      xvel_new, yvel_new, zvel_new,
                      source, advflux, diffflux,
@@ -221,6 +222,7 @@ void ERF::erf_advance(int level,
                             const Real time,
                             const int rhs_vars=RHSVar::all) {
         if (verbose) Print() << "Calling slow rhs at level " << level << ", time = " << time << std::endl;
+        amrex::Print() << "Calling erf_slow from slow_rhs_fun" << std::endl;//****************
         erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
                      xvel_new, yvel_new, zvel_new,
                      source, advflux, diffflux,

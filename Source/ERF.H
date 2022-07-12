@@ -180,7 +180,8 @@ public:
                                                 const std::string &mfPrefix) const;
 
     // Define z_phys_nd on nodes using an analytical expression
-    void init_custom_terrain(int lev);
+    //void init_custom_terrain(int lev);
+    void init_custom_terrain(int lev) {}; //************
 
     //OVERLOADED BASED ON TERRAIN
     void erf_enforce_hse(int lev,
@@ -496,9 +497,7 @@ private:
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar", "pres_hse",
                                                     "dens_hse", "pert_pres", "pert_dens", "dpdx", "dpdy",
-#ifdef ERF_USE_TERRAIN
                                                     "pres_hse_x", "pres_hse_y", "z_phys", "detJ"
-#endif
                                                    };
 
     // algorithm choices

@@ -43,6 +43,9 @@ void erf_slow_rhs (int level,
 {
     BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
 
+    //***********************************
+    amrex::Print() << "IN RHS_SLOW TOAST" << std::endl;
+    
     amrex::Real theta_mean;
     if (most) theta_mean = most->theta_mean;
 
