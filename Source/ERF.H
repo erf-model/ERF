@@ -159,7 +159,6 @@ public:
     // write plotfile to disk
     void WritePlotFile ();
 
-#ifdef ERF_USE_TERRAIN
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
                                              const amrex::Vector<const amrex::MultiFab*> &mf,
@@ -186,6 +185,7 @@ public:
     // Define z_phys_nd on nodes using an analytical expression
     void init_custom_terrain(int lev);
 
+#ifdef ERF_USE_TERRAIN
     void erf_enforce_hse(int lev,
                          amrex::MultiFab& dens, amrex::MultiFab& pres,
                          amrex::MultiFab& z_cc);
@@ -208,12 +208,8 @@ public:
                             amrex::Vector<amrex::FArrayBox>& NC_rhop_fab, amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_MUB_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab, amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab
-#ifdef ERF_USE_TERRAIN
-                           ,amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
-#else
-                           );
-#endif
+                            amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
 
     // Copy from the NC*fabs into the MultiFabs holding the initial data
     void init_state_from_wrfinput(int lev,
@@ -223,12 +219,10 @@ public:
                             const amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
                             const amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab);
 
-#ifdef ERF_USE_TERRAIN
     // Copy from NC_PH* fabs into the MultiFabs holding the terrain data
     void init_terrain_from_wrfinput(int lev,  amrex::FArrayBox& z_phys,
                                     const amrex::Vector<amrex::FArrayBox>& NC_PH_fab,
                                     const amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
-#endif // ERF_USE_TERRAIN
 #endif //ERF_USE_NETCDF
 
     void init_from_input_sounding(int lev);
@@ -354,7 +348,6 @@ private:
 
     // *** *** FArrayBox's for holding the SURFACE data
     // Data read from the wrfinput NetCDF file
-    //TODO: Move the relevant variables under #ifdef ERF_USE_TERRAIN
     amrex::FArrayBox NC_HGT_fab;    // Terrain height (variable HGT in the wrfinput file)
     amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
     amrex::FArrayBox NC_z0_fab;     // Surface Roughness, z0 = z0 (IVGTYP)
@@ -426,9 +419,10 @@ private:
 
     amrex::Vector<amrex::MultiFab> z_phys_nd;
 
-#ifdef ERF_USE_TERRAIN
     amrex::Vector<amrex::MultiFab> z_phys_cc;
     amrex::Vector<amrex::MultiFab> detJ_cc;
+
+#ifdef ERF_USE_TERRAIN
     amrex::Vector<amrex::MultiFab> pres_hse;
     amrex::Vector<amrex::MultiFab> dens_hse;
 #else

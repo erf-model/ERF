@@ -56,12 +56,7 @@ ERF::init_from_wrfinput(int lev)
     {
         read_from_wrfinput(lev,idx,NC_xvel_fab,NC_yvel_fab,NC_zvel_fab,NC_rho_fab,
                            NC_rhop_fab,NC_rhoth_fab,NC_MUB_fab,NC_MSFU_fab,NC_MSFV_fab,
-                           NC_C1H_fab,NC_C2H_fab
-#ifdef ERF_USE_TERRAIN
-                           ,NC_PH_fab,NC_PHB_fab);
-#else
-                           );
-#endif
+                           NC_C1H_fab,NC_C2H_fab,NC_PH_fab,NC_PHB_fab);
     }
 
     auto& lev_new = vars_new[lev];
@@ -81,11 +76,16 @@ ERF::init_from_wrfinput(int lev)
         init_state_from_wrfinput(lev, cons_fab, xvel_fab, yvel_fab, zvel_fab,
                                  NC_xvel_fab, NC_yvel_fab, NC_zvel_fab,
                                  NC_rho_fab, NC_rhoth_fab);
-#ifdef ERF_USE_TERRAIN
-        FArrayBox& z_phys_nd_fab = z_phys_nd[lev][mfi];
-        init_terrain_from_wrfinput(lev, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
-#endif
     } // mf
+
+    if (solverChoice.use_terrain)
+    {
+        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            FArrayBox& z_phys_nd_fab = z_phys_nd[lev][mfi];
+            init_terrain_from_wrfinput(lev, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
+        } // mf
+    } // use_terrain
 
     if (init_type == "real" && (lev == 0) ) {
         if (nc_bdy_file.empty())

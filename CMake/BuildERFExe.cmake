@@ -21,9 +21,6 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} SYSTEM PUBLIC ${ERF_EOS_DIR})
 
   if(ERF_ENABLE_TERRAIN)
-    target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/SpatialStencils/TerrainMetrics.H 
-                   ${SRC_DIR}/SpatialStencils/TerrainMetrics.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_TERRAIN)
   endif()
 
@@ -92,6 +89,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SpatialStencils/ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/SpatialStencils/MomentumToVelocity.cpp
        ${SRC_DIR}/SpatialStencils/VelocityToMomentum.cpp
+       ${SRC_DIR}/SpatialStencils/TerrainMetrics.H 
+       ${SRC_DIR}/SpatialStencils/TerrainMetrics.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStepping.cpp
        ${SRC_DIR}/TimeIntegration/ERF_MRI.H
