@@ -358,12 +358,12 @@ ERF::InitData ()
 
         restart();
 
-#ifdef ERF_USE_TERRAIN
         // This must come after the call to restart because that
         //      is where we read in the mesh data
-        for (int lev = finest_level-1; lev >= 0; --lev)
-            make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
-#endif
+        if (solverChoice.use_terrain) {
+            for (int lev = finest_level-1; lev >= 0; --lev)
+                make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
+        }
     }
 
     if (input_bndry_planes) {

@@ -3,15 +3,12 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-#include <ERF_Constants.H>
-#include <SpatialStencils.H>
-#include <TimeIntegration.H>
 #include <EOS.H>
-
-#ifdef ERF_USE_TERRAIN
-#include <TerrainMetrics.H>
+#include <ERF_Constants.H>
 #include <IndexDefines.H>
-#endif
+#include <SpatialStencils.H>
+#include <TerrainMetrics.H>
+#include <TimeIntegration.H>
 
 using namespace amrex;
 
@@ -26,17 +23,15 @@ void erf_fast_rhs (int level,
                    const amrex::Geometry geom,
                    amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
-#ifdef ERF_USE_TERRAIN
-                   const MultiFab& z_phys_nd,
-                   const MultiFab& detJ_cc,
-                   const MultiFab& r0,
-                   const MultiFab& p0,
-#else
-                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
-#endif
+                         MultiFab* z_phys_nd,
+                         MultiFab* detJ_cc,
+                   const MultiFab* r0,
+                   const MultiFab* p0,
                    const amrex::Real dtau, const amrex::Real facinv)
 {
     BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
+
+    bool l_use_terrain = solverChoice.use_terrain; 
 
     // Per p2902 of Klemp-Skamarock-Dudhia-2007
     // beta_s = -1.0 : fully explicit
@@ -173,12 +168,11 @@ void erf_fast_rhs (int level,
         const Array4<      Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
         const Array4<      Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
-#ifdef ERF_USE_TERRAIN
-        const Array4<const Real>& z_nd   = z_phys_nd.const_array(mfi);
-        const Array4<const Real>& detJ   = detJ_cc.const_array(mfi);
-        const Array4<const Real>& r0_arr = r0.const_array(mfi);
-        const Array4<const Real>& p0_arr = p0.const_array(mfi);
-#endif
+        const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ   = l_use_terrain ?   detJ_cc->const_array(mfi) : Array4<const Real>{};
+
+        const Array4<const Real>& r0_arr = r0->const_array(mfi);
+        const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
         const Array4<Real>& extrap_arr = extrap.array(mfi);
 
@@ -213,28 +207,30 @@ void erf_fast_rhs (int level,
                 Real drho_theta_hi = extrap_arr(i  ,j,k);
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
 
-#ifdef ERF_USE_TERRAIN
-                Real met_h_xi,met_h_eta,met_h_zeta;
-                ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
-                Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
-                Real gp_zeta_on_iface;
-                if(k==0) {
-                    gp_zeta_on_iface = 0.5 * dzi * (
-                                                   extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
-                                                 - extrap_arr(i-1,j,k  ) - extrap_arr(i,j,k  ) );
-                } else if(k==domhi_z) {
-                    gp_zeta_on_iface = 0.5 * dzi * (
-                                                   extrap_arr(i-1,j,k  ) + extrap_arr(i,j,k  )
-                                                 - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
+                Real gpx;
+                if (l_use_terrain) {
+                    Real met_h_xi,met_h_eta,met_h_zeta;
+                    ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                    Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
+                    Real gp_zeta_on_iface;
+                    if(k==0) {
+                        gp_zeta_on_iface = 0.5 * dzi * (
+                                                       extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
+                                                     - extrap_arr(i-1,j,k  ) - extrap_arr(i,j,k  ) );
+                    } else if(k==domhi_z) {
+                        gp_zeta_on_iface = 0.5 * dzi * (
+                                                       extrap_arr(i-1,j,k  ) + extrap_arr(i,j,k  )
+                                                     - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
+                    } else {
+                        gp_zeta_on_iface = 0.25 * dzi * (
+                                                        extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
+                                                      - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
+                    }
+                    gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
                 } else {
-                    gp_zeta_on_iface = 0.25 * dzi * (
-                                                    extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
-                                                  - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
+                    gpx = (drho_theta_hi - drho_theta_lo)*dxi;
                 }
-                Real gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
-#else
-                Real gpx = (drho_theta_hi - drho_theta_lo)*dxi;
-#endif
+
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
                                 +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
@@ -272,28 +268,30 @@ void erf_fast_rhs (int level,
                 Real drho_theta_hi = extrap_arr(i,j,k);
                 Real drho_theta_lo = extrap_arr(i,j-1,k);
 
-#ifdef ERF_USE_TERRAIN
-                Real met_h_xi,met_h_eta,met_h_zeta;
-                ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
-                Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
-                Real gp_zeta_on_jface;
-                if(k==0) {
-                    gp_zeta_on_jface = 0.5 * dzi * (
-                                                   extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
-                                                 - extrap_arr(i,j,k  ) - extrap_arr(i,j-1,k  ) );
-                } else if(k==domhi_z) {
-                    gp_zeta_on_jface = 0.5 * dzi * (
-                                                   extrap_arr(i,j,k  ) + extrap_arr(i,j-1,k  )
-                                                 - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
-                } else {
-                    gp_zeta_on_jface = 0.25 * dzi * (
-                                                    extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
-                                                  - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
-                }
-                Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
-#else
-                Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
-#endif
+                Real gpy;
+                if (l_use_terrain) {
+                    Real met_h_xi,met_h_eta,met_h_zeta;
+                    ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                    Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
+                    Real gp_zeta_on_jface;
+                    if(k==0) {
+                        gp_zeta_on_jface = 0.5 * dzi * (
+                                                       extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
+                                                     - extrap_arr(i,j,k  ) - extrap_arr(i,j-1,k  ) );
+                    } else if(k==domhi_z) {
+                        gp_zeta_on_jface = 0.5 * dzi * (
+                                                       extrap_arr(i,j,k  ) + extrap_arr(i,j-1,k  )
+                                                     - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
+                    } else {
+                        gp_zeta_on_jface = 0.25 * dzi * (
+                                                        extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
+                                                      - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
+                    }
+                    gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+               } else {
+                    gpy = (drho_theta_hi - drho_theta_lo)*dyi;
+               }
+
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
                                 +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
@@ -338,17 +336,10 @@ void erf_fast_rhs (int level,
             //Note we don't act on the bottom or top boundaries of the domain
             for (int k = klo+1; k < khi; ++k)
             {
-#ifdef ERF_USE_TERRAIN
                 Real rhobar_lo = (k == 0) ?  r0_arr(i,j,k) : r0_arr(i,j,k-1);
                 Real rhobar_hi = r0_arr(i,j,k  );
                 Real  pibar_lo = getExnergivenRTh(p0_arr(i,j,k-1));
                 Real  pibar_hi = getExnergivenRTh(p0_arr(i,j,k  ));
-#else
-                Real rhobar_lo = (k == 0) ?  dptr_dens_hse[k] : dptr_dens_hse[k-1];
-                Real rhobar_hi = dptr_dens_hse[k];
-                Real  pibar_lo = getExnergivenRTh(dptr_pres_hse[k-1]);
-                Real  pibar_hi = getExnergivenRTh(dptr_pres_hse[k  ]);
-#endif
 
                 // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
                 // We set grav_gpu[2] to be the vector component which is negative
@@ -366,13 +357,13 @@ void erf_fast_rhs (int level,
                 Real h_zeta_cc_yface_hi = 1.0;
                 Real h_zeta_cc_yface_lo = 1.0;
 
-#ifdef ERF_USE_TERRAIN
-                h_zeta_on_kface = 0.125 * dzi * (
-                    z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
-                   -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
-
-                detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
-#endif
+                if (l_use_terrain) {
+                    h_zeta_on_kface = 0.125 * dzi * (
+                        z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
+                       -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
+    
+                    detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+                }
 
                 Real coeff_P = -Gamma * R_d * pi_c * dzi / h_zeta_on_kface
                              +  halfg * R_d * rhobar_hi * pi_hi  /
@@ -412,28 +403,30 @@ void erf_fast_rhs (int level,
                                             coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
 
                 // line 4 (order dtau^2)
-#ifdef ERF_USE_TERRAIN
-                Real Omega_hi = OmegaFromW(i,j,k+1,old_drho_w(i,j,k+1),old_drho_u,old_drho_v,z_nd,dxInv);
-                Real Omega_lo = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
-                h_zeta_cc_xface_hi = 0.5 * dzi *
-                  (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
-                    -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
-
-                h_zeta_cc_xface_lo = 0.5 * dzi *
-                  (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
-                    -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
-
-                h_zeta_cc_yface_hi = 0.5 * dzi *
-                  (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                    -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
-
-                h_zeta_cc_yface_lo = 0.5 * dzi *
-                  (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
-                    -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
-#else
-                Real Omega_hi = old_drho_w(i,j,k+1);
-                Real Omega_lo = old_drho_w(i,j,k  );
-#endif
+                Real Omega_hi;
+                Real Omega_lo;
+                if (l_use_terrain) {
+                    Omega_hi = OmegaFromW(i,j,k+1,old_drho_w(i,j,k+1),old_drho_u,old_drho_v,z_nd,dxInv);
+                    Omega_lo = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
+                    h_zeta_cc_xface_hi = 0.5 * dzi *
+                      (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
+                        -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
+    
+                    h_zeta_cc_xface_lo = 0.5 * dzi *
+                      (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
+                        -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
+    
+                    h_zeta_cc_yface_hi = 0.5 * dzi *
+                      (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
+                        -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
+    
+                    h_zeta_cc_yface_lo = 0.5 * dzi *
+                      (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
+                        -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
+                } else {
+                    Omega_hi = old_drho_w(i,j,k+1);
+                    Omega_lo = old_drho_w(i,j,k  );
+                }
                 R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
                          ( beta_1 * dzi * (Omega_hi - Omega_lo)    +
                                     dxi * (new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi  -
@@ -454,28 +447,28 @@ void erf_fast_rhs (int level,
                                             new_drho_v(i,j  ,k)*Theta_y_lo*h_zeta_cc_yface_lo) );
 
                 // line 5 (order dtau^2)
-#ifdef ERF_USE_TERRAIN
-                Omega_hi = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
-                Omega_lo = OmegaFromW(i,j,k-1,old_drho_w(i,j,k-1),old_drho_u,old_drho_v,z_nd,dxInv);
-                h_zeta_cc_xface_hi = 0.5 * dzi *
-                  (  z_nd(i+1,j  ,k  ) + z_nd(i+1,j+1,k  )
-                    -z_nd(i+1,j  ,k-1) - z_nd(i+1,j+1,k-1) );
-
-                h_zeta_cc_xface_lo = 0.5 * dzi *
-                  (  z_nd(i  ,j  ,k  ) + z_nd(i  ,j+1,k  )
-                    -z_nd(i  ,j  ,k-1) - z_nd(i  ,j+1,k-1) );
-
-                h_zeta_cc_yface_hi = 0.5 * dzi *
-                  (  z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
-                    -z_nd(i  ,j+1,k-1) - z_nd(i+1,j+1,k-1) );
-
-                h_zeta_cc_yface_lo = 0.5 * dzi *
-                  (  z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
-                    -z_nd(i  ,j  ,k-1) - z_nd(i+1,j  ,k-1) );
-#else
-                Omega_hi = old_drho_w(i,j,k  );
-                Omega_lo = old_drho_w(i,j,k-1);
-#endif
+                if (l_use_terrain) {
+                    Omega_hi = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
+                    Omega_lo = OmegaFromW(i,j,k-1,old_drho_w(i,j,k-1),old_drho_u,old_drho_v,z_nd,dxInv);
+                    h_zeta_cc_xface_hi = 0.5 * dzi *
+                      (  z_nd(i+1,j  ,k  ) + z_nd(i+1,j+1,k  )
+                        -z_nd(i+1,j  ,k-1) - z_nd(i+1,j+1,k-1) );
+    
+                    h_zeta_cc_xface_lo = 0.5 * dzi *
+                      (  z_nd(i  ,j  ,k  ) + z_nd(i  ,j+1,k  )
+                        -z_nd(i  ,j  ,k-1) - z_nd(i  ,j+1,k-1) );
+    
+                    h_zeta_cc_yface_hi = 0.5 * dzi *
+                      (  z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
+                        -z_nd(i  ,j+1,k-1) - z_nd(i+1,j+1,k-1) );
+    
+                    h_zeta_cc_yface_lo = 0.5 * dzi *
+                      (  z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
+                        -z_nd(i  ,j  ,k-1) - z_nd(i+1,j  ,k-1) );
+                } else {
+                    Omega_hi = old_drho_w(i,j,k  );
+                    Omega_lo = old_drho_w(i,j,k-1);
+                }
                 R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
                          ( beta_1 * dzi * (Omega_hi - Omega_lo) +
                                     dxi * (new_drho_u(i+1,j,k-1)*h_zeta_cc_xface_hi  -
@@ -497,9 +490,9 @@ void erf_fast_rhs (int level,
 
                 // line 1
                 RHS(k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
-#ifdef ERF_USE_TERRAIN
-                RHS(k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
-#endif
+                if (l_use_terrain) {
+                    RHS(k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
+                }
           } // k
 
           // w_0 = 0
@@ -529,11 +522,11 @@ void erf_fast_rhs (int level,
           }
 
           for (int k = 0; k <= klen; k++) {
-#ifdef ERF_USE_TERRAIN
-              new_drho_w(i,j,k) = WFromOmega(i,j,k,soln(k),new_drho_u,new_drho_v,z_nd,dxInv);
-#else
-              new_drho_w(i,j,k) = soln(k);
-#endif
+              if (l_use_terrain) {
+                  new_drho_w(i,j,k) = WFromOmega(i,j,k,soln(k),new_drho_u,new_drho_v,z_nd,dxInv);
+              } else {
+                  new_drho_w(i,j,k) = soln(k);
+              }
               fast_rhs_rho_w(i,j,k) = ( new_drho_w(i,j,k) - old_drho_w(i,j,k) - dtau * slow_rhs_rho_w(i,j,k)) / dtau;
 
               avg_zmom(i,j,k) += facinv * new_drho_w(i,j,k);
@@ -551,10 +544,7 @@ void erf_fast_rhs (int level,
         int ncomp      = 2;
         AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w,
                              prim, fast_rhs_cell, advflux_x, advflux_y, advflux_z,
-#ifdef ERF_USE_TERRAIN
-                             z_nd, detJ,
-#endif
-                             dxInv, l_spatial_order, false, false);
+                             z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, false, false);
 
         // Compute the RHS for the flux terms from this stage --
         //     we do it this way so we don't double count

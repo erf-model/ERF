@@ -10,33 +10,6 @@ using namespace amrex;
 
 ProbParm parms;
 
-#ifdef ERF_USE_TERRAIN
-void
-erf_init_dens_hse(amrex::MultiFab& rho_hse,
-                  const amrex::MultiFab& z_phys_nd,
-                  const amrex::MultiFab& z_phys_cc,
-                  amrex::Geometry const& geom)
-{
-    Print() << "Fill this up as desired...Needed for linking" << std::endl;
-}
-void
-init_custom_prob(
-        const amrex::Box& bx,
-        amrex::Array4<amrex::Real> const& state,
-        amrex::Array4<amrex::Real> const& x_vel,
-        amrex::Array4<amrex::Real> const& y_vel,
-        amrex::Array4<amrex::Real> const& z_vel,
-        amrex::Array4<amrex::Real> const& r_hse,
-        amrex::Array4<amrex::Real> const& p_hse,
-        amrex::Array4<amrex::Real const> const& z_nd,
-        amrex::Array4<amrex::Real const> const& z_cc,
-        amrex::GeometryData const& geomdata)
-{
-    Print() << "Fill this up as desired...Needed for linking" << std::endl;
-}
-
-#else //ERF_USE_TERRAIN = FALSE
-
 void
 init_isentropic_hse(const Real& r_sfc, const Real& theta,
                           Real* r,           Real* p,
@@ -124,13 +97,15 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
 }
 
 void
-erf_init_dens_hse(Real* dens_hse_ptr,
-                  Geometry const& geom,
-                  const int /*ng_dens_hse*/)
+erf_init_dens_hse(amrex::MultiFab& rho_hse,
+                  const amrex::MultiFab* z_phys_nd,
+                  const amrex::MultiFab* z_phys_cc,
+                  amrex::Geometry const& geom, 
+                  const int use_terrain)
 {
   const Real prob_lo_z = geom.ProbLo()[2];
   const Real dz        = geom.CellSize()[2];
-  const int khi               = geom.Domain().bigEnd()[2];
+  const int khi        = geom.Domain().bigEnd()[2];
 
   const Real& T_sfc    = 300.;
   const Real& rho_sfc  = p_0 / (R_d*T_sfc);
@@ -141,13 +116,18 @@ erf_init_dens_hse(Real* dens_hse_ptr,
 
   init_isentropic_hse(rho_sfc,Thetabar,r.data(),p.data(),dz,prob_lo_z,khi);
 
-  for (int k = 0; k <= khi; k++)
-  {
-      dens_hse_ptr[k] = r[k];
-  }
-
-  dens_hse_ptr[   -1] = dens_hse_ptr[  0];
-  dens_hse_ptr[khi+1] = dens_hse_ptr[khi];
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            rho_hse_arr(i,j,k) = r[k];
+        });
+    }
 }
 
 void
@@ -253,8 +233,6 @@ init_custom_prob(
 
   amrex::Gpu::streamSynchronize();
 }
-
-#endif //ERF_USE_TERRAIN
 
 void
 erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,

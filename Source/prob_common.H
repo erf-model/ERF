@@ -8,13 +8,14 @@ void amrex_probinit (
   const amrex_real* problo,
   const amrex_real* probhi);
 
-#ifdef ERF_USE_TERRAIN
 void
 erf_init_dens_hse(amrex::MultiFab& dens_hse,
-                  const amrex::MultiFab& z_phys_nd,
-                  const amrex::MultiFab& z_phys_cc,
-                  amrex::Geometry const& geom);
+                  const amrex::MultiFab* z_phys_nd,
+                  const amrex::MultiFab* z_phys_cc,
+                  amrex::Geometry const& geom,
+                  const int use_terrain);
 
+#ifdef ERF_USE_TERRAIN
 void
 init_custom_prob(
   const amrex::Box& bx,
@@ -30,10 +31,6 @@ init_custom_prob(
 
 #else
 
-void
-erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::Geometry const& geom,
-                  const int ng_dens_hse);
 void
 init_custom_prob(
   const amrex::Box& bx,

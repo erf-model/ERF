@@ -30,6 +30,7 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
     eddyViscosity.setVal(0.0);
 
     bool l_vert_only = vert_only;
+    bool l_use_terrain = solverChoice.use_terrain;
 
     // Compute the turbulent viscosity
     if (solverChoice.les_type == LESType::Smagorinsky)
@@ -57,11 +58,11 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-#ifdef ERF_USE_TERRAIN
-            amrex::Real SmnSmn = ComputeSmnSmnWithTerrain(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
-#else
-            amrex::Real SmnSmn = ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
-#endif
+            amrex::Real SmnSmn;
+            if (l_use_terrain)
+                SmnSmn = ComputeSmnSmnWithTerrain(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
+            else
+                SmnSmn = ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 
             // Note the positive sign, which aligns well with the positive sign in the diffusion term for momentum equation
             K(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);

@@ -19,9 +19,6 @@ void ERF::erf_advance(int level,
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt_advance, const amrex::Real old_time,
                       amrex::InterpFaceRegister* ifr,
-                      MultiFab* r0, MultiFab* p0,
-                      const amrex::Real* dptr_dens_hse,
-                      const amrex::Real* dptr_pres_hse,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
@@ -35,6 +32,10 @@ void ERF::erf_advance(int level,
 
     const BoxArray& ba            = cons_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();
+
+    // Define these if they exist
+    MultiFab* zp = solverChoice.use_terrain ? &z_phys_nd[level] : nullptr;
+    MultiFab* dJ = solverChoice.use_terrain ? &detJ_cc[level]   : nullptr;
 
     // **************************************************************************************
     // Temporary array that we use to store primitive advected quantities for the RHS
@@ -207,9 +208,7 @@ void ERF::erf_advance(int level,
                      source, advflux, diffflux,
                      fine_geom, ifr, solverChoice,
                      m_most, domain_bcs_type_d,
-                     z_phys_nd[level], detJ_cc[level],
-                     r0, p0,
-                     dptr_dens_hse, dptr_pres_hse,
+                     zp, dJ, &dens_hse[level], &pres_hse[level],
                      dptr_rayleigh_tau, dptr_rayleigh_ubar,
                      dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
                      rhs_vars);
@@ -227,9 +226,7 @@ void ERF::erf_advance(int level,
                      xvel_new, yvel_new, zvel_new,
                      source, advflux, diffflux,
                      fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
-                     z_phys_nd[level], detJ_cc[level],
-                     r0, p0,
-                     dptr_dens_hse, dptr_pres_hse,
+                     zp, dJ, &dens_hse[level], &pres_hse[level],
                      dptr_rayleigh_tau, dptr_rayleigh_ubar,
                      dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
                      rhs_vars);
@@ -245,11 +242,7 @@ void ERF::erf_advance(int level,
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << fast_dt << std::endl;
         erf_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
                      S_data, S_scratch, advflux, fine_geom, ifr, solverChoice,
-#ifdef ERF_USE_TERRAIN
-                     z_phys_nd[level], detJ_cc[level], r0, p0,
-#else
-                     dptr_dens_hse, dptr_pres_hse,
-#endif
+                     zp, dJ, &dens_hse[level], &pres_hse[level],
                      fast_dt, inv_fac);
     };
 

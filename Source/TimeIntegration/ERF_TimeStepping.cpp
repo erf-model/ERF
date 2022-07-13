@@ -164,13 +164,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
     MultiFab::Copy(cons_mf,S_old,0,0,S_old.nComp(),S_old.nGrowVect());
-
-    // Pass the 1D arrays if relevant
-    MultiFab* r0 = solverChoice.use_terrain ? &dens_hse[lev] : nullptr;
-    MultiFab* p0 = solverChoice.use_terrain ? &pres_hse[lev] : nullptr;
         
-    amrex::Real* dptr_dens_hse = d_dens_hse[lev].data() + ng_dens_hse;
-    amrex::Real* dptr_pres_hse = d_pres_hse[lev].data() + ng_pres_hse;
     amrex::Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[lev].data() : nullptr;
     amrex::Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[lev].data() : nullptr;
     amrex::Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[lev].data() : nullptr;
@@ -198,10 +192,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 U_new, V_new, W_new,
                 rU_crse, rV_crse, rW_crse,
                 source, flux,
-                Geom(lev), dt_lev, time,
-                &ifr,
-                r0, p0,
-                dptr_dens_hse, dptr_pres_hse,
+                Geom(lev), dt_lev, time, &ifr,
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
 

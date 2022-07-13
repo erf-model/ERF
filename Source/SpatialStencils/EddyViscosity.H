@@ -15,7 +15,6 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
                                const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                                bool vert_only = false);
 
-#ifdef ERF_USE_TERRAIN
 AMREX_GPU_DEVICE
 inline
 amrex::Real ComputeSmnSmnWithTerrain(const int& i,const int& j,const int& k,
@@ -27,7 +26,6 @@ amrex::Real ComputeSmnSmnWithTerrain(const int& i,const int& j,const int& k,
 {
   amrex::Real met_h_xi,met_h_eta,met_h_zeta;
 
-  // AML   : USE_TERRAIN preprocessor flags got OUT OF HAND with TKE (clipped dependency here)
   // TO-DO :
   //         1. Calls to TerrainMetrics.H functions to get metrics
   //         2. Pass metrics at each ijk
@@ -67,7 +65,6 @@ amrex::Real ComputeSmnSmnWithTerrain(const int& i,const int& j,const int& k,
     return SmnSmn;
 }
 
-#else
 AMREX_GPU_DEVICE
 inline
 amrex::Real ComputeSmnSmn(const int& i,const int& j,const int& k,
@@ -106,7 +103,6 @@ amrex::Real ComputeSmnSmn(const int& i,const int& j,const int& k,
 
     return SmnSmn;
 }
-#endif
 
 AMREX_GPU_DEVICE
 inline amrex::Real
@@ -116,13 +112,13 @@ ComputeTKEProduction (const int &i, const int &j, const int &k,
                       const amrex::Array4<const amrex::Real>& w,
                       const amrex::Array4<amrex::Real>& K_turb,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+                      const amrex::Box& domain, const amrex::BCRec* bc_ptr, const int& use_terrain)
 {
-#ifdef ERF_USE_TERRAIN
-    amrex::Real TKE_production = K_turb(i,j,k,EddyDiff::Mom_h) * ComputeSmnSmnWithTerrain(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
-#else
-    amrex::Real TKE_production = K_turb(i,j,k,EddyDiff::Mom_h) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
-#endif
+    amrex::Real TKE_production;
+    if (use_terrain) 
+        TKE_production = K_turb(i,j,k,EddyDiff::Mom_h) * ComputeSmnSmnWithTerrain(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
+    else
+        TKE_production = K_turb(i,j,k,EddyDiff::Mom_h) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 
     return TKE_production;
 }

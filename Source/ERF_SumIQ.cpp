@@ -86,9 +86,8 @@ ERF::volWgtSumMF(int lev,
     auto const& dx = geom[lev].CellSizeArray();
     Real cell_vol = dx[0]*dx[1]*dx[2];
     volume.setVal(cell_vol);
-#ifdef ERF_USE_TERRAIN
-    amrex::MultiFab::Multiply(volume, detJ_cc[lev], 0, 0, 1, 0);
-#endif
+    if (solverChoice.use_terrain)
+        amrex::MultiFab::Multiply(volume, detJ_cc[lev], 0, 0, 1, 0);
     sum = amrex::MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
 
     if (!local)

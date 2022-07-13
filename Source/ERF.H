@@ -141,9 +141,6 @@ public:
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
-                      amrex::MultiFab* r0, amrex::MultiFab* p0,
-                      const amrex::Real* dptr_dens_hse,
-                      const amrex::Real* dptr_pres_hse,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
@@ -183,13 +180,7 @@ public:
     //void init_custom_terrain(int lev);
     void init_custom_terrain(int lev) {}; //************
 
-    //OVERLOADED BASED ON TERRAIN
-    void erf_enforce_hse(int lev,
-                         amrex::MultiFab& dens, amrex::MultiFab& pres,
-                         amrex::MultiFab& z_cc);
-    void erf_enforce_hse(int lev,
-                         amrex::Vector<amrex::Real>& dens,
-                         amrex::Vector<amrex::Real>& pres);
+    void erf_enforce_hse(int lev, amrex::MultiFab& dens, amrex::MultiFab& pres);
 
 #ifdef ERF_USE_NETCDF
     //! Write a timestep to 1D vertical column output for coupling

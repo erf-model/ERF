@@ -2,10 +2,7 @@
 #include <ERF.H>
 #include "AMReX_Interp_3D_C.H"
 #include "AMReX_PlotFileUtil.H"
-
-#ifdef ERF_USE_TERRAIN
 #include "TerrainMetrics.H"
-#endif
 
 using namespace amrex;
 
@@ -167,14 +164,14 @@ ERF::WritePlotFile ()
         mf[lev].define(grids[lev], dmap[lev], ncomp_mf, 0);
     }
 
-#ifdef ERF_USE_TERRAIN
     Vector<MultiFab> mf_nd(finest_level+1);
-    for (int lev = 0; lev <= finest_level; ++lev) {
-        BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
-        mf_nd[lev].define(nodal_grids, dmap[lev], ncomp_mf, 0);
-        mf_nd[lev].setVal(0.);
-    }
-#endif
+    if (solverChoice.use_terrain) {
+       for (int lev = 0; lev <= finest_level; ++lev) {
+           BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
+           mf_nd[lev].define(nodal_grids, dmap[lev], ncomp_mf, 0);
+           mf_nd[lev].setVal(0.);
+       }
+   }
 
     for (int lev = 0; lev <= finest_level; ++lev) {
         int mf_comp = 0;
@@ -229,59 +226,27 @@ ERF::WritePlotFile ()
 
         if (containerHasElement(plot_deriv_names, "pres_hse"))
         {
-#ifdef ERF_USE_TERRAIN
             MultiFab::Copy(mf[lev],pres_hse[lev],0,mf_comp,1,0);
-#else
-            auto d_pres_hse_lev = d_pres_hse[lev].dataPtr();
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat = mf[lev].array(mfi);
-                ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = d_pres_hse_lev[k+ng_pres_hse];
-                });
-            }
-#endif
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_deriv_names, "dens_hse"))
         {
-#ifdef ERF_USE_TERRAIN
             MultiFab::Copy(mf[lev],dens_hse[lev],0,mf_comp,1,0);
-#else
-            auto d_dens_hse_lev = d_dens_hse[lev].dataPtr();
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            { const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat = mf[lev].array(mfi);
-                ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = d_dens_hse_lev[k+ng_dens_hse];
-                });
-            }
-#endif
             mf_comp ++;
         }
 
         if (containerHasElement(plot_deriv_names, "pert_pres"))
         {
-#ifndef ERF_USE_TERRAIN
-            auto d_pres_hse_lev = d_pres_hse[lev].dataPtr();
-#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
-#ifdef ERF_USE_TERRAIN
                 const Array4<Real const>& p0_arr = pres_hse[lev].const_array(mfi);
-#endif
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-#ifdef ERF_USE_TERRAIN
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - p0_arr(i,j,k);
-#else
-                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - d_pres_hse_lev[k+ng_pres_hse];
-#endif
                 });
             }
             mf_comp ++;
@@ -289,32 +254,21 @@ ERF::WritePlotFile ()
 
         if (containerHasElement(plot_deriv_names, "pert_dens"))
         {
-#ifndef ERF_USE_TERRAIN
-            auto d_dens_hse_lev = d_dens_hse[lev].dataPtr();
-#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat  = mf[lev].array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-#ifdef ERF_USE_TERRAIN
                 const Array4<Real const>& r0_arr = dens_hse[lev].const_array(mfi);
-#endif
                 ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-#ifdef ERF_USE_TERRAIN
                     derdat(i, j, k, mf_comp) = S_arr(i,j,k,Rho_comp) - r0_arr(i,j,k);
-#else
-                    derdat(i, j, k, mf_comp) = S_arr(i,j,k,Rho_comp) - d_dens_hse_lev[k+ng_dens_hse];
-#endif
                 });
             }
             mf_comp ++;
         }
 
-#ifdef ERF_USE_TERRAIN
         int klo = geom[lev].Domain().smallEnd(2);
         int khi = geom[lev].Domain().bigEnd(2);
-#endif
 
         if (containerHasElement(plot_deriv_names, "dpdx"))
         {
@@ -468,8 +422,6 @@ ERF::WritePlotFile ()
             mf_comp ++;
         }
 
-#ifdef ERF_USE_TERRAIN
-
         if (containerHasElement(plot_deriv_names, "pres_hse_x"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
@@ -588,7 +540,6 @@ ERF::WritePlotFile ()
             MultiFab::Copy(mf[lev],detJ_cc[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
-#endif
     }
 
     const std::string& plotfilename = PlotFileName(istep[0]);
@@ -597,29 +548,29 @@ ERF::WritePlotFile ()
     if (finest_level == 0)
     {
         if (plotfile_type == "amrex") {
-#ifdef ERF_USE_TERRAIN
-            // We started with mf_nd holding 0 in every component; here we fill only the offset in z
-            int lev = 0;
-            MultiFab::Copy(mf_nd[lev],z_phys_nd[lev],0,2,1,0);
-            Real dz = Geom()[lev].CellSizeArray()[2];
-            for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
-                Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    mf_arr(i,j,k,2) -= k * dz;
-                });
-            }
-            WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
+            if (solverChoice.use_terrain) {
+                // We started with mf_nd holding 0 in every component; here we fill only the offset in z
+                int lev = 0;
+                MultiFab::Copy(mf_nd[lev],z_phys_nd[lev],0,2,1,0);
+                Real dz = Geom()[lev].CellSizeArray()[2];
+                for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        mf_arr(i,j,k,2) -= k * dz;
+                    });
+                }
+                WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
+                                                   GetVecOfConstPtrs(mf),
+                                                   GetVecOfConstPtrs(mf_nd),
+                                                   varnames,
+                                                   t_new[0], istep);
+            } else {
+                WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                                GetVecOfConstPtrs(mf),
-                                               GetVecOfConstPtrs(mf_nd),
                                                varnames,
-                                               t_new[0], istep);
-#else
-            WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                           GetVecOfConstPtrs(mf),
-                                           varnames,
-                                           Geom(), t_new[0], istep, refRatio());
-#endif
+                                               Geom(), t_new[0], istep, refRatio());
+            }
             writeJobInfo(plotfilename);
 #ifdef ERF_USE_NETCDF
         } else {
@@ -686,7 +637,6 @@ ERF::WritePlotFile ()
     } // end multi-level
 }
 
-#ifdef ERF_USE_TERRAIN
 void
 ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nlevels,
                                          const Vector<const MultiFab*>& mf,
@@ -858,4 +808,3 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
             HeaderFile << MultiFabHeaderPath(level, levelPrefix, mf_nodal_prefix) << '\n';
         }
 }
-#endif
