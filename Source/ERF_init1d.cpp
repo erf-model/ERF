@@ -57,7 +57,9 @@ ERF::initHSE()
             z_cc = &z_phys_cc[lev];
         }
 
+        amrex::Print() << "I'm in initHSE() before erf_init_dens_hse()!" << std::endl;
         erf_init_dens_hse(dens_hse[lev], z_nd, z_cc, geom[lev], solverChoice.use_terrain);
+        amrex::Print() << "I'm in initHSE() after erf_init_dens_hse()!" << std::endl;
 
         erf_enforce_hse(lev, dens_hse[lev], pres_hse[lev]);
     }

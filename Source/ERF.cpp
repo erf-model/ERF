@@ -337,7 +337,9 @@ ERF::InitData ()
                 }
             }
         }
-        else {}
+        else {
+            z_phys_nd.resize(finest_level); //************get lots of nullptrs
+        }
 
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
@@ -352,7 +354,6 @@ ERF::InitData ()
                 }
             }
         }
-        else {}
 
     } else { // Restart from a checkpoint
 

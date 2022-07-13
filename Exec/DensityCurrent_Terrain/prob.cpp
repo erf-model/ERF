@@ -105,9 +105,10 @@ init_isentropic_hse(int i, int j,
 
 void
 erf_init_dens_hse(MultiFab& rho_hse,
-                  MultiFab const& z_phys_nd,
-                  MultiFab const& z_phys_cc,
-                  Geometry const& geom)
+                  const MultiFab* z_phys_nd,
+                  const MultiFab* z_phys_cc,
+                  Geometry const& geom,
+                  const int use_terrain)
 {
   const Real prob_lo_z = geom.ProbLo()[2];
   const int khi        = geom.Domain().bigEnd()[2];
@@ -121,8 +122,8 @@ erf_init_dens_hse(MultiFab& rho_hse,
   for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
        Array4<Real      > rho_arr  = rho_hse.array(mfi);
-       Array4<Real const> z_nd_arr = z_phys_nd.const_array(mfi);
-       Array4<Real const> z_cc_arr = z_phys_cc.const_array(mfi);
+       Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
+       Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
 
        // Create a flat box with same horizontal extent but only one cell in vertical
        const Box& tbz = mfi.nodaltilebox(2);
@@ -359,6 +360,7 @@ erf_init_dens_hse(Real* dens_hse_ptr,
   Vector<Real> r(khi+1);
   Vector<Real> p(khi+1);
 
+  amrex::Print() << "About to init_isentropic_hse()!" << std::endl;
   init_isentropic_hse(rho_sfc,Thetabar,r.data(),p.data(),dz,prob_lo_z,khi);
 
   for (int k = 0; k <= khi; k++)

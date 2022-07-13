@@ -16,6 +16,7 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
                     const Real& dz,    const Real&  prob_lo_z,
                     const int& khi)
 {
+    amrex::Print() << "In init_isentropic!" << std::endl;
   // r_sfc / p_0 are the density / pressure at the surface
   int k0 = 0;
 
@@ -114,7 +115,9 @@ erf_init_dens_hse(amrex::MultiFab& rho_hse,
   Vector<Real> r(khi+1);
   Vector<Real> p(khi+1);
 
+  amrex::Print() << "About to init_isentropic_hse()!" << std::endl;
   init_isentropic_hse(rho_sfc,Thetabar,r.data(),p.data(),dz,prob_lo_z,khi);
+  amrex::Print() << "Cleared init_isentropic_hse()!" << std::endl;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())

@@ -8,7 +8,6 @@
 
 using namespace amrex;
 
-#ifdef ERF_USE_TERRAIN
 AMREX_GPU_DEVICE
 void
 init_isentropic_hse(int i, int j,
@@ -100,12 +99,15 @@ init_isentropic_hse(int i, int j,
   }
 }
 
+/*
 void
 erf_init_dens_hse(MultiFab& rho_hse,
-                  MultiFab const& z_phys_nd,
-                  MultiFab const& z_phys_cc,
-                  Geometry const& geom)
+                  const MultiFab* z_phys_nd,
+                  const MultiFab* z_phys_cc,
+                  Geometry const& geom,
+                  const int use_terrain)
 {
+    amrex::Print() << "I'm in prob_terrain.cpp!" << std::endl;
   const Real prob_lo_z = geom.ProbLo()[2];
   const int khi        = geom.Domain().bigEnd()[2];
 
@@ -118,8 +120,8 @@ erf_init_dens_hse(MultiFab& rho_hse,
   for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
        Array4<Real      > rho_arr  = rho_hse.array(mfi);
-       Array4<Real const> z_nd_arr = z_phys_nd.const_array(mfi);
-       Array4<Real const> z_cc_arr = z_phys_cc.const_array(mfi);
+       Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
+       Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
 
        // Create a flat box with same horizontal extent but only one cell in vertical
        const Box& tbz = mfi.nodaltilebox(2);
@@ -141,6 +143,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
        });
    }
 }
+*/
 
 void
 init_custom_prob(
@@ -251,4 +254,3 @@ init_custom_prob(
 
   amrex::Gpu::streamSynchronize();
 }
-#endif

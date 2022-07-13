@@ -14,8 +14,6 @@ erf_init_dens_hse(amrex::MultiFab& dens_hse,
                   const amrex::MultiFab* z_phys_cc,
                   amrex::Geometry const& geom,
                   const int use_terrain);
-
-#ifdef ERF_USE_TERRAIN
 void
 init_custom_prob(
   const amrex::Box& bx,
@@ -29,8 +27,6 @@ init_custom_prob(
   amrex::Array4<amrex::Real const> const& z_cc,
   amrex::GeometryData const& geomdata);
 
-#else
-
 void
 init_custom_prob(
   const amrex::Box& bx,
@@ -39,7 +35,6 @@ init_custom_prob(
   amrex::Array4<amrex::Real> const& y_vel,
   amrex::Array4<amrex::Real> const& z_vel,
   amrex::GeometryData const& geomdata);
-#endif
 
 void
 erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,

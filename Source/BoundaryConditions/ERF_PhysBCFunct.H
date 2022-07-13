@@ -19,9 +19,7 @@
 #include <PBLModels.H>
 #include <EddyViscosity.H>
 
-#ifdef ERF_USE_TERRAIN
 #include <TerrainMetrics.H>
-#endif
 
 using namespace amrex;
 
@@ -47,10 +45,8 @@ public:
                     const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                     const int& var_idx, TimeInterpolatedData& data,
                     amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
-#ifdef ERF_USE_TERRAIN
-                    const amrex::MultiFab& z_phys_nd,
-                    const amrex::MultiFab& detJ_cc,
-#endif
+                    const amrex::MultiFab* z_phys_nd,
+                    const amrex::MultiFab* detJ_cc,
 #ifdef ERF_USE_NETCDF
                     const std::string& init_type,
                     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
@@ -62,9 +58,8 @@ public:
                     std::unique_ptr<ReadBndryPlanes>& r2d)
         : m_lev(lev), m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
           m_var_idx(var_idx), m_data(data), m_bc_extdir_vals(bc_extdir_vals),
-#ifdef ERF_USE_TERRAIN
           m_z_phys_nd(z_phys_nd), m_detJ_cc(detJ_cc),
-#endif
+
 #ifdef ERF_USE_NETCDF
           m_init_type(init_type),
           m_bdy_data_xlo(bdy_data_xlo),
@@ -94,33 +89,25 @@ public:
                      amrex::Real time, int bccomp);
 
     void impose_xvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
-#ifdef ERF_USE_TERRAIN
                           const amrex::Array4<Real const>& z_nd,
                           const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-#endif
                           amrex::Real time, int bccomp);
 
     void impose_yvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
-#ifdef ERF_USE_TERRAIN
                           const amrex::Array4<Real const>& z_nd,
                           const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-#endif
                           amrex::Real time, int bccomp);
 
     void impose_zvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
-#ifdef ERF_USE_TERRAIN
                           const amrex::Array4<Real const>& velx_arr,
                           const amrex::Array4<Real const>& vely_arr,
                           const amrex::Array4<Real const>& z_nd,
                           const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-#endif
                           amrex::Real time, int bccomp);
 
     void impose_cons_bcs (const amrex::Array4<Real>& mf, const amrex::Box& bx, const amrex::Box& domain,
-#ifdef ERF_USE_TERRAIN
                           const amrex::Array4<Real const>& z_nd,
                           const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-#endif
                           int icomp, int ncomp, amrex::Real time, int bccomp);
 
     void fill_from_bndryregs (const int lev,   const amrex::Box& bx, const amrex::Array4<Real>& dest_arr,
@@ -149,10 +136,8 @@ private:
     int           m_var_idx;
     TimeInterpolatedData& m_data;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
-#ifdef ERF_USE_TERRAIN
-    const amrex::MultiFab& m_z_phys_nd;
-    const amrex::MultiFab& m_detJ_cc;
-#endif
+    const amrex::MultiFab* m_z_phys_nd;
+    const amrex::MultiFab* m_detJ_cc;
 #ifdef ERF_USE_NETCDF
     const std::string m_init_type;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xlo;
