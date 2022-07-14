@@ -12,7 +12,7 @@ Plotfiles
 Controlling PlotFile Generation
 ===============================
 
-"Plotfiles" (which are really directories) can be written very efficienetly
+"Plotfiles" (which are really directories) can be written very efficiently
 in parallel in a native AMReX format or in HDF5.  They can also be written
 in NetCDF.
 
