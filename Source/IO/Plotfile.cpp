@@ -621,6 +621,13 @@ ERF::WritePlotFile ()
                                            Geom(), t_new[0], istep, refRatio());
 #endif
             writeJobInfo(plotfilename);
+#ifdef AMREX_USE_HDF5
+        } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
+            WriteMultiLevelPlotfileHDF5(plotfilename, finest_level+1,
+                                        GetVecOfConstPtrs(mf),
+                                        varnames,
+                                        Geom(), t_new[0], istep, refRatio());
+#endif
 #ifdef ERF_USE_NETCDF
         } else {
              writeNCPlotFile(plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
