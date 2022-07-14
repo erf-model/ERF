@@ -314,7 +314,9 @@ ERF::InitData ()
         // start simulation from the beginning
 
         const Real time = 0.0;
+        amrex::Print() << "About to InitFromScratch" << std::endl;
         InitFromScratch(time);
+        amrex::Print() << "Cleared InitFromScratch" << std::endl;
 
         // For now we initialize rho_KE to 0
         for (int lev = finest_level-1; lev >= 0; --lev)
@@ -339,10 +341,15 @@ ERF::InitData ()
         }
         else {
             z_phys_nd.resize(finest_level); //************get lots of nullptrs
+            amrex::Print() << "resized z_phys_nd!" << std::endl;
         }
 
-        for (int lev = 0; lev <= finest_level; lev++)
+        for (int lev = 0; lev <= finest_level; lev++) {
+            amrex::Print() << "Going in to init_only!" << std::endl;
             init_only(lev, time);
+        }
+
+        amrex::Print() << "Cleared all init_only" << std::endl;
 
         AverageDown();
         
@@ -627,6 +634,7 @@ ERF::init_only(int lev, Real time)
     if (init_type == "input_sounding") {
         init_from_input_sounding(lev);
     } else if (init_type == "custom") {
+        amrex::Print() << "Going in to init_custom!" << std::endl;
         init_custom(lev);
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
