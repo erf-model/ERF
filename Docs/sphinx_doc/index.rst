@@ -61,6 +61,8 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    MeshRefinement.rst
    BoundaryConditions.rst
    Derived.rst
+   Checkpoint.rst
+   Plotfiles.rst
    Visualization.rst
 
 .. toctree::
