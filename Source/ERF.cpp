@@ -297,6 +297,17 @@ ERF::InitData ()
     // Initialize the start time for our CPU-time tracker
     startCPUTime = amrex::ParallelDescriptor::second();
 
+    /*
+    amrex::Print() << "USE_TERRAIN runtime switch Test code!" << std::endl; 
+    int foo = 0;
+    amrex::Vector<MultiFab*> test_ptr;
+    amrex::MultiFab* tp2 = nullptr;
+    test_ptr.resize(2);
+    test_ptr[foo] = tp2; 
+    if(!test_ptr[foo])
+        amrex::Print() << "Toast! Switch working." << std::endl; 
+    */ 
+    
     // Map the words in the inputs file to BC types, then translate
     //     those types into what they mean for each variable
     init_bcs();
@@ -327,7 +338,6 @@ ERF::InitData ()
         }
 
         if (solverChoice.use_terrain) {
-            amrex::Print() << "Using Terrain!" << std::endl;
             if (init_type != "real") {
                 for (int lev = 0; lev <= finest_level; lev++)
                 {
@@ -337,19 +347,13 @@ ERF::InitData ()
                 }
             }
         }
-        else {}
 
-        for (int lev = 0; lev <= finest_level; lev++) {
-            amrex::Print() << "Going in to init_only!" << std::endl;
+        for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
-        }
-
-        amrex::Print() << "Cleared all init_only" << std::endl;
 
         AverageDown();
-        
-        if (solverChoice.use_terrain) {
-            amrex::Print() << "Doing metrics..." << std::endl;
+
+        if(solverChoice.use_terrain) {
             if (init_type == "real") {
                 for (int lev = 0; lev <= finest_level; lev++)
                 {
@@ -362,16 +366,15 @@ ERF::InitData ()
 
         restart();
 
-        // This must come after the call to restart because that
-        //      is where we read in the mesh data
-        if (solverChoice.use_terrain) {
+        if(solverChoice.use_terrain) {
+            // This must come after the call to restart because that
+            //      is where we read in the mesh data
             for (int lev = finest_level-1; lev >= 0; --lev)
                 make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
         }
     }
 
     if (input_bndry_planes) {
-        amrex::Print() << "Doing input_bndry_planes..." << std::endl;
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
         amrex::Print() << "Defining r2d for the first time " << std::endl;
         m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
@@ -385,7 +388,6 @@ ERF::InitData ()
 
     // Initialize flux registers (whether we start from scratch or restart)
     if (do_reflux) {
-        amrex::Print() << "Doing reflux..." << std::endl;
         flux_registers[0] = 0;
         for (int lev = 1; lev <= finest_level; lev++)
         {
@@ -394,7 +396,6 @@ ERF::InitData ()
     }
 
     initHSE();
-    amrex::Print() << "Cleared initHSE()" << std::endl;
 
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine before calling WritePlotFile because
@@ -441,7 +442,6 @@ ERF::InitData ()
     // We only write the file at level 0 for now
     if (output_bndry_planes)
     {
-        amrex::Print() << "Using output_bndry_planes" << std::endl;
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
@@ -457,8 +457,6 @@ ERF::InitData ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        amrex::Print() << "About to FillPatch! ERF.cpp" << std::endl;
-        //if(z_phys_nd[lev]) amrex::Print() << "z_phys_nd not null!" << std::endl;
         FillPatch(lev, t_new[lev], lev_new);
 
         // Copy from new into old just in case
@@ -469,7 +467,6 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
         MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
     }
-    amrex::Print() << "Ghost cells filled!" << std::endl;
 }
 
 void
@@ -603,12 +600,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     dens_hse.resize(lev+1);
     pres_hse.resize(lev+1);
 
-    dens_hse[lev].define(ba,dm,1,1);
     pres_hse[lev].define(ba,dm,1,1);
-
-    if (solverChoice.use_terrain) {
-
-        amrex::Print() << "USING TERRAIN TOAST!!!!" << std::endl;
+    dens_hse[lev].define(ba,dm,1,1);
+    if(solverChoice.use_terrain) {
         z_phys_cc[lev].define(ba,dm,1,1);
         detJ_cc[lev].define(ba,dm,1,1);
 
@@ -619,8 +613,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         int ngrow = ComputeGhostCells(solverChoice.spatial_order)+2;
         z_phys_nd[lev].define(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
     }
-    else {}
-
 }
 
 void
@@ -640,7 +632,6 @@ ERF::init_only(int lev, Real time)
     if (init_type == "input_sounding") {
         init_from_input_sounding(lev);
     } else if (init_type == "custom") {
-        amrex::Print() << "Going in to init_custom!" << std::endl;
         init_custom(lev);
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {

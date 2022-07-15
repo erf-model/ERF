@@ -133,7 +133,7 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr, const Box& b
             dest_arr(i,j,k) = l_bc_extdir_vals_d[n][3];
     });
 
-    /*
+    /* //USE_TERRAIN BROKEN SWITCHES
     if(m_z_phys_nd) {
         const auto&  bx_lo = amrex::lbound(bx);
         const auto&  bx_hi = amrex::ubound(bx);

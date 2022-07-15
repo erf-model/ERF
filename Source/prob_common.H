@@ -12,13 +12,7 @@ void
 erf_init_dens_hse(amrex::MultiFab& dens_hse,
                   const amrex::MultiFab* z_phys_nd,
                   const amrex::MultiFab* z_phys_cc,
-                  amrex::Geometry const& geom,
-                  const int use_terrain);
-
-void
-erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::Geometry const& geom,
-                  const int ng_dens_hse);
+                  amrex::Geometry const& geom);
 
 void
 init_custom_prob(
@@ -33,6 +27,11 @@ init_custom_prob(
   amrex::Array4<amrex::Real const> const& z_cc,
   amrex::GeometryData const& geomdata);
 
+
+void
+erf_init_dens_hse(amrex::Real* dens_hse_ptr,
+                  amrex::Geometry const& geom,
+                  const int ng_dens_hse);
 void
 init_custom_prob(
   const amrex::Box& bx,

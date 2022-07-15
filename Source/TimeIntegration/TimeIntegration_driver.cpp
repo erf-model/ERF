@@ -19,6 +19,9 @@ void ERF::erf_advance(int level,
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt_advance, const amrex::Real old_time,
                       amrex::InterpFaceRegister* ifr,
+                      MultiFab* r0, MultiFab* p0,
+                      const amrex::Real* dptr_dens_hse,
+                      const amrex::Real* dptr_pres_hse,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
@@ -32,10 +35,6 @@ void ERF::erf_advance(int level,
 
     const BoxArray& ba            = cons_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();
-
-    // Define these if they exist
-    MultiFab* zp = solverChoice.use_terrain ? &z_phys_nd[level] : nullptr;
-    MultiFab* dJ = solverChoice.use_terrain ? &detJ_cc[level]   : nullptr;
 
     // **************************************************************************************
     // Temporary array that we use to store primitive advected quantities for the RHS
@@ -201,14 +200,21 @@ void ERF::erf_advance(int level,
                        const Real time,
                        const int rhs_vars=RHSVar::all) {
         if (verbose) amrex::Print() << "Calling rhs at level " << level << ", time = " << time << std::endl;
+        MultiFab* z0 = nullptr;
+        MultiFab* dJ = nullptr;
+        if(solverChoice.use_terrain) {
+            z0 = &z_phys_nd[level];
+            dJ = &detJ_cc[level];
+        }
         Vector <MultiFab> S_scratch;
-        amrex::Print() << "Calling erf_slow from rhs_fun" << std::endl;//****************
         erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
                      xvel_new, yvel_new, zvel_new,
                      source, advflux, diffflux,
                      fine_geom, ifr, solverChoice,
                      m_most, domain_bcs_type_d,
-                     zp, dJ, &dens_hse[level], &pres_hse[level],
+                     z0, dJ,
+                     r0, p0,
+                     dptr_dens_hse, dptr_pres_hse,
                      dptr_rayleigh_tau, dptr_rayleigh_ubar,
                      dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
                      rhs_vars);
@@ -221,12 +227,19 @@ void ERF::erf_advance(int level,
                             const Real time,
                             const int rhs_vars=RHSVar::all) {
         if (verbose) Print() << "Calling slow rhs at level " << level << ", time = " << time << std::endl;
-        amrex::Print() << "Calling erf_slow from slow_rhs_fun" << std::endl;//****************
+        MultiFab* z0 = nullptr;
+        MultiFab* dJ = nullptr;
+        if(solverChoice.use_terrain) {
+            z0 = &z_phys_nd[level];
+            dJ = &detJ_cc[level];
+        }
         erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
                      xvel_new, yvel_new, zvel_new,
                      source, advflux, diffflux,
                      fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
-                     zp, dJ, &dens_hse[level], &pres_hse[level],
+                     z0, dJ,
+                     r0, p0,
+                     dptr_dens_hse, dptr_pres_hse,
                      dptr_rayleigh_tau, dptr_rayleigh_ubar,
                      dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
                      rhs_vars);
@@ -240,9 +253,17 @@ void ERF::erf_advance(int level,
                             const Real fast_dt, const Real inv_fac)
     {
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << fast_dt << std::endl;
+        MultiFab* z0 = nullptr;
+        MultiFab* dJ = nullptr;
+        if(solverChoice.use_terrain) {
+            z0 = &z_phys_nd[level];
+            dJ = &detJ_cc[level];
+        }
         erf_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
                      S_data, S_scratch, advflux, fine_geom, ifr, solverChoice,
-                     zp, dJ, &dens_hse[level], &pres_hse[level],
+                     z0, dJ,
+                     r0, p0,
+                     dptr_dens_hse, dptr_pres_hse,
                      fast_dt, inv_fac);
     };
 

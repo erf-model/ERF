@@ -32,8 +32,9 @@ void erf_slow_rhs (int level,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<ABLMost>& most,
                    const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                         MultiFab* z0,       MultiFab* dJ,
+                   const MultiFab* z0, const MultiFab* dJ,
                    const MultiFab* r0, const MultiFab* p0,
+                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
                    const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                    const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
                    const int rhs_vars)
@@ -182,11 +183,10 @@ void erf_slow_rhs (int level,
         const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 
         const Array4<const Real>& z_nd = l_use_terrain ? z0->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ = l_use_terrain ? dJ->const_array(mfi) : Array4<const Real>{};
-
+        const Array4<const Real>& detJ = l_use_terrain ? p0->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
-
+        
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
         if (rhs_vars != RHSVar::slow) {
@@ -194,7 +194,10 @@ void erf_slow_rhs (int level,
                 if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
                     i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
                 AMREX_ALWAYS_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-               pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
+                if(solverChoice.use_terrain)
+                    pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
+                else
+                    pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),dptr_pres_hse[k]);
             });
         }
 

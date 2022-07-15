@@ -1,15 +1,3 @@
-//#include "prob.H"
-//#include "prob_common.H"
-//
-//#include "EOS.H"
-//#include "AMReX_ParmParse.H"
-//#include "AMReX_MultiFab.H"
-//#include "IndexDefines.H"
-//
-//using namespace amrex;
-//
-//ProbParm parms;
-//
 //void
 //init_isentropic_hse(const Real& r_sfc, const Real& theta,
 //                          Real* r,           Real* p,
@@ -236,32 +224,6 @@
 //
 //  amrex::Gpu::streamSynchronize();
 //}
-//
-//void
-//erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
-//                  amrex::Vector<amrex::Real>& /*ubar*/,
-//                  amrex::Vector<amrex::Real>& /*vbar*/,
-//                  amrex::Vector<amrex::Real>& /*thetabar*/,
-//                  amrex::Geometry      const& /*geom*/)
-//{
-//   amrex::Error("Should never get here for DensityCurrent problem");
-//}
-//
-//void
-//amrex_probinit(
-//  const amrex_real* /*problo*/,
-//  const amrex_real* /*probhi*/)
-//{
-//  // Parse params
-//  amrex::ParmParse pp("prob");
-//  pp.query("T_0", parms.T_0);
-//  pp.query("U_0", parms.U_0);
-//  pp.query("x_c", parms.x_c);
-//  pp.query("z_c", parms.z_c);
-//  pp.query("x_r", parms.x_r);
-//  pp.query("z_r", parms.z_r);
-//  pp.query("T_pert", parms.T_pert);
-//}
 
 #include "prob.H"
 #include "prob_common.H"
@@ -367,8 +329,8 @@ void
 erf_init_dens_hse(amrex::MultiFab& rho_hse,
                   const amrex::MultiFab* z_phys_nd,
                   const amrex::MultiFab* z_phys_cc,
-                  amrex::Geometry const& geom, 
-                  const int use_terrain)
+                  amrex::Geometry const& geom //, 
+                  /*const int use_terrain*/)
 {
   const Real prob_lo_z = geom.ProbLo()[2];
   const Real dz        = geom.CellSize()[2];

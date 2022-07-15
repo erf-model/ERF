@@ -41,10 +41,10 @@ ERF::read_from_wrfinput(int lev, int idx,
     NC_rhop_fab[idx].resize(input_box, 1);
     NC_rhotheta_fab[idx].resize(input_box,1);
 
-#ifdef ERF_USE_TERRAIN
-    NC_PH_fab[idx].resize(wbx,1);
-    NC_PHB_fab[idx].resize(wbx,1);
-#endif
+    if(solverChoice.use_terrain) {
+        NC_PH_fab[idx].resize(wbx,1);
+        NC_PHB_fab[idx].resize(wbx,1);
+    }
 
     // These are 2D (x-y) arrays
     NC_MUB_fab[idx].resize(mubx,1);
@@ -62,10 +62,10 @@ ERF::read_from_wrfinput(int lev, int idx,
         FArrayBox host_NC_rho_fab     (NC_rho_fab[idx].box(),      NC_rho_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_rhop_fab(NC_rhop_fab[idx].box(), NC_rhop_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab[idx].box(), NC_rhotheta_fab[idx].nComp(),amrex::The_Pinned_Arena());
-#ifdef ERF_USE_TERRAIN
+        //#ifdef ERF_USE_TERRAIN
         FArrayBox host_NC_PH_fab (NC_PH_fab[idx].box(),  NC_PH_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_PHB_fab(NC_PHB_fab[idx].box(), NC_PHB_fab[idx].nComp(),amrex::The_Pinned_Arena());
-#endif
+        //#endif
         FArrayBox host_NC_MUB_fab (NC_MUB_fab[idx].box(),  NC_MUB_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_MSFU_fab(NC_MSFU_fab[idx].box(), NC_MSFU_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_MSFV_fab(NC_MSFV_fab[idx].box(), NC_MSFV_fab[idx].nComp(),amrex::The_Pinned_Arena());
@@ -78,10 +78,10 @@ ERF::read_from_wrfinput(int lev, int idx,
         FArrayBox host_NC_rho_fab     (NC_rho_fab[idx]     , amrex::make_alias, 0, NC_rho_fab[idx].nComp());
         FArrayBox host_NC_rhop_fab(NC_rhop_fab[idx], amrex::make_alias, 0, NC_rhop_fab[idx].nComp());
         FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab[idx], amrex::make_alias, 0, NC_rhotheta_fab[idx].nComp());
-#ifdef ERF_USE_TERRAIN
+        //#ifdef ERF_USE_TERRAIN
         FArrayBox host_NC_PH_fab      (NC_PH_fab[idx]      , amrex::make_alias, 0, NC_PH_fab[idx].nComp());
         FArrayBox host_NC_PHB_fab     (NC_PHB_fab[idx]     , amrex::make_alias, 0, NC_PHB_fab[idx].nComp());
-#endif
+        //#endif
         FArrayBox host_NC_MUB_fab     (NC_MUB_fab[idx]     , amrex::make_alias, 0, NC_MUB_fab[idx].nComp());
         FArrayBox host_NC_MSFU_fab    (NC_MSFU_fab[idx]    , amrex::make_alias, 0, NC_MSFU_fab[idx].nComp());
         FArrayBox host_NC_MSFV_fab    (NC_MSFV_fab[idx]    , amrex::make_alias, 0, NC_MSFV_fab[idx].nComp());
@@ -101,10 +101,12 @@ ERF::read_from_wrfinput(int lev, int idx,
             NC_fabs.push_back(&host_NC_rho_fab);      NC_names.push_back("ALB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_rhop_fab),     NC_names.push_back("AL"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_rhotheta_fab); NC_names.push_back("T"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-#ifdef ERF_USE_TERRAIN
-            NC_fabs.push_back(&host_NC_PH_fab);       NC_names.push_back("PH"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-            NC_fabs.push_back(&host_NC_PHB_fab);      NC_names.push_back("PHB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-#endif
+            
+            if(solverChoice.use_terrain) {
+                NC_fabs.push_back(&host_NC_PH_fab);       NC_names.push_back("PH"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+                NC_fabs.push_back(&host_NC_PHB_fab);      NC_names.push_back("PHB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            }
+
             NC_fabs.push_back(&host_NC_MUB_fab);       NC_names.push_back("MUB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
             NC_fabs.push_back(&host_NC_MSFU_fab);      NC_names.push_back("MAPFAC_UY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
             NC_fabs.push_back(&host_NC_MSFV_fab);      NC_names.push_back("MAPFAC_VY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
@@ -131,10 +133,10 @@ ERF::read_from_wrfinput(int lev, int idx,
         ParallelDescriptor::Bcast(host_NC_rho_fab.dataPtr(),NC_rho_fab[idx].box().numPts(),ioproc);
         ParallelDescriptor::Bcast(host_NC_rhop_fab.dataPtr(), NC_rhop_fab[idx].box().numPts(), ioproc);
         ParallelDescriptor::Bcast(host_NC_rhotheta_fab.dataPtr(),NC_rhotheta_fab[idx].box().numPts(),ioproc);
-#ifdef ERF_USE_TERRAIN
+        //#ifdef ERF_USE_TERRAIN
         ParallelDescriptor::Bcast(host_NC_PHB_fab.dataPtr(),NC_PHB_fab[idx].box().numPts(),ioproc);
         ParallelDescriptor::Bcast(host_NC_PH_fab.dataPtr() ,NC_PH_fab[idx].box().numPts() ,ioproc);
-#endif
+        //#endif
         ParallelDescriptor::Bcast(host_NC_MUB_fab.dataPtr() ,NC_MUB_fab[idx].box().numPts() ,ioproc);
         ParallelDescriptor::Bcast(host_NC_MSFU_fab.dataPtr(),NC_MSFU_fab[idx].box().numPts() ,ioproc);
         ParallelDescriptor::Bcast(host_NC_MSFV_fab.dataPtr(),NC_MSFV_fab[idx].box().numPts() ,ioproc);
@@ -154,12 +156,13 @@ ERF::read_from_wrfinput(int lev, int idx,
                                            NC_rhop_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_rhotheta_fab.dataPtr(), host_NC_rhotheta_fab.dataPtr()+host_NC_rhotheta_fab.size(),
                                            NC_rhotheta_fab[idx].dataPtr());
-#ifdef ERF_USE_TERRAIN
-         Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(),
+         if(solverChoice.use_terrain) {
+             Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(),
                                            NC_PH_fab[idx].dataPtr());
-         Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(),
+             Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(),
                                            NC_PHB_fab[idx].dataPtr());
-#endif
+         }
+
          Gpu::copy(Gpu::hostToDevice, host_NC_MUB_fab.dataPtr(), host_NC_MUB_fab.dataPtr()+host_NC_MUB_fab.size(),
                                            NC_MUB_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_MSFU_fab.dataPtr(), host_NC_MSFU_fab.dataPtr()+host_NC_MSFU_fab.size(),

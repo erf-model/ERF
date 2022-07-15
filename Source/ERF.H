@@ -141,6 +141,9 @@ public:
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
+                      amrex::MultiFab* r0, amrex::MultiFab* p0,
+                      const amrex::Real* dptr_dens_hse,
+                      const amrex::Real* dptr_pres_hse,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
@@ -178,18 +181,13 @@ public:
 
     // Define z_phys_nd on nodes using an analytical expression
     void init_custom_terrain(int lev);
-    //void init_custom_terrain(int lev) { /*z_phys_nd.resize(lev)*/ }; //************
 
-    //void erf_enforce_hse(int lev, amrex::MultiFab& dens, amrex::MultiFab& pres);
-    
     void erf_enforce_hse(int lev,
                          amrex::MultiFab& dens, amrex::MultiFab& pres,
                          amrex::MultiFab& z_cc);
-    
     void erf_enforce_hse(int lev,
                          amrex::Vector<amrex::Real>& dens,
                          amrex::Vector<amrex::Real>& pres);
-
 
 #ifdef ERF_USE_NETCDF
     //! Write a timestep to 1D vertical column output for coupling
@@ -420,7 +418,6 @@ private:
 
     amrex::Vector<amrex::MultiFab> pres_hse;
     amrex::Vector<amrex::MultiFab> dens_hse;
-    
     // Base state quantities: density and pressure, 1 array per AMR level
     amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
     amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;

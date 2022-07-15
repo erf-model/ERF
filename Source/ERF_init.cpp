@@ -308,7 +308,6 @@ ERF::init_bx_from_input_sounding(
 void
 ERF::init_custom(int lev)
 {
-    amrex::Print() << "Landed in init_custom!" << std::endl;
     auto& lev_new = vars_new[lev];
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -320,24 +319,19 @@ ERF::init_custom(int lev)
         const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
         const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
 
-#ifndef ERF_USE_TERRAIN
-            amrex::Print() << "NOT using terrain in init_custom!" << std::endl;
-            init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
-#else
-            amrex::Print() << "Touching dens_hse[lev] in init_custom" << std::endl;
+        if (solverChoice.use_terrain) {
             const auto& r_hse_arr = dens_hse[lev].array(mfi);
-            amrex::Print() << "Touching pres_hse[lev] in init_custom" << std::endl;
             const auto& p_hse_arr = pres_hse[lev].array(mfi);
-            amrex::Print() << "Touching z_phys_nd[lev] in init_custom" << std::endl;
             const auto& z_nd_arr  = z_phys_nd[lev].const_array(mfi);
-            amrex::Print() << "Touching z_cc_nd[lev] in init_custom" << std::endl;
             const auto& z_cc_arr  = z_phys_cc[lev].const_array(mfi);
 
-            amrex::Print() << "Sending dens_hse[lev] to init_custom_prob" << std::endl;
             init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
                           r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
                           geom[lev].data());
-            amrex::Print() << "Cleared init_custom_prob" << std::endl;
-#endif
+        }
+        else {
+            init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
+        }
+        
     } //mfi
 }
