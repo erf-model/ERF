@@ -314,9 +314,7 @@ ERF::InitData ()
         // start simulation from the beginning
 
         const Real time = 0.0;
-        amrex::Print() << "About to InitFromScratch" << std::endl;
         InitFromScratch(time);
-        amrex::Print() << "Cleared InitFromScratch" << std::endl;
 
         // For now we initialize rho_KE to 0
         for (int lev = finest_level-1; lev >= 0; --lev)
@@ -339,10 +337,7 @@ ERF::InitData ()
                 }
             }
         }
-        else {
-            z_phys_nd.resize(finest_level); //************get lots of nullptrs
-            amrex::Print() << "resized z_phys_nd!" << std::endl;
-        }
+        else {}
 
         for (int lev = 0; lev <= finest_level; lev++) {
             amrex::Print() << "Going in to init_only!" << std::endl;
@@ -354,6 +349,7 @@ ERF::InitData ()
         AverageDown();
         
         if (solverChoice.use_terrain) {
+            amrex::Print() << "Doing metrics..." << std::endl;
             if (init_type == "real") {
                 for (int lev = 0; lev <= finest_level; lev++)
                 {
@@ -375,6 +371,7 @@ ERF::InitData ()
     }
 
     if (input_bndry_planes) {
+        amrex::Print() << "Doing input_bndry_planes..." << std::endl;
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
         amrex::Print() << "Defining r2d for the first time " << std::endl;
         m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
@@ -388,6 +385,7 @@ ERF::InitData ()
 
     // Initialize flux registers (whether we start from scratch or restart)
     if (do_reflux) {
+        amrex::Print() << "Doing reflux..." << std::endl;
         flux_registers[0] = 0;
         for (int lev = 1; lev <= finest_level; lev++)
         {
@@ -396,6 +394,7 @@ ERF::InitData ()
     }
 
     initHSE();
+    amrex::Print() << "Cleared initHSE()" << std::endl;
 
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine before calling WritePlotFile because
@@ -442,6 +441,7 @@ ERF::InitData ()
     // We only write the file at level 0 for now
     if (output_bndry_planes)
     {
+        amrex::Print() << "Using output_bndry_planes" << std::endl;
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
@@ -457,6 +457,8 @@ ERF::InitData ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
+        amrex::Print() << "About to FillPatch! ERF.cpp" << std::endl;
+        //if(z_phys_nd[lev]) amrex::Print() << "z_phys_nd not null!" << std::endl;
         FillPatch(lev, t_new[lev], lev_new);
 
         // Copy from new into old just in case
@@ -467,6 +469,7 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
         MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
     }
+    amrex::Print() << "Ghost cells filled!" << std::endl;
 }
 
 void
@@ -594,15 +597,18 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
-    if (solverChoice.use_terrain) {
-        z_phys_nd.resize(lev+1);
-        z_phys_cc.resize(lev+1);
-        detJ_cc.resize(lev+1);
-        dens_hse.resize(lev+1);
-        pres_hse.resize(lev+1);
+    z_phys_nd.resize(lev+1);
+    z_phys_cc.resize(lev+1);
+    detJ_cc.resize(lev+1);
+    dens_hse.resize(lev+1);
+    pres_hse.resize(lev+1);
 
-        pres_hse[lev].define(ba,dm,1,1);
-        dens_hse[lev].define(ba,dm,1,1);
+    dens_hse[lev].define(ba,dm,1,1);
+    pres_hse[lev].define(ba,dm,1,1);
+
+    if (solverChoice.use_terrain) {
+
+        amrex::Print() << "USING TERRAIN TOAST!!!!" << std::endl;
         z_phys_cc[lev].define(ba,dm,1,1);
         detJ_cc[lev].define(ba,dm,1,1);
 

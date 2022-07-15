@@ -145,6 +145,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
 }
 */
 
+/*
 void
 init_custom_prob(
   const amrex::Box& bx,
@@ -254,3 +255,5 @@ init_custom_prob(
 
   amrex::Gpu::streamSynchronize();
 }
+
+*/

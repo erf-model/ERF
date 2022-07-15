@@ -136,8 +136,8 @@ private:
     int           m_var_idx;
     TimeInterpolatedData& m_data;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
-    const amrex::MultiFab* m_z_phys_nd;
-    const amrex::MultiFab* m_detJ_cc;
+    const amrex::MultiFab* m_z_phys_nd = nullptr;
+    const amrex::MultiFab* m_detJ_cc = nullptr;
 #ifdef ERF_USE_NETCDF
     const std::string m_init_type;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xlo;

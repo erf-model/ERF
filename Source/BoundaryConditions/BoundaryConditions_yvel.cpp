@@ -133,6 +133,7 @@ void ERFPhysBCFunct::impose_yvel_bcs (const Array4<Real>& dest_arr, const Box& b
             dest_arr(i,j,k) = l_bc_extdir_vals_d[n][4];
     });
 
+    /*
     if(m_z_phys_nd) {    
         const auto&  bx_lo = amrex::lbound(bx);
         const auto&  bx_hi = amrex::ubound(bx);
@@ -197,7 +198,8 @@ void ERFPhysBCFunct::impose_yvel_bcs (const Array4<Real>& dest_arr, const Box& b
                                       });
             } // foextrap
         } // ncomp
-    }
+    } //m_z_phys_nd
+    */
 
     Gpu::streamSynchronize();
 }

@@ -17,6 +17,8 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                                       const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                       int icomp, int ncomp, Real /*time*/, int bccomp)
 {
+    amrex::Print() << "In impose_cons_bcs!" << std::endl;
+    
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
@@ -154,7 +156,9 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
         }
     });
 
+    /*
     if(m_z_phys_nd) {
+        amrex::Print() << "Using terrain in BoundaryConditions_cons!" << std::endl;
         const auto&  bx_lo = amrex::lbound(bx);
         const auto&  bx_hi = amrex::ubound(bx);
         
@@ -220,6 +224,6 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
             } // foextrap
         } // ncomp
     } // m_z_phys_nd
-
+    */
     Gpu::streamSynchronize();
 }

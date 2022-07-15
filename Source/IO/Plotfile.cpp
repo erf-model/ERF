@@ -166,6 +166,7 @@ ERF::WritePlotFile ()
 
     Vector<MultiFab> mf_nd(finest_level+1);
     if (solverChoice.use_terrain) {
+        amrex::Print() << "Using terrain in WritePlotFile! Plotfile.cpp" << std::endl;
        for (int lev = 0; lev <= finest_level; ++lev) {
            BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
            mf_nd[lev].define(nodal_grids, dmap[lev], ncomp_mf, 0);
@@ -246,6 +247,9 @@ ERF::WritePlotFile ()
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
+                    amrex::Print() << "About to touch p0_arr(i,j,k)" << std::endl;
+                    amrex::Print() << p0_arr(i,j,k) << std::endl;
+                    amrex::Print() << "Just Touched p0_arr(i,j,k)" << std::endl;
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - p0_arr(i,j,k);
                 });
             }
@@ -549,6 +553,7 @@ ERF::WritePlotFile ()
     {
         if (plotfile_type == "amrex") {
             if (solverChoice.use_terrain) {
+                amrex::Print() << "Using terrain in Plotfile.cpp!" << std::endl;
                 // We started with mf_nd holding 0 in every component; here we fill only the offset in z
                 int lev = 0;
                 MultiFab::Copy(mf_nd[lev],z_phys_nd[lev],0,2,1,0);

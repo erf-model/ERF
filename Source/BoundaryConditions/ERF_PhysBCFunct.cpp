@@ -36,9 +36,10 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
             }
         }
 
-        MultiFab* z_phys_ptr;
-        MultiFab* xvel_ptr;
-        MultiFab* yvel_ptr;
+        MultiFab* z_phys_ptr = nullptr;
+        MultiFab* xvel_ptr = nullptr;
+        MultiFab* yvel_ptr = nullptr;
+        /*
         if(m_z_phys_nd) { //runtime terrain switch
             // We must make copies of these MultiFabs onto mf's boxArray for when this operator is
             // called for a MultiFab mf that doesn't have the same boxArray
@@ -64,6 +65,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 yvel_ptr->ParallelCopy(m_data.get_var(Vars::yvel),0,0,1,ng_v,ng_v);
             }
         }
+        */
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -80,7 +82,10 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 Array4<const Real> z_nd_arr;
                 Array4<const Real> velx_arr;
                 Array4<const Real> vely_arr;
+
+                /*
                 if(m_z_phys_nd) { //runtime terrain switch
+                    amrex::Print() << "Terrain on switch! In ERF_PhysBCFunct.cpp" << std::endl;
                     BoxArray mf_nodal_grids = mf.boxArray();
                     mf_nodal_grids.convert(IntVect(1,1,1));
                     bool OnSameGrids = ( (mf_nodal_grids       == m_z_phys_nd->boxArray()        ) &&
@@ -95,13 +100,13 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                         vely_arr = yvel_ptr->const_array(mfi);
                     }
                 }
+                */
                 
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
                 //!
                 if (!gdomain.contains(bx))
                 {
-                    // ****************************************************************************
                     if (m_var_idx == Vars::xvel) {
                         AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
                         impose_xvel_bcs(dest_arr,bx,domain,

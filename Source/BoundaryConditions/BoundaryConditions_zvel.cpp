@@ -153,17 +153,17 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
 
         // Populate face values on z-boundaries themselves only if EXT_DIR
         if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-            if(m_z_phys_nd) //runtime terrain switch
-                dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
-                                                 velx_arr,vely_arr,z_nd_arr,dxInv);
-            else
+            //if(m_z_phys_nd) //runtime terrain switch
+            //    dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
+            //                                      velx_arr,vely_arr,z_nd_arr,dxInv);
+            //else
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
             
         } else if (k == dom_hi.z+1 && bc_ptr[n].hi(2) == ERFBCType::ext_dir) {
-            if (m_z_phys_nd) //runtime terrain switch
-                dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],
-                                                 velx_arr,vely_arr,z_nd_arr,dxInv);
-            else
+            //if (m_z_phys_nd) //runtime terrain switch
+            //    dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],
+            //                                     velx_arr,vely_arr,z_nd_arr,dxInv);
+            //else
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][5];
         }
     });
