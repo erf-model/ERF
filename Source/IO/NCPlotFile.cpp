@@ -143,7 +143,7 @@ ERF::writeNCPlotFile(const std::string& dir, const Vector<const MultiFab*> &plot
 
 
       amrex::Vector<int> refRatio;
-      for (int i = 0; i < flev; i++) 
+      for (int i = 0; i < flev; i++)
         refRatio.push_back(ref_ratio[i][0]);
       auto nc_refRatio = ncf.var("refRatio");
       nc_refRatio.par_access(NC_COLLECTIVE);
