@@ -14,7 +14,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const& geom)
+                  amrex::Geometry const&)
 {
     Real rho_0 = parms.rho_0;
 #ifdef _OPENMP
@@ -48,10 +48,10 @@ init_custom_prob(
   Array4<Real> const& x_vel,
   Array4<Real> const& y_vel,
   Array4<Real> const& z_vel,
-  Array4<Real> const& r_hse,
-  Array4<Real> const& p_hse,
-  Array4<Real const> const& z_nd,
-  Array4<Real const> const& z_cc,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real const> const&,
+  Array4<Real const> const&,
   amrex::GeometryData const& geomdata)
 {
     amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {

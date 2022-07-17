@@ -14,7 +14,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  Geometry const& geom)
+                  Geometry const&)
 {
     Real rho_0 = parms.rho_0;
     for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -127,7 +127,7 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+init_custom_terrain(const Geometry& /*geom*/, MultiFab& z_phys_nd)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();

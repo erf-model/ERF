@@ -22,10 +22,4 @@ struct ProbParm {
 
 extern ProbParm parms;
 
-amrex::Real
-erf_vortex_Gaussian(
-  amrex::Real x,
-  amrex::Real y,
-  const ProbParm& parms);
-
 #endif
