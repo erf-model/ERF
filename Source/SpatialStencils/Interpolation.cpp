@@ -40,19 +40,10 @@ InterpolateDensityPertFromCellToFace(
   const Real& upw,
   const Coord& coordDir,
   const int& spatial_order,
-#ifdef ERF_USE_TERRAIN
   const Array4<const Real>& r0_arr)
-#else
-  const amrex::Real* dptr_hse)
-#endif
 {
   return InterpolatePertFromCell(
-    i, j, k, cons_in, Rho_comp, upw, coordDir, spatial_order,
-#ifdef ERF_USE_TERRAIN
-    r0_arr);
-#else
-    dptr_hse);
-#endif
+    i, j, k, cons_in, Rho_comp, upw, coordDir, spatial_order, r0_arr);
 }
 
 AMREX_GPU_DEVICE
@@ -127,11 +118,7 @@ InterpolatePertFromCell(
   const Real& upw,
   const Coord& coordDir,
   const int& spatial_order,
-#ifdef ERF_USE_TERRAIN
   const Array4<const Real>& r0_arr)
-#else
-  const amrex::Real* dptr_hse)
-#endif
 {
     Real avg1 = 0.; Real avg2 = 0.; Real avg3 = 0.;
     Real diff1 = 0.; Real diff2 = 0.; Real diff3 = 0.;
@@ -143,93 +130,54 @@ InterpolatePertFromCell(
 
     if (coordDir ==  Coord::x) {
         avg1  = (qty(i  , j, k, qty_index) + qty(i-1, j, k, qty_index));
-#ifdef ERF_USE_TERRAIN
         avg1 -= (r0_arr(i,j,k) + r0_arr(i-1,j,k));
-#else
-        avg1 -= 2.0*dptr_hse[k];
-#endif
         diff1 = (qty(i  , j, k, qty_index) - qty(i-1, j, k, qty_index));
         if (spatial_order > 2)
         {
             avg2  = (qty(i+1, j, k, qty_index) + qty(i-2, j, k, qty_index));
-#ifdef ERF_USE_TERRAIN
             avg2 -= (r0_arr(i+1,j,k) + r0_arr(i-2,j,k));
-#else
-            avg2 -= 2.0*dptr_hse[k];
-#endif
             diff2 = (qty(i+1, j, k, qty_index) - qty(i-2, j, k, qty_index));
         }
         if (spatial_order > 4)
         {
             avg3  = (qty(i+2, j, k, qty_index) + qty(i-3, j, k, qty_index));
-#ifdef ERF_USE_TERRAIN
             avg3 -= (r0_arr(i+2,j,k) + r0_arr(i-3,j,k));
-#else
-            avg3 -= 2.0*dptr_hse[k];
-#endif
             diff3 = (qty(i+2, j, k, qty_index) - qty(i-3, j, k, qty_index));
         }
     } else if (coordDir ==  Coord::y) {
         avg1  = (qty(i, j  , k, qty_index) + qty(i, j-1, k, qty_index));
-#ifdef ERF_USE_TERRAIN
         avg1 -= (r0_arr(i,j,k) + r0_arr(i,j-1,k));
-#else
-        avg1 -= 2.0*dptr_hse[k];
-#endif
         diff1 = (qty(i, j  , k, qty_index) - qty(i, j-1, k, qty_index));
         if (spatial_order > 2)
         {
             avg2  = (qty(i, j+1, k, qty_index) + qty(i, j-2, k, qty_index));
-#ifdef ERF_USE_TERRAIN
             avg2 -= (r0_arr(i,j+1,k) + r0_arr(i,j-2,k));
-#else
-            avg2 -= 2.0*dptr_hse[k];
-#endif
             diff2 = (qty(i, j+1, k, qty_index) - qty(i, j-2, k, qty_index));
         }
         if (spatial_order > 4)
         {
             avg3  = (qty(i, j+2, k, qty_index) + qty(i, j-3, k, qty_index));
-#ifdef ERF_USE_TERRAIN
             avg3 -= (r0_arr(i,j+2,k) + r0_arr(i,j-3,k));
-#else
-            avg3 -= 2.0*dptr_hse[k];
-#endif
             diff3 = (qty(i, j+2, k, qty_index) - qty(i, j-3, k, qty_index));
         }
     } else {
         avg1  = (qty(i, j, k  , qty_index) + qty(i, j, k-1, qty_index));
         diff1 = (qty(i, j, k  , qty_index) - qty(i, j, k-1, qty_index));
-#ifdef ERF_USE_TERRAIN
         avg1  -= (r0_arr(i,j,k) + r0_arr(i,j,k-1));
         diff1 -= (r0_arr(i,j,k) - r0_arr(i,j,k-1));
-#else
-        avg1  -= (dptr_hse[k  ] + dptr_hse[k-1]);
-        diff1 -= (dptr_hse[k  ] - dptr_hse[k-1]);
-#endif
         if (spatial_order > 2)
         {
             avg2  = (qty(i, j, k+1, qty_index) + qty(i, j, k-2, qty_index));
             diff2 = (qty(i, j, k+1, qty_index) - qty(i, j, k-2, qty_index));
-#ifdef ERF_USE_TERRAIN
             avg2  -= (r0_arr(i,j,k+1) + r0_arr(i,j,k-2));
             diff2 -= (r0_arr(i,j,k+1) - r0_arr(i,j,k-2));
-#else
-            avg2  -= (dptr_hse[k+1] + dptr_hse[k-2]);
-            diff2 -= (dptr_hse[k+1] - dptr_hse[k-2]);
-#endif
         }
         if (spatial_order > 4)
         {
             avg3  = (qty(i, j, k+2, qty_index) + qty(i, j, k-3, qty_index));
             diff3 = (qty(i, j, k+2, qty_index) - qty(i, j, k-3, qty_index));
-#ifdef ERF_USE_TERRAIN
             avg3  -= (r0_arr(i,j,k+2) + r0_arr(i,j,k-3));
             diff3 -= (r0_arr(i,j,k+2) - r0_arr(i,j,k-3));
-#else
-            avg3  -= (dptr_hse[k+2] + dptr_hse[k-3]);
-            diff3 -= (dptr_hse[k+2] - dptr_hse[k-3]);
-#endif
         }
     }
 

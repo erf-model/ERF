@@ -46,11 +46,7 @@ amrex::Real InterpolatePertFromCell(
                        const amrex::Real& uadv,
                        const enum Coord& coordDir,
                        const int& spatial_order,
-#ifdef ERF_USE_TERRAIN
                        const amrex::Array4<const amrex::Real>& r0_arr);
-#else
-                       const amrex::Real* dptr_hse);
-#endif
 
 AMREX_GPU_DEVICE
 amrex::Real InterpolateDensityPertFromCellToFace(
@@ -59,11 +55,7 @@ amrex::Real InterpolateDensityPertFromCellToFace(
                        const amrex::Real& uadv,
                        const enum Coord& coordDir,
                        const int& spatial_order,
-#ifdef ERF_USE_TERRAIN
                        const amrex::Array4<const amrex::Real>& r0_arr);
-#else
-                       const amrex::Real* dptr_hse);
-#endif
 
 /** Meant for {x, y, z}- momentum equations */
 AMREX_GPU_DEVICE
@@ -73,12 +65,10 @@ amrex::Real AdvectionSrcForXMom(
                        const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& rho_w,
                        const amrex::Array4<const amrex::Real>& u,
-#ifdef ERF_USE_TERRAIN
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
-#endif
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
-                       const int& spatial_order);
+                       const int& spatial_order, const int& use_terrain);
 AMREX_GPU_DEVICE
 amrex::Real AdvectionSrcForYMom(
                        const int &i, const int &j, const int &k,
@@ -86,12 +76,10 @@ amrex::Real AdvectionSrcForYMom(
                        const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& rho_w,
                        const amrex::Array4<const amrex::Real>& v,
-#ifdef ERF_USE_TERRAIN
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
-#endif
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
-                       const int& spatial_order);
+                       const int& spatial_order, const int& use_terrain);
 AMREX_GPU_DEVICE
 amrex::Real AdvectionSrcForZMom(
                        const int &i, const int &j, const int &k,
@@ -99,12 +87,11 @@ amrex::Real AdvectionSrcForZMom(
                        const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& rho_w,
                        const amrex::Array4<const amrex::Real>& w,
-#ifdef ERF_USE_TERRAIN
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
-#endif
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
-                       const int& spatial_order, const int& domhi_z);
+                       const int& spatial_order, const int& use_terrain,
+                       const int& domhi_z);
 
 /** Compute advection source for the continuity, energy, and scalar equations */
 void AdvectionSrcForState(
@@ -118,13 +105,11 @@ void AdvectionSrcForState(
                        const amrex::Array4<amrex::Real>& flux_x,
                        const amrex::Array4<amrex::Real>& flux_y,
                        const amrex::Array4<amrex::Real>& flux_z,
-#ifdef ERF_USE_TERRAIN
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
-#endif
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
-                       const int& spatial_order, const int& use_deardorff,
-                       const int& use_QKE);
+                       const int& spatial_order, const int& use_terrain,
+                       const int& use_deardorff, const int& use_QKE);
 
 /** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known */
 AMREX_GPU_DEVICE

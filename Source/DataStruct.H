@@ -319,13 +319,7 @@ struct SolverChoice {
         }
     }
 
-#ifdef ERF_USE_TERRAIN
-    // Default is terrain
-    bool        use_terrain            = true;
-#else
-    // Default is no terrain
     bool        use_terrain            = false;
-#endif
 
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;

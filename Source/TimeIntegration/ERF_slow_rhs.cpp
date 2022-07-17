@@ -11,10 +11,8 @@
 #include <EOS.H>
 #include <ERF.H>
 
-#ifdef ERF_USE_TERRAIN
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
-#endif
 
 using namespace amrex;
 
@@ -34,14 +32,8 @@ void erf_slow_rhs (int level,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<ABLMost>& most,
                    const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-#ifdef ERF_USE_TERRAIN
-                   const MultiFab& z_phys_nd,
-                   const MultiFab& detJ_cc,
-                   const MultiFab& r0,
-                   const MultiFab& p0,
-#else
-                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
-#endif
+                   std::unique_ptr<MultiFab>& z0, std::unique_ptr<MultiFab>& dJ,
+                   const MultiFab* r0, const MultiFab* p0,
                    const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                    const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
                    const int rhs_vars)
@@ -65,6 +57,7 @@ void erf_slow_rhs (int level,
     }
 
     const int l_spatial_order = solverChoice.spatial_order;
+    const int l_use_terrain   = solverChoice.use_terrain;
 
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
@@ -183,18 +176,13 @@ void erf_slow_rhs (int level,
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
-#ifdef ERF_USE_TERRAIN
-        // These are metric terms for terrain-fitted coordiantes
-        const Array4<const Real>& z_nd = z_phys_nd.const_array(mfi);
-        const Array4<const Real>& detJ = detJ_cc.const_array(mfi);
-#endif
-
         const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 
-#ifdef ERF_USE_TERRAIN
-        const Array4<const Real>& r0_arr = r0.const_array(mfi);
-        const Array4<const Real>& p0_arr = p0.const_array(mfi);
-#endif
+        const Array4<const Real>& z_nd = l_use_terrain ? z0->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ = l_use_terrain ? dJ->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& r0_arr = r0->const_array(mfi);
+        const Array4<const Real>& p0_arr = p0->const_array(mfi);
+
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
         if (rhs_vars != RHSVar::slow) {
@@ -202,11 +190,7 @@ void erf_slow_rhs (int level,
                 if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
                     i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
                 AMREX_ALWAYS_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-#ifdef ERF_USE_TERRAIN
-               pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
-#else
-               pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),dptr_pres_hse[k]);
-#endif
+                pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
             });
         }
 
@@ -216,18 +200,12 @@ void erf_slow_rhs (int level,
 
         if (rhs_vars == RHSVar::fast || rhs_vars == RHSVar::all) {
             AdvectionSrcForState(bx, start_comp, num_comp, rho_u, rho_v, rho_w, cell_prim,
-                                 cell_rhs, advflux_x, advflux_y, advflux_z,
-#ifdef ERF_USE_TERRAIN
-                                 z_nd, detJ,
-#endif
-                                 dxInv, l_spatial_order, l_use_deardorff, l_use_QKE);
+                                 cell_rhs, advflux_x, advflux_y, advflux_z, z_nd, detJ,
+                                 dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
         } else if (rhs_vars == RHSVar::slow) {
             AdvectionSrcForState(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom, cell_prim,
-                                 cell_rhs, advflux_x, advflux_y, advflux_z,
-#ifdef ERF_USE_TERRAIN
-                                 z_nd, detJ,
-#endif
-                                 dxInv, l_spatial_order, l_use_deardorff, l_use_QKE);
+                                 cell_rhs, advflux_x, advflux_y, advflux_z, z_nd, detJ,
+                                 dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
         }
 
         amrex::ParallelFor(bx, num_comp,
@@ -272,7 +250,7 @@ void erf_slow_rhs (int level,
                 cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
                 // Add TKE production
-                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_turb,dxInv,domain,bc_ptr);
+                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_turb,dxInv,domain,bc_ptr,l_use_terrain);
 
                 // Add dissipation
                 if (std::abs(E) > 0.) {
@@ -340,53 +318,49 @@ void erf_slow_rhs (int level,
             {
 
             // Add advective terms
-            rho_u_rhs(i, j, k) += -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, u,
-
-#ifdef ERF_USE_TERRAIN
-                                                       z_nd, detJ,
-#endif
-                                                       dxInv, l_spatial_order);
+            rho_u_rhs(i, j, k) += -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, u, z_nd, detJ,
+                                                       dxInv, l_spatial_order, l_use_terrain);
 
             // Add diffusive terms
             amrex::Real diff_update;
-#ifdef ERF_USE_TERRAIN
-            if (k < domhi_z)
+            if (k < domhi_z && l_use_terrain) {
                 diff_update = DiffusionSrcForMomWithTerrain(i, j, k, u, v, w, cell_data,
-                                                         MomentumEqn::x, dxInv, K_turb, solverChoice,
-                                                         z_nd, detJ, domain, bc_ptr);
-            else
-#endif
+                                                            MomentumEqn::x, dxInv, K_turb, solverChoice,
+                                                            z_nd, detJ, domain, bc_ptr);
+            } else {
                 diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
                                                  MomentumEqn::x, dxInv, K_turb, solverChoice,
                                                  domain, bc_ptr);
+            }
             rho_u_rhs(i, j, k) += diff_update;
 
             // Add pressure gradient
-#ifdef ERF_USE_TERRAIN
+            amrex::Real gpx;
+            if (l_use_terrain) {
+                Real met_h_xi, met_h_eta, met_h_zeta;
 
-            Real met_h_xi, met_h_eta, met_h_zeta;
+                ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
 
-            ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
-
-            Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
-            Real gp_zeta_on_iface;
-            if(k==0) {
-                gp_zeta_on_iface = 0.5 * dxInv[2] * (
-                                                    pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
-                                                  - pp_arr(i-1,j,k  ) - pp_arr(i,j,k  ) );
-            } else if (k==domhi_z) {
-                gp_zeta_on_iface = 0.5 * dxInv[2] * (
-                                                    pp_arr(i-1,j,k  ) + pp_arr(i,j,k  )
-                                                  - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+                Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
+                Real gp_zeta_on_iface;
+                if(k==0) {
+                    gp_zeta_on_iface = 0.5 * dxInv[2] * (
+                                                        pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
+                                                      - pp_arr(i-1,j,k  ) - pp_arr(i,j,k  ) );
+                } else if (k==domhi_z) {
+                    gp_zeta_on_iface = 0.5 * dxInv[2] * (
+                                                        pp_arr(i-1,j,k  ) + pp_arr(i,j,k  )
+                                                      - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+                } else {
+                    gp_zeta_on_iface = 0.25 * dxInv[2] * (
+                                                         pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
+                                                       - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+                }
+                gpx = gp_xi - (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
             } else {
-                gp_zeta_on_iface = 0.25 * dxInv[2] * (
-                                                     pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
-                                                   - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+                gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
             }
-            amrex::Real gpx = gp_xi - (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
-#else
-            amrex::Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
-#endif
+
 #ifdef ERF_USE_MOISUTRE
             Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
                             +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
@@ -423,7 +397,6 @@ void erf_slow_rhs (int level,
         });
         amrex::ParallelFor(tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
-
             rho_v_rhs(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
 
             bool on_coarse_fine_boundary = false;
@@ -437,49 +410,49 @@ void erf_slow_rhs (int level,
             {
 
             // Add advective terms
-            rho_v_rhs(i, j, k) += -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, v,
-#ifdef ERF_USE_TERRAIN
-                                                       z_nd, detJ,
-#endif
-                                                       dxInv, l_spatial_order);
+            rho_v_rhs(i, j, k) += -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, v, z_nd, detJ,
+                                                       dxInv, l_spatial_order, l_use_terrain);
 
             // Add diffusive terms
             amrex::Real diff_update;
-#ifdef ERF_USE_TERRAIN
-            if (k < domhi_z)
+            if (k < domhi_z && l_use_terrain) {
                 diff_update = DiffusionSrcForMomWithTerrain(i, j, k, u, v, w, cell_data,
                                                             MomentumEqn::y, dxInv, K_turb, solverChoice,
                                                             z_nd, detJ, domain, bc_ptr);
-            else
-#endif
+            } else {
                 diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
                                                  MomentumEqn::y, dxInv, K_turb, solverChoice,
                                                  domain, bc_ptr);
-             rho_v_rhs(i, j, k) += diff_update;
+            }
+            rho_v_rhs(i, j, k) += diff_update;
 
             // Add pressure gradient
-#ifdef ERF_USE_TERRAIN
-            Real met_h_xi,met_h_eta,met_h_zeta;
-            ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
-            Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-            Real gp_zeta_on_jface;
-            if(k==0) {
-                gp_zeta_on_jface = 0.5 * dxInv[2] * (
-                                                    pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
-                                                  - pp_arr(i,j,k  ) - pp_arr(i,j-1,k  ) );
-            } else if (k==domhi_z) {
-                gp_zeta_on_jface = 0.5 * dxInv[2] * (
-                                                    pp_arr(i,j,k  ) + pp_arr(i,j-1,k  )
-                                                  - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+            amrex::Real gpy;
+            if (l_use_terrain) {
+                Real met_h_xi,met_h_eta,met_h_zeta;
+
+                ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
+
+                Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
+                Real gp_zeta_on_jface;
+                if(k==0) {
+                    gp_zeta_on_jface = 0.5 * dxInv[2] * (
+                                                        pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
+                                                      - pp_arr(i,j,k  ) - pp_arr(i,j-1,k  ) );
+                } else if (k==domhi_z) {
+                    gp_zeta_on_jface = 0.5 * dxInv[2] * (
+                                                        pp_arr(i,j,k  ) + pp_arr(i,j-1,k  )
+                                                      - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                } else {
+                    gp_zeta_on_jface = 0.25 * dxInv[2] * (
+                                                         pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
+                                                       - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                }
+                gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
             } else {
-                gp_zeta_on_jface = 0.25 * dxInv[2] * (
-                                                     pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
-                                                   - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
             }
-            amrex::Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
-#else
-            amrex::Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-#endif
+
 #ifdef ERF_USE_MOISUTRE
             Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
                             +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
@@ -514,7 +487,6 @@ void erf_slow_rhs (int level,
         });
         amrex::ParallelFor(tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
-
             rho_w_rhs(i, j, k) = 0.0; // Initialize the updated z-mom eqn term to zero
 
             bool on_coarse_fine_boundary = false;
@@ -526,37 +498,34 @@ void erf_slow_rhs (int level,
 
             if (!on_coarse_fine_boundary && k > 0)
             {
-
             // Add advective terms
             rho_w_rhs(i, j, k) += -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, w,
-#ifdef ERF_USE_TERRAIN
-                                                       z_nd, detJ,
-#endif
-                                                       dxInv, l_spatial_order, domhi_z);
+                                       z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
 
             // Add diffusive terms
             int k_diff = (k == domhi_z+1) ? domhi_z : k;
             amrex::Real diff_update;
-#ifdef ERF_USE_TERRAIN
-            if (k < domhi_z)
+            if (k < domhi_z && l_use_terrain) {
                 diff_update = DiffusionSrcForMomWithTerrain(i, j, k_diff, u, v, w, cell_data,
-                                                            MomentumEqn::z, dxInv, K_turb, solverChoice,
-                                                            z_nd, detJ, domain, bc_ptr);
-            else
-#endif
+                                       MomentumEqn::z, dxInv, K_turb, solverChoice,
+                                       z_nd, detJ, domain, bc_ptr);
+            } else {
                 diff_update = DiffusionSrcForMom(i, j, k_diff, u, v, w, cell_data,
                                                  MomentumEqn::z, dxInv, K_turb, solverChoice,
                                                  domain, bc_ptr);
+            }
             rho_w_rhs(i, j, k) += diff_update;
 
             // Add pressure gradient
-#ifdef ERF_USE_TERRAIN
-            Real met_h_xi,met_h_eta,met_h_zeta;
-            ComputeMetricAtKface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_zeta);
-            amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / met_h_zeta;
-#else
-            amrex::Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
-#endif
+            amrex::Real gpz;
+            if (l_use_terrain) {
+                Real met_h_xi,met_h_eta,met_h_zeta;
+                ComputeMetricAtKface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_zeta);
+                gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / met_h_zeta;
+            } else {
+                gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
+            }
+
 #ifdef ERF_USE_MOISUTRE
             Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
                             +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
@@ -570,13 +539,8 @@ void erf_slow_rhs (int level,
             {
                 int local_spatial_order = 2;
                 rho_w_rhs(i, j, k) += grav_gpu[2] *
-#ifdef ERF_USE_TERRAIN
                      InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
                                                           Coord::z, local_spatial_order, r0_arr);
-#else
-                     InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
-                                                          Coord::z, local_spatial_order, dptr_dens_hse);
-#endif
             }
 
             // Add driving pressure gradient
@@ -606,7 +570,6 @@ void erf_slow_rhs (int level,
             } else if (k == domhi_z+1) {
                 rho_w_rhs(i, j, k) = 0.;
             }
-
             } // not on coarse-fine boundary
         });
         } // not (rhs_vars == RHSVar::slow)

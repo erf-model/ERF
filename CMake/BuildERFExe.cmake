@@ -20,10 +20,6 @@ function(build_erf_lib erf_lib_name)
                  ${ERF_EOS_DIR}/EOS.H)
   target_include_directories(${erf_lib_name} SYSTEM PUBLIC ${ERF_EOS_DIR})
 
-  if(ERF_ENABLE_TERRAIN)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_TERRAIN)
-  endif()
-
   if(ERF_ENABLE_MOISTURE)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
   endif()

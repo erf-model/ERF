@@ -19,12 +19,7 @@ void ERF::erf_advance(int level,
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt_advance, const amrex::Real old_time,
                       amrex::InterpFaceRegister* ifr,
-#ifdef ERF_USE_TERRAIN
-                      MultiFab& r0, MultiFab& p0,
-#else
-                      const amrex::Real* dptr_dens_hse,
-                      const amrex::Real* dptr_pres_hse,
-#endif
+                      MultiFab* r0, MultiFab* p0,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
@@ -209,12 +204,7 @@ void ERF::erf_advance(int level,
                      source, advflux, diffflux,
                      fine_geom, ifr, solverChoice,
                      m_most, domain_bcs_type_d,
-#ifdef ERF_USE_TERRAIN
-                     z_phys_nd[level], detJ_cc[level],
-                     r0, p0,
-#else
-                     dptr_dens_hse, dptr_pres_hse,
-#endif
+                     z_phys_nd[level], detJ_cc[level], r0, p0,
                      dptr_rayleigh_tau, dptr_rayleigh_ubar,
                      dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
                      rhs_vars);
@@ -231,12 +221,7 @@ void ERF::erf_advance(int level,
                      xvel_new, yvel_new, zvel_new,
                      source, advflux, diffflux,
                      fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
-#ifdef ERF_USE_TERRAIN
-                     z_phys_nd[level], detJ_cc[level],
-                     r0, p0,
-#else
-                     dptr_dens_hse, dptr_pres_hse,
-#endif
+                     z_phys_nd[level], detJ_cc[level], r0, p0,
                      dptr_rayleigh_tau, dptr_rayleigh_ubar,
                      dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
                      rhs_vars);
@@ -252,11 +237,7 @@ void ERF::erf_advance(int level,
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << fast_dt << std::endl;
         erf_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
                      S_data, S_scratch, advflux, fine_geom, ifr, solverChoice,
-#ifdef ERF_USE_TERRAIN
                      z_phys_nd[level], detJ_cc[level], r0, p0,
-#else
-                     dptr_dens_hse, dptr_pres_hse,
-#endif
                      fast_dt, inv_fac);
     };
 

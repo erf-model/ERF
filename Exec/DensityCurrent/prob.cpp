@@ -10,33 +10,6 @@ using namespace amrex;
 
 ProbParm parms;
 
-#ifdef ERF_USE_TERRAIN
-void
-erf_init_dens_hse(amrex::MultiFab& rho_hse,
-                  const amrex::MultiFab& z_phys_nd,
-                  const amrex::MultiFab& z_phys_cc,
-                  amrex::Geometry const& geom)
-{
-    Print() << "Fill this up as desired...Needed for linking" << std::endl;
-}
-void
-init_custom_prob(
-        const amrex::Box& bx,
-        amrex::Array4<amrex::Real> const& state,
-        amrex::Array4<amrex::Real> const& x_vel,
-        amrex::Array4<amrex::Real> const& y_vel,
-        amrex::Array4<amrex::Real> const& z_vel,
-        amrex::Array4<amrex::Real> const& r_hse,
-        amrex::Array4<amrex::Real> const& p_hse,
-        amrex::Array4<amrex::Real const> const& z_nd,
-        amrex::Array4<amrex::Real const> const& z_cc,
-        amrex::GeometryData const& geomdata)
-{
-    Print() << "Fill this up as desired...Needed for linking" << std::endl;
-}
-
-#else //ERF_USE_TERRAIN = FALSE
-
 void
 init_isentropic_hse(const Real& r_sfc, const Real& theta,
                           Real* r,           Real* p,
@@ -124,71 +97,94 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
 }
 
 void
-erf_init_dens_hse(Real* dens_hse_ptr,
-                  Geometry const& geom,
-                  const int /*ng_dens_hse*/)
+erf_init_dens_hse(MultiFab& rho_hse,
+                  std::unique_ptr<MultiFab>&,
+                  std::unique_ptr<MultiFab>&,
+                  Geometry const& geom)
 {
   const Real prob_lo_z = geom.ProbLo()[2];
   const Real dz        = geom.CellSize()[2];
-  const int khi               = geom.Domain().bigEnd()[2];
+  const int khi        = geom.Domain().bigEnd()[2];
 
   const Real& T_sfc    = 300.;
   const Real& rho_sfc  = p_0 / (R_d*T_sfc);
   const Real& Thetabar = T_sfc;
 
-  Vector<Real> r(khi+1);
-  Vector<Real> p(khi+1);
+  // These are at cell centers (unstaggered)
+  Vector<Real> h_r(khi+1);
+  Vector<Real> h_p(khi+1);
 
-  init_isentropic_hse(rho_sfc,Thetabar,r.data(),p.data(),dz,prob_lo_z,khi);
+  amrex::Gpu::DeviceVector<Real> d_r(khi+1);
+  amrex::Gpu::DeviceVector<Real> d_p(khi+1);
 
-  for (int k = 0; k <= khi; k++)
-  {
-      dens_hse_ptr[k] = r[k];
-  }
+  init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
-  dens_hse_ptr[   -1] = dens_hse_ptr[  0];
-  dens_hse_ptr[khi+1] = dens_hse_ptr[khi];
+  amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
+  amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
+
+  Real* r = d_r.data();
+  Real* p = d_p.data();
+
+  init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.growntilebox(1);
+        const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int kk = std::max(k,0);
+            rho_hse_arr(i,j,k) = d_r[kk];
+        });
+    }
 }
 
 void
 init_custom_prob(
-  const amrex::Box& bx,
-  amrex::Array4<amrex::Real> const& state,
-  amrex::Array4<amrex::Real> const& x_vel,
-  amrex::Array4<amrex::Real> const& y_vel,
-  amrex::Array4<amrex::Real> const& z_vel,
-  amrex::GeometryData const& geomdata)
+        const Box& bx,
+        Array4<Real      > const& state,
+        Array4<Real      > const& x_vel,
+        Array4<Real      > const& y_vel,
+        Array4<Real      > const& z_vel,
+        Array4<Real      > const& r_hse,
+        Array4<Real      > const& p_hse,
+        Array4<Real const> const&,
+        Array4<Real const> const&,
+        GeometryData const& geomdata)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
   // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
-//const amrex::Real z0 = (0.5) * dx[2] + prob_lo[2];
-//const amrex::Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
-//const amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
-//const amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
-//const amrex::Real rhobar = pbar / (R_d*Tbar); // UNUSED
+//const Real z0 = (0.5) * dx[2] + prob_lo[2];
+//const Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
+//const Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
+//const Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
+//const Real rhobar = pbar / (R_d*Tbar); // UNUSED
 
-  const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
-  const amrex::Real& thetabar  = parms.T_0;
-  const amrex::Real& dz        = geomdata.CellSize()[2];
-  const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
+  const Real& rho_sfc   = p_0 / (R_d*parms.T_0);
+  const Real& thetabar  = parms.T_0;
+  const Real& dz        = geomdata.CellSize()[2];
+  const Real& prob_lo_z = geomdata.ProbLo()[2];
 
   // These are at cell centers (unstaggered)
-  amrex::Vector<amrex::Real> h_r(khi+1);
-  amrex::Vector<amrex::Real> h_p(khi+1);
+  Vector<Real> h_r(khi+1);
+  Vector<Real> h_p(khi+1);
 
-  amrex::Gpu::DeviceVector<amrex::Real> d_r(khi+1);
-  amrex::Gpu::DeviceVector<amrex::Real> d_p(khi+1);
+  amrex::Gpu::DeviceVector<Real> d_r(khi+1);
+  amrex::Gpu::DeviceVector<Real> d_p(khi+1);
 
   init_isentropic_hse(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
   amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
   amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
 
-  amrex::Real* r = d_r.data();
-  amrex::Real* p = d_p.data();
+  Real* r = d_r.data();
+  Real* p = d_p.data();
 
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -196,17 +192,17 @@ init_custom_prob(
     const auto prob_lo         = geomdata.ProbLo();
     const auto dx              = geomdata.CellSize();
 
-    const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+    const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+    const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-    const amrex::Real Tbar_hse = p[k] / (R_d * r[k]);
+    const Real Tbar_hse = p[k] / (R_d * r[k]);
 
-    amrex::Real L = std::sqrt(
+    Real L = std::sqrt(
         std::pow((x - parms.x_c)/parms.x_r, 2) +
         std::pow((z - parms.z_c)/parms.z_r, 2)
     );
-    amrex::Real dT;
+    Real dT;
     if (L > 1.0) {
         dT = 0.0;
     }
@@ -215,7 +211,7 @@ init_custom_prob(
     }
 
     // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
-    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
+    Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
 
     // This version perturbs rho but not p
     state(i, j, k, RhoTheta_comp) = std::pow(p[k]/p_0,1.0/Gamma) * p_0 / R_d;
@@ -254,13 +250,40 @@ init_custom_prob(
   amrex::Gpu::streamSynchronize();
 }
 
-#endif //ERF_USE_TERRAIN
+void
+init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+{
+    auto dx = geom.CellSizeArray();
+    auto ProbLoArr = geom.ProbLoArray();
+    auto ProbHiArr = geom.ProbHiArray();
+
+    // Number of ghost cells
+    int ngrow = z_phys_nd.nGrow();
+
+    // Bottom of domain
+    int k0 = 0;
+
+    for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        // Grown box with no z range
+        amrex::Box xybx = mfi.growntilebox(ngrow);
+        xybx.setRange(2,0);
+
+        Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+
+            // Flat terrain with z = 0 at k = 0
+            z_arr(i,j,k0) = 0.0;
+        });
+    }
+}
 
 void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
-                  amrex::Vector<amrex::Real>& /*ubar*/,
-                  amrex::Vector<amrex::Real>& /*vbar*/,
-                  amrex::Vector<amrex::Real>& /*thetabar*/,
+erf_init_rayleigh(Vector<Real>& /*tau*/,
+                  Vector<Real>& /*ubar*/,
+                  Vector<Real>& /*vbar*/,
+                  Vector<Real>& /*thetabar*/,
                   amrex::Geometry      const& /*geom*/)
 {
    amrex::Error("Should never get here for DensityCurrent problem");
@@ -272,7 +295,7 @@ amrex_probinit(
   const amrex_real* /*probhi*/)
 {
   // Parse params
-  amrex::ParmParse pp("prob");
+  ParmParse pp("prob");
   pp.query("T_0", parms.T_0);
   pp.query("U_0", parms.U_0);
   pp.query("x_c", parms.x_c);

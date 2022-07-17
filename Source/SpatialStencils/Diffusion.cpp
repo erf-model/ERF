@@ -3,8 +3,6 @@
 
 using namespace amrex;
 
-#ifdef ERF_USE_TERRAIN
-
 AMREX_GPU_DEVICE
 Real
 DiffusionSrcForMomWithTerrain(
@@ -414,7 +412,6 @@ DiffusionSrcForMomWithTerrain(
   return diffContrib;
   }
 }
-#endif
 
 AMREX_GPU_DEVICE
 Real

@@ -141,12 +141,7 @@ public:
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
-#ifdef ERF_USE_TERRAIN
-                      amrex::MultiFab& r0, amrex::MultiFab& p0,
-#else
-                      const amrex::Real* dptr_dens_hse,
-                      const amrex::Real* dptr_pres_hse,
-#endif
+                      amrex::MultiFab* r0, amrex::MultiFab* p0,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
@@ -182,18 +177,9 @@ public:
                                                 const std::string &levelPrefix,
                                                 const std::string &mfPrefix) const;
 
-    // Define z_phys_nd on nodes using an analytical expression
-    void init_custom_terrain(int lev);
-
-#ifdef ERF_USE_TERRAIN
     void erf_enforce_hse(int lev,
                          amrex::MultiFab& dens, amrex::MultiFab& pres,
-                         amrex::MultiFab& z_cc);
-#else
-    void erf_enforce_hse(int lev,
-                         amrex::Vector<amrex::Real>& dens,
-                         amrex::Vector<amrex::Real>& pres);
-#endif
+                         std::unique_ptr<amrex::MultiFab>& z_cc);
 
 #ifdef ERF_USE_NETCDF
     //! Write a timestep to 1D vertical column output for coupling
@@ -417,21 +403,12 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 
-    amrex::Vector<amrex::MultiFab> z_phys_nd;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
 
-    amrex::Vector<amrex::MultiFab> z_phys_cc;
-    amrex::Vector<amrex::MultiFab> detJ_cc;
-
-#ifdef ERF_USE_TERRAIN
     amrex::Vector<amrex::MultiFab> pres_hse;
     amrex::Vector<amrex::MultiFab> dens_hse;
-#else
-    // Base state quantities: density and pressure, 1 array per AMR level
-    amrex::Vector<amrex::Vector<amrex::Real> > h_dens_hse;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_pres_hse;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_dens_hse;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_pres_hse;
-#endif
 
     // array of flux registers
     amrex::Vector<amrex::FluxRegister*> flux_registers;
@@ -503,9 +480,7 @@ private:
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar", "pres_hse",
                                                     "dens_hse", "pert_pres", "pert_dens", "dpdx", "dpdy",
-#ifdef ERF_USE_TERRAIN
                                                     "pres_hse_x", "pres_hse_y", "z_phys", "detJ"
-#endif
                                                    };
 
     // algorithm choices

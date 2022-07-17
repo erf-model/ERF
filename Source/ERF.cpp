@@ -8,9 +8,7 @@
 
 #include <AMReX_buildInfo.H>
 
-#ifdef ERF_USE_TERRAIN
 #include <TerrainMetrics.H>
-#endif
 
 using namespace amrex;
 
@@ -20,10 +18,6 @@ amrex::Real ERF::previousCPUTimeUsed = 0.0;
 Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
-
-// Create dens_hse and pres_hse with one ghost cell
-int ERF::ng_dens_hse = 1;
-int ERF::ng_pres_hse = 1;
 
 // Time step control
 amrex::Real ERF::cfl           =  0.8;
@@ -328,39 +322,41 @@ ERF::InitData ()
             amrex::Abort("We do not currently support init_type = input_sounding with terrain");
         }
 
-#ifdef ERF_USE_TERRAIN
-        if (init_type != "real") {
-            for (int lev = 0; lev <= finest_level; lev++)
-            {
-                init_custom_terrain(lev);
-                init_terrain_grid(geom[lev],z_phys_nd[lev]);
-                make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
+        if (solverChoice.use_terrain) {
+            if (init_type != "real") {
+                for (int lev = 0; lev <= finest_level; lev++)
+                {
+                    init_custom_terrain(geom[lev],*z_phys_nd[lev]);
+                    init_terrain_grid(geom[lev],*z_phys_nd[lev]);
+                    make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
+                }
             }
         }
-#endif
 
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
 
         AverageDown();
-#ifdef ERF_USE_TERRAIN
-        if (init_type == "real") {
-            for (int lev = 0; lev <= finest_level; lev++)
-            {
-                make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
+
+        if(solverChoice.use_terrain) {
+            if (init_type == "real") {
+                for (int lev = 0; lev <= finest_level; lev++)
+                {
+                    make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
+                }
             }
         }
-#endif
+
     } else { // Restart from a checkpoint
 
         restart();
 
-#ifdef ERF_USE_TERRAIN
-        // This must come after the call to restart because that
-        //      is where we read in the mesh data
-        for (int lev = finest_level-1; lev >= 0; --lev)
-            make_metrics(geom[lev],z_phys_nd[lev],z_phys_cc[lev],detJ_cc[lev]);
-#endif
+        if(solverChoice.use_terrain) {
+            // This must come after the call to restart because that
+            //      is where we read in the mesh data
+            for (int lev = finest_level-1; lev >= 0; --lev)
+                make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
+        }
     }
 
     if (input_bndry_planes) {
@@ -583,25 +579,34 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
-#ifdef ERF_USE_TERRAIN
     z_phys_nd.resize(lev+1);
     z_phys_cc.resize(lev+1);
     detJ_cc.resize(lev+1);
+
     dens_hse.resize(lev+1);
     pres_hse.resize(lev+1);
 
     pres_hse[lev].define(ba,dm,1,1);
     dens_hse[lev].define(ba,dm,1,1);
-    z_phys_cc[lev].define(ba,dm,1,1);
-    detJ_cc[lev].define(ba,dm,1,1);
 
-    BoxArray ba_nd(ba);
-    ba_nd.surroundingNodes();
+    pres_hse[lev].setVal(0.);
+    dens_hse[lev].setVal(0.);
 
-    // We need this to be one greater than the ghost cells to handle levels > 0
-    int ngrow = ComputeGhostCells(solverChoice.spatial_order)+2;
-    z_phys_nd[lev].define(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
-#endif
+    if (solverChoice.use_terrain) {
+        z_phys_cc[lev].reset(new MultiFab(ba,dm,1,1));
+          detJ_cc[lev].reset(new MultiFab(ba,dm,1,1));
+
+        BoxArray ba_nd(ba);
+        ba_nd.surroundingNodes();
+
+        // We need this to be one greater than the ghost cells to handle levels > 0
+        int ngrow = ComputeGhostCells(solverChoice.spatial_order)+2;
+        z_phys_nd[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
+    } else {
+        z_phys_nd[lev] = nullptr;
+        z_phys_cc[lev] = nullptr;
+          detJ_cc[lev] = nullptr;
+    }
 }
 
 void

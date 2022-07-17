@@ -17,54 +17,50 @@
 void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,
                                  Real time, int bccomp)
 {
-        if (m_geom.isAllPeriodic()) return;
+    if (m_geom.isAllPeriodic()) return;
 
-        BL_PROFILE("ERFPhysBCFunct::()");
+    BL_PROFILE("ERFPhysBCFunct::()");
 
-        const auto& domain = m_geom.Domain();
+    const auto& domain = m_geom.Domain();
+    const auto dxInv   = m_geom.InvCellSizeArray();
 
-#ifdef ERF_USE_TERRAIN
-        // Private data from constructor
-        const GpuArray<Real, AMREX_SPACEDIM> dxInv = m_geom.InvCellSizeArray();
-#endif
-
-        // Create a grown domain box containing valid + periodic cells
-        Box gdomain = amrex::convert(domain, mf.boxArray().ixType());
-        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-            if (m_geom.isPeriodic(i)) {
-                gdomain.grow(i, nghost[i]);
-            }
+    // Create a grown domain box containing valid + periodic cells
+    Box gdomain = amrex::convert(domain, mf.boxArray().ixType());
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        if (m_geom.isPeriodic(i)) {
+            gdomain.grow(i, nghost[i]);
         }
+    }
 
-#ifdef ERF_USE_TERRAIN
-       // We must make copies of these MultiFabs onto mf's boxArray for when this operator is
-       // called for a MultiFab mf that doesn't have the same boxArray
+    MultiFab* z_phys_ptr = nullptr;
+    MultiFab* xvel_ptr = nullptr;
+    MultiFab* yvel_ptr = nullptr;
 
-       BoxArray mf_nodal_grids = mf.boxArray();
-       mf_nodal_grids.convert(IntVect(1,1,1));
-       bool OnSameGrids = ( (mf_nodal_grids       == m_z_phys_nd.boxArray()        ) &&
-                            (mf.DistributionMap() == m_z_phys_nd.DistributionMap() ) );
-       MultiFab* z_phys_ptr;
-       MultiFab* xvel_ptr;
-       MultiFab* yvel_ptr;
-       if (!OnSameGrids) {
-           IntVect ng_z = m_z_phys_nd.nGrowVect();
-           z_phys_ptr = new MultiFab(mf_nodal_grids,mf.DistributionMap(),1,ng_z);
-           z_phys_ptr->ParallelCopy(m_z_phys_nd,0,0,1,ng_z,ng_z);
+    if (m_z_phys_nd) {
+            // We must make copies of these MultiFabs onto mf's boxArray for when this operator is
+            // called for a MultiFab mf that doesn't have the same boxArray
+            BoxArray mf_nodal_grids = mf.boxArray();
+            mf_nodal_grids.convert(IntVect(1,1,1));
+            bool OnSameGrids = ( (mf_nodal_grids       == m_z_phys_nd->boxArray()        ) &&
+                                 (mf.DistributionMap() == m_z_phys_nd->DistributionMap() ) );
+            if (!OnSameGrids) {
+                IntVect ng_z = m_z_phys_nd->nGrowVect();
+                z_phys_ptr = new MultiFab(mf_nodal_grids,mf.DistributionMap(),1,ng_z);
+                z_phys_ptr->ParallelCopy(*m_z_phys_nd,0,0,1,ng_z,ng_z);
 
-           IntVect ng_u = m_data.get_var(Vars::xvel).nGrowVect();
-           BoxArray ba_u(mf.boxArray());
-           ba_u.convert(IntVect(1,0,0));
-           xvel_ptr = new MultiFab(ba_u,mf.DistributionMap(),1,ng_u);
-           xvel_ptr->ParallelCopy(m_data.get_var(Vars::xvel),0,0,1,ng_u,ng_u);
+                IntVect ng_u = m_data.get_var(Vars::xvel).nGrowVect();
+                BoxArray ba_u(mf.boxArray());
+                ba_u.convert(IntVect(1,0,0));
+                xvel_ptr = new MultiFab(ba_u,mf.DistributionMap(),1,ng_u);
+                xvel_ptr->ParallelCopy(m_data.get_var(Vars::xvel),0,0,1,ng_u,ng_u);
 
-           IntVect ng_v = m_data.get_var(Vars::yvel).nGrowVect();
-           BoxArray ba_v(mf.boxArray());
-           ba_v.convert(IntVect(0,1,0));
-           yvel_ptr = new MultiFab(ba_v,mf.DistributionMap(),1,ng_v);
-           yvel_ptr->ParallelCopy(m_data.get_var(Vars::yvel),0,0,1,ng_v,ng_v);
-       }
-#endif
+                IntVect ng_v = m_data.get_var(Vars::yvel).nGrowVect();
+                BoxArray ba_v(mf.boxArray());
+                ba_v.convert(IntVect(0,1,0));
+                yvel_ptr = new MultiFab(ba_v,mf.DistributionMap(),1,ng_v);
+                yvel_ptr->ParallelCopy(m_data.get_var(Vars::yvel),0,0,1,ng_v,ng_v);
+            }
+    }
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -78,56 +74,54 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 const Array4<Real>& dest_arr = mf.array(mfi);
                 const Box& bx = mfi.fabbox();
 
-#ifdef ERF_USE_TERRAIN
                 Array4<const Real> z_nd_arr;
                 Array4<const Real> velx_arr;
                 Array4<const Real> vely_arr;
-                if (OnSameGrids) {
-                    z_nd_arr = m_z_phys_nd.const_array(mfi);
-                    velx_arr = m_data.get_var(Vars::xvel).const_array(mfi);
-                    vely_arr = m_data.get_var(Vars::yvel).const_array(mfi);
-                } else {
-                    z_nd_arr = z_phys_ptr->const_array(mfi);
-                    velx_arr = xvel_ptr->const_array(mfi);
-                    vely_arr = yvel_ptr->const_array(mfi);
+
+                if (m_z_phys_nd)
+                {
+                    BoxArray mf_nodal_grids = mf.boxArray();
+                    mf_nodal_grids.convert(IntVect(1,1,1));
+                    bool OnSameGrids = ( (mf_nodal_grids       == m_z_phys_nd->boxArray()        ) &&
+                                         (mf.DistributionMap() == m_z_phys_nd->DistributionMap() ) );
+                    if (OnSameGrids) {
+                        z_nd_arr = m_z_phys_nd->const_array(mfi);
+                        velx_arr = m_data.get_var(Vars::xvel).const_array(mfi);
+                        vely_arr = m_data.get_var(Vars::yvel).const_array(mfi);
+                    } else {
+                        z_nd_arr = z_phys_ptr->const_array(mfi);
+                        velx_arr = xvel_ptr->const_array(mfi);
+                        vely_arr = yvel_ptr->const_array(mfi);
+                    }
                 }
-#endif
+
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
                 //!
                 if (!gdomain.contains(bx))
                 {
-                    // ****************************************************************************
                     if (m_var_idx == Vars::xvel) {
                         AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
                         impose_xvel_bcs(dest_arr,bx,domain,
-#ifdef ERF_USE_TERRAIN
                                         z_nd_arr,dxInv,
-#endif
                                         time,bccomp);
 
                     } else if (m_var_idx == Vars::yvel) {
                         AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
                         impose_yvel_bcs(dest_arr,bx,domain,
-#ifdef ERF_USE_TERRAIN
                                         z_nd_arr,dxInv,
-#endif
                                         time,bccomp);
 
                     } else if (m_var_idx == Vars::zvel) {
                         AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
                         impose_zvel_bcs(dest_arr,bx,domain,
-#ifdef ERF_USE_TERRAIN
                                         velx_arr,vely_arr,z_nd_arr,dxInv,
-#endif
                                         time,bccomp);
 
                     } else if (m_var_idx == Vars::cons) {
                         AMREX_ALWAYS_ASSERT(icomp == 0 && icomp+ncomp <= NVAR);
                         impose_cons_bcs(dest_arr,bx,domain,
-#ifdef ERF_USE_TERRAIN
                                         z_nd_arr,dxInv,
-#endif
                                         icomp,ncomp,time,bccomp);
                     } else {
                         amrex::Abort("Dont know this var_idx in ERF_PhysBC");

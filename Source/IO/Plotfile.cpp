@@ -2,10 +2,7 @@
 #include <ERF.H>
 #include "AMReX_Interp_3D_C.H"
 #include "AMReX_PlotFileUtil.H"
-
-#ifdef ERF_USE_TERRAIN
 #include "TerrainMetrics.H"
-#endif
 
 using namespace amrex;
 
@@ -167,14 +164,14 @@ ERF::WritePlotFile ()
         mf[lev].define(grids[lev], dmap[lev], ncomp_mf, 0);
     }
 
-#ifdef ERF_USE_TERRAIN
     Vector<MultiFab> mf_nd(finest_level+1);
-    for (int lev = 0; lev <= finest_level; ++lev) {
-        BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
-        mf_nd[lev].define(nodal_grids, dmap[lev], ncomp_mf, 0);
-        mf_nd[lev].setVal(0.);
+    if (solverChoice.use_terrain) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
+            mf_nd[lev].define(nodal_grids, dmap[lev], ncomp_mf, 0);
+            mf_nd[lev].setVal(0.);
+        }
     }
-#endif
 
     for (int lev = 0; lev <= finest_level; ++lev) {
         int mf_comp = 0;
@@ -229,59 +226,27 @@ ERF::WritePlotFile ()
 
         if (containerHasElement(plot_deriv_names, "pres_hse"))
         {
-#ifdef ERF_USE_TERRAIN
             MultiFab::Copy(mf[lev],pres_hse[lev],0,mf_comp,1,0);
-#else
-            auto d_pres_hse_lev = d_pres_hse[lev].dataPtr();
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat = mf[lev].array(mfi);
-                ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = d_pres_hse_lev[k+ng_pres_hse];
-                });
-            }
-#endif
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_deriv_names, "dens_hse"))
         {
-#ifdef ERF_USE_TERRAIN
             MultiFab::Copy(mf[lev],dens_hse[lev],0,mf_comp,1,0);
-#else
-            auto d_dens_hse_lev = d_dens_hse[lev].dataPtr();
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            { const Box& bx = mfi.tilebox();
-                const Array4<Real>& derdat = mf[lev].array(mfi);
-                ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i, j, k, mf_comp) = d_dens_hse_lev[k+ng_dens_hse];
-                });
-            }
-#endif
             mf_comp ++;
         }
 
         if (containerHasElement(plot_deriv_names, "pert_pres"))
         {
-#ifndef ERF_USE_TERRAIN
-            auto d_pres_hse_lev = d_pres_hse[lev].dataPtr();
-#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
-#ifdef ERF_USE_TERRAIN
                 const Array4<Real const>& p0_arr = pres_hse[lev].const_array(mfi);
-#endif
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                ParallelFor(bx, [=, ng_pres_hse=ng_pres_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-#ifdef ERF_USE_TERRAIN
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - p0_arr(i,j,k);
-#else
-                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - d_pres_hse_lev[k+ng_pres_hse];
-#endif
                 });
             }
             mf_comp ++;
@@ -289,32 +254,21 @@ ERF::WritePlotFile ()
 
         if (containerHasElement(plot_deriv_names, "pert_dens"))
         {
-#ifndef ERF_USE_TERRAIN
-            auto d_dens_hse_lev = d_dens_hse[lev].dataPtr();
-#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat  = mf[lev].array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-#ifdef ERF_USE_TERRAIN
                 const Array4<Real const>& r0_arr = dens_hse[lev].const_array(mfi);
-#endif
-                ParallelFor(bx, [=, ng_dens_hse=ng_dens_hse] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-#ifdef ERF_USE_TERRAIN
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i, j, k, mf_comp) = S_arr(i,j,k,Rho_comp) - r0_arr(i,j,k);
-#else
-                    derdat(i, j, k, mf_comp) = S_arr(i,j,k,Rho_comp) - d_dens_hse_lev[k+ng_dens_hse];
-#endif
                 });
             }
             mf_comp ++;
         }
 
-#ifdef ERF_USE_TERRAIN
         int klo = geom[lev].Domain().smallEnd(2);
         int khi = geom[lev].Domain().bigEnd(2);
-#endif
 
         if (containerHasElement(plot_deriv_names, "dpdx"))
         {
@@ -338,60 +292,63 @@ ERF::WritePlotFile ()
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real> & p_arr  = pres.array(mfi);
-#ifdef ERF_USE_TERRAIN
-                const Array4<Real const>& z_nd  = z_phys_nd[lev].const_array(mfi);
-#endif
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-#ifdef ERF_USE_TERRAIN
-                    // Pgrad at lower I face
-                    Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
-                    ComputeMetricAtIface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_xi_zeta);
-                    Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
-                    Real gp_zeta_on_iface_lo;
-                    if(k == klo) {
-                      gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
-                                                              p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
-                                                            - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
-                    } else if (k == khi) {
-                      gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
-                                                              p_arr(i-1,j,k  ) + p_arr(i,j,k  )
-                                                            - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
-                    } else {
-                      gp_zeta_on_iface_lo = 0.25 * dxInv[2] * (
-                                                               p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
-                                                             - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
-                    }
-                    amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
-                    // Pgrad at higher I face
-                    Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
-                    ComputeMetricAtIface(i+1,j,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_xi_zeta);
-                    Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
-                    Real gp_zeta_on_iface_hi;
-                    if(k == klo) {
-                      gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
-                                                              p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
-                                                            - p_arr(i+1,j,k  ) - p_arr(i,j,k  ) );
-                    } else if (k == khi) {
-                      gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
-                                                              p_arr(i+1,j,k  ) + p_arr(i,j,k  )
-                                                            - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
-                    } else {
-                      gp_zeta_on_iface_hi = 0.25 * dxInv[2] * (
-                                                               p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
-                                                             - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
-                    }
-                    amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
+                if (solverChoice.use_terrain) {
+                    const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
 
-                    // Average P grad to CC
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
-#else
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i+1,j,k) - p_arr(i-1,j,k)) * dxInv[0];
-#endif
-                });
-            }
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+
+                        // Pgrad at lower I face
+                        Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
+                        ComputeMetricAtIface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                        Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
+                        Real gp_zeta_on_iface_lo;
+                        if(k == klo) {
+                            gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
+                                p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
+                                - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
+                        } else if (k == khi) {
+                            gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
+                                p_arr(i-1,j,k  ) + p_arr(i,j,k  )
+                                - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                        } else {
+                            gp_zeta_on_iface_lo = 0.25 * dxInv[2] * (
+                                p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
+                                - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                        }
+                        amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
+
+                        // Pgrad at higher I face
+                        Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
+                        ComputeMetricAtIface(i+1,j,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                        Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
+                        Real gp_zeta_on_iface_hi;
+                        if(k == klo) {
+                            gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
+                                p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
+                                - p_arr(i+1,j,k  ) - p_arr(i,j,k  ) );
+                        } else if (k == khi) {
+                            gp_zeta_on_iface_hi = 0.5 * dxInv[2] * (
+                                p_arr(i+1,j,k  ) + p_arr(i,j,k  )
+                                - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
+                        } else {
+                            gp_zeta_on_iface_hi = 0.25 * dxInv[2] * (
+                                p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
+                                - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
+                        }
+                        amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
+
+                        // Average P grad to CC
+                        derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i+1,j,k) - p_arr(i-1,j,k)) * dxInv[0];
+                    });
+                }
+            } // mfi
             mf_comp ++;
-        }
+        } // dpdx
 
         if (containerHasElement(plot_deriv_names, "dpdy"))
         {
@@ -416,59 +373,60 @@ ERF::WritePlotFile ()
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real> & p_arr  = pres.array(mfi);
-#ifdef ERF_USE_TERRAIN
-                const Array4<Real const>& z_nd  = z_phys_nd[lev].const_array(mfi);
-#endif
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-#ifdef ERF_USE_TERRAIN
-                    Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
-                    ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);
-                    Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
-                    Real gp_zeta_on_jface_lo;
-                    if (k == klo) {
-                      gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
-                                                              p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
-                                                            - p_arr(i,j,k  ) - p_arr(i,j-1,k  ) );
-                    } else if (k == khi) {
-                      gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
-                                                              p_arr(i,j,k  ) + p_arr(i,j-1,k  )
-                                                            - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
-                    } else {
-                      gp_zeta_on_jface_lo = 0.25 * dxInv[2] * (
-                                                               p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
-                                                             - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
-                    }
-                    amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
-                    Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
-                    ComputeMetricAtJface(i,j+1,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_eta_zeta);
-                    Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
-                    Real gp_zeta_on_jface_hi;
-                    if (k == klo) {
-                      gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
-                                                              p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
-                                                            - p_arr(i,j+1,k  ) - p_arr(i,j,k  ) );
-                    } else if (k == khi) {
-                      gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
-                                                              p_arr(i,j+1,k  ) + p_arr(i,j,k  )
-                                                            - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
-                    } else {
-                      gp_zeta_on_jface_hi = 0.25 * dxInv[2] * (
-                                                               p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
-                                                             - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
-                    }
-                    amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
+                if (solverChoice.use_terrain) {
+                    const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
 
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
-#else
-                    derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i,j+1,k) - p_arr(i,j-1,k)) * dxInv[1];
-#endif
-                });
-            }
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+
+                        Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
+                        ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                        Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
+                        Real gp_zeta_on_jface_lo;
+                        if (k == klo) {
+                            gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
+                                p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
+                                - p_arr(i,j,k  ) - p_arr(i,j-1,k  ) );
+                        } else if (k == khi) {
+                            gp_zeta_on_jface_lo = 0.5 * dxInv[2] * (
+                                p_arr(i,j,k  ) + p_arr(i,j-1,k  )
+                                - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
+                        } else {
+                            gp_zeta_on_jface_lo = 0.25 * dxInv[2] * (
+                                p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
+                                - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
+                        }
+                        amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
+
+                        Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
+                        ComputeMetricAtJface(i,j+1,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                        Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
+                        Real gp_zeta_on_jface_hi;
+                        if (k == klo) {
+                            gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
+                                p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
+                                - p_arr(i,j+1,k  ) - p_arr(i,j,k  ) );
+                        } else if (k == khi) {
+                            gp_zeta_on_jface_hi = 0.5 * dxInv[2] * (
+                                p_arr(i,j+1,k  ) + p_arr(i,j,k  )
+                                - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
+                        } else {
+                            gp_zeta_on_jface_hi = 0.25 * dxInv[2] * (
+                                p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
+                                - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
+                        }
+                        amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
+
+                        derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        derdat(i ,j ,k, mf_comp) = 0.5 * (p_arr(i,j+1,k) - p_arr(i,j-1,k)) * dxInv[1];
+                    });
+                }
+            } // mf
             mf_comp ++;
-        }
-
-#ifdef ERF_USE_TERRAIN
+        } // dpdy
 
         if (containerHasElement(plot_deriv_names, "pres_hse_x"))
         {
@@ -478,7 +436,10 @@ ERF::WritePlotFile ()
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >&  derdat =       mf[lev].array(mfi);
                 const Array4<Real const>&   p_arr = pres_hse[lev].const_array(mfi);
-                const Array4<Real const>& z_nd  = z_phys_nd[lev].const_array(mfi);
+
+                //USE_TERRAIN POSSIBLE ISSUE HERE
+                const Array4<Real const>& z_nd  = z_phys_nd[lev]->const_array(mfi);
+
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
                     ComputeMetricAtIface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_xi_zeta);
@@ -522,7 +483,7 @@ ERF::WritePlotFile ()
                 });
             }
             mf_comp += 1;
-        }
+        } // pres_hse_x
 
         if (containerHasElement(plot_deriv_names, "pres_hse_y"))
         {
@@ -532,7 +493,7 @@ ERF::WritePlotFile ()
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >& derdat = mf[lev].array(mfi);
                 const Array4<Real const>&   p_arr = pres_hse[lev].const_array(mfi);
-                const Array4<Real const>& z_nd  = z_phys_nd[lev].const_array(mfi);
+                const Array4<Real const>& z_nd  = z_phys_nd[lev]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
                     ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);
@@ -576,19 +537,18 @@ ERF::WritePlotFile ()
                 });
             }
             mf_comp += 1;
-        }
+        } // pres_hse_y
 
         if (containerHasElement(plot_deriv_names, "z_phys"))
         {
-            MultiFab::Copy(mf[lev],z_phys_cc[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],*z_phys_cc[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
     if (containerHasElement(plot_deriv_names, "detJ"))
         {
-            MultiFab::Copy(mf[lev],detJ_cc[lev],0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],*detJ_cc[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
-#endif
     }
 
     const std::string& plotfilename = PlotFileName(istep[0]);
@@ -597,29 +557,29 @@ ERF::WritePlotFile ()
     if (finest_level == 0)
     {
         if (plotfile_type == "amrex") {
-#ifdef ERF_USE_TERRAIN
-            // We started with mf_nd holding 0 in every component; here we fill only the offset in z
-            int lev = 0;
-            MultiFab::Copy(mf_nd[lev],z_phys_nd[lev],0,2,1,0);
-            Real dz = Geom()[lev].CellSizeArray()[2];
-            for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
-                Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    mf_arr(i,j,k,2) -= k * dz;
-                });
-            }
-            WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
+            if (solverChoice.use_terrain) {
+                // We started with mf_nd holding 0 in every component; here we fill only the offset in z
+                int lev = 0;
+                MultiFab::Copy(mf_nd[lev],*z_phys_nd[lev],0,2,1,0);
+                Real dz = Geom()[lev].CellSizeArray()[2];
+                for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        mf_arr(i,j,k,2) -= k * dz;
+                    });
+                }
+                WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
+                                                   GetVecOfConstPtrs(mf),
+                                                   GetVecOfConstPtrs(mf_nd),
+                                                   varnames,
+                                                   t_new[0], istep);
+            } else {
+                WriteMultiLevelPlotfile(plotfilename, finest_level+1,
                                                GetVecOfConstPtrs(mf),
-                                               GetVecOfConstPtrs(mf_nd),
                                                varnames,
-                                               t_new[0], istep);
-#else
-            WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                           GetVecOfConstPtrs(mf),
-                                           varnames,
-                                           Geom(), t_new[0], istep, refRatio());
-#endif
+                                               Geom(), t_new[0], istep, refRatio());
+            }
             writeJobInfo(plotfilename);
 #ifdef AMREX_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
@@ -693,7 +653,6 @@ ERF::WritePlotFile ()
     } // end multi-level
 }
 
-#ifdef ERF_USE_TERRAIN
 void
 ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nlevels,
                                          const Vector<const MultiFab*>& mf,
@@ -865,4 +824,3 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
             HeaderFile << MultiFabHeaderPath(level, levelPrefix, mf_nodal_prefix) << '\n';
         }
 }
-#endif

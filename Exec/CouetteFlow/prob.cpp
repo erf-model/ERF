@@ -6,36 +6,35 @@
 #include "AMReX_MultiFab.H"
 #include "AMReX_Geometry.H"
 
+using namespace amrex;
+
 ProbParm parms;
 
-#ifdef ERF_USE_TERRAIN
 void
-erf_init_dens_hse(amrex::MultiFab& rho_hse,
-                  amrex::MultiFab const& z_phys_nd,
-                  amrex::MultiFab const& z_phys_cc,
+erf_init_dens_hse(MultiFab& rho_hse,
+                  std::unique_ptr<MultiFab>&,
+                  std::unique_ptr<MultiFab>&,
                   amrex::Geometry const& geom)
 {
-    amrex::Error("This problem not set up to use with terrain");
-}
-#else
-void
-erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::Geometry const& geom,
-                  const int ng_dens_hse)
-{
-  const int khi = geom.Domain().bigEnd()[2];
-  for (int k = -ng_dens_hse; k <= khi+ng_dens_hse; k++)
-  {
-      dens_hse_ptr[k] = parms.rho_0;
-  }
-}
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
+    for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.growntilebox(1);
+        const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            rho_hse_arr(i,j,k) = parms.rho_0;
+        });
+    }
+}
 
 void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
-                  amrex::Vector<amrex::Real>& /*ubar*/,
-                  amrex::Vector<amrex::Real>& /*vbar*/,
-                  amrex::Vector<amrex::Real>& /*thetabar*/,
+erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
+                  amrex::Vector<Real>& /*ubar*/,
+                  amrex::Vector<Real>& /*vbar*/,
+                  amrex::Vector<Real>& /*thetabar*/,
                   amrex::Geometry      const& /*geom*/)
 {
    amrex::Error("Should never get here for CouetteFlow problem");
@@ -44,16 +43,14 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
 void
 init_custom_prob(
   const amrex::Box& bx,
-  amrex::Array4<amrex::Real> const& state,
-  amrex::Array4<amrex::Real> const& x_vel,
-  amrex::Array4<amrex::Real> const& y_vel,
-  amrex::Array4<amrex::Real> const& z_vel,
-#ifdef ERF_USE_TERRAIN
-  amrex::Array4<amrex::Real> const& r_hse,
-  amrex::Array4<amrex::Real> const& p_hse,
-  amrex::Array4<amrex::Real const> const& z_nd,
-  amrex::Array4<amrex::Real const> const& z_cc,
-#endif
+  Array4<Real> const& state,
+  Array4<Real> const& x_vel,
+  Array4<Real> const& y_vel,
+  Array4<Real> const& z_vel,
+  Array4<Real> const& r_hse,
+  Array4<Real> const& p_hse,
+  Array4<Real const> const& z_nd,
+  Array4<Real const> const& z_cc,
   amrex::GeometryData const& geomdata)
 {
     amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -77,7 +74,7 @@ init_custom_prob(
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const auto prob_hi  = geomdata.ProbHi();
     const auto dx       = geomdata.CellSize();
-    const amrex::Real z = (k + 0.5) * dx[2];
+    const Real z = (k + 0.5) * dx[2];
     x_vel(i, j, k) = parms.u_0 * z / prob_hi[2];
   });
 
@@ -85,7 +82,7 @@ init_custom_prob(
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const auto prob_hi  = geomdata.ProbHi();
     const auto dx       = geomdata.CellSize();
-    const amrex::Real z = (k + 0.5) * dx[2];
+    const Real z = (k + 0.5) * dx[2];
     y_vel(i, j, k) = parms.v_0 * z / prob_hi[2];
   });
 
@@ -93,6 +90,28 @@ init_custom_prob(
   amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     z_vel(i, j, k) = parms.w_0;
   });
+}
+
+void
+init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+{
+    auto dx = geom.CellSizeArray();
+    auto ProbLoArr = geom.ProbLoArray();
+    auto ProbHiArr = geom.ProbHiArray();
+
+    for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        const Box& gbx = mfi.growntilebox(1);
+        Array4<Real> z_arr = z_phys_nd.array(mfi);
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+
+            Real z = k * dx[2];
+
+            // Flat terrain with z = 0 at k = 0
+            z_arr(i,j,k) = z;
+        });
+    }
+    z_phys_nd.FillBoundary(geom.periodicity());
 }
 
 void
