@@ -146,8 +146,6 @@ void
 init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
 {
     auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
 
     for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {

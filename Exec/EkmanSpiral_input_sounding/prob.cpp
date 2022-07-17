@@ -14,7 +14,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  Geometry const& geom)
+                  Geometry const&)
 {
     Real R0 = parms.rho_0;
     for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -40,15 +40,15 @@ erf_init_rayleigh(Vector<Real>& /*tau*/,
 void
 init_custom_prob(
   const Box& bx,
-  Array4<Real> const& state,
-  Array4<Real> const& x_vel,
-  Array4<Real> const& y_vel,
-  Array4<Real> const& z_vel,
-  Array4<Real> const& r_hse,
-  Array4<Real> const& p_hse,
-  Array4<Real const> const& z_nd,
-  Array4<Real const> const& z_cc,
-  GeometryData const& geomdata)
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real const> const&,
+  Array4<Real const> const&,
+  GeometryData const&)
 {
   amrex::Print() << "Dummy function..Needed for linking" << std::endl;
 }
@@ -57,8 +57,6 @@ void
 init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
 {
     auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
 
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
