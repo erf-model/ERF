@@ -233,8 +233,6 @@ void
 init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
 {
     auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
 
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();

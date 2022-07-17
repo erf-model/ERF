@@ -40,14 +40,14 @@ erf_init_rayleigh(Vector<Real>& /*tau*/,
 void
 init_custom_prob(
   const Box& bx,
-  Array4<Real> const& state,
-  Array4<Real> const& x_vel,
-  Array4<Real> const& y_vel,
-  Array4<Real> const& z_vel,
-  Array4<Real> const& r_hse,
-  Array4<Real> const& p_hse,
-  Array4<Real const> const& z_nd,
-  Array4<Real const> const& z_cc,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real const> const&,
+  Array4<Real const> const&,
   GeometryData const& geomdata)
 {
   ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -121,7 +121,7 @@ init_custom_prob(
   // Construct a box that is on z-faces
   const Box& zbx = amrex::surroundingNodes(bx,2);
   // Set the z-velocity
-  ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     z_vel(i, j, k) = 0.0;
   });
 }
@@ -129,10 +129,6 @@ init_custom_prob(
 void
 init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
 {
-    auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
-
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
 

@@ -35,6 +35,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   amrex::Geometry const& geom)
 {
+    Real rho_0 = parms.rho_0;
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -44,7 +45,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
         const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            rho_hse_arr(i,j,k) = parms.rho_0;
+            rho_hse_arr(i,j,k) = rho_0;
         });
     }
 }
@@ -154,8 +155,6 @@ void
 init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
 {
     auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
 
     for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
