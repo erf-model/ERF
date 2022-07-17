@@ -108,7 +108,7 @@ void AdvectionSrcForState(
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
-                       const int& spatial_order, const int& use_terrain, 
+                       const int& spatial_order, const int& use_terrain,
                        const int& use_deardorff, const int& use_QKE);
 
 /** Compute K (i-1/2, j+1/2, k) etc given K(i, j, k) or nut (i, j, k) is known */

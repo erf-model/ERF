@@ -10,36 +10,26 @@ void amrex_probinit (
 
 void
 erf_init_dens_hse(amrex::MultiFab& dens_hse,
-                  const amrex::MultiFab* z_phys_nd,
-                  const amrex::MultiFab* z_phys_cc,
+                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                  std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                   amrex::Geometry const& geom);
 
 void
 init_custom_prob(
   const amrex::Box& bx,
-  amrex::Array4<amrex::Real> const& state,
-  amrex::Array4<amrex::Real> const& x_vel,
-  amrex::Array4<amrex::Real> const& y_vel,
-  amrex::Array4<amrex::Real> const& z_vel,
-  amrex::Array4<amrex::Real> const& r_hse,
-  amrex::Array4<amrex::Real> const& p_hse,
+  amrex::Array4<amrex::Real      > const& state,
+  amrex::Array4<amrex::Real      > const& x_vel,
+  amrex::Array4<amrex::Real      > const& y_vel,
+  amrex::Array4<amrex::Real      > const& z_vel,
+  amrex::Array4<amrex::Real      > const& r_hse,
+  amrex::Array4<amrex::Real      > const& p_hse,
   amrex::Array4<amrex::Real const> const& z_nd,
   amrex::Array4<amrex::Real const> const& z_cc,
   amrex::GeometryData const& geomdata);
 
-
 void
-erf_init_dens_hse(amrex::Real* dens_hse_ptr,
-                  amrex::Geometry const& geom,
-                  const int ng_dens_hse);
-void
-init_custom_prob(
-  const amrex::Box& bx,
-  amrex::Array4<amrex::Real> const& state,
-  amrex::Array4<amrex::Real> const& x_vel,
-  amrex::Array4<amrex::Real> const& y_vel,
-  amrex::Array4<amrex::Real> const& z_vel,
-  amrex::GeometryData const& geomdata);
+init_custom_terrain(const amrex::Geometry& geom,
+                          amrex::MultiFab& z_phys_nd);
 
 void
 erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,

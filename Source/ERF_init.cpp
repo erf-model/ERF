@@ -78,9 +78,10 @@ ERF::init_from_wrfinput(int lev)
 
     if (solverChoice.use_terrain)
     {
+        std::unique_ptr<MultiFab>& z_phys = z_phys_nd[lev];
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
-            FArrayBox& z_phys_nd_fab = z_phys_nd[lev][mfi];
+            FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
             init_terrain_from_wrfinput(lev, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
         } // mf
     } // use_terrain
@@ -312,26 +313,22 @@ ERF::init_custom(int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
         const Box &bx = mfi.tilebox();
         const auto &cons_arr = lev_new[Vars::cons].array(mfi);
         const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
         const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
         const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
 
-        if (solverChoice.use_terrain) {
-            const auto& r_hse_arr = dens_hse[lev].array(mfi);
-            const auto& p_hse_arr = pres_hse[lev].array(mfi);
-            const auto& z_nd_arr  = z_phys_nd[lev].const_array(mfi);
-            const auto& z_cc_arr  = z_phys_cc[lev].const_array(mfi);
+        Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
+        Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
-            init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                          r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
-                          geom[lev].data());
-        }
-        else {
-            init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr, geom[lev].data());
-        }
-        
+        Array4<Real> r_hse_arr = dens_hse[lev].array(mfi);
+        Array4<Real> p_hse_arr = pres_hse[lev].array(mfi);
+
+        init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr, geom[lev].data());
+
     } //mfi
 }

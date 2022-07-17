@@ -20,8 +20,6 @@ USE_DPCPP = FALSE
 # Debugging
 DEBUG = TRUE
 
-USE_TERRAIN = TRUE
-
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

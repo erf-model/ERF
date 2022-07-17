@@ -17,30 +17,26 @@
 void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,
                                  Real time, int bccomp)
 {
-        if (m_geom.isAllPeriodic()) return;
+    if (m_geom.isAllPeriodic()) return;
 
-        BL_PROFILE("ERFPhysBCFunct::()");
+    BL_PROFILE("ERFPhysBCFunct::()");
 
-        const auto& domain = m_geom.Domain();
+    const auto& domain = m_geom.Domain();
+    const auto dxInv   = m_geom.InvCellSizeArray();
 
-        //if(m_z_phys_nd) { //runtime terrain switch
-            // Private data from constructor
-            const GpuArray<Real, AMREX_SPACEDIM> dxInv = m_geom.InvCellSizeArray();
-        //}
-
-        // Create a grown domain box containing valid + periodic cells
-        Box gdomain = amrex::convert(domain, mf.boxArray().ixType());
-        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-            if (m_geom.isPeriodic(i)) {
-                gdomain.grow(i, nghost[i]);
-            }
+    // Create a grown domain box containing valid + periodic cells
+    Box gdomain = amrex::convert(domain, mf.boxArray().ixType());
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        if (m_geom.isPeriodic(i)) {
+            gdomain.grow(i, nghost[i]);
         }
+    }
 
-        MultiFab* z_phys_ptr = nullptr;
-        MultiFab* xvel_ptr = nullptr;
-        MultiFab* yvel_ptr = nullptr;
-        /*
-        if(m_z_phys_nd) { //runtime terrain switch
+    MultiFab* z_phys_ptr = nullptr;
+    MultiFab* xvel_ptr = nullptr;
+    MultiFab* yvel_ptr = nullptr;
+
+    if (m_z_phys_nd) {
             // We must make copies of these MultiFabs onto mf's boxArray for when this operator is
             // called for a MultiFab mf that doesn't have the same boxArray
             BoxArray mf_nodal_grids = mf.boxArray();
@@ -64,8 +60,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 yvel_ptr = new MultiFab(ba_v,mf.DistributionMap(),1,ng_v);
                 yvel_ptr->ParallelCopy(m_data.get_var(Vars::yvel),0,0,1,ng_v,ng_v);
             }
-        }
-        */
+    }
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -83,9 +78,8 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 Array4<const Real> velx_arr;
                 Array4<const Real> vely_arr;
 
-                /*
-                if(m_z_phys_nd) { //runtime terrain switch
-                    amrex::Print() << "Terrain on switch! In ERF_PhysBCFunct.cpp" << std::endl;
+                if (m_z_phys_nd)
+                {
                     BoxArray mf_nodal_grids = mf.boxArray();
                     mf_nodal_grids.convert(IntVect(1,1,1));
                     bool OnSameGrids = ( (mf_nodal_grids       == m_z_phys_nd->boxArray()        ) &&
@@ -100,8 +94,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                         vely_arr = yvel_ptr->const_array(mfi);
                     }
                 }
-                */
-                
+
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
                 //!

@@ -1,6 +1,2 @@
 CEXE_headers += prob.H
 CEXE_sources += prob.cpp
-CEXE_sources += init_custom_terrain.cpp
-#ifdef ERF_USE_TERRAIN
-CEXE_sources += prob_terrain.cpp
-#endif

@@ -47,6 +47,8 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
     amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>,
                                                  AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
 
+    bool l_use_terrain = (m_z_phys_nd != nullptr);
+
     for (int i = 0; i < ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
             l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
@@ -58,10 +60,10 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
             int iflip = dom_lo.x - 1 - i;
             if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][0];
-#ifdef ERF_USE_TERRAIN
-                dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),
-                                                       velx_arr,vely_arr,z_nd_arr,dxInv);
-#endif
+                if (l_use_terrain) {
+                    dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),
+                                                 velx_arr,vely_arr,z_nd_arr,dxInv);
+                }
             } else if (bc_ptr[n].lo(0) == ERFBCType::foextrap) {
                 dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
             } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_even) {
@@ -75,10 +77,10 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
             int iflip = 2*dom_hi.x + 1 - i;
             if (bc_ptr[n].hi(0) == ERFBCType::ext_dir) {
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][3];
-#ifdef ERF_USE_TERRAIN
-                dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),
-                                                       velx_arr,vely_arr,z_nd_arr,dxInv);
-#endif
+                if (l_use_terrain) {
+                    dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),
+                                                 velx_arr,vely_arr,z_nd_arr,dxInv);
+                }
             } else if (bc_ptr[n].hi(0) == ERFBCType::foextrap) {
                 dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
             } else if (bc_ptr[n].hi(0) == ERFBCType::reflect_even) {
@@ -93,10 +95,10 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
             int jflip = dom_lo.y - 1 - j;
             if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][1];
-#ifdef ERF_USE_TERRAIN
-                dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),
-                                                       velx_arr,vely_arr,z_nd_arr,dxInv);
-#endif
+                if (l_use_terrain) {
+                    dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),
+                                                 velx_arr,vely_arr,z_nd_arr,dxInv);
+                }
             } else if (bc_ptr[n].lo(1) == ERFBCType::foextrap) {
                 dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
             } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_even) {
@@ -153,17 +155,17 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
 
         // Populate face values on z-boundaries themselves only if EXT_DIR
         if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-            //if(m_z_phys_nd) //runtime terrain switch
-            //    dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
-            //                                      velx_arr,vely_arr,z_nd_arr,dxInv);
-            //else
-                dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
-            
+            if (l_use_terrain)
+                dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
+                                             velx_arr,vely_arr,z_nd_arr,dxInv);
+            else
+               dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
+
         } else if (k == dom_hi.z+1 && bc_ptr[n].hi(2) == ERFBCType::ext_dir) {
-            //if (m_z_phys_nd) //runtime terrain switch
-            //    dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],
-            //                                     velx_arr,vely_arr,z_nd_arr,dxInv);
-            //else
+            if (l_use_terrain)
+                dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],
+                                             velx_arr,vely_arr,z_nd_arr,dxInv);
+            else
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][5];
         }
     });

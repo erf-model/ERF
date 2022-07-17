@@ -45,8 +45,8 @@ public:
                     const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                     const int& var_idx, TimeInterpolatedData& data,
                     amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
-                    const amrex::MultiFab* z_phys_nd,
-                    const amrex::MultiFab* detJ_cc,
+                    std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                    std::unique_ptr<amrex::MultiFab>& detJ_cc,
 #ifdef ERF_USE_NETCDF
                     const std::string& init_type,
                     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
@@ -136,8 +136,8 @@ private:
     int           m_var_idx;
     TimeInterpolatedData& m_data;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
-    const amrex::MultiFab* m_z_phys_nd = nullptr;
-    const amrex::MultiFab* m_detJ_cc = nullptr;
+    std::unique_ptr<amrex::MultiFab>& m_z_phys_nd;
+    std::unique_ptr<amrex::MultiFab>&   m_detJ_cc;
 #ifdef ERF_USE_NETCDF
     const std::string m_init_type;
     const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xlo;

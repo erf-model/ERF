@@ -115,7 +115,7 @@ ComputeTKEProduction (const int &i, const int &j, const int &k,
                       const amrex::Box& domain, const amrex::BCRec* bc_ptr, const int& use_terrain)
 {
     amrex::Real TKE_production;
-    if (use_terrain) 
+    if (use_terrain)
         TKE_production = K_turb(i,j,k,EddyDiff::Mom_h) * ComputeSmnSmnWithTerrain(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
     else
         TKE_production = K_turb(i,j,k,EddyDiff::Mom_h) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);

@@ -95,7 +95,7 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
         rho_v_avg = 0.5 * (rho_v(i, j  , k) + rho_v(i-1, j  , k));
         Real edgeFluxXYPrev = rho_v_avg *
                               InterpolateFromCellOrFace(i, j  , k, u, 0, rho_v_avg, Coord::y, spatial_order);
-    
+
         rho_w_avg = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
         Real edgeFluxXZNext = rho_w_avg *
                               InterpolateFromCellOrFace(i, j, k+1, u, 0, rho_w_avg, Coord::z, spatial_order);
@@ -334,7 +334,7 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
 
         Real centFluxZZPrev;
         Real centFluxZZNext;
-    
+
         int local_spatial_order = spatial_order;
         if (k <= 1 || k >= domhi_z) {
             local_spatial_order = std::min(local_spatial_order,2);
@@ -371,7 +371,7 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
                      const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
                      const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
                      const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                     const int &spatial_order, const int& use_terrain, 
+                     const int &spatial_order, const int& use_terrain,
                      const int &use_deardorff, const int &use_QKE)
 {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];

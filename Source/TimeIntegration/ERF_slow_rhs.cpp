@@ -32,18 +32,14 @@ void erf_slow_rhs (int level,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<ABLMost>& most,
                    const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                   const MultiFab* z0, const MultiFab* dJ,
+                   std::unique_ptr<MultiFab>& z0, std::unique_ptr<MultiFab>& dJ,
                    const MultiFab* r0, const MultiFab* p0,
-                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
                    const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                    const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
                    const int rhs_vars)
 {
     BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
 
-    //***********************************
-    amrex::Print() << "IN RHS_SLOW TOAST" << std::endl;
-    
     amrex::Real theta_mean;
     if (most) theta_mean = most->theta_mean;
 
@@ -183,10 +179,10 @@ void erf_slow_rhs (int level,
         const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 
         const Array4<const Real>& z_nd = l_use_terrain ? z0->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ = l_use_terrain ? p0->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ = l_use_terrain ? dJ->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
-        
+
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
         if (rhs_vars != RHSVar::slow) {
@@ -194,10 +190,7 @@ void erf_slow_rhs (int level,
                 if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
                     i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
                 AMREX_ALWAYS_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-                if(solverChoice.use_terrain)
-                    pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
-                else
-                    pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),dptr_pres_hse[k]);
+                pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
             });
         }
 
@@ -347,7 +340,7 @@ void erf_slow_rhs (int level,
                 Real met_h_xi, met_h_eta, met_h_zeta;
 
                 ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
-    
+
                 Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
                 Real gp_zeta_on_iface;
                 if(k==0) {
@@ -417,14 +410,14 @@ void erf_slow_rhs (int level,
             {
 
             // Add advective terms
-            rho_v_rhs(i, j, k) += -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, v, z_nd, detJ, 
+            rho_v_rhs(i, j, k) += -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, v, z_nd, detJ,
                                                        dxInv, l_spatial_order, l_use_terrain);
 
             // Add diffusive terms
             amrex::Real diff_update;
             if (k < domhi_z && l_use_terrain) {
                 diff_update = DiffusionSrcForMomWithTerrain(i, j, k, u, v, w, cell_data,
-                                                            MomentumEqn::y, dxInv, K_turb, solverChoice, 
+                                                            MomentumEqn::y, dxInv, K_turb, solverChoice,
                                                             z_nd, detJ, domain, bc_ptr);
             } else {
                 diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,

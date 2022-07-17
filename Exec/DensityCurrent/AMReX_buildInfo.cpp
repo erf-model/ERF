@@ -3,13 +3,13 @@ namespace amrex {
 
 const char* buildInfoGetBuildDate() {
 
-  static const char BUILD_DATE[] = "2022-07-12 14:07:10.448886";
+  static const char BUILD_DATE[] = "2022-07-16 17:54:20.450245";
   return BUILD_DATE;
 }
 
 const char* buildInfoGetBuildDir() {
 
-  static const char BUILD_DIR[] = "/home/msanders/git/ERF/Exec/DensityCurrent_Terrain";
+  static const char BUILD_DIR[] = "/home/msanders/git/ERF/Exec/DensityCurrent";
   return BUILD_DIR;
 }
 
@@ -65,7 +65,7 @@ const char* buildInfoGetFName() {
 
 const char* buildInfoGetCXXFlags() {
 
-  static const char CXX_flags[] = " -Werror=return-type -g -O3  -pthread   -Werror=return-type -g -O3  -pthread   -DAMREX_TESTING -DBL_USE_MPI -DAMREX_USE_MPI -DBL_NO_FORT -DBL_SPACEDIM=3 -DAMREX_SPACEDIM=3 -DBL_FORT_USE_UNDERSCORE -DAMREX_FORT_USE_UNDERSCORE -DBL_Linux -DAMREX_Linux -DBL_USE_ASSERTION -DAMREX_USE_ASSERTION -DOMPI_SKIP_MPICXX -DERF_USE_TERRAIN -Itmp_build_dir/s/3d.gnu.TEST.MPI.EXE -I. -I../../Source -I../../Source/BoundaryConditions -I../../Source/SpatialStencils -I../../Source/TimeIntegration -I../../Source/IO -I../../Exec/DensityCurrent_Terrain -I/home/msanders/git/amrex//Src/Base -I/home/msanders/git/amrex//Src/Base/Parser -I/home/msanders/git/amrex//Src/Base -I/home/msanders/git/amrex//Src/Base/Parser -I/home/msanders/git/amrex//Src/Boundary -I/home/msanders/git/amrex//Src/AmrCore -I/home/msanders/git/amrex//Tools/C_scripts ";
+  static const char CXX_flags[] = " -Werror=return-type -g -O3  -pthread   -Werror=return-type -g -O3  -pthread   -DAMREX_TINY_PROFILING -DAMREX_TESTING -DBL_USE_MPI -DAMREX_USE_MPI -DBL_NO_FORT -DBL_SPACEDIM=3 -DAMREX_SPACEDIM=3 -DBL_FORT_USE_UNDERSCORE -DAMREX_FORT_USE_UNDERSCORE -DBL_Linux -DAMREX_Linux -DBL_USE_ASSERTION -DAMREX_USE_ASSERTION -DOMPI_SKIP_MPICXX -Itmp_build_dir/s/3d.gnu.TEST.TPROF.MPI.EXE -I. -I../../Source -I../../Source/BoundaryConditions -I../../Source/SpatialStencils -I../../Source/TimeIntegration -I../../Source/IO -I../../Exec/DensityCurrent -I/home/msanders/git/amrex//Src/Base -I/home/msanders/git/amrex//Src/Base/Parser -I/home/msanders/git/amrex//Src/Base -I/home/msanders/git/amrex//Src/Base/Parser -I/home/msanders/git/amrex//Src/Boundary -I/home/msanders/git/amrex//Src/AmrCore -I/home/msanders/git/amrex//Tools/C_scripts ";
   return CXX_flags;
 }
 
@@ -77,7 +77,7 @@ const char* buildInfoGetFFlags() {
 
 const char* buildInfoGetLinkFlags() {
 
-  static const char link_flags[] = " -Werror=return-type -g -O3  -pthread   -DAMREX_TESTING -DBL_USE_MPI -DAMREX_USE_MPI -DBL_NO_FORT -DBL_SPACEDIM=3 -DAMREX_SPACEDIM=3 -DBL_FORT_USE_UNDERSCORE -DAMREX_FORT_USE_UNDERSCORE -DBL_Linux -DAMREX_Linux -DBL_USE_ASSERTION -DAMREX_USE_ASSERTION -DOMPI_SKIP_MPICXX -DERF_USE_TERRAIN -Itmp_build_dir/s/3d.gnu.TEST.MPI.EXE -I. -I../../Source -I../../Source/BoundaryConditions -I../../Source/SpatialStencils -I../../Source/TimeIntegration -I../../Source/IO -I../../Exec/DensityCurrent_Terrain -I/home/msanders/git/amrex//Src/Base -I/home/msanders/git/amrex//Src/Base/Parser -I/home/msanders/git/amrex//Src/Base -I/home/msanders/git/amrex//Src/Base/Parser -I/home/msanders/git/amrex//Src/Boundary -I/home/msanders/git/amrex//Src/AmrCore -I/home/msanders/git/amrex//Tools/C_scripts  -L. ";
+  static const char link_flags[] = " -Werror=return-type -g -O3  -pthread   -DAMREX_TINY_PROFILING -DAMREX_TESTING -DBL_USE_MPI -DAMREX_USE_MPI -DBL_NO_FORT -DBL_SPACEDIM=3 -DAMREX_SPACEDIM=3 -DBL_FORT_USE_UNDERSCORE -DAMREX_FORT_USE_UNDERSCORE -DBL_Linux -DAMREX_Linux -DBL_USE_ASSERTION -DAMREX_USE_ASSERTION -DOMPI_SKIP_MPICXX -Itmp_build_dir/s/3d.gnu.TEST.TPROF.MPI.EXE -I. -I../../Source -I../../Source/BoundaryConditions -I../../Source/SpatialStencils -I../../Source/TimeIntegration -I../../Source/IO -I../../Exec/DensityCurrent -I/home/msanders/git/amrex//Src/Base -I/home/msanders/git/amrex//Src/Base/Parser -I/home/msanders/git/amrex//Src/Base -I/home/msanders/git/amrex//Src/Base/Parser -I/home/msanders/git/amrex//Src/Boundary -I/home/msanders/git/amrex//Src/AmrCore -I/home/msanders/git/amrex//Tools/C_scripts  -L. ";
   return link_flags;
 }
 
@@ -136,7 +136,7 @@ const char* buildInfoGetModuleVal(int i) {
 const char* buildInfoGetGitHash(int i) {
 
   //static const char HASH1[] = "${GIT[1]}";
-  static const char HASH1[] = "last-amrlevel-version-389-g88a803e4-dirty";
+  static const char HASH1[] = "last-amrlevel-version-395-gf782e828-dirty";
   static const char HASH2[] = "22.05-29-g1305eb3d3";
 
   static const char EMPT[] = "";

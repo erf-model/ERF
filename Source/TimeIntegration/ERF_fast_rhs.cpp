@@ -23,16 +23,15 @@ void erf_fast_rhs (int level,
                    const amrex::Geometry geom,
                    amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
-                   const MultiFab* z_phys_nd,
-                   const MultiFab* detJ_cc,
+                   std::unique_ptr<MultiFab>& z_phys_nd,
+                   std::unique_ptr<MultiFab>& detJ_cc,
                    const MultiFab* r0,
                    const MultiFab* p0,
-                   const amrex::Real* dptr_dens_hse, const amrex::Real* dptr_pres_hse,
                    const amrex::Real dtau, const amrex::Real facinv)
 {
     BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
 
-    bool l_use_terrain = solverChoice.use_terrain; 
+    bool l_use_terrain = solverChoice.use_terrain;
 
     // Per p2902 of Klemp-Skamarock-Dudhia-2007
     // beta_s = -1.0 : fully explicit
@@ -338,18 +337,10 @@ void erf_fast_rhs (int level,
             for (int k = klo+1; k < khi; ++k)
             {
                 Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-                if(solverChoice.use_terrain) {
-                    rhobar_lo = (k == 0) ?  r0_arr(i,j,k) : r0_arr(i,j,k-1);
-                    rhobar_hi = r0_arr(i,j,k  );
-                     pibar_lo = getExnergivenRTh(p0_arr(i,j,k-1));
-                     pibar_hi = getExnergivenRTh(p0_arr(i,j,k  ));
-                }
-                else {
-                    rhobar_lo = (k == 0) ?  dptr_dens_hse[k] : dptr_dens_hse[k-1];
-                    rhobar_hi = dptr_dens_hse[k];
-                     pibar_lo = getExnergivenRTh(dptr_pres_hse[k-1]);
-                     pibar_hi = getExnergivenRTh(dptr_pres_hse[k  ]);
-                }
+                rhobar_lo = (k == 0) ?  r0_arr(i,j,k) : r0_arr(i,j,k-1);
+                rhobar_hi = r0_arr(i,j,k  );
+                 pibar_lo = getExnergivenRTh(p0_arr(i,j,k-1));
+                 pibar_hi = getExnergivenRTh(p0_arr(i,j,k  ));
 
                 // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
                 // We set grav_gpu[2] to be the vector component which is negative
@@ -371,7 +362,7 @@ void erf_fast_rhs (int level,
                     h_zeta_on_kface = 0.125 * dzi * (
                         z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
                        -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
-    
+
                     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
                 }
 
@@ -421,15 +412,15 @@ void erf_fast_rhs (int level,
                     h_zeta_cc_xface_hi = 0.5 * dzi *
                       (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
                         -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
-    
+
                     h_zeta_cc_xface_lo = 0.5 * dzi *
                       (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
                         -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
-    
+
                     h_zeta_cc_yface_hi = 0.5 * dzi *
                       (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
                         -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
-    
+
                     h_zeta_cc_yface_lo = 0.5 * dzi *
                       (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
                         -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
@@ -463,15 +454,15 @@ void erf_fast_rhs (int level,
                     h_zeta_cc_xface_hi = 0.5 * dzi *
                       (  z_nd(i+1,j  ,k  ) + z_nd(i+1,j+1,k  )
                         -z_nd(i+1,j  ,k-1) - z_nd(i+1,j+1,k-1) );
-    
+
                     h_zeta_cc_xface_lo = 0.5 * dzi *
                       (  z_nd(i  ,j  ,k  ) + z_nd(i  ,j+1,k  )
                         -z_nd(i  ,j  ,k-1) - z_nd(i  ,j+1,k-1) );
-    
+
                     h_zeta_cc_yface_hi = 0.5 * dzi *
                       (  z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
                         -z_nd(i  ,j+1,k-1) - z_nd(i+1,j+1,k-1) );
-    
+
                     h_zeta_cc_yface_lo = 0.5 * dzi *
                       (  z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
                         -z_nd(i  ,j  ,k-1) - z_nd(i+1,j  ,k-1) );

@@ -87,7 +87,7 @@ ERF::volWgtSumMF(int lev,
     Real cell_vol = dx[0]*dx[1]*dx[2];
     volume.setVal(cell_vol);
     if (solverChoice.use_terrain)
-        amrex::MultiFab::Multiply(volume, detJ_cc[lev], 0, 0, 1, 0);
+        amrex::MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
     sum = amrex::MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
 
     if (!local)

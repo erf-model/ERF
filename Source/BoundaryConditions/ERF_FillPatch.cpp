@@ -107,7 +107,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
             Vector<MultiFab*> smf = {&fdata.get_var(var_idx)};
             ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
                                   m_bc_extdir_vals,
-                                  &z_phys_nd[lev], &detJ_cc[lev],
+                                  z_phys_nd[lev], detJ_cc[lev],
 #ifdef ERF_USE_NETCDF
                                   init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
@@ -124,14 +124,14 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 
             ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
                                    m_bc_extdir_vals,
-                                   &z_phys_nd[lev-1],&detJ_cc[lev-1],
+                                   z_phys_nd[lev-1],detJ_cc[lev-1],
 #ifdef ERF_USE_NETCDF
                                    init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                    m_r2d);
             ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
                                    m_bc_extdir_vals,
-                                   &z_phys_nd[lev],&detJ_cc[lev],
+                                   z_phys_nd[lev], detJ_cc[lev],
 #ifdef ERF_USE_NETCDF
                                    init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
@@ -244,7 +244,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 
             ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
                                   m_bc_extdir_vals,
-                                  &z_phys_nd[lev],&detJ_cc[lev],
+                                  z_phys_nd[lev],detJ_cc[lev],
 #ifdef ERF_USE_NETCDF
                                    init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
@@ -265,14 +265,14 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 
             ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
                                    m_bc_extdir_vals,
-                                   &z_phys_nd[lev-1],&detJ_cc[lev-1],
+                                   z_phys_nd[lev-1],detJ_cc[lev-1],
 #ifdef ERF_USE_NETCDF
                                    init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                    m_r2d);
             ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
                                    m_bc_extdir_vals,
-                                   &z_phys_nd[lev],&detJ_cc[lev],
+                                   z_phys_nd[lev],detJ_cc[lev],
 #ifdef ERF_USE_NETCDF
                                    init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
@@ -369,14 +369,14 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
 
     ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
                            m_bc_extdir_vals,
-                           &z_phys_nd[lev-1],&detJ_cc[lev-1],
+                           z_phys_nd[lev-1],detJ_cc[lev-1],
 #ifdef ERF_USE_NETCDF
                            init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                            m_r2d);
     ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
                            m_bc_extdir_vals,
-                           &z_phys_nd[lev],&detJ_cc[lev],
+                           z_phys_nd[lev],detJ_cc[lev],
 #ifdef ERF_USE_NETCDF
                            init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
