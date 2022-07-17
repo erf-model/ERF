@@ -14,7 +14,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  Geometry const& geom)
+                  Geometry const&)
 {
     Real R0 = parms.rho_0;
     for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -57,10 +57,10 @@ init_custom_prob(
   Array4<Real> const& x_vel,
   Array4<Real> const& y_vel,
   Array4<Real> const& z_vel,
-  Array4<Real> const& r_hse,
-  Array4<Real> const& p_hse,
-  Array4<Real const> const& z_nd,
-  Array4<Real const> const& z_cc,
+  Array4<Real> const&,
+  Array4<Real> const&,
+  Array4<Real const> const&,
+  Array4<Real const> const&,
   GeometryData const& geomdata)
 {
   ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {

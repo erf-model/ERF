@@ -15,7 +15,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const& geom)
+                  amrex::Geometry const&)
 {
     Real R0 = parms.rho_0;
     for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -51,7 +51,7 @@ erf_init_rayleigh(Vector<Real>& /*tau*/,
 
 void
 init_custom_prob(
-        const Box& bx,
+        const Box&,
         Array4<Real      > const&,
         Array4<Real      > const&,
         Array4<Real      > const&,
@@ -60,13 +60,13 @@ init_custom_prob(
         Array4<Real      > const&,
         Array4<Real const> const&,
         Array4<Real const> const&,
-        GeometryData const& geomdata)
+        GeometryData const&)
 {
     amrex::Error("We don't belong in init_custom_prob!");
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+init_custom_terrain(const Geometry& /*geom*/, MultiFab& /*z_phys_nd*/)
 {
     amrex::Error("We don't belong in init_custom_terrain!");
 }

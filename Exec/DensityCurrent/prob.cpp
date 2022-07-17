@@ -106,9 +106,9 @@ erf_init_dens_hse(MultiFab& rho_hse,
   const Real dz        = geom.CellSize()[2];
   const int khi        = geom.Domain().bigEnd()[2];
 
-  const Real& T_sfc    = 300.;
-  const Real& rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real& Thetabar = T_sfc;
+  const Real T_sfc    = 300.;
+  const Real rho_sfc  = p_0 / (R_d*T_sfc);
+  const Real Thetabar = T_sfc;
 
   // These are at cell centers (unstaggered)
   Vector<Real> h_r(khi+1);
@@ -123,7 +123,6 @@ erf_init_dens_hse(MultiFab& rho_hse,
   amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
 
   Real* r = d_r.data();
-  Real* p = d_p.data();
 
   init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
@@ -149,8 +148,8 @@ init_custom_prob(
         Array4<Real      > const& x_vel,
         Array4<Real      > const& y_vel,
         Array4<Real      > const& z_vel,
-        Array4<Real      > const& r_hse,
-        Array4<Real      > const& p_hse,
+        Array4<Real      > const&,
+        Array4<Real      > const&,
         Array4<Real const> const&,
         Array4<Real const> const&,
         GeometryData const& geomdata)
@@ -229,22 +228,27 @@ init_custom_prob(
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    x_vel(i, j, k) = parms.U_0;
+  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  {
+      x_vel(i, j, k) = parms.U_0;
   });
 
   // Construct a box that is on y-faces
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
+
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    y_vel(i, j, k) = 0.0;
+  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  {
+      y_vel(i, j, k) = 0.0;
   });
 
   // Construct a box that is on z-faces
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    z_vel(i, j, k) = 0.0;
+  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  {
+      z_vel(i, j, k) = 0.0;
   });
 
   amrex::Gpu::streamSynchronize();
@@ -253,8 +257,6 @@ init_custom_prob(
 void
 init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
 {
-    auto dx = geom.CellSizeArray();
-
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
 

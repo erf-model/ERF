@@ -14,7 +14,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  Geometry const& geom)
+                  Geometry const&)
 {
     Real rho_0 = parms.rho_0;
     for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
