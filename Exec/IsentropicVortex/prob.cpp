@@ -67,12 +67,12 @@ init_custom_prob(
   Array4<Real const> const&,
   amrex::GeometryData const& geomdata)
 {
- 
+
   Real xc = parms.xc; Real yc = parms.yc;
   Real R  = parms.R ; Real beta = parms.beta;
   Real sigma = parms.sigma;
 
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
@@ -107,7 +107,7 @@ init_custom_prob(
   const Box& xbx = amrex::surroundingNodes(bx,0);
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
@@ -124,7 +124,7 @@ init_custom_prob(
   const Box& ybx = amrex::surroundingNodes(bx,1);
 
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
@@ -141,7 +141,7 @@ init_custom_prob(
   const Box& zbx = amrex::surroundingNodes(bx,2);
   // Set the z-velocity
 
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       z_vel(i, j, k) = 0.0;
   });
