@@ -14,7 +14,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const&) 
+                  amrex::Geometry const&)
 {
     Real rho_0 = parms.rho_0;
 #ifdef _OPENMP
