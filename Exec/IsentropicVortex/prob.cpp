@@ -10,6 +10,7 @@ using namespace amrex;
 ProbParm parms;
 
 AMREX_GPU_DEVICE
+static
 Real
 erf_vortex_Gaussian(
   Real x,
