@@ -147,7 +147,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int kk = std::max(k,0);
-            rho_hse_arr(i,j,k) = d_r[kk];
+            rho_hse_arr(i,j,k) = r[kk];
         });
     }
 }
