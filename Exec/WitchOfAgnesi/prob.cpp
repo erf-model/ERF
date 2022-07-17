@@ -12,6 +12,7 @@ using namespace amrex;
 ProbParm parms;
 
 AMREX_GPU_DEVICE
+static
 void
 init_isentropic_hse(int i, int j,
                     const Real& r_sfc, const Real& theta,
@@ -110,9 +111,9 @@ erf_init_dens_hse(MultiFab& rho_hse,
   //const Real prob_lo_z = geom.ProbLo()[2];
   const int khi        = geom.Domain().bigEnd()[2];
 
-  const Real& T_sfc    = parms.T_0;
-  const Real& rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real& Thetabar = T_sfc;
+  const Real T_sfc    = parms.T_0;
+  const Real rho_sfc  = p_0 / (R_d*T_sfc);
+  const Real Thetabar = T_sfc;
 
   if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 

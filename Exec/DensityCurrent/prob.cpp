@@ -13,7 +13,7 @@ ProbParm parms;
 void
 init_isentropic_hse(const Real& r_sfc, const Real& theta,
                           Real* r,           Real* p,
-                    const Real& dz,    const Real&  prob_lo_z,
+                    const Real& dz,    const Real&  /*prob_lo_z*/,
                     const int& khi)
 {
   // r_sfc / p_0 are the density / pressure at the surface
@@ -255,7 +255,7 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+init_custom_terrain(const Geometry& /*geom*/, MultiFab& z_phys_nd)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();

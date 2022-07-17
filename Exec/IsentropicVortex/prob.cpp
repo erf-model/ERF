@@ -13,14 +13,14 @@ AMREX_GPU_DEVICE
 static
 Real
 erf_vortex_Gaussian(
-  Real x,
-  Real y,
-  const ProbParm& parms)
+  Real x,  Real y,
+  Real xc, Real yc,
+  Real R,  Real beta,
+  Real sigma)
 {
   // Evaluate Gaussian function
-  const Real r2 = ((x-parms.xc)*(x-parms.xc) + (y-parms.yc)*(y-parms.yc))
-                         / (parms.R*parms.R);
-  return parms.beta * std::exp(-r2/(2*parms.sigma*parms.sigma));
+  const Real r2 = ((x-xc)*(x-xc) + (y-yc)*(y-yc)) / (R*R);
+  return beta * std::exp(-r2/(2.*sigma*sigma));
 }
 
 void
@@ -37,7 +37,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const& geom)
+                  amrex::Geometry const&)
 {
     Real rho_inf = parms.rho_inf;
 #ifdef _OPENMP
@@ -67,17 +67,22 @@ init_custom_prob(
   Array4<Real const> const&,
   amrex::GeometryData const& geomdata)
 {
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    // Geometry
+ 
+  Real xc = parms.xc; Real yc = parms.yc;
+  Real R  = parms.R ; Real beta = parms.beta;
+  Real sigma = parms.sigma;
+
+  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  {
     const Real* prob_lo = geomdata.ProbLo();
-  //  const Real* prob_hi = geomdata.ProbHi();
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0]; // cell center
     const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
 
     // Calculate perturbation temperature
-    const Real Omg = erf_vortex_Gaussian(x,y,parms);
-    const Real deltaT = -(parms.gamma - 1.0)/(2.0*parms.sigma*parms.sigma) * Omg*Omg;
+    const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
+    const Real deltaT = -(parms.gamma - 1.0)/(2.0*sigma*sigma) * Omg*Omg;
+
     // Set the density
     const Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
     state(i, j, k, Rho_comp) = rho_norm * parms.rho_inf;
@@ -100,46 +105,45 @@ init_custom_prob(
 
   // Construct a box that is on x-faces
   const Box& xbx = amrex::surroundingNodes(bx,0);
-  // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    // Note that this is called on a box of x-faces
-    const Real* prob_lo = geomdata.ProbLo();
-    //  const Real* prob_hi = geomdata.ProbHi();
-    const Real* dx = geomdata.CellSize();
-    const Real x = prob_lo[0] + i * dx[0]; // face center
-    const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
-    const Real Omg = erf_vortex_Gaussian(x,y,parms);
 
-    // Set the x-velocity
-    x_vel(i, j, k) = (parms.M_inf * std::cos(parms.alpha)
-                   - (y - parms.yc)/parms.R * Omg) * parms.a_inf;
+  // Set the x-velocity
+  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  {
+      const Real* prob_lo = geomdata.ProbLo();
+      const Real* dx = geomdata.CellSize();
+
+      const Real x = prob_lo[0] + i * dx[0]; // face center
+      const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
+      const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
+
+      x_vel(i, j, k) = (parms.M_inf * std::cos(parms.alpha)
+                     - (y - parms.yc)/parms.R * Omg) * parms.a_inf;
   });
 
   // Construct a box that is on y-faces
   const Box& ybx = amrex::surroundingNodes(bx,1);
-  // Set the y-velocity
-  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    // Note that this is called on a box of y-faces
-    const Real* prob_lo = geomdata.ProbLo();
-    //  const Real* prob_hi = geomdata.ProbHi();
-    const Real* dx = geomdata.CellSize();
-    const Real x = prob_lo[0] + (i + 0.5) * dx[0]; // cell center
-    const Real y = prob_lo[1] + j * dx[1]; // face center
-    const Real Omg = erf_vortex_Gaussian(x,y,parms);
 
-    // Set the y-velocity
-    y_vel(i, j, k) = (parms.M_inf * std::sin(parms.alpha)
-                   + (x - parms.xc)/parms.R * Omg) * parms.a_inf;
+  // Set the y-velocity
+  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  {
+      const Real* prob_lo = geomdata.ProbLo();
+      const Real* dx = geomdata.CellSize();
+
+      const Real x = prob_lo[0] + (i + 0.5) * dx[0]; // cell center
+      const Real y = prob_lo[1] +  j        * dx[1]; // face center
+      const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
+
+      y_vel(i, j, k) = (parms.M_inf * std::sin(parms.alpha)
+                     + (x - parms.xc)/parms.R * Omg) * parms.a_inf;
   });
 
   // Construct a box that is on z-faces
   const Box& zbx = amrex::surroundingNodes(bx,2);
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    // Note that this is called on a box of z-faces
 
-    // Set the z-velocity
-    z_vel(i, j, k) = 0.0;
+  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept 
+  {
+      z_vel(i, j, k) = 0.0;
   });
 }
 

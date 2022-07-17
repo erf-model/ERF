@@ -25,7 +25,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const& geom)
+                  amrex::Geometry const&)
 {
     Real rho_0 = parms.rho_0;
 #ifdef _OPENMP
@@ -49,8 +49,8 @@ init_custom_prob(
         Array4<Real      > const& x_vel,
         Array4<Real      > const& y_vel,
         Array4<Real      > const& z_vel,
-        Array4<Real      > const& r_hse,
-        Array4<Real      > const& p_hse,
+        Array4<Real      > const&,
+        Array4<Real      > const&,
         Array4<Real const> const&,
         Array4<Real const> const&,
         GeometryData const& geomdata)
@@ -126,8 +126,6 @@ init_custom_prob(
 void
 init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
 {
-    auto dx = geom.CellSizeArray();
-
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
 

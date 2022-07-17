@@ -39,7 +39,7 @@ erf_init_rayleigh(Vector<Real>& /*tau*/,
 
 void
 init_custom_prob(
-  const Box& bx,
+  const Box&,
   Array4<Real      > const&,
   Array4<Real      > const&,
   Array4<Real      > const&,
