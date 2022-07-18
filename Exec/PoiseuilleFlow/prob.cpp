@@ -23,7 +23,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const& geom)
+                  amrex::Geometry const& /*geom*/)
 {
     Real rho_0 = parms.rho_0;
 #ifdef _OPENMP
@@ -47,10 +47,10 @@ init_custom_prob(
   amrex::Array4<Real> const& x_vel,
   amrex::Array4<Real> const& y_vel,
   amrex::Array4<Real> const& z_vel,
-  amrex::Array4<Real> const& r_hse,
-  amrex::Array4<Real> const& p_hse,
-  amrex::Array4<Real const> const& z_nd,
-  amrex::Array4<Real const> const& z_cc,
+  amrex::Array4<Real> const&,
+  amrex::Array4<Real> const&,
+  amrex::Array4<Real const> const&,
+  amrex::Array4<Real const> const&,
   amrex::GeometryData const& geomdata)
 {
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -101,7 +101,7 @@ init_custom_prob(
   });
 
   const Box& zbx = amrex::surroundingNodes(bx,2);
-  amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     z_vel(i, j, k) = 0.0;
   });

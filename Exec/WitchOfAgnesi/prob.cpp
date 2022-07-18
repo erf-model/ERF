@@ -5,19 +5,18 @@
 #include "AMReX_ParmParse.H"
 #include "AMReX_MultiFab.H"
 #include "IndexDefines.H"
+#include "TerrainMetrics.H"
 
 using namespace amrex;
-
-#include <TerrainMetrics.H>
 
 ProbParm parms;
 
 AMREX_GPU_DEVICE
+static
 void
 init_isentropic_hse(int i, int j,
                     const Real& r_sfc, const Real& theta,
                           Real* r,           Real* p,
-                    const Array4<Real const> z_nd,
                     const Array4<Real const> z_cc,
                     const int& khi)
 {
@@ -105,23 +104,22 @@ init_isentropic_hse(int i, int j,
 
 void
 erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>& z_phys_nd,
+                  std::unique_ptr<MultiFab>& /*z_phys_nd*/,
                   std::unique_ptr<MultiFab>& z_phys_cc,
                   Geometry const& geom)
 {
   //const Real prob_lo_z = geom.ProbLo()[2];
   const int khi        = geom.Domain().bigEnd()[2];
 
-  const Real& T_sfc    = parms.T_0;
-  const Real& rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real& Thetabar = T_sfc;
+  const Real T_sfc    = parms.T_0;
+  const Real rho_sfc  = p_0 / (R_d*T_sfc);
+  const Real Thetabar = T_sfc;
 
   if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 
   for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
        Array4<Real      > rho_arr  = rho_hse.array(mfi);
-       Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
        Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
 
        // Create a flat box with same horizontal extent but only one cell in vertical
@@ -134,7 +132,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
          Array1D<Real,0,255> r;;
          Array1D<Real,0,255> p;;
 
-         init_isentropic_hse(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_nd_arr,z_cc_arr,khi);
+         init_isentropic_hse(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
 
          for (int k = 0; k <= khi; k++) {
             rho_arr(i,j,k) = r(k);
@@ -163,19 +161,18 @@ init_custom_prob(
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
   // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
-//const amrex::Real z0 = (0.5) * dx[2] + prob_lo[2];
-//const amrex::Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
-//const amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
-//const amrex::Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
-//const amrex::Real rhobar = pbar / (R_d*Tbar); // UNUSED
+//const Real z0 = (0.5) * dx[2] + prob_lo[2];
+//const Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
+//const Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
+//const Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
+//const Real rhobar = pbar / (R_d*Tbar); // UNUSED
 
-  const amrex::Real& rho_sfc   = p_0 / (R_d*parms.T_0);
-  const amrex::Real& thetabar  = parms.T_0;
-  //const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
+  const Real rho_sfc   = p_0 / (R_d*parms.T_0);
+  const Real thetabar  = parms.T_0;
 
   // These are at cell centers (unstaggered)
-  amrex::Vector<amrex::Real> h_r(khi+1);
-  amrex::Vector<amrex::Real> h_p(khi+1);
+  amrex::Vector<Real> h_r(khi+1);
+  amrex::Vector<Real> h_p(khi+1);
 
   // Create a flat box with same horizontal extent but only one cell in vertical
   Box b2d = surroundingNodes(bx); // Copy constructor
@@ -186,7 +183,7 @@ init_custom_prob(
      Array1D<Real,0,255> r;;
      Array1D<Real,0,255> p;;
 
-     init_isentropic_hse(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_nd,z_cc,khi);
+     init_isentropic_hse(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc,khi);
 
      for (int k = 0; k <= khi; k++) {
         r_hse(i,j,k) = r(k);
@@ -201,17 +198,17 @@ init_custom_prob(
   {
     const auto prob_lo  = geomdata.ProbLo();
     const auto dx       = geomdata.CellSize();
-    const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const amrex::Real z = z_cc(i,j,k);
+    const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+    const Real z = z_cc(i,j,k);
 
     // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-    const amrex::Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
+    const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
-    amrex::Real L = std::sqrt(
+    Real L = std::sqrt(
         std::pow((x - parms.x_c)/parms.x_r, 2) +
         std::pow((z - parms.z_c)/parms.z_r, 2)
     );
-    amrex::Real dT;
+    Real dT;
     if (L > 1.0) {
         dT = 0.0;
     }
@@ -220,7 +217,7 @@ init_custom_prob(
     }
 
     // Note: dT is T perturbation, theta_perturbed is theta PLUS perturbation in theta
-    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms.C_p);
+    Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms.C_p);
 
     // This version perturbs rho but not p
     state(i, j, k, RhoTheta_comp) = std::pow(p_hse(i,j,k)/p_0,1.0/Gamma) * p_0 / R_d;
@@ -238,27 +235,30 @@ init_custom_prob(
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    x_vel(i, j, k) = parms.U_0;
+  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  {
+      x_vel(i, j, k) = parms.U_0;
   });
 
   // Construct a box that is on y-faces
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    y_vel(i, j, k) = 0.0;
+  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  {
+      y_vel(i, j, k) = 0.0;
   });
 
   // Construct a box that is on z-faces
-  const auto prob_lo    = geomdata.ProbLo();
   const auto dx         = geomdata.CellSize();
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
-  amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dxInv;
+  amrex::GpuArray<Real, AMREX_SPACEDIM> dxInv;
   dxInv[0] = 1. / dx[0];
   dxInv[1] = 1. / dx[1];
   dxInv[2] = 1. / dx[2];
+
   // Set the z-velocity from impenetrable condition
-  amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  {
       z_vel(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel, y_vel, z_nd, dxInv);
   });
 
@@ -267,10 +267,10 @@ init_custom_prob(
 }
 
 void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& /*tau*/,
-                  amrex::Vector<amrex::Real>& /*ubar*/,
-                  amrex::Vector<amrex::Real>& /*vbar*/,
-                  amrex::Vector<amrex::Real>& /*thetabar*/,
+erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
+                  amrex::Vector<Real>& /*ubar*/,
+                  amrex::Vector<Real>& /*vbar*/,
+                  amrex::Vector<Real>& /*thetabar*/,
                   amrex::Geometry      const& /*geom*/)
 {
    amrex::Error("Should never get here for DensityCurrent problem");
@@ -304,14 +304,14 @@ init_custom_terrain(const Geometry& geom,
     // Domain valid box (z_nd is nodal)
     const amrex::Box& domain = geom.Domain();
     int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
-    int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
+    // int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
+    int domlo_z = domain.smallEnd(2);
 
     // User function parameters
-    amrex::Real a    = 0.5;
-    amrex::Real num  = 8 * a * a * a;
-    amrex::Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-    amrex::Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
+    Real a    = 0.5;
+    Real num  = 8 * a * a * a;
+    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
+    // Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
 
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -325,21 +325,20 @@ init_custom_terrain(const Geometry& geom,
         amrex::Box xybx = mfi.growntilebox(ngrow);
         xybx.setRange(2,0);
 
-        amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+        amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
             // Clip indices for ghost-cells
             int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-            int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
+            // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
             // Location of nodes
-            amrex::Real x = (ii  * dx[0] - xcen);
-            amrex::Real y = (jj  * dx[1] - ycen);
-            amrex::Real z =  k0 * dx[2];
+            Real x = (ii  * dx[0] - xcen);
+            // Real y = (jj  * dx[1] - ycen);
 
             // WoA Hill in x-direction
-            amrex::Real height = num / (x*x + 4 * a * a);
+            Real height = num / (x*x + 4 * a * a);
 
             // Populate terrain height
             z_arr(i,j,k0) = height;

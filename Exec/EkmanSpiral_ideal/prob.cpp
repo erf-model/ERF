@@ -39,7 +39,7 @@ erf_init_rayleigh(Vector<Real>& /*tau*/,
 
 void
 init_custom_prob(
-  const Box& bx,
+  const Box&,
   Array4<Real      > const&,
   Array4<Real      > const&,
   Array4<Real      > const&,
@@ -54,7 +54,7 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+init_custom_terrain(const Geometry& /*geom*/, MultiFab& z_phys_nd)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();

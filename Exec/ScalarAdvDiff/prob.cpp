@@ -33,7 +33,7 @@ void
 erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const& geom)
+                  amrex::Geometry const&)
 {
     Real rho_0 = parms.rho_0;
 #ifdef _OPENMP
@@ -57,10 +57,10 @@ init_custom_prob(
     Array4<Real      > const& x_vel,
     Array4<Real      > const& y_vel,
     Array4<Real      > const& z_vel,
-    Array4<Real      > const& r_hse,
-    Array4<Real      > const& p_hse,
-    Array4<Real const> const& z_nd,
-    Array4<Real const> const& z_cc,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
     amrex::GeometryData const& geomdata)
 {
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -122,32 +122,35 @@ init_custom_prob(
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    x_vel(i, j, k) = parms.u_0;
+  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  {
+      x_vel(i, j, k) = parms.u_0;
 
-    const Real* prob_lo = geomdata.ProbLo();
-    const Real*      dx = geomdata.CellSize();
-    const Real        z = prob_lo[2] + (k + 0.5) * dx[2];
+      const Real* prob_lo = geomdata.ProbLo();
+      const Real*      dx = geomdata.CellSize();
+      const Real        z = prob_lo[2] + (k + 0.5) * dx[2];
 
-    // Set the x-velocity
-    x_vel(i, j, k) = parms.u_0 + parms.uRef *
-                     std::log((z + parms.z0)/parms.z0)/
-                     std::log((parms.zRef +parms.z0)/parms.z0);
+      // Set the x-velocity
+      x_vel(i, j, k) = parms.u_0 + parms.uRef *
+                       std::log((z + parms.z0)/parms.z0)/
+                       std::log((parms.zRef +parms.z0)/parms.z0);
   });
 
   // Construct a box that is on y-faces
   const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-
-    y_vel(i, j, k) = parms.v_0;
+  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  {
+      y_vel(i, j, k) = parms.v_0;
   });
 
   // Construct a box that is on z-faces
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    z_vel(i, j, k) = 0.0;
+  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  {
+      z_vel(i, j, k) = 0.0;
   });
 }
 

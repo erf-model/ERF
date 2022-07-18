@@ -111,10 +111,8 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+init_custom_terrain(const Geometry& /*geom*/, MultiFab& z_phys_nd)
 {
-    auto dx = geom.CellSizeArray();
-
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
 
