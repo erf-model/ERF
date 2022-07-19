@@ -313,12 +313,11 @@ void NCVar::get_attr(const std::string& name, std::vector<int>& values) const
 }
 
 //Uncomment for parallel NetCDF
-/*
 void NCVar::par_access(const int cmode) const
 {
     check_nc_error(nc_var_par_access(ncid, varid, cmode));
 }
-*/
+
 std::string NCGroup::name() const
 {
     size_t nlen;
@@ -579,7 +578,6 @@ NCFile NCFile::open(const std::string& name, const int cmode)
     return NCFile(ncid);
 }
 //Uncomment for parallel NetCDF
-/*
 NCFile NCFile::create_par(
     const std::string& name, const int cmode, MPI_Comm comm, MPI_Info info)
 {
@@ -596,7 +594,7 @@ NCFile NCFile::open_par(
     check_nc_error(nc_open_par(name.data(), cmode, comm, info, &ncid));
     return NCFile(ncid);
 }
-*/
+
 NCFile::~NCFile()
 {
     if (is_open) check_nc_error(nc_close(ncid));
