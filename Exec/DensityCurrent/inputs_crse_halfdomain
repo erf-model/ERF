@@ -4,7 +4,7 @@ stop_time = 900.0
 max_step = 100
 
 erf.use_terrain = true
-erf.use_terrain = false
+#erf.use_terrain = false
 
 amrex.fpe_trap_invalid = 1
 
