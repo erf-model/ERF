@@ -15,7 +15,7 @@
 #include <vector>
 
 #include <netcdf.h>
-#include <netcdf_par.h> 
+#include <netcdf_par.h>
 
 namespace ncutils {
 
