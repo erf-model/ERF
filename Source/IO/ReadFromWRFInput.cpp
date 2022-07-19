@@ -41,10 +41,8 @@ ERF::read_from_wrfinput(int lev, int idx,
     NC_rhop_fab[idx].resize(input_box, 1);
     NC_rhotheta_fab[idx].resize(input_box,1);
 
-    if(solverChoice.use_terrain) {
-        NC_PH_fab[idx].resize(wbx,1);
-        NC_PHB_fab[idx].resize(wbx,1);
-    }
+    NC_PH_fab[idx].resize(wbx,1);
+    NC_PHB_fab[idx].resize(wbx,1);
 
     // These are 2D (x-y) arrays
     NC_MUB_fab[idx].resize(mubx,1);
@@ -97,12 +95,8 @@ ERF::read_from_wrfinput(int lev, int idx,
             NC_fabs.push_back(&host_NC_rho_fab);      NC_names.push_back("ALB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_rhop_fab),     NC_names.push_back("AL"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_rhotheta_fab); NC_names.push_back("T"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-
-            if(solverChoice.use_terrain) {
-                NC_fabs.push_back(&host_NC_PH_fab);       NC_names.push_back("PH"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-                NC_fabs.push_back(&host_NC_PHB_fab);      NC_names.push_back("PHB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
-            }
-
+            NC_fabs.push_back(&host_NC_PH_fab);       NC_names.push_back("PH"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_fabs.push_back(&host_NC_PHB_fab);      NC_names.push_back("PHB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_MUB_fab);       NC_names.push_back("MUB"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
             NC_fabs.push_back(&host_NC_MSFU_fab);      NC_names.push_back("MAPFAC_UY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
             NC_fabs.push_back(&host_NC_MSFV_fab);      NC_names.push_back("MAPFAC_VY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
@@ -150,13 +144,10 @@ ERF::read_from_wrfinput(int lev, int idx,
                                            NC_rhop_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_rhotheta_fab.dataPtr(), host_NC_rhotheta_fab.dataPtr()+host_NC_rhotheta_fab.size(),
                                            NC_rhotheta_fab[idx].dataPtr());
-         if(solverChoice.use_terrain) {
-             Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(),
+         Gpu::copy(Gpu::hostToDevice, host_NC_PH_fab.dataPtr(), host_NC_PH_fab.dataPtr()+host_NC_PH_fab.size(),
                                            NC_PH_fab[idx].dataPtr());
-             Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(),
+         Gpu::copy(Gpu::hostToDevice, host_NC_PHB_fab.dataPtr(), host_NC_PHB_fab.dataPtr()+host_NC_PHB_fab.size(),
                                            NC_PHB_fab[idx].dataPtr());
-         }
-
          Gpu::copy(Gpu::hostToDevice, host_NC_MUB_fab.dataPtr(), host_NC_MUB_fab.dataPtr()+host_NC_MUB_fab.size(),
                                            NC_MUB_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_MSFU_fab.dataPtr(), host_NC_MSFU_fab.dataPtr()+host_NC_MSFU_fab.size(),
