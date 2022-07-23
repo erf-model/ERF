@@ -13,6 +13,7 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
                                        const Box& domain, const BCRec* bc_ptr,
                                        const Real time, const Real dT)
 {
+#if 0
     //
     // This uses data read in from WRF real.exe output
     // We assume the data has been read in at the level 0 resolution
@@ -133,5 +134,6 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
         }
 
      }); // ParallelFor
+#endif
 }
 #endif
