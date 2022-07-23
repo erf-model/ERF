@@ -28,106 +28,49 @@ ERF::setPlotVariables ()
         {
             pp.get("plot_vars", nm, i);
 
-            if (nm == "ALL") {
-                // put all conserved state variables in the plot variables list
-                plot_state_names = cons_names;
-                // put all velocity components in the plot variables list
-                plot_state_names.insert(plot_state_names.end(), velocity_names.begin(), velocity_names.end());
-            } else if (nm == "NONE" || nm == "None") {
-                // put no state variables in the plot variable list
-                plot_state_names.clear();
-            } else {
-                // add the named variable to our list of plot variables
-                // if it is not already in the list
-                if (!containerHasElement(plot_state_names, nm)) {
-                    plot_state_names.push_back(nm);
-                }
+            // add the named variable to our list of plot variables
+            // if it is not already in the list
+            if (!containerHasElement(plot_var_names, nm)) {
+                plot_var_names.push_back(nm);
             }
         }
-    }
-    else
-    {
+    } else {
         //
-        // The default is to add all state conserved and velocity variables to the plot variables list
+        // The default is to add none of the variables to the list
         //
-        plot_state_names = cons_names;
-        plot_state_names.insert(plot_state_names.end(), velocity_names.begin(), velocity_names.end());
+        plot_var_names.clear();
     }
 
     // Get state variables in the same order as we define them,
     // since they may be in any order in the input list
     Vector<std::string> tmp_plot_names;
     for (int i = 0; i < Cons::NumVars; ++i) {
-        if (containerHasElement(plot_state_names, cons_names[i])) {
+        if ( containerHasElement(plot_var_names,    cons_names[i]) ) {
             tmp_plot_names.push_back(cons_names[i]);
         }
     }
     // check for velocity since it's not in cons_names
     // if we are asked for any velocity component, we will need them all
-    if (containerHasElement(plot_state_names, "x_velocity") ||
-        containerHasElement(plot_state_names, "y_velocity") ||
-        containerHasElement(plot_state_names, "z_velocity")) {
+    if (containerHasElement(plot_var_names, "x_velocity") ||
+        containerHasElement(plot_var_names, "y_velocity") ||
+        containerHasElement(plot_var_names, "z_velocity")) {
         tmp_plot_names.push_back("x_velocity");
         tmp_plot_names.push_back("y_velocity");
         tmp_plot_names.push_back("z_velocity");
     }
-    // check to see if we found all the requested vairables
-    for (auto plot_name : plot_state_names) {
+    for (int i = 0; i < derived_names.size(); ++i) {
+        if ( containerHasElement(plot_var_names, derived_names[i]) ) {
+            tmp_plot_names.push_back(derived_names[i]);
+        }
+    }
+
+    // Check to see if we found all the requested variables
+    for (auto plot_name : plot_var_names) {
       if (!containerHasElement(tmp_plot_names, plot_name)) {
     Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
       }
     }
-    plot_state_names = tmp_plot_names;
-
-    if (pp.contains("derive_plot_vars"))
-    {
-        std::string nm;
-
-        int nDrvPltVars = pp.countval("derive_plot_vars");
-
-        for (int i = 0; i < nDrvPltVars; i++)
-        {
-            pp.get("derive_plot_vars", nm, i);
-
-            if (nm == "ALL") {
-                // put all diagnostic variables in the plot variables list
-                plot_deriv_names = derived_names;
-            } else if (nm == "NONE" || nm == "None") {
-                // put no diagnostic variables in the plot variable list
-                plot_deriv_names.clear();
-            } else {
-                // add the named variable to our list of plot variables
-                // if it is not already in the list
-                if (!containerHasElement(plot_deriv_names, nm)) {
-                    plot_deriv_names.push_back(nm);
-                }
-            }
-        }
-    }
-    else
-    {
-        //
-        // The default is to add none of the diagnostic variables to the plot variables list
-        //
-        plot_deriv_names.clear();
-    }
-
-    // Get derived variables in the same order as we define them,
-    // since they may be in any order in the input list
-    Vector<std::string> tmp_deriv_names;
-    for (int i = 0; i < derived_names.size(); ++i) {
-        if (containerHasElement(plot_deriv_names, derived_names[i])) {
-            tmp_deriv_names.push_back(derived_names[i]);
-        }
-    }
-    // check to see if we found all the requested vairables
-    for (auto plot_name : plot_deriv_names) {
-        if (!containerHasElement(tmp_deriv_names, plot_name)) {
-            Warning("\nWARNING: Requested to plot derived variable '" + plot_name + "' but it is not available");
-        }
-    }
-
-    plot_deriv_names = tmp_deriv_names;
+    plot_var_names = tmp_plot_names;
 }
 
 // set plotfile variable names
@@ -136,8 +79,7 @@ ERF::PlotFileVarNames () const
 {
     Vector<std::string> names;
 
-    names.insert(names.end(), plot_state_names.begin(), plot_state_names.end());
-    names.insert(names.end(), plot_deriv_names.begin(), plot_deriv_names.end());
+    names.insert(names.end(), plot_var_names.begin(), plot_var_names.end());
 
     return names;
 
@@ -179,16 +121,16 @@ ERF::WritePlotFile ()
         // First, copy any of the conserved state variables into the output plotfile
         AMREX_ALWAYS_ASSERT(cons_names.size() == Cons::NumVars);
         for (int i = 0; i < Cons::NumVars; ++i) {
-            if (containerHasElement(plot_state_names, cons_names[i])) {
+            if (containerHasElement(plot_var_names, cons_names[i])) {
                 MultiFab::Copy(mf[lev],vars_new[lev][Vars::cons],i,mf_comp,1,0);
                 mf_comp++;
             }
         }
 
         // Next, check for velocities and if desired, output them
-        if (containerHasElement(plot_state_names, "x_velocity") ||
-            containerHasElement(plot_state_names, "y_velocity") ||
-            containerHasElement(plot_state_names, "z_velocity")) {
+        if (containerHasElement(plot_var_names, "x_velocity") ||
+            containerHasElement(plot_var_names, "y_velocity") ||
+            containerHasElement(plot_var_names, "z_velocity")) {
 
             average_face_to_cellcenter(mf[lev],mf_comp,
                 Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
@@ -200,7 +142,7 @@ ERF::WritePlotFile ()
         auto calculate_derived = [&](std::string der_name,
                                      decltype(derived::erf_dernull)& der_function)
         {
-            if (containerHasElement(plot_deriv_names, der_name)) {
+            if (containerHasElement(plot_var_names, der_name)) {
                 MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
 
                 for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -224,19 +166,19 @@ ERF::WritePlotFile ()
         calculate_derived("QKE",         derived::erf_derQKE);
         calculate_derived("scalar",      derived::erf_derscalar);
 
-        if (containerHasElement(plot_deriv_names, "pres_hse"))
+        if (containerHasElement(plot_var_names, "pres_hse"))
         {
             MultiFab::Copy(mf[lev],pres_hse[lev],0,mf_comp,1,0);
             mf_comp += 1;
         }
 
-        if (containerHasElement(plot_deriv_names, "dens_hse"))
+        if (containerHasElement(plot_var_names, "dens_hse"))
         {
             MultiFab::Copy(mf[lev],dens_hse[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
 
-        if (containerHasElement(plot_deriv_names, "pert_pres"))
+        if (containerHasElement(plot_var_names, "pert_pres"))
         {
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
@@ -252,7 +194,7 @@ ERF::WritePlotFile ()
             mf_comp ++;
         }
 
-        if (containerHasElement(plot_deriv_names, "pert_dens"))
+        if (containerHasElement(plot_var_names, "pert_dens"))
         {
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
@@ -270,7 +212,7 @@ ERF::WritePlotFile ()
         int klo = geom[lev].Domain().smallEnd(2);
         int khi = geom[lev].Domain().bigEnd(2);
 
-        if (containerHasElement(plot_deriv_names, "dpdx"))
+        if (containerHasElement(plot_var_names, "dpdx"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
             MultiFab pres(vars_new[lev][Vars::cons].boxArray(), vars_new[lev][Vars::cons].DistributionMap(), 1, 1);
@@ -350,7 +292,7 @@ ERF::WritePlotFile ()
             mf_comp ++;
         } // dpdx
 
-        if (containerHasElement(plot_deriv_names, "dpdy"))
+        if (containerHasElement(plot_var_names, "dpdy"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
 
@@ -428,7 +370,7 @@ ERF::WritePlotFile ()
             mf_comp ++;
         } // dpdy
 
-        if (containerHasElement(plot_deriv_names, "pres_hse_x"))
+        if (containerHasElement(plot_var_names, "pres_hse_x"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -485,7 +427,7 @@ ERF::WritePlotFile ()
             mf_comp += 1;
         } // pres_hse_x
 
-        if (containerHasElement(plot_deriv_names, "pres_hse_y"))
+        if (containerHasElement(plot_var_names, "pres_hse_y"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -539,12 +481,12 @@ ERF::WritePlotFile ()
             mf_comp += 1;
         } // pres_hse_y
 
-        if (containerHasElement(plot_deriv_names, "z_phys"))
+        if (containerHasElement(plot_var_names, "z_phys"))
         {
             MultiFab::Copy(mf[lev],*z_phys_cc[lev],0,mf_comp,1,0);
             mf_comp ++;
         }
-    if (containerHasElement(plot_deriv_names, "detJ"))
+    if (containerHasElement(plot_var_names, "detJ"))
         {
             MultiFab::Copy(mf[lev],*detJ_cc[lev],0,mf_comp,1,0);
             mf_comp ++;

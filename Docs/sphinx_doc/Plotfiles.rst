@@ -23,32 +23,27 @@ The following options in the inputs file control the generation of plotfiles.
 List of Parameters
 ------------------
 
-+-----------------------------+------------------+------------------+---------+
-| Parameter                   | Definition       | Acceptable       | Default |
-|                             |                  | Values           |         |
-+=============================+==================+==================+=========+
-| **erf.plotfile_type**       | AMReX, NETCDF    | "amrex" or       | "amrex" |
-|                             | or HDF5          | "NetCDF" or      |         |
-|                             |                  | "hdf5" / "HDF5"  |         |
-+-----------------------------+------------------+------------------+---------+
-| **erf.plot_file**           | prefix for       | String           | “*plt*” |
-|                             | plotfiles        |                  |         |
-+-----------------------------+------------------+------------------+---------+
-| **erf.plot_int**            | how often (by    | Integer          | -1      |
-|                             | level-0 time     | :math:`> 0`      |         |
-|                             | steps) to write  |                  |         |
-|                             | plot files       |                  |         |
-+-----------------------------+------------------+------------------+---------+
-| **erf.plot_vars**           | name of state    | ALL, NONE or     | ALL     |
-|                             | variables to     | list             |         |
-|                             | include in       |                  |         |
-|                             | plotfiles        |                  |         |
-+-----------------------------+------------------+------------------+---------+
-| **erf.derive_plot_vars**    | name of derived  | ALL, NONE or     | NONE    |
-|                             | variables to     | list             |         |
-|                             | include in       |                  |         |
-|                             | plotfiles        |                  |         |
-+-----------------------------+------------------+------------------+---------+
++-----------------------------+------------------+-----------------------+---------+
+| Parameter                   | Definition       | Acceptable            | Default |
+|                             |                  | Values                |         |
++=============================+==================+=======================+=========+
+| **erf.plotfile_type**       | AMReX, NETCDF    | "amrex" or            | "amrex" |
+|                             | or HDF5          | "netcdf / "NetCDF" or |         |
+|                             |                  | "hdf5" / "HDF5"       |         |
++-----------------------------+------------------+-----------------------+---------+
+| **erf.plot_file**           | prefix for       | String                | “*plt*” |
+|                             | plotfiles        |                       |         |
++-----------------------------+------------------+-----------------------+---------+
+| **erf.plot_int**            | how often (by    | Integer               | -1      |
+|                             | level-0 time     | :math:`> 0`           |         |
+|                             | steps) to write  |                       |         |
+|                             | plot files       |                       |         |
++-----------------------------+------------------+-----------------------+---------+
+| **erf.plot_vars**           | name of          | list of names         | None    |
+|                             | variables to     |                       |         |
+|                             | include in       |                       |         |
+|                             | plotfiles        |                       |         |
++-----------------------------+------------------+-----------------------+---------+
 
 .. _notes-5:
 
@@ -62,15 +57,17 @@ Notes
 Examples of Usage
 -----------------
 
+-  **erf.plotfile_type** = *amrex*
+
 -  **erf.plot_file** = *plt_run*
 
 -  **erf.plot_int** = 10
 
-   means that plot files (really directories) starting with the prefix
+   means that native plot files (actually directories) starting with the prefix
    “*plt_run*” will be generated every 10 level-0 time steps. If using
    amrex format, that directory names will be *plt_run00000*, *plt_run00010*,
    *plt_run00020*, etc.  If using HDF5 format, the names will have ".h5"
-   appended.  If using NetCDF format, the names of the directories will
-   as specified for the native amrex format, but the NetCDF files will be
-   sorted by refinement level within the plt_run00000 directory, for example.
+   appended;  if using NetCDF format, the names will have ".nc" appended.
 
+   In addition, while the amrex plotfiles will contain data at all of the refinement
+   levels,  NetCDF files are separated by level.
