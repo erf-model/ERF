@@ -6,27 +6,20 @@
 
 using namespace amrex;
 
-// get plotfile name
-std::string
-ERF::PlotFileName (int lev) const
-{
-    return Concatenate(plot_file, lev, 5);
-}
-
 void
-ERF::setPlotVariables ()
+ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
 {
     ParmParse pp("erf");
 
-    if (pp.contains("plot_vars"))
+    if (pp.contains(pp_plot_var_names.c_str()))
     {
         std::string nm;
 
-        int nPltVars = pp.countval("plot_vars");
+        int nPltVars = pp.countval(pp_plot_var_names.c_str());
 
         for (int i = 0; i < nPltVars; i++)
         {
-            pp.get("plot_vars", nm, i);
+            pp.get(pp_plot_var_names.c_str(), nm, i);
 
             // add the named variable to our list of plot variables
             // if it is not already in the list
@@ -75,7 +68,7 @@ ERF::setPlotVariables ()
 
 // set plotfile variable names
 Vector<std::string>
-ERF::PlotFileVarNames () const
+ERF::PlotFileVarNames ( Vector<std::string> plot_var_names ) const
 {
     Vector<std::string> names;
 
@@ -85,11 +78,11 @@ ERF::PlotFileVarNames () const
 
 }
 
-// write plotfile to disk
+// Write plotfile to disk
 void
-ERF::WritePlotFile ()
+ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 {
-    const Vector<std::string> varnames = PlotFileVarNames();
+    const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 
     // We fillpatch here because some of the derived quantities require derivatives
@@ -493,7 +486,11 @@ ERF::WritePlotFile ()
         }
     }
 
-    const std::string& plotfilename = PlotFileName(istep[0]);
+    std::string plotfilename;
+    if (which == 1)
+       plotfilename = Concatenate(plot_file_1, istep[0], 5);
+    else if (which == 2)
+       plotfilename = Concatenate(plot_file_2, istep[0], 5);
 
     if (finest_level == 0)
     {

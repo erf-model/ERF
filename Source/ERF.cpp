@@ -103,7 +103,8 @@ ERF::ERF ()
     }
 
     ReadParameters();
-    setPlotVariables();
+    const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
+    const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
     amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
@@ -185,9 +186,13 @@ ERF::Evolve ()
         amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                        << " DT = " << dt[0]  << std::endl;
 
-        if (plot_int > 0 && (step+1) % plot_int == 0) {
-            last_plot_file_step = step+1;
-            WritePlotFile();
+        if (plot_int_1 > 0 && (step+1) % plot_int_1 == 0) {
+            last_plot_file_step_1 = step+1;
+            WritePlotFile(1,plot_var_names_1);
+        }
+        if (plot_int_2 > 0 && (step+1) % plot_int_2 == 0) {
+            last_plot_file_step_2 = step+1;
+            WritePlotFile(2,plot_var_names_2);
         }
 
         if (check_int > 0 && (step+1) % check_int == 0) {
@@ -215,8 +220,11 @@ ERF::Evolve ()
         if (cur_time >= stop_time - 1.e-6*dt[0]) break;
     }
 
-    if (plot_int > 0 && istep[0] > last_plot_file_step) {
-        WritePlotFile();
+    if (plot_int_1 > 0 && istep[0] > last_plot_file_step_1) {
+        WritePlotFile(1,plot_var_names_1);
+    }
+    if (plot_int_2 > 0 && istep[0] > last_plot_file_step_2) {
+        WritePlotFile(2,plot_var_names_2);
     }
 
     if (check_int > 0 && istep[0] > last_check_file_step) {
@@ -303,7 +311,8 @@ ERF::InitData ()
         amrex::Abort("MYNN2.5 PBL Model requires MOST at lower boundary");
     }
 
-    last_plot_file_step = -1;
+    last_plot_file_step_1 = -1;
+    last_plot_file_step_2 = -1;
     last_check_file_step = -1;
 
     if (restart_chkfile == "") {
@@ -405,13 +414,18 @@ ERF::InitData ()
         last_check_file_step = 0;
     }
 
-    if (plot_int > 0)
+    if ( (restart_chkfile == "") ||
+         (restart_chkfile != "" && plot_file_on_restart) )
     {
-        if ( (restart_chkfile == "") ||
-             (restart_chkfile != "" && plot_file_on_restart) )
+        if (plot_int_1 > 0)
         {
-            WritePlotFile();
-            last_plot_file_step = istep[0];
+            WritePlotFile(1,plot_var_names_1);
+            last_plot_file_step_1 = istep[0];
+        }
+        if (plot_int_2 > 0)
+        {
+            WritePlotFile(2,plot_var_names_2);
+            last_plot_file_step_2 = istep[0];
         }
     }
 
@@ -458,11 +472,11 @@ void
 ERF::restart()
 {
 #ifdef ERF_USE_NETCDF
-    if (plot_type == "netcdf") {
+    if (restart_type == "netcdf") {
        ReadNCCheckpointFile();
     }
 #endif
-    if (plot_type == "native") {
+    if (restart_type == "native") {
        ReadCheckpointFile();
     }
 
@@ -652,10 +666,10 @@ ERF::ReadParameters ()
 
     ParmParse pp("erf");
     {
+        // The type of the file we restart from
+        pp.query("restart_type", restart_type);
+
         pp.query("regrid_int", regrid_int);
-        pp.query("plot_file", plot_file);
-        pp.query("plot_type", plot_type);
-        pp.query("plot_int", plot_int);
         pp.query("check_file", check_file);
         pp.query("check_type", check_type);
         pp.query("check_int", check_int);
@@ -776,6 +790,10 @@ ERF::ReadParameters ()
             amrex::Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
             amrex::Abort("Dont know this plotfile_type");
         }
+        pp.query("plot_file_1", plot_file_1);
+        pp.query("plot_file_2", plot_file_2);
+        pp.query("plot_int_1", plot_int_1);
+        pp.query("plot_int_2", plot_int_2);
 
         pp.query("output_1d_column", output_1d_column);
         pp.query("column_per", column_per);
