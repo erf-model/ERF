@@ -34,10 +34,8 @@ erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
-erf.plot_file       = plt        # root name of plotfile
 erf.plot_int        = 100     # number of timesteps between plotfiles
-erf.plot_vars       = x_velocity y_velocity z_velocity
-erf.derive_plot_vars = theta
+erf.plot_vars       = x_velocity y_velocity z_velocity theta
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
