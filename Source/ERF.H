@@ -467,8 +467,7 @@ private:
     std::string check_type {"native"};
     int check_int = -1;
 
-    amrex::Vector<std::string> plot_state_names;
-    amrex::Vector<std::string> plot_deriv_names;
+    amrex::Vector<std::string> plot_var_names;
     const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
     const amrex::Vector<std::string> cons_names { "density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
 #ifdef ERF_USE_MOISTURE

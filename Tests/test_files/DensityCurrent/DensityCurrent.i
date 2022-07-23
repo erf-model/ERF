@@ -37,10 +37,8 @@ erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = 1000       # number of timesteps between checkpoints
 
 # PLOTFILES
-erf.plot_file       = plt        # root name of plotfile
 erf.plot_int        = 3840       # number of timesteps between plotfiles
-erf.plot_vars        =  density x_velocity y_velocity z_velocity
-erf.derive_plot_vars = pressure theta pres_hse dens_hse
+erf.plot_vars        =  density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
