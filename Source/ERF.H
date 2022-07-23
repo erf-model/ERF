@@ -300,7 +300,7 @@ private:
 
 #ifdef ERF_USE_NETCDF
     //! Write plotfile using NETCDF
-    void writeNCPlotFile(const std::string& dir,
+    void writeNCPlotFile(int lev, int which, const std::string& dir,
                          const amrex::Vector<const amrex::MultiFab*> &mf,
                          const amrex::Vector<std::string> &varnames,
                          const amrex::Vector<int> level_steps, const amrex::Real time) const;

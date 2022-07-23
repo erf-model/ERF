@@ -769,6 +769,13 @@ ERF::ReadParameters ()
 
         // Output format
         pp.query("plotfile_type", plotfile_type);
+        if (plotfile_type != "amrex" &&
+            plotfile_type != "netcdf" && plotfile_type != "NetCDF" &&
+            plotfile_type != "hdf5"   && plotfile_type != "HDF5" )
+        {
+            amrex::Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
+            amrex::Abort("Dont know this plotfile_type");
+        }
 
         pp.query("output_1d_column", output_1d_column);
         pp.query("column_per", column_per);

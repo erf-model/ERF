@@ -552,11 +552,11 @@ ERF::WritePlotFile ()
     }
 
     const std::string& plotfilename = PlotFileName(istep[0]);
-    amrex::Print() << "Writing plotfile " << plotfilename << "\n";
 
     if (finest_level == 0)
     {
         if (plotfile_type == "amrex") {
+            amrex::Print() << "Writing plotfile " << plotfilename << "\n";
             if (solverChoice.use_terrain) {
                 // We started with mf_nd holding 0 in every component; here we fill only the offset in z
                 int lev = 0;
@@ -583,18 +583,24 @@ ERF::WritePlotFile ()
             writeJobInfo(plotfilename);
 #ifdef AMREX_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
+            amrex::Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
             WriteMultiLevelPlotfileHDF5(plotfilename, finest_level+1,
                                         GetVecOfConstPtrs(mf),
                                         varnames,
                                         Geom(), t_new[0], istep, refRatio());
 #endif
 #ifdef ERF_USE_NETCDF
-        } else {
-             writeNCPlotFile(plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
+        } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
+             int lev   = 0;
+             int which = 0;
+             writeNCPlotFile(lev, which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
 #endif
+        } else {
+            amrex::Print() << "User specified plot_filetype = " << plotfile_type << std::endl;
+            amrex::Abort("Dont know this plot_filetype");
         }
 
-    } else {
+    } else { // multilevel
 
         Vector<IntVect>   r2(finest_level);
         Vector<Geometry>  g2(finest_level+1);
@@ -610,44 +616,48 @@ ERF::WritePlotFile ()
                      {Geom()[0].isPeriodic(0),Geom()[0].isPeriodic(1),Geom()[0].isPeriodic(2)};
         g2[0].define(Geom()[0].Domain(),&(Geom()[0].ProbDomain()),0,periodicity.data());
 
-        r2[0] = IntVect(1,1,ref_ratio[0][0]);
-        for (int lev = 1; lev <= finest_level; ++lev) {
-            if (lev > 1) {
-                r2[lev-1][0] = 1;
-                r2[lev-1][1] = 1;
-                r2[lev-1][2] = r2[lev-2][2] * ref_ratio[lev-1][0];
-            }
-
-            mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
-
-            // Set the new problem domain
-            Box d2(Geom()[lev].Domain());
-            d2.refine(r2[lev-1]);
-
-            g2[lev].define(d2,&(Geom()[lev].ProbDomain()),0,periodicity.data());
-        }
-
-        // Do piecewise interpolation of mf into mf2
-        for (int lev = 1; lev <= finest_level; ++lev) {
-            for (MFIter mfi(mf2[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
-                pcinterp_interp(bx,mf2[lev].array(mfi), 0, mf[lev].nComp(), mf[lev].const_array(mfi),0,r2[lev-1]);
-            }
-        }
-
-        // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
-        Vector<IntVect> rr(finest_level);
-        for (int lev = 0; lev < finest_level; ++lev) {
-            rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
-        }
-
         if (plotfile_type == "amrex") {
+            r2[0] = IntVect(1,1,ref_ratio[0][0]);
+            for (int lev = 1; lev <= finest_level; ++lev) {
+                if (lev > 1) {
+                    r2[lev-1][0] = 1;
+                    r2[lev-1][1] = 1;
+                    r2[lev-1][2] = r2[lev-2][2] * ref_ratio[lev-1][0];
+                }
+
+                mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
+
+                // Set the new problem domain
+                Box d2(Geom()[lev].Domain());
+                d2.refine(r2[lev-1]);
+
+                g2[lev].define(d2,&(Geom()[lev].ProbDomain()),0,periodicity.data());
+            }
+
+            // Do piecewise interpolation of mf into mf2
+            for (int lev = 1; lev <= finest_level; ++lev) {
+                for (MFIter mfi(mf2[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    pcinterp_interp(bx,mf2[lev].array(mfi), 0, mf[lev].nComp(), mf[lev].const_array(mfi),0,r2[lev-1]);
+                }
+            }
+
+            // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
+            Vector<IntVect> rr(finest_level);
+            for (int lev = 0; lev < finest_level; ++lev) {
+                rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
+            }
+
             WriteMultiLevelPlotfile(plotfilename, finest_level+1, GetVecOfConstPtrs(mf2), varnames,
                                            g2, t_new[0], istep, rr);
             writeJobInfo(plotfilename);
 #ifdef ERF_USE_NETCDF
-        } else {
-             writeNCPlotFile(plotfilename, GetVecOfConstPtrs(mf2), varnames, istep, t_new[0]);
+        } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
+             for (int lev = 0; lev <= finest_level; ++lev) {
+                 for (int which = 0; which < num_boxes_at_level[lev]; which++) {
+                     writeNCPlotFile(lev, which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
+                 }
+             }
 #endif
         }
     } // end multi-level
