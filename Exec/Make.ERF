@@ -74,15 +74,8 @@ endif
 #turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
-  ifdef NETCDF_DIR
-    VPATH_LOCATIONS   += $(NETCDF_DIR)/bin
-    INCLUDE_LOCATIONS += $(NETCDF_DIR)/include
-    LIBRARY_LOCATIONS += $(NETCDF_DIR)/lib
-    LIBRARIES += -L$(NETCDF_DIR)/lib -lnetcdf
-  else
-    includes += $(shell pkg-config --cflags netcdf)
-    LIBRARIES += $(shell pkg-config --libs netcdf)
-  endif
+  includes += $(shell pkg-config --cflags netcdf)
+  LIBRARIES += $(shell pkg-config --libs netcdf)
 endif
 
 all: $(executable)
