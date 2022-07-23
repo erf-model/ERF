@@ -152,7 +152,7 @@ public:
     void MakeHorizontalAverages();
 
     // write plotfile to disk
-    void WritePlotFile ();
+    void WritePlotFile  (int which, amrex::Vector<std::string> plot_var_names);
 
     void WriteMultiLevelPlotfileWithTerrain (const std::string &plotfilename,
                                              int nlevels,
@@ -293,10 +293,10 @@ private:
     std::string PlotFileName (int lev) const;
 
     // set plotfile variables names
-    amrex::Vector<std::string> PlotFileVarNames () const;
+    amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names) const;
 
     // set which variables and derived quantities go into plotfiles
-    void setPlotVariables ();
+    void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
 
 #ifdef ERF_USE_NETCDF
     //! Write plotfile using NETCDF
@@ -428,7 +428,9 @@ private:
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<BC, AMREX_SPACEDIM*2> phys_bc_type;
 
-    int last_plot_file_step;
+    int last_plot_file_step_1;
+    int last_plot_file_step_2;
+
     int last_check_file_step;
     int plot_file_on_restart = 1;
 
@@ -458,16 +460,19 @@ private:
     int regrid_int = 2;
 
     // plotfile prefix and frequency
-    std::string plot_file {"plt"};
-    std::string plot_type {"native"};
-    int plot_int = -1;
+    std::string plot_file_1 {"plt_1_"};
+    std::string plot_file_2 {"plt_2_"};
+    int plot_int_1 = -1;
+    int plot_int_2 = -1;
 
-    // checkpoint prefix and frequency
+    // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};
     std::string check_type {"native"};
+    std::string restart_type {"native"};
     int check_int = -1;
 
-    amrex::Vector<std::string> plot_var_names;
+    amrex::Vector<std::string> plot_var_names_1;
+    amrex::Vector<std::string> plot_var_names_2;
     const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
     const amrex::Vector<std::string> cons_names { "density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
 #ifdef ERF_USE_MOISTURE
