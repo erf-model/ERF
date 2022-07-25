@@ -407,6 +407,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
 
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
+
     amrex::Vector<amrex::MultiFab> pres_hse;
     amrex::Vector<amrex::MultiFab> dens_hse;
 
