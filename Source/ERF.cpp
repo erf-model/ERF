@@ -602,17 +602,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         b.setRange(2,0);
     }
     BoxArray ba2d(std::move(bl2d));
-    
+
     mapfac_m.resize(lev+1);
     mapfac_u.resize(lev+1);
-    mapfac_v.resize(lev+1); 
+    mapfac_v.resize(lev+1);
     mapfac_m[lev].reset(new MultiFab(ba2d,dm,1,1));
     mapfac_u[lev].reset(new MultiFab(ba2d,dm,1,1));
     mapfac_v[lev].reset(new MultiFab(ba2d,dm,1,1));
     mapfac_m[lev]->setVal(1.);
     mapfac_u[lev]->setVal(1.);
     mapfac_v[lev]->setVal(1.);
-    
+
     pres_hse.resize(lev+1);
     dens_hse.resize(lev+1);
     pres_hse[lev].define(ba,dm,1,1);
