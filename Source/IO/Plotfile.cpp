@@ -21,7 +21,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
         {
             pp.get(pp_plot_var_names.c_str(), nm, i);
 
-            // add the named variable to our list of plot variables
+            // Add the named variable to our list of plot variables
             // if it is not already in the list
             if (!containerHasElement(plot_var_names, nm)) {
                 plot_var_names.push_back(nm);
@@ -38,7 +38,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // since they may be in any order in the input list
     Vector<std::string> tmp_plot_names;
     for (int i = 0; i < Cons::NumVars; ++i) {
-        if ( containerHasElement(plot_var_names,    cons_names[i]) ) {
+        if ( containerHasElement(plot_var_names, cons_names[i]) ) {
             tmp_plot_names.push_back(cons_names[i]);
         }
     }
@@ -53,14 +53,16 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-            tmp_plot_names.push_back(derived_names[i]);
+            if (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
+               tmp_plot_names.push_back(derived_names[i]);
+            }
         }
     }
 
     // Check to see if we found all the requested variables
     for (auto plot_name : plot_var_names) {
       if (!containerHasElement(tmp_plot_names, plot_name)) {
-    Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
+           Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
       }
     }
     plot_var_names = tmp_plot_names;
@@ -127,6 +129,22 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
             average_face_to_cellcenter(mf[lev],mf_comp,
                 Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
+            //
+            // Convert the map-factor-scaled-velocities back to velocities
+            //
+            MultiFab dmf(mf[lev], make_alias, mf_comp, AMREX_SPACEDIM);
+            for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.validbox();
+                const Array4<Real> vel_arr = dmf.array(mfi);
+                const Array4<Real> msf_arr = mapfac_m[lev]->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    vel_arr(i,j,k,0) *= msf_arr(i,j,0);
+                    vel_arr(i,j,k,1) *= msf_arr(i,j,0);
+                    vel_arr(i,j,k,2) *= msf_arr(i,j,0);
+                });
+            }
             mf_comp += AMREX_SPACEDIM;
         }
 
@@ -474,16 +492,19 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp += 1;
         } // pres_hse_y
 
-        if (containerHasElement(plot_var_names, "z_phys"))
-        {
-            MultiFab::Copy(mf[lev],*z_phys_cc[lev],0,mf_comp,1,0);
-            mf_comp ++;
-        }
-    if (containerHasElement(plot_var_names, "detJ"))
-        {
-            MultiFab::Copy(mf[lev],*detJ_cc[lev],0,mf_comp,1,0);
-            mf_comp ++;
-        }
+        if (solverChoice.use_terrain) {
+            if (containerHasElement(plot_var_names, "z_phys"))
+            {
+                MultiFab::Copy(mf[lev],*z_phys_cc[lev],0,mf_comp,1,0);
+                mf_comp ++;
+            }
+
+            if (containerHasElement(plot_var_names, "detJ"))
+            {
+                MultiFab::Copy(mf[lev],*detJ_cc[lev],0,mf_comp,1,0);
+                mf_comp ++;
+            }
+        } // use_terrain
     }
 
     std::string plotfilename;

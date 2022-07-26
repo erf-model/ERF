@@ -518,6 +518,7 @@ void
 convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
                     const FArrayBox& NC_MUB_fab,
                     const FArrayBox& NC_MSFU_fab, const FArrayBox& NC_MSFV_fab,
+                    const FArrayBox& NC_MSFM_fab,
                     const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
                     const FArrayBox& NC_xvel_fab, const FArrayBox& NC_yvel_fab,
                     const FArrayBox& NC_rho_fab, const FArrayBox& NC_rhotheta_fab)
@@ -560,7 +561,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
                       +mub_arr(i,j,0) + mub_arr(i-1,j,0)) * 0.5;
             }
             Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-            Real new_bdy = bdy_u_arr(i,j,k) * msfu_arr(i,j,0) / xmu_mult;
+            Real new_bdy = bdy_u_arr(i,j,k) / xmu_mult;
             bdy_u_arr(i,j,k) = new_bdy;
         });
 
@@ -592,7 +593,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
                        +mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * 0.5;
             }
             Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-            Real new_bdy = bdy_v_arr(i,j,k) * msfv_arr(i,j,0) / xmu_mult;
+            Real new_bdy = bdy_v_arr(i,j,k) / xmu_mult;
             bdy_v_arr(i,j,k) = new_bdy;
         });
 
@@ -611,7 +612,6 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
                 amrex::Print() << "Max norm of diff between initial V and bdy V on hi y face: " << diff.norm(0) << std::endl;
         }
 #endif
-
 
         auto& bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
 

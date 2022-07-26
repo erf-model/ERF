@@ -22,6 +22,7 @@ convert_wrfbdy_data(int which, const Box& domain,
                     const FArrayBox& NC_MUB_fab,
                     const FArrayBox& NC_MSFU_fab,
                     const FArrayBox& NC_MSFV_fab,
+                    const FArrayBox& NC_MSFM_fab,
                     const FArrayBox& NC_C1H_fab,
                     const FArrayBox& NC_C2H_fab,
                     const FArrayBox& NC_xvel_fab,
@@ -42,6 +43,7 @@ ERF::init_from_wrfinput(int lev)
     Vector<FArrayBox> NC_MUB_fab  ; NC_MUB_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_MSFU_fab ; NC_MSFU_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_MSFV_fab ; NC_MSFV_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_MSFM_fab ; NC_MSFM_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C1H_fab  ; NC_C1H_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C2H_fab  ; NC_C2H_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PH_fab   ; NC_PH_fab.resize(num_boxes_at_level[lev]);
@@ -53,7 +55,8 @@ ERF::init_from_wrfinput(int lev)
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
     {
         read_from_wrfinput(lev,idx,NC_xvel_fab,NC_yvel_fab,NC_zvel_fab,NC_rho_fab,
-                           NC_rhop_fab,NC_rhoth_fab,NC_MUB_fab,NC_MSFU_fab,NC_MSFV_fab,
+                           NC_rhop_fab,NC_rhoth_fab,NC_MUB_fab,
+                           NC_MSFU_fab,NC_MSFV_fab,NC_MSFM_fab,
                            NC_C1H_fab,NC_C2H_fab,NC_PH_fab,NC_PHB_fab);
     }
 
@@ -76,6 +79,21 @@ ERF::init_from_wrfinput(int lev)
                                  NC_rho_fab, NC_rhoth_fab);
     } // mf
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    // Map scale factors common for "ideal" as well as "real" simulation
+    for ( MFIter mfi(*mapfac_u[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        // Define fabs for holding the initial data
+        FArrayBox &msfu_fab = (*mapfac_u[lev])[mfi];
+        FArrayBox &msfv_fab = (*mapfac_v[lev])[mfi];
+        FArrayBox &msfm_fab = (*mapfac_m[lev])[mfi];
+
+        init_msfs_from_wrfinput(lev, msfu_fab, msfv_fab, msfm_fab,
+                                NC_MSFU_fab, NC_MSFV_fab, NC_MSFM_fab);
+    } // mf
+
     if (solverChoice.use_terrain)
     {
         std::unique_ptr<MultiFab>& z_phys = z_phys_nd[lev];
@@ -94,16 +112,20 @@ ERF::init_from_wrfinput(int lev)
         const Box& domain = geom[lev].Domain();
 
         convert_wrfbdy_data(0,domain,bdy_data_xlo,
-                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_C1H_fab[0], NC_C2H_fab[0],
+                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
+                            NC_C1H_fab[0], NC_C2H_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
         convert_wrfbdy_data(1,domain,bdy_data_xhi,
-                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_C1H_fab[0], NC_C2H_fab[0],
+                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
+                            NC_C1H_fab[0], NC_C2H_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
         convert_wrfbdy_data(2,domain,bdy_data_ylo,
-                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_C1H_fab[0], NC_C2H_fab[0],
+                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
+                            NC_C1H_fab[0], NC_C2H_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
         convert_wrfbdy_data(3,domain,bdy_data_yhi,
-                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_C1H_fab[0], NC_C2H_fab[0],
+                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
+                            NC_C1H_fab[0], NC_C2H_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
     }
 }
@@ -141,6 +163,30 @@ ERF::init_state_from_wrfinput(int lev, FArrayBox& state_fab,
 
         // This copies (rho*theta)
         state_fab.template copy<RunOn::Device>(NC_rhotheta_fab[idx], 0, RhoTheta_comp, 1);
+    } // idx
+}
+
+void
+ERF::init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
+                             FArrayBox& msfv_fab, FArrayBox& msfm_fab,
+                             const Vector<FArrayBox>& NC_MSFU_fab,
+                             const Vector<FArrayBox>& NC_MSFV_fab,
+                             const Vector<FArrayBox>& NC_MSFM_fab)
+{
+    for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
+    {
+        //
+        // FArrayBox to FArrayBox copy does "copy on intersection"
+        // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
+        //
+        // This copies mapfac_u
+        msfu_fab.template copy<RunOn::Device>(NC_MSFU_fab[idx]);
+
+        // This copies mapfac_v
+        msfv_fab.template copy<RunOn::Device>(NC_MSFV_fab[idx]);
+
+        // This copies mapfac_m
+        msfm_fab.template copy<RunOn::Device>(NC_MSFM_fab[idx]);
     } // idx
 }
 
