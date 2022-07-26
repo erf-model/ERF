@@ -194,6 +194,7 @@ public:
                             amrex::Vector<amrex::FArrayBox>& NC_rhop_fab, amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_MUB_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab, amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
 
@@ -204,6 +205,13 @@ public:
                             const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
                             const amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
                             const amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab);
+
+    void init_msfs_from_wrfinput(int lev,
+                            amrex::FArrayBox& msfu_fab, amrex::FArrayBox& msfv_fab,
+                            amrex::FArrayBox& msfm_fab,
+                            const amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab,
+                            const amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
+                            const amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab);
 
     // Copy from NC_PH* fabs into the MultiFabs holding the terrain data
     void init_terrain_from_wrfinput(int lev,  amrex::FArrayBox& z_phys,
