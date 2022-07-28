@@ -613,12 +613,12 @@ Initialization
 
 ERF can be initialzed in different ways. These are listed below:
 
-- Customized initialization:
-    Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are meant for demonstration.
+- Custom initialization:
+    Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are meant for demonstration and do not include any terrain or map scale factors.
 - Initialization using a NetCDF file:
-    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesocale data. This is a more realistic problem with real atmospheric data used for initialization. The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.
+    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesocale data. This is a more realistic problem with real atmospheric data used for initialization. The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.  These problems are run with both terrain and map scale factors.
 - Initialization using an ``input_sounding`` file:
-    Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile. This file has the same format as used by ``ideal.exe`` executable in WRF. Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed. This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state.
+    Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile. This file has the same format as used by ``ideal.exe`` executable in WRF. Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed. This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
 
 List of Parameters
 ------------------
@@ -627,9 +627,9 @@ List of Parameters
 | Parameter                   | Definition        | Acceptable         | Default    |
 |                             |                   | Values             |            |
 +=============================+===================+====================+============+
-| **erf.init_type**           | Initialization    | “*custom*”,        | “*custom*” |
-|                             | type              | “*ideal*”,         |            |
-|                             |                   | “*real*”,          |            |
+| **erf.init_type**           | Initialization    | “custom”,          | “*custom*” |
+|                             | type              | “ideal”,           |            |
+|                             |                   | “real”,            |            |
 |                             |                   |"input_sounding"    |            |
 +-----------------------------+-------------------+--------------------+------------+
 | **erf.nc_init_file**        | NetCDF file with  |  String            | NONE       |
@@ -641,35 +641,14 @@ List of Parameters
 |                             | lateral boundaries|                    |            |
 +-----------------------------+-------------------+--------------------+------------+
 
-
-Examples of Usage
+Notes
 -----------------
 
--  **erf.init_type**  = “*custom*”
-    "*custom*" type of initialization is for customized problems meant for demonstration.
+If **erf.init_type = ideal**”, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in vertical direction.
 
--  **erf.init_type**  = “*ideal*”
-    "*ideal*" type of initialization is for problems initialized with mesoscale data contained in a
-    NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in vertical direction.
+If **erf.init_type = real**”, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.  In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**”
 
--  **erf.init_type**  = “*real*”
-    "*real*" type of initialization is for problems initialized with mesoscale data contained in a
-    NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all the three directions.
-
--  **erf.nc_init_file**   = “*wrfinput_d01*”
-    The NetCDF file with mesoscale data if ``erf.init_type`` is "*ideal*" or "*real*".
-
--  **erf.nc_bdy_file**   = “*wrfbdy_d01*”
-    The NetCDF file with mesoscale data at lateral boundaries if ``erf.init_type`` is "*real*".
-
-If ``erf.init_type`` is set to ``"custom"``, then ``erf.nc_init_file`` or ``erf.nc_bdy_file`` need not be provided.
-
-If ``erf.init_type`` is set to ``"ideal"`` or ``"real"``, then ``erf.nc_init_file`` **must** be provided.
-
-If ``erf.init_type`` is set to ``"real"``, then ``erf.nc_bdy_file`` **must** be provided.
-
-If ``erf.init_type`` is set to ``"input_sounding"``, then ``erf.input_sounding_file`` **must** be provided.
-
+If **erf.init_type = custom**” or **erf.init_type = input_sounding**”, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
 
 Terrain Smoothing
 =================
