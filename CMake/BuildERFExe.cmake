@@ -110,8 +110,8 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_NETCDF)
     if(NETCDF_FOUND)
       #Link our executable to the NETCDF libraries, etc
-      target_link_libraries(${erf_lib_name} PUBLIC ${NETCDF_LIBRARIES_C})
-      target_include_directories(${erf_lib_name} PUBLIC ${NETCDF_INCLUDES})
+      target_link_libraries(${erf_lib_name} PUBLIC ${NETCDF_LINK_LIBRARIES})
+      target_include_directories(${erf_lib_name} PUBLIC ${NETCDF_INCLUDE_DIRS})
     endif()
   endif()
 
