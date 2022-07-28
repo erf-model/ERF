@@ -24,7 +24,10 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt       = 2.0e-2  # fixed time step depending on grid resolution
+erf.use_native_mri  = 0
+integration.type    = RungeKutta
+integration.rk.type = 3
+erf.fixed_dt        = 2.0e-2  # fixed time step depending on grid resolution
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -71,7 +74,3 @@ prob.W_0_Pert_Mag = 0.0
 erf.input_bndry_planes = 1
 erf.bndry_file = "BndryFiles"
 erf.bndry_input_var_names = density temperature velocity 
-
-erf.use_native_mri = 0
-
-FILE = ../inputs.time_integration

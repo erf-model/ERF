@@ -81,12 +81,16 @@ ComputeS33WithTerrain(
            const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& w,
            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Real& /*met_h_xi*/, const amrex::Real& /*met_h_eta*/, const amrex::Real& met_h_zeta)
+           const amrex::Real& /*met_h_xi*/, const amrex::Real& /*met_h_eta*/, const amrex::Real& met_h_zeta,
+           const amrex::Box& domain)
 {
   amrex::Real strainRate = 0;
   amrex::Real dz_inv = cellSizeInv[2];
 
-  strainRate = ( w(i, j, k) - w(i, j, k-1) ) * dz_inv / met_h_zeta ;
+  if (k > domain.smallEnd(2) && k <= domain.bigEnd(2)+1)
+      strainRate = ( w(i, j, k) - w(i, j, k-1) ) * dz_inv / met_h_zeta ;
+  else
+      strainRate = 0.;
 
   return strainRate;
 }
@@ -374,7 +378,7 @@ ComputeStrainRateWithTerrain(
       ComputeMetricAtCellCenter(i,j,k-1,met_h_xi,met_h_eta,met_h_zeta,
                                 cellSizeInv,z_nd,TerrainMet::h_zeta);
       strainRate = ComputeS33WithTerrain(i,j,k,w,cellSizeInv,
-                              met_h_xi,met_h_eta,met_h_zeta);
+                              met_h_xi,met_h_eta,met_h_zeta,domain);
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -411,10 +415,14 @@ AMREX_GPU_DEVICE
 inline amrex::Real
 ComputeS33(const int &i, const int &j, const int &k,
            const amrex::Array4<amrex::Real const>& w,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
+           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+           const amrex::Box& domain)
 {
   amrex::Real dz_inv = cellSizeInv[2];
-  return (w(i, j, k) - w(i, j, k-1))*dz_inv;
+  if (k > domain.smallEnd(2) && k <= domain.bigEnd(2)+1)
+      return (w(i, j, k) - w(i, j, k-1))*dz_inv;
+  else
+      return 0.;
 }
 
 AMREX_GPU_DEVICE
@@ -475,7 +483,9 @@ ComputeS13(const int &i, const int &j, const int &k,
     } else if (i == domain.bigEnd(0)+1 && is_on_face(bc_ptr[BCVars::zvel_bc].hi(0))) {
         strainRate += -(-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dx_inv;
     } else {
-        strainRate += (w(i, j, k) - w(i-1, j, k)) * dx_inv;
+        if (k > domain.smallEnd(2) && k <= domain.bigEnd(2)+1) {
+            strainRate += (w(i, j, k) - w(i-1, j, k)) * dx_inv;
+        }
     }
     strainRate *= 0.5;
 
@@ -508,7 +518,8 @@ ComputeS23(const int &i, const int &j, const int &k,
     } else if (j == domain.bigEnd(1)+1 && is_on_face(bc_ptr[BCVars::zvel_bc].hi(1))) {
         strainRate += -(-(8./3.) * w(i,j  ,k) + 3. * w(i,j-1,k) - (1./3.) * w(i,j-2,k))*dy_inv;
     } else {
-        strainRate += (w(i, j, k) - w(i, j-1, k))*dy_inv;
+        if (k > domain.smallEnd(2) && k <= domain.bigEnd(2)+1)
+            strainRate += (w(i, j, k) - w(i, j-1, k))*dy_inv;
     }
     strainRate *= 0.5;
 
@@ -603,7 +614,7 @@ ComputeStrainRate(const int &i, const int &j, const int &k,
             strainRate = ComputeS32(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
             break;
           case DiffusionDir::z: // S33
-            strainRate = ComputeS33(i,j,k,w,cellSizeInv);
+            strainRate = ComputeS33(i,j,k,w,cellSizeInv,domain);
             break;
           default:
             amrex::Abort("Error: Diffusion direction is unrecognized");
