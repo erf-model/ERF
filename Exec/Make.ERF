@@ -41,9 +41,11 @@ INCLUDE_LOCATIONS += $(ERF_PROBLEM_DIR)
 include $(AMREX_HOME)/Src/Base/Make.package
 
 AMReXdirs             := Base Boundary AmrCore
-ifeq ($(USE_NETCDF),TRUE)
+
+ifeq ($(USE_HDF5),TRUE)
 AMReXdirs             += Extern/HDF5
 endif
+
 AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)
 
 include $(AMReXpack)
@@ -55,9 +57,13 @@ endif
 #turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
-  DEFINES += -DAMREX_USE_HDF5
   includes += $(shell pkg-config --cflags netcdf)
   LIBRARIES += $(shell pkg-config --libs netcdf)
+endif
+
+ifeq ($(USE_HDF5), TRUE)
+  DEFINES += -DERF_USE_HDF5
+  DEFINES += -DAMREX_USE_HDF5
 endif
 
 CEXE_sources += AMReX_buildInfo.cpp
