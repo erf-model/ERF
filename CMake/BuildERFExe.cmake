@@ -39,6 +39,10 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/IO/NCColumnFile.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
+
+  if(ERF_ENABLE_HDF5)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_HDF5)
+  endif()
  
   target_sources(${erf_lib_name}
      PRIVATE

@@ -24,8 +24,9 @@ USE_ASSERTION = TRUE
 DEBUG = FALSE
 
 USE_NETCDF  = TRUE
+USE_HDF5    = TRUE
 
-BL_NO_FORT = TRUE
+BL_NO_FORT  = TRUE
 
 # GNU Make
 Bpack := ./Make.package

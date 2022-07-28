@@ -541,7 +541,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                Geom(), t_new[0], istep, refRatio());
             }
             writeJobInfo(plotfilename);
-#ifdef AMREX_USE_HDF5
+#ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
             amrex::Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
             WriteMultiLevelPlotfileHDF5(plotfilename, finest_level+1,
