@@ -40,13 +40,24 @@ INCLUDE_LOCATIONS += $(ERF_PROBLEM_DIR)
 
 include $(AMREX_HOME)/Src/Base/Make.package
 
-AMReXdirs             := Base Boundary AmrCore Extern/HDF5
+AMReXdirs             := Base Boundary AmrCore
+ifeq ($(USE_NETCDF),TRUE)
+AMReXdirs             += Extern/HDF5
+endif
 AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)
 
 include $(AMReXpack)
 
 ifeq ($(USE_MOISTURE), TRUE)
   DEFINES += -DERF_USE_MOISTURE
+endif
+
+#turn on NetCDF macro define
+ifeq ($(USE_NETCDF), TRUE)
+  DEFINES += -DERF_USE_NETCDF
+  DEFINES += -DAMREX_USE_HDF5
+  includes += $(shell pkg-config --cflags netcdf)
+  LIBRARIES += $(shell pkg-config --libs netcdf)
 endif
 
 CEXE_sources += AMReX_buildInfo.cpp
@@ -69,14 +80,6 @@ LIBRARY_LOCATIONS += $(SUNDIALS_LIB_DIR)
 LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_cvode
 LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_arkode
 LIBRARIES += -L$(SUNDIALS_LIB_DIR) -lsundials_nvecmanyvector
-endif
-
-#turn on NetCDF macro define
-ifeq ($(USE_NETCDF), TRUE)
-  DEFINES += -DERF_USE_NETCDF
-  DEFINES += -DAMREX_USE_HDF5
-  includes += $(shell pkg-config --cflags netcdf)
-  LIBRARIES += $(shell pkg-config --libs netcdf)
 endif
 
 all: $(executable)
