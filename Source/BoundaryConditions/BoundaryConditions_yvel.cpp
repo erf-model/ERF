@@ -164,7 +164,7 @@ void ERFPhysBCFunct::impose_yvel_bcs (const Array4<Real>& dest_arr, const Box& b
                     // Get metrics
                     amrex::Real met_h_xi,met_h_eta,met_h_zeta;
 
-                    ComputeMetricAtIface(ii,jj,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
+                    ComputeMetricAtJface(ii,jj,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
 
                     // GradX at IJK location inside domain -- this relies on the assumption that we have
                     // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
