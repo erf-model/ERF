@@ -42,7 +42,7 @@ void ERF::erf_advance(int level,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-      for (MFIter mfi(cons_state,TilingIfNotGPU()); mfi.isValid(); ++mfi) 
+      for (MFIter mfi(cons_state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
           // const Box& gbx = mfi.growntilebox(cons_state.nGrowVect());
           const Box& gbx = mfi.growntilebox(ng);
@@ -180,7 +180,7 @@ void ERF::erf_advance(int level,
         //     2) physical boundaries
         //     3) other grids at the same level
         // ***************************************************************************************
-        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new}, 
+        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
                               ng_cons, ng_vel);
 
         // Now we can convert back to momentum on valid+ghost since we have
@@ -299,7 +299,7 @@ void ERF::erf_advance(int level,
 
     // One final BC fill
     amrex::Real new_time = old_time + dt_advance;
-    FillIntermediatePatch(level, new_time, {cons_new, xvel_new, yvel_new, zvel_new}, 
+    FillIntermediatePatch(level, new_time, {cons_new, xvel_new, yvel_new, zvel_new},
                           cons_new.nGrow(), xvel_new.nGrow());
     if (verbose) Print() << "Done with advance at level " << level << std::endl;
 }
