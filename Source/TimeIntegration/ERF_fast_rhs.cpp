@@ -55,6 +55,16 @@ void erf_fast_rhs (int level,
     const auto& ba = S_stage_data[IntVar::cons].boxArray();
     const auto& dm = S_stage_data[IntVar::cons].DistributionMap();
 
+    MultiFab Delta_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
+    MultiFab Delta_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
+    MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,0));
+    MultiFab Delta_rho  (            ba                , dm, 1, 1);
+    MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
+
+    MultiFab New_rho_u(convert(ba,IntVect(1,0,0)), dm, 1, 1);
+    MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
+    MultiFab New_rho_w(convert(ba,IntVect(0,0,1)), dm, 1, 1);
+
     // *************************************************************************
     // Set gravity as a vector
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
@@ -71,6 +81,8 @@ void erf_fast_rhs (int level,
         mhi_mf_y = &(ifr->mask(Orientation(1,Orientation::high)));
     }
 
+    MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
+
     // *************************************************************************
     // Define updates in the current RK stage, fluxes are computed here itself
     // *************************************************************************
@@ -78,16 +90,6 @@ void erf_fast_rhs (int level,
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     {
-
-    FArrayBox extrap;
-    FArrayBox Delta_rho;
-    FArrayBox Delta_rho_theta;
-    FArrayBox Delta_rho_u;
-    FArrayBox Delta_rho_v;
-    FArrayBox Delta_rho_w;
-    FArrayBox New_rho_u;
-    FArrayBox New_rho_v;
-    FArrayBox New_rho_w;
 
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -114,37 +116,11 @@ void erf_fast_rhs (int level,
         const Array4<const Real> & cell_stage_zmom  = S_stage_data[IntVar::zmom].const_array(mfi);
         const Array4<const Real> & prim          = S_stage_prim.const_array(mfi);
 
-        const Box& gbx  = mfi.growntilebox(1);
-        const Box& gtbx = mfi.nodaltilebox(0).grow(1);
-        const Box& gtby = mfi.nodaltilebox(1).grow(1);
-        const Box& gtbz = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
-
-        extrap.resize(gbx);
-        Elixir ex_ext = extrap.elixir();
-        Delta_rho.resize(gbx);
-        Elixir ex_dr  = Delta_rho.elixir();
-        Delta_rho_theta.resize(gbx);
-        Elixir ex_drt = Delta_rho_theta.elixir();
-
-        Delta_rho_u.resize(gtbx);
-        Elixir ex_dru = Delta_rho_u.elixir();
-        Delta_rho_v.resize(gtby);
-        Elixir ex_drv = Delta_rho_v.elixir();
-        Delta_rho_w.resize(gtbz);
-        Elixir ex_drw = Delta_rho_w.elixir();
-
-        New_rho_u.resize(gtbx);
-        Elixir ex_nru = New_rho_u.elixir();
-        New_rho_v.resize(gtby);
-        Elixir ex_nrv = New_rho_v.elixir();
-        New_rho_w.resize(gtbz);
-        Elixir ex_nrw = New_rho_w.elixir();
-
-        const Array4<Real>& old_drho_u     = Delta_rho_u.array();
-        const Array4<Real>& old_drho_v     = Delta_rho_v.array();
-        const Array4<Real>& old_drho_w     = Delta_rho_w.array();
-        const Array4<Real>& old_drho       = Delta_rho.array();
-        const Array4<Real>& old_drho_theta = Delta_rho_theta.array();
+        const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
+        const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
+        const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
+        const Array4<Real>& old_drho       = Delta_rho.array(mfi);
+        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
 
         const Array4<Real>& fast_rhs_rho_u = S_rhs[IntVar::xmom].array(mfi);
         const Array4<Real>& fast_rhs_rho_v = S_rhs[IntVar::ymom].array(mfi);
@@ -155,9 +131,9 @@ void erf_fast_rhs (int level,
         const Array4<const Real>& slow_rhs_rho_v    = S_slow_rhs[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_w    = S_slow_rhs[IntVar::zmom].const_array(mfi);
 
-        const Array4<      Real>& new_drho_u = New_rho_u.array();
-        const Array4<      Real>& new_drho_v = New_rho_v.array();
-        const Array4<      Real>& new_drho_w = New_rho_w.array();
+        const Array4<      Real>& new_drho_u = New_rho_u.array(mfi);
+        const Array4<      Real>& new_drho_v = New_rho_v.array(mfi);
+        const Array4<      Real>& new_drho_w = New_rho_w.array(mfi);
 
         const Array4<      Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
         const Array4<      Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
@@ -185,13 +161,17 @@ void erf_fast_rhs (int level,
         const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
-        const Array4<Real>& extrap_arr = extrap.array();
+        const Array4<Real>& extrap_arr = extrap.array(mfi);
 
         // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
         // Note that we do the Copy and Subtract including one ghost cell
         //    so that we don't have to fill ghost cells of the new MultiFabs
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
+        const Box& gbx  = mfi.growntilebox(1);
+        const Box& gtbx = mfi.nodaltilebox(0).grow(1);
+        const Box& gtby = mfi.nodaltilebox(1).grow(1);
+        const Box& gtbz = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k) = cur_data(i,j,k,Rho_comp) - cell_stage(i,j,k,Rho_comp);
