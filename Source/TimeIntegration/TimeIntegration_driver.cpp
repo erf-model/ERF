@@ -74,9 +74,9 @@ void ERF::erf_advance(int level,
      advflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
     diffflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
-     advflux[0].setVal(0.);
-     advflux[1].setVal(0.);
-     advflux[2].setVal(0.);
+    // advflux[0].setVal(0.);
+    // advflux[1].setVal(0.);
+    // advflux[2].setVal(0.);
 
     diffflux[0].setVal(0.);
     diffflux[1].setVal(0.);
@@ -245,7 +245,7 @@ void ERF::erf_advance(int level,
     };
 
     // ***************************************************************************************
-    // Setup the integrator
+    // Setup the integrator and integrate for a single timestep
     // **************************************************************************************
     if (use_native_mri) {
       MRISplitIntegrator<Vector<MultiFab> > mri_integrator(state_old);
@@ -259,20 +259,14 @@ void ERF::erf_advance(int level,
       mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
       mri_integrator.set_post_substep(post_substep_fun);
 
-      // **************************************************************************************
-      // Integrate for a single timestep
-      // **************************************************************************************
       mri_integrator.advance(state_old, state_new, old_time, dt_advance);
+
     } else {
-      // TimeIntegrator<Vector<MultiFab> > lev_integrator(state_old);
       SRIIntegrator<Vector<MultiFab> > sri_integrator(state_old);
 
       sri_integrator.set_rhs(slow_rhs_fun);
       sri_integrator.set_post_update(post_update_fun);
 
-      // **************************************************************************************
-      // Integrate for a single timestep
-      // **************************************************************************************
       sri_integrator.advance(state_old, state_new, old_time, dt_advance);
     }
 

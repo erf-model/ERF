@@ -13,6 +13,7 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const int& spatial_order, const int& use_terrain)
 {
+    BL_PROFILE_VAR("AdvectionSrcForXMom()",AdvectionSrcForXMom);
     Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real rho_u_avg, rho_v_avg, rho_w_avg;
@@ -121,6 +122,7 @@ AdvectionSrcForYMom(const int &i, const int &j, const int &k,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const int& spatial_order, const int& use_terrain)
 {
+    BL_PROFILE_VAR("AdvectionSrcForYMom()",AdvectionSrcForYMom);
     Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real rho_u_avg, rho_v_avg, rho_w_avg;
@@ -229,6 +231,7 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const int& spatial_order, const int& use_terrain, const int& domhi_z)
 {
+    BL_PROFILE_VAR("AdvectionSrcForZMom()",AdvectionSrcForZMom);
     Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
@@ -374,6 +377,8 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
                      const int &spatial_order, const int& use_terrain,
                      const int &use_deardorff, const int &use_QKE)
 {
+    BL_PROFILE_VAR("AdvectionSrcForState()",AdvectionSrcForState);
+
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -383,70 +388,72 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
         Real zflux_hi, zflux_lo;
 
         if (use_terrain) {
-        Real met_h_xi, met_h_eta,  met_h_zeta;
+            Real met_h_xi, met_h_eta,  met_h_zeta;
 
-    // ****************************************************************************************
-    // X-faces
-    // ****************************************************************************************
+            // ****************************************************************************************
+            // X-faces
+            // ****************************************************************************************
 
-    // Metric at U location
-    ComputeMetricAtIface(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-    xflux_hi = rho_u(i+1,j,k) * met_h_zeta;
+            // Metric at U location
+            ComputeMetricAtIface(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
+            xflux_hi = rho_u(i+1,j,k) * met_h_zeta;
 
-    // Metric at U location
-    ComputeMetricAtIface(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-    xflux_lo = rho_u(i  ,j,k) * met_h_zeta;
+            // Metric at U location
+            ComputeMetricAtIface(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
+            xflux_lo = rho_u(i  ,j,k) * met_h_zeta;
 
-    // ****************************************************************************************
-    // Y-faces
-    // ****************************************************************************************
+            // ****************************************************************************************
+            // Y-faces
+            // ****************************************************************************************
 
-    // Metric at V location
-    ComputeMetricAtJface(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-    yflux_hi = rho_v(i,j+1,k) * met_h_zeta;
-    // Metric at V location
-    ComputeMetricAtJface(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-    yflux_lo = rho_v(i,j  ,k) * met_h_zeta;
+            // Metric at V location
+            ComputeMetricAtJface(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
+            yflux_hi = rho_v(i,j+1,k) * met_h_zeta;
 
-    // ****************************************************************************************
-    // Z-faces
-    // ****************************************************************************************
+            // Metric at V location
+            ComputeMetricAtJface(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
+            yflux_lo = rho_v(i,j  ,k) * met_h_zeta;
 
-        zflux_hi = OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv);
-        zflux_lo = (k == 0) ? 0.0_rt : OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv);
-    } else {
-        xflux_hi = rho_u(i+1,j,k);
-        xflux_lo = rho_u(i  ,j,k);
-        yflux_hi = rho_v(i,j+1,k);
-        yflux_lo = rho_v(i,j  ,k);
-        zflux_hi = rho_w(i,j,k+1);
-        zflux_lo = rho_w(i,j,k  );
-    }
+            // ****************************************************************************************
+            // Z-faces
+            // ****************************************************************************************
 
-    // These are only used to construct the sign to be used in upwinding
-    Real uadv_hi = rho_u(i+1,j,k);
-    Real uadv_lo = rho_u(i  ,j,k);
-    Real vadv_hi = rho_v(i,j+1,k);
-    Real vadv_lo = rho_v(i,j  ,k);
-    Real wadv_hi = rho_w(i,j,k+1);
-    Real wadv_lo = rho_w(i,j,k  );
+            zflux_hi = OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv);
+            zflux_lo = (k == 0) ? 0.0_rt : OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv);
 
-    // ****************************************************************************************
-    // Now that we have the correctly weighted vector components, we can multiply by the
-    //     scalar (such as theta or C) on the respective faces
-    // ****************************************************************************************
+        } else {
+            xflux_hi = rho_u(i+1,j,k);
+            xflux_lo = rho_u(i  ,j,k);
+            yflux_hi = rho_v(i,j+1,k);
+            yflux_lo = rho_v(i,j  ,k);
+            zflux_hi = rho_w(i,j,k+1);
+            zflux_lo = rho_w(i,j,k  );
+        }
 
-    Real invdetJ = 1.;
-    if (use_terrain) {
-        invdetJ /= detJ(i,j,k);
-    }
+        // These are only used to construct the sign to be used in upwinding
+        Real uadv_hi = rho_u(i+1,j,k);
+        Real uadv_lo = rho_u(i  ,j,k);
+        Real vadv_hi = rho_v(i,j+1,k);
+        Real vadv_lo = rho_v(i,j  ,k);
+        Real wadv_hi = rho_w(i,j,k+1);
+        Real wadv_lo = rho_w(i,j,k  );
 
-    for (int n = icomp; n < icomp+ncomp; n++)
-    {
-        if ((n != RhoKE_comp && n != RhoQKE_comp) ||
-            (  use_deardorff && n == RhoKE_comp) ||
-            (  use_QKE       && n == RhoQKE_comp) )
+        // ****************************************************************************************
+        // Now that we have the correctly weighted vector components, we can multiply by the
+        //     scalar (such as theta or C) on the respective faces
+        // ****************************************************************************************
+
+        Real invdetJ = 1.;
+        if (use_terrain) {
+            invdetJ /= detJ(i,j,k);
+        }
+
+        for (int n = icomp; n < icomp+ncomp; n++)
         {
+          if ((n != RhoKE_comp && n != RhoQKE_comp) ||
+              (  use_deardorff && n == RhoKE_comp) ||
+              (  use_QKE       && n == RhoQKE_comp) )
+          {
             Real xflux_hi_n, xflux_lo_n, yflux_hi_n, yflux_lo_n, zflux_hi_n, zflux_lo_n;
             if (n != Rho_comp)
             {
@@ -480,17 +487,17 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
                                       +(zflux_hi_n - zflux_lo_n) * dzInv );
             advectionSrc(i,j,k,n) *= invdetJ;
 
-        } else {
+          } else {
 
-            xflux(i+1,j,k,n) = 0.;
-            xflux(i  ,j,k,n) = 0.;
-            yflux(i,j+1,k,n) = 0.;
-            yflux(i,j  ,k,n) = 0.;
-            zflux(i,j,k+1,n) = 0.;
-            zflux(i,j,k  ,n) = 0.;
+              xflux(i+1,j,k,n) = 0.;
+              xflux(i  ,j,k,n) = 0.;
+              yflux(i,j+1,k,n) = 0.;
+              yflux(i,j  ,k,n) = 0.;
+              zflux(i,j,k+1,n) = 0.;
+              zflux(i,j,k  ,n) = 0.;
 
-            advectionSrc(i,j,k,n) = 0.;
-        }
-    } // n
+              advectionSrc(i,j,k,n) = 0.;
+          }
+      } // n
     });
 }

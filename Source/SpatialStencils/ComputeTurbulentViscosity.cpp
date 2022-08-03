@@ -25,10 +25,6 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
 
     const int klo = dom_lo.z;
 
-    // We must initialize all the components to 0 because we may not set all of them below
-    //    (which ones depends on which LES / PBL scheme we are using)
-    eddyViscosity.setVal(0.0);
-
     bool l_vert_only = vert_only;
     bool l_use_terrain = solverChoice.use_terrain;
 
@@ -216,6 +212,9 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
     // ComputeTurbulentViscosityLES populates the LES viscosity for both horizontal and vertical components.
     // ComputeTurbulentViscosityPBL computes the PBL viscosity just for the vertical component.
     //
+
+    // We must initialize all the components to 0 because we may not set all of them below
+    //    (which ones depends on which LES / PBL scheme we are using)
     eddyViscosity.setVal(0.0);
 
     if (most) {

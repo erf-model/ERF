@@ -231,10 +231,6 @@ public:
                 // Copy only (rho theta), including ghost cells
                 amrex::IntegratorOps<T>::Copy(*S_scratch, *S_sum, scomp_rth, ncomp_rth, true);
             }
-#if 0
-            // Update S_sum = S_pert + S_stage only for the fast variables
-            amrex::IntegratorOps<T>::Saxpy(*S_sum, time_step, *F_slow, scomp_fast, ncomp_fast);
-#endif
 
             // Evaluate F_slow(S_stage) only for the slow variables
             // Note that we are using the current stage versions (in S_new) of the slow variables
@@ -252,7 +248,8 @@ public:
 
             // Call the post-update hook for S_new after all the fine steps completed
             // This will update S_prim that is used in the slow RHS
-            post_update(S_new, time + nsubsteps*dtau,S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+            if (nrk < 2)
+               post_update(S_new, time + nsubsteps*dtau,S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
         }
 
         // Return timestep
