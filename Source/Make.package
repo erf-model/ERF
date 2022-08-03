@@ -16,3 +16,8 @@ CEXE_sources += ERF_SumIQ.cpp
 
 CEXE_sources += Derive.cpp
 CEXE_headers += Derive.H
+
+ifeq ($(USE_MULTIBLOCK),TRUE)
+CEXE_sources += MultiBlockContainer.cpp
+CEXE_headers += MultiBlockContainer.H
+endif

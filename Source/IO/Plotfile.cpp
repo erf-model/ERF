@@ -9,7 +9,7 @@ using namespace amrex;
 void
 ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
 {
-    ParmParse pp("erf");
+    ParmParse pp(pp_prefix);
 
     if (pp.contains(pp_plot_var_names.c_str()))
     {

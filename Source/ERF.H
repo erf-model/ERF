@@ -45,6 +45,10 @@
 #include <AMReX_Lazy.H>
 #endif
 
+#ifdef ERF_USE_MULTIBLOCK
+class MultiBlockContainer;
+#endif
+
 namespace InterpType {
     enum {
         PCInterp = 0,
@@ -229,6 +233,32 @@ public:
             amrex::GeometryData const &geomdata,
             InputSoundingData const &inputSoundingData);
 
+#ifdef ERF_USE_MULTIBLOCK
+    // constructor used when ERF is created by a multiblock driver
+    // calls AmrCore constructor -> AmrMesh constructor
+    ERF (const amrex::RealBox& rb, int max_level_in,
+         const amrex::Vector<int>& n_cell_in, int coord,
+         const amrex::Vector<amrex::IntVect>& ref_ratios,
+         const amrex::Array<int,AMREX_SPACEDIM>& is_per,
+         std::string prefix);
+
+    // Advance a block specified number of time steps
+    void Evolve_MB (int MBstep, int max_block_step);
+
+    // Set parmparse prefix for MultiBlock
+    void SetParmParsePrefix(std::string name) { pp_prefix = name; }
+
+    // Set 'this' from multiblock container
+    void SetMultiBlockPointer(MultiBlockContainer *mbc) { m_mbc = mbc; }
+
+    // Public data copy for MB
+    std::vector<amrex::Box> domain_p;
+    MultiBlockContainer *m_mbc = nullptr;
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
+    amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+#endif
+    std::string pp_prefix {"erf"};
+
 private:
 
     ///////////////////////////
@@ -408,8 +438,10 @@ private:
 
     // array of multifabs to store the solution at each level of refinement
     // after advancing a level we use "swap".
+#ifndef ERF_USE_MULTIBLOCK
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+#endif
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;

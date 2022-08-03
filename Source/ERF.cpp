@@ -10,6 +10,10 @@
 
 #include <TerrainMetrics.H>
 
+#ifdef ERF_USE_MULTIBLOCK
+#include <MultiBlockContainer.H>
+#endif
+
 using namespace amrex;
 
 amrex::Real ERF::startCPUTime        = 0.0;
@@ -320,6 +324,14 @@ ERF::InitData ()
 
         const Real time = 0.0;
         InitFromScratch(time);
+
+#ifdef ERF_USE_MULTIBLOCK
+        // Multiblock: hook to set BL & comms once ba/dm are known
+        if(domain_p[0].bigEnd(0) < 500 ) {
+            m_mbc->SetBoxLists();
+            m_mbc->SetBlockCommMetaData();
+        }
+#endif
 
         // For now we initialize rho_KE to 0
         for (int lev = finest_level-1; lev >= 0; --lev)
@@ -678,7 +690,7 @@ ERF::ReadParameters ()
         pp.query("stop_time", stop_time);
     }
 
-    ParmParse pp("erf");
+    ParmParse pp(pp_prefix);
     {
         // The type of the file we restart from
         pp.query("restart_type", restart_type);
@@ -825,6 +837,10 @@ ERF::ReadParameters ()
         // Specify whether ingest boundary planes of data
         pp.query("input_bndry_planes", input_bndry_planes);
     }
+
+#ifdef ERF_USE_MULTIBLOCK
+    solverChoice.pp_prefix = pp_prefix;
+#endif
 
     solverChoice.init_params();
 }
@@ -977,3 +993,192 @@ ERF::setupABLMost (int lev)
 
     m_most->update_fluxes(lev,Theta_prim,U_new,V_new,W_new);
 }
+
+#ifdef ERF_USE_MULTIBLOCK
+// constructor used when ERF is created by a multiblock driver
+ERF::ERF (const amrex::RealBox& rb, int max_level_in,
+          const amrex::Vector<int>& n_cell_in, int coord,
+          const amrex::Vector<amrex::IntVect>& ref_ratios,
+          const amrex::Array<int,AMREX_SPACEDIM>& is_per,
+          std::string prefix)
+    : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratios, is_per)
+{
+    SetParmParsePrefix(prefix);
+
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        const char* erf_hash = amrex::buildInfoGetGitHash(1);
+        const char* amrex_hash = amrex::buildInfoGetGitHash(2);
+        const char* buildgithash = amrex::buildInfoGetBuildGitHash();
+        const char* buildgitname = amrex::buildInfoGetBuildGitName();
+
+        if (strlen(erf_hash) > 0) {
+          amrex::Print() << "\n"
+                         << "ERF git hash: " << erf_hash << "\n";
+        }
+        if (strlen(amrex_hash) > 0) {
+          amrex::Print() << "AMReX git hash: " << amrex_hash << "\n";
+        }
+        if (strlen(buildgithash) > 0) {
+          amrex::Print() << buildgitname << " git hash: " << buildgithash << "\n";
+        }
+
+        amrex::Print() << "\n";
+    }
+
+    ReadParameters();
+    const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
+    const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
+
+    amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+
+    // Geometry on all levels has been defined already.
+
+    // No valid BoxArray and DistributionMapping have been defined.
+    // But the arrays for them have been resized.
+
+    int nlevs_max = max_level + 1;
+
+    istep.resize(nlevs_max, 0);
+    nsubsteps.resize(nlevs_max, 1);
+    for (int lev = 1; lev <= max_level; ++lev) {
+        nsubsteps[lev] = MaxRefRatio(lev-1);
+    }
+
+    t_new.resize(nlevs_max, 0.0);
+    t_old.resize(nlevs_max, -1.e100);
+    dt.resize(nlevs_max, 1.e100);
+    dt_mri_ratio.resize(nlevs_max, 1);
+
+    vars_new.resize(nlevs_max);
+    vars_old.resize(nlevs_max);
+
+    for (int lev = 0; lev < nlevs_max; ++lev) {
+        vars_new[lev].resize(Vars::NumTypes);
+        vars_old[lev].resize(Vars::NumTypes);
+    }
+
+    // Multiblock: public domain sizes (need to know which vars are nodal)
+    Box nbx;
+    domain_p.push_back(geom[0].Domain());
+    nbx = convert(domain_p[0],IntVect(1,0,0));
+    domain_p.push_back(nbx);
+    nbx = convert(domain_p[0],IntVect(0,1,0));
+    domain_p.push_back(nbx);
+    nbx = convert(domain_p[0],IntVect(0,0,1));
+    domain_p.push_back(nbx);
+
+    flux_registers.resize(nlevs_max);
+
+    // Initialize tagging criteria for mesh refinement
+    refinement_criteria_setup();
+
+    // We have already read in the ref_Ratio (via amr.ref_ratio =) but we need to enforce
+    //     that there is no refinement in the vertical so we test on that here.
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+       amrex::Print() << "Refinement ratio at level " << lev << " set to be " <<
+          ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
+
+       if (ref_ratio[lev][2] != 1)
+       {
+           amrex::Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
+       }
+    }
+}
+
+// advance solution over specified block steps
+void
+ERF::Evolve_MB (int MBstep, int max_block_step)
+{
+    Real cur_time = t_new[0];
+
+    int step;
+
+    // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
+    // for finer levels (with or without subcycling)
+    for (int Bstep(0); Bstep < max_block_step && cur_time < stop_time; ++Bstep)
+    {
+        step = Bstep + MBstep - 1;
+
+        amrex::Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
+
+        ComputeDt();
+
+        // Make sure we have read enough of the boundary plane data to make it through this timestep
+        if (input_bndry_planes)
+        {
+            m_r2d->read_input_files(cur_time,dt[0],m_bc_extdir_vals);
+        }
+
+        int lev = 0;
+        int iteration = 1;
+        timeStep(lev, cur_time, iteration);
+
+
+        // DEBUG
+        // Multiblock: hook for erf2 to fill from erf1
+        if(domain_p[0].bigEnd(0) < 500) {
+            for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
+                m_mbc->FillPatchBlocks(var_idx,var_idx);
+        }
+
+
+        cur_time  += dt[0];
+
+         amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
+                       << " DT = " << dt[0]  << std::endl;
+
+        if (plot_int_1 > 0 && (step+1) % plot_int_1 == 0) {
+            last_plot_file_step_1 = step+1;
+            WritePlotFile(1,plot_var_names_1);
+        }
+        if (plot_int_2 > 0 && (step+1) % plot_int_2 == 0) {
+            last_plot_file_step_2 = step+1;
+            WritePlotFile(2,plot_var_names_2);
+        }
+
+        if (check_int > 0 && (step+1) % check_int == 0) {
+            last_check_file_step = step+1;
+#ifdef ERF_USE_NETCDF
+            if (check_type == "netcdf") {
+               WriteNCCheckpointFile();
+            }
+#endif
+            if (check_type == "native") {
+               WriteCheckpointFile();
+            }
+        }
+
+        post_timestep(step, cur_time, dt[0]);
+
+#ifdef AMREX_MEM_PROFILING
+        {
+            std::ostringstream ss;
+            ss << "[STEP " << step+1 << "]";
+            MemProfiler::report(ss.str());
+        }
+#endif
+
+        if (cur_time >= stop_time - 1.e-6*dt[0]) break;
+    }
+
+    if (plot_int_1 > 0 && istep[0] > last_plot_file_step_1) {
+        WritePlotFile(1,plot_var_names_1);
+    }
+    if (plot_int_2 > 0 && istep[0] > last_plot_file_step_2) {
+        WritePlotFile(2,plot_var_names_2);
+    }
+
+    if (check_int > 0 && istep[0] > last_check_file_step) {
+#ifdef ERF_USE_NETCDF
+        if (check_type == "netcdf") {
+           WriteNCCheckpointFile();
+        }
+#endif
+        if (check_type == "native") {
+           WriteCheckpointFile();
+        }
+    }
+
+}
+#endif
