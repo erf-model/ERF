@@ -113,8 +113,9 @@ public:
         amrex::ParmParse pp("integration.rk");
 
         // Read an integrator type, if not recognized, then read weights/nodes/butcher tableau
-        int _tableau_type = 0;
-        pp.get("type", _tableau_type);
+        // By default, use SSPRK3
+        int _tableau_type = static_cast<int>(SRI::ButcherTableauTypes::SSPRK3);
+        pp.query("type", _tableau_type);
 
         initialize_preset_tableau(static_cast<SRI::ButcherTableauTypes>(_tableau_type));
         initialize_data(S_data);
