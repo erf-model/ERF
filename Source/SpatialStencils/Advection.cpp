@@ -13,7 +13,6 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const int& spatial_order, const int& use_terrain)
 {
-    BL_PROFILE_VAR("AdvectionSrcForXMom()",AdvectionSrcForXMom);
     Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real rho_u_avg, rho_v_avg, rho_w_avg;
@@ -122,7 +121,6 @@ AdvectionSrcForYMom(const int &i, const int &j, const int &k,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const int& spatial_order, const int& use_terrain)
 {
-    BL_PROFILE_VAR("AdvectionSrcForYMom()",AdvectionSrcForYMom);
     Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real rho_u_avg, rho_v_avg, rho_w_avg;
@@ -231,7 +229,6 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const int& spatial_order, const int& use_terrain, const int& domhi_z)
 {
-    BL_PROFILE_VAR("AdvectionSrcForZMom()",AdvectionSrcForZMom);
     Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
@@ -377,8 +374,6 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
                      const int &spatial_order, const int& use_terrain,
                      const int &use_deardorff, const int &use_QKE)
 {
-    BL_PROFILE_VAR("AdvectionSrcForState()",AdvectionSrcForState);
-
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
