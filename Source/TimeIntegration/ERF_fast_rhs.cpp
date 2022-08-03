@@ -168,10 +168,10 @@ void erf_fast_rhs (int level,
         //    so that we don't have to fill ghost cells of the new MultiFabs
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
-        const Box& gbx  = mfi.growntilebox(1);
-        const Box& gtbx = mfi.nodaltilebox(0).grow(1);
-        const Box& gtby = mfi.nodaltilebox(1).grow(1);
-        const Box& gtbz = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
+        const Box gbx  = mfi.growntilebox(1);
+        const Box gtbx = mfi.nodaltilebox(0).grow(1);
+        const Box gtby = mfi.nodaltilebox(1).grow(1);
+        const Box gtbz = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k) = cur_data(i,j,k,Rho_comp) - cell_stage(i,j,k,Rho_comp);
