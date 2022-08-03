@@ -172,7 +172,7 @@ public:
 
             // Fill S_new with the solution value for evaluating F at the current stage
             // Copy S_new = S_old
-            amrex::IntegratorOps<T>::Copy(S_new, S_old, scomp_all, ncomp_all);
+            amrex::IntegratorOps<T>::Copy(S_new, S_old);
             if (i > 0) {
                 // Saxpy across the tableau row:
                 // S_new += h * Aij * Fj
@@ -194,7 +194,7 @@ public:
         // Fill new State, starting with S_new = S_old.
         // Then Saxpy S_new += h * Wi * Fi for integration weights Wi
         // We should fuse these kernels ...
-        amrex::IntegratorOps<T>::Copy(S_new, S_old, scomp_all, ncomp_all);
+        amrex::IntegratorOps<T>::Copy(S_new, S_old);
         for (int i = 0; i < number_nodes; ++i)
         {
             amrex::IntegratorOps<T>::Saxpy(S_new, time_step * weights[i], *F_nodes[i], scomp_all, ncomp_all);

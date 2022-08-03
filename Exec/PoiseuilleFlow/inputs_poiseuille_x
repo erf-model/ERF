@@ -17,8 +17,6 @@ zhi.type = "NoSlipWall"
 
 # TIME STEP CONTROL
 integration.type       = RungeKutta
-integration.rk.type    = 3
-erf.use_native_mri     = 0
 erf.cfl                = 0.5     # cfl number for hyperbolic system
 
 # DIAGNOSTICS & VERBOSITY

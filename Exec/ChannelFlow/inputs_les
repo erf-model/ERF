@@ -16,8 +16,6 @@ zhi.type = "NoSlipWall"
 
 # TIME STEP CONTROL
 erf.use_native_mri  = 0
-integration.type    = RungeKutta
-integration.rk.type = 3
 erf.fixed_dt       = 2e-5    # fixed time step
 
 # DIAGNOSTICS & VERBOSITY
