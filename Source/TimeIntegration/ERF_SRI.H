@@ -9,6 +9,7 @@
 #include <functional>
 
 enum struct ButcherTableauTypes {
+    User = 0,
     ForwardEuler,
     Trapezoid,
     SSPRK3,
@@ -80,7 +81,7 @@ private:
                 weights = {1./6., 1./3., 1./3., 1./6.};
                 break;
             default:
-                amrex::Error("Invalid RK Integrator tableau type");
+                amrex::Error("Invalid RK Integrator tableau type integration.rk.type");
                 break;
         }
 
@@ -107,7 +108,13 @@ public:
 
     void initialize (const T& S_data)
     {
-        initialize_preset_tableau(ButcherTableauTypes::SSPRK3);
+        amrex::ParmParse pp("integration.rk");
+
+        // Read an integrator type, if not recognized, then read weights/nodes/butcher tableau
+        int _tableau_type = 0;
+        pp.get("type", _tableau_type);
+
+        initialize_preset_tableau(static_cast<ButcherTableauTypes>(_tableau_type));
         initialize_data(S_data);
     }
 
