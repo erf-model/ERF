@@ -268,7 +268,7 @@ private:
     // if which_var is supplied, then only fill the specified variable in the vector of mfs
     void FillIntermediatePatch (int lev, amrex::Real time,
                                 amrex::Vector<std::reference_wrapper<amrex::MultiFab> > mfs,
-                                bool rho_only = false);
+                                int ng_cons, int ng_vel, bool rho_only = false);
 
     // fill an entire multifab by interpolating from the coarser level
     // this comes into play when a new level of refinement appears
