@@ -8,14 +8,16 @@
 #include <TimeIntegration.H>
 #include <functional>
 
-enum struct ButcherTableauTypes {
-    User = 0,
-    ForwardEuler,
-    Trapezoid,
-    SSPRK3,
-    RK4,
-    NumTypes
-};
+namespace SRI {
+    enum struct ButcherTableauTypes {
+        User = 0,
+        ForwardEuler,
+        Trapezoid,
+        SSPRK3,
+        RK4,
+        NumTypes
+    };
+}
 
 template<class T>
 class SRIIntegrator
@@ -36,31 +38,31 @@ private:
     */
     std::function<void (T&, amrex::Real, int, int)> post_update;
 
-    ButcherTableauTypes butcher_type;
+    SRI::ButcherTableauTypes butcher_type;
     int number_nodes;
     amrex::Vector<std::unique_ptr<T> > F_nodes;
     amrex::Vector<amrex::Vector<amrex::Real> > tableau;
     amrex::Vector<amrex::Real> weights;
     amrex::Vector<amrex::Real> nodes;
 
-    void initialize_preset_tableau (ButcherTableauTypes tableau_type)
+    void initialize_preset_tableau (SRI::ButcherTableauTypes tableau_type)
     {
         butcher_type = tableau_type;
         switch (tableau_type)
         {
-            case ButcherTableauTypes::ForwardEuler:
+            case SRI::ButcherTableauTypes::ForwardEuler:
                 nodes = {0.0};
                 tableau = {{0.0}};
                 weights = {1.0};
                 break;
-            case ButcherTableauTypes::Trapezoid:
+            case SRI::ButcherTableauTypes::Trapezoid:
                 nodes = {0.0,
                         1.0};
                 tableau = {{0.0},
                         {1.0, 0.0}};
                 weights = {0.5, 0.5};
                 break;
-            case ButcherTableauTypes::SSPRK3:
+            case SRI::ButcherTableauTypes::SSPRK3:
                 nodes = {0.0,
                         1.0,
                         0.5};
@@ -69,7 +71,7 @@ private:
                         {0.25, 0.25, 0.0}};
                 weights = {1./6., 1./6., 2./3.};
                 break;
-            case ButcherTableauTypes::RK4:
+            case SRI::ButcherTableauTypes::RK4:
                 nodes = {0.0,
                         0.5,
                         0.5,
@@ -114,7 +116,7 @@ public:
         int _tableau_type = 0;
         pp.get("type", _tableau_type);
 
-        initialize_preset_tableau(static_cast<ButcherTableauTypes>(_tableau_type));
+        initialize_preset_tableau(static_cast<SRI::ButcherTableauTypes>(_tableau_type));
         initialize_data(S_data);
     }
 
