@@ -20,8 +20,6 @@ erf.fixed_dt           = 4e-2    # fixed time step
 erf.mri_fixed_dt_ratio = 4
 
 erf.use_native_mri     = 0
-integration.type       = RungeKutta
-integration.rk.type    = 3
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
