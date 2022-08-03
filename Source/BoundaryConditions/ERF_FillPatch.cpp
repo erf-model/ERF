@@ -191,7 +191,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 //
 void
 ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<MultiFab> > mfs,
-                            bool rho_only)
+                            int ng_cons, int ng_vel, bool rho_only)
 {
     int bccomp;
     amrex::Interpolater* mapper;

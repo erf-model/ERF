@@ -94,6 +94,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStepping.cpp
        ${SRC_DIR}/TimeIntegration/ERF_MRI.H
+       ${SRC_DIR}/TimeIntegration/ERF_SRI.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs.cpp

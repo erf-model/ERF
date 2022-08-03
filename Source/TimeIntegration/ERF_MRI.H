@@ -31,9 +31,9 @@ private:
    /**
     * \brief The post_update function is called by the integrator on state data before using it to evaluate a right-hand side.
     */
-    std::function<void (T&, amrex::Real)> post_update;
+    std::function<void (T&, amrex::Real, int, int)> post_update;
 
-    std::function<void (T&, amrex::Real)> post_substep;
+    std::function<void (T&, amrex::Real, int, int)> post_substep;
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
@@ -102,17 +102,17 @@ public:
         return slow_fast_timestep_ratio;
     }
 
-    void set_post_update (std::function<void (T&, amrex::Real)> F)
+    void set_post_update (std::function<void (T&, amrex::Real, int, int)> F)
     {
         post_update = F;
     }
 
-    void set_post_substep (std::function<void (T&, amrex::Real)> F)
+    void set_post_substep (std::function<void (T&, amrex::Real, int, int)> F)
     {
         post_substep = F;
     }
 
-    std::function<void (T&, amrex::Real)> get_post_update ()
+    std::function<void (T&, amrex::Real, int, int)> get_post_update ()
     {
         return post_update;
     }
@@ -122,7 +122,7 @@ public:
         return rhs;
     }
 
-    std::function<void (T&, amrex::Real)> get_post_substep ()
+    std::function<void (T&, amrex::Real, int, int)> get_post_substep ()
     {
         return post_substep;
     }
@@ -155,7 +155,7 @@ public:
 
         // Start with S_new (aka S_stage) holding S_old
         amrex::IntegratorOps<T>::Copy(S_new, S_old);
-        post_update(S_new, time);
+        post_update(S_new, time, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
 
         // Timestep taken by the fast integrator
         amrex::Real dtau;
@@ -181,7 +181,6 @@ public:
         const amrex::Vector<int> scomp_vels = {0,0,0,0,0,0,0};
         const amrex::Vector<int> ncomp_vels = {0,1,1,1,0,0,0};
         amrex::IntegratorOps<T>::Copy(*S_scratch, S_old, scomp_vels, ncomp_vels);
-
 
         for (int nrk = 0; nrk < 3; nrk++)
         {
@@ -226,11 +225,16 @@ public:
 
                 // Call the post-substep hook for S_sum at t = time + (k+1) * sub_dt
                 // Only call the post_substep on the fast variables
-                post_substep(*S_sum    , time + (k+1) * dtau);
+                int ngrow = 1;
+                post_substep(*S_sum    , time + (k+1) * dtau, ngrow, ngrow);
 
                 // Copy only (rho theta), including ghost cells
                 amrex::IntegratorOps<T>::Copy(*S_scratch, *S_sum, scomp_rth, ncomp_rth, true);
             }
+#if 0
+            // Update S_sum = S_pert + S_stage only for the fast variables
+            amrex::IntegratorOps<T>::Saxpy(*S_sum, time_step, *F_slow, scomp_fast, ncomp_fast);
+#endif
 
             // Evaluate F_slow(S_stage) only for the slow variables
             // Note that we are using the current stage versions (in S_new) of the slow variables
@@ -248,7 +252,7 @@ public:
 
             // Call the post-update hook for S_new after all the fine steps completed
             // This will update S_prim that is used in the slow RHS
-            post_update(S_new, time + nsubsteps*dtau);
+            post_update(S_new, time + nsubsteps*dtau,S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow()); 
         }
 
         // Return timestep
