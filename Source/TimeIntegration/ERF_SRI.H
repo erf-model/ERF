@@ -91,12 +91,14 @@ private:
         }
 
         number_nodes = weights.size();
+        weights_d.resize(weights.size());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, weights.begin(), weights.end(),
                          weights_d.begin());
         p_weights_d = weights_d.dataPtr();
 
         tableau_d.resize(tableau.size());
         for (int i = 0; i < number_nodes; ++i) {
+            tableau_d[i].resize(tableau[i].size());
             amrex::Gpu::copy(amrex::Gpu::hostToDevice, tableau[i].begin(), tableau[i].end(),
                             tableau_d[i].begin());
         }
@@ -205,17 +207,17 @@ public:
                     const Array4<Real>& snew_xmom = S_new[IntVar::xmom].array(mfi);
                     const Array4<Real>& snew_ymom = S_new[IntVar::ymom].array(mfi);
                     const Array4<Real>& snew_zmom = S_new[IntVar::zmom].array(mfi);
-                    const Array4<Real>& snew_xflx = S_new[IntVar::xflx].array(mfi);
-                    const Array4<Real>& snew_yflx = S_new[IntVar::yflx].array(mfi);
-                    const Array4<Real>& snew_zflx = S_new[IntVar::zflx].array(mfi);
+                    const Array4<Real>& snew_xflx = S_new[IntVar::xflux].array(mfi);
+                    const Array4<Real>& snew_yflx = S_new[IntVar::yflux].array(mfi);
+                    const Array4<Real>& snew_zflx = S_new[IntVar::zflux].array(mfi);
 
                     const Array4<Real>& sold_cons = S_old[IntVar::cons].array(mfi);
                     const Array4<Real>& sold_xmom = S_old[IntVar::xmom].array(mfi);
                     const Array4<Real>& sold_ymom = S_old[IntVar::ymom].array(mfi);
                     const Array4<Real>& sold_zmom = S_old[IntVar::zmom].array(mfi);
-                    const Array4<Real>& sold_xflx = S_old[IntVar::xflx].array(mfi);
-                    const Array4<Real>& sold_yflx = S_old[IntVar::yflx].array(mfi);
-                    const Array4<Real>& sold_zflx = S_old[IntVar::zflx].array(mfi);
+                    const Array4<Real>& sold_xflx = S_old[IntVar::xflux].array(mfi);
+                    const Array4<Real>& sold_yflx = S_old[IntVar::yflux].array(mfi);
+                    const Array4<Real>& sold_zflx = S_old[IntVar::zflux].array(mfi);
 
                     Vector<Array4<Real > > frhs_arr;
                     Gpu::DeviceVector<Array4<Real > > frhs_arr_d;
@@ -224,6 +226,7 @@ public:
                             frhs_arr.push_back(ff.array(mfi));
                         }
                     }
+                    frhs_arr_d.resize(frhs_arr.size());
                     amrex::Gpu::copy(amrex::Gpu::hostToDevice, frhs_arr.begin(), frhs_arr.end(),
                                     frhs_arr_d.begin());
                     Array4<Real>* p_frhs_arr_d = frhs_arr_d.dataPtr();
@@ -324,17 +327,17 @@ public:
                 const Array4<Real>& snew_xmom = S_new[IntVar::xmom].array(mfi);
                 const Array4<Real>& snew_ymom = S_new[IntVar::ymom].array(mfi);
                 const Array4<Real>& snew_zmom = S_new[IntVar::zmom].array(mfi);
-                const Array4<Real>& snew_xflx = S_new[IntVar::xflx].array(mfi);
-                const Array4<Real>& snew_yflx = S_new[IntVar::yflx].array(mfi);
-                const Array4<Real>& snew_zflx = S_new[IntVar::zflx].array(mfi);
+                const Array4<Real>& snew_xflx = S_new[IntVar::xflux].array(mfi);
+                const Array4<Real>& snew_yflx = S_new[IntVar::yflux].array(mfi);
+                const Array4<Real>& snew_zflx = S_new[IntVar::zflux].array(mfi);
 
                 const Array4<Real>& sold_cons = S_old[IntVar::cons].array(mfi);
                 const Array4<Real>& sold_xmom = S_old[IntVar::xmom].array(mfi);
                 const Array4<Real>& sold_ymom = S_old[IntVar::ymom].array(mfi);
                 const Array4<Real>& sold_zmom = S_old[IntVar::zmom].array(mfi);
-                const Array4<Real>& sold_xflx = S_old[IntVar::xflx].array(mfi);
-                const Array4<Real>& sold_yflx = S_old[IntVar::yflx].array(mfi);
-                const Array4<Real>& sold_zflx = S_old[IntVar::zflx].array(mfi);
+                const Array4<Real>& sold_xflx = S_old[IntVar::xflux].array(mfi);
+                const Array4<Real>& sold_yflx = S_old[IntVar::yflux].array(mfi);
+                const Array4<Real>& sold_zflx = S_old[IntVar::zflux].array(mfi);
 
                 Vector<Array4<Real > > frhs_arr;
                 Gpu::DeviceVector<Array4<Real > > frhs_arr_d;
@@ -343,6 +346,7 @@ public:
                         frhs_arr.push_back(ff.array(mfi));
                     }
                 }
+                frhs_arr_d.resize(frhs_arr.size());
                 amrex::Gpu::copy(amrex::Gpu::hostToDevice, frhs_arr.begin(), frhs_arr.end(),
                                 frhs_arr_d.begin());
                 Array4<Real>* p_frhs_arr_d = frhs_arr_d.dataPtr();
