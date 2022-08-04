@@ -176,8 +176,8 @@ public:
         timestep = time_step;
 
         int nav = Cons::NumVars;
-        const amrex::Vector<int> scomp_all = {0,0,0,0,0,0,0};
-        const amrex::Vector<int> ncomp_all = {nav,1,1,1,nav,nav,nav};
+        const amrex::GpuArray<int, 7> scomp_all = {0,0,0,0,0,0,0};
+        const amrex::GpuArray<int, 7> ncomp_all = {nav,1,1,1,nav,nav,nav};
 
         amrex::Vector<amrex::MultiFab> S_scratch;
 
