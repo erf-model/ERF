@@ -1,6 +1,7 @@
 #ifndef PlaneAverage_H
 #define PlaneAverage_H
 
+#include "AMReX_Gpu.H"
 #include "AMReX_MultiFab.H"
 #include "DirectionSelector.H"
 
@@ -163,7 +164,7 @@ inline void PlaneAverage::compute_averages(
     const int ncomp = m_ncomp;
 
 #ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (amrex::MFIter mfi(mfab, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         amrex::Box bx = mfi.tilebox();

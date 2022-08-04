@@ -2,6 +2,7 @@
 #ifndef VelPlaneAverage_H
 #define VelPlaneAverage_H
 
+#include "AMReX_Gpu.H"
 #include "AMReX_MultiFab.H"
 #include "DirectionSelector.H"
 
@@ -72,7 +73,7 @@ VelPlaneAverage::compute_hvelmag_averages(amrex::MultiFab& u_mf,
     amrex::Real* line_avg = lavg.data();
 
 #ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (amrex::MFIter mfi(u_mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
