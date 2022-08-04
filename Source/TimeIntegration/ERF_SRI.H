@@ -45,7 +45,6 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > tableau_d;
     amrex::Vector<amrex::Real> weights;
     amrex::Gpu::DeviceVector<amrex::Real> weights_d;
-    amrex::Real* p_weights_d;
     amrex::Vector<amrex::Real> nodes;
 
     void initialize_preset_tableau (SRI::ButcherTableauTypes tableau_type)
@@ -94,7 +93,6 @@ private:
         weights_d.resize(weights.size());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, weights.begin(), weights.end(),
                          weights_d.begin());
-        p_weights_d = weights_d.dataPtr();
 
         tableau_d.resize(tableau.size());
         for (int i = 0; i < number_nodes; ++i) {
@@ -180,6 +178,7 @@ public:
         const amrex::GpuArray<int, 7> ncomp_all = {nav,1,1,1,nav,nav,nav};
 
         amrex::Vector<amrex::MultiFab> S_scratch;
+        Real* p_weights_d = weights_d.dataPtr();
 
         // Fill the RHS F_nodes at each stage
         for (int in = 0; in < number_nodes; ++in)
@@ -358,63 +357,64 @@ public:
                 const int ixflx = 4;
                 const int iyflx = 5;
                 const int izflx = 6;
+                const int nnodes = number_nodes;
 
-                ParallelFor(bx, [=,number_nodes=number_nodes,p_weights_d=p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[icons]; n < scomp_all[icons] + ncomp_all[icons]; ++n) {
                         snew_cons(i,j,k,n) = sold_cons(i,j,k,n);
-                        for (int fn = 0; fn < number_nodes; ++fn) {
+                        for (int fn = 0; fn < nnodes; ++fn) {
                             snew_cons(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+icons](i,j,k,n);
                         }
                     }
                 });
 
                 ParallelFor(tbx, tby, tbz,
-                [=,number_nodes=number_nodes,p_weights_d=p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[ixmom]; n < scomp_all[ixmom] + ncomp_all[ixmom]; ++n) {
                         snew_xmom(i,j,k,n) = sold_xmom(i,j,k,n);
-                        for (int fn = 0; fn < number_nodes; ++fn) {
+                        for (int fn = 0; fn < nnodes; ++fn) {
                             snew_xmom(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+ixmom](i,j,k,n);
                         }
                     }
                 },
-                [=,number_nodes=number_nodes,p_weights_d=p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[iymom]; n < scomp_all[iymom] + ncomp_all[iymom]; ++n) {
                         snew_ymom(i,j,k,n) = sold_ymom(i,j,k,n);
-                        for (int fn = 0; fn < number_nodes; ++fn) {
+                        for (int fn = 0; fn < nnodes; ++fn) {
                             snew_ymom(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+iymom](i,j,k,n);
                         }
                     }
                 },
-                [=,number_nodes=number_nodes,p_weights_d=p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[izmom]; n < scomp_all[izmom] + ncomp_all[izmom]; ++n) {
                         snew_zmom(i,j,k,n) = sold_zmom(i,j,k,n);
-                        for (int fn = 0; fn < number_nodes; ++fn) {
+                        for (int fn = 0; fn < nnodes; ++fn) {
                             snew_zmom(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+izmom](i,j,k,n);
                         }
                     }
                 });
 
                 ParallelFor(tbx, tby, tbz,
-                [=,number_nodes=number_nodes,p_weights_d=p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[ixflx]; n < scomp_all[ixflx] + ncomp_all[ixflx]; ++n) {
                         snew_xflx(i,j,k,n) = sold_xflx(i,j,k,n);
-                        for (int fn = 0; fn < number_nodes; ++fn) {
+                        for (int fn = 0; fn < nnodes; ++fn) {
                             snew_xflx(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+ixflx](i,j,k,n);
                         }
                     }
                 },
-                [=,number_nodes=number_nodes,p_weights_d=p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[iyflx]; n < scomp_all[iyflx] + ncomp_all[iyflx]; ++n) {
                         snew_yflx(i,j,k,n) = sold_yflx(i,j,k,n);
-                        for (int fn = 0; fn < number_nodes; ++fn) {
+                        for (int fn = 0; fn < nnodes; ++fn) {
                             snew_yflx(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+iyflx](i,j,k,n);
                         }
                     }
                 },
-                [=,number_nodes=number_nodes,p_weights_d=p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[izflx]; n < scomp_all[izflx] + ncomp_all[izflx]; ++n) {
                         snew_zflx(i,j,k,n) = sold_zflx(i,j,k,n);
-                        for (int fn = 0; fn < number_nodes; ++fn) {
+                        for (int fn = 0; fn < nnodes; ++fn) {
                             snew_zflx(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+izflx](i,j,k,n);
                         }
                     }
