@@ -413,6 +413,8 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
             } else {
                 xflux(i,j,k,n) = xflux_lo;
             }
+          } else {
+                xflux(i,j,k,n) = 0.;
           }
         }
     });
@@ -451,6 +453,8 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
             } else {
                 yflux(i,j,k,n) = yflux_lo;
             }
+          } else {
+                yflux(i,j,k,n) = 0.;
           }
         }
     });
@@ -486,6 +490,8 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
 
                 zflux(i,j,k,n) = zflux_lo;
             }
+          } else {
+                zflux(i,j,k,n) = 0.;
           }
         }
     });
