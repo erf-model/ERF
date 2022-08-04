@@ -62,7 +62,7 @@ struct SolverChoice {
   public:
     void init_params()
     {
-        amrex::ParmParse pp("erf");
+        amrex::ParmParse pp(pp_prefix);
 
         // Do we have terrain (or grid stretching)?
         pp.query("use_terrain", use_terrain);
@@ -286,7 +286,7 @@ struct SolverChoice {
 
     void build_coriolis_forcings()
     {
-        amrex::ParmParse pp("erf");
+        amrex::ParmParse pp(pp_prefix);
 
         // Read the rotational time period (in seconds)
         amrex::Real rot_time_period = 86400.0;
@@ -318,6 +318,9 @@ struct SolverChoice {
             };
         }
     }
+
+    // Default prefix
+    std::string pp_prefix {"erf"};
 
     bool        use_terrain            = false;
 

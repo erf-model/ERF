@@ -54,6 +54,10 @@ ifeq ($(USE_MOISTURE), TRUE)
   DEFINES += -DERF_USE_MOISTURE
 endif
 
+ifeq ($(USE_MULTIBLOCK), TRUE)
+  DEFINES += -DERF_USE_MULTIBLOCK
+endif
+
 #turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF

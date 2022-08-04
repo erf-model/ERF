@@ -24,7 +24,6 @@ ERF::refinement_criteria_setup()
 {
     if (max_level > 0)
     {
-        std::string pp_prefix = "erf";
         ParmParse pp(pp_prefix);
         Vector<std::string> refinement_indicators;
         pp.queryarr("refinement_indicators",refinement_indicators,0,pp.countval("refinement_indicators"));
