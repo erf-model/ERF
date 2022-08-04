@@ -174,9 +174,10 @@ public:
                     snew[i] = S_new[i].array(mfi);
                 }
 
-                ParallelFor(gbx, Cons::NumVars,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    snew[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
+                ParallelFor(gbx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    for (int n = 0; n < Cons::NumVars; ++n)
+                        snew[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
                 });
 
                 ParallelFor(gtbx, gtby, gtbz,
@@ -224,8 +225,8 @@ public:
         const amrex::GpuArray<int, IntVar::NumVars> scomp_slow = {  2,0,0,0,  2,  2,  2};
         const amrex::GpuArray<int, IntVar::NumVars> ncomp_slow = {nsv,0,0,0,nsv,nsv,nsv};
 
-        const amrex::GpuArray<int, IntVars::NumVars> scomp_rth  = {1,0,0,0,0,0,0};
-        const amrex::GpuArray<int, IntVars::NumVars> ncomp_rth  = {1,0,0,0,0,0,0};
+        const amrex::GpuArray<int, IntVar::NumVars> scomp_rth  = {1,0,0,0,0,0,0};
+        const amrex::GpuArray<int, IntVar::NumVars> ncomp_rth  = {1,0,0,0,0,0,0};
 
         // We copy (rho theta) and the velocities here -- the velocities
         //    will be over-written in slow_rhs on all valid faces but we
