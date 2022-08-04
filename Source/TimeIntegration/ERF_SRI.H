@@ -42,7 +42,10 @@ private:
     int number_nodes;
     amrex::Vector<std::unique_ptr<T> > F_nodes;
     amrex::Vector<amrex::Vector<amrex::Real> > tableau;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > tableau_d;
     amrex::Vector<amrex::Real> weights;
+    amrex::Gpu::DeviceVector<amrex::Real> weights_d;
+    amrex::Real* p_weights_d;
     amrex::Vector<amrex::Real> nodes;
 
     void initialize_preset_tableau (SRI::ButcherTableauTypes tableau_type)
@@ -88,6 +91,17 @@ private:
         }
 
         number_nodes = weights.size();
+        weights_d.resize(weights.size());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, weights.begin(), weights.end(),
+                         weights_d.begin());
+        p_weights_d = weights_d.dataPtr();
+
+        tableau_d.resize(tableau.size());
+        for (int i = 0; i < number_nodes; ++i) {
+            tableau_d[i].resize(tableau[i].size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, tableau[i].begin(), tableau[i].end(),
+                            tableau_d[i].begin());
+        }
     }
 
     void initialize_data (const T& S_data)
@@ -145,6 +159,8 @@ public:
 
     amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
     {
+        using namespace amrex;
+
         // Assume before advance() that S_old is valid data at the current time ("time" argument)
         // And that both S_old and S_new contain ghost cells for evaluating a stencil based RHS
 
@@ -160,45 +176,250 @@ public:
         timestep = time_step;
 
         int nav = Cons::NumVars;
-        const amrex::Vector<int> scomp_all = {0,0,0,0,0,0,0};
-        const amrex::Vector<int> ncomp_all = {nav,1,1,1,nav,nav,nav};
+        const amrex::GpuArray<int, 7> scomp_all = {0,0,0,0,0,0,0};
+        const amrex::GpuArray<int, 7> ncomp_all = {nav,1,1,1,nav,nav,nav};
 
         amrex::Vector<amrex::MultiFab> S_scratch;
 
         // Fill the RHS F_nodes at each stage
-        for (int i = 0; i < number_nodes; ++i)
+        for (int in = 0; in < number_nodes; ++in)
         {
             // Get current stage time, t = t_old + h * Ci
-            amrex::Real stage_time = time + time_step * nodes[i];
+            amrex::Real stage_time = time + time_step * nodes[in];
 
             // Fill S_new with the solution value for evaluating F at the current stage
-            // Copy S_new = S_old
-            amrex::IntegratorOps<T>::Copy(S_new, S_old);
-            if (i > 0) {
-                // Saxpy across the tableau row:
-                // S_new += h * Aij * Fj
-                // We should fuse these kernels ...
-                for (int j = 0; j < i; ++j)
-                {
-                    amrex::IntegratorOps<T>::Saxpy(S_new, time_step * tableau[i][j], *F_nodes[j], scomp_all, ncomp_all);
-                }
+            // Copy S_new = S_old then Saxpy across the butcher table row:
+            // S_new += h * Aij * Fj
 
-                // Call the post-update hook for the stage state value
-                post_update(S_new, stage_time, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+            Real* tableau_in_p = tableau_d[in].dataPtr();
+
+    #ifdef _OPENMP
+    #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+    #endif
+            {
+                for ( MFIter mfi(S_new[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    const Box& tbx = mfi.nodaltilebox(0);
+                    const Box& tby = mfi.nodaltilebox(1);
+                    const Box& tbz = mfi.nodaltilebox(2);
+
+                    const Array4<Real>& snew_cons = S_new[IntVar::cons].array(mfi);
+                    const Array4<Real>& snew_xmom = S_new[IntVar::xmom].array(mfi);
+                    const Array4<Real>& snew_ymom = S_new[IntVar::ymom].array(mfi);
+                    const Array4<Real>& snew_zmom = S_new[IntVar::zmom].array(mfi);
+                    const Array4<Real>& snew_xflx = S_new[IntVar::xflux].array(mfi);
+                    const Array4<Real>& snew_yflx = S_new[IntVar::yflux].array(mfi);
+                    const Array4<Real>& snew_zflx = S_new[IntVar::zflux].array(mfi);
+
+                    const Array4<Real>& sold_cons = S_old[IntVar::cons].array(mfi);
+                    const Array4<Real>& sold_xmom = S_old[IntVar::xmom].array(mfi);
+                    const Array4<Real>& sold_ymom = S_old[IntVar::ymom].array(mfi);
+                    const Array4<Real>& sold_zmom = S_old[IntVar::zmom].array(mfi);
+                    const Array4<Real>& sold_xflx = S_old[IntVar::xflux].array(mfi);
+                    const Array4<Real>& sold_yflx = S_old[IntVar::yflux].array(mfi);
+                    const Array4<Real>& sold_zflx = S_old[IntVar::zflux].array(mfi);
+
+                    Vector<Array4<Real > > frhs_arr;
+                    Gpu::DeviceVector<Array4<Real > > frhs_arr_d;
+                    for (auto& f : F_nodes) {
+                        for (auto& ff : *f) {
+                            frhs_arr.push_back(ff.array(mfi));
+                        }
+                    }
+                    frhs_arr_d.resize(frhs_arr.size());
+                    amrex::Gpu::copy(amrex::Gpu::hostToDevice, frhs_arr.begin(), frhs_arr.end(),
+                                    frhs_arr_d.begin());
+                    Array4<Real>* p_frhs_arr_d = frhs_arr_d.dataPtr();
+                    const int fstride = S_new.size();
+                    const int icons = 0;
+                    const int ixmom = 1;
+                    const int iymom = 2;
+                    const int izmom = 3;
+                    const int ixflx = 4;
+                    const int iyflx = 5;
+                    const int izflx = 6;
+
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        for (int n = scomp_all[icons]; n < scomp_all[icons] + ncomp_all[icons]; ++n) {
+                            snew_cons(i,j,k,n) = sold_cons(i,j,k,n);
+                            for (int fn = 0; fn < in; ++fn) {
+                                snew_cons(i,j,k,n) += time_step * tableau_in_p[fn] * p_frhs_arr_d[fn*fstride+icons](i,j,k,n);
+                            }
+                        }
+                    });
+
+                    ParallelFor(tbx, tby, tbz,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        for (int n = scomp_all[ixmom]; n < scomp_all[ixmom] + ncomp_all[ixmom]; ++n) {
+                            snew_xmom(i,j,k,n) = sold_xmom(i,j,k,n);
+                            for (int fn = 0; fn < in; ++fn) {
+                                snew_xmom(i,j,k,n) += time_step * tableau_in_p[fn] * p_frhs_arr_d[fn*fstride+ixmom](i,j,k,n);
+                            }
+                        }
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        for (int n = scomp_all[iymom]; n < scomp_all[iymom] + ncomp_all[iymom]; ++n) {
+                            snew_ymom(i,j,k,n) = sold_ymom(i,j,k,n);
+                            for (int fn = 0; fn < in; ++fn) {
+                                snew_ymom(i,j,k,n) += time_step * tableau_in_p[fn] * p_frhs_arr_d[fn*fstride+iymom](i,j,k,n);
+                            }
+                        }
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        for (int n = scomp_all[izmom]; n < scomp_all[izmom] + ncomp_all[izmom]; ++n) {
+                            snew_zmom(i,j,k,n) = sold_zmom(i,j,k,n);
+                            for (int fn = 0; fn < in; ++fn) {
+                                snew_zmom(i,j,k,n) += time_step * tableau_in_p[fn] * p_frhs_arr_d[fn*fstride+izmom](i,j,k,n);
+                            }
+                        }
+                    });
+
+                    ParallelFor(tbx, tby, tbz,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        for (int n = scomp_all[ixflx]; n < scomp_all[ixflx] + ncomp_all[ixflx]; ++n) {
+                            snew_xflx(i,j,k,n) = sold_xflx(i,j,k,n);
+                            for (int fn = 0; fn < in; ++fn) {
+                                snew_xflx(i,j,k,n) += time_step * tableau_in_p[fn] * p_frhs_arr_d[fn*fstride+ixflx](i,j,k,n);
+                            }
+                        }
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        for (int n = scomp_all[iyflx]; n < scomp_all[iyflx] + ncomp_all[iyflx]; ++n) {
+                            snew_yflx(i,j,k,n) = sold_yflx(i,j,k,n);
+                            for (int fn = 0; fn < in; ++fn) {
+                                snew_yflx(i,j,k,n) += time_step * tableau_in_p[fn] * p_frhs_arr_d[fn*fstride+iyflx](i,j,k,n);
+                            }
+                        }
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        for (int n = scomp_all[izflx]; n < scomp_all[izflx] + ncomp_all[izflx]; ++n) {
+                            snew_zflx(i,j,k,n) = sold_zflx(i,j,k,n);
+                            for (int fn = 0; fn < in; ++fn) {
+                                snew_zflx(i,j,k,n) += time_step * tableau_in_p[fn] * p_frhs_arr_d[fn*fstride+izflx](i,j,k,n);
+                            }
+                        }
+                    });
+                }
             }
+
+            // Call the post-update hook for the stage state value
+            post_update(S_new, stage_time, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
 
             // Fill F[i], the RHS at the current stage
             // F[i] = RHS(y, t) at y = stage_value, t = stage_time
-            rhs(*F_nodes[i], S_new, S_scratch, stage_time, RHSVar::all);
+            rhs(*F_nodes[in], S_new, S_scratch, stage_time, RHSVar::all);
         }
 
         // Fill new State, starting with S_new = S_old.
         // Then Saxpy S_new += h * Wi * Fi for integration weights Wi
-        // We should fuse these kernels ...
-        amrex::IntegratorOps<T>::Copy(S_new, S_old);
-        for (int i = 0; i < number_nodes; ++i)
+        // The following MFIter simply fuses these operations into a single MFIter loop.
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
         {
-            amrex::IntegratorOps<T>::Saxpy(S_new, time_step * weights[i], *F_nodes[i], scomp_all, ncomp_all);
+            for ( MFIter mfi(S_new[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                const Box& tbx = mfi.nodaltilebox(0);
+                const Box& tby = mfi.nodaltilebox(1);
+                const Box& tbz = mfi.nodaltilebox(2);
+
+                const Array4<Real>& snew_cons = S_new[IntVar::cons].array(mfi);
+                const Array4<Real>& snew_xmom = S_new[IntVar::xmom].array(mfi);
+                const Array4<Real>& snew_ymom = S_new[IntVar::ymom].array(mfi);
+                const Array4<Real>& snew_zmom = S_new[IntVar::zmom].array(mfi);
+                const Array4<Real>& snew_xflx = S_new[IntVar::xflux].array(mfi);
+                const Array4<Real>& snew_yflx = S_new[IntVar::yflux].array(mfi);
+                const Array4<Real>& snew_zflx = S_new[IntVar::zflux].array(mfi);
+
+                const Array4<Real>& sold_cons = S_old[IntVar::cons].array(mfi);
+                const Array4<Real>& sold_xmom = S_old[IntVar::xmom].array(mfi);
+                const Array4<Real>& sold_ymom = S_old[IntVar::ymom].array(mfi);
+                const Array4<Real>& sold_zmom = S_old[IntVar::zmom].array(mfi);
+                const Array4<Real>& sold_xflx = S_old[IntVar::xflux].array(mfi);
+                const Array4<Real>& sold_yflx = S_old[IntVar::yflux].array(mfi);
+                const Array4<Real>& sold_zflx = S_old[IntVar::zflux].array(mfi);
+
+                Vector<Array4<Real > > frhs_arr;
+                Gpu::DeviceVector<Array4<Real > > frhs_arr_d;
+                for (auto& f : F_nodes) {
+                    for (auto& ff : *f) {
+                        frhs_arr.push_back(ff.array(mfi));
+                    }
+                }
+                frhs_arr_d.resize(frhs_arr.size());
+                amrex::Gpu::copy(amrex::Gpu::hostToDevice, frhs_arr.begin(), frhs_arr.end(),
+                                frhs_arr_d.begin());
+                Array4<Real>* p_frhs_arr_d = frhs_arr_d.dataPtr();
+                const int fstride = S_new.size();
+                const int icons = 0;
+                const int ixmom = 1;
+                const int iymom = 2;
+                const int izmom = 3;
+                const int ixflx = 4;
+                const int iyflx = 5;
+                const int izflx = 6;
+
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    for (int n = scomp_all[icons]; n < scomp_all[icons] + ncomp_all[icons]; ++n) {
+                        snew_cons(i,j,k,n) = sold_cons(i,j,k,n);
+                        for (int fn = 0; fn < number_nodes; ++fn) {
+                            snew_cons(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+icons](i,j,k,n);
+                        }
+                    }
+                });
+
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    for (int n = scomp_all[ixmom]; n < scomp_all[ixmom] + ncomp_all[ixmom]; ++n) {
+                        snew_xmom(i,j,k,n) = sold_xmom(i,j,k,n);
+                        for (int fn = 0; fn < number_nodes; ++fn) {
+                            snew_xmom(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+ixmom](i,j,k,n);
+                        }
+                    }
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    for (int n = scomp_all[iymom]; n < scomp_all[iymom] + ncomp_all[iymom]; ++n) {
+                        snew_ymom(i,j,k,n) = sold_ymom(i,j,k,n);
+                        for (int fn = 0; fn < number_nodes; ++fn) {
+                            snew_ymom(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+iymom](i,j,k,n);
+                        }
+                    }
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    for (int n = scomp_all[izmom]; n < scomp_all[izmom] + ncomp_all[izmom]; ++n) {
+                        snew_zmom(i,j,k,n) = sold_zmom(i,j,k,n);
+                        for (int fn = 0; fn < number_nodes; ++fn) {
+                            snew_zmom(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+izmom](i,j,k,n);
+                        }
+                    }
+                });
+
+                ParallelFor(tbx, tby, tbz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    for (int n = scomp_all[ixflx]; n < scomp_all[ixflx] + ncomp_all[ixflx]; ++n) {
+                        snew_xflx(i,j,k,n) = sold_xflx(i,j,k,n);
+                        for (int fn = 0; fn < number_nodes; ++fn) {
+                            snew_xflx(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+ixflx](i,j,k,n);
+                        }
+                    }
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    for (int n = scomp_all[iyflx]; n < scomp_all[iyflx] + ncomp_all[iyflx]; ++n) {
+                        snew_yflx(i,j,k,n) = sold_yflx(i,j,k,n);
+                        for (int fn = 0; fn < number_nodes; ++fn) {
+                            snew_yflx(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+iyflx](i,j,k,n);
+                        }
+                    }
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    for (int n = scomp_all[izflx]; n < scomp_all[izflx] + ncomp_all[izflx]; ++n) {
+                        snew_zflx(i,j,k,n) = sold_zflx(i,j,k,n);
+                        for (int fn = 0; fn < number_nodes; ++fn) {
+                            snew_zflx(i,j,k,n) += time_step * p_weights_d[fn] * p_frhs_arr_d[fn*fstride+izflx](i,j,k,n);
+                        }
+                    }
+                });
+            }
         }
 
         // Call the post-update hook for S_new

@@ -291,7 +291,7 @@ void ERF::erf_advance(int level,
     std::swap(flux[1], state_new[IntVar::yflux]);
     std::swap(flux[2], state_new[IntVar::zflux]);
 
-    // One final BC fill -- don't think we need this though 
+    // One final BC fill -- don't think we need this though
     // amrex::Real new_time = old_time + dt_advance;
     // FillIntermediatePatch(level, new_time, {cons_new, xvel_new, yvel_new, zvel_new},
     //                       cons_new.nGrow(), xvel_new.nGrow());
