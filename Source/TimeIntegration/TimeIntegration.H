@@ -16,7 +16,8 @@ namespace IntVar {
         zmom,
         xflux,
         yflux,
-        zflux
+        zflux,
+        NumVars
     };
 }
 
