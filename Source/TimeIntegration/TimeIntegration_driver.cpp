@@ -74,10 +74,6 @@ void ERF::erf_advance(int level,
      advflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
     diffflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
-    // advflux[0].setVal(0.);
-    // advflux[1].setVal(0.);
-    // advflux[2].setVal(0.);
-
     diffflux[0].setVal(0.);
     diffflux[1].setVal(0.);
     diffflux[2].setVal(0.);

@@ -374,70 +374,130 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
                      const int &spatial_order, const int& use_terrain,
                      const int &use_deardorff, const int &use_QKE)
 {
+    BL_PROFILE_VAR("AdvectionSrcForState", AdvectionSrcForState);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    const Box bxx = surroundingNodes(bx,0);
+    const Box bxy = surroundingNodes(bx,1);
+    const Box bxz = surroundingNodes(bx,2);
+
+    amrex::ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real xflux_hi, xflux_lo;
-        Real yflux_hi, yflux_lo;
-        Real zflux_hi, zflux_lo;
+        Real xflux_lo;
+        Real met_h_xi, met_h_eta,  met_h_zeta;
+
+        xflux_lo = rho_u(i  ,j,k);
 
         if (use_terrain) {
-            Real met_h_xi, met_h_eta,  met_h_zeta;
-
-            // ****************************************************************************************
-            // X-faces
-            // ****************************************************************************************
-
-            // Metric at U location
-            ComputeMetricAtIface(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            xflux_hi = rho_u(i+1,j,k) * met_h_zeta;
-
-            // Metric at U location
             ComputeMetricAtIface(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            xflux_lo = rho_u(i  ,j,k) * met_h_zeta;
-
-            // ****************************************************************************************
-            // Y-faces
-            // ****************************************************************************************
-
-            // Metric at V location
-            ComputeMetricAtJface(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            yflux_hi = rho_v(i,j+1,k) * met_h_zeta;
-
-            // Metric at V location
-            ComputeMetricAtJface(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            yflux_lo = rho_v(i,j  ,k) * met_h_zeta;
-
-            // ****************************************************************************************
-            // Z-faces
-            // ****************************************************************************************
-
-            zflux_hi = OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv);
-            zflux_lo = (k == 0) ? 0.0_rt : OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv);
-
-        } else {
-            xflux_hi = rho_u(i+1,j,k);
-            xflux_lo = rho_u(i  ,j,k);
-            yflux_hi = rho_v(i,j+1,k);
-            yflux_lo = rho_v(i,j  ,k);
-            zflux_hi = rho_w(i,j,k+1);
-            zflux_lo = rho_w(i,j,k  );
+            xflux_lo *=  met_h_zeta;
         }
-
-        // These are only used to construct the sign to be used in upwinding
-        Real uadv_hi = rho_u(i+1,j,k);
-        Real uadv_lo = rho_u(i  ,j,k);
-        Real vadv_hi = rho_v(i,j+1,k);
-        Real vadv_lo = rho_v(i,j  ,k);
-        Real wadv_hi = rho_w(i,j,k+1);
-        Real wadv_lo = rho_w(i,j,k  );
 
         // ****************************************************************************************
         // Now that we have the correctly weighted vector components, we can multiply by the
         //     scalar (such as theta or C) on the respective faces
         // ****************************************************************************************
 
+        for (int n = icomp; n < icomp+ncomp; n++)
+        {
+          if ((n != RhoKE_comp && n != RhoQKE_comp) ||
+              (  use_deardorff && n == RhoKE_comp) ||
+              (  use_QKE       && n == RhoQKE_comp) )
+          {
+            if (n != Rho_comp)
+            {
+                const int prim_index = n - RhoTheta_comp;
+
+                xflux(i,j,k,n) = xflux_lo * InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, rho_u(i,j,k), Coord::x, spatial_order);
+
+            } else {
+                xflux(i,j,k,n) = xflux_lo;
+            }
+          } else {
+                xflux(i,j,k,n) = 0.;
+          }
+        }
+    });
+
+    amrex::ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real yflux_lo;
+        Real met_h_xi, met_h_eta,  met_h_zeta;
+
+        if (use_terrain) {
+
+            ComputeMetricAtJface(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
+            yflux_lo = rho_v(i,j  ,k) * met_h_zeta;
+
+        } else {
+            yflux_lo = rho_v(i,j  ,k);
+        }
+
+        // ****************************************************************************************
+        // Now that we have the correctly weighted vector components, we can multiply by the
+        //     scalar (such as theta or C) on the respective faces
+        // ****************************************************************************************
+
+        for (int n = icomp; n < icomp+ncomp; n++)
+        {
+          if ((n != RhoKE_comp && n != RhoQKE_comp) ||
+              (  use_deardorff && n == RhoKE_comp) ||
+              (  use_QKE       && n == RhoQKE_comp) )
+          {
+            if (n != Rho_comp)
+            {
+                const int prim_index = n - RhoTheta_comp;
+
+                yflux(i,j,k,n) = yflux_lo * InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, rho_v(i,j,k), Coord::y, spatial_order);
+
+            } else {
+                yflux(i,j,k,n) = yflux_lo;
+            }
+          } else {
+                yflux(i,j,k,n) = 0.;
+          }
+        }
+    });
+
+    amrex::ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real zflux_lo;
+
+        if (use_terrain) {
+            zflux_lo = (k == 0) ? 0.0_rt : OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv);
+        } else {
+            zflux_lo = rho_w(i,j,k  );
+        }
+
+        // ****************************************************************************************
+        // Now that we have the correctly weighted vector components, we can multiply by the
+        //     scalar (such as theta or C) on the respective faces
+        // ****************************************************************************************
+
+        for (int n = icomp; n < icomp+ncomp; n++)
+        {
+          if ((n != RhoKE_comp && n != RhoQKE_comp) ||
+              (  use_deardorff && n == RhoKE_comp) ||
+              (  use_QKE       && n == RhoQKE_comp) )
+          {
+            if (n != Rho_comp)
+            {
+                const int prim_index = n - RhoTheta_comp;
+
+                zflux(i,j,k,n) = zflux_lo * InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, rho_w(i,j,k), Coord::z, spatial_order);
+
+            } else {
+
+                zflux(i,j,k,n) = zflux_lo;
+            }
+          } else {
+                zflux(i,j,k,n) = 0.;
+          }
+        }
+    });
+
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
         Real invdetJ = 1.;
         if (use_terrain) {
             invdetJ /= detJ(i,j,k);
@@ -449,47 +509,12 @@ AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
               (  use_deardorff && n == RhoKE_comp) ||
               (  use_QKE       && n == RhoQKE_comp) )
           {
-            Real xflux_hi_n, xflux_lo_n, yflux_hi_n, yflux_lo_n, zflux_hi_n, zflux_lo_n;
-            if (n != Rho_comp)
-            {
-                const int prim_index = n - RhoTheta_comp;
-
-                xflux_hi_n = xflux_hi * InterpolateFromCellOrFace(i+1, j, k, cell_prim, prim_index, uadv_hi, Coord::x, spatial_order);
-                xflux_lo_n = xflux_lo * InterpolateFromCellOrFace(i  , j, k, cell_prim, prim_index, uadv_lo, Coord::x, spatial_order);
-
-                yflux_hi_n = yflux_hi * InterpolateFromCellOrFace(i, j+1, k, cell_prim, prim_index, vadv_hi, Coord::y, spatial_order);
-                yflux_lo_n = yflux_lo * InterpolateFromCellOrFace(i, j  , k, cell_prim, prim_index, vadv_lo, Coord::y, spatial_order);
-
-                zflux_hi_n = zflux_hi * InterpolateFromCellOrFace(i, j, k+1, cell_prim, prim_index, wadv_hi, Coord::z, spatial_order);
-                zflux_lo_n = zflux_lo * InterpolateFromCellOrFace(i, j, k  , cell_prim, prim_index, wadv_lo, Coord::z, spatial_order);
-
-            } else {
-
-                xflux_hi_n = xflux_hi; xflux_lo_n = xflux_lo;
-                yflux_hi_n = yflux_hi; yflux_lo_n = yflux_lo;
-                zflux_hi_n = zflux_hi; zflux_lo_n = zflux_lo;
-            }
-
-            xflux(i+1,j,k,n) = xflux_hi_n;
-            xflux(i  ,j,k,n) = xflux_lo_n;
-            yflux(i,j+1,k,n) = yflux_hi_n;
-            yflux(i,j  ,k,n) = yflux_lo_n;
-            zflux(i,j,k+1,n) = zflux_hi_n;
-            zflux(i,j,k  ,n) = zflux_lo_n;
-
-            advectionSrc(i,j,k,n) = -( (xflux_hi_n - xflux_lo_n) * dxInv
-                                      +(yflux_hi_n - yflux_lo_n) * dyInv
-                                      +(zflux_hi_n - zflux_lo_n) * dzInv );
+            advectionSrc(i,j,k,n) = -( (xflux(i+1,j,k,n) - xflux(i,j,k,n)) * dxInv
+                                      +(yflux(i,j+1,k,n) - yflux(i,j,k,n)) * dyInv
+                                      +(zflux(i,j,k+1,n) - zflux(i,j,k,n)) * dzInv );
             advectionSrc(i,j,k,n) *= invdetJ;
 
           } else {
-
-              xflux(i+1,j,k,n) = 0.;
-              xflux(i  ,j,k,n) = 0.;
-              yflux(i,j+1,k,n) = 0.;
-              yflux(i,j  ,k,n) = 0.;
-              zflux(i,j,k+1,n) = 0.;
-              zflux(i,j,k  ,n) = 0.;
 
               advectionSrc(i,j,k,n) = 0.;
           }

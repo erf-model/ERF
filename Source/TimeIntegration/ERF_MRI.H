@@ -404,7 +404,7 @@ public:
 
             amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
 
-            for (int k = 0; k < nsubsteps; ++k)
+            for (int ks = 0; ks < nsubsteps; ++ks)
             {
                 // Evaluate F_fast(S_pert, S_old) on the fast variables
                 // S_sum is used in the fast RHS to internally define S_pert = (S_sum - S_stage)
@@ -492,10 +492,10 @@ public:
                     }
                 }
 
-                // Call the post-substep hook for S_sum at t = time + (k+1) * sub_dt
+                // Call the post-substep hook for S_sum at t = time + (ks+1) * sub_dt
                 // Only call the post_substep on the fast variables
                 int ngrow = 1;
-                post_substep(*S_sum    , time + (k+1) * dtau, ngrow, ngrow);
+                post_substep(*S_sum    , time + (ks+1) * dtau, ngrow, ngrow);
 
                 // Copy only (rho theta), including ghost cells
                 amrex::MultiFab::Copy((*S_scratch)[IntVar::cons], (*S_sum)[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1, (*S_sum)[IntVar::cons].nGrowVect());
