@@ -130,7 +130,8 @@ amrex::Real ComputeStressTerm (
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                        const amrex::Array4<amrex::Real>& Ksmag,
                        const SolverChoice &solverChoice,
-                       const amrex::Box& domain, const amrex::BCRec* bc_ptr);
+                       const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                       const amrex::Real er_at_face);
 
 AMREX_GPU_DEVICE
 amrex::Real DiffusionSrcForMomWithTerrain(
@@ -158,7 +159,8 @@ amrex::Real DiffusionSrcForMom(
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                        const amrex::Array4<amrex::Real>& Ksmag,
                        const SolverChoice &solverChoice,
-                       const amrex::Box& domain, const amrex::BCRec* bc_ptr);
+                       const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                       const amrex::Array4<const amrex::Real>& er_arr);
 
 AMREX_GPU_DEVICE
 amrex::Real ComputeDiffusionFluxForState(

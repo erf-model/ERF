@@ -416,13 +416,14 @@ DiffusionSrcForMomWithTerrain(
 AMREX_GPU_DEVICE
 Real
 DiffusionSrcForMom(const int &i, const int &j, const int &k,
-                            const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
-                            const Array4<const Real>& cons,
-                            const enum MomentumEqn &momentumEqn,
-                            const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                            const Array4<Real>& K_turb,
-                            const SolverChoice &solverChoice,
-                            const Box& domain, const amrex::BCRec* bc_ptr)
+                   const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
+                   const Array4<const Real>& cons,
+                   const enum MomentumEqn &momentumEqn,
+                   const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                   const Array4<Real>& K_turb,
+                   const SolverChoice &solverChoice,
+                   const Box& domain, const amrex::BCRec* bc_ptr,
+                   const Array4<const Real>& er_arr)
 {
   if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
        (solverChoice.les_type        ==       LESType::None) &&
@@ -438,17 +439,17 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
         case MomentumEqn::x:
             Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
             tau11Next = ComputeStressTerm(i+1, j, k, u, v, w, momentumEqn,
-                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, er_arr(i  ,j,k) );
             tau11Prev = ComputeStressTerm(i  , j, k, u, v, w, momentumEqn,
-                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, er_arr(i-1,j,k) );
             tau12Next = ComputeStressTerm(i, j+1, k, u, v, w, momentumEqn,
-                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau12Prev = ComputeStressTerm(i, j  , k, u, v, w, momentumEqn,
-                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau13Next = ComputeStressTerm(i, j, k+1, u, v, w, momentumEqn,
-                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau13Prev = ComputeStressTerm(i, j, k  , u, v, w, momentumEqn,
-                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
 
             diffContrib = (tau11Next - tau11Prev) * dxInv  // Contribution to x-mom eqn from diffusive flux in x-dir
                         + (tau12Next - tau12Prev) * dyInv  // Contribution to x-mom eqn from diffusive flux in y-dir
@@ -462,17 +463,17 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
         case MomentumEqn::y:
             Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
             tau21Next = ComputeStressTerm(i+1, j, k, u, v, w, momentumEqn,
-                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau21Prev = ComputeStressTerm(i  , j, k, u, v, w, momentumEqn,
-                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau22Next = ComputeStressTerm(i, j+1, k, u, v, w, momentumEqn,
-                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, er_arr(i,j  ,k) );
             tau22Prev = ComputeStressTerm(i, j  , k, u, v, w, momentumEqn,
-                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, er_arr(i,j-1,k) );
             tau23Next = ComputeStressTerm(i, j, k+1, u, v, w, momentumEqn,
-                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau23Prev = ComputeStressTerm(i, j, k  , u, v, w, momentumEqn,
-                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
 
             diffContrib = (tau21Next - tau21Prev) * dxInv  // Contribution to y-mom eqn from diffusive flux in x-dir
                         + (tau22Next - tau22Prev) * dyInv  // Contribution to y-mom eqn from diffusive flux in y-dir
@@ -486,17 +487,17 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
         case MomentumEqn::z:
             Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev;
             tau31Next = ComputeStressTerm(i+1, j, k, u, v, w, momentumEqn,
-                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau31Prev = ComputeStressTerm(i  , j, k, u, v, w, momentumEqn,
-                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau32Next = ComputeStressTerm(i, j+1, k, u, v, w, momentumEqn,
-                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau32Prev = ComputeStressTerm(i, j  , k, u, v, w, momentumEqn,
-                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau33Next = ComputeStressTerm(i, j, k+1, u, v, w, momentumEqn,
-                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, er_arr(i,j,k  ) );
             tau33Prev = ComputeStressTerm(i, j, k  , u, v, w, momentumEqn,
-                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr);
+                                          DiffusionDir::z, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, er_arr(i,j,k-1) );
 
             diffContrib = (tau31Next - tau31Prev) * dxInv  // Contribution to z-mom eqn from diffusive flux in x-dir
                         + (tau32Next - tau32Prev) * dyInv  // Contribution to z-mom eqn from diffusive flux in y-dir

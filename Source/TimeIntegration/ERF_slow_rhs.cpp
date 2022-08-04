@@ -107,6 +107,7 @@ void erf_slow_rhs (int level,
     }
 
     MultiFab pprime(S_data[IntVar::cons].boxArray(), S_data[IntVar::cons].DistributionMap(), 1, 1);
+    MultiFab expr(S_data[IntVar::cons].boxArray(), S_data[IntVar::cons].DistributionMap(), 1, IntVect(1,1,0));
 
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
@@ -193,6 +194,15 @@ void erf_slow_rhs (int level,
                 pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
             });
         }
+
+        // AML: ER hack
+        const Box& gbx2 = mfi.growntilebox(IntVect(1,1,0));
+        const Array4<Real> & er_arr  = expr.array(mfi);
+        amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                er_arr(i,j,k) = (u(i+1, j  , k  ) - u(i, j, k))*dxInv[0] +
+                                (v(i  , j+1, k  ) - v(i, j, k))*dxInv[1] +
+                                (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
+        });
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
@@ -330,7 +340,7 @@ void erf_slow_rhs (int level,
             } else {
                 diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
                                                  MomentumEqn::x, dxInv, K_turb, solverChoice,
-                                                 domain, bc_ptr);
+                                                 domain, bc_ptr, er_arr);
             }
             rho_u_rhs(i, j, k) += diff_update;
 
@@ -422,7 +432,7 @@ void erf_slow_rhs (int level,
             } else {
                 diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
                                                  MomentumEqn::y, dxInv, K_turb, solverChoice,
-                                                 domain, bc_ptr);
+                                                 domain, bc_ptr, er_arr);
             }
             rho_v_rhs(i, j, k) += diff_update;
 
@@ -512,7 +522,7 @@ void erf_slow_rhs (int level,
             } else {
                 diff_update = DiffusionSrcForMom(i, j, k_diff, u, v, w, cell_data,
                                                  MomentumEqn::z, dxInv, K_turb, solverChoice,
-                                                 domain, bc_ptr);
+                                                 domain, bc_ptr, er_arr);
             }
             rho_w_rhs(i, j, k) += diff_update;
 

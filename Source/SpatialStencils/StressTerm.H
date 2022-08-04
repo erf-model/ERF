@@ -95,23 +95,19 @@ ComputeStressTerm (const int &i, const int &j, const int &k,
                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                    const amrex::Array4<amrex::Real>& K_turb,
                    const SolverChoice &solverChoice,
-                   const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+                   const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                   amrex::Real expansionRate)
 {
     const auto& dom_lo = amrex::lbound(domain);
 
     // We don't want to compute strain or expansion below the bottom surface
     int kk = std::max(k,dom_lo.z);
 
-    amrex::Real strainRate, expansionRate;
-
     // S_ij term
-    strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, cellSizeInv, domain, bc_ptr);
-
-    // D_ij term
-    expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
+    amrex::Real strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, cellSizeInv, domain, bc_ptr);
 
     // sigma_ij = S_ij - D_ij
-    amrex::Real strainRateDeviatoric = strainRate - expansionRate;
+    amrex::Real strainRateDeviatoric = strainRate - (1.0/3.0)*expansionRate;
 
     amrex::Real stressTerm = ComputeStressGivenRates(i, j, k, momentumEqn, diffDir, K_turb, solverChoice, strainRateDeviatoric);
 
