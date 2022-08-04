@@ -498,7 +498,7 @@ public:
                 post_substep(*S_sum    , time + (ks+1) * dtau, ngrow, ngrow);
 
                 // Copy only (rho theta), including ghost cells
-                amrex::MultiFab::Copy((*S_scratch)[IntVar::cons], (*S_sum)[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1, 
+                amrex::MultiFab::Copy((*S_scratch)[IntVar::cons], (*S_sum)[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1,
                                       (*S_sum)[IntVar::cons].nGrowVect());
             }
 
