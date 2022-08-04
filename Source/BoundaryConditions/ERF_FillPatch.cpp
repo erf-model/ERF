@@ -215,25 +215,30 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 
         if (rho_only && var_idx == Vars::cons) ncomp = 1;
 
+        IntVect ngvect;
         if (var_idx == Vars::cons)
         {
             bccomp = 0;
             mapper = &cell_cons_interp;
+            ngvect = IntVect(ng_cons,ng_cons,ng_cons);
         }
         else if (var_idx == Vars::xvel)
         {
             bccomp = NVAR;
             mapper = &face_linear_interp;
+            ngvect = IntVect(ng_vel,ng_vel,ng_vel);
         }
         else if (var_idx == Vars::yvel)
         {
             bccomp = NVAR+1;
             mapper = &face_linear_interp;
+            ngvect = IntVect(ng_vel,ng_vel,ng_vel);
         }
         else if (var_idx == Vars::zvel)
         {
             bccomp = NVAR+2;
             mapper = &face_linear_interp;
+            ngvect = IntVect(ng_vel,ng_vel,0);
         }
 
         if (lev == 0)
@@ -250,7 +255,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 #endif
                                    m_r2d);
 
-            amrex::FillPatchSingleLevel(mf, time, smf, stime, 0, icomp, ncomp,
+            amrex::FillPatchSingleLevel(mf, ngvect, time, smf, stime, 0, icomp, ncomp,
                                         geom[lev], physbc, bccomp);
         }
         else
@@ -278,10 +283,10 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 #endif
                                    m_r2d);
 
-            amrex::FillPatchTwoLevels(mf_temp, time, cmf, ctime, fmf, ftime,
-                                    0, icomp, ncomp, geom[lev-1], geom[lev],
-                                    cphysbc, 0, fphysbc, 0, refRatio(lev-1),
-                                    mapper, domain_bcs_type, bccomp);
+            amrex::FillPatchTwoLevels(mf_temp, ngvect, time, cmf, ctime, fmf, ftime,
+                                      0, icomp, ncomp, geom[lev-1], geom[lev],
+                                      cphysbc, 0, fphysbc, 0, refRatio(lev-1),
+                                      mapper, domain_bcs_type, bccomp);
 
             // Replace mf with mf_temp
             if (ncomp == mf.nComp())

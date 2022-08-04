@@ -157,7 +157,7 @@ void ERF::erf_advance(int level,
         // ***************************************************************************************
         bool rho_only = true;
         FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
-                              ng_cons, ng_vel, rho_only);
+                              ng_cons, 0, rho_only);
 
         // Here we don't use include any of the ghost region because we have only updated
         //      momentum on valid faces
@@ -181,9 +181,6 @@ void ERF::erf_advance(int level,
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density
-        // VelocityToMomentum(xvel_new, xvel_new.nGrowVect(),
-        //                    yvel_new, yvel_new.nGrowVect(),
-        //                    zvel_new, zvel_new.nGrowVect(),
         VelocityToMomentum(xvel_new, IntVect(ng_vel,ng_vel,ng_vel),
                            yvel_new, IntVect(ng_vel,ng_vel,ng_vel),
                            zvel_new, IntVect(ng_vel,ng_vel,0),
@@ -287,9 +284,5 @@ void ERF::erf_advance(int level,
     std::swap(flux[1], state_new[IntVar::yflux]);
     std::swap(flux[2], state_new[IntVar::zflux]);
 
-    // One final BC fill -- don't think we need this though
-    // amrex::Real new_time = old_time + dt_advance;
-    // FillIntermediatePatch(level, new_time, {cons_new, xvel_new, yvel_new, zvel_new},
-    //                       cons_new.nGrow(), xvel_new.nGrow());
     if (verbose) Print() << "Done with advance at level " << level << std::endl;
 }
