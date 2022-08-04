@@ -169,13 +169,22 @@ public:
                 const Box gfby = mfi.nodaltilebox(1).grow(S_old[IntVar::yflux].nGrowVect());
                 const Box gfbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zflux].nGrowVect());
 
-                amrex::GpuArray<Array4<Real>, IntVar::NumVars> sold;
-                amrex::GpuArray<Array4<Real>, IntVar::NumVars> snew;
+                Vector<Array4<Real> > sold_h(IntVar::NumVars);
+                Vector<Array4<Real> > snew_h(IntVar::NumVars);
 
                 for (int i = 0; i < IntVar::NumVars; ++i) {
-                    sold[i] = S_old[i].array(mfi);
-                    snew[i] = S_new[i].array(mfi);
+                    sold_h[i] = S_old[i].array(mfi);
+                    snew_h[i] = S_new[i].array(mfi);
                 }
+
+                Gpu::DeviceVector<Array4<Real> > sold_d(IntVar::NumVars);
+                Gpu::DeviceVector<Array4<Real> > snew_d(IntVar::NumVars);
+
+                Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
+                Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
+
+                Array4<Real>* sold = sold_d.dataPtr();
+                Array4<Real>* snew = snew_d.dataPtr();
 
                 ParallelFor(gbx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -292,17 +301,32 @@ public:
                     const Box gfby = mfi.nodaltilebox(1).grow(S_old[IntVar::yflux].nGrowVect());
                     const Box gfbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zflux].nGrowVect());
 
-                    amrex::GpuArray<Array4<Real>, IntVar::NumVars> ssum;
-                    amrex::GpuArray<Array4<Real>, IntVar::NumVars> sold;
-                    amrex::GpuArray<Array4<Real>, IntVar::NumVars> snew;
-                    amrex::GpuArray<Array4<Real>, IntVar::NumVars> scrh;
+                    Vector<Array4<Real> > sold_h(IntVar::NumVars);
+                    Vector<Array4<Real> > snew_h(IntVar::NumVars);
+                    Vector<Array4<Real> > ssum_h(IntVar::NumVars);
+                    Vector<Array4<Real> > scrh_h(IntVar::NumVars);
 
                     for (int i = 0; i < IntVar::NumVars; ++i) {
-                        ssum[i] = (*S_sum)[i].array(mfi);
-                        sold[i] = S_old[i].array(mfi);
-                        snew[i] = S_new[i].array(mfi);
-                        scrh[i] = (*S_scratch)[i].array(mfi);
+                        ssum_h[i] = (*S_sum)[i].array(mfi);
+                        sold_h[i] = S_old[i].array(mfi);
+                        snew_h[i] = S_new[i].array(mfi);
+                        scrh_h[i] = (*S_scratch)[i].array(mfi);
                     }
+
+                    Gpu::DeviceVector<Array4<Real> > sold_d(IntVar::NumVars);
+                    Gpu::DeviceVector<Array4<Real> > snew_d(IntVar::NumVars);
+                    Gpu::DeviceVector<Array4<Real> > ssum_d(IntVar::NumVars);
+                    Gpu::DeviceVector<Array4<Real> > scrh_d(IntVar::NumVars);
+
+                    Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
+                    Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
+                    Gpu::copy(Gpu::hostToDevice, ssum_h.begin(), ssum_h.end(), ssum_d.begin());
+                    Gpu::copy(Gpu::hostToDevice, scrh_h.begin(), scrh_h.end(), scrh_d.begin());
+
+                    Array4<Real>* sold = sold_d.dataPtr();
+                    Array4<Real>* snew = snew_d.dataPtr();
+                    Array4<Real>* ssum = ssum_d.dataPtr();
+                    Array4<Real>* scrh = scrh_d.dataPtr();
 
                     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                         for (int n = scomp_fast[IntVar::cons]; n < scomp_fast[IntVar::cons] + ncomp_fast[IntVar::cons]; ++n) {
@@ -397,15 +421,27 @@ public:
                         const Box tby = mfi.nodaltilebox(1);
                         const Box tbz = mfi.nodaltilebox(2);
 
-                        amrex::GpuArray<Array4<Real>, IntVar::NumVars> ssum;
-                        amrex::GpuArray<Array4<Real>, IntVar::NumVars> fslow;
-                        amrex::GpuArray<Array4<Real>, IntVar::NumVars> fpert;
+                        Vector<Array4<Real> > ssum_h(IntVar::NumVars);
+                        Vector<Array4<Real> > fslow_h(IntVar::NumVars);
+                        Vector<Array4<Real> > fpert_h(IntVar::NumVars);
 
                         for (int i = 0; i < IntVar::NumVars; ++i) {
-                            ssum[i]  = (*S_sum)[i].array(mfi);
-                            fslow[i] = (*F_slow)[i].array(mfi);
-                            fpert[i] = (*F_pert)[i].array(mfi);
+                            ssum_h[i]  = (*S_sum)[i].array(mfi);
+                            fslow_h[i] = (*F_slow)[i].array(mfi);
+                            fpert_h[i] = (*F_pert)[i].array(mfi);
                         }
+
+                        Gpu::DeviceVector<Array4<Real> > ssum_d(IntVar::NumVars);
+                        Gpu::DeviceVector<Array4<Real> > fslow_d(IntVar::NumVars);
+                        Gpu::DeviceVector<Array4<Real> > fpert_d(IntVar::NumVars);
+
+                        Gpu::copy(Gpu::hostToDevice, ssum_h.begin(), ssum_h.end(), ssum_d.begin());
+                        Gpu::copy(Gpu::hostToDevice, fslow_h.begin(), fslow_h.end(), fslow_d.begin());
+                        Gpu::copy(Gpu::hostToDevice, fpert_h.begin(), fpert_h.end(), fpert_d.begin());
+
+                        Array4<Real>* ssum = ssum_d.dataPtr();
+                        Array4<Real>* fslow = fslow_d.dataPtr();
+                        Array4<Real>* fpert = fpert_d.dataPtr();
 
                         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                             for (int n = scomp_fast[IntVar::cons]; n < scomp_fast[IntVar::cons] + ncomp_fast[IntVar::cons]; ++n) {
@@ -491,17 +527,32 @@ public:
                     const Box gfby = mfi.nodaltilebox(1).grow(S_old[IntVar::yflux].nGrowVect());
                     const Box gfbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zflux].nGrowVect());
 
-                    amrex::GpuArray<Array4<Real>, IntVar::NumVars> ssum;
-                    amrex::GpuArray<Array4<Real>, IntVar::NumVars> fslow;
-                    amrex::GpuArray<Array4<Real>, IntVar::NumVars> sold;
-                    amrex::GpuArray<Array4<Real>, IntVar::NumVars> snew;
+                    Vector<Array4<Real> > sold_h(IntVar::NumVars);
+                    Vector<Array4<Real> > snew_h(IntVar::NumVars);
+                    Vector<Array4<Real> > ssum_h(IntVar::NumVars);
+                    Vector<Array4<Real> > fslow_h(IntVar::NumVars);
 
                     for (int i = 0; i < IntVar::NumVars; ++i) {
-                        ssum[i]  = (*S_sum)[i].array(mfi);
-                        fslow[i] = (*F_slow)[i].array(mfi);
-                        sold[i] = S_old[i].array(mfi);
-                        snew[i] = S_new[i].array(mfi);
+                        ssum_h[i]  = (*S_sum)[i].array(mfi);
+                        fslow_h[i] = (*F_slow)[i].array(mfi);
+                        sold_h[i] = S_old[i].array(mfi);
+                        snew_h[i] = S_new[i].array(mfi);
                     }
+
+                    Gpu::DeviceVector<Array4<Real> > sold_d(IntVar::NumVars);
+                    Gpu::DeviceVector<Array4<Real> > snew_d(IntVar::NumVars);
+                    Gpu::DeviceVector<Array4<Real> > ssum_d(IntVar::NumVars);
+                    Gpu::DeviceVector<Array4<Real> > fslow_d(IntVar::NumVars);
+
+                    Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
+                    Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
+                    Gpu::copy(Gpu::hostToDevice, ssum_h.begin(), ssum_h.end(), ssum_d.begin());
+                    Gpu::copy(Gpu::hostToDevice, fslow_h.begin(), fslow_h.end(), fslow_d.begin());
+
+                    Array4<Real>* sold = sold_d.dataPtr();
+                    Array4<Real>* snew = snew_d.dataPtr();
+                    Array4<Real>* ssum = ssum_d.dataPtr();
+                    Array4<Real>* fslow = fslow_d.dataPtr();
 
                     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                         for (int n = scomp_slow[IntVar::cons]; n < scomp_slow[IntVar::cons] + ncomp_slow[IntVar::cons]; ++n) {
