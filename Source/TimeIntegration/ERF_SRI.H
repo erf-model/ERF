@@ -359,7 +359,7 @@ public:
                 const int iyflx = 5;
                 const int izflx = 6;
 
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(bx, [=,number_nodes,p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[icons]; n < scomp_all[icons] + ncomp_all[icons]; ++n) {
                         snew_cons(i,j,k,n) = sold_cons(i,j,k,n);
                         for (int fn = 0; fn < number_nodes; ++fn) {
@@ -369,7 +369,7 @@ public:
                 });
 
                 ParallelFor(tbx, tby, tbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=,number_nodes,p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[ixmom]; n < scomp_all[ixmom] + ncomp_all[ixmom]; ++n) {
                         snew_xmom(i,j,k,n) = sold_xmom(i,j,k,n);
                         for (int fn = 0; fn < number_nodes; ++fn) {
@@ -377,7 +377,7 @@ public:
                         }
                     }
                 },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=,number_nodes,p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[iymom]; n < scomp_all[iymom] + ncomp_all[iymom]; ++n) {
                         snew_ymom(i,j,k,n) = sold_ymom(i,j,k,n);
                         for (int fn = 0; fn < number_nodes; ++fn) {
@@ -385,7 +385,7 @@ public:
                         }
                     }
                 },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=,number_nodes,p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[izmom]; n < scomp_all[izmom] + ncomp_all[izmom]; ++n) {
                         snew_zmom(i,j,k,n) = sold_zmom(i,j,k,n);
                         for (int fn = 0; fn < number_nodes; ++fn) {
@@ -395,7 +395,7 @@ public:
                 });
 
                 ParallelFor(tbx, tby, tbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=,number_nodes,p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[ixflx]; n < scomp_all[ixflx] + ncomp_all[ixflx]; ++n) {
                         snew_xflx(i,j,k,n) = sold_xflx(i,j,k,n);
                         for (int fn = 0; fn < number_nodes; ++fn) {
@@ -403,7 +403,7 @@ public:
                         }
                     }
                 },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=,number_nodes,p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[iyflx]; n < scomp_all[iyflx] + ncomp_all[iyflx]; ++n) {
                         snew_yflx(i,j,k,n) = sold_yflx(i,j,k,n);
                         for (int fn = 0; fn < number_nodes; ++fn) {
@@ -411,7 +411,7 @@ public:
                         }
                     }
                 },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                [=,number_nodes,p_weights_d] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     for (int n = scomp_all[izflx]; n < scomp_all[izflx] + ncomp_all[izflx]; ++n) {
                         snew_zflx(i,j,k,n) = sold_zflx(i,j,k,n);
                         for (int fn = 0; fn < number_nodes; ++fn) {
