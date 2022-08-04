@@ -177,8 +177,8 @@ public:
                     snew_h[i] = S_new[i].array(mfi);
                 }
 
-                Gpu::DeviceVector<Array4<Real> > sold_d(IntVar::NumVars);
-                Gpu::DeviceVector<Array4<Real> > snew_d(IntVar::NumVars);
+                Gpu::AsyncVector<Array4<Real> > sold_d(IntVar::NumVars);
+                Gpu::AsyncVector<Array4<Real> > snew_d(IntVar::NumVars);
 
                 Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
                 Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
@@ -313,10 +313,10 @@ public:
                         scrh_h[i] = (*S_scratch)[i].array(mfi);
                     }
 
-                    Gpu::DeviceVector<Array4<Real> > sold_d(IntVar::NumVars);
-                    Gpu::DeviceVector<Array4<Real> > snew_d(IntVar::NumVars);
-                    Gpu::DeviceVector<Array4<Real> > ssum_d(IntVar::NumVars);
-                    Gpu::DeviceVector<Array4<Real> > scrh_d(IntVar::NumVars);
+                    Gpu::AsyncVector<Array4<Real> > sold_d(IntVar::NumVars);
+                    Gpu::AsyncVector<Array4<Real> > snew_d(IntVar::NumVars);
+                    Gpu::AsyncVector<Array4<Real> > ssum_d(IntVar::NumVars);
+                    Gpu::AsyncVector<Array4<Real> > scrh_d(IntVar::NumVars);
 
                     Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
                     Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
@@ -431,9 +431,9 @@ public:
                             fpert_h[i] = (*F_pert)[i].array(mfi);
                         }
 
-                        Gpu::DeviceVector<Array4<Real> > ssum_d(IntVar::NumVars);
-                        Gpu::DeviceVector<Array4<Real> > fslow_d(IntVar::NumVars);
-                        Gpu::DeviceVector<Array4<Real> > fpert_d(IntVar::NumVars);
+                        Gpu::AsyncVector<Array4<Real> > ssum_d(IntVar::NumVars);
+                        Gpu::AsyncVector<Array4<Real> > fslow_d(IntVar::NumVars);
+                        Gpu::AsyncVector<Array4<Real> > fpert_d(IntVar::NumVars);
 
                         Gpu::copy(Gpu::hostToDevice, ssum_h.begin(), ssum_h.end(), ssum_d.begin());
                         Gpu::copy(Gpu::hostToDevice, fslow_h.begin(), fslow_h.end(), fslow_d.begin());
@@ -539,10 +539,10 @@ public:
                         snew_h[i] = S_new[i].array(mfi);
                     }
 
-                    Gpu::DeviceVector<Array4<Real> > sold_d(IntVar::NumVars);
-                    Gpu::DeviceVector<Array4<Real> > snew_d(IntVar::NumVars);
-                    Gpu::DeviceVector<Array4<Real> > ssum_d(IntVar::NumVars);
-                    Gpu::DeviceVector<Array4<Real> > fslow_d(IntVar::NumVars);
+                    Gpu::AsyncVector<Array4<Real> > sold_d(IntVar::NumVars);
+                    Gpu::AsyncVector<Array4<Real> > snew_d(IntVar::NumVars);
+                    Gpu::AsyncVector<Array4<Real> > ssum_d(IntVar::NumVars);
+                    Gpu::AsyncVector<Array4<Real> > fslow_d(IntVar::NumVars);
 
                     Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
                     Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
