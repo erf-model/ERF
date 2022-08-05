@@ -32,33 +32,6 @@ void VelocityToMomentum(const amrex::MultiFab& xvel_in,
                         amrex::MultiFab& ymom_out,
                         amrex::MultiFab& zmom_out);
 
-
-AMREX_GPU_DEVICE
-amrex::Real InterpolateFromCellOrFace(
-                       const int &i, const int &j, const int &k,
-                       const amrex::Array4<const amrex::Real>& qty, const int & qty_index,
-                       const amrex::Real& uadv,
-                       const enum Coord& coordDir,
-                       const int& spatial_order);
-
-AMREX_GPU_DEVICE
-amrex::Real InterpolatePertFromCell(
-                       const int &i, const int &j, const int &k,
-                       const amrex::Array4<const amrex::Real>& qty, const int & qty_index,
-                       const amrex::Real& uadv,
-                       const enum Coord& coordDir,
-                       const int& spatial_order,
-                       const amrex::Array4<const amrex::Real>& r0_arr);
-
-AMREX_GPU_DEVICE
-amrex::Real InterpolateDensityPertFromCellToFace(
-                       const int &i, const int &j, const int &k,
-                       const amrex::Array4<const amrex::Real>& cons_in,
-                       const amrex::Real& uadv,
-                       const enum Coord& coordDir,
-                       const int& spatial_order,
-                       const amrex::Array4<const amrex::Real>& r0_arr);
-
 /** Meant for {x, y, z}- momentum equations */
 AMREX_GPU_DEVICE
 amrex::Real AdvectionSrcForXMom(
