@@ -5,7 +5,7 @@
 #include <AMReX_Arena.H>
 
 // Cell-centered state variables
-#define Rho_comp  0
+#define Rho_comp       0
 #define RhoTheta_comp  1
 #define RhoKE_comp     2 // for Deardorff LES Model
 #define RhoQKE_comp    3 // for MYNN PBL Model

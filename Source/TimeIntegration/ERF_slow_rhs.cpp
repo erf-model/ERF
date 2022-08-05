@@ -39,9 +39,6 @@ void erf_slow_rhs (int level,
 {
     BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
 
-    amrex::Real theta_mean;
-    if (most) theta_mean = most->theta_mean;
-
     int start_comp;
     int   num_comp;
     if (rhs_vars == RHSVar::fast) {
@@ -92,8 +89,6 @@ void erf_slow_rhs (int level,
 
     bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
-    Real l_Delta         = std::pow(dx[0] * dx[1] * dx[2],1./3.);
-    Real l_C_e           = solverChoice.Ce;
 
     if (level > 0)
     {
@@ -213,66 +208,17 @@ void erf_slow_rhs (int level,
                                  dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
         }
 
-        amrex::ParallelFor(bx, num_comp,
-                           [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
-        {
-            int n = start_comp + n_in;
-
-            // Add diffusive terms.
-            if (n == RhoTheta_comp)
-                cell_rhs(i, j, k, n) += DiffusionSrcForState(i, j, k, cell_data, cell_prim, RhoTheta_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
-            if (n == RhoScalar_comp)
-                cell_rhs(i, j, k, n) += DiffusionSrcForState(i, j, k, cell_data, cell_prim, RhoScalar_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
-            if (l_use_deardorff && n == RhoKE_comp)
-                cell_rhs(i, j, k, n) += DiffusionSrcForState(i, j, k, cell_data, cell_prim, RhoKE_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
-            if (l_use_QKE && n == RhoQKE_comp)
-                cell_rhs(i, j, k, n) += DiffusionSrcForState(i, j, k, cell_data, cell_prim, RhoQKE_comp,
-                                        diffflux_x, diffflux_y, diffflux_z, dxInv, K_turb, solverChoice);
-
-            // Add Rayleigh damping
-            if (solverChoice.use_rayleigh_damping && n == RhoTheta_comp)
-            {
-                Real theta = cell_prim(i,j,k,PrimTheta_comp);
-                cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,Rho_comp);
-            }
-
-            if (l_use_deardorff && n == RhoKE_comp)
-            {
-                // Add Buoyancy Source
-                Real theta     = cell_prim(i,j,k,PrimTheta_comp);
-                Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dxInv[2];
-                Real E         = cell_prim(i,j,k,PrimKE_comp);
-                Real length;
-                if (dtheta_dz <= 0.) {
-                   length = l_Delta;
-                } else {
-                   length = 0.76*std::sqrt(E)*(grav_gpu[2]/theta)*dtheta_dz;
-                }
-                Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
-                cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
-
-                // Add TKE production
-                cell_rhs(i, j, k, n) += ComputeTKEProduction(i,j,k,u,v,w,K_turb,dxInv,domain,bc_ptr,l_use_terrain);
-
-                // Add dissipation
-                if (std::abs(E) > 0.) {
-                    cell_rhs(i, j, k, n) += cell_data(i,j,k,Rho_comp) * l_C_e *
-                        std::pow(E,1.5) / length;
-                }
-            }
-
-            // QKE : similar terms to TKE
-            if (l_use_QKE && n == RhoQKE_comp) {
-                 cell_rhs(i,j,k,n) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                            K_turb,dxInv,domain,solverChoice,theta_mean);
-            }
-
-            // Add source terms. TODO: Put this under an if condition when we implement source term
-            cell_rhs(i, j, k, n) += source_fab(i, j, k, n);
-        });
+        // NOTE: No diffusion for continuity, so n starts at 1.
+        //       KE calls moved inside DiffSrcForState.
+        int n_start = amrex::max(start_comp,RhoTheta_comp);
+        int n_end   = start_comp + num_comp;
+        for (int n(n_start); n<n_end; ++n) {
+            DiffusionSrcForState(bx, domain, n, u, v, w,
+                                 cell_data, cell_prim, source_fab, cell_rhs,
+                                 diffflux_x, diffflux_y, diffflux_z,
+                                 dxInv, K_turb, solverChoice, most,grav_gpu,
+                                 bc_ptr, dptr_rayleigh_tau, dptr_rayleigh_thetabar);
+        }
 
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
         //         fluxes at fine-fine interfaces
