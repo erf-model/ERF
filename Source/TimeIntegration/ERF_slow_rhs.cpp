@@ -42,7 +42,7 @@ void erf_slow_rhs (int level,
 
     amrex::Real theta_mean;
     if (most) theta_mean = most->theta_mean;
-      
+
     int start_comp;
     int   num_comp;
     if (rhs_vars == RHSVar::fast) {
