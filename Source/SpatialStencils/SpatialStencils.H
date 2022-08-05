@@ -148,7 +148,6 @@ amrex::Real ComputeDiffusionFluxForState(
                        const SolverChoice &solverChoice,
                        const enum Coord& coordDir);
 
-AMREX_GPU_DEVICE
 void DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int qty_index,
                           const amrex::Array4<const amrex::Real>& u,
                           const amrex::Array4<const amrex::Real>& v,
@@ -163,7 +162,7 @@ void DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int qt
                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                           const amrex::Array4<amrex::Real>& K_turb,
                           const SolverChoice &solverChoice,
-                          std::unique_ptr<ABLMost>& most,
+                          const amrex::Real& theta_mean,
                           const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                           const amrex::BCRec* bc_ptr,
                           const amrex::Real*  dptr_rayleigh_tau,

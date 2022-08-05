@@ -40,6 +40,9 @@ void erf_slow_rhs (int level,
 {
     BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
 
+    amrex::Real theta_mean;
+    if (most) theta_mean = most->theta_mean;
+      
     int start_comp;
     int   num_comp;
     if (rhs_vars == RHSVar::fast) {
@@ -217,7 +220,7 @@ void erf_slow_rhs (int level,
             DiffusionSrcForState(bx, domain, n, u, v, w,
                                  cell_data, cell_prim, source_fab, cell_rhs,
                                  diffflux_x, diffflux_y, diffflux_z,
-                                 dxInv, K_turb, solverChoice, most,grav_gpu,
+                                 dxInv, K_turb, solverChoice, theta_mean, grav_gpu,
                                  bc_ptr, dptr_rayleigh_tau, dptr_rayleigh_thetabar);
         }
 

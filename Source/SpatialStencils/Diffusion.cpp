@@ -617,7 +617,6 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
     }
 }
 
-AMREX_GPU_DEVICE
 void
 DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int qty_index,
                      const amrex::Array4<const amrex::Real>& u,
@@ -633,7 +632,7 @@ DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int qty_ind
                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                      const amrex::Array4<amrex::Real>& K_turb,
                      const SolverChoice &solverChoice,
-                     std::unique_ptr<ABLMost>& most,
+                     const amrex::Real& theta_mean,
                      const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                      const amrex::BCRec* bc_ptr,
                      const amrex::Real* dptr_rayleigh_tau,
@@ -656,9 +655,6 @@ DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int qty_ind
       Real l_C_e           = solverChoice.Ce;
 
       const int l_use_terrain = solverChoice.use_terrain;
-
-      amrex::Real theta_mean;
-      if (most) theta_mean = most->theta_mean;
 
       amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
