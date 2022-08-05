@@ -153,9 +153,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // These are the actual fluxes we will use to fill the flux registers
     std::array< MultiFab, AMREX_SPACEDIM > flux;
 
-    flux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-    flux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-    flux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+    flux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 1);
+    flux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 1);
+    flux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 1);
 
     flux[0].setVal(0.);
     flux[1].setVal(0.);

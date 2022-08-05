@@ -77,7 +77,7 @@ void ERF::erf_advance(int level,
     // **************************************************************************************
     // Initial solution
     amrex::Vector<amrex::MultiFab> state_old;
-    state_old.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
+    state_old.push_back(MultiFab(cons_old, amrex::make_alias, 0, nvars)); // cons
     state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
     state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
     state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
@@ -87,20 +87,13 @@ void ERF::erf_advance(int level,
 
     // Final solution
     amrex::Vector<amrex::MultiFab> state_new;
-    state_new.push_back(MultiFab(ba, dm, nvars, cons_old.nGrow())); // cons
+    state_new.push_back(MultiFab(cons_new, amrex::make_alias, 0, nvars)); // cons
     state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
     state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
     state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
-    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 1)); // x-fluxes
-    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 1)); // y-fluxes
-    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 1)); // z-fluxes
-
-    // ***********************************************************************************************
-    // Prepare the old-time data for calling the integrator
-    // Note that we have filled the ghost cells of cons_old and we are copying the ghost cell values
-    //      so we don't need to enforce BCs again here before calling VelocityToMomentum
-    // ***********************************************************************************************
-    MultiFab::Copy(state_old[IntVar::cons], cons_old, 0, 0, cons_old.nComp(), cons_old.nGrow());
+    state_new.push_back(MultiFab(flux[0], amrex::make_alias, 0, nvars)); // x-fluxes
+    state_new.push_back(MultiFab(flux[1], amrex::make_alias, 0, nvars)); // y-fluxes
+    state_new.push_back(MultiFab(flux[2], amrex::make_alias, 0, nvars)); // z-fluxes
 
     // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
@@ -267,16 +260,6 @@ void ERF::erf_advance(int level,
                        state_new[IntVar::xmom],
                        state_new[IntVar::ymom],
                        state_new[IntVar::zmom]);
-
-    // **************************************************************************************
-    // Get the final cell centered variables after the step
-    // (do this at the very end because its a swap not a copy)
-    // **************************************************************************************
-    std::swap(cons_new, state_new[IntVar::cons]);
-
-    std::swap(flux[0], state_new[IntVar::xflux]);
-    std::swap(flux[1], state_new[IntVar::yflux]);
-    std::swap(flux[2], state_new[IntVar::zflux]);
 
     if (verbose) Print() << "Done with advance at level " << level << std::endl;
 }
