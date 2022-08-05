@@ -1,15 +1,14 @@
 CEXE_sources += ComputeTurbulentViscosity.cpp
 CEXE_sources += MomentumToVelocity.cpp
 CEXE_sources += VelocityToMomentum.cpp
-CEXE_sources += Interpolation.cpp
 CEXE_sources += Advection.cpp
 CEXE_sources += Diffusion.cpp
 
+CEXE_headers += Interpolation.H
 CEXE_headers += ExpansionRate.H
 CEXE_headers += StrainRate.H
 CEXE_headers += StressTerm.H
 CEXE_headers += EddyViscosity.H
 
 CEXE_headers += TerrainMetrics.H
-CEXE_sources += TerrainMetrics.cpp    
-
+CEXE_sources += TerrainMetrics.cpp

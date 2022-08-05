@@ -13,6 +13,7 @@
 
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
+#include <Interpolation.H>
 
 using namespace amrex;
 

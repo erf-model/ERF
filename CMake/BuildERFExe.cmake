@@ -43,7 +43,7 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_HDF5)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_HDF5)
   endif()
- 
+
   target_sources(${erf_lib_name}
      PRIVATE
        ${SRC_DIR}/DataStruct.H
@@ -85,11 +85,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SpatialStencils/ExpansionRate.H
        ${SRC_DIR}/SpatialStencils/StrainRate.H
        ${SRC_DIR}/SpatialStencils/StressTerm.H
-       ${SRC_DIR}/SpatialStencils/Interpolation.cpp
+       ${SRC_DIR}/SpatialStencils/Interpolation.H
        ${SRC_DIR}/SpatialStencils/ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/SpatialStencils/MomentumToVelocity.cpp
        ${SRC_DIR}/SpatialStencils/VelocityToMomentum.cpp
-       ${SRC_DIR}/SpatialStencils/TerrainMetrics.H 
+       ${SRC_DIR}/SpatialStencils/TerrainMetrics.H
        ${SRC_DIR}/SpatialStencils/TerrainMetrics.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStepping.cpp
@@ -155,7 +155,7 @@ function(build_erf_lib erf_lib_name)
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
   endif()
 
-  #Define what we want to be installed during a make install 
+  #Define what we want to be installed during a make install
   install(TARGETS ${erf_lib_name}
           RUNTIME DESTINATION bin
           ARCHIVE DESTINATION lib
@@ -191,7 +191,7 @@ function(build_erf_exe erf_exe_name)
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
   endif()
 
-  install(TARGETS ${erf_exe_name} 
+  install(TARGETS ${erf_exe_name}
           RUNTIME DESTINATION bin
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)

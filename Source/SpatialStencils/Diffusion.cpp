@@ -1,5 +1,6 @@
 #include <SpatialStencils.H>
 #include <StressTerm.H>
+#include <Interpolation.H>
 
 using namespace amrex;
 

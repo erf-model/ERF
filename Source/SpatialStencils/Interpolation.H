@@ -3,7 +3,7 @@
 using namespace amrex;
 
 AMREX_GPU_DEVICE
-Real
+inline Real
 interpolatedVal(const Real& avg1, const Real& avg2, const Real& avg3,
                 const Real& diff1, const Real& diff2, const Real& diff3,
                 const Real& scaled_upw, const int& spatial_order)
@@ -31,23 +31,7 @@ interpolatedVal(const Real& avg1, const Real& avg2, const Real& avg3,
 }
 
 AMREX_GPU_DEVICE
-Real
-InterpolateDensityPertFromCellToFace(
-  const int& i,
-  const int& j,
-  const int& k,
-  const Array4<const Real>& cons_in,
-  const Real& upw,
-  const Coord& coordDir,
-  const int& spatial_order,
-  const Array4<const Real>& r0_arr)
-{
-  return InterpolatePertFromCell(
-    i, j, k, cons_in, Rho_comp, upw, coordDir, spatial_order, r0_arr);
-}
-
-AMREX_GPU_DEVICE
-Real
+inline Real
 InterpolateFromCellOrFace(
   const int& i, const int& j, const int& k,
   const Array4<const Real>& qty,
@@ -110,7 +94,7 @@ InterpolateFromCellOrFace(
 
 
 AMREX_GPU_DEVICE
-Real
+inline Real
 InterpolatePertFromCell(
   const int& i, const int& j, const int& k,
   const Array4<const Real>& qty,
@@ -184,3 +168,19 @@ InterpolatePertFromCell(
     return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
 }
 
+
+AMREX_GPU_DEVICE
+inline Real
+InterpolateDensityPertFromCellToFace(
+  const int& i,
+  const int& j,
+  const int& k,
+  const Array4<const Real>& cons_in,
+  const Real& upw,
+  const Coord& coordDir,
+  const int& spatial_order,
+  const Array4<const Real>& r0_arr)
+{
+  return InterpolatePertFromCell(
+    i, j, k, cons_in, Rho_comp, upw, coordDir, spatial_order, r0_arr);
+}
