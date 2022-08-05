@@ -1,6 +1,7 @@
 #include <IndexDefines.H>
 #include <SpatialStencils.H>
 #include <TerrainMetrics.H>
+#include <Interpolation.H>
 
 using namespace amrex;
 
