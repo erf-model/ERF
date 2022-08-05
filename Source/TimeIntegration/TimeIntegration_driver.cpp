@@ -62,16 +62,10 @@ void ERF::erf_advance(int level,
     // **************************************************************************************
     // These are temporary arrays that we use to store the accumulation of the fluxes
     // **************************************************************************************
-    std::array< MultiFab, AMREX_SPACEDIM >  advflux;
     std::array< MultiFab, AMREX_SPACEDIM > diffflux;
 
-     advflux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
     diffflux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-
-     advflux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
     diffflux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-
-     advflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
     diffflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
     diffflux[0].setVal(0.);
@@ -202,7 +196,7 @@ void ERF::erf_advance(int level,
         if (verbose) Print() << "Calling slow rhs at level " << level << ", time = " << time << std::endl;
         erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
                      xvel_new, yvel_new, zvel_new,
-                     source, advflux, diffflux,
+                     source, diffflux,
                      fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
                      z_phys_nd[level], detJ_cc[level], r0, p0,
                      dptr_rayleigh_tau, dptr_rayleigh_ubar,
@@ -219,7 +213,7 @@ void ERF::erf_advance(int level,
     {
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << fast_dt << std::endl;
         erf_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
-                     S_data, S_scratch, advflux, fine_geom, ifr, solverChoice,
+                     S_data, S_scratch, fine_geom, ifr, solverChoice,
                      z_phys_nd[level], detJ_cc[level], r0, p0,
                      fast_dt, inv_fac);
     };
