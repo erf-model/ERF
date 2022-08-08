@@ -138,6 +138,9 @@ ERF::ERF ()
         vars_old[lev].resize(Vars::NumTypes);
     }
 
+    mri_integrator_mem.resize(nlevs_max);
+    sri_integrator_mem.resize(nlevs_max);
+
     flux_registers.resize(nlevs_max);
 
     // Initialize tagging criteria for mesh refinement
@@ -527,9 +530,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Initialize the integrator memory
     amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
     int_state.push_back(MultiFab(lev_new[Vars::cons], amrex::make_alias, 0, Cons::NumVars)); // cons
-    int_state.push_back(MultiFab(lev_new[Vars::xvel], amrex::make_alias, 0, 1)); // xmom
-    int_state.push_back(MultiFab(lev_new[Vars::yvel], amrex::make_alias, 0, 1)); // ymom
-    int_state.push_back(MultiFab(lev_new[Vars::zvel], amrex::make_alias, 0, 1)); // zmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, lev_new[Vars::xvel].nGrow())); // xmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, lev_new[Vars::yvel].nGrow())); // ymom
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, lev_new[Vars::zvel].nGrow())); // zmom
     int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
     int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
     int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
@@ -579,9 +582,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Initialize the integrator memory
     amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
     int_state.push_back(MultiFab(temp_lev_new[Vars::cons], amrex::make_alias, 0, Cons::NumVars)); // cons
-    int_state.push_back(MultiFab(temp_lev_new[Vars::xvel], amrex::make_alias, 0, 1)); // xmom
-    int_state.push_back(MultiFab(temp_lev_new[Vars::yvel], amrex::make_alias, 0, 1)); // ymom
-    int_state.push_back(MultiFab(temp_lev_new[Vars::zvel], amrex::make_alias, 0, 1)); // zmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, temp_lev_new[Vars::xvel].nGrow())); // xmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, temp_lev_new[Vars::yvel].nGrow())); // ymom
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, temp_lev_new[Vars::zvel].nGrow())); // zmom
     int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
     int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
     int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
@@ -688,9 +691,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     // Initialize the integrator memory
     amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
     int_state.push_back(MultiFab(lev_new[Vars::cons], amrex::make_alias, 0, Cons::NumVars)); // cons
-    int_state.push_back(MultiFab(lev_new[Vars::xvel], amrex::make_alias, 0, 1)); // xmom
-    int_state.push_back(MultiFab(lev_new[Vars::yvel], amrex::make_alias, 0, 1)); // ymom
-    int_state.push_back(MultiFab(lev_new[Vars::zvel], amrex::make_alias, 0, 1)); // zmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, lev_new[Vars::xvel].nGrow())); // xmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, lev_new[Vars::yvel].nGrow())); // ymom
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, lev_new[Vars::zvel].nGrow())); // zmom
     int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
     int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
     int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes

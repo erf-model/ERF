@@ -34,6 +34,8 @@
 #include <Derive.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
+#include <ERF_SRI.H>
+#include <ERF_MRI.H>
 
 #ifdef ERF_USE_NETCDF
 #include "NCWpsFile.H"
