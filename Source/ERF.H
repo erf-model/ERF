@@ -34,6 +34,8 @@
 #include <Derive.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
+#include <ERF_SRI.H>
+#include <ERF_MRI.H>
 
 #ifdef ERF_USE_NETCDF
 #include "NCWpsFile.H"
@@ -442,6 +444,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 #endif
+    amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
+    amrex::Vector<std::unique_ptr<SRIIntegrator<amrex::Vector<amrex::MultiFab> > > > sri_integrator_mem;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
