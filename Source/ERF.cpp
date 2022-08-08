@@ -523,6 +523,21 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     t_old[lev] = time - 1.e200;
 
     FillCoarsePatchAllVars(lev, time, vars_new[lev]);
+
+    // Initialize the integrator memory
+    amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
+    int_state.push_back(MultiFab(lev_new[Vars::cons], amrex::make_alias, 0, Cons::NumVars)); // cons
+    int_state.push_back(MultiFab(lev_new[Vars::xvel], amrex::make_alias, 0, 1)); // xmom
+    int_state.push_back(MultiFab(lev_new[Vars::yvel], amrex::make_alias, 0, 1)); // ymom
+    int_state.push_back(MultiFab(lev_new[Vars::zvel], amrex::make_alias, 0, 1)); // zmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
+    if (use_native_mri) {
+        mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+    } else {
+        sri_integrator_mem[lev] = std::make_unique<SRIIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+    }
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -560,6 +575,21 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
+
+    // Initialize the integrator memory
+    amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
+    int_state.push_back(MultiFab(temp_lev_new[Vars::cons], amrex::make_alias, 0, Cons::NumVars)); // cons
+    int_state.push_back(MultiFab(temp_lev_new[Vars::xvel], amrex::make_alias, 0, 1)); // xmom
+    int_state.push_back(MultiFab(temp_lev_new[Vars::yvel], amrex::make_alias, 0, 1)); // ymom
+    int_state.push_back(MultiFab(temp_lev_new[Vars::zvel], amrex::make_alias, 0, 1)); // zmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
+    if (use_native_mri) {
+        mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+    } else {
+        sri_integrator_mem[lev] = std::make_unique<SRIIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+    }
 }
 
 // Delete level data
@@ -570,6 +600,13 @@ ERF::ClearLevel (int lev)
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         vars_new[lev][var_idx].clear();
         vars_old[lev][var_idx].clear();
+    }
+
+    // Clears the integrator memory
+    if (use_native_mri) {
+        mri_integrator_mem[lev].reset();
+    } else {
+        sri_integrator_mem[lev].reset();
     }
 }
 
@@ -646,6 +683,21 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         z_phys_nd[lev] = nullptr;
         z_phys_cc[lev] = nullptr;
           detJ_cc[lev] = nullptr;
+    }
+
+    // Initialize the integrator memory
+    amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
+    int_state.push_back(MultiFab(lev_new[Vars::cons], amrex::make_alias, 0, Cons::NumVars)); // cons
+    int_state.push_back(MultiFab(lev_new[Vars::xvel], amrex::make_alias, 0, 1)); // xmom
+    int_state.push_back(MultiFab(lev_new[Vars::yvel], amrex::make_alias, 0, 1)); // ymom
+    int_state.push_back(MultiFab(lev_new[Vars::zvel], amrex::make_alias, 0, 1)); // zmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
+    if (use_native_mri) {
+        mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+    } else {
+        sri_integrator_mem[lev] = std::make_unique<SRIIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
     }
 }
 

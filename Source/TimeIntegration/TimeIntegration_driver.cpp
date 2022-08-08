@@ -228,7 +228,7 @@ void ERF::erf_advance(int level,
     // Setup the integrator and integrate for a single timestep
     // **************************************************************************************
     if (use_native_mri) {
-      MRISplitIntegrator<Vector<MultiFab> > mri_integrator(state_old);
+      MRISplitIntegrator<Vector<MultiFab> >& mri_integrator = *mri_integrator_mem[level];
 
       // Define rhs and 'post update' utility function that is called after calculating
       // any state data (e.g. at RK stages or at the end of a timestep)
@@ -242,7 +242,7 @@ void ERF::erf_advance(int level,
       mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
     } else {
-      SRIIntegrator<Vector<MultiFab> > sri_integrator(state_old);
+      SRIIntegrator<Vector<MultiFab> >& sri_integrator = *sri_integrator_mem[level];
 
       sri_integrator.set_rhs(slow_rhs_fun);
       sri_integrator.set_post_update(post_update_fun);
