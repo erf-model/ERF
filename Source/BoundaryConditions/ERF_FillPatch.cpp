@@ -191,7 +191,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 //
 void
 ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<MultiFab> > mfs,
-                            int ng_cons, int ng_vel, bool rho_only)
+                            int ng_cons, int ng_vel, bool cons_only, int scomp_cons, int ncomp_cons)
 {
     int bccomp;
     amrex::Interpolater* mapper;
@@ -207,38 +207,43 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
     {
-        if (rho_only && var_idx != Vars::cons) continue;
+        if (cons_only && var_idx != Vars::cons) continue;
 
         MultiFab& mf = mfs[var_idx].get();
-        const int icomp = 0;
-        int ncomp = mf.nComp();
-
-        if (rho_only && var_idx == Vars::cons) ncomp = 1;
 
         IntVect ngvect;
+        int icomp, ncomp;
         if (var_idx == Vars::cons)
         {
             bccomp = 0;
             mapper = &cell_cons_interp;
             ngvect = IntVect(ng_cons,ng_cons,ng_cons);
+            icomp  = scomp_cons;
+            ncomp  = ncomp_cons;
         }
         else if (var_idx == Vars::xvel)
         {
             bccomp = NVAR;
             mapper = &face_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,ng_vel);
+            icomp  = 0;
+            ncomp  = 1;
         }
         else if (var_idx == Vars::yvel)
         {
             bccomp = NVAR+1;
             mapper = &face_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,ng_vel);
+            icomp  = 0;
+            ncomp  = 1;
         }
         else if (var_idx == Vars::zvel)
         {
             bccomp = NVAR+2;
             mapper = &face_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,0);
+            icomp  = 0;
+            ncomp  = 1;
         }
 
         if (lev == 0)
@@ -300,7 +305,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
     // It is important that we apply the MOST bcs after we have imposed all the others
     //    so that we have enough information in the ghost cells to calculate the viscosity
     //
-    if (!rho_only && m_most)
+    if (!(cons_only && ncomp_cons == 1) && m_most)
     {
         MultiFab eddyDiffs(mfs[Vars::cons].get().boxArray(),
                            mfs[Vars::cons].get().DistributionMap(),
