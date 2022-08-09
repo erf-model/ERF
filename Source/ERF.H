@@ -455,7 +455,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
-    
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sst;
 
     amrex::Vector<amrex::MultiFab> pres_hse;
