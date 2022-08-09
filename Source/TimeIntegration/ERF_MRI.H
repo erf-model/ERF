@@ -186,10 +186,9 @@ public:
                 Array4<Real>* sold = sold_d.dataPtr();
                 Array4<Real>* snew = snew_d.dataPtr();
 
-                ParallelFor(gbx,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    for (int n = 0; n < Cons::NumVars; ++n)
-                        snew[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
+                ParallelFor(gbx, Cons::NumVars,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                    snew[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
                 });
 
                 ParallelFor(gtbx, gtby, gtbz,
@@ -203,18 +202,18 @@ public:
                     snew[IntVar::zmom](i,j,k) = sold[IntVar::zmom](i,j,k);
                 });
 
-                ParallelFor(gfbx, gfby, gfbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    for (int n = 0; n < Cons::NumVars; ++n)
-                        snew[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
+                ParallelFor(
+                gfbx, Cons::NumVars,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                    snew[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
                 },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    for (int n = 0; n < Cons::NumVars; ++n)
-                        snew[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
+                gfby, Cons::NumVars,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                    snew[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
                 },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    for (int n = 0; n < Cons::NumVars; ++n)
-                        snew[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
+                gfbz, Cons::NumVars,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                    snew[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
                 });
             }
         }
@@ -328,66 +327,55 @@ public:
                     Array4<Real>* ssum = ssum_d.dataPtr();
                     Array4<Real>* scrh = scrh_d.dataPtr();
 
-                    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        for (int n = scomp_fast[IntVar::cons]; n < scomp_fast[IntVar::cons] + ncomp_fast[IntVar::cons]; ++n) {
+                    ParallelFor(gbx, Cons::NumVars,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                        if (n >= scomp_fast[IntVar::cons] && n < scomp_fast[IntVar::cons] + ncomp_fast[IntVar::cons]) {
                             ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
                         }
-                        for (int n = scomp_slow[IntVar::cons]; n < scomp_slow[IntVar::cons] + ncomp_slow[IntVar::cons]; ++n) {
+                        if (n >= scomp_slow[IntVar::cons] && n < scomp_slow[IntVar::cons] + ncomp_slow[IntVar::cons]) {
                             ssum[IntVar::cons](i,j,k,n) = snew[IntVar::cons](i,j,k,n);
                         }
-                        for (int n = scomp_rth[IntVar::cons]; n < scomp_rth[IntVar::cons] + ncomp_rth[IntVar::cons]; ++n) {
+                        if (n >= scomp_rth[IntVar::cons] && n < scomp_rth[IntVar::cons] + ncomp_rth[IntVar::cons]) {
                             scrh[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
                         }
                     });
 
                     ParallelFor(gtbx, gtby, gtbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_fast[IntVar::xmom]; n < scomp_fast[IntVar::xmom] + ncomp_fast[IntVar::xmom]; ++n) {
-                            ssum[IntVar::xmom](i,j,k,n) = sold[IntVar::xmom](i,j,k,n);
-                        }
-                        for (int n = scomp_slow[IntVar::xmom]; n < scomp_slow[IntVar::xmom] + ncomp_slow[IntVar::xmom]; ++n) {
-                            ssum[IntVar::xmom](i,j,k,n) = snew[IntVar::xmom](i,j,k,n);
-                        }
+                        ssum[IntVar::xmom](i,j,k) = sold[IntVar::xmom](i,j,k);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_fast[IntVar::ymom]; n < scomp_fast[IntVar::ymom] + ncomp_fast[IntVar::ymom]; ++n) {
-                            ssum[IntVar::ymom](i,j,k,n) = sold[IntVar::ymom](i,j,k,n);
-                        }
-                        for (int n = scomp_slow[IntVar::ymom]; n < scomp_slow[IntVar::ymom] + ncomp_slow[IntVar::ymom]; ++n) {
-                            ssum[IntVar::ymom](i,j,k,n) = snew[IntVar::ymom](i,j,k,n);
-                        }
+                        ssum[IntVar::ymom](i,j,k) = sold[IntVar::ymom](i,j,k);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_fast[IntVar::zmom]; n < scomp_fast[IntVar::zmom] + ncomp_fast[IntVar::zmom]; ++n) {
-                            ssum[IntVar::zmom](i,j,k,n) = sold[IntVar::zmom](i,j,k,n);
-                        }
-                        for (int n = scomp_slow[IntVar::zmom]; n < scomp_slow[IntVar::zmom] + ncomp_slow[IntVar::zmom]; ++n) {
-                            ssum[IntVar::zmom](i,j,k,n) = snew[IntVar::zmom](i,j,k,n);
-                        }
+                        ssum[IntVar::zmom](i,j,k) = sold[IntVar::zmom](i,j,k);
                     });
 
-                    ParallelFor(gfbx, gfby, gfbz,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_fast[IntVar::xflux]; n < scomp_fast[IntVar::xflux] + ncomp_fast[IntVar::xflux]; ++n) {
+                    ParallelFor(
+                    gfbx, Cons::NumVars,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                        if (n >= scomp_fast[IntVar::xflux] && n < scomp_fast[IntVar::xflux] + ncomp_fast[IntVar::xflux]) {
                             ssum[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
                         }
-                        for (int n = scomp_slow[IntVar::xflux]; n < scomp_slow[IntVar::xflux] + ncomp_slow[IntVar::xflux]; ++n) {
+                        if (n >= scomp_slow[IntVar::xflux] && n < scomp_slow[IntVar::xflux] + ncomp_slow[IntVar::xflux]) {
                             ssum[IntVar::xflux](i,j,k,n) = snew[IntVar::xflux](i,j,k,n);
                         }
                     },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_fast[IntVar::yflux]; n < scomp_fast[IntVar::yflux] + ncomp_fast[IntVar::yflux]; ++n) {
+                    gfby, Cons::NumVars, 
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                        if (n >= scomp_fast[IntVar::yflux] && n < scomp_fast[IntVar::yflux] + ncomp_fast[IntVar::yflux]) {
                             ssum[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
                         }
-                        for (int n = scomp_slow[IntVar::yflux]; n < scomp_slow[IntVar::yflux] + ncomp_slow[IntVar::yflux]; ++n) {
+                        if (n >= scomp_slow[IntVar::yflux] && n < scomp_slow[IntVar::yflux] + ncomp_slow[IntVar::yflux]) {
                             ssum[IntVar::yflux](i,j,k,n) = snew[IntVar::yflux](i,j,k,n);
                         }
                     },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_fast[IntVar::zflux]; n < scomp_fast[IntVar::zflux] + ncomp_fast[IntVar::zflux]; ++n) {
+                    gfbz, Cons::NumVars,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+                        if (n >= scomp_fast[IntVar::zflux] && n < scomp_fast[IntVar::zflux] + ncomp_fast[IntVar::zflux]) {
                             ssum[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
                         }
-                        for (int n = scomp_slow[IntVar::zflux]; n < scomp_slow[IntVar::zflux] + ncomp_slow[IntVar::zflux]; ++n) {
+                        if (n >= scomp_slow[IntVar::zflux] && n < scomp_slow[IntVar::zflux] + ncomp_slow[IntVar::zflux]) {
                             ssum[IntVar::zflux](i,j,k,n) = snew[IntVar::zflux](i,j,k,n);
                         }
                     });
@@ -443,51 +431,45 @@ public:
                         Array4<Real>* fslow = fslow_d.dataPtr();
                         Array4<Real>* fpert = fpert_d.dataPtr();
 
-                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                            for (int n = scomp_fast[IntVar::cons]; n < scomp_fast[IntVar::cons] + ncomp_fast[IntVar::cons]; ++n) {
-                                ssum[IntVar::cons](i,j,k,n) += dtau * fslow[IntVar::cons](i,j,k,n);
-                                ssum[IntVar::cons](i,j,k,n) += dtau * fpert[IntVar::cons](i,j,k,n);
-                            }
+                        ParallelFor(bx, ncomp_fast[IntVar::cons],
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
+                            const int n = scomp_fast[IntVar::cons] + nn;
+                            ssum[IntVar::cons](i,j,k,n) += dtau * fslow[IntVar::cons](i,j,k,n);
+                            ssum[IntVar::cons](i,j,k,n) += dtau * fpert[IntVar::cons](i,j,k,n);
                         });
 
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            for (int n = scomp_fast[IntVar::xmom]; n < scomp_fast[IntVar::xmom] + ncomp_fast[IntVar::xmom]; ++n) {
-                                ssum[IntVar::xmom](i,j,k,n) += dtau * fslow[IntVar::xmom](i,j,k,n);
-                                ssum[IntVar::xmom](i,j,k,n) += dtau * fpert[IntVar::xmom](i,j,k,n);
-                            }
+                            ssum[IntVar::xmom](i,j,k) += dtau * fslow[IntVar::xmom](i,j,k);
+                            ssum[IntVar::xmom](i,j,k) += dtau * fpert[IntVar::xmom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            for (int n = scomp_fast[IntVar::ymom]; n < scomp_fast[IntVar::ymom] + ncomp_fast[IntVar::ymom]; ++n) {
-                                ssum[IntVar::ymom](i,j,k,n) += dtau * fslow[IntVar::ymom](i,j,k,n);
-                                ssum[IntVar::ymom](i,j,k,n) += dtau * fpert[IntVar::ymom](i,j,k,n);
-                            }
+                            ssum[IntVar::ymom](i,j,k) += dtau * fslow[IntVar::ymom](i,j,k);
+                            ssum[IntVar::ymom](i,j,k) += dtau * fpert[IntVar::ymom](i,j,k);
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            for (int n = scomp_fast[IntVar::zmom]; n < scomp_fast[IntVar::zmom] + ncomp_fast[IntVar::zmom]; ++n) {
-                                ssum[IntVar::zmom](i,j,k,n) += dtau * fslow[IntVar::zmom](i,j,k,n);
-                                ssum[IntVar::zmom](i,j,k,n) += dtau * fpert[IntVar::zmom](i,j,k,n);
-                            }
+                            ssum[IntVar::zmom](i,j,k) += dtau * fslow[IntVar::zmom](i,j,k);
+                            ssum[IntVar::zmom](i,j,k) += dtau * fpert[IntVar::zmom](i,j,k);
                         });
 
-                        ParallelFor(tbx, tby, tbz,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            for (int n = scomp_fast[IntVar::xflux]; n < scomp_fast[IntVar::xflux] + ncomp_fast[IntVar::xflux]; ++n) {
-                                ssum[IntVar::xflux](i,j,k,n) += dtau * fslow[IntVar::xflux](i,j,k,n);
-                                ssum[IntVar::xflux](i,j,k,n) += dtau * fpert[IntVar::xflux](i,j,k,n);
-                            }
+                        ParallelFor(
+                        tbx, ncomp_fast[IntVar::xflux],
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                            const int n = scomp_fast[IntVar::xflux] + nn;
+                            ssum[IntVar::xflux](i,j,k,n) += dtau * fslow[IntVar::xflux](i,j,k,n);
+                            ssum[IntVar::xflux](i,j,k,n) += dtau * fpert[IntVar::xflux](i,j,k,n);
                         },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            for (int n = scomp_fast[IntVar::yflux]; n < scomp_fast[IntVar::yflux] + ncomp_fast[IntVar::yflux]; ++n) {
-                                ssum[IntVar::yflux](i,j,k,n) += dtau * fslow[IntVar::yflux](i,j,k,n);
-                                ssum[IntVar::yflux](i,j,k,n) += dtau * fpert[IntVar::yflux](i,j,k,n);
-                            }
+                        tby, ncomp_fast[IntVar::yflux],
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                            const int n = scomp_fast[IntVar::yflux] + nn;
+                            ssum[IntVar::yflux](i,j,k,n) += dtau * fslow[IntVar::yflux](i,j,k,n);
+                            ssum[IntVar::yflux](i,j,k,n) += dtau * fpert[IntVar::yflux](i,j,k,n);
                         },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            for (int n = scomp_fast[IntVar::zflux]; n < scomp_fast[IntVar::zflux] + ncomp_fast[IntVar::zflux]; ++n) {
-                                ssum[IntVar::zflux](i,j,k,n) += dtau * fslow[IntVar::zflux](i,j,k,n);
-                                ssum[IntVar::zflux](i,j,k,n) += dtau * fpert[IntVar::zflux](i,j,k,n);
-                            }
+                        tbz, ncomp_fast[IntVar::zflux],
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                            const int n = scomp_fast[IntVar::zflux] + nn;
+                            ssum[IntVar::zflux](i,j,k,n) += dtau * fslow[IntVar::zflux](i,j,k,n);
+                            ssum[IntVar::zflux](i,j,k,n) += dtau * fpert[IntVar::zflux](i,j,k,n);
                         });
                     }
                 }
@@ -555,79 +537,69 @@ public:
                     Array4<Real>* ssum = ssum_d.dataPtr();
                     Array4<Real>* fslow = fslow_d.dataPtr();
 
-                    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        for (int n = scomp_slow[IntVar::cons]; n < scomp_slow[IntVar::cons] + ncomp_slow[IntVar::cons]; ++n) {
-                            ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                            if (bx.contains(i,j,k))
-                                ssum[IntVar::cons](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::cons](i,j,k,n);
-                        }
-                        for (int n = scomp_all[IntVar::cons]; n < scomp_all[IntVar::cons] + ncomp_all[IntVar::cons]; ++n) {
-                            snew[IntVar::cons](i,j,k,n) = ssum[IntVar::cons](i,j,k,n);
-                        }
+                    ParallelFor(gbx, ncomp_slow[IntVar::cons],
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = scomp_slow[IntVar::cons] + nn;
+                        ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
+                        if (bx.contains(i,j,k))
+                            ssum[IntVar::cons](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::cons](i,j,k,n);
+                    });
+
+                    ParallelFor(gbx, ncomp_all[IntVar::cons],
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = scomp_all[IntVar::cons] + nn;
+                        snew[IntVar::cons](i,j,k,n) = ssum[IntVar::cons](i,j,k,n);
                     });
 
                     ParallelFor(gtbx, gtby, gtbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_slow[IntVar::xmom]; n < scomp_slow[IntVar::xmom] + ncomp_slow[IntVar::xmom]; ++n) {
-                            ssum[IntVar::xmom](i,j,k,n) = sold[IntVar::xmom](i,j,k,n);
-                            if (tbx.contains(i,j,k))
-                                ssum[IntVar::xmom](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::xmom](i,j,k,n);
-                        }
-                        for (int n = scomp_all[IntVar::xmom]; n < scomp_all[IntVar::xmom] + ncomp_all[IntVar::xmom]; ++n) {
-                            snew[IntVar::xmom](i,j,k,n) = ssum[IntVar::xmom](i,j,k,n);
-                        }
+                        snew[IntVar::xmom](i,j,k) = ssum[IntVar::xmom](i,j,k);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_slow[IntVar::ymom]; n < scomp_slow[IntVar::ymom] + ncomp_slow[IntVar::ymom]; ++n) {
-                            ssum[IntVar::ymom](i,j,k,n) = sold[IntVar::ymom](i,j,k,n);
-                            if (tby.contains(i,j,k))
-                                ssum[IntVar::ymom](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::ymom](i,j,k,n);
-                        }
-                        for (int n = scomp_all[IntVar::ymom]; n < scomp_all[IntVar::ymom] + ncomp_all[IntVar::ymom]; ++n) {
-                            snew[IntVar::ymom](i,j,k,n) = ssum[IntVar::ymom](i,j,k,n);
-                        }
+                        snew[IntVar::ymom](i,j,k) = ssum[IntVar::ymom](i,j,k);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_slow[IntVar::zmom]; n < scomp_slow[IntVar::zmom] + ncomp_slow[IntVar::zmom]; ++n) {
-                            ssum[IntVar::zmom](i,j,k,n) = sold[IntVar::zmom](i,j,k,n);
-                            if (tbz.contains(i,j,k))
-                                ssum[IntVar::zmom](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::zmom](i,j,k,n);
-                        }
-                        for (int n = scomp_all[IntVar::zmom]; n < scomp_all[IntVar::zmom] + ncomp_all[IntVar::zmom]; ++n) {
-                            snew[IntVar::zmom](i,j,k,n) = ssum[IntVar::zmom](i,j,k,n);
-                        }
+                        snew[IntVar::zmom](i,j,k) = ssum[IntVar::zmom](i,j,k);
                     });
 
-                    ParallelFor(gfbx, gfby, gfbz,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_slow[IntVar::xflux]; n < scomp_slow[IntVar::xflux] + ncomp_slow[IntVar::xflux]; ++n) {
-                            ssum[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
-                            if (tbx.contains(i,j,k))
-                                ssum[IntVar::xflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::xflux](i,j,k,n);
-                        }
-                        for (int n = scomp_all[IntVar::xflux]; n < scomp_all[IntVar::xflux] + ncomp_all[IntVar::xflux]; ++n) {
-                            snew[IntVar::xflux](i,j,k,n) = ssum[IntVar::xflux](i,j,k,n);
-                        }
+                    ParallelFor(
+                    gfbx, ncomp_slow[IntVar::xflux],
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = scomp_slow[IntVar::xflux] + nn;
+                        ssum[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
+                        if (tbx.contains(i,j,k))
+                            ssum[IntVar::xflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::xflux](i,j,k,n);
                     },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_slow[IntVar::yflux]; n < scomp_slow[IntVar::yflux] + ncomp_slow[IntVar::yflux]; ++n) {
-                            ssum[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
-                            if (tby.contains(i,j,k))
-                                ssum[IntVar::yflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::yflux](i,j,k,n);
-                        }
-                        for (int n = scomp_all[IntVar::yflux]; n < scomp_all[IntVar::yflux] + ncomp_all[IntVar::yflux]; ++n) {
-                            snew[IntVar::yflux](i,j,k,n) = ssum[IntVar::yflux](i,j,k,n);
-                        }
+                    gfby, ncomp_slow[IntVar::yflux],
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = scomp_slow[IntVar::yflux] + nn;
+                        ssum[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
+                        if (tby.contains(i,j,k))
+                            ssum[IntVar::yflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::yflux](i,j,k,n);
                     },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        for (int n = scomp_slow[IntVar::zflux]; n < scomp_slow[IntVar::zflux] + ncomp_slow[IntVar::zflux]; ++n) {
-                            ssum[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
-                            if (tbz.contains(i,j,k))
-                                ssum[IntVar::zflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::zflux](i,j,k,n);
-                        }
-                        for (int n = scomp_all[IntVar::zflux]; n < scomp_all[IntVar::zflux] + ncomp_all[IntVar::zflux]; ++n) {
-                            snew[IntVar::zflux](i,j,k,n) = ssum[IntVar::zflux](i,j,k,n);
-                        }
+                    gfbz, ncomp_slow[IntVar::zflux],
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = scomp_slow[IntVar::zflux] + nn;
+                        ssum[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
+                        if (tbz.contains(i,j,k))
+                            ssum[IntVar::zflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::zflux](i,j,k,n);
+                    });
+
+                    ParallelFor(
+                    gfbx, ncomp_all[IntVar::xflux],
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = scomp_all[IntVar::xflux] + nn;
+                        snew[IntVar::xflux](i,j,k,n) = ssum[IntVar::xflux](i,j,k,n);
+                    },
+                    gfby, ncomp_all[IntVar::yflux],
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = scomp_all[IntVar::yflux] + nn;
+                        snew[IntVar::yflux](i,j,k,n) = ssum[IntVar::yflux](i,j,k,n);
+                    },
+                    gfbz, ncomp_all[IntVar::zflux],
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                        const int n = scomp_all[IntVar::zflux] + nn;
+                        snew[IntVar::zflux](i,j,k,n) = ssum[IntVar::zflux](i,j,k,n);
                     });
                 }
             }
