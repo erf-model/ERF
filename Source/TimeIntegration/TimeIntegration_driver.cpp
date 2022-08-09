@@ -120,7 +120,7 @@ void ERF::erf_advance(int level,
     //  before every subsequent stage.  Since we advance the variables in conservative form,
     //  we must convert momentum to velocity before imposing the bcs.
     // ***************************************************************************************
-    auto apply_bcs = [&](Vector<MultiFab>& S_data, const Real time_for_fp, int ng_cons, int ng_vel)
+    auto apply_bcs = [&](Vector<MultiFab>& S_data, const Real time_for_fp, int ng_cons, int ng_vel, bool fast_only)
     {
         amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
         amrex::Array<MultiFab*,3> fmf{&S_data[IntVar::xmom],
@@ -142,9 +142,11 @@ void ERF::erf_advance(int level,
         //     2) physical boundaries
         //     3) other grids at the same level
         // ***************************************************************************************
-        bool rho_only = true;
+        int scomp_cons = 0;
+        int ncomp_cons = 1;
+        bool cons_only = true;
         FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
-                              ng_cons, 0, rho_only);
+                              ng_cons, 0, cons_only, scomp_cons, ncomp_cons);
 
         // Here we don't use include any of the ghost region because we have only updated
         //      momentum on valid faces
@@ -163,8 +165,15 @@ void ERF::erf_advance(int level,
         //     2) physical boundaries
         //     3) other grids at the same level
         // ***************************************************************************************
+        scomp_cons = 0;
+        if (fast_only) {
+            ncomp_cons = 2; // rho and (rho theta)
+        } else {
+            ncomp_cons = S_data[IntVar::cons].nComp();
+        }
+        cons_only = false;
         FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
-                              ng_cons, ng_vel);
+                              ng_cons, ng_vel, cons_only, scomp_cons, ncomp_cons);
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density
@@ -177,7 +186,8 @@ void ERF::erf_advance(int level,
                            S_data[IntVar::zmom]);
     };
 
-    apply_bcs(state_old, old_time, state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow());
+    bool fast_only = false;
+    apply_bcs(state_old, old_time, state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only);
     cons_to_prim(state_old[IntVar::cons], S_prim, state_old[IntVar::cons].nGrow());
 
     //Create function lambdas
@@ -213,22 +223,22 @@ void ERF::erf_advance(int level,
 
     auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp, int ng_cons, int ng_vel)
     {
-        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel);
+        bool fast_only = false;
+        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only);
         cons_to_prim(S_data[IntVar::cons], S_prim, ng_cons);
     };
 
     auto post_substep_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp, int ng_cons, int ng_vel)
     {
-        // TODO: we only need to apply bcs for the "fast" variables -- this would be an optimization
-        //       but shouldn't affect correctness
-        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel);
+        bool fast_only = true;
+        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only);
     };
 
     // ***************************************************************************************
     // Setup the integrator and integrate for a single timestep
     // **************************************************************************************
     if (use_native_mri) {
-      MRISplitIntegrator<Vector<MultiFab> > mri_integrator(state_old);
+      MRISplitIntegrator<Vector<MultiFab> >& mri_integrator = *mri_integrator_mem[level];
 
       // Define rhs and 'post update' utility function that is called after calculating
       // any state data (e.g. at RK stages or at the end of a timestep)
@@ -242,7 +252,7 @@ void ERF::erf_advance(int level,
       mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
     } else {
-      SRIIntegrator<Vector<MultiFab> > sri_integrator(state_old);
+      SRIIntegrator<Vector<MultiFab> >& sri_integrator = *sri_integrator_mem[level];
 
       sri_integrator.set_rhs(slow_rhs_fun);
       sri_integrator.set_post_update(post_update_fun);

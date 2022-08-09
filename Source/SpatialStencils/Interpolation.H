@@ -46,7 +46,7 @@ InterpolateFromCellOrFace(
 
     // The value that comes in has not been normalized so we do that here
     if (upw != 0.)
-        scaled_upw = upw / std::abs(upw);
+      scaled_upw = (upw > 0) ? 1. : -1.;
 
     if (coordDir ==  Coord::x) {
         avg1  = (qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index));
