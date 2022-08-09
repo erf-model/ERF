@@ -201,6 +201,7 @@ public:
                             amrex::Vector<amrex::FArrayBox>& NC_MUB_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab, amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_SST_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
 
@@ -454,6 +455,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
+    
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sst;
 
     amrex::Vector<amrex::MultiFab> pres_hse;
     amrex::Vector<amrex::MultiFab> dens_hse;

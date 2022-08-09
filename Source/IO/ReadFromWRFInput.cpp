@@ -12,6 +12,7 @@ ERF::read_from_wrfinput(int lev, int idx,
                         Vector<FArrayBox>& NC_MUB_fab ,
                         Vector<FArrayBox>& NC_MSFU_fab, Vector<FArrayBox>& NC_MSFV_fab,
                         Vector<FArrayBox>& NC_MSFM_fab,
+                        Vector<FArrayBox>& NC_SST_fab,
                         Vector<FArrayBox>& NC_C1H_fab , Vector<FArrayBox>& NC_C2H_fab,
                         Vector<FArrayBox>& NC_PH_fab, Vector<FArrayBox>& NC_PHB_fab)
 {
@@ -35,6 +36,8 @@ ERF::read_from_wrfinput(int lev, int idx,
     Box msfvbx(vbx);       msfvbx.setRange(2,0);
     Box msfmbx(input_box); msfmbx.setRange(2,0);
 
+    Box sstbx(input_box); msfmbx.setRange(2,0); //same size as msfmbx
+
     // These are all 3D arrays
     NC_xvel_fab[idx].resize(ubx,1);
     NC_yvel_fab[idx].resize(vbx,1);
@@ -51,6 +54,7 @@ ERF::read_from_wrfinput(int lev, int idx,
     NC_MSFU_fab[idx].resize(msfubx,1);
     NC_MSFV_fab[idx].resize(msfvbx,1);
     NC_MSFM_fab[idx].resize(msfmbx,1);
+    NC_SST_fab[idx].resize(msfmbx,1);
 
     // These are 1D (z) arrays
     NC_C1H_fab[idx].resize(zbx,1);
@@ -69,6 +73,7 @@ ERF::read_from_wrfinput(int lev, int idx,
         FArrayBox host_NC_MSFU_fab(NC_MSFU_fab[idx].box(), NC_MSFU_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_MSFV_fab(NC_MSFV_fab[idx].box(), NC_MSFV_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_MSFM_fab(NC_MSFM_fab[idx].box(), NC_MSFM_fab[idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_SST_fab(NC_SST_fab[idx].box(), NC_SST_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_C1H_fab (NC_C1H_fab[idx].box(),  NC_C1H_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_C2H_fab (NC_C2H_fab[idx].box(),  NC_C2H_fab[idx].nComp(),amrex::The_Pinned_Arena());
 #else
@@ -84,6 +89,7 @@ ERF::read_from_wrfinput(int lev, int idx,
         FArrayBox host_NC_MSFU_fab    (NC_MSFU_fab[idx]    , amrex::make_alias, 0, NC_MSFU_fab[idx].nComp());
         FArrayBox host_NC_MSFV_fab    (NC_MSFV_fab[idx]    , amrex::make_alias, 0, NC_MSFV_fab[idx].nComp());
         FArrayBox host_NC_MSFM_fab    (NC_MSFM_fab[idx]    , amrex::make_alias, 0, NC_MSFM_fab[idx].nComp());
+        FArrayBox host_NC_SST_fab     (NC_SST_fab[idx]     , amrex::make_alias, 0, NC_SST_fab[idx].nComp());
         FArrayBox host_NC_C1H_fab     (NC_C1H_fab[idx]     , amrex::make_alias, 0, NC_C1H_fab[idx].nComp());
         FArrayBox host_NC_C2H_fab     (NC_C2H_fab[idx]     , amrex::make_alias, 0, NC_C2H_fab[idx].nComp());
 #endif
@@ -106,6 +112,7 @@ ERF::read_from_wrfinput(int lev, int idx,
             NC_fabs.push_back(&host_NC_MSFU_fab);      NC_names.push_back("MAPFAC_UY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
             NC_fabs.push_back(&host_NC_MSFV_fab);      NC_names.push_back("MAPFAC_VY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
             NC_fabs.push_back(&host_NC_MSFM_fab);      NC_names.push_back("MAPFAC_MY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+            NC_fabs.push_back(&host_NC_SST_fab);       NC_names.push_back("SST"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); //SST NOTE: Data dims type?
             NC_fabs.push_back(&host_NC_C1H_fab);       NC_names.push_back("C1H"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);
             NC_fabs.push_back(&host_NC_C2H_fab);       NC_names.push_back("C2H"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);
 
@@ -135,6 +142,7 @@ ERF::read_from_wrfinput(int lev, int idx,
         ParallelDescriptor::Bcast(host_NC_MSFU_fab.dataPtr(),NC_MSFU_fab[idx].box().numPts() ,ioproc);
         ParallelDescriptor::Bcast(host_NC_MSFV_fab.dataPtr(),NC_MSFV_fab[idx].box().numPts() ,ioproc);
         ParallelDescriptor::Bcast(host_NC_MSFM_fab.dataPtr(),NC_MSFM_fab[idx].box().numPts() ,ioproc);
+        ParallelDescriptor::Bcast(host_NC_SST_fab.dataPtr() ,NC_SST_fab[idx].box().numPts() ,ioproc);
         ParallelDescriptor::Bcast(host_NC_C1H_fab.dataPtr() ,NC_C1H_fab[idx].box().numPts() ,ioproc);
         ParallelDescriptor::Bcast(host_NC_C2H_fab.dataPtr() ,NC_C2H_fab[idx].box().numPts() ,ioproc);
 
@@ -163,6 +171,8 @@ ERF::read_from_wrfinput(int lev, int idx,
                                            NC_MSFV_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_MSFM_fab.dataPtr(), host_NC_MSFM_fab.dataPtr()+host_NC_MSFM_fab.size(),
                                            NC_MSFM_fab[idx].dataPtr());
+         Gpu::copy(Gpu::hostToDevice, host_NC_SST_fab.dataPtr(), host_NC_SST_fab.dataPtr()+host_NC_SST_fab.size(),
+                                           NC_SST_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_C1H_fab.dataPtr(), host_NC_C1H_fab.dataPtr()+host_NC_C1H_fab.size(),
                                            NC_C1H_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_C2H_fab.dataPtr(), host_NC_C2H_fab.dataPtr()+host_NC_C2H_fab.size(),
