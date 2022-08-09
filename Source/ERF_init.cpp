@@ -44,6 +44,7 @@ ERF::init_from_wrfinput(int lev)
     Vector<FArrayBox> NC_MSFU_fab ; NC_MSFU_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_MSFV_fab ; NC_MSFV_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_MSFM_fab ; NC_MSFM_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_SST_fab  ; NC_SST_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C1H_fab  ; NC_C1H_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C2H_fab  ; NC_C2H_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PH_fab   ; NC_PH_fab.resize(num_boxes_at_level[lev]);
@@ -57,6 +58,7 @@ ERF::init_from_wrfinput(int lev)
         read_from_wrfinput(lev,idx,NC_xvel_fab,NC_yvel_fab,NC_zvel_fab,NC_rho_fab,
                            NC_rhop_fab,NC_rhoth_fab,NC_MUB_fab,
                            NC_MSFU_fab,NC_MSFV_fab,NC_MSFM_fab,
+                           NC_SST_fab,
                            NC_C1H_fab,NC_C2H_fab,NC_PH_fab,NC_PHB_fab);
     }
 
