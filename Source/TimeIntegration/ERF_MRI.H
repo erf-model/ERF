@@ -186,7 +186,7 @@ public:
                 Array4<Real>* sold = sold_d.dataPtr();
                 Array4<Real>* snew = snew_d.dataPtr();
 
-                ParallelFor(gbx, Cons::NumVars,
+                ParallelFor(gbx, static_cast<int>(Cons::NumVars),
                 [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                     snew[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
                 });
@@ -203,15 +203,15 @@ public:
                 });
 
                 ParallelFor(
-                gfbx, Cons::NumVars,
+                gfbx, static_cast<int>(Cons::NumVars),
                 [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
                     snew[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
                 },
-                gfby, Cons::NumVars,
+                gfby, static_cast<int>(Cons::NumVars),
                 [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
                     snew[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
                 },
-                gfbz, Cons::NumVars,
+                gfbz, static_cast<int>(Cons::NumVars),
                 [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
                     snew[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
                 });
@@ -327,7 +327,7 @@ public:
                     Array4<Real>* ssum = ssum_d.dataPtr();
                     Array4<Real>* scrh = scrh_d.dataPtr();
 
-                    ParallelFor(gbx, Cons::NumVars,
+                    ParallelFor(gbx, static_cast<int>(Cons::NumVars),
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                         if (n >= scomp_fast[IntVar::cons] && n < scomp_fast[IntVar::cons] + ncomp_fast[IntVar::cons]) {
                             ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
@@ -352,7 +352,7 @@ public:
                     });
 
                     ParallelFor(
-                    gfbx, Cons::NumVars,
+                    gfbx, static_cast<int>(Cons::NumVars),
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
                         if (n >= scomp_fast[IntVar::xflux] && n < scomp_fast[IntVar::xflux] + ncomp_fast[IntVar::xflux]) {
                             ssum[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
@@ -361,7 +361,7 @@ public:
                             ssum[IntVar::xflux](i,j,k,n) = snew[IntVar::xflux](i,j,k,n);
                         }
                     },
-                    gfby, Cons::NumVars, 
+                    gfby, static_cast<int>(Cons::NumVars), 
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
                         if (n >= scomp_fast[IntVar::yflux] && n < scomp_fast[IntVar::yflux] + ncomp_fast[IntVar::yflux]) {
                             ssum[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
@@ -370,7 +370,7 @@ public:
                             ssum[IntVar::yflux](i,j,k,n) = snew[IntVar::yflux](i,j,k,n);
                         }
                     },
-                    gfbz, Cons::NumVars,
+                    gfbz, static_cast<int>(Cons::NumVars),
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
                         if (n >= scomp_fast[IntVar::zflux] && n < scomp_fast[IntVar::zflux] + ncomp_fast[IntVar::zflux]) {
                             ssum[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
