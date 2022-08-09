@@ -361,7 +361,7 @@ public:
                             ssum[IntVar::xflux](i,j,k,n) = snew[IntVar::xflux](i,j,k,n);
                         }
                     },
-                    gfby, static_cast<int>(Cons::NumVars), 
+                    gfby, static_cast<int>(Cons::NumVars),
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
                         if (n >= scomp_fast[IntVar::yflux] && n < scomp_fast[IntVar::yflux] + ncomp_fast[IntVar::yflux]) {
                             ssum[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
