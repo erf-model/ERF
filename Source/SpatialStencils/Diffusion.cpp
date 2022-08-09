@@ -674,17 +674,6 @@ DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int qty_ind
       });
       amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
-
-          // TODO : could be more efficient to compute and save all fluxes before taking divergence (now all fluxes are computed 2x);
-          xflux(i+1,j,k,qty_index) = ComputeDiffusionFluxForState(i+1, j  , k  , cell_data, cell_prim, prim_index, dx_inv, K_turb, solverChoice, Coord::x);
-          xflux(i  ,j,k,qty_index) = ComputeDiffusionFluxForState(i  , j  , k  , cell_data, cell_prim, prim_index, dx_inv, K_turb, solverChoice, Coord::x);
-
-          yflux(i,j+1,k,qty_index) = ComputeDiffusionFluxForState(i  , j+1, k  , cell_data, cell_prim, prim_index, dy_inv, K_turb, solverChoice, Coord::y);
-          yflux(i,j  ,k,qty_index) = ComputeDiffusionFluxForState(i  , j  , k  , cell_data, cell_prim, prim_index, dy_inv, K_turb, solverChoice, Coord::y);
-
-          zflux(i,j,k+1,qty_index) = ComputeDiffusionFluxForState(i  , j  , k+1, cell_data, cell_prim, prim_index, dz_inv, K_turb, solverChoice, Coord::z);
-          zflux(i,j,k  ,qty_index) = ComputeDiffusionFluxForState(i  , j  , k  , cell_data, cell_prim, prim_index, dz_inv, K_turb, solverChoice, Coord::z);
-
           cell_rhs(i, j, k, qty_index) +=
                (xflux(i+1,j  ,k  ,qty_index) - xflux(i, j, k, qty_index)) * dx_inv   // Diffusive flux in x-dir
               +(yflux(i  ,j+1,k  ,qty_index) - yflux(i, j, k, qty_index)) * dy_inv   // Diffusive flux in y-dir
