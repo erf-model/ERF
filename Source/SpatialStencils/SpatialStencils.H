@@ -5,8 +5,10 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_InterpFaceRegister.H>
-#include "DataStruct.H"
-#include "IndexDefines.H"
+#include <DataStruct.H>
+#include <IndexDefines.H>
+#include <ABLMost.H>
+#include <PBLModels.H>
 
 void MomentumToVelocity(amrex::MultiFab& xvel_out,
                         const amrex::IntVect& xvel_ngrow,
@@ -146,15 +148,23 @@ amrex::Real ComputeDiffusionFluxForState(
                        const SolverChoice &solverChoice,
                        const enum Coord& coordDir);
 
-AMREX_GPU_DEVICE
-amrex::Real DiffusionSrcForState(
-                       const int &i, const int &j, const int &k,
-                       const amrex::Array4<const amrex::Real>& cell_data,
-                       const amrex::Array4<const amrex::Real>& cell_prim, const int & qty_index,
-                       const amrex::Array4<amrex::Real>& flux_x,
-                       const amrex::Array4<amrex::Real>& flux_y,
-                       const amrex::Array4<amrex::Real>& flux_z,
-                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
-                       const amrex::Array4<amrex::Real>& Ksmag,
-                       const SolverChoice &solverChoice);
+void DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int qty_index,
+                          const amrex::Array4<const amrex::Real>& u,
+                          const amrex::Array4<const amrex::Real>& v,
+                          const amrex::Array4<const amrex::Real>& w,
+                          const amrex::Array4<const amrex::Real>& cell_data,
+                          const amrex::Array4<const amrex::Real>& cell_prim,
+                          const amrex::Array4<const amrex::Real>& source_fab,
+                          const amrex::Array4<amrex::Real>& cell_rhs,
+                          const amrex::Array4<amrex::Real>& xflux,
+                          const amrex::Array4<amrex::Real>& yflux,
+                          const amrex::Array4<amrex::Real>& zflux,
+                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                          const amrex::Array4<amrex::Real>& K_turb,
+                          const SolverChoice &solverChoice,
+                          const amrex::Real& theta_mean,
+                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
+                          const amrex::BCRec* bc_ptr,
+                          const amrex::Real*  dptr_rayleigh_tau,
+                          const amrex::Real*  dptr_rayleigh_thetabar);
 #endif
