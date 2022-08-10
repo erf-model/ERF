@@ -24,6 +24,13 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
   endif()
 
+  if(ERF_ENABLE_MULTIBLOCK)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/MultiBlockContainer.H
+                   ${SRC_DIR}/MultiBlockContainer.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
+  endif()
+
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/NCInterface.H
