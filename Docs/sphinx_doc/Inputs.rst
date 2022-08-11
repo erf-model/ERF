@@ -653,12 +653,14 @@ If **erf.init_type = custom**” or **erf.init_type = input_sounding**”, ``erf
 Terrain Smoothing
 =================
 
-Currently, ERF has 2 methods of controlling the terrain-fitted coordinates:
+Currently, ERF has 3 methods of controlling the terrain-fitted coordinates:
 
 - Basic Terain Following (BTF):
     The influence of the terrain decreases linearly with height.
 - Smoothed Terrain Following (STF):
     Small-scale terrain structures are progressively smoothed out of the coordinate system as height increases.
+- Sullivan Terrain Following (name TBD):
+    The influence of the terrain decreases with the cube of height.
 
 List of Parameters
 ------------------
@@ -668,7 +670,8 @@ List of Parameters
 |                             |                   | Values             |            |
 +=============================+===================+====================+============+
 | **erf.terrain_smoothing**   | specify terrain   | 0,                 | 0          |
-|                             | following         | 1                  |            |
+|                             | following         | 1,                 |            |
+|                             |                   | 2,                 |            |
 +-----------------------------+-------------------+--------------------+------------+
 
 
@@ -680,3 +683,6 @@ Examples of Usage
 
 -  **erf.terrain_smoothing**  = 1
     STF is used when generating the terrain following coordinate.
+
+-  **erf.terrain_smoothing**  = 2
+    Sullivan TF is used when generating the terrain following coordinate.
