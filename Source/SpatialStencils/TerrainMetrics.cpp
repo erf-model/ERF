@@ -256,7 +256,7 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
         } //k
 
         amrex::Gpu::streamSynchronize();
-        
+
         break;
     }
 
