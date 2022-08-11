@@ -6,7 +6,7 @@
 using namespace amrex;
 
 //*****************************************************************************************
-// Compute the terrain grid from BTF or STF model
+// Compute the terrain grid from BTF, STF, or Sullivan TF model
 //
 // NOTE: Multilevel is not yet working for either of these terrain-following coordinates,
 //       but (we think) the issue is deep in ERF and this code will work once the deeper
@@ -258,7 +258,44 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
         amrex::Gpu::streamSynchronize();
 
         break;
-      }
+    }
+
+    case 2: // Sullivan TF Method
+    {
+      int k0    = 0;
+      Real ztop = ProbHiArr[2];
+
+      for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+      {
+          // Grown box with corrected ghost cells at top
+          Box gbx = mfi.growntilebox(ngrow);
+          gbx.setRange(2,domlo_z,domhi_z+1);
+
+          Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+          auto const&         z_lev = z_levels_d.data();
+
+          ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+          {
+              // Vertical grid stretching
+              Real z =  z_lev[k];
+
+              int ii = amrex::max(amrex::min(i,imax),imin);
+              int jj = amrex::max(amrex::min(j,jmax),jmin);
+
+              // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
+              if (k == k0) {
+                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
+                  z_arr(i,j,k0-1) = z_arr(ii,jj,k0) - dx[2];
+              }
+
+              // Fill levels using model from Sullivan et. al. 2014
+              int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
+              z_arr(i,j,k) = z + (std::pow((1. - (z/ztop)),omega) * z_arr(ii,jj,k0));
+          });
+        }
+
+        break;
+    }
   } //switch
 
   // Fill ghost layers and corners (including periodic)
