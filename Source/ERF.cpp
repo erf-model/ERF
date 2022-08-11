@@ -1112,6 +1112,9 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
         vars_old[lev].resize(Vars::NumTypes);
     }
 
+    mri_integrator_mem.resize(nlevs_max);
+    sri_integrator_mem.resize(nlevs_max);
+
     // Multiblock: public domain sizes (need to know which vars are nodal)
     Box nbx;
     domain_p.push_back(geom[0].Domain());
