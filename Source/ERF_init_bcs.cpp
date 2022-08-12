@@ -33,21 +33,21 @@ void ERF::init_bcs ()
         {
             // amrex::Print() << bcid << " set to symmetry.\n";
 
-            phys_bc_type[ori] = BC::symmetry;
+            phys_bc_type[ori] = ERF_BC::symmetry;
             domain_bc_type[ori] = "Symmetry";
         }
         else if (bc_type == "outflow")
         {
             // amrex::Print() << bcid << " set to outflow.\n";
 
-            phys_bc_type[ori] = BC::outflow;
+            phys_bc_type[ori] = ERF_BC::outflow;
             domain_bc_type[ori] = "Outflow";
         }
         else if (bc_type == "inflow")
         {
             // amrex::Print() << bcid << " set to inflow.\n";
 
-            phys_bc_type[ori] = BC::inflow;
+            phys_bc_type[ori] = ERF_BC::inflow;
             domain_bc_type[ori] = "Inflow";
 
             std::vector<Real> v;
@@ -119,7 +119,7 @@ void ERF::init_bcs ()
         {
             // amrex::Print() << bcid <<" set to no-slip wall.\n";
 
-            phys_bc_type[ori] = BC::no_slip_wall;
+            phys_bc_type[ori] = ERF_BC::no_slip_wall;
             domain_bc_type[ori] = "NoSlipWall";
 
             std::vector<Real> v;
@@ -144,7 +144,7 @@ void ERF::init_bcs ()
         {
             // amrex::Print() << bcid <<" set to slip wall.\n";
 
-            phys_bc_type[ori] = BC::slip_wall;
+            phys_bc_type[ori] = ERF_BC::slip_wall;
             domain_bc_type[ori] = "SlipWall";
 
             Real theta_in;
@@ -156,25 +156,25 @@ void ERF::init_bcs ()
         }
         else if (bc_type == "most")
         {
-            phys_bc_type[ori] = BC::MOST;
+            phys_bc_type[ori] = ERF_BC::MOST;
             domain_bc_type[ori] = "MOST";
         }
         else
         {
-            phys_bc_type[ori] = BC::undefined;
+            phys_bc_type[ori] = ERF_BC::undefined;
         }
 
         if (geom[0].isPeriodic(ori.coordDir())) {
             domain_bc_type[ori] = "Periodic";
-            if (phys_bc_type[ori] == BC::undefined)
+            if (phys_bc_type[ori] == ERF_BC::undefined)
             {
-                phys_bc_type[ori] = BC::periodic;
+                phys_bc_type[ori] = ERF_BC::periodic;
             } else {
                 amrex::Abort("Wrong BC type for periodic boundary");
             }
         }
 
-        if (phys_bc_type[ori] == BC::undefined)
+        if (phys_bc_type[ori] == ERF_BC::undefined)
         {
              amrex::Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
              amrex::Abort("This BC type is unknown");
@@ -203,7 +203,7 @@ void ERF::init_bcs ()
             int dir = ori.coordDir();
             Orientation::Side side = ori.faceDir();
             auto const bct = phys_bc_type[ori];
-            if ( bct == BC::symmetry )
+            if ( bct == ERF_BC::symmetry )
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
@@ -215,7 +215,7 @@ void ERF::init_bcs ()
                     domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::reflect_odd);
                 }
             }
-            else if (bct == BC::outflow)
+            else if (bct == ERF_BC::outflow)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
@@ -225,7 +225,7 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::foextrap);
                 }
             }
-            else if (bct == BC::inflow)
+            else if (bct == ERF_BC::inflow)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
@@ -243,7 +243,7 @@ void ERF::init_bcs ()
                     }
                 }
             }
-            else if (bct == BC::no_slip_wall)
+            else if (bct == ERF_BC::no_slip_wall)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
@@ -253,7 +253,7 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::ext_dir);
                 }
             }
-            else if (bct == BC::slip_wall)
+            else if (bct == ERF_BC::slip_wall)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
@@ -268,7 +268,7 @@ void ERF::init_bcs ()
                     domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::ext_dir);
                 }
             }
-            else if (bct == BC::periodic)
+            else if (bct == ERF_BC::periodic)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
@@ -278,7 +278,7 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::int_dir);
                 }
             }
-            else if ( bct == BC::MOST )
+            else if ( bct == ERF_BC::MOST )
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 domain_bcs_type[BCVars::xvel_bc+0].setLo(dir, ERFBCType::reflect_odd);
@@ -300,7 +300,7 @@ void ERF::init_bcs ()
             int dir = ori.coordDir();
             Orientation::Side side = ori.faceDir();
             auto const bct = phys_bc_type[ori];
-            if ( bct == BC::symmetry )
+            if ( bct == ERF_BC::symmetry )
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR; i++)
@@ -310,7 +310,7 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::reflect_even);
                 }
             }
-            else if ( bct == BC::outflow )
+            else if ( bct == ERF_BC::outflow )
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR; i++)
@@ -320,21 +320,7 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                 }
             }
-            else if ( bct == BC::no_slip_wall)
-            {
-                if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++)
-                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
-                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
-                } else {
-                    for (int i = 0; i < NVAR; i++)
-                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
-                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
-                }
-            }
-            else if (bct == BC::slip_wall)
+            else if ( bct == ERF_BC::no_slip_wall)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR; i++)
@@ -348,7 +334,21 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
                 }
             }
-            else if (bct == BC::inflow)
+            else if (bct == ERF_BC::slip_wall)
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < NVAR; i++)
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
+                } else {
+                    for (int i = 0; i < NVAR; i++)
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
+                }
+            }
+            else if (bct == ERF_BC::inflow)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR; i++) {
@@ -386,7 +386,7 @@ void ERF::init_bcs ()
                     }
                 }
             }
-            else if (bct == BC::periodic)
+            else if (bct == ERF_BC::periodic)
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR; i++)
@@ -396,7 +396,7 @@ void ERF::init_bcs ()
                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::int_dir);
                 }
             }
-            else if ( bct == BC::MOST )
+            else if ( bct == ERF_BC::MOST )
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
                 for (int i = 0; i < NVAR; i++) {

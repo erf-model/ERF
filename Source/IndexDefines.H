@@ -140,7 +140,7 @@ namespace EddyDiff {
     };
 }
 
-enum struct BC {
+enum struct ERF_BC {
     symmetry, inflow, outflow, no_slip_wall, slip_wall, periodic, MOST, undefined
 };
 

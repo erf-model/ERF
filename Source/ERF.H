@@ -477,7 +477,7 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
 
     // These are the "physical" boundary condition types (e.g. "inflow")
-    amrex::GpuArray<BC, AMREX_SPACEDIM*2> phys_bc_type;
+    amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;
 
     int last_plot_file_step_1;
     int last_plot_file_step_2;
