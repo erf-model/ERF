@@ -314,7 +314,7 @@ ERF::InitData ()
 
     // Verify BCs are compatible sith solver choice
     if (solverChoice.pbl_type == PBLType::MYNN25 &&
-        phys_bc_type[Orientation(Direction::z,Orientation::low)] != BC::MOST) {
+        phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) {
         amrex::Abort("MYNN2.5 PBL Model requires MOST at lower boundary");
     }
 
@@ -409,7 +409,7 @@ ERF::InitData ()
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine before calling WritePlotFile because
     //       WritePlotFile calls FillPatch in order to compute gradients
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == BC::MOST)
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
         m_most = std::make_unique<ABLMost>(geom);
         for (int lev = 0; lev <= finest_level; lev++)

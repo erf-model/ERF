@@ -123,13 +123,13 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     }
 
     // configure ABLMost params if used MostWall boundary condition
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] != BC::MOST) {
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) {
         if (m_most) setupABLMost(lev);
     }
 
     // Do an error check
     if (solverChoice.pbl_type == PBLType::MYNN25 &&
-        phys_bc_type[Orientation(Direction::z,Orientation::low)] != BC::MOST) {
+        phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) {
         amrex::Error("Must use MOST BC for MYNN2.5 PBL model");
     }
 
