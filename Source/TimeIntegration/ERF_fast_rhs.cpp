@@ -64,6 +64,8 @@ void erf_fast_rhs (int level,
     MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
     MultiFab New_rho_w(convert(ba,IntVect(0,0,1)), dm, 1, 1);
 
+    MultiFab Exner_mf(convert(ba,IntVect(1,1,1)), dm, 1, 1);
+
     // *************************************************************************
     // Set gravity as a vector
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
@@ -134,6 +136,8 @@ void erf_fast_rhs (int level,
         const Array4<      Real>& new_drho_v = New_rho_v.array(mfi);
         const Array4<      Real>& new_drho_w = New_rho_w.array(mfi);
 
+        const Array4<      Real>& Exner_arr  = Exner_mf.array(mfi);
+
         const Array4<      Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
         const Array4<      Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
         const Array4<      Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
@@ -162,10 +166,11 @@ void erf_fast_rhs (int level,
         //    so that we don't have to fill ghost cells of the new MultiFabs
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
-        const Box gbx  = mfi.growntilebox(1);
-        const Box gtbx = mfi.nodaltilebox(0).grow(1);
-        const Box gtby = mfi.nodaltilebox(1).grow(1);
-        const Box gtbz = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
+        const Box gbx   = mfi.growntilebox(1);
+        const Box gtbx  = mfi.nodaltilebox(0).grow(1);
+        const Box gtby  = mfi.nodaltilebox(1).grow(1);
+        const Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
+        const Box gntbx = mfi.nodaltilebox().grow(1);
 
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k) = cur_data(i,j,k,Rho_comp) - cell_stage(i,j,k,Rho_comp);
@@ -188,6 +193,11 @@ void erf_fast_rhs (int level,
             new_drho_w(i,j,k) = old_drho_w(i,j,k);
         });
 
+        amrex::ParallelFor(gntbx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Exner_arr(i,j,k) = getExnergivenRTh(cell_stage(i,j,k,RhoTheta_comp));
+        });
+
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
@@ -206,8 +216,8 @@ void erf_fast_rhs (int level,
             if (!on_coarse_fine_boundary)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = getExnergivenRTh(cell_stage(i-1,j,k,RhoTheta_comp));
-                Real pi_r = getExnergivenRTh(cell_stage(i  ,j,k,RhoTheta_comp));
+                Real pi_l = Exner_arr(i-1,j,k);
+                Real pi_r = Exner_arr(i  ,j,k);
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
                 Real drho_theta_hi = extrap_arr(i  ,j,k);
@@ -267,8 +277,8 @@ void erf_fast_rhs (int level,
             if (!on_coarse_fine_boundary)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = getExnergivenRTh(cell_stage(i,j-1,k,RhoTheta_comp));
-                Real pi_r = getExnergivenRTh(cell_stage(i,j  ,k,RhoTheta_comp));
+                Real pi_l = Exner_arr(i,j-1,k);
+                Real pi_r = Exner_arr(i,j  ,k);
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
                 Real drho_theta_hi = extrap_arr(i,j,k);
@@ -353,8 +363,8 @@ void erf_fast_rhs (int level,
                 // We define halfg to match the notes (which is why we take the absolute value)
                 Real halfg = std::abs(0.5 * grav_gpu[2]);
 
-                Real pi_lo = getExnergivenRTh(cell_stage(i,j,k-1,RhoTheta_comp));
-                Real pi_hi = getExnergivenRTh(cell_stage(i,j,k  ,RhoTheta_comp));
+                Real pi_lo = Exner_arr(i,j,k-1);
+                Real pi_hi = Exner_arr(i,j,k  );
                 Real pi_c =  0.5 * (pi_lo + pi_hi);
 
                 Real detJ_on_kface      = 1.0;
