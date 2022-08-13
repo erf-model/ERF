@@ -19,6 +19,7 @@ void erf_fast_rhs (int level,
                    const MultiFab& S_stage_prim,
                    const Vector<MultiFab>& S_data,                 // S_sum = most recent full solution
                          Vector<MultiFab>& S_scratch,              // S_sum_old at most recent fast timestep for (rho theta)
+                   std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
                    const amrex::Geometry geom,
                    amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
@@ -137,10 +138,6 @@ void erf_fast_rhs (int level,
         const Array4<      Real>& new_drho_w = New_rho_w.array(mfi);
 
         const Array4<      Real>& Exner_arr  = Exner_mf.array(mfi);
-
-        const Array4<      Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
-        const Array4<      Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
-        const Array4<      Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
 
         const Array4<const Real>& cur_data = S_data[IntVar::cons].const_array(mfi);
         const Array4<const Real>& cur_data_xmom = S_data[IntVar::xmom].const_array(mfi);
@@ -559,9 +556,42 @@ void erf_fast_rhs (int level,
         // We only update (rho) and (rho theta) here
         int start_comp = 0;
         int ncomp      = 2;
+
+        // These are temporaries we use to add to the S_rhs for the fluxes
+        const Array4<Real>& advflux_x  =  advflux[0].array(mfi);
+        const Array4<Real>& advflux_y  =  advflux[1].array(mfi);
+        const Array4<Real>& advflux_z  =  advflux[2].array(mfi);
+
         AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w,
-                             prim, fast_rhs_cell, xflux_rhs, yflux_rhs, zflux_rhs,
+                             prim, fast_rhs_cell, advflux_x, advflux_y, advflux_z, 
                              z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, false, false);
+
+        // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
+        //         fluxes at fine-fine interfaces
+        int use_fluxes = (S_rhs.size() > 1+AMREX_SPACEDIM);
+        if (use_fluxes)
+        {
+            const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
+            const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
+            const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
+
+            amrex::ParallelFor(tbx, tby, tbz, 
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                 xflux_rhs(i,j,k,0) = advflux_x(i,j,k,0);
+                 xflux_rhs(i,j,k,1) = advflux_x(i,j,k,1);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                 yflux_rhs(i,j,k,0) = advflux_y(i,j,k,0);
+                 yflux_rhs(i,j,k,1) = advflux_y(i,j,k,1);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                 zflux_rhs(i,j,k,0) = advflux_z(i,j,k,0);
+                 zflux_rhs(i,j,k,1) = advflux_z(i,j,k,1);
+            });
+        } // use_fluxes
     } // mfi
     }
 }
