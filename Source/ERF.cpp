@@ -346,6 +346,10 @@ ERF::InitData ()
             amrex::Abort("We do not currently support init_type = input_sounding with terrain");
         }
 
+        if (!solverChoice.use_terrain && solverChoice.terrain_type != 0) {
+            amrex::Abort("We do not allow terrain_type != 0 with use_terrain = false");
+        }
+
         if (solverChoice.use_terrain) {
             if (init_type != "real") {
                 for (int lev = 0; lev <= finest_level; lev++)
@@ -527,20 +531,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     FillCoarsePatchAllVars(lev, time, vars_new[lev]);
 
-    // Initialize the integrator memory
-    amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
-    int_state.push_back(MultiFab(lev_new[Vars::cons], amrex::make_alias, 0, Cons::NumVars)); // cons
-    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, lev_new[Vars::xvel].nGrow())); // xmom
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, lev_new[Vars::yvel].nGrow())); // ymom
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, lev_new[Vars::zvel].nGrow())); // zmom
-    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
-    if (use_native_mri) {
-        mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
-    } else {
-        sri_integrator_mem[lev] = std::make_unique<SRIIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
-    }
+    initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -579,20 +570,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
-    // Initialize the integrator memory
-    amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
-    int_state.push_back(MultiFab(temp_lev_new[Vars::cons], amrex::make_alias, 0, Cons::NumVars)); // cons
-    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, temp_lev_new[Vars::xvel].nGrow())); // xmom
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, temp_lev_new[Vars::yvel].nGrow())); // ymom
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, temp_lev_new[Vars::zvel].nGrow())); // zmom
-    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
-    if (use_native_mri) {
-        mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
-    } else {
-        sri_integrator_mem[lev] = std::make_unique<SRIIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
-    }
+    initialize_integrator(lev, temp_lev_new[Vars::cons],temp_lev_new[Vars::xvel]);
 }
 
 // Delete level data
@@ -649,6 +627,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     z_phys_cc.resize(lev+1);
     detJ_cc.resize(lev+1);
 
+    z_phys_nd_new.resize(lev+1);
+    z_phys_cc_new.resize(lev+1);
+    detJ_cc_new.resize(lev+1);
+
     BoxList bl2d = ba.boxList();
     for (auto& b : bl2d) {
         b.setRange(2,0);
@@ -676,31 +658,58 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         z_phys_cc[lev].reset(new MultiFab(ba,dm,1,1));
           detJ_cc[lev].reset(new MultiFab(ba,dm,1,1));
 
+        if (solverChoice.terrain_type > 0) {
+            z_phys_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
+              detJ_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
+        }
+
         BoxArray ba_nd(ba);
         ba_nd.surroundingNodes();
 
         // We need this to be one greater than the ghost cells to handle levels > 0
         int ngrow = ComputeGhostCells(solverChoice.spatial_order)+2;
         z_phys_nd[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
+        if (solverChoice.terrain_type > 0) {
+            z_phys_nd_new[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
+        }
     } else {
         z_phys_nd[lev] = nullptr;
         z_phys_cc[lev] = nullptr;
           detJ_cc[lev] = nullptr;
+
+        z_phys_nd_new[lev] = nullptr;
+        z_phys_cc_new[lev] = nullptr;
+          detJ_cc_new[lev] = nullptr;
     }
 
+    initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
+}
+
+void
+ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
+{
+    const BoxArray& ba(cons_mf.boxArray());
+    const DistributionMapping& dm(cons_mf.DistributionMap());
+
     // Initialize the integrator memory
+    int use_fluxes = (finest_level > 0);
     amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
-    int_state.push_back(MultiFab(lev_new[Vars::cons], amrex::make_alias, 0, Cons::NumVars)); // cons
-    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, lev_new[Vars::xvel].nGrow())); // xmom
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, lev_new[Vars::yvel].nGrow())); // ymom
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, lev_new[Vars::zvel].nGrow())); // zmom
-    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
+    int_state.push_back(MultiFab(cons_mf, amrex::make_alias, 0, Cons::NumVars)); // cons
+    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, vel_mf.nGrow())); // xmom
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, vel_mf.nGrow())); // ymom
+    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, vel_mf.nGrow())); // zmom
+    if (use_fluxes) {
+        int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
+        int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
+        int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
+    }
+
     if (use_native_mri) {
         mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+        mri_integrator_mem[lev]->setUseFluxes(use_fluxes);
     } else {
         sri_integrator_mem[lev] = std::make_unique<SRIIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+        sri_integrator_mem[lev]->setUseFluxes(use_fluxes);
     }
 }
 

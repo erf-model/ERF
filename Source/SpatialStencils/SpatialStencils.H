@@ -148,7 +148,7 @@ amrex::Real ComputeDiffusionFluxForState(
                        const SolverChoice &solverChoice,
                        const enum Coord& coordDir);
 
-void DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int qty_index,
+void DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
                           const amrex::Array4<const amrex::Real>& u,
                           const amrex::Array4<const amrex::Real>& v,
                           const amrex::Array4<const amrex::Real>& w,
@@ -164,7 +164,5 @@ void DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int qt
                           const SolverChoice &solverChoice,
                           const amrex::Real& theta_mean,
                           const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
-                          const amrex::BCRec* bc_ptr,
-                          const amrex::Real*  dptr_rayleigh_tau,
-                          const amrex::Real*  dptr_rayleigh_thetabar);
+                          const amrex::BCRec* bc_ptr);
 #endif

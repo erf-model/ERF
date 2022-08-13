@@ -280,6 +280,8 @@ private:
 
     void init_custom(int lev);
 
+    void initialize_integrator(int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
+
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput(int lev);
 #endif // ERF_USE_NETCDF
@@ -451,6 +453,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
+
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc_new;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
