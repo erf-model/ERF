@@ -264,7 +264,7 @@ void erf_slow_rhs (int level,
         if (update_mom)
         {
             int n = Rho_comp;
-            amrex::ParallelFor(tbx, tby, tbz, 
+            amrex::ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 avg_xmom(i,j,k) = advflux_x(i,j,k,n);
@@ -277,7 +277,7 @@ void erf_slow_rhs (int level,
             {
                 avg_zmom(i,j,k) = advflux_z(i,j,k,n);
             });
-        }   
+        }
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations

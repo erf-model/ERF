@@ -685,7 +685,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
 }
 
-void 
+void
 ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 {
     const BoxArray& ba(cons_mf.boxArray());

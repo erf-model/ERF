@@ -563,7 +563,7 @@ void erf_fast_rhs (int level,
         const Array4<Real>& advflux_z  =  advflux[2].array(mfi);
 
         AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w,
-                             prim, fast_rhs_cell, advflux_x, advflux_y, advflux_z, 
+                             prim, fast_rhs_cell, advflux_x, advflux_y, advflux_z,
                              z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, false, false);
 
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
@@ -575,7 +575,7 @@ void erf_fast_rhs (int level,
             const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
             const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
 
-            amrex::ParallelFor(tbx, tby, tbz, 
+            amrex::ParallelFor(tbx, tby, tbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                  xflux_rhs(i,j,k,0) = advflux_x(i,j,k,0);

@@ -663,21 +663,21 @@ DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int n_start
       {
           const int  qty_index = n_start + n;
           const int prim_index = qty_index - qty_offset;
-          xflux(i,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, cell_prim, prim_index, 
+          xflux(i,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, cell_prim, prim_index,
                                                                 dx_inv, K_turb, solverChoice, Coord::x);
       });
       amrex::ParallelFor(ybx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
       {
           const int  qty_index = n_start + n;
           const int prim_index = qty_index - qty_offset;
-          yflux(i,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, cell_prim, prim_index, 
+          yflux(i,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, cell_prim, prim_index,
                                                                 dy_inv, K_turb, solverChoice, Coord::y);
       });
       amrex::ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
       {
           const int  qty_index = n_start + n;
           const int prim_index = qty_index - qty_offset;
-          zflux(i,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, cell_prim, prim_index, 
+          zflux(i,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, cell_prim, prim_index,
                                                                 dz_inv, K_turb, solverChoice, Coord::z);
       });
 
@@ -704,7 +704,7 @@ DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int n_start
                   }
                   Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
                   cell_rhs(i, j, k, qty_index) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
-    
+
                   // Add TKE production
                   cell_rhs(i, j, k, qty_index) += ComputeTKEProduction(i,j,k,u,v,w,K_turb,cellSizeInv,domain,bc_ptr,l_use_terrain);
 

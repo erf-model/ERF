@@ -141,7 +141,7 @@ public:
     virtual ~SRIIntegrator () {}
 
     void setUseFluxes(int _use_fluxes)
-    { 
+    {
         use_fluxes = _use_fluxes;
     }
 
@@ -400,7 +400,7 @@ public:
                     }
                 });
 
-                if (use_fluxes) { 
+                if (use_fluxes) {
                     const int ixflx = 4;
                     const int iyflx = 5;
                     const int izflx = 6;
