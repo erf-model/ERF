@@ -7,7 +7,7 @@
 #include <IndexDefines.H>
 
 // Declare function for ERF.cpp
-void init_terrain_grid( amrex::Geometry& geom, amrex::MultiFab& z_phys_nd);
+void init_terrain_grid( const amrex::Geometry& geom, amrex::MultiFab& z_phys_nd);
 
 //*****************************************************************************************
 // Compute terrain metric terms at cell-center
@@ -529,7 +529,7 @@ amrex::Real WFromOmega(int i, int j, int k, amrex::Real omega,
 // Compute detJ & z_phys at cell-center
 //*****************************************************************************************
 inline
-void make_metrics(amrex::Geometry& geom,
+void make_metrics(const amrex::Geometry& geom,
                   amrex::MultiFab& z_phys_nd,
                   amrex::MultiFab& z_phys_cc,
                   amrex::MultiFab& detJ_cc)

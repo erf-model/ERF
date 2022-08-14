@@ -124,7 +124,8 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
+                    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -159,4 +160,12 @@ amrex_probinit(
   pp.query("T_0", parms.Theta_0);
   pp.query("M_0", parms.M_0);
   pp.query("V_0", parms.V_0);
+}
+
+AMREX_GPU_DEVICE
+Real
+dhdt(int i, int j,
+     const GpuArray<Real,AMREX_SPACEDIM> dx, const Real time)
+{
+    return 0.;
 }

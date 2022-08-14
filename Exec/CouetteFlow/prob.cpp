@@ -94,7 +94,8 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
+                    const Real& /*time*/)
 {
     auto dx = geom.CellSizeArray();
 
@@ -125,4 +126,12 @@ amrex_probinit(
   pp.query("u_0", parms.u_0);
   pp.query("v_0", parms.v_0);
   pp.query("w_0", parms.w_0);
+}
+
+AMREX_GPU_DEVICE
+Real
+dhdt(int i, int j,
+     const GpuArray<Real,AMREX_SPACEDIM> dx, const Real time)
+{
+    return 0.;
 }

@@ -13,7 +13,7 @@ using namespace amrex;
 //       problem is fixed. For now, make sure to run on a single level. -mmsanders
 //*****************************************************************************************
 void
-init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
+init_terrain_grid(const Geometry& geom, MultiFab& z_phys_nd)
 {
   auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();
@@ -44,10 +44,14 @@ init_terrain_grid(Geometry& geom, MultiFab& z_phys_nd)
 
   // But we can read them in from the inputs file as an alternative
   int n_zlevels = pp.countval("terrain_z_levels");
-  if (n_zlevels > 0 && n_zlevels != nz)
-      amrex::Abort("You must specify a z_level for every value of k");
 
   pp.queryarr("terrain_z_levels", z_levels_h, 0, nz);
+
+  if (n_zlevels > 0 && n_zlevels != nz) {
+      amrex::Print() << "You supplied " << n_zlevels << " z_levels " << std::endl;
+      amrex::Print() << "but n_cell in the z-direction is " <<  nz << std::endl;
+      amrex::Abort("You must specify a z_level for every value of k");
+  }
 
    amrex::Gpu::DeviceVector<Real> z_levels_d;
    z_levels_d.resize(nz);

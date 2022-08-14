@@ -29,7 +29,7 @@ public:
     const amrex::Vector<amrex::Real>& line_hvelmag_average()
     {
         return m_line_hvelmag_average;
-    };
+    }
 
     /** evaluate line haverage at specific location for horizontal velocity magnitude */
     amrex::Real line_hvelmag_average_interpolated(amrex::Real x) const;

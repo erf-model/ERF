@@ -117,7 +117,7 @@ public:
             z_0[lev].resize(bx,1);
             z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
         }
-    };
+    }
 
     ABLMostData
     get_most_data ()

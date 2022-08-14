@@ -354,7 +354,7 @@ ERF::InitData ()
             if (init_type != "real") {
                 for (int lev = 0; lev <= finest_level; lev++)
                 {
-                    init_custom_terrain(geom[lev],*z_phys_nd[lev]);
+                    init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
                     init_terrain_grid(geom[lev],*z_phys_nd[lev]);
                     make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
                 }

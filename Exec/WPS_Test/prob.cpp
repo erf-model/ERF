@@ -66,7 +66,16 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& /*geom*/, MultiFab& /*z_phys_nd*/)
+init_custom_terrain(const Geometry& /*geom*/, MultiFab& /*z_phys_nd*/,
+                    const Real& /*time*/)
 {
     amrex::Error("We don't belong in init_custom_terrain!");
+}
+
+AMREX_GPU_DEVICE
+Real
+dhdt(int i, int j,
+     const GpuArray<Real,AMREX_SPACEDIM> dx, const Real time)
+{
+    return 0.;
 }

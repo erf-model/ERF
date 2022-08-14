@@ -19,28 +19,28 @@ public:
     amrex::Real line_average_interpolated(amrex::Real x, int comp) const;
 
     /** change precision of text file output */
-    void set_precision(int p) { m_precision = p; };
+    void set_precision(int p) { m_precision = p; }
 
-    amrex::Real dx() const { return m_dx; };
-    amrex::Real xlo() const { return m_xlo; };
+    amrex::Real dx() const { return m_dx; }
+    amrex::Real xlo() const { return m_xlo; }
 
-    int axis() const { return m_axis; };
-    int level() const { return m_level; };
-    int ncomp() const { return m_ncomp; };
-    int ncell_plane() const { return m_ncell_plane; };
-    int ncell_line() const { return m_ncell_line; };
+    int axis() const { return m_axis; }
+    int level() const { return m_level; }
+    int ncomp() const { return m_ncomp; }
+    int ncell_plane() const { return m_ncell_plane; }
+    int ncell_line() const { return m_ncell_line; }
 
     const amrex::Vector<amrex::Real>& line_average() const
     {
         return m_line_average;
-    };
+    }
     void line_average(int comp, amrex::Vector<amrex::Real>& l_vec);
     const amrex::Vector<amrex::Real>& line_centroids() const
     {
         return m_line_xcentroid;
-    };
+    }
 
-    const amrex::MultiFab& field() const { return *m_field; };
+    const amrex::MultiFab& field() const { return *m_field; }
 
 protected:
     int m_ncomp; /** number of average components */
