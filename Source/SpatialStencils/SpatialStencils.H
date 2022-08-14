@@ -63,6 +63,7 @@ amrex::Real AdvectionSrcForZMom(
                        const amrex::Array4<const amrex::Real>& rho_u,
                        const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& rho_w,
+                       const amrex::Array4<const amrex::Real>& z_t,
                        const amrex::Array4<const amrex::Real>& w,
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,

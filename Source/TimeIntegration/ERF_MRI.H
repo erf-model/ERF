@@ -459,22 +459,22 @@ public:
                         ParallelFor(bx, ncomp_fast[IntVar::cons],
                         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                             const int n = scomp_fast[IntVar::cons] + nn;
-                            ssum[IntVar::cons](i,j,k,n) += dtau * fslow[IntVar::cons](i,j,k,n);
-                            ssum[IntVar::cons](i,j,k,n) += dtau * fpert[IntVar::cons](i,j,k,n);
+                            ssum[IntVar::cons](i,j,k,n) += dtau *
+                               ( fslow[IntVar::cons](i,j,k,n) + fpert[IntVar::cons](i,j,k,n) );
                         });
 
                         ParallelFor(tbx, tby, tbz,
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVar::xmom](i,j,k) += dtau * fslow[IntVar::xmom](i,j,k);
-                            ssum[IntVar::xmom](i,j,k) += dtau * fpert[IntVar::xmom](i,j,k);
+                            ssum[IntVar::xmom](i,j,k) += dtau *
+                               ( fslow[IntVar::xmom](i,j,k) + fpert[IntVar::xmom](i,j,k) );
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVar::ymom](i,j,k) += dtau * fslow[IntVar::ymom](i,j,k);
-                            ssum[IntVar::ymom](i,j,k) += dtau * fpert[IntVar::ymom](i,j,k);
+                            ssum[IntVar::ymom](i,j,k) += dtau *
+                               ( fslow[IntVar::ymom](i,j,k) + fpert[IntVar::ymom](i,j,k));
                         },
                         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVar::zmom](i,j,k) += dtau * fslow[IntVar::zmom](i,j,k);
-                            ssum[IntVar::zmom](i,j,k) += dtau * fpert[IntVar::zmom](i,j,k);
+                            ssum[IntVar::zmom](i,j,k) += dtau *
+                               ( fslow[IntVar::zmom](i,j,k) + fpert[IntVar::zmom](i,j,k) );
                         });
 
                         if (use_fluxes) {
@@ -482,20 +482,20 @@ public:
                             tbx, ncomp_fast[IntVar::xflux],
                             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                                 const int n = scomp_fast[IntVar::xflux] + nn;
-                                ssum[IntVar::xflux](i,j,k,n) += dtau * fslow[IntVar::xflux](i,j,k,n);
-                                ssum[IntVar::xflux](i,j,k,n) += dtau * fpert[IntVar::xflux](i,j,k,n);
+                                ssum[IntVar::xflux](i,j,k,n) += dtau *
+                                   ( fslow[IntVar::xflux](i,j,k,n) + fpert[IntVar::xflux](i,j,k,n) );
                             },
                             tby, ncomp_fast[IntVar::yflux],
                             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                                 const int n = scomp_fast[IntVar::yflux] + nn;
-                                ssum[IntVar::yflux](i,j,k,n) += dtau * fslow[IntVar::yflux](i,j,k,n);
-                                ssum[IntVar::yflux](i,j,k,n) += dtau * fpert[IntVar::yflux](i,j,k,n);
+                                ssum[IntVar::yflux](i,j,k,n) += dtau *
+                                   ( fslow[IntVar::yflux](i,j,k,n) + fpert[IntVar::yflux](i,j,k,n) );
                             },
                             tbz, ncomp_fast[IntVar::zflux],
                             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                                 const int n = scomp_fast[IntVar::zflux] + nn;
-                                ssum[IntVar::zflux](i,j,k,n) += dtau * fslow[IntVar::zflux](i,j,k,n);
-                                ssum[IntVar::zflux](i,j,k,n) += dtau * fpert[IntVar::zflux](i,j,k,n);
+                                ssum[IntVar::zflux](i,j,k,n) += dtau *
+                                   ( fslow[IntVar::zflux](i,j,k,n) + fpert[IntVar::zflux](i,j,k,n) );
                             });
                         } // use_fluxes
                     }
@@ -509,7 +509,7 @@ public:
                 // Copy only (rho theta), including ghost cells
                 MultiFab::Copy((*S_scratch)[IntVar::cons], (*S_sum)[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1,
                                (*S_sum)[IntVar::cons].nGrowVect());
-            }
+            } // ks
 
             // ****************************************************
             // Evaluate F_slow(S_stage) only for the slow variables
