@@ -199,8 +199,10 @@ amrex_probinit(
   pp.query("QKE_0", parms.QKE_0);
 }
 
+AMREX_GPU_DEVICE
 amrex::Real
-dhdt(int i, int j, int k, amrex::Real time)
+dhdt(int i, int j,
+     const GpuArray<Real,AMREX_SPACEDIM> dx, const Real time)
 {
     return 0.;
 }

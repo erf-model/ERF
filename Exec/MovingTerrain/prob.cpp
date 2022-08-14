@@ -336,8 +336,19 @@ init_custom_terrain (const Geometry& geom,
     }
 }
 
-amrex::Real
-dhdt(int i, int j, int k, amrex::Real time)
+AMREX_GPU_DEVICE
+Real
+dhdt(int i, int j,
+     const GpuArray<Real,AMREX_SPACEDIM> dx, const Real time)
 {
-    return 0.;
+    Real Ampl        = parms.Ampl;
+
+    Real wavelength  = 100.;
+    Real kp          = 2. * 3.1415926535 / wavelength;
+    Real g           = 9.8;
+    Real omega       = std::sqrt(g * kp);
+
+    const Real x  = (i + 0.5) * dx[0];
+
+    return Ampl * omega * std::sin(kp * x - omega * time);
 }

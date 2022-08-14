@@ -9,13 +9,13 @@ void amrex_probinit (
   const amrex_real* probhi);
 
 void
-erf_init_dens_hse(amrex::MultiFab& dens_hse,
-                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                  std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-                  amrex::Geometry const& geom);
+erf_init_dens_hse (amrex::MultiFab& dens_hse,
+                   std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                   std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                   amrex::Geometry const& geom);
 
 void
-init_custom_prob(
+init_custom_prob (
   const amrex::Box& bx,
   amrex::Array4<amrex::Real      > const& state,
   amrex::Array4<amrex::Real      > const& x_vel,
@@ -28,18 +28,20 @@ init_custom_prob(
   amrex::GeometryData const& geomdata);
 
 void
-init_custom_terrain(const amrex::Geometry& geom,
-                          amrex::MultiFab& z_phys_nd,
-                    const amrex::Real& time = 0.0);
+init_custom_terrain (const amrex::Geometry& geom,
+                           amrex::MultiFab& z_phys_nd,
+                     const amrex::Real& time = 0.0);
 
 amrex::Real
-dhdt(int i, int j, int k, amrex::Real time);
+dhdt (int i, int j,
+      const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dx,
+      const amrex::Real time);
 
 void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
-                  amrex::Vector<amrex::Real>& ubar,
-                  amrex::Vector<amrex::Real>& vbar,
-                  amrex::Vector<amrex::Real>& thetabar,
-                  amrex::Geometry      const& geom);
+erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
+                   amrex::Vector<amrex::Real>& ubar,
+                   amrex::Vector<amrex::Real>& vbar,
+                   amrex::Vector<amrex::Real>& thetabar,
+                   amrex::Geometry      const& geom);
 #endif
 

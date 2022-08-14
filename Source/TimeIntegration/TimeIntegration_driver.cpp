@@ -1,5 +1,3 @@
-#include <AMReX.H>
-#include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
 #include <SpatialStencils.H>
 #include <prob_common.H>
@@ -248,10 +246,12 @@ void ERF::erf_advance(int level,
 
                 Real delta_t  = (stage_time - step_time);
 
+                const auto& dX = fine_geom.CellSizeArray();
+
                 // Loop over horizontal plane
                 amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    z_t_arr(i,j,0) = dhdt(i,j,k,old_time);
+                    z_t_arr(i,j,0) = dhdt(i,j,dX,old_time);
                     for (int k = 1; k <= khi; k++)
                     {
                         Real Jinv_new = 1./detJ_new(i,j,k-1);

@@ -22,7 +22,7 @@ template <>
 struct DirectionSelector<1>
 {
     AMREX_GPU_HOST_DEVICE int getIndx(int, int j, int) const { return j; };
-};
+}; 
 
 template <>
 struct DirectionSelector<2>

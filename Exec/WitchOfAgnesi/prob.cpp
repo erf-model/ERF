@@ -347,8 +347,10 @@ init_custom_terrain(const Geometry& geom,
     }
 }
 
-amrex::Real
-dhdt(int i, int j, int k, amrex::Real time)
+AMREX_GPU_DEVICE
+Real
+dhdt(int i, int j,
+     const GpuArray<Real,AMREX_SPACEDIM> dx, const Real time)
 {
     return 0.;
 }

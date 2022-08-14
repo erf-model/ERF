@@ -162,8 +162,10 @@ amrex_probinit(
   pp.query("V_0", parms.V_0);
 }
 
-amrex::Real
-dhdt(int i, int j, int k, amrex::Real time)
+AMREX_GPU_DEVICE
+Real
+dhdt(int i, int j,
+     const GpuArray<Real,AMREX_SPACEDIM> dx, const Real time)
 {
     return 0.;
 }
