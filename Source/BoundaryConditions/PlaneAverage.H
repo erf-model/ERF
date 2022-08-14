@@ -33,14 +33,14 @@ public:
     const amrex::Vector<amrex::Real>& line_average() const
     {
         return m_line_average;
-    } 
+    }
     void line_average(int comp, amrex::Vector<amrex::Real>& l_vec);
     const amrex::Vector<amrex::Real>& line_centroids() const
     {
         return m_line_xcentroid;
-    } 
+    }
 
-    const amrex::MultiFab& field() const { return *m_field; } 
+    const amrex::MultiFab& field() const { return *m_field; }
 
 protected:
     int m_ncomp; /** number of average components */

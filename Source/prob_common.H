@@ -32,16 +32,17 @@ init_custom_terrain (const amrex::Geometry& geom,
                            amrex::MultiFab& z_phys_nd,
                      const amrex::Real& time = 0.0);
 
-amrex::Real
-dhdt (int i, int j,
-      const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dx,
-      const amrex::Real time);
-
 void
 erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
                    amrex::Vector<amrex::Real>& ubar,
                    amrex::Vector<amrex::Real>& vbar,
                    amrex::Vector<amrex::Real>& thetabar,
                    amrex::Geometry      const& geom);
+
+AMREX_GPU_DEVICE
+amrex::Real
+dhdt (int i, int j,
+      const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dx,
+      const amrex::Real time);
 #endif
 
