@@ -111,12 +111,13 @@ void erf_fast_rhs (int level,
         auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
         auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
 
-        const Array4<      Real> & fast_rhs_cell = S_rhs[IntVar::cons].array(mfi);
-        const Array4<const Real> & cell_stage    = S_stage_data[IntVar::cons].const_array(mfi);
-        const Array4<const Real> & cell_stage_xmom  = S_stage_data[IntVar::xmom].const_array(mfi);
-        const Array4<const Real> & cell_stage_ymom  = S_stage_data[IntVar::ymom].const_array(mfi);
-        const Array4<const Real> & cell_stage_zmom  = S_stage_data[IntVar::zmom].const_array(mfi);
-        const Array4<const Real> & prim          = S_stage_prim.const_array(mfi);
+        const Array4<      Real> &   fast_rhs_cons = S_rhs[IntVar::cons].array(mfi);
+
+        const Array4<const Real> & cell_stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
+        const Array4<const Real> & cell_stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
+        const Array4<const Real> & cell_stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
+        const Array4<const Real> & cell_stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
+        const Array4<const Real> & prim            = S_stage_prim.const_array(mfi);
 
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
@@ -139,7 +140,7 @@ void erf_fast_rhs (int level,
 
         const Array4<      Real>& Exner_arr  = Exner_mf.array(mfi);
 
-        const Array4<const Real>& cur_data = S_data[IntVar::cons].const_array(mfi);
+        const Array4<const Real>& cur_data_cons = S_data[IntVar::cons].const_array(mfi);
         const Array4<const Real>& cur_data_xmom = S_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real>& cur_data_ymom = S_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& cur_data_zmom = S_data[IntVar::zmom].const_array(mfi);
@@ -170,10 +171,10 @@ void erf_fast_rhs (int level,
         const Box gntbx = mfi.nodaltilebox().grow(1);
 
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho(i,j,k) = cur_data(i,j,k,Rho_comp) - cell_stage(i,j,k,Rho_comp);
-            old_drho_theta(i,j,k) = cur_data(i,j,k,RhoTheta_comp) - cell_stage(i,j,k,RhoTheta_comp);
-            extrap_arr(i,j,k) = old_drho_theta(i,j,k) + beta_d * (
-              (cur_data(i,j  ,k,RhoTheta_comp) - old_data(i,j  ,k,RhoTheta_comp)));
+            old_drho(i,j,k)       = cur_data_cons(i,j,k,Rho_comp)      - cell_stage_cons(i,j,k,Rho_comp);
+            old_drho_theta(i,j,k) = cur_data_cons(i,j,k,RhoTheta_comp) - cell_stage_cons(i,j,k,RhoTheta_comp);
+            extrap_arr(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
+              (cur_data_cons(i,j  ,k,RhoTheta_comp) - old_data(i,j  ,k,RhoTheta_comp)));
         });
 
         amrex::ParallelFor(gtbx, gtby, gtbz,
@@ -192,7 +193,7 @@ void erf_fast_rhs (int level,
 
         amrex::ParallelFor(gntbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Exner_arr(i,j,k) = getExnergivenRTh(cell_stage(i,j,k,RhoTheta_comp));
+            Exner_arr(i,j,k) = getExnergivenRTh(cell_stage_cons(i,j,k,RhoTheta_comp));
         });
 
         // *********************************************************************
@@ -381,11 +382,11 @@ void erf_fast_rhs (int level,
 
                 Real coeff_P = -Gamma * R_d * pi_c * dzi / h_zeta_on_kface
                              +  halfg * R_d * rhobar_hi * pi_hi  /
-                             (  c_v * pibar_hi * cell_stage(i,j,k,RhoTheta_comp) );
+                             (  c_v * pibar_hi * cell_stage_cons(i,j,k,RhoTheta_comp) );
 
                 Real coeff_Q = Gamma * R_d * pi_c * dzi / h_zeta_on_kface
                              + halfg * R_d * rhobar_lo * pi_lo  /
-                             ( c_v  * pibar_lo * cell_stage(i,j,k-1,RhoTheta_comp) );
+                             ( c_v  * pibar_lo * cell_stage_cons(i,j,k-1,RhoTheta_comp) );
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
@@ -562,8 +563,8 @@ void erf_fast_rhs (int level,
         const Array4<Real>& advflux_y  =  advflux[1].array(mfi);
         const Array4<Real>& advflux_z  =  advflux[2].array(mfi);
 
-        AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w,
-                             prim, fast_rhs_cell, advflux_x, advflux_y, advflux_z,
+        AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w, Array4<Real>{},
+                             prim, fast_rhs_cons, advflux_x, advflux_y, advflux_z,
                              z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, false, false);
 
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count

@@ -108,7 +108,8 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd)
+init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
+                    const Real& /*time*/)
 {
     auto dx = geom.CellSizeArray();
 

@@ -2,9 +2,11 @@
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
 #include <SpatialStencils.H>
+#include <prob_common.H>
 #include <AMReX_TimeIntegrator.H>
 #include <ERF_MRI.H>
 #include <ERF_SRI.H>
+#include <TerrainMetrics.H>
 #include <TimeIntegration.H>
 #include <ERF.H>
 
@@ -45,7 +47,6 @@ void ERF::erf_advance(int level,
 #endif
       for (MFIter mfi(cons_state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
-          // const Box& gbx = mfi.growntilebox(cons_state.nGrowVect());
           const Box& gbx = mfi.growntilebox(ng);
           const Array4<const Real>& cons_arr = cons_state.array(mfi);
           const Array4<Real>& prim_arr = prim_state.array(mfi);
@@ -210,20 +211,81 @@ void ERF::erf_advance(int level,
     auto slow_rhs_fun = [&](      Vector<MultiFab>& S_rhs,
                             const Vector<MultiFab>& S_data,
                                   Vector<MultiFab>& S_scratch,
-                            const Real time,
-                            const int rhs_vars=RHSVar::all) {
-        if (verbose) Print() << "Calling slow rhs at level " << level << ", time = " << time << std::endl;
-        erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
-                     xvel_new, yvel_new, zvel_new,
-                     source, advflux, diffflux,
-                     fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
-                     z_phys_nd[level], detJ_cc[level], r0, p0,
-                     dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                     dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
-                     rhs_vars);
+                            const Real step_time, const Real stage_time,
+                            const int rhs_vars=RHSVar::all)
+    {
+        if (verbose) Print() << "Calling slow rhs at level " << level << " for advancing from "
+                             << step_time << " to " << stage_time << std::endl;
+
+        // Moving terrain
+        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
+        {
+            if (verbose) Print() << "Making new geometry at stage_time " << std::endl;
+
+            const auto dz = fine_geom.CellSizeArray()[2];
+            const Real old_time = step_time;
+
+            init_custom_terrain(fine_geom,*z_phys_nd_new[level],stage_time); // This defines h(i,j,k=0,t)
+            init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);        // This defines z_phys for all k given h
+            make_metrics       (fine_geom,*z_phys_nd_new[level], *z_phys_cc_new[level], *detJ_cc_new[level]);  // This defines the other quantities
+
+            MultiFab* z_t = new MultiFab(S_data[IntVar::zmom].boxArray(), S_data[IntVar::zmom].DistributionMap(), 1, 1);
+
+            for (MFIter mfi(*z_t,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                Box gbx = mfi.growntilebox(IntVect(1,1,0));
+
+                // This is the top face
+                int khi = gbx.bigEnd()[2];
+
+                // Now make this a 2D box (after we extract khi)
+                gbx.setRange(2,0);
+
+                const Array4<const Real>& detJ_new  =   detJ_cc_new[level]->const_array(mfi);
+                const Array4<const Real>& detJ_old  =       detJ_cc[level]->const_array(mfi);
+
+                const Array4<      Real>& z_t_arr   =  z_t->array(mfi);
+
+                Real delta_t  = (stage_time - step_time);
+
+                // Loop over horizontal plane
+                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    z_t_arr(i,j,0) = dhdt(i,j,k,old_time);
+                    for (int k = 1; k <= khi; k++)
+                    {
+                        Real Jinv_new = 1./detJ_new(i,j,k-1);
+                        Real Jinv_old = 1./detJ_old(i,j,k-1);
+                        z_t_arr(i,j,k) = z_t_arr(i,j,k-1) + ( (Jinv_new - Jinv_old) / delta_t ) * dz;
+                    }
+                });
+            } // mfi
+
+            erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
+                         xvel_new, yvel_new, zvel_new, z_t,
+                         source, advflux, diffflux,
+                         fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
+                         z_phys_nd_new[level], detJ_cc_new[level], r0, p0,
+                         dptr_rayleigh_tau, dptr_rayleigh_ubar,
+                         dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
+                         rhs_vars);
+
+             delete z_t;
+
+        } else {
+            MultiFab* z_t = 0;
+            erf_slow_rhs(level, S_rhs, S_data, S_prim, S_scratch,
+                         xvel_new, yvel_new, zvel_new, z_t,
+                         source, advflux, diffflux,
+                         fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
+                         z_phys_nd[level], detJ_cc[level], r0, p0,
+                         dptr_rayleigh_tau, dptr_rayleigh_ubar,
+                         dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
+                         rhs_vars);
+        }
     };
 
-    auto fast_rhs_fun = [&](      Vector<MultiFab>& S_rhs,
+    auto fast_rhs_fun = [&](      Vector<MultiFab>& S_fast_rhs,
                                   Vector<MultiFab>& S_slow_rhs,
                                   Vector<MultiFab>& S_stage_data,
                             const Vector<MultiFab>& S_data,
@@ -231,7 +293,7 @@ void ERF::erf_advance(int level,
                             const Real fast_dt, const Real inv_fac)
     {
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << fast_dt << std::endl;
-        erf_fast_rhs(level, S_rhs, S_slow_rhs, S_stage_data, S_prim,
+        erf_fast_rhs(level, S_fast_rhs, S_slow_rhs, S_stage_data, S_prim,
                      S_data, S_scratch, advflux, fine_geom, ifr, solverChoice,
                      z_phys_nd[level], detJ_cc[level], r0, p0,
                      fast_dt, inv_fac);

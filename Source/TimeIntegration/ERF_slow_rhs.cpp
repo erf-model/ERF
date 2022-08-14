@@ -25,6 +25,7 @@ void erf_slow_rhs (int level,
                    const MultiFab& xvel,
                    const MultiFab& yvel,
                    const MultiFab& zvel,
+                   const MultiFab* z_t_mf,
                    MultiFab& source,
                    std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
                    std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
@@ -157,6 +158,12 @@ void erf_slow_rhs (int level,
         const Array4<const Real>& rho_v = S_data[IntVar::ymom].array(mfi);
         const Array4<const Real>& rho_w = S_data[IntVar::zmom].array(mfi);
 
+        Array4<const Real> z_t;
+        if (z_t_mf)
+            z_t = z_t_mf->array(mfi);
+        else
+            z_t = Array4<const Real>{};
+
         const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom].array(mfi);
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
@@ -202,11 +209,11 @@ void erf_slow_rhs (int level,
         // NOTE: given how we fill the fluxes, we must call AdvectionSrcForState before
         //       we call DiffusionSrcForState
         if (rhs_vars == RHSVar::fast || rhs_vars == RHSVar::all) {
-            AdvectionSrcForState(bx, start_comp, num_comp, rho_u, rho_v, rho_w, cell_prim, cell_rhs,
+            AdvectionSrcForState(bx, start_comp, num_comp, rho_u, rho_v, rho_w, z_t, cell_prim, cell_rhs,
                                  advflux_x, advflux_y, advflux_z, z_nd, detJ,
                                  dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
         } else if (rhs_vars == RHSVar::slow) {
-            AdvectionSrcForState(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom, cell_prim, cell_rhs,
+            AdvectionSrcForState(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom, z_t, cell_prim, cell_rhs,
                                  advflux_x, advflux_y, advflux_z, z_nd, detJ,
                                  dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
         }
@@ -299,7 +306,7 @@ void erf_slow_rhs (int level,
             {
 
             // Add advective terms
-            rho_u_rhs(i, j, k) += -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, u, z_nd, detJ,
+            rho_u_rhs(i, j, k) += -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, z_t, u, z_nd, detJ,
                                                        dxInv, l_spatial_order, l_use_terrain);
 
             // Add diffusive terms
@@ -391,7 +398,7 @@ void erf_slow_rhs (int level,
             {
 
             // Add advective terms
-            rho_v_rhs(i, j, k) += -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, v, z_nd, detJ,
+            rho_v_rhs(i, j, k) += -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, z_t, v, z_nd, detJ,
                                                        dxInv, l_spatial_order, l_use_terrain);
 
             // Add diffusive terms

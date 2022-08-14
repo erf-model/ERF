@@ -3,6 +3,13 @@
 
 #include "AMReX_REAL.H"
 
+AMREX_FORCE_INLINE
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
+}
+
 struct ProbParm {
   amrex::Real T_0 = 300.0; // surface temperature == mean potential temperature
   amrex::Real U_0 = 0.0;

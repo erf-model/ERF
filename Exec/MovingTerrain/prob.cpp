@@ -113,7 +113,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
   const Real T_sfc    = parms.T_0;
   const Real rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real Thetabar = T_sfc;
+  const Real thetabar = T_sfc;
 
   if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 
@@ -132,7 +132,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
          Array1D<Real,0,255> r;;
          Array1D<Real,0,255> p;;
 
-         init_isentropic_hse(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
+         init_isentropic_hse(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
 
          for (int k = 0; k <= khi; k++) {
             rho_arr(i,j,k) = r(k);
@@ -160,15 +160,9 @@ init_custom_prob(
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-  // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
-//const Real z0 = (0.5) * dx[2] + prob_lo[2];
-//const Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
-//const Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
-//const Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
-//const Real rhobar = pbar / (R_d*Tbar); // UNUSED
-
-  const Real rho_sfc   = p_0 / (R_d*parms.T_0);
-  const Real thetabar  = parms.T_0;
+  const Real T_sfc    = parms.T_0;
+  const Real rho_sfc  = p_0 / (R_d*T_sfc);
+  const Real thetabar = T_sfc;
 
   // These are at cell centers (unstaggered)
   amrex::Vector<Real> h_r(khi+1);
@@ -193,7 +187,14 @@ init_custom_prob(
      r_hse(i,j,khi+1) = r_hse(i,j,khi);
   });
 
-  // Geometry (note we must include these here to get the data on device)
+  Real H           = geomdata.ProbHi()[2];
+  Real wavelength  = 100.;
+  Real kp          = 2. * 3.1415926535 / wavelength;
+  Real g           = 9.8;
+  Real omega       = std::sqrt(g * kp);
+
+  Real Ampl        = parms.Ampl;
+
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     const auto prob_lo  = geomdata.ProbLo();
@@ -201,27 +202,14 @@ init_custom_prob(
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const Real z = z_cc(i,j,k);
 
-    // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-    const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
+    state(i, j, k, Rho_comp) = r_hse(i,j,k);
 
-    Real L = std::sqrt(
-        std::pow((x - parms.x_c)/parms.x_r, 2) +
-        std::pow((z - parms.z_c)/parms.z_r, 2)
-    );
-    Real dT;
-    if (L > 1.0) {
-        dT = 0.0;
-    }
-    else {
-        dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
-    }
+    Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
+    Real p_prime = -(omega * omega / kp) * fac * Ampl * std::sin(kp * x);
+    Real p_total = p_hse(i,j,k) + p_prime;
 
-    // Note: dT is T perturbation, theta_perturbed is theta PLUS perturbation in theta
-    Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms.C_p);
-
-    // This version perturbs rho but not p
-    state(i, j, k, RhoTheta_comp) = std::pow(p_hse(i,j,k)/p_0,1.0/Gamma) * p_0 / R_d;
-    state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
+    // Define (rho theta) given pprime
+    state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total);
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
@@ -237,7 +225,15 @@ init_custom_prob(
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      x_vel(i, j, k) = parms.U_0;
+      const auto prob_lo  = geomdata.ProbLo();
+      const auto dx       = geomdata.CellSize();
+
+      const Real x = prob_lo[0] + i * dx[0];
+      const Real z = 0.5 * (z_nd(i,j,k) + z_nd(i,j,k+1)); 
+
+      Real fac    = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
+
+      x_vel(i, j, k) = -omega * fac * Ampl * std::sin(k * x);
   });
 
   // Construct a box that is on y-faces
@@ -259,7 +255,10 @@ init_custom_prob(
   // Set the z-velocity from impenetrable condition
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel, y_vel, z_nd, dxInv);
+      Real x   = (i + 0.5) * dx[0];
+      Real z   = z_cc(i,j,k);
+      Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
+      z_vel(i, j, k) = omega * fac * Ampl * std::cos(kp * x);
   });
 
   amrex::Gpu::streamSynchronize();
@@ -283,42 +282,34 @@ amrex_probinit(
 {
   // Parse params
   amrex::ParmParse pp("prob");
-  pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("x_c", parms.x_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("z_r", parms.z_r);
-  pp.query("T_pert", parms.T_pert);
+  pp.query("Ampl", parms.Ampl);
+  pp.query("T_0" , parms.T_0);
 }
 
 void
-init_custom_terrain(const Geometry& geom,
-                          MultiFab& z_phys_nd,
-                    const Real& /*time*/)
+init_custom_terrain (const Geometry& geom,
+                           MultiFab& z_phys_nd,
+                     const Real& time)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
-    auto ProbLoArr = geom.ProbLoArray();
-    auto ProbHiArr = geom.ProbHiArray();
 
     // Domain valid box (z_nd is nodal)
     const amrex::Box& domain = geom.Domain();
     int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    // int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
     int domlo_z = domain.smallEnd(2);
-
-    // User function parameters
-    Real a    = 0.5;
-    Real num  = 8 * a * a * a;
-    Real xcen = 0.5 * (ProbLoArr[0] + ProbHiArr[0]);
-    // Real ycen = 0.5 * (ProbLoArr[1] + ProbHiArr[1]);
 
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
 
     // Populate bottom plane
     int k0 = domlo_z;
+
+    Real Ampl        = 0.16;
+    Real wavelength  = 100.;
+    Real kp          = 2. * 3.1415926535 / wavelength;
+    Real g           = 9.8;
+    Real omega       = std::sqrt(g * kp);
 
     for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
@@ -332,14 +323,12 @@ init_custom_terrain(const Geometry& geom,
 
             // Clip indices for ghost-cells
             int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-            // int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
             // Location of nodes
-            Real x = (ii  * dx[0] - xcen);
-            // Real y = (jj  * dx[1] - ycen);
+            Real x = ii  * dx[0];
 
-            // WoA Hill in x-direction
-            Real height = num / (x*x + 4 * a * a);
+            // Wave heigght
+            Real height = Ampl * std::sin(kp * x - omega * time);
 
             // Populate terrain height
             z_arr(i,j,k0) = height;

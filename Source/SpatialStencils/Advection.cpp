@@ -8,7 +8,8 @@ using namespace amrex;
 AMREX_GPU_DEVICE
 Real
 AdvectionSrcForXMom(const int &i, const int &j, const int &k,
-                    const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
+                    const Array4<const Real>& rho_u, const Array4<const Real>& rho_v,
+                    const Array4<const Real>& rho_w, const Array4<const Real>& z_t,
                     const Array4<const Real>& u,
                     const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -60,6 +61,7 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
     // Z-fluxes (at edges in j-direction)
     // ****************************************************************************************
 
+    rho_w_avg = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
     Real edgeFluxXZNext = 0.5 *
         ( OmegaFromW(i  ,j,k+1,rho_w(i  ,j,k+1),rho_u,rho_v,z_nd,cellSizeInv)
          +OmegaFromW(i-1,j,k+1,rho_w(i-1,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) ) *
@@ -116,7 +118,8 @@ AdvectionSrcForXMom(const int &i, const int &j, const int &k,
 AMREX_GPU_DEVICE
 Real
 AdvectionSrcForYMom(const int &i, const int &j, const int &k,
-                    const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
+                    const Array4<const Real>& rho_u, const Array4<const Real>& rho_v,
+                    const Array4<const Real>& rho_w, const Array4<const Real>& z_t,
                     const Array4<const Real>& v,
                     const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -366,7 +369,8 @@ AdvectionSrcForZMom(const int &i, const int &j, const int &k,
 
 void
 AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
-                     const Array4<const Real>& rho_u, const Array4<const Real>& rho_v, const Array4<const Real>& rho_w,
+                     const Array4<const Real>& rho_u, const Array4<const Real>& rho_v,
+                     const Array4<const Real>& rho_w, const Array4<const Real>& z_t,
                      const Array4<const Real>& cell_prim,
                      const Array4<Real>& advectionSrc,
                      const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,

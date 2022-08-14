@@ -14,8 +14,8 @@ private:
    /**
     * \brief rhs is the right-hand-side function the integrator will use.
     */
-    std::function<void(T&,         const T&,     const amrex::Real, int)> rhs;
-    std::function<void(T&,         const T&, T&, const amrex::Real, int)> slow_rhs;
+    std::function<void(T&,         const T&,     const amrex::Real, const amrex::Real, int)> rhs;
+    std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real, int)> slow_rhs;
     std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
@@ -82,12 +82,12 @@ public:
         use_fluxes = _use_fluxes;
     }
 
-    void set_rhs (std::function<void(T&, const T&, const amrex::Real, int)> F)
+    void set_rhs (std::function<void(T&, const T&, const amrex::Real, const amrex::Real, int)> F)
     {
         rhs = F;
     }
 
-    void set_slow_rhs (std::function<void(T&, const T&, T&, const amrex::Real, int)> F)
+    void set_slow_rhs (std::function<void(T&, const T&, T&, const amrex::Real, const amrex::Real, int)> F)
     {
         slow_rhs = F;
     }
@@ -291,9 +291,10 @@ public:
         for (int nrk = 0; nrk < 3; nrk++)
         {
             // amrex::Print() << "Starting RK3: Step " << nrk+1 << std::endl;
-            if (nrk == 0) { nsubsteps = 1;               dtau = timestep / 3.0; }
-            if (nrk == 1) { nsubsteps = substep_ratio/2; dtau = sub_timestep;}
-            if (nrk == 2) { nsubsteps = substep_ratio;   dtau = sub_timestep;}
+            amrex::Real time_stage;
+            if (nrk == 0) { nsubsteps = 1;               dtau = timestep / 3.0; time_stage = time + timestep / 3.0;}
+            if (nrk == 1) { nsubsteps = substep_ratio/2; dtau = sub_timestep  ; time_stage = time + timestep / 2.0;}
+            if (nrk == 2) { nsubsteps = substep_ratio;   dtau = sub_timestep  ; time_stage = time + timestep      ;}
 
             // step 1 starts with S_stage = S^n  and we always start substepping at the old time
             // step 2 starts with S_stage = S^*  and we always start substepping at the old time
@@ -404,15 +405,22 @@ public:
             //    the momenta used in the first call to the slow_rhs, then update
             //    inside fast_rhs, then use these values in the later call to slow_rhs
 
+            // ****************************************************
             // Evaluate F_slow(S_stage) only for the fast variables
-            slow_rhs(*F_slow, S_new, *S_scratch, time, RHSVar::fast);
+            // ****************************************************
+            slow_rhs(*F_slow, S_new, *S_scratch, time, time_stage, RHSVar::fast);
 
             amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
 
+            // ****************************************************
+            // Acoustic substepping
+            // ****************************************************
             for (int ks = 0; ks < nsubsteps; ++ks)
             {
+               // *******************************************************************************
                 // Evaluate F_fast(S_pert, S_old) on the fast variables
                 // S_sum is used in the fast RHS to internally define S_pert = (S_sum - S_stage)
+                // *******************************************************************************
                 fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_scratch, dtau, inv_fac);
 
                 // Update S_sum = S_pert + S_stage only for the fast variables
@@ -499,18 +507,19 @@ public:
                 post_substep(*S_sum    , time + (ks+1) * dtau, ngrow, ngrow);
 
                 // Copy only (rho theta), including ghost cells
-                amrex::MultiFab::Copy((*S_scratch)[IntVar::cons], (*S_sum)[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1,
-                                      (*S_sum)[IntVar::cons].nGrowVect());
+                MultiFab::Copy((*S_scratch)[IntVar::cons], (*S_sum)[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1,
+                               (*S_sum)[IntVar::cons].nGrowVect());
             }
 
+            // ****************************************************
             // Evaluate F_slow(S_stage) only for the slow variables
             // Note that we are using the current stage versions (in S_new) of the slow variables
             //      (because we didn't update the slow variables in the substepping)
             //       but we are using the "new" versions (in S_sum) of the velocities
             //      (because we did    update the fast variables in the substepping)
-            slow_rhs(*F_slow, *S_sum, *S_scratch, time, RHSVar::slow);
+            // ****************************************************
+            slow_rhs(*F_slow, *S_sum, *S_scratch, time, time_stage, RHSVar::slow);
 
-            // Apply F_slow only for the slow variables
             // Then copy into S_new which holds the stage data
         #ifdef _OPENMP
         #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -629,7 +638,7 @@ public:
             // This will update S_prim that is used in the slow RHS
             if (nrk < 2)
                post_update(S_new, time + nsubsteps*dtau,S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
-        }
+        } // nrk
 
         // Return timestep
         return timestep;

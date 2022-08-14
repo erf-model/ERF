@@ -3,6 +3,13 @@
 
 #include "ERF_Constants.H"
 
+AMREX_FORCE_INLINE
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
+}
+
 struct ProbParm {
   amrex::Real p_inf = p_0; //freestream pressure [Pa]
   amrex::Real T_inf = 300.0; //freestream temperature [K]

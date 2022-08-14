@@ -255,7 +255,8 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& /*geom*/, MultiFab& z_phys_nd)
+init_custom_terrain(const Geometry& /*geom*/, MultiFab& z_phys_nd, 
+                    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -278,6 +279,15 @@ init_custom_terrain(const Geometry& /*geom*/, MultiFab& z_phys_nd)
         });
     }
 }
+
+#if 0
+// AMREX_FORCE_INLINE
+Real
+dhdt(int i, int j, int k, Real time)
+{
+    return 0.;
+}
+#endif
 
 void
 erf_init_rayleigh(Vector<Real>& /*tau*/,

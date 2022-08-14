@@ -26,7 +26,7 @@ private:
    /**
     * \brief rhs is the right-hand-side function the integrator will use.
     */
-    std::function<void(T&, const T&, T&, const amrex::Real, int)> rhs;
+    std::function<void(T&, const T&, T&, const amrex::Real, const amrex::Real, int)> rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -145,7 +145,7 @@ public:
         use_fluxes = _use_fluxes;
     }
 
-    void set_rhs (std::function<void(T&, const T&, T&, const amrex::Real, int)> F)
+    void set_rhs (std::function<void(T&, const T&, T&, const amrex::Real, const amrex::Real, int)> F)
     {
         rhs = F;
     }
@@ -321,7 +321,7 @@ public:
 
             // Fill F[i], the RHS at the current stage
             // F[i] = RHS(y, t) at y = stage_value, t = stage_time
-            rhs(*F_nodes[in], S_new, S_scratch, stage_time, RHSVar::all);
+            rhs(*F_nodes[in], S_new, S_scratch, time, stage_time, RHSVar::all);
         }
 
         // Fill new State, starting with S_new = S_old.

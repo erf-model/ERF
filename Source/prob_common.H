@@ -29,7 +29,11 @@ init_custom_prob(
 
 void
 init_custom_terrain(const amrex::Geometry& geom,
-                          amrex::MultiFab& z_phys_nd);
+                          amrex::MultiFab& z_phys_nd,
+                    const amrex::Real& time = 0.0);
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time);
 
 void
 erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
