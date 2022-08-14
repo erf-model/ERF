@@ -154,3 +154,9 @@ amrex_probinit(
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
 }
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
+}

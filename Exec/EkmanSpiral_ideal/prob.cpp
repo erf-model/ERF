@@ -89,3 +89,9 @@ amrex_probinit(
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.Theta_0);
 }
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
+}

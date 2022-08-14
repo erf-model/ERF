@@ -198,3 +198,9 @@ amrex_probinit(
 
   pp.query("QKE_0", parms.QKE_0);
 }
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
+}

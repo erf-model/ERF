@@ -140,3 +140,9 @@ amrex_probinit(
 
   pp.query("prob_type", parms.prob_type);
 }
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
+}

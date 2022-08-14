@@ -229,7 +229,7 @@ init_custom_prob(
       const auto dx       = geomdata.CellSize();
 
       const Real x = prob_lo[0] + i * dx[0];
-      const Real z = 0.5 * (z_nd(i,j,k) + z_nd(i,j,k+1)); 
+      const Real z = 0.5 * (z_nd(i,j,k) + z_nd(i,j,k+1));
 
       Real fac    = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
 
@@ -334,4 +334,10 @@ init_custom_terrain (const Geometry& geom,
             z_arr(i,j,k0) = height;
         });
     }
+}
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
 }

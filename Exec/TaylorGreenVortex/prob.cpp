@@ -161,3 +161,9 @@ amrex_probinit(
   pp.query("M_0", parms.M_0);
   pp.query("V_0", parms.V_0);
 }
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
+}

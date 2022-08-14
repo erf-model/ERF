@@ -346,3 +346,9 @@ init_custom_terrain(const Geometry& geom,
         });
     }
 }
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
+}

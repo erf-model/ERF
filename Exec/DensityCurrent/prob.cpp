@@ -255,7 +255,7 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& /*geom*/, MultiFab& z_phys_nd, 
+init_custom_terrain(const Geometry& /*geom*/, MultiFab& z_phys_nd,
                     const Real& /*time*/)
 {
     // Number of ghost cells
@@ -313,4 +313,10 @@ amrex_probinit(
   pp.query("x_r", parms.x_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
+}
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
 }

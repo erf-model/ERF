@@ -216,3 +216,9 @@ amrex_probinit(
                  << std::endl;
 
 }
+
+amrex::Real
+dhdt(int i, int j, int k, amrex::Real time)
+{
+    return 0.;
+}
