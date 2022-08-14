@@ -103,7 +103,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_MRI.H
        ${SRC_DIR}/TimeIntegration/ERF_SRI.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration.H
-       ${SRC_DIR}/TimeIntegration/TimeIntegration_driver.cpp
+       ${SRC_DIR}/TimeIntegration/TimeIntegration.cpp
+       ${SRC_DIR}/TimeIntegration/TI_utils.H
+       ${SRC_DIR}/TimeIntegration/TI_slow_rhs_fun.H
+       ${SRC_DIR}/TimeIntegration/TI_fast_rhs_fun.H
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs.cpp
   )
