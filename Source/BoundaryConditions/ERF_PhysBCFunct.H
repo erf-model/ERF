@@ -43,7 +43,7 @@ public:
     ERFPhysBCFunct (const int lev,
                     const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                     const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
-                    const int& var_idx, TimeInterpolatedData& data,
+                    const int& var_idx, const int& terrain_type, TimeInterpolatedData& data,
                     amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
                     std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                     std::unique_ptr<amrex::MultiFab>& detJ_cc,
@@ -57,7 +57,7 @@ public:
 #endif
                     std::unique_ptr<ReadBndryPlanes>& r2d)
         : m_lev(lev), m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
-          m_var_idx(var_idx), m_data(data), m_bc_extdir_vals(bc_extdir_vals),
+          m_var_idx(var_idx), m_terrain_type(terrain_type), m_data(data), m_bc_extdir_vals(bc_extdir_vals),
           m_z_phys_nd(z_phys_nd), m_detJ_cc(detJ_cc),
 
 #ifdef ERF_USE_NETCDF
@@ -102,8 +102,9 @@ public:
                           const amrex::Array4<Real const>& velx_arr,
                           const amrex::Array4<Real const>& vely_arr,
                           const amrex::Array4<Real const>& z_nd,
+                          const GpuArray<Real,AMREX_SPACEDIM> dx,
                           const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                          amrex::Real time, int bccomp);
+                          amrex::Real time, int bccomp, int terrain_type);
 
     void impose_cons_bcs (const amrex::Array4<Real>& mf, const amrex::Box& bx, const amrex::Box& domain,
                           const amrex::Array4<Real const>& z_nd,
@@ -134,6 +135,7 @@ private:
     amrex::Vector<amrex::BCRec> m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
     int           m_var_idx;
+    int           m_terrain_type;
     TimeInterpolatedData& m_data;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
     std::unique_ptr<amrex::MultiFab>& m_z_phys_nd;
