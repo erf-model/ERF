@@ -105,8 +105,8 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
         if (lev == 0)
         {
             Vector<MultiFab*> smf = {&fdata.get_var(var_idx)};
-            ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
-                                  m_bc_extdir_vals,
+            ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,solverChoice.terrain_type,
+                                  fdata,m_bc_extdir_vals,
                                   z_phys_nd[lev], detJ_cc[lev],
 #ifdef ERF_USE_NETCDF
                                   init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
@@ -122,14 +122,14 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
             Vector<MultiFab*> cmf = {&cdata.get_var(var_idx)};
             Vector<MultiFab*> fmf = {&fdata.get_var(var_idx)};
 
-            ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
+            ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,solverChoice.terrain_type,cdata,
                                    m_bc_extdir_vals,
                                    z_phys_nd[lev-1],detJ_cc[lev-1],
 #ifdef ERF_USE_NETCDF
                                    init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                    m_r2d);
-            ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
+            ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,solverChoice.terrain_type,fdata,
                                    m_bc_extdir_vals,
                                    z_phys_nd[lev], detJ_cc[lev],
 #ifdef ERF_USE_NETCDF
@@ -252,7 +252,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
             Vector<MultiFab*> smf { &mf };
             Vector<Real> stime { time };
 
-            ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
+            ERFPhysBCFunct physbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,solverChoice.terrain_type,level_data,
                                   m_bc_extdir_vals,
                                   z_phys_nd[lev],detJ_cc[lev],
 #ifdef ERF_USE_NETCDF
@@ -273,14 +273,14 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
             Vector<Real> ctime = {cdata.get_time()};
             Vector<Real> ftime = {level_data.get_time()};
 
-            ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
+            ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,solverChoice.terrain_type,cdata,
                                    m_bc_extdir_vals,
                                    z_phys_nd[lev-1],detJ_cc[lev-1],
 #ifdef ERF_USE_NETCDF
                                    init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                                    m_r2d);
-            ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,level_data,
+            ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,solverChoice.terrain_type,level_data,
                                    m_bc_extdir_vals,
                                    z_phys_nd[lev],detJ_cc[lev],
 #ifdef ERF_USE_NETCDF
@@ -377,14 +377,14 @@ ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, in
     Vector<Real> ctime = {cdata.get_time()};
     Vector<Real> ftime = {fdata.get_time()};
 
-    ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,cdata,
+    ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],domain_bcs_type,domain_bcs_type_d,var_idx,solverChoice.terrain_type,cdata,
                            m_bc_extdir_vals,
                            z_phys_nd[lev-1],detJ_cc[lev-1],
 #ifdef ERF_USE_NETCDF
                            init_type, bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi, bdy_time_interval,
 #endif
                            m_r2d);
-    ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,fdata,
+    ERFPhysBCFunct fphysbc(lev,geom[lev],domain_bcs_type,domain_bcs_type_d,var_idx,solverChoice.terrain_type,fdata,
                            m_bc_extdir_vals,
                            z_phys_nd[lev],detJ_cc[lev],
 #ifdef ERF_USE_NETCDF

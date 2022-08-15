@@ -22,6 +22,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
     BL_PROFILE("ERFPhysBCFunct::()");
 
     const auto& domain = m_geom.Domain();
+    const auto dx      = m_geom.CellSizeArray();
     const auto dxInv   = m_geom.InvCellSizeArray();
 
     // Create a grown domain box containing valid + periodic cells
@@ -115,8 +116,8 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                     } else if (m_var_idx == Vars::zvel) {
                         AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
                         impose_zvel_bcs(dest_arr,bx,domain,
-                                        velx_arr,vely_arr,z_nd_arr,dxInv,
-                                        time,bccomp);
+                                        velx_arr,vely_arr,z_nd_arr,dx,dxInv,
+                                        time,bccomp,m_terrain_type);
 
                     } else if (m_var_idx == Vars::cons) {
                         AMREX_ALWAYS_ASSERT(icomp == 0 && icomp+ncomp <= NVAR);

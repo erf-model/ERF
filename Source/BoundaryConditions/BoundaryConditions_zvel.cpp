@@ -1,5 +1,6 @@
 #include "AMReX_PhysBCFunct.H"
 #include <ERF_PhysBCFunct.H>
+#include <prob_common.H>
 
 //
 // dest_arr is the Array4 to be filled
@@ -11,8 +12,9 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
                                       const Array4<Real const>& velx_arr,
                                       const Array4<Real const>& vely_arr,
                                       const Array4<Real const>& z_nd_arr,
+                                      const GpuArray<Real,AMREX_SPACEDIM> dx,
                                       const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                      Real /*time*/, int bccomp)
+                                      Real time, int bccomp, int terrain_type)
 {
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
@@ -48,6 +50,7 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
                                                  AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
 
     bool l_use_terrain = (m_z_phys_nd != nullptr);
+    bool l_moving_terrain = (terrain_type == 1);
 
     for (int i = 0; i < ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
@@ -154,7 +157,12 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
         }
 
         // Populate face values on z-boundaries themselves only if EXT_DIR
-        if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
+        if (k == dom_lo.z && l_use_terrain && l_moving_terrain) {
+            Real dhdt_val = dhdt(i,j,dx,time);
+            dest_arr(i,j,k) = WFromOmega(i,j,k,dhdt_val,
+                                         velx_arr,vely_arr,z_nd_arr,dxInv);
+
+        } else if (k == dom_lo.z && bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
             if (l_use_terrain)
                 dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
                                              velx_arr,vely_arr,z_nd_arr,dxInv);
