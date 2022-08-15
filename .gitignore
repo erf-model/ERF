@@ -8,7 +8,6 @@
 
 # Log files
 datlog
-mmslog
 
 # Ignore everything in Build except the cmake script
 /Build/*
@@ -22,9 +21,7 @@ chk*
 tmp_build_dir
 .ccls-cache
 ERF*.ex
-extern_parameters.H
-extern_parameters.cpp
-extern_parameters_F.H
+AMReX_buildInfo.cpp
 cmake-build*
 cmake_build*
 cmake*ser*

@@ -42,6 +42,7 @@ int         ERF::verbose       = 0;
 
 // Use the native ERF MRI integrator
 int         ERF::use_native_mri = 1;
+int         ERF::no_substepping = 0;
 
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
@@ -707,6 +708,7 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     if (use_native_mri) {
         mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
         mri_integrator_mem[lev]->setUseFluxes(use_fluxes);
+        mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
     } else {
         sri_integrator_mem[lev] = std::make_unique<SRIIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
         sri_integrator_mem[lev]->setUseFluxes(use_fluxes);
@@ -781,6 +783,7 @@ ERF::ReadParameters ()
 
         // Use the native ERF MRI integrator
         pp.query("use_native_mri", use_native_mri);
+        pp.query("no_substepping", no_substepping);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);

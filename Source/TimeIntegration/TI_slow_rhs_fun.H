@@ -16,7 +16,7 @@
             if (verbose) Print() << "Making new geometry at stage_time " << std::endl;
 
             const auto dz = fine_geom.CellSizeArray()[2];
-            const Real old_time = step_time;
+            const Real old_step_time = step_time;
 
             init_custom_terrain(fine_geom,*z_phys_nd_new[level],stage_time); // This defines h(i,j,k=0,t)
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);        // This defines z_phys for all k given h
@@ -44,9 +44,9 @@
                 const auto& dX = fine_geom.CellSizeArray();
 
                 // Loop over horizontal plane
-                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
                 {
-                    z_t_arr(i,j,0) = dhdt(i,j,dX,old_time);
+                    z_t_arr(i,j,0) = dhdt(i,j,dX,old_step_time);
                     for (int k = 1; k <= khi; k++)
                     {
                         // NOTE: J in this code is (1/J) in Sullivan et al (JAS 2014)

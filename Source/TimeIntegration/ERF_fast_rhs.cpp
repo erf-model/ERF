@@ -111,8 +111,6 @@ void erf_fast_rhs (int level,
         auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
         auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
 
-        const Array4<      Real> &   fast_rhs_cons = S_rhs[IntVar::cons].array(mfi);
-
         const Array4<const Real> & cell_stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
         const Array4<const Real> & cell_stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & cell_stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
@@ -125,14 +123,15 @@ void erf_fast_rhs (int level,
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
 
-        const Array4<Real>& fast_rhs_rho_u = S_rhs[IntVar::xmom].array(mfi);
-        const Array4<Real>& fast_rhs_rho_v = S_rhs[IntVar::ymom].array(mfi);
-        const Array4<Real>& fast_rhs_rho_w = S_rhs[IntVar::zmom].array(mfi);
+        const Array4<      Real>& fast_rhs_cons  = S_rhs[IntVar::cons].array(mfi);
+        const Array4<      Real>& fast_rhs_rho_u = S_rhs[IntVar::xmom].array(mfi);
+        const Array4<      Real>& fast_rhs_rho_v = S_rhs[IntVar::ymom].array(mfi);
+        const Array4<      Real>& fast_rhs_rho_w = S_rhs[IntVar::zmom].array(mfi);
 
-        const Array4<const Real>& slow_rhs_cons     = S_slow_rhs[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& slow_rhs_rho_u    = S_slow_rhs[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>& slow_rhs_rho_v    = S_slow_rhs[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& slow_rhs_rho_w    = S_slow_rhs[IntVar::zmom].const_array(mfi);
+        const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVar::zmom].const_array(mfi);
 
         const Array4<      Real>& new_drho_u = New_rho_u.array(mfi);
         const Array4<      Real>& new_drho_v = New_rho_v.array(mfi);
@@ -554,9 +553,9 @@ void erf_fast_rhs (int level,
 
         const int l_spatial_order = 2;
 
-        // We only update (rho) and (rho theta) here
+        // We only update rho and (rho theta) here
         int start_comp = 0;
-        int ncomp      = 2;
+        int      ncomp = 2;
 
         // These are temporaries we use to add to the S_rhs for the fluxes
         const Array4<Real>& advflux_x  =  advflux[0].array(mfi);
@@ -576,21 +575,18 @@ void erf_fast_rhs (int level,
             const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
             const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
 
-            amrex::ParallelFor(tbx, tby, tbz,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            amrex::ParallelFor(
+            tbx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
-                 xflux_rhs(i,j,k,0) = advflux_x(i,j,k,0);
-                 xflux_rhs(i,j,k,1) = advflux_x(i,j,k,1);
+                 xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n);
             },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            tby, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
-                 yflux_rhs(i,j,k,0) = advflux_y(i,j,k,0);
-                 yflux_rhs(i,j,k,1) = advflux_y(i,j,k,1);
+                 yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n);
             },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            tbz, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
-                 zflux_rhs(i,j,k,0) = advflux_z(i,j,k,0);
-                 zflux_rhs(i,j,k,1) = advflux_z(i,j,k,1);
+                 zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n);
             });
         } // use_fluxes
     } // mfi

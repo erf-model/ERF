@@ -16,7 +16,7 @@ private:
     */
     std::function<void(T&,         const T&,     const amrex::Real, const amrex::Real, int)> rhs;
     std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real, int)> slow_rhs;
-    std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real)> fast_rhs;
+    std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real     )> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -34,11 +34,16 @@ private:
     int use_fluxes;
 
    /**
+    * \brief Should we not do acoustic substepping
+    */
+    int no_substepping;
+
+   /**
     * \brief The post_update function is called by the integrator on state data before using it to evaluate a right-hand side.
     */
     std::function<void (T&, amrex::Real, int, int)> post_update;
 
-    std::function<void (T&, amrex::Real, int, int)> post_substep;
+    std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> post_substep;
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
@@ -82,6 +87,11 @@ public:
         use_fluxes = _use_fluxes;
     }
 
+    void setNoSubstepping(int _no_substepping)
+    {
+        no_substepping = _no_substepping;
+    }
+
     void set_rhs (std::function<void(T&, const T&, const amrex::Real, const amrex::Real, int)> F)
     {
         rhs = F;
@@ -117,7 +127,7 @@ public:
         post_update = F;
     }
 
-    void set_post_substep (std::function<void (T&, amrex::Real, int, int)> F)
+    void set_post_substep (std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> F)
     {
         post_substep = F;
     }
@@ -132,7 +142,7 @@ public:
         return rhs;
     }
 
-    std::function<void (T&, amrex::Real, int, int)> get_post_substep ()
+    std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> get_post_substep ()
     {
         return post_substep;
     }
@@ -140,6 +150,17 @@ public:
     amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
     {
         using namespace amrex;
+
+        // *******************************************************************************
+        // version == 0: we only update the fast variables every fast timestep, then update
+        //               the slow variables after the acoustic sub-stepping.  This has
+        //               two calls to slow_rhs so that we can update the slow variables
+        //               with the velocity field after the acoustic substepping using
+        //               the time-averaged velocity from the substepping
+        // version == 1: we don't do any acoustic subcyling so we only make one call per RK
+        //               stage to slow_rhs
+        // *******************************************************************************
+        int version = no_substepping ? 1 : 0;
 
         timestep = time_step;
 
@@ -340,18 +361,30 @@ public:
                     Array4<Real>* ssum = ssum_d.dataPtr();
                     Array4<Real>* scrh = scrh_d.dataPtr();
 
-                    ParallelFor(gbx, static_cast<int>(Cons::NumVars),
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                        if (n >= scomp_fast[IntVar::cons] && n < scomp_fast[IntVar::cons] + ncomp_fast[IntVar::cons]) {
-                            ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                        }
-                        if (n >= scomp_slow[IntVar::cons] && n < scomp_slow[IntVar::cons] + ncomp_slow[IntVar::cons]) {
-                            ssum[IntVar::cons](i,j,k,n) = snew[IntVar::cons](i,j,k,n);
-                        }
-                        if (n >= scomp_rth[IntVar::cons] && n < scomp_rth[IntVar::cons] + ncomp_rth[IntVar::cons]) {
-                            scrh[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                        }
-                    });
+                    if (version == 0) {
+                        ParallelFor(gbx, static_cast<int>(Cons::NumVars),
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                            if (n >= scomp_fast[IntVar::cons] && n < scomp_fast[IntVar::cons] + ncomp_fast[IntVar::cons]) {
+                                ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
+                            }
+                            if (n >= scomp_slow[IntVar::cons] && n < scomp_slow[IntVar::cons] + ncomp_slow[IntVar::cons]) {
+                                ssum[IntVar::cons](i,j,k,n) = snew[IntVar::cons](i,j,k,n);
+                            }
+                            if (n >= scomp_rth[IntVar::cons] && n < scomp_rth[IntVar::cons] + ncomp_rth[IntVar::cons]) {
+                                scrh[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
+                            }
+                        });
+                    } else {
+                        ParallelFor(gbx, static_cast<int>(Cons::NumVars),
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                            if (n >= scomp_all[IntVar::cons] && n < scomp_all[IntVar::cons] + ncomp_all[IntVar::cons]) {
+                                ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
+                            }
+                            if (n >= scomp_rth[IntVar::cons] && n < scomp_rth[IntVar::cons] + ncomp_rth[IntVar::cons]) {
+                                scrh[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
+                            }
+                        });
+                    } // version
 
                     ParallelFor(gtbx, gtby, gtbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -374,8 +407,14 @@ public:
                             if (n >= scomp_fast[IntVar::xflux] && n < scomp_fast[IntVar::xflux] + ncomp_fast[IntVar::xflux]) {
                                 ssum[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
                             }
-                            if (n >= scomp_slow[IntVar::xflux] && n < scomp_slow[IntVar::xflux] + ncomp_slow[IntVar::xflux]) {
-                                ssum[IntVar::xflux](i,j,k,n) = snew[IntVar::xflux](i,j,k,n);
+                            if (version == 0) {
+                                if (n >= scomp_slow[IntVar::xflux] && n < scomp_slow[IntVar::xflux] + ncomp_slow[IntVar::xflux]) {
+                                    ssum[IntVar::xflux](i,j,k,n) = snew[IntVar::xflux](i,j,k,n);
+                                }
+                            } else {
+                                if (n >= scomp_slow[IntVar::xflux] && n < scomp_slow[IntVar::xflux] + ncomp_slow[IntVar::xflux]) {
+                                    ssum[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
+                                }
                             }
                         },
                         gfby, static_cast<int>(Cons::NumVars),
@@ -383,17 +422,29 @@ public:
                             if (n >= scomp_fast[IntVar::yflux] && n < scomp_fast[IntVar::yflux] + ncomp_fast[IntVar::yflux]) {
                                 ssum[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
                             }
-                            if (n >= scomp_slow[IntVar::yflux] && n < scomp_slow[IntVar::yflux] + ncomp_slow[IntVar::yflux]) {
-                                ssum[IntVar::yflux](i,j,k,n) = snew[IntVar::yflux](i,j,k,n);
+                            if (version == 0) {
+                                if (n >= scomp_slow[IntVar::yflux] && n < scomp_slow[IntVar::yflux] + ncomp_slow[IntVar::yflux]) {
+                                    ssum[IntVar::yflux](i,j,k,n) = snew[IntVar::yflux](i,j,k,n);
+                                }
+                            } else {
+                                if (n >= scomp_slow[IntVar::yflux] && n < scomp_slow[IntVar::yflux] + ncomp_slow[IntVar::yflux]) {
+                                    ssum[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
+                                }
                             }
                         },
-                    gfbz, static_cast<int>(Cons::NumVars),
+                        gfbz, static_cast<int>(Cons::NumVars),
                         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
                             if (n >= scomp_fast[IntVar::zflux] && n < scomp_fast[IntVar::zflux] + ncomp_fast[IntVar::zflux]) {
                                 ssum[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
                             }
-                            if (n >= scomp_slow[IntVar::zflux] && n < scomp_slow[IntVar::zflux] + ncomp_slow[IntVar::zflux]) {
-                                ssum[IntVar::zflux](i,j,k,n) = snew[IntVar::zflux](i,j,k,n);
+                            if (version == 0) {
+                                if (n >= scomp_slow[IntVar::zflux] && n < scomp_slow[IntVar::zflux] + ncomp_slow[IntVar::zflux]) {
+                                    ssum[IntVar::zflux](i,j,k,n) = snew[IntVar::zflux](i,j,k,n);
+                                }
+                            } else {
+                                if (n >= scomp_slow[IntVar::zflux] && n < scomp_slow[IntVar::zflux] + ncomp_slow[IntVar::zflux]) {
+                                    ssum[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
+                                }
                             }
                         });
                     } // use_fluxes
@@ -406,145 +457,81 @@ public:
             //    inside fast_rhs, then use these values in the later call to slow_rhs
 
             // ****************************************************
-            // Evaluate F_slow(S_stage) only for the fast variables
+            // if (version == 0) evaluate F_slow(S_stage) only for the fast variables
+            // if (version == 1) evaluate F_slow(S_stage) only for all the  variables
             // ****************************************************
-            slow_rhs(*F_slow, S_new, *S_scratch, time, time_stage, RHSVar::fast);
+            if (version == 0)
+                slow_rhs(*F_slow, S_new, *S_scratch, time, time_stage, RHSVar::fast);
+            else
+                slow_rhs(*F_slow, S_new, *S_scratch, time, time_stage, RHSVar::all);
 
             amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
 
             // ****************************************************
             // Acoustic substepping
             // ****************************************************
-            for (int ks = 0; ks < nsubsteps; ++ks)
+            if (version == 0)
             {
-               // *******************************************************************************
-                // Evaluate F_fast(S_pert, S_old) on the fast variables
-                // S_sum is used in the fast RHS to internally define S_pert = (S_sum - S_stage)
-                // *******************************************************************************
-                fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_scratch, dtau, inv_fac);
-
-                // Update S_sum = S_pert + S_stage only for the fast variables
-            #ifdef _OPENMP
-            #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-            #endif
+                for (int ks = 0; ks < nsubsteps; ++ks)
                 {
-                    for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                        const Box bx = mfi.tilebox();
-                        const Box tbx = mfi.nodaltilebox(0);
-                        const Box tby = mfi.nodaltilebox(1);
-                        const Box tbz = mfi.nodaltilebox(2);
+                    // *******************************************************************************
+                    // Evaluate F_fast(S_pert, S_old) on the fast variables
+                    // S_sum is used in the fast RHS to internally define S_pert = (S_sum - S_stage)
+                    // *******************************************************************************
+                    fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_scratch, dtau, inv_fac);
 
-                        Vector<Array4<Real> > ssum_h(n_data);
-                        Vector<Array4<Real> > fslow_h(n_data);
-                        Vector<Array4<Real> > fpert_h(n_data);
+                    // *******************************************************************************
+                    // Call the post-substep hook for S_sum at t = time + (ks+1) * sub_dt
+                    // This adds dtau*(F_slow + F_pert) to S_sum for the fast variables,  and
+                    // if version == 1, adds dtau*F_slow to S_sum for the slow variables.
+                    // It also calls apply_bc and constoprim
+                    // *******************************************************************************
+                    post_substep(*S_sum, *F_slow, *F_pert, time + (ks+1) * dtau, dtau);
 
-                        for (int i = 0; i < n_data; ++i) {
-                            ssum_h[i]  = (*S_sum)[i].array(mfi);
-                            fslow_h[i] = (*F_slow)[i].array(mfi);
-                            fpert_h[i] = (*F_pert)[i].array(mfi);
-                        }
+                    // *******************************************************************************
+                    // Copy only (rho theta), including ghost cells
+                    // *******************************************************************************
+                    MultiFab::Copy((*S_scratch)[IntVar::cons], (*S_sum)[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1,
+                                   (*S_sum)[IntVar::cons].nGrowVect());
+                } // ks
 
-                        Gpu::AsyncVector<Array4<Real> > ssum_d(n_data);
-                        Gpu::AsyncVector<Array4<Real> > fslow_d(n_data);
-                        Gpu::AsyncVector<Array4<Real> > fpert_d(n_data);
+                // ****************************************************
+                // Evaluate F_slow(S_stage) only for the slow variables
+                // Note that we are using the current stage versions (in S_new) of the slow variables
+                //      (because we didn't update the slow variables in the substepping)
+                //       but we are using the "new" versions (in S_sum) of the velocities
+                //      (because we did    update the fast variables in the substepping)
+                // ****************************************************
+                slow_rhs(*F_slow, *S_sum, *S_scratch, time, time_stage, RHSVar::slow);
 
-                        Gpu::copy(Gpu::hostToDevice, ssum_h.begin(), ssum_h.end(), ssum_d.begin());
-                        Gpu::copy(Gpu::hostToDevice, fslow_h.begin(), fslow_h.end(), fslow_d.begin());
-                        Gpu::copy(Gpu::hostToDevice, fpert_h.begin(), fpert_h.end(), fpert_d.begin());
-
-                        Array4<Real>* ssum = ssum_d.dataPtr();
-                        Array4<Real>* fslow = fslow_d.dataPtr();
-                        Array4<Real>* fpert = fpert_d.dataPtr();
-
-                        ParallelFor(bx, ncomp_fast[IntVar::cons],
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
-                            const int n = scomp_fast[IntVar::cons] + nn;
-                            ssum[IntVar::cons](i,j,k,n) += dtau *
-                               ( fslow[IntVar::cons](i,j,k,n) + fpert[IntVar::cons](i,j,k,n) );
-                        });
-
-                        ParallelFor(tbx, tby, tbz,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVar::xmom](i,j,k) += dtau *
-                               ( fslow[IntVar::xmom](i,j,k) + fpert[IntVar::xmom](i,j,k) );
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVar::ymom](i,j,k) += dtau *
-                               ( fslow[IntVar::ymom](i,j,k) + fpert[IntVar::ymom](i,j,k));
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            ssum[IntVar::zmom](i,j,k) += dtau *
-                               ( fslow[IntVar::zmom](i,j,k) + fpert[IntVar::zmom](i,j,k) );
-                        });
-
-                        if (use_fluxes) {
-                            ParallelFor(
-                            tbx, ncomp_fast[IntVar::xflux],
-                            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                                const int n = scomp_fast[IntVar::xflux] + nn;
-                                ssum[IntVar::xflux](i,j,k,n) += dtau *
-                                   ( fslow[IntVar::xflux](i,j,k,n) + fpert[IntVar::xflux](i,j,k,n) );
-                            },
-                            tby, ncomp_fast[IntVar::yflux],
-                            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                                const int n = scomp_fast[IntVar::yflux] + nn;
-                                ssum[IntVar::yflux](i,j,k,n) += dtau *
-                                   ( fslow[IntVar::yflux](i,j,k,n) + fpert[IntVar::yflux](i,j,k,n) );
-                            },
-                            tbz, ncomp_fast[IntVar::zflux],
-                            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                                const int n = scomp_fast[IntVar::zflux] + nn;
-                                ssum[IntVar::zflux](i,j,k,n) += dtau *
-                                   ( fslow[IntVar::zflux](i,j,k,n) + fpert[IntVar::zflux](i,j,k,n) );
-                            });
-                        } // use_fluxes
-                    }
-                }
-
-                // Call the post-substep hook for S_sum at t = time + (ks+1) * sub_dt
-                // Only call the post_substep on the fast variables
-                int ngrow = 1;
-                post_substep(*S_sum    , time + (ks+1) * dtau, ngrow, ngrow);
-
-                // Copy only (rho theta), including ghost cells
-                MultiFab::Copy((*S_scratch)[IntVar::cons], (*S_sum)[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1,
-                               (*S_sum)[IntVar::cons].nGrowVect());
-            } // ks
-
-            // ****************************************************
-            // Evaluate F_slow(S_stage) only for the slow variables
-            // Note that we are using the current stage versions (in S_new) of the slow variables
-            //      (because we didn't update the slow variables in the substepping)
-            //       but we are using the "new" versions (in S_sum) of the velocities
-            //      (because we did    update the fast variables in the substepping)
-            // ****************************************************
-            slow_rhs(*F_slow, *S_sum, *S_scratch, time, time_stage, RHSVar::slow);
+            } // version == 0
 
             // Then copy into S_new which holds the stage data
         #ifdef _OPENMP
         #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
         #endif
             {
-                for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                  for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                     const Box bx = mfi.tilebox();
                     const Box tbx = mfi.nodaltilebox(0);
                     const Box tby = mfi.nodaltilebox(1);
                     const Box tbz = mfi.nodaltilebox(2);
+
                     const Box gbx = mfi.tilebox().grow(S_old[IntVar::cons].nGrowVect());
                     const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
                     const Box gtby = mfi.nodaltilebox(1).grow(S_old[IntVar::ymom].nGrowVect());
                     const Box gtbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zmom].nGrowVect());
 
-                    Vector<Array4<Real> > sold_h(n_data);
-                    Vector<Array4<Real> > snew_h(n_data);
-                    Vector<Array4<Real> > ssum_h(n_data);
+                    Vector<Array4<Real> >  sold_h(n_data);
+                    Vector<Array4<Real> >  snew_h(n_data);
+                    Vector<Array4<Real> >  ssum_h(n_data);
                     Vector<Array4<Real> > fslow_h(n_data);
 
                     for (int i = 0; i < n_data; ++i) {
-                        ssum_h[i]  = (*S_sum)[i].array(mfi);
+                        ssum_h[i]  = (*S_sum )[i].array(mfi);
                         fslow_h[i] = (*F_slow)[i].array(mfi);
-                        sold_h[i] = S_old[i].array(mfi);
-                        snew_h[i] = S_new[i].array(mfi);
+                        sold_h[i]  = S_old[i].array(mfi);
+                        snew_h[i]  = S_new[i].array(mfi);
                     }
 
                     Gpu::AsyncVector<Array4<Real> > sold_d(n_data);
@@ -562,13 +549,26 @@ public:
                     Array4<Real>* ssum = ssum_d.dataPtr();
                     Array4<Real>* fslow = fslow_d.dataPtr();
 
-                    ParallelFor(gbx, ncomp_slow[IntVar::cons],
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                        const int n = scomp_slow[IntVar::cons] + nn;
-                        ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                        if (bx.contains(i,j,k))
-                            ssum[IntVar::cons](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::cons](i,j,k,n);
-                    });
+                    if (version == 0)
+                    {
+                        ParallelFor(gbx, ncomp_slow[IntVar::cons],
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                            const int n = scomp_slow[IntVar::cons] + nn;
+                            ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
+                            if (bx.contains(i,j,k)) {
+                                ssum[IntVar::cons](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::cons](i,j,k,n);
+                            }
+                        });
+                    } else {
+                        ParallelFor(gbx, ncomp_all[IntVar::cons],
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                            const int n = scomp_all[IntVar::cons] + nn;
+                            ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
+                            if (bx.contains(i,j,k)) {
+                                ssum[IntVar::cons](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::cons](i,j,k,n);
+                            }
+                        });
+                    }
 
                     ParallelFor(gbx, ncomp_all[IntVar::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
@@ -591,28 +591,31 @@ public:
                         const Box gfbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xflux].nGrowVect());
                         const Box gfby = mfi.nodaltilebox(1).grow(S_old[IntVar::yflux].nGrowVect());
                         const Box gfbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zflux].nGrowVect());
-                        ParallelFor(
-                        gfbx, ncomp_slow[IntVar::xflux],
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                            const int n = scomp_slow[IntVar::xflux] + nn;
-                            ssum[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
-                            if (tbx.contains(i,j,k))
-                                ssum[IntVar::xflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::xflux](i,j,k,n);
-                        },
-                        gfby, ncomp_slow[IntVar::yflux],
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                            const int n = scomp_slow[IntVar::yflux] + nn;
-                            ssum[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
-                            if (tby.contains(i,j,k))
-                                ssum[IntVar::yflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::yflux](i,j,k,n);
-                        },
-                        gfbz, ncomp_slow[IntVar::zflux],
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                            const int n = scomp_slow[IntVar::zflux] + nn;
-                            ssum[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
-                            if (tbz.contains(i,j,k))
-                                ssum[IntVar::zflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::zflux](i,j,k,n);
-                        });
+                        if (version == 0)
+                        {
+                            ParallelFor(
+                            gfbx, ncomp_slow[IntVar::xflux],
+                            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                                const int n = scomp_slow[IntVar::xflux] + nn;
+                                ssum[IntVar::xflux](i,j,k,n) = sold[IntVar::xflux](i,j,k,n);
+                                if (tbx.contains(i,j,k))
+                                    ssum[IntVar::xflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::xflux](i,j,k,n);
+                            },
+                            gfby, ncomp_slow[IntVar::yflux],
+                            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                                const int n = scomp_slow[IntVar::yflux] + nn;
+                                ssum[IntVar::yflux](i,j,k,n) = sold[IntVar::yflux](i,j,k,n);
+                                if (tby.contains(i,j,k))
+                                    ssum[IntVar::yflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::yflux](i,j,k,n);
+                            },
+                            gfbz, ncomp_slow[IntVar::zflux],
+                            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                                const int n = scomp_slow[IntVar::zflux] + nn;
+                                ssum[IntVar::zflux](i,j,k,n) = sold[IntVar::zflux](i,j,k,n);
+                                if (tbz.contains(i,j,k))
+                                    ssum[IntVar::zflux](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::zflux](i,j,k,n);
+                           });
+                        }
 
                         ParallelFor(
                         gfbx, ncomp_all[IntVar::xflux],
@@ -631,10 +634,10 @@ public:
                             snew[IntVar::zflux](i,j,k,n) = ssum[IntVar::zflux](i,j,k,n);
                         });
                     } // use_fluxes
-                }
-            }
+                  } // mfi
+            } // omp
 
-            // Call the post-update hook for S_new after all the fine steps completed
+            // Call the post-update hook for S_new after all the fast steps completed
             // This will update S_prim that is used in the slow RHS
             if (nrk < 2)
                post_update(S_new, time + nsubsteps*dtau,S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
