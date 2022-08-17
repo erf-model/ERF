@@ -105,7 +105,7 @@ the mixing ratios of water vapor and cloud water, respectively.
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
   \frac{\rho_d}{\rho_m} \nabla p^\prime +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
 
-  \frac{\partial (\rho_d \theta_m)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_m + F_{theta_{m}}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_m) + F_Q
+  \frac{\partial (\rho_d \theta_m)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_m + F_{\theta_{m}}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_m) + F_Q
 
   \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
 
