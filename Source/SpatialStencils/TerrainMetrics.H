@@ -13,11 +13,12 @@ void init_terrain_grid( const amrex::Geometry& geom, amrex::MultiFab& z_phys_nd)
 // Compute terrain metric terms at cell-center
 //*****************************************************************************************
 // Metric is at cell center
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-inline amrex::Real
-Compute_h_zeta_AtCellCenter(const int &i, const int &j, const int &k,
-                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                            const amrex::Array4<const amrex::Real>& z_nd)
+amrex::Real
+Compute_h_zeta_AtCellCenter (const int &i, const int &j, const int &k,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                             const amrex::Array4<const amrex::Real>& z_nd)
 {
     amrex::Real dzInv = cellSizeInv[2];
     amrex::Real met_h_zeta = 0.25 * dzInv *
@@ -28,13 +29,14 @@ Compute_h_zeta_AtCellCenter(const int &i, const int &j, const int &k,
 
 // Metric is at cell center
 AMREX_GPU_DEVICE
-inline void
-ComputeMetricAtCellCenter(const int &i, const int &j, const int &k,
-                          amrex::Real& met_h_xi,
-                          amrex::Real& met_h_eta,
-                          amrex::Real& met_h_zeta,
-                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                          const amrex::Array4<const amrex::Real>& z_nd, const int flag)
+AMREX_FORCE_INLINE
+void
+ComputeMetricAtCellCenter (const int &i, const int &j, const int &k,
+                           amrex::Real& met_h_xi,
+                           amrex::Real& met_h_eta,
+                           amrex::Real& met_h_zeta,
+                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                           const amrex::Array4<const amrex::Real>& z_nd, const int flag)
 {
   met_h_xi   = 0.0;
   met_h_eta  = 0.0;
@@ -101,13 +103,14 @@ ComputeMetricAtCellCenter(const int &i, const int &j, const int &k,
 //*****************************************************************************************
 // Metric coincides with U location
 AMREX_GPU_DEVICE
-inline void
-ComputeMetricAtIface(const int &i, const int &j, const int &k,
-                   amrex::Real& met_h_xi,
-                   amrex::Real& met_h_eta,
-                   amrex::Real& met_h_zeta,
-                   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const amrex::Array4<const amrex::Real>& z_nd, const int flag)
+AMREX_FORCE_INLINE
+void
+ComputeMetricAtIface (int i, int j, int k,
+                      amrex::Real met_h_xi,
+                      amrex::Real met_h_eta,
+                      amrex::Real met_h_zeta,
+                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                      const amrex::Array4<const amrex::Real>& z_nd, int flag)
 {
   met_h_xi   = 0.0;
   met_h_eta  = 0.0;
@@ -163,13 +166,14 @@ ComputeMetricAtIface(const int &i, const int &j, const int &k,
 
 // Metric coincides with V location
 AMREX_GPU_DEVICE
-inline void
-ComputeMetricAtJface(const int &i, const int &j, const int &k,
-                   amrex::Real& met_h_xi,
-                   amrex::Real& met_h_eta,
-                   amrex::Real& met_h_zeta,
-                   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const amrex::Array4<const amrex::Real>& z_nd, const int flag)
+AMREX_FORCE_INLINE
+void
+ComputeMetricAtJface (int i, int j, int k,
+                      amrex::Real met_h_xi,
+                      amrex::Real met_h_eta,
+                      amrex::Real met_h_zeta,
+                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                      const amrex::Array4<const amrex::Real>& z_nd, const int flag)
 {
   met_h_xi   = 0.0;
   met_h_eta  = 0.0;
@@ -225,13 +229,14 @@ ComputeMetricAtJface(const int &i, const int &j, const int &k,
 
 // Metric coincides with W location
 AMREX_GPU_DEVICE
-inline void
-ComputeMetricAtKface(const int &i, const int &j, const int &k,
-                   amrex::Real& met_h_xi,
-                   amrex::Real& met_h_eta,
-                   amrex::Real& met_h_zeta,
-                   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const amrex::Array4<const amrex::Real>& z_nd, const int flag)
+AMREX_FORCE_INLINE
+void
+ComputeMetricAtKface(int i, int j, int k,
+                     amrex::Real& met_h_xi,
+                     amrex::Real& met_h_eta,
+                     amrex::Real& met_h_zeta,
+                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                     const amrex::Array4<const amrex::Real>& z_nd, int flag)
 {
   met_h_xi   = 0.0;
   met_h_eta  = 0.0;
@@ -290,13 +295,14 @@ ComputeMetricAtKface(const int &i, const int &j, const int &k,
 //*****************************************************************************************
 // Metric is at edge and center Z (red pentagon)
 AMREX_GPU_DEVICE
-inline void
-ComputeMetricAtEdgeCenterK(const int &i, const int &j, const int &k,
-                           amrex::Real& met_h_xi,
-                           amrex::Real& met_h_eta,
-                           amrex::Real& met_h_zeta,
-                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                           const amrex::Array4<const amrex::Real>& z_nd, const int flag)
+AMREX_FORCE_INLINE
+void
+ComputeMetricAtEdgeCenterK (int i, int j, int k,
+                            amrex::Real met_h_xi,
+                            amrex::Real met_h_eta,
+                            amrex::Real met_h_zeta,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& z_nd, int flag)
 {
   met_h_xi   = 0.0;
   met_h_eta  = 0.0;
@@ -352,13 +358,14 @@ ComputeMetricAtEdgeCenterK(const int &i, const int &j, const int &k,
 
 // Metric is at edge and center Y (magenta cross)
 AMREX_GPU_DEVICE
-inline void
-ComputeMetricAtEdgeCenterJ(const int &i, const int &j, const int &k,
-                           amrex::Real& met_h_xi,
-                           amrex::Real& met_h_eta,
-                           amrex::Real& met_h_zeta,
-                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                           const amrex::Array4<const amrex::Real>& z_nd, const int flag)
+AMREX_FORCE_INLINE
+void
+ComputeMetricAtEdgeCenterJ (const int &i, const int &j, const int &k,
+                            amrex::Real met_h_xi,
+                            amrex::Real met_h_eta,
+                            amrex::Real met_h_zeta,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& z_nd, int flag)
 {
   met_h_xi   = 0.0;
   met_h_eta  = 0.0;
@@ -410,13 +417,14 @@ ComputeMetricAtEdgeCenterJ(const int &i, const int &j, const int &k,
 
 // Metric is at edge and center I (purple hexagon)
 AMREX_GPU_DEVICE
-inline void
-ComputeMetricAtEdgeCenterI(const int &i, const int &j, const int &k,
-                           amrex::Real& met_h_xi,
-                           amrex::Real& met_h_eta,
-                           amrex::Real& met_h_zeta,
-                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                           const amrex::Array4<const amrex::Real>& z_nd, const int flag)
+AMREX_FORCE_INLINE
+void
+ComputeMetricAtEdgeCenterI (int i, int j, int k,
+                            amrex::Real met_h_xi,
+                            amrex::Real met_h_eta,
+                            amrex::Real met_h_zeta,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& z_nd, int flag)
 {
   met_h_xi   = 0.0;
   met_h_eta  = 0.0;
@@ -470,12 +478,13 @@ ComputeMetricAtEdgeCenterI(const int &i, const int &j, const int &k,
 // Map between W <--> Omega
 //*****************************************************************************************
 AMREX_GPU_DEVICE
-inline
-amrex::Real OmegaFromW(int i, int j, int k, amrex::Real w,
-                       const amrex::Array4<const amrex::Real> u,
-                       const amrex::Array4<const amrex::Real> v,
-                       const amrex::Array4<const amrex::Real> z_nd,
-                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
+AMREX_FORCE_INLINE
+amrex::Real
+OmegaFromW (int i, int j, int k, amrex::Real w,
+            const amrex::Array4<const amrex::Real> u,
+            const amrex::Array4<const amrex::Real> v,
+            const amrex::Array4<const amrex::Real> z_nd,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
   // This is dh/dxi at z-face (i,j,k-1/2)
   amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
@@ -498,12 +507,14 @@ amrex::Real OmegaFromW(int i, int j, int k, amrex::Real w,
   return omega;
 }
 
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-amrex::Real WFromOmega(int i, int j, int k, amrex::Real omega,
-                       const amrex::Array4<const amrex::Real>& u,
-                       const amrex::Array4<const amrex::Real>& v,
-                       const amrex::Array4<const amrex::Real>& z_nd,
-                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+WFromOmega (int i, int j, int k, amrex::Real omega,
+            const amrex::Array4<const amrex::Real>& u,
+            const amrex::Array4<const amrex::Real>& v,
+            const amrex::Array4<const amrex::Real>& z_nd,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
   // This is dh/dxi at z-face (i,j,k-1/2)
   amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
@@ -523,47 +534,5 @@ amrex::Real WFromOmega(int i, int j, int k, amrex::Real omega,
 
   amrex::Real w = met_zlo_xi * vec_zlo_xi + met_zlo_eta * vec_zlo_eta + omega;
   return w;
-}
-
-//*****************************************************************************************
-// Compute detJ & z_phys at cell-center
-//*****************************************************************************************
-inline
-void make_metrics(const amrex::Geometry& geom,
-                  amrex::MultiFab& z_phys_nd,
-                  amrex::MultiFab& z_phys_cc,
-                  amrex::MultiFab& detJ_cc)
-{
-    auto dx = geom.CellSize();
-    amrex::Real dzInv = 1.0/dx[2];
-
-    // Domain valid box (z_nd is nodal)
-    const amrex::Box& domain = geom.Domain();
-    int domlo_z = domain.smallEnd(2);
-
-    // Number of ghost cells
-    int ngrow = z_phys_cc.nGrow();
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( amrex::MFIter mfi(z_phys_cc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        const amrex::Box& gbx = mfi.growntilebox(ngrow);
-        amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
-        amrex::Array4<amrex::Real      > z_cc = z_phys_cc.array(mfi);
-        amrex::Array4<amrex::Real      > detJ = detJ_cc.array(mfi);
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            if (k >= domlo_z) {
-               z_cc(i, j, k) = .125 * (
-                       z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
-                      +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
-               detJ(i, j, k) = .25 * dzInv * (
-                       z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                      -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
-            }
-       });
-    }
-    detJ_cc.FillBoundary(geom.periodicity());
 }
 #endif

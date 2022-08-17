@@ -9,6 +9,7 @@ using namespace amrex;
 TimeInterpolatedData
 ERF::GetDataAtTime (int lev, Real time)
 {
+    BL_PROFILE_VAR("GetDataAtTime()",GetDataAtTime);
     TimeInterpolatedData data;
 
     const Real teps = (t_new[lev] - t_old[lev]) * 1.e-3;
@@ -68,6 +69,7 @@ ERF::GetDataAtTime (int lev, Real time)
 void
 ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 {
+    BL_PROFILE_VAR("ERF::FillPatch()",ERF_FillPatch);
     int bccomp;
     amrex::Interpolater* mapper = nullptr;
 
@@ -193,6 +195,7 @@ void
 ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<MultiFab> > mfs,
                             int ng_cons, int ng_vel, bool cons_only, int scomp_cons, int ncomp_cons)
 {
+    BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
     int bccomp;
     amrex::Interpolater* mapper;
     TimeInterpolatedData level_data;
@@ -344,6 +347,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Vector<std::reference_wrapper<Mu
 void
 ERF::FillCoarsePatch (int lev, Real time, MultiFab& mf, int icomp, int ncomp, int var_idx)
 {
+    BL_PROFILE_VAR("FillCoarsePatch()",FillCoarsePatch);
     AMREX_ASSERT(lev > 0);
 
     int bccomp;

@@ -6,16 +6,16 @@
 using namespace amrex;
 
 void
-AdvectionSrcForState(const Box& bx, const int &icomp, const int &ncomp,
-                     const Array4<const Real>& rho_u, const Array4<const Real>& rho_v,
-                     const Array4<const Real>& rho_w, const Array4<const Real>& z_t,
-                     const Array4<const Real>& cell_prim,
-                     const Array4<Real>& advectionSrc,
-                     const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
-                     const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
-                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                     const int &spatial_order, const int& use_terrain,
-                     const int &use_deardorff, const int &use_QKE)
+AdvectionSrcForState (const Box& bx, const int &icomp, const int &ncomp,
+                      const Array4<const Real>& rho_u, const Array4<const Real>& rho_v,
+                      const Array4<const Real>& rho_w, const Array4<const Real>& z_t,
+                      const Array4<const Real>& cell_prim,
+                      const Array4<Real>& advectionSrc,
+                      const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
+                      const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
+                      const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                      const int &spatial_order, const int& use_terrain,
+                      const int &use_deardorff, const int &use_QKE)
 {
     BL_PROFILE_VAR("AdvectionSrcForState", AdvectionSrcForState);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];

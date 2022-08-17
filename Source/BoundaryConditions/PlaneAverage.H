@@ -69,13 +69,10 @@ public:
     void compute_averages(const IndexSelector& idxOp, const amrex::MultiFab& mfab);
 };
 
-inline PlaneAverage::PlaneAverage(
-             const amrex::MultiFab* field_in,
-             amrex::Geometry geom_in,
-             int axis_in)
-             : m_field(field_in)
-             , m_geom(geom_in)
-             , m_axis(axis_in)
+PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
+                            amrex::Geometry geom_in,
+                            int axis_in)
+   : m_field(field_in) , m_geom(geom_in) , m_axis(axis_in)
 {
     AMREX_ALWAYS_ASSERT(m_axis >= 0 && m_axis < AMREX_SPACEDIM);
 
@@ -102,7 +99,8 @@ inline PlaneAverage::PlaneAverage(
     }
 }
 
-inline amrex::Real
+AMREX_FORCE_INLINE
+amrex::Real
 PlaneAverage::line_average_interpolated(amrex::Real x, int comp) const
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
@@ -127,7 +125,9 @@ PlaneAverage::line_average_interpolated(amrex::Real x, int comp) const
            m_line_average[m_ncomp * (ind + 1) + comp] * c;
 }
 
-inline void PlaneAverage::line_average(int comp, amrex::Vector<amrex::Real>& l_vec)
+AMREX_FORCE_INLINE
+void
+PlaneAverage::line_average(int comp, amrex::Vector<amrex::Real>& l_vec)
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
@@ -135,7 +135,9 @@ inline void PlaneAverage::line_average(int comp, amrex::Vector<amrex::Real>& l_v
         l_vec[i] = m_line_average[m_ncomp * i + comp];
 }
 
-inline void PlaneAverage::operator()()
+AMREX_FORCE_INLINE
+void
+PlaneAverage::operator()()
 {
     std::fill(m_line_average.begin(), m_line_average.end(), 0.0);
     switch (m_axis) {
@@ -155,8 +157,9 @@ inline void PlaneAverage::operator()()
 }
 
 template <typename IndexSelector>
-inline void PlaneAverage::compute_averages(
-            const IndexSelector& idxOp, const amrex::MultiFab& mfab)
+AMREX_FORCE_INLINE
+void
+PlaneAverage::compute_averages(const IndexSelector& idxOp, const amrex::MultiFab& mfab)
 {
     const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane;
     amrex::AsyncArray<amrex::Real> lavg(m_line_average.data(), m_line_average.size());

@@ -1,6 +1,8 @@
 #include "AMReX_PhysBCFunct.H"
 #include <ERF_PhysBCFunct.H>
 
+using namespace amrex;
+
 //
 // mf is the multifab to be filled
 // icomp is the index into the MultiFab -- if cell-centered this can be any value
@@ -41,8 +43,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
 #endif
     const amrex::BCRec* bc_ptr = bcrs_d.data();
 
-    amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>,
-                                                 AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
 
     for (int i = 0; i < ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
@@ -173,8 +174,8 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                 int k0 = 0;
 
                 // Get the dz cell size
-                amrex::GeometryData const& geomdata = m_geom.data();
-                amrex::Real dz = geomdata.CellSize(2);
+                GeometryData const& geomdata = m_geom.data();
+                Real dz = geomdata.CellSize(2);
 
                 // Fill all the Neumann srcs with terrain
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -184,13 +185,13 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                     int jj = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
 
                     // Get metrics
-                    amrex::Real met_h_xi,met_h_eta,met_h_zeta;
+                    Real met_h_xi,met_h_eta,met_h_zeta;
 
                     ComputeMetricAtCellCenter(ii,jj,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
 
                     // GradX at IJK location inside domain -- this relies on the assumption that we have
                     // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
-                    amrex::Real GradVarx, GradVary;
+                    Real GradVarx, GradVary;
                     if (i < dom_lo.x-1 || i > dom_hi.x+1)
                         GradVarx = 0.0;
                     else if (i+1 > bx_hi.x)
@@ -212,7 +213,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                         GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j-1,k0,n));
 
                     // Prefactor
-                    amrex::Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
+                    Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
 
                     // Accumulate in bottom ghost cell (EXTRAP already populated)
                     dest_arr(i,j,k,n) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );

@@ -8,9 +8,13 @@
 #include <DataStruct.H>
 #include <IndexDefines.H>
 #include <ABLMost.H>
-#include <PBLModels.H>
 
-void MomentumToVelocity( amrex::MultiFab& xvel_out,
+void make_metrics (const amrex::Geometry& geom,
+                   amrex::MultiFab& z_phys_nd,
+                   amrex::MultiFab& z_phys_cc,
+                   amrex::MultiFab& detJ_cc);
+
+void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          const amrex::IntVect& xvel_ngrow,
                          amrex::MultiFab& yvel_out,
                          const amrex::IntVect& yvel_ngrow,
@@ -21,7 +25,7 @@ void MomentumToVelocity( amrex::MultiFab& xvel_out,
                          const amrex::MultiFab& ymom_in,
                          const amrex::MultiFab& zmom_in);
 
-void VelocityToMomentum( const amrex::MultiFab& xvel_in,
+void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          const amrex::IntVect& xvel_ngrow,
                          const amrex::MultiFab& yvel_in,
                          const amrex::IntVect& yvel_ngrow,
@@ -33,7 +37,7 @@ void VelocityToMomentum( const amrex::MultiFab& xvel_in,
                          amrex::MultiFab& zmom_out);
 
 /** Compute advection source for the continuity, energy, and scalar equations */
-void AdvectionSrcForState( const amrex::Box& bx,
+void AdvectionSrcForState (const amrex::Box& bx,
                            const int &start_comp, const int &num_comp,
                            const amrex::Array4<const amrex::Real>& rho_u,
                            const amrex::Array4<const amrex::Real>& rho_v,
@@ -50,21 +54,21 @@ void AdvectionSrcForState( const amrex::Box& bx,
                            const int& spatial_order, const int& use_terrain,
                            const int& use_deardorff, const int& use_QKE);
 
-void DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
-                          const amrex::Array4<const amrex::Real>& u,
-                          const amrex::Array4<const amrex::Real>& v,
-                          const amrex::Array4<const amrex::Real>& w,
-                          const amrex::Array4<const amrex::Real>& cell_data,
-                          const amrex::Array4<const amrex::Real>& cell_prim,
-                          const amrex::Array4<const amrex::Real>& source_fab,
-                          const amrex::Array4<amrex::Real>& cell_rhs,
-                          const amrex::Array4<amrex::Real>& xflux,
-                          const amrex::Array4<amrex::Real>& yflux,
-                          const amrex::Array4<amrex::Real>& zflux,
-                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                          const amrex::Array4<amrex::Real>& K_turb,
-                          const SolverChoice &solverChoice,
-                          const amrex::Real& theta_mean,
-                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
-                          const amrex::BCRec* bc_ptr);
+void DiffusionSrcForState (const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
+                           const amrex::Array4<const amrex::Real>& u,
+                           const amrex::Array4<const amrex::Real>& v,
+                           const amrex::Array4<const amrex::Real>& w,
+                           const amrex::Array4<const amrex::Real>& cell_data,
+                           const amrex::Array4<const amrex::Real>& cell_prim,
+                           const amrex::Array4<const amrex::Real>& source_fab,
+                           const amrex::Array4<amrex::Real>& cell_rhs,
+                           const amrex::Array4<amrex::Real>& xflux,
+                           const amrex::Array4<amrex::Real>& yflux,
+                           const amrex::Array4<amrex::Real>& zflux,
+                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                           const amrex::Array4<amrex::Real>& K_turb,
+                           const SolverChoice &solverChoice,
+                           const amrex::Real& theta_mean,
+                           const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
+                           const amrex::BCRec* bc_ptr);
 #endif

@@ -16,12 +16,8 @@
 #include <TimeInterpolatedData.H>
 #include <IndexDefines.H>
 #include <DataStruct.H>
-#include <PBLModels.H>
 #include <EddyViscosity.H>
-
 #include <TerrainMetrics.H>
-
-using namespace amrex;
 
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
@@ -88,36 +84,36 @@ public:
     void operator() (amrex::MultiFab& mf, int icomp, int ncomp, amrex::IntVect const& nghost,
                      amrex::Real time, int bccomp);
 
-    void impose_xvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
-                          const amrex::Array4<Real const>& z_nd,
-                          const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+    void impose_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
+                          const amrex::Array4<amrex::Real const>& z_nd,
+                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                           amrex::Real time, int bccomp);
 
-    void impose_yvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
-                          const amrex::Array4<Real const>& z_nd,
-                          const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+    void impose_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
+                          const amrex::Array4<amrex::Real const>& z_nd,
+                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                           amrex::Real time, int bccomp);
 
-    void impose_zvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
-                          const amrex::Array4<Real const>& velx_arr,
-                          const amrex::Array4<Real const>& vely_arr,
-                          const amrex::Array4<Real const>& z_nd,
-                          const GpuArray<Real,AMREX_SPACEDIM> dx,
-                          const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+    void impose_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
+                          const amrex::Array4<amrex::Real const>& velx_arr,
+                          const amrex::Array4<amrex::Real const>& vely_arr,
+                          const amrex::Array4<amrex::Real const>& z_nd,
+                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dx,
+                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                           amrex::Real time, int bccomp, int terrain_type);
 
-    void impose_cons_bcs (const amrex::Array4<Real>& mf, const amrex::Box& bx, const amrex::Box& domain,
-                          const amrex::Array4<Real const>& z_nd,
-                          const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+    void impose_cons_bcs (const amrex::Array4<amrex::Real>& mf, const amrex::Box& bx, const amrex::Box& domain,
+                          const amrex::Array4<amrex::Real const>& z_nd,
+                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                           int icomp, int ncomp, amrex::Real time, int bccomp);
 
-    void fill_from_bndryregs (const int lev,   const amrex::Box& bx, const amrex::Array4<Real>& dest_arr,
+    void fill_from_bndryregs (const int lev,   const amrex::Box& bx, const amrex::Array4<amrex::Real>& dest_arr,
                               const int icomp, const int bccomp, const int ncomp,
                               const amrex::Box& domain, const amrex::BCRec* bc_ptr,
                               const amrex::Real time);
 
 #ifdef ERF_USE_NETCDF
-    void fill_from_wrfbdy (const int lev,   const amrex::Box& bx, const amrex::Array4<Real>& dest_arr,
+    void fill_from_wrfbdy (const int lev,   const amrex::Box& bx, const amrex::Array4<amrex::Real>& dest_arr,
                            const int icomp, const int bccomp, const int ncomp,
                            const amrex::Box& domain, const amrex::BCRec* bc_ptr,
                            const amrex::Real time, const amrex::Real bdy_time_interval);

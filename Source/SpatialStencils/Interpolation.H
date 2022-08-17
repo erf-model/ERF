@@ -1,12 +1,12 @@
 #ifndef INTERPOLATE_H_
 #define INTERPOLATE_H_
 
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
-interpolatedVal(amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
-                amrex::Real diff1, amrex::Real diff2, amrex::Real diff3,
-                amrex::Real scaled_upw, int spatial_order)
+interpolatedVal (amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
+                 amrex::Real diff1, amrex::Real diff2, amrex::Real diff3,
+                 amrex::Real scaled_upw, int spatial_order)
 {
     amrex::Real myInterpolatedVal;
     switch (spatial_order) {
@@ -30,11 +30,11 @@ interpolatedVal(amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
     return myInterpolatedVal;
 }
 
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
-InterpolateFromCellOrFace(int i, int j, int k, const amrex::Array4<const amrex::Real>& qty,
-                          int qty_index, amrex::Real upw, Coord coordDir, int spatial_order)
+InterpolateFromCellOrFace (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty,
+                           int qty_index, amrex::Real upw, Coord coordDir, int spatial_order)
 {
     amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
     amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
@@ -88,13 +88,13 @@ InterpolateFromCellOrFace(int i, int j, int k, const amrex::Array4<const amrex::
     return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
 }
 
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
-InterpolatePertFromCell(int i, int j, int k,
-                        const amrex::Array4<const amrex::Real>& qty,
-                        int qty_index, amrex::Real upw, Coord coordDir, int spatial_order,
-                        const amrex::Array4<const amrex::Real>& r0_arr)
+InterpolatePertFromCell (int i, int j, int k,
+                         const amrex::Array4<const amrex::Real>& qty,
+                         int qty_index, amrex::Real upw, Coord coordDir, int spatial_order,
+                         const amrex::Array4<const amrex::Real>& r0_arr)
 {
     amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
     amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
@@ -160,12 +160,12 @@ InterpolatePertFromCell(int i, int j, int k,
     return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
 }
 
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
-InterpolateDensityPertFromCellToFace(int i, int j, int k, const amrex::Array4<const amrex::Real>& cons_in,
-                                     amrex::Real upw, Coord coordDir, int spatial_order,
-                                     const amrex::Array4<const amrex::Real>& r0_arr)
+InterpolateDensityPertFromCellToFace (int i, int j, int k, const amrex::Array4<const amrex::Real>& cons_in,
+                                      amrex::Real upw, Coord coordDir, int spatial_order,
+                                      const amrex::Array4<const amrex::Real>& r0_arr)
 {
     return InterpolatePertFromCell(i, j, k, cons_in, Rho_comp, upw, coordDir, spatial_order, r0_arr);
 }

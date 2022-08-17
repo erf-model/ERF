@@ -7,17 +7,19 @@
 #include <DataStruct.H>
 #include <StrainRate.H>
 
-void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel,
-                               const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
-                               const amrex::Geometry& geom,
-                               const SolverChoice& solverChoice,
-                               std::unique_ptr<ABLMost>& most,
-                               const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                               bool vert_only = false);
+void
+ComputeTurbulentViscosity (const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel,
+                           const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
+                           const amrex::Geometry& geom,
+                           const SolverChoice& solverChoice,
+                           std::unique_ptr<ABLMost>& most,
+                           const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+                           bool vert_only = false);
 
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-amrex::Real ComputeSmnSmnWithTerrain(int i, int j, int k,
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeSmnSmnWithTerrain (int i, int j, int k,
                           const amrex::Array4<amrex::Real const>& u,
                           const amrex::Array4<amrex::Real const>& v,
                           const amrex::Array4<amrex::Real const>& w,
@@ -65,15 +67,15 @@ amrex::Real ComputeSmnSmnWithTerrain(int i, int j, int k,
     return SmnSmn;
 }
 
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
-ComputeSmnSmn(int i, int j, int k,
-              const amrex::Array4<amrex::Real const>& u,
-              const amrex::Array4<amrex::Real const>& v,
-              const amrex::Array4<amrex::Real const>& w,
-              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-              const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+ComputeSmnSmn (int i, int j, int k,
+               const amrex::Array4<amrex::Real const>& u,
+               const amrex::Array4<amrex::Real const>& v,
+               const amrex::Array4<amrex::Real const>& w,
+               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+               const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     amrex::Real S11 = ComputeS11(i+1, j, k, u, cellSizeInv);
     amrex::Real S22 = ComputeS22(i, j+1, k, v, cellSizeInv);
@@ -105,8 +107,8 @@ ComputeSmnSmn(int i, int j, int k,
     return SmnSmn;
 }
 
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
 ComputeTKEProduction (int i, int j, int k,
                       const amrex::Array4<const amrex::Real>& u,
@@ -127,13 +129,14 @@ ComputeTKEProduction (int i, int j, int k,
 
 /// Compute K_turb (i-1/2, j+1/2, k) etc given K_turb (i, j, k) is known
 // Note: This should be at edges for momEqnDir != diffDir, cell centers otherwise
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
-InterpolateTurbulentViscosity(int i, int j, int k,
-                              enum MomentumEqn momentumEqn,
-                              enum DiffusionDir diffDir,
-                              const amrex::Array4<amrex::Real>& K_turb) {
+InterpolateTurbulentViscosity (int i, int j, int k,
+                               enum MomentumEqn momentumEqn,
+                               enum DiffusionDir diffDir,
+                               const amrex::Array4<amrex::Real>& K_turb)
+{
   // Assuming we already have 'K_turb' computed for all (i, j, k)
   amrex::Real turbViscInterpolated = 1.0;
 
@@ -195,5 +198,4 @@ InterpolateTurbulentViscosity(int i, int j, int k,
 
   return turbViscInterpolated;
 }
-
 #endif

@@ -3,6 +3,7 @@ CEXE_sources += MomentumToVelocity.cpp
 CEXE_sources += VelocityToMomentum.cpp
 CEXE_sources += AdvectionSrcForState.cpp
 CEXE_sources += DiffusionSrcForState.cpp
+CEXE_sources += PBLModels.cpp
 
 CEXE_headers += AdvectionSrcForMom.H
 CEXE_headers += DiffusionSrcForMom.H
@@ -11,6 +12,7 @@ CEXE_headers += ExpansionRate.H
 CEXE_headers += StrainRate.H
 CEXE_headers += StressTerm.H
 CEXE_headers += EddyViscosity.H
+CEXE_headers += ComputeQKESourceTerm.H
 
 CEXE_headers += TerrainMetrics.H
 CEXE_sources += TerrainMetrics.cpp

@@ -1,6 +1,8 @@
 #include "AMReX_PhysBCFunct.H"
 #include <ERF_PhysBCFunct.H>
 
+using namespace amrex;
+
 //
 // dest_arr is the Array4 to be filled
 // time is the time at which the data should be filled

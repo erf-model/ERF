@@ -5,16 +5,16 @@
 #include <IndexDefines.H>
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeExpansionRateWithTerrain(
-                     const int &i, const int &j, const int &k,
-                     const amrex::Array4<const amrex::Real>& u,
-                     const amrex::Array4<const amrex::Real>& v,
-                     const amrex::Array4<const amrex::Real>& w,
-                     const enum MomentumEqn &momentumEqn,
-                     const enum DiffusionDir &diffDir,
-                     const amrex::Array4<const amrex::Real>& z_nd,
-                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeExpansionRateWithTerrain( int i, int j, int k,
+                                 const amrex::Array4<const amrex::Real>& u,
+                                 const amrex::Array4<const amrex::Real>& v,
+                                 const amrex::Array4<const amrex::Real>& w,
+                                 enum MomentumEqn  momentumEqn,
+                                 enum DiffusionDir diffDir,
+                                 const amrex::Array4<const amrex::Real>& z_nd,
+                                 const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
 {
     amrex::Real dx_inv = cellSizeInv[0];
     amrex::Real dy_inv = cellSizeInv[1];
@@ -161,14 +161,15 @@ ComputeExpansionRateWithTerrain(
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeExpansionRate(const int &i, const int &j, const int &k,
-                     const amrex::Array4<const amrex::Real>& u,
-                     const amrex::Array4<const amrex::Real>& v,
-                     const amrex::Array4<const amrex::Real>& w,
-                     const enum MomentumEqn &momentumEqn,
-                     const enum DiffusionDir &diffDir,
-                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeExpansionRate (int i, int j, int k,
+                      const amrex::Array4<const amrex::Real>& u,
+                      const amrex::Array4<const amrex::Real>& v,
+                      const amrex::Array4<const amrex::Real>& w,
+                      enum MomentumEqn  momentumEqn,
+                      enum DiffusionDir diffDir,
+                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
 {
     amrex::Real dx_inv = cellSizeInv[0];
     amrex::Real dy_inv = cellSizeInv[1];

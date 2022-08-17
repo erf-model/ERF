@@ -1,15 +1,15 @@
 #include <SpatialStencils.H>
 
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
-ComputeDiffusionFluxForState(int i, int j, int k,
-                             const amrex::Array4<const amrex::Real>& cell_data,
-                             const amrex::Array4<const amrex::Real>& cell_prim, const int & prim_index,
-                             amrex::Real invCellWidth,
-                             const amrex::Array4<amrex::Real>& K_turb,
-                             const SolverChoice &solverChoice,
-                             enum Coord coordDir)
+ComputeDiffusionFluxForState (int i, int j, int k,
+                              const amrex::Array4<const amrex::Real>& cell_data,
+                              const amrex::Array4<const amrex::Real>& cell_prim, const int & prim_index,
+                              amrex::Real invCellWidth,
+                              const amrex::Array4<amrex::Real>& K_turb,
+                              const SolverChoice &solverChoice,
+                              enum Coord coordDir)
 {
   if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
        (solverChoice.les_type        ==       LESType::None) &&

@@ -2,6 +2,8 @@
 #include <ERF_PhysBCFunct.H>
 #include <prob_common.H>
 
+using namespace amrex;
+
 //
 // dest_arr is the Array4 to be filled
 // time is the time at which the data should be filled
@@ -46,8 +48,7 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
 #endif
     const amrex::BCRec* bc_ptr = bcrs_d.data();
 
-    amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM*2>,
-                                                 AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
 
     bool l_use_terrain = (m_z_phys_nd != nullptr);
     bool l_moving_terrain = (terrain_type == 1);

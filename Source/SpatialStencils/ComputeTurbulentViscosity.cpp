@@ -1,18 +1,28 @@
-/** \file ComputeTurbulentViscoity.cpp */
+/** \file ComputeTurbulentViscosity.cpp */
 
 #include <ABLMost.H>
 #include <EddyViscosity.H>
-#include <PBLModels.H>
+#include <SpatialStencils.H>
 
 using namespace amrex;
 
+void
+ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
+                              const amrex::MultiFab& yvel,
+                              const amrex::MultiFab& cons_in,
+                              amrex::MultiFab& eddyViscosity,
+                              const amrex::Geometry& geom,
+                              const SolverChoice& solverChoice,
+                              std::unique_ptr<ABLMost>& most,
+                              bool /*vert_only*/);
+
 /** Compute Eddy Viscosity */
-void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel,
-                                  const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
-                                  const amrex::Geometry& geom,
-                                  const SolverChoice& solverChoice,
-                                  const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                                  bool vert_only)
+void ComputeTurbulentViscosityLES (const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel,
+                                   const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
+                                   const amrex::Geometry& geom,
+                                   const SolverChoice& solverChoice,
+                                   const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+                                   bool vert_only)
 {
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
 
@@ -196,12 +206,12 @@ void ComputeTurbulentViscosityLES(const amrex::MultiFab& xvel, const amrex::Mult
 
 } // ComputeTurbulentViscosityLES
 
-void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel,
-                               const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
-                               const amrex::Geometry& geom,
-                               const SolverChoice& solverChoice, std::unique_ptr<ABLMost>& most,
-                               const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                               bool vert_only)
+void ComputeTurbulentViscosity (const amrex::MultiFab& xvel, const amrex::MultiFab& yvel, const amrex::MultiFab& zvel,
+                                const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
+                                const amrex::Geometry& geom,
+                                const SolverChoice& solverChoice, std::unique_ptr<ABLMost>& most,
+                                const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+                                bool vert_only)
 {
     //
     // In LES mode, the turbulent viscosity is isotropic, so the LES model sets both horizontal and vertical viscosities
@@ -238,7 +248,6 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
     }
 
     if (solverChoice.pbl_type != PBLType::None) {
-        ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                     geom, solverChoice, most, vert_only);
+         ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity, geom, solverChoice, most, vert_only);
     }
 }

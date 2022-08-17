@@ -1,14 +1,14 @@
+#ifndef _COMPUTE_STRESSTERM_H
+#define _COMPUTE_STRESSTERM_H
+
 #include <EddyViscosity.H>
 #include <ExpansionRate.H>
 #include <StrainRate.H>
 
-#ifndef _COMPUTE_STRESSTERM_H
-#define _COMPUTE_STRESSTERM_H
-
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
 //    given the strain rates
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
 ComputeStressGivenRates (int i, int j, int k,
                          enum MomentumEqn momentumEqn,
@@ -40,20 +40,20 @@ ComputeStressGivenRates (int i, int j, int k,
 }
 
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
 ComputeStressTermWithTerrain (int i, int j, int k,
-                   const amrex::Array4<const amrex::Real>& u,
-                   const amrex::Array4<const amrex::Real>& v,
-                   const amrex::Array4<const amrex::Real>& w,
-                         enum MomentumEqn  momentumEqn,
-                         enum DiffusionDir diffDir,
-                   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const amrex::Array4<amrex::Real>& K_turb,
-                   const SolverChoice &solverChoice,
-                   const amrex::Array4<const amrex::Real>& z_nd,
-                   const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+                              const amrex::Array4<const amrex::Real>& u,
+                              const amrex::Array4<const amrex::Real>& v,
+                              const amrex::Array4<const amrex::Real>& w,
+                                    enum MomentumEqn  momentumEqn,
+                                    enum DiffusionDir diffDir,
+                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                              const amrex::Array4<amrex::Real>& K_turb,
+                              const SolverChoice &solverChoice,
+                              const amrex::Array4<const amrex::Real>& z_nd,
+                              const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
@@ -85,8 +85,8 @@ ComputeStressTermWithTerrain (int i, int j, int k,
     return stressTerm;
 }
 
-AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 amrex::Real
 ComputeStressTerm (int i, int j, int k,
                    const amrex::Array4<const amrex::Real>& u,

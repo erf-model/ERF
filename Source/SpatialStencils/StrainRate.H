@@ -6,7 +6,8 @@
 #include <TerrainMetrics.H>
 
 AMREX_GPU_DEVICE
-inline bool
+AMREX_FORCE_INLINE
+bool
 is_on_face(int bc_in)
 {
     if ( (bc_in == ERFBCType::ext_dir) || (bc_in == ERFBCType::ext_dir_ingested) ) {
@@ -28,11 +29,12 @@ is_on_face(int bc_in)
 // Compute strain rate terms at cell faces
 //*****************************************************************************************
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS11WithTerrain(int i, int j, int k,
-                      const amrex::Array4<amrex::Real const>& u,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      amrex::Real met_h_xi, amrex::Real /*met_h_eta*/, amrex::Real met_h_zeta)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS11WithTerrain (int i, int j, int k,
+                       const amrex::Array4<amrex::Real const>& u,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       amrex::Real met_h_xi, amrex::Real /*met_h_eta*/, amrex::Real met_h_zeta)
 {
   amrex::Real GradUz;
   amrex::Real strainRate = 0;
@@ -51,12 +53,12 @@ ComputeS11WithTerrain(int i, int j, int k,
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS22WithTerrain(
-           const int &i, const int &j, const int &k,
-           const amrex::Array4<amrex::Real const>& v,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Real& /*met_h_xi*/, const amrex::Real& met_h_eta, const amrex::Real& met_h_zeta)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS22WithTerrain (int i, int j, int k,
+                       const amrex::Array4<amrex::Real const>& v,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       amrex::Real /*met_h_xi*/, amrex::Real met_h_eta, amrex::Real met_h_zeta)
 {
   amrex::Real GradVz;
   amrex::Real strainRate = 0;
@@ -75,13 +77,13 @@ ComputeS22WithTerrain(
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS33WithTerrain(
-           const int &i, const int &j, const int &k,
-           const amrex::Array4<amrex::Real const>& w,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Real& /*met_h_xi*/, const amrex::Real& /*met_h_eta*/, const amrex::Real& met_h_zeta,
-           const amrex::Box& domain)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS33WithTerrain (int i, int j, int k,
+                       const amrex::Array4<amrex::Real const>& w,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       amrex::Real /*met_h_xi*/, amrex::Real /*met_h_eta*/, amrex::Real met_h_zeta,
+                       const amrex::Box& domain)
 {
   amrex::Real strainRate = 0;
   amrex::Real dz_inv = cellSizeInv[2];
@@ -95,14 +97,15 @@ ComputeS33WithTerrain(
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS12WithTerrain(int i, int j, int k,
-                      const amrex::Array4<amrex::Real const>& u,
-                      const amrex::Array4<amrex::Real const>& v,
-                      const amrex::Array4<amrex::Real const>& /*w*/,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      amrex::Real met_h_xi, amrex::Real met_h_eta, amrex::Real met_h_zeta,
-                      const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS12WithTerrain (int i, int j, int k,
+                       const amrex::Array4<amrex::Real const>& u,
+                       const amrex::Array4<amrex::Real const>& v,
+                       const amrex::Array4<amrex::Real const>& /*w*/,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       amrex::Real met_h_xi, amrex::Real met_h_eta, amrex::Real met_h_zeta,
+                       const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   amrex::Real strainRate = 0;
   amrex::Real GradUz,GradVz;
@@ -145,14 +148,15 @@ ComputeS12WithTerrain(int i, int j, int k,
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS13WithTerrain(int i, int j, int k,
-                      const amrex::Array4<amrex::Real const>& u,
-                      const amrex::Array4<amrex::Real const>& /*v*/,
-                      const amrex::Array4<amrex::Real const>& w,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      amrex::Real met_h_xi, amrex::Real /*met_h_eta*/, amrex::Real met_h_zeta,
-                      const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS13WithTerrain (int i, int j, int k,
+                       const amrex::Array4<amrex::Real const>& u,
+                       const amrex::Array4<amrex::Real const>& /*v*/,
+                       const amrex::Array4<amrex::Real const>& w,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       amrex::Real met_h_xi, amrex::Real /*met_h_eta*/, amrex::Real met_h_zeta,
+                       const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   amrex::Real GradWz;
   amrex::Real strainRate = 0;
@@ -190,14 +194,15 @@ ComputeS13WithTerrain(int i, int j, int k,
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS23WithTerrain(int i, int j, int k,
-                      const amrex::Array4<amrex::Real const>& /*u*/,
-                      const amrex::Array4<amrex::Real const>& v,
-                      const amrex::Array4<amrex::Real const>& w,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      amrex::Real /*met_h_xi*/, amrex::Real met_h_eta, amrex::Real met_h_zeta,
-                      const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS23WithTerrain (int i, int j, int k,
+                       const amrex::Array4<amrex::Real const>& /*u*/,
+                       const amrex::Array4<amrex::Real const>& v,
+                       const amrex::Array4<amrex::Real const>& w,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       amrex::Real /*met_h_xi*/, amrex::Real met_h_eta, amrex::Real met_h_zeta,
+                       const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   amrex::Real GradWz;
   amrex::Real strainRate = 0;
@@ -235,62 +240,66 @@ ComputeS23WithTerrain(int i, int j, int k,
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS21WithTerrain(int i, int j, int k,
-                      const amrex::Array4<amrex::Real const>& u,
-                      const amrex::Array4<amrex::Real const>& v,
-                      const amrex::Array4<amrex::Real const>& w,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      amrex::Real met_h_xi, amrex::Real met_h_eta, amrex::Real met_h_zeta,
-                      const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS21WithTerrain (int i, int j, int k,
+                       const amrex::Array4<amrex::Real const>& u,
+                       const amrex::Array4<amrex::Real const>& v,
+                       const amrex::Array4<amrex::Real const>& w,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       amrex::Real met_h_xi, amrex::Real met_h_eta, amrex::Real met_h_zeta,
+                       const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-  return ComputeS12WithTerrain(i,j,k,u,v,w,cellSizeInv,
-            met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
+    return ComputeS12WithTerrain(i,j,k,u,v,w,cellSizeInv,
+                                 met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
 }
 
 // Metrics introduce asymmetry into strain-rate
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS31WithTerrain(int i, int j, int k,
-                      const amrex::Array4<amrex::Real const>& u,
-                      const amrex::Array4<amrex::Real const>& v,
-                      const amrex::Array4<amrex::Real const>& w,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      amrex::Real met_h_xi, amrex::Real met_h_eta, amrex::Real met_h_zeta,
-                      const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS31WithTerrain (int i, int j, int k,
+                       const amrex::Array4<amrex::Real const>& u,
+                       const amrex::Array4<amrex::Real const>& v,
+                       const amrex::Array4<amrex::Real const>& w,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       amrex::Real met_h_xi, amrex::Real met_h_eta, amrex::Real met_h_zeta,
+                       const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
- return ComputeS13WithTerrain(i,j,k,u,v,w,cellSizeInv,
-            met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
+   return ComputeS13WithTerrain(i,j,k,u,v,w,cellSizeInv,
+                                met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS32WithTerrain(int i, int j, int k,
-                      const amrex::Array4<amrex::Real const>& u,
-                      const amrex::Array4<amrex::Real const>& v,
-                      const amrex::Array4<amrex::Real const>& w,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      amrex::Real met_h_xi, amrex::Real met_h_eta, amrex::Real met_h_zeta,
-                      const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS32WithTerrain (int i, int j, int k,
+                       const amrex::Array4<amrex::Real const>& u,
+                       const amrex::Array4<amrex::Real const>& v,
+                       const amrex::Array4<amrex::Real const>& w,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       amrex::Real met_h_xi, amrex::Real met_h_eta, amrex::Real met_h_zeta,
+                       const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
-  return ComputeS23WithTerrain(i,j,k,u,v,w,cellSizeInv,
-            met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
+    return ComputeS23WithTerrain(i,j,k,u,v,w,cellSizeInv,
+                                 met_h_xi,met_h_eta,met_h_zeta,domain,bc_ptr);
 }
 
 //*****************************************************************************************
 // Driver for above strain rate functions
 //****************************************************************************************
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeStrainRateWithTerrain(int i, int j, int k,
-                             const amrex::Array4<amrex::Real const>& u,
-                             const amrex::Array4<amrex::Real const>& v,
-                             const amrex::Array4<amrex::Real const>& w,
-                             enum MomentumEqn  momentumEqn,
-                             enum DiffusionDir diffDir,
-                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                             const amrex::Array4<const amrex::Real>& z_nd,
-                             const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeStrainRateWithTerrain (int i, int j, int k,
+                              const amrex::Array4<amrex::Real const>& u,
+                              const amrex::Array4<amrex::Real const>& v,
+                              const amrex::Array4<amrex::Real const>& w,
+                              enum MomentumEqn  momentumEqn,
+                              enum DiffusionDir diffDir,
+                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                              const amrex::Array4<const amrex::Real>& z_nd,
+                              const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   amrex::Real strainRate;
   amrex::Real met_h_xi,met_h_eta,met_h_zeta;
@@ -301,8 +310,7 @@ ComputeStrainRateWithTerrain(int i, int j, int k,
       // Cell-Center is staggered
       ComputeMetricAtCellCenter(i-1,j,k,met_h_xi,met_h_eta,met_h_zeta,
                                 cellSizeInv,z_nd,TerrainMet::h_xi_zeta);
-      strainRate = ComputeS11WithTerrain(i,j,k,u,cellSizeInv,
-                              met_h_xi,met_h_eta,met_h_zeta);
+      strainRate = ComputeS11WithTerrain(i,j,k,u,cellSizeInv,met_h_xi,met_h_eta,met_h_zeta);
       break;
     case DiffusionDir::y: // S12
       ComputeMetricAtEdgeCenterK(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
@@ -384,47 +392,51 @@ ComputeStrainRateWithTerrain(int i, int j, int k,
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS11(int i, int j, int k,
-           const amrex::Array4<amrex::Real const>& u,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS11 (int i, int j, int k,
+            const amrex::Array4<amrex::Real const>& u,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
 {
-  amrex::Real dx_inv = cellSizeInv[0];
-  return (u(i, j, k) - u(i-1, j, k))*dx_inv;
+    amrex::Real dx_inv = cellSizeInv[0];
+    return (u(i, j, k) - u(i-1, j, k))*dx_inv;
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS22(int i, int j, int k,
-           const amrex::Array4<amrex::Real const>& v,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS22 (int i, int j, int k,
+            const amrex::Array4<amrex::Real const>& v,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv)
 {
-  amrex::Real dy_inv = cellSizeInv[1];
-  return (v(i, j, k) - v(i, j-1, k))*dy_inv;
+    amrex::Real dy_inv = cellSizeInv[1];
+    return (v(i, j, k) - v(i, j-1, k))*dy_inv;
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS33(int i, int j, int k,
-           const amrex::Array4<amrex::Real const>& w,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Box& domain)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS33 (int i, int j, int k,
+            const amrex::Array4<amrex::Real const>& w,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+            const amrex::Box& domain)
 {
-  amrex::Real dz_inv = cellSizeInv[2];
-  if (k > domain.smallEnd(2) && k <= domain.bigEnd(2)+1)
-      return (w(i, j, k) - w(i, j, k-1))*dz_inv;
-  else
-      return 0.;
+    amrex::Real dz_inv = cellSizeInv[2];
+    if (k > domain.smallEnd(2) && k <= domain.bigEnd(2)+1)
+        return (w(i, j, k) - w(i, j, k-1))*dz_inv;
+    else
+        return 0.;
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS12(int i, int j, int k,
-           const amrex::Array4<amrex::Real const>& u,
-           const amrex::Array4<amrex::Real const>& v,
-           const amrex::Array4<amrex::Real const>& /*w*/,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS12 (int i, int j, int k,
+            const amrex::Array4<amrex::Real const>& u,
+            const amrex::Array4<amrex::Real const>& v,
+            const amrex::Array4<amrex::Real const>& /*w*/,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     amrex::Real dx_inv = cellSizeInv[0];
     amrex::Real dy_inv = cellSizeInv[1];
@@ -450,13 +462,14 @@ ComputeS12(int i, int j, int k,
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS13(int i, int j, int k,
-           const amrex::Array4<amrex::Real const>& u,
-           const amrex::Array4<amrex::Real const>& /*v*/,
-           const amrex::Array4<amrex::Real const>& w,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS13 (int i, int j, int k,
+            const amrex::Array4<amrex::Real const>& u,
+            const amrex::Array4<amrex::Real const>& /*v*/,
+            const amrex::Array4<amrex::Real const>& w,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     amrex::Real dx_inv = cellSizeInv[0];
     amrex::Real dz_inv = cellSizeInv[2];
@@ -485,13 +498,14 @@ ComputeS13(int i, int j, int k,
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS23(int i, int j, int k,
-           const amrex::Array4<amrex::Real const>& /*u*/,
-           const amrex::Array4<amrex::Real const>& v,
-           const amrex::Array4<amrex::Real const>& w,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS23 (int i, int j, int k,
+            const amrex::Array4<amrex::Real const>& /*u*/,
+            const amrex::Array4<amrex::Real const>& v,
+            const amrex::Array4<amrex::Real const>& w,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     amrex::Real dy_inv = cellSizeInv[1];
     amrex::Real dz_inv = cellSizeInv[2];
@@ -519,51 +533,55 @@ ComputeS23(int i, int j, int k,
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS21(int i, int j, int k,
-           const amrex::Array4<amrex::Real const>& u,
-           const amrex::Array4<amrex::Real const>& v,
-           const amrex::Array4<amrex::Real const>& w,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS21 (int i, int j, int k,
+            const amrex::Array4<amrex::Real const>& u,
+            const amrex::Array4<amrex::Real const>& v,
+            const amrex::Array4<amrex::Real const>& w,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     return ComputeS12(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS31(int i, int j, int k,
-           const amrex::Array4<amrex::Real const>& u,
-           const amrex::Array4<amrex::Real const>& v,
-           const amrex::Array4<amrex::Real const>& w,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS31 (int i, int j, int k,
+            const amrex::Array4<amrex::Real const>& u,
+            const amrex::Array4<amrex::Real const>& v,
+            const amrex::Array4<amrex::Real const>& w,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     return ComputeS13(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeS32(int i, int j, int k,
-           const amrex::Array4<amrex::Real const>& u,
-           const amrex::Array4<amrex::Real const>& v,
-           const amrex::Array4<amrex::Real const>& w,
-           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-           const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeS32 (int i, int j, int k,
+            const amrex::Array4<amrex::Real const>& u,
+            const amrex::Array4<amrex::Real const>& v,
+            const amrex::Array4<amrex::Real const>& w,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+            const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     return ComputeS23(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
 }
 
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeStrainRate(int i, int j, int k,
-                  const amrex::Array4<amrex::Real const>& u,
-                  const amrex::Array4<amrex::Real const>& v,
-                  const amrex::Array4<amrex::Real const>& w,
-                  enum MomentumEqn  momentumEqn,
-                  enum DiffusionDir diffDir,
-                  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                  const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+AMREX_FORCE_INLINE
+amrex::Real
+ComputeStrainRate (int i, int j, int k,
+                   const amrex::Array4<amrex::Real const>& u,
+                   const amrex::Array4<amrex::Real const>& v,
+                   const amrex::Array4<amrex::Real const>& w,
+                   enum MomentumEqn  momentumEqn,
+                   enum DiffusionDir diffDir,
+                   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                   const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     amrex::Real strainRate;
     switch (momentumEqn) {
@@ -618,5 +636,4 @@ ComputeStrainRate(int i, int j, int k,
 
   return strainRate;
 }
-
 #endif
