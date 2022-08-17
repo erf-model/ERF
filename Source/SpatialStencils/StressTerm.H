@@ -7,11 +7,12 @@
 
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
 //    given the strain rates
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeStressGivenRates (const int &i, const int &j, const int &k,
-                         const enum MomentumEqn &momentumEqn,
-                         const enum DiffusionDir &diffDir,
+amrex::Real
+ComputeStressGivenRates (int i, int j, int k,
+                         enum MomentumEqn momentumEqn,
+                         enum DiffusionDir &diffDir,
                          const amrex::Array4<amrex::Real>& K_turb,
                          const SolverChoice &solverChoice,
                          amrex::Real strainRateDeviatoric)
@@ -39,15 +40,15 @@ ComputeStressGivenRates (const int &i, const int &j, const int &k,
 }
 
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeStressTermWithTerrain (
-                   const int &i, const int &j, const int &k,
+amrex::Real
+ComputeStressTermWithTerrain (int i, int j, int k,
                    const amrex::Array4<const amrex::Real>& u,
                    const amrex::Array4<const amrex::Real>& v,
                    const amrex::Array4<const amrex::Real>& w,
-                   const enum MomentumEqn &momentumEqn,
-                   const enum DiffusionDir &diffDir,
+                         enum MomentumEqn  momentumEqn,
+                         enum DiffusionDir diffDir,
                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                    const amrex::Array4<amrex::Real>& K_turb,
                    const SolverChoice &solverChoice,
@@ -84,14 +85,15 @@ ComputeStressTermWithTerrain (
     return stressTerm;
 }
 
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeStressTerm (const int &i, const int &j, const int &k,
+amrex::Real
+ComputeStressTerm (int i, int j, int k,
                    const amrex::Array4<const amrex::Real>& u,
                    const amrex::Array4<const amrex::Real>& v,
                    const amrex::Array4<const amrex::Real>& w,
-                   const enum MomentumEqn &momentumEqn,
-                   const enum DiffusionDir &diffDir,
+                         enum MomentumEqn  momentumEqn,
+                         enum DiffusionDir diffDir,
                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                    const amrex::Array4<amrex::Real>& K_turb,
                    const SolverChoice &solverChoice,

@@ -6,6 +6,8 @@
 #include <EddyViscosity.H>
 #include <ABLMost.H>
 #include <PBLModels.H>
+#include <AdvectionSrcForMom.H>
+#include <DiffusionSrcForMom.H>
 #include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
@@ -13,7 +15,6 @@
 
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
-#include <Interpolation.H>
 
 using namespace amrex;
 

@@ -238,7 +238,7 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
     }
 
     if (solverChoice.pbl_type != PBLType::None) {
-            ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                         geom, solverChoice, most, vert_only);
+        ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
+                                     geom, solverChoice, most, vert_only);
     }
 }

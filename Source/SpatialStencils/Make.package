@@ -1,9 +1,11 @@
 CEXE_sources += ComputeTurbulentViscosity.cpp
 CEXE_sources += MomentumToVelocity.cpp
 CEXE_sources += VelocityToMomentum.cpp
-CEXE_sources += Advection.cpp
-CEXE_sources += Diffusion.cpp
+CEXE_sources += AdvectionSrcForState.cpp
+CEXE_sources += DiffusionSrcForState.cpp
 
+CEXE_headers += AdvectionSrcForMom.H
+CEXE_headers += DiffusionSrcForMom.H
 CEXE_headers += Interpolation.H
 CEXE_headers += ExpansionRate.H
 CEXE_headers += StrainRate.H

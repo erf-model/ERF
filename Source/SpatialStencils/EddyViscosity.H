@@ -15,9 +15,9 @@ void ComputeTurbulentViscosity(const amrex::MultiFab& xvel, const amrex::MultiFa
                                const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                                bool vert_only = false);
 
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-inline
-amrex::Real ComputeSmnSmnWithTerrain(const int& i,const int& j,const int& k,
+amrex::Real ComputeSmnSmnWithTerrain(int i, int j, int k,
                           const amrex::Array4<amrex::Real const>& u,
                           const amrex::Array4<amrex::Real const>& v,
                           const amrex::Array4<amrex::Real const>& w,
@@ -65,14 +65,15 @@ amrex::Real ComputeSmnSmnWithTerrain(const int& i,const int& j,const int& k,
     return SmnSmn;
 }
 
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-inline
-amrex::Real ComputeSmnSmn(const int& i,const int& j,const int& k,
-                          const amrex::Array4<amrex::Real const>& u,
-                          const amrex::Array4<amrex::Real const>& v,
-                          const amrex::Array4<amrex::Real const>& w,
-                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                          const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+amrex::Real
+ComputeSmnSmn(int i, int j, int k,
+              const amrex::Array4<amrex::Real const>& u,
+              const amrex::Array4<amrex::Real const>& v,
+              const amrex::Array4<amrex::Real const>& w,
+              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+              const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     amrex::Real S11 = ComputeS11(i+1, j, k, u, cellSizeInv);
     amrex::Real S22 = ComputeS22(i, j+1, k, v, cellSizeInv);
@@ -104,9 +105,10 @@ amrex::Real ComputeSmnSmn(const int& i,const int& j,const int& k,
     return SmnSmn;
 }
 
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-inline amrex::Real
-ComputeTKEProduction (const int &i, const int &j, const int &k,
+amrex::Real
+ComputeTKEProduction (int i, int j, int k,
                       const amrex::Array4<const amrex::Real>& u,
                       const amrex::Array4<const amrex::Real>& v,
                       const amrex::Array4<const amrex::Real>& w,
@@ -125,11 +127,12 @@ ComputeTKEProduction (const int &i, const int &j, const int &k,
 
 /// Compute K_turb (i-1/2, j+1/2, k) etc given K_turb (i, j, k) is known
 // Note: This should be at edges for momEqnDir != diffDir, cell centers otherwise
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-inline amrex::Real
-InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
-                              const enum MomentumEqn &momentumEqn,
-                              const enum DiffusionDir &diffDir,
+amrex::Real
+InterpolateTurbulentViscosity(int i, int j, int k,
+                              enum MomentumEqn momentumEqn,
+                              enum DiffusionDir diffDir,
                               const amrex::Array4<amrex::Real>& K_turb) {
   // Assuming we already have 'K_turb' computed for all (i, j, k)
   amrex::Real turbViscInterpolated = 1.0;
@@ -141,12 +144,12 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
       turbViscInterpolated = K_turb(i-1, j, k, EddyDiff::Mom_h);
       break;
     case DiffusionDir::y:
-      turbViscInterpolated = 0.25*( K_turb(i-1, j, k, EddyDiff::Mom_h) + K_turb(i, j, k, EddyDiff::Mom_h)
-                    + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i, j-1, k, EddyDiff::Mom_h) );
+      turbViscInterpolated = 0.25*( K_turb(i-1, j  , k, EddyDiff::Mom_h) + K_turb(i, j, k, EddyDiff::Mom_h)
+                                  + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i, j-1, k, EddyDiff::Mom_h) );
       break;
     case DiffusionDir::z:
-      turbViscInterpolated = 0.25*( K_turb(i-1, j, k, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-                    + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+      turbViscInterpolated = 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
+                                  + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -155,15 +158,15 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   case MomentumEqn::y: // Reference face is y-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      turbViscInterpolated = 0.25*( K_turb(i, j-1, k, EddyDiff::Mom_h) + K_turb(i, j, k, EddyDiff::Mom_h)
-                    + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i-1, j, k, EddyDiff::Mom_h) );
+      turbViscInterpolated = 0.25*( K_turb(i  , j-1, k, EddyDiff::Mom_h) + K_turb(i, j, k, EddyDiff::Mom_h)
+                                  + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i-1, j, k, EddyDiff::Mom_h) );
       break;
     case DiffusionDir::y:
       turbViscInterpolated = K_turb(i, j-1, k, EddyDiff::Mom_h);
       break;
     case DiffusionDir::z:
       turbViscInterpolated = 0.25*( K_turb(i, j-1, k, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-                    + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+                                  + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
       break;
     default:
       amrex::Abort("Error: Diffusion direction is unrecognized");
@@ -172,12 +175,12 @@ InterpolateTurbulentViscosity(const int &i, const int &j, const int &k,
   case MomentumEqn::z: // Reference face is z-face index (i, j, k)
     switch (diffDir) {
     case DiffusionDir::x:
-      turbViscInterpolated = 0.25*( K_turb(i, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-                    + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i-1, j, k, EddyDiff::Mom_v) );
+      turbViscInterpolated = 0.25*( K_turb(i  , j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
+                                  + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i-1, j, k, EddyDiff::Mom_v) );
       break;
     case DiffusionDir::y:
-      turbViscInterpolated = 0.25*( K_turb(i, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-                    + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j-1, k, EddyDiff::Mom_v) );
+      turbViscInterpolated = 0.25*( K_turb(i, j  , k-1, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
+                                  + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j-1, k, EddyDiff::Mom_v) );
       break;
     case DiffusionDir::z:
       turbViscInterpolated = K_turb(i, j, k-1, EddyDiff::Mom_v);

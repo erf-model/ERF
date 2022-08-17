@@ -2,20 +2,18 @@
 #include <StressTerm.H>
 #include <Interpolation.H>
 
-using namespace amrex;
-
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-Real
-DiffusionSrcForMomWithTerrain(
-                   const int &i, const int &j, const int &k,
-                   const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
-                   const Array4<const Real>& cons,
+amrex::Real
+DiffusionSrcForMomWithTerrain(int i, int j, int k,
+                   const amrex::Array4<const amrex::Real>& u, const amrex::Array4<const amrex::Real>& v, const amrex::Array4<const amrex::Real>& w,
+                   const amrex::Array4<const amrex::Real>& cons,
                    const enum MomentumEqn &momentumEqn,
-                   const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const Array4<Real>& K_turb,
+                   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                   const amrex::Array4<amrex::Real>& K_turb,
                    const SolverChoice &solverChoice,
-                   const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
-                   const Box& domain, const amrex::BCRec* bc_ptr)
+                   const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
+                   const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
        (solverChoice.les_type        ==       LESType::None) &&
@@ -23,10 +21,10 @@ DiffusionSrcForMomWithTerrain(
           return 0.;
   } else {
   auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-  Real diffContrib = 0.0;
+  amrex::Real diffContrib = 0.0;
 
   int l_spatial_order = solverChoice.spatial_order;
-  Real met_h_xi,met_h_eta,met_h_zeta;
+  amrex::Real met_h_xi,met_h_eta,met_h_zeta;
 
   // Nodal in k for w-momentum
   int k_extrap_lb = domain.smallEnd(2);
@@ -34,9 +32,9 @@ DiffusionSrcForMomWithTerrain(
 
   switch (momentumEqn) {
   case MomentumEqn::x:
-    Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
-    Real tau11BarN, tau11BarP, tau12BarN, tau12BarP;
-    Real Tmp11, Tmp12;
+    amrex::Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
+    amrex::Real tau11BarN, tau11BarP, tau12BarN, tau12BarP;
+    amrex::Real Tmp11, Tmp12;
 
     // 11 Next
     // Metric at cell center
@@ -153,9 +151,9 @@ DiffusionSrcForMomWithTerrain(
     }
     break;
   case MomentumEqn::y:
-    Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
-    Real tau21BarN, tau22BarN, tau21BarP, tau22BarP;
-    Real Tmp21, Tmp22;
+    amrex::Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
+    amrex::Real tau21BarN, tau22BarN, tau21BarP, tau22BarP;
+    amrex::Real Tmp21, Tmp22;
 
     // 21 Next
     ComputeMetricAtEdgeCenterK(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,
@@ -260,10 +258,10 @@ DiffusionSrcForMomWithTerrain(
     }
     break;
   case MomentumEqn::z:
-    Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev, normv;
+    amrex::Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev, normv;
 
-    Real tau31BarN, tau32BarN, tau31BarP, tau32BarP;
-    Real Tmp31, Tmp32;
+    amrex::Real tau31BarN, tau32BarN, tau31BarP, tau32BarP;
+    amrex::Real Tmp31, Tmp32;
 
     // 31 Next
     ComputeMetricAtEdgeCenterJ(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,
@@ -414,17 +412,18 @@ DiffusionSrcForMomWithTerrain(
   }
 }
 
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-Real
-DiffusionSrcForMom(const int &i, const int &j, const int &k,
-                   const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
-                   const Array4<const Real>& cons,
+amrex::Real
+DiffusionSrcForMom(int i, int j, int k,
+                   const amrex::Array4<const amrex::Real>& u, const amrex::Array4<const amrex::Real>& v, const amrex::Array4<const amrex::Real>& w,
+                   const amrex::Array4<const amrex::Real>& cons,
                    const enum MomentumEqn &momentumEqn,
-                   const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const Array4<Real>& K_turb,
+                   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                   const amrex::Array4<amrex::Real>& K_turb,
                    const SolverChoice &solverChoice,
-                   const Box& domain, const amrex::BCRec* bc_ptr,
-                   const Array4<const Real>& er_arr)
+                   const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                   const amrex::Array4<const amrex::Real>& er_arr)
 {
   if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
        (solverChoice.les_type        ==       LESType::None) &&
@@ -432,13 +431,13 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
           return 0.;
   } else {
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-    Real diffContrib = 0.0;
+    amrex::Real diffContrib = 0.0;
 
     int l_spatial_order = solverChoice.spatial_order;
 
     switch (momentumEqn) {
         case MomentumEqn::x:
-            Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
+            amrex::Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
             tau11Next = ComputeStressTerm(i+1, j, k, u, v, w, momentumEqn,
                                           DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, er_arr(i  ,j,k) );
             tau11Prev = ComputeStressTerm(i  , j, k, u, v, w, momentumEqn,
@@ -462,7 +461,7 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
             }
             break;
         case MomentumEqn::y:
-            Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
+            amrex::Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
             tau21Next = ComputeStressTerm(i+1, j, k, u, v, w, momentumEqn,
                                           DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau21Prev = ComputeStressTerm(i  , j, k, u, v, w, momentumEqn,
@@ -486,7 +485,7 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
             }
             break;
         case MomentumEqn::z:
-            Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev;
+            amrex::Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev;
             tau31Next = ComputeStressTerm(i+1, j, k, u, v, w, momentumEqn,
                                           DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
             tau31Prev = ComputeStressTerm(i  , j, k, u, v, w, momentumEqn,
@@ -517,12 +516,13 @@ DiffusionSrcForMom(const int &i, const int &j, const int &k,
     }
 }
 
+AMREX_FORCE_INLINE
 AMREX_GPU_DEVICE
-amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &k,
-                     const Array4<const Real>& cell_data,
-                     const Array4<const Real>& cell_prim, const int & prim_index,
+amrex::Real ComputeDiffusionFluxForState(int i, int j, int k,
+                     const amrex::Array4<const amrex::Real>& cell_data,
+                     const amrex::Array4<const amrex::Real>& cell_prim, const int & prim_index,
                      const amrex::Real invCellWidth,
-                     const Array4<Real>& K_turb,
+                     const amrex::Array4<amrex::Real>& K_turb,
                      const SolverChoice &solverChoice,
                      const enum Coord& coordDir)
 {
@@ -615,115 +615,4 @@ amrex::Real ComputeDiffusionFluxForState(const int &i, const int &j, const int &
 
   return diffusionFlux;
     }
-}
-
-void
-DiffusionSrcForState(const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
-                     const amrex::Array4<const amrex::Real>& u,
-                     const amrex::Array4<const amrex::Real>& v,
-                     const amrex::Array4<const amrex::Real>& w,
-                     const amrex::Array4<const amrex::Real>& cell_data,
-                     const amrex::Array4<const amrex::Real>& cell_prim,
-                     const amrex::Array4<const amrex::Real>& source_fab,
-                     const amrex::Array4<amrex::Real>& cell_rhs,
-                     const amrex::Array4<amrex::Real>& xflux,
-                     const amrex::Array4<amrex::Real>& yflux,
-                     const amrex::Array4<amrex::Real>& zflux,
-                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                     const amrex::Array4<amrex::Real>& K_turb,
-                     const SolverChoice &solverChoice,
-                     const amrex::Real& theta_mean,
-                     const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
-                     const amrex::BCRec* bc_ptr)
-{
-  if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
-       (solverChoice.les_type        ==       LESType::None) &&
-       (solverChoice.pbl_type        ==       PBLType::None) ) {
-          return;
-  } else {
-      const amrex::Real dx_inv = cellSizeInv[0];
-      const amrex::Real dy_inv = cellSizeInv[1];
-      const amrex::Real dz_inv = cellSizeInv[2];
-
-      bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
-      bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
-      Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
-      Real l_C_e           = solverChoice.Ce;
-
-      const int l_use_terrain = solverChoice.use_terrain;
-
-      const Box xbx = surroundingNodes(bx,0);
-      const Box ybx = surroundingNodes(bx,1);
-      const Box zbx = surroundingNodes(bx,2);
-
-      const int ncomp      = n_end - n_start + 1;
-      const int qty_offset = RhoTheta_comp;
-
-      amrex::ParallelFor(xbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-      {
-          const int  qty_index = n_start + n;
-          const int prim_index = qty_index - qty_offset;
-          xflux(i,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, cell_prim, prim_index,
-                                                                dx_inv, K_turb, solverChoice, Coord::x);
-      });
-      amrex::ParallelFor(ybx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-      {
-          const int  qty_index = n_start + n;
-          const int prim_index = qty_index - qty_offset;
-          yflux(i,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, cell_prim, prim_index,
-                                                                dy_inv, K_turb, solverChoice, Coord::y);
-      });
-      amrex::ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-      {
-          const int  qty_index = n_start + n;
-          const int prim_index = qty_index - qty_offset;
-          zflux(i,j,k,qty_index) = ComputeDiffusionFluxForState(i, j, k, cell_data, cell_prim, prim_index,
-                                                                dz_inv, K_turb, solverChoice, Coord::z);
-      });
-
-      for (int qty_index = n_start; qty_index <= n_end; qty_index++)
-      {
-          amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-          {
-              cell_rhs(i, j, k, qty_index) +=
-                   (xflux(i+1,j  ,k  ,qty_index) - xflux(i, j, k, qty_index)) * dx_inv   // Diffusive flux in x-dir
-                  +(yflux(i  ,j+1,k  ,qty_index) - yflux(i, j, k, qty_index)) * dy_inv   // Diffusive flux in y-dir
-                  +(zflux(i  ,j  ,k+1,qty_index) - zflux(i, j, k, qty_index)) * dz_inv;  // Diffusive flux in z-dir
-
-              if (l_use_deardorff && qty_index == RhoKE_comp)
-              {
-                  // Add Buoyancy Source
-                  Real theta     = cell_prim(i,j,k,PrimTheta_comp);
-                  Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
-                  Real E         = cell_prim(i,j,k,PrimKE_comp);
-                  Real length;
-                  if (dtheta_dz <= 0.) {
-                      length = l_Delta;
-                  } else {
-                      length = 0.76*std::sqrt(E)*(grav_gpu[2]/theta)*dtheta_dz;
-                  }
-                  Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
-                  cell_rhs(i, j, k, qty_index) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
-
-                  // Add TKE production
-                  cell_rhs(i, j, k, qty_index) += ComputeTKEProduction(i,j,k,u,v,w,K_turb,cellSizeInv,domain,bc_ptr,l_use_terrain);
-
-                  // Add dissipation
-                  if (std::abs(E) > 0.) {
-                      cell_rhs(i, j, k, qty_index) += cell_data(i,j,k,Rho_comp) * l_C_e *
-                          std::pow(E,1.5) / length;
-                  }
-              }
-
-              // QKE : similar terms to TKE
-              if (l_use_QKE && qty_index == RhoQKE_comp) {
-                  cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                                        K_turb,cellSizeInv,domain,solverChoice,theta_mean);
-              }
-
-              // Add source terms. TODO: Put this under an if condition when we implement source term
-              cell_rhs(i, j, k, qty_index) += source_fab(i, j, k, qty_index);
-          });
-      } // qty_index
-  }
 }
