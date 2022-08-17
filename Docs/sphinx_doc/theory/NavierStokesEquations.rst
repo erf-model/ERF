@@ -105,26 +105,22 @@ the mixing ratios of water vapor and cloud water, respectively.
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
   \frac{\rho_d}{\rho_m} \nabla p^\prime +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
 
-  \frac{\partial (\rho_d \theta_m)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_m) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
+  \frac{\partial (\rho_d \theta_m)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_m + F_{theta_{m}}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_m) + F_Q
 
   \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
 
-  \frac{\partial (\rho_d q_T)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_T) - Q
+  \frac{\partial (\rho_d q_T)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_T +F_{q_{T}}) - Q
 
-  \frac{\partial (\rho_d q_r)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_r) + Q
+  \frac{\partial (\rho_d q_r)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_r + F_{q_{r}}) + Q
 
-where :math:`q_T` is total nonprecipitating water (water vapor :math:`q_v` + cloud water :math:`q_c`), and :math:`q_r` is the total rain water. :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_r)` is the total mass density,
+where :math:`q_T` is total nonprecipitating water (water vapor :math:`q_v` + cloud water :math:`q_c` + cloud ice :math:`q_i`), and :math:`q_p` is the total precipitating water (rain :math:`q_r` + snow :math:`q_s` + graupel :math:`q_g`). :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_r)` is the total mass density,
 and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
 
 .. math::
 
-  \theta_m = (1 + \frac{R_v}{R_d} q_v) \theta
+  \theta_m = c_p T - gz - L_c (q_c + q_r) - L_s (q_i + q_s + q_g)
 
-is the modified potential temperature.  Here :math:`R_v` is the gas constant for water vapor and :math:`R_v / R_d \approx 1.61.`
-The equation of state is now
-
-.. math::
-   p = \left( \frac{\rho_d R_d \theta_m}{p_0^{R_d / c_p}} \right)^\gamma
+is the ice/water static energy. 
 
 
 Single Moment Microphysics Model
