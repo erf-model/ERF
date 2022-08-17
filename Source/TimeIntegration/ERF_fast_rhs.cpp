@@ -509,7 +509,7 @@ void erf_fast_rhs (int level, const Real time,
                 RHS(k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
 
                 // Terrain solves for Omega
-                if (l_use_terrain) 
+                if (l_use_terrain)
                     RHS(k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
           } // k
 

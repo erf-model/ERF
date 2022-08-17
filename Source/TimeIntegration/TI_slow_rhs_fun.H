@@ -91,7 +91,7 @@
     {
         // Moving terrain
         Real time_mt = time_for_fp - 0.5*delta_t;
-        
+
         bool fast_only = false;
         apply_bcs(S_data, time_for_fp, time_mt, delta_t, ng_cons, ng_vel, fast_only);
         cons_to_prim(S_data[IntVar::cons], S_prim, ng_cons);

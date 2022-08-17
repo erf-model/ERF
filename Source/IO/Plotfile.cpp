@@ -92,7 +92,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     for (int lev = 0; lev <= finest_level; ++lev) {
         // Moving terrain
         Real time_mt = t_new[lev] - 0.5*dt[lev];
-        
+
         FillPatch(lev, t_new[lev], time_mt, dt[lev], vars_new[lev]);
     }
 

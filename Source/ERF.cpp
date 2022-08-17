@@ -472,7 +472,7 @@ ERF::InitData ()
 
     // Moving terrain
     ComputeDt();
-    
+
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
     {

@@ -442,7 +442,7 @@ public:
                 }
             }
         }
-        
+
         // Call the post-update hook for S_new
         post_update(S_new, time + time_step, time_step, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
 

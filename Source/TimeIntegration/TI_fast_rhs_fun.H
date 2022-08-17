@@ -147,7 +147,7 @@
 
         // Moving terrain
         Real time_mt = time_for_fp - 0.5*dtau;
-        
+
         // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
         int ng_cons    = 1;
         int ng_vel     = 1;

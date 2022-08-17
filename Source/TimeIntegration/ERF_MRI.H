@@ -253,7 +253,7 @@ public:
                 } // use_fluxes
             }
         }
-        
+
         post_update(S_new, time, time_step, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
 
         // Timestep taken by the fast integrator
