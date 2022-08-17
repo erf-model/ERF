@@ -9,10 +9,11 @@
 #include <SpatialStencils.H>
 #include <TerrainMetrics.H>
 #include <TimeIntegration.H>
+#include <prob_common.H>
 
 using namespace amrex;
 
-void erf_fast_rhs (int level,
+void erf_fast_rhs (int level, const Real time,
                    Vector<MultiFab>& S_rhs,                        // the fast RHS we will return
                    Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                    Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
@@ -31,7 +32,8 @@ void erf_fast_rhs (int level,
 {
     BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
 
-    bool l_use_terrain = solverChoice.use_terrain;
+    bool l_use_terrain  = solverChoice.use_terrain;
+    bool l_move_terrain = (solverChoice.terrain_type == 1);
 
     // Per p2902 of Klemp-Skamarock-Dudhia-2007
     // beta_s = -1.0 : fully explicit
@@ -48,6 +50,7 @@ void erf_fast_rhs (int level,
     const Box domain(geom.Domain());
     const int domhi_z = domain.bigEnd()[2];
 
+    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
@@ -504,9 +507,10 @@ void erf_fast_rhs (int level,
 
                 // line 1
                 RHS(k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
-                if (l_use_terrain) {
+
+                // Terrain solves for Omega
+                if (l_use_terrain) 
                     RHS(k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
-                }
           } // k
 
           // w_0 = 0
@@ -514,6 +518,13 @@ void erf_fast_rhs (int level,
           coeff_B(0) =  1.0;
           coeff_C(0) =  0.0;
           RHS(0)     =  0.0;
+
+          // Moving terrain
+          if (l_use_terrain && l_move_terrain) {
+              Real time_mt  = time - 0.5*dtau;
+              Real omega_bc = dhdt(i,j,dx,time_mt,dtau);
+              RHS(0) = cur_data_cons(i,j,0) * omega_bc;
+          }
 
           // w_khi = 0
           coeff_A(klen) =  0.0;

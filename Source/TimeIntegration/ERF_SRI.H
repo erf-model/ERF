@@ -41,7 +41,7 @@ private:
    /**
     * \brief The post_update function is called by the integrator on state data before using it to evaluate a right-hand side.
     */
-    std::function<void (T&, amrex::Real, int, int)> post_update;
+    std::function<void (T&, amrex::Real, amrex::Real, int, int)> post_update;
 
     SRI::ButcherTableauTypes butcher_type;
     int number_nodes;
@@ -150,12 +150,12 @@ public:
         rhs = F;
     }
 
-    void set_post_update (std::function<void (T&, amrex::Real, int, int)> F)
+    void set_post_update (std::function<void (T&, amrex::Real, amrex::Real, int, int)> F)
     {
         post_update = F;
     }
 
-    std::function<void (T&, amrex::Real, int, int)> get_post_update ()
+    std::function<void (T&, amrex::Real, amrex::Real, int, int)> get_post_update ()
     {
         return post_update;
     }
@@ -194,7 +194,8 @@ public:
         for (int in = 0; in < number_nodes; ++in)
         {
             // Get current stage time, t = t_old + h * Ci
-            amrex::Real stage_time = time + time_step * nodes[in];
+            amrex::Real dt_stage   = time_step * nodes[in];
+            amrex::Real stage_time = time + dt_stage;
 
             // Fill S_new with the solution value for evaluating F at the current stage
             // Copy S_new = S_old then Saxpy across the butcher table row:
@@ -317,10 +318,11 @@ public:
             }
 
             // Call the post-update hook for the stage state value
-            post_update(S_new, stage_time, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+            post_update(S_new, stage_time, dt_stage, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
 
             // Fill F[i], the RHS at the current stage
             // F[i] = RHS(y, t) at y = stage_value, t = stage_time
+            amrex::Print() << "RK3: " << time << ' ' << stage_time << "\n";
             rhs(*F_nodes[in], S_new, S_scratch, time, stage_time, RHSVar::all);
         }
 
@@ -440,9 +442,9 @@ public:
                 }
             }
         }
-
+        
         // Call the post-update hook for S_new
-        post_update(S_new, time + time_step, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+        post_update(S_new, time + time_step, time_step, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
 
         // Return timestep
         return time_step;

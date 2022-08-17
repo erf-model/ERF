@@ -14,7 +14,8 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
                                       const Array4<Real const>& z_nd_arr,
                                       const GpuArray<Real,AMREX_SPACEDIM> dx,
                                       const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                      Real time, int bccomp, int terrain_type)
+                                      Real time, Real time_mt, Real delta_t,
+                                      int bccomp, int terrain_type)
 {
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
@@ -158,7 +159,10 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
 
         // Populate face values on z-boundaries themselves only if EXT_DIR
         if (k == dom_lo.z && l_use_terrain && l_moving_terrain) {
-            Real dhdt_val = dhdt(i,j,dx,time);
+            //************************************************************
+            // time_mt = time - delta_t/2   delta_t = dt[lev] or dt_stage
+            //************************************************************
+            Real dhdt_val = dhdt(i,j,dx,time_mt,delta_t);
             dest_arr(i,j,k) = WFromOmega(i,j,k,dhdt_val,
                                          velx_arr,vely_arr,z_nd_arr,dxInv);
 

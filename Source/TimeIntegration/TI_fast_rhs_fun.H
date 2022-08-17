@@ -3,10 +3,10 @@
                                   Vector<MultiFab>& S_stage_data,
                             const Vector<MultiFab>& S_data,
                                   Vector<MultiFab>& S_scratch,
-                            const Real dtau, const Real inv_fac)
+                                  const Real dtau, const Real inv_fac, const Real time)
     {
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
-        erf_fast_rhs(level, S_fast_rhs, S_slow_rhs, S_stage_data, S_prim,
+        erf_fast_rhs(level, time, S_fast_rhs, S_slow_rhs, S_stage_data, S_prim,
                      S_data, S_scratch, advflux, fine_geom, ifr, solverChoice,
                      z_phys_nd[level], detJ_cc[level], r0, p0, dtau, inv_fac);
     };
@@ -145,9 +145,12 @@
             }
         }
 
+        // Moving terrain
+        Real time_mt = time_for_fp - 0.5*dtau;
+        
         // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
         int ng_cons    = 1;
         int ng_vel     = 1;
         bool fast_only = true;
-        apply_bcs(S_sum, time_for_fp, ng_cons, ng_vel, fast_only);
+        apply_bcs(S_sum, time_for_fp, time_mt, dtau, ng_cons, ng_vel, fast_only);
     };
