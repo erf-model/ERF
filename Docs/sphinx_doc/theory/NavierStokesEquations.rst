@@ -113,7 +113,7 @@ the mixing ratios of water vapor and cloud water, respectively.
 
   \frac{\partial (\rho_d q_r)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_r + F_{q_{r}}) + Q
 
-where :math:`q_T` is total nonprecipitating water (water vapor :math:`q_v` + cloud water :math:`q_c` + cloud ice :math:`q_i`), and :math:`q_p` is the total precipitating water (rain :math:`q_r` + snow :math:`q_s` + graupel :math:`q_g`). :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_r)` is the total mass density,
+where :math:`q_T` is total nonprecipitating water (water vapor :math:`q_v` + cloud water :math:`q_c` + cloud ice :math:`q_i`), and :math:`q_p` is the total precipitating water (rain :math:`q_r` + snow :math:`q_s` + graupel :math:`q_g`). :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_r)` is the total mass density, :math:`F_{\theta_{m}}`, :math:`F_q_{T}`, :math:`F_q_{r}` are subgrid scalar fluxes.
 and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
 
 .. math::
