@@ -86,8 +86,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
-       ${SRC_DIR}/SpatialStencils/Advection.cpp
-       ${SRC_DIR}/SpatialStencils/Diffusion.cpp
+       ${SRC_DIR}/SpatialStencils/AdvectionSrcForState.cpp
+       ${SRC_DIR}/SpatialStencils/DiffusionSrcForState.cpp
+       ${SRC_DIR}/SpatialStencils/AdvectionSrcForMom.H
+       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom.H
        ${SRC_DIR}/SpatialStencils/EddyViscosity.H
        ${SRC_DIR}/SpatialStencils/ExpansionRate.H
        ${SRC_DIR}/SpatialStencils/StrainRate.H
