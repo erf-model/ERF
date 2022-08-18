@@ -106,8 +106,10 @@ void ERF::erf_advance(int level,
                        state_old[IntVar::ymom],
                        state_old[IntVar::zmom]);
 
+    Real time_mt   = old_time - 0.5*dt_advance; // Moving terrain
     bool fast_only = false;
-    apply_bcs(state_old, old_time, state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only);
+    apply_bcs(state_old, old_time, time_mt, dt_advance,
+              state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only);
     cons_to_prim(state_old[IntVar::cons], S_prim, state_old[IntVar::cons].nGrow());
 
 #include "TI_slow_rhs_fun.H"

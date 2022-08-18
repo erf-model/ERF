@@ -119,7 +119,8 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                         AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
                         impose_zvel_bcs(dest_arr,bx,domain,
                                         velx_arr,vely_arr,z_nd_arr,dx,dxInv,
-                                        time,bccomp,m_terrain_type);
+                                        time,m_time_mt,m_delta_t,
+                                        bccomp,m_terrain_type);
 
                     } else if (m_var_idx == Vars::cons) {
                         AMREX_ALWAYS_ASSERT(icomp == 0 && icomp+ncomp <= NVAR);

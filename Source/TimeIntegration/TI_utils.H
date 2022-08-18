@@ -33,7 +33,9 @@
     //  before every subsequent stage.  Since we advance the variables in conservative form,
     //  we must convert momentum to velocity before imposing the bcs.
     // ***************************************************************************************
-    auto apply_bcs = [&](Vector<MultiFab>& S_data, const Real time_for_fp, int ng_cons, int ng_vel, bool fast_only)
+    auto apply_bcs = [&](Vector<MultiFab>& S_data, const Real time_for_fp,
+                         const Real time_mt, const Real delta_t,
+                         int ng_cons, int ng_vel, bool fast_only)
     {
         amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
         amrex::Array<MultiFab*,3> fmf{&S_data[IntVar::xmom],
@@ -58,7 +60,8 @@
         int scomp_cons = 0;
         int ncomp_cons = 1;
         bool cons_only = true;
-        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
+        FillIntermediatePatch(level, time_for_fp, time_mt, delta_t,
+                              {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
                               ng_cons, 0, cons_only, scomp_cons, ncomp_cons);
 
         // Here we don't use include any of the ghost region because we have only updated
@@ -85,7 +88,8 @@
             ncomp_cons = S_data[IntVar::cons].nComp();
         }
         cons_only = false;
-        FillIntermediatePatch(level, time_for_fp, {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
+        FillIntermediatePatch(level, time_for_fp, time_mt, delta_t,
+                              {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
                               ng_cons, ng_vel, cons_only, scomp_cons, ncomp_cons);
 
         // Now we can convert back to momentum on valid+ghost since we have

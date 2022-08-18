@@ -36,7 +36,7 @@ struct NullFill
 class ERFPhysBCFunct
 {
 public:
-    ERFPhysBCFunct (const int lev,
+    ERFPhysBCFunct (const int lev, const amrex::Real time_mt, const amrex::Real delta_t,
                     const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                     const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                     const int& var_idx, const int& terrain_type, TimeInterpolatedData& data,
@@ -52,10 +52,13 @@ public:
                     const amrex::Real bdy_time_interval,
 #endif
                     std::unique_ptr<ReadBndryPlanes>& r2d)
-        : m_lev(lev), m_geom(geom), m_domain_bcs_type(domain_bcs_type), m_domain_bcs_type_d(domain_bcs_type_d),
-          m_var_idx(var_idx), m_terrain_type(terrain_type), m_data(data), m_bc_extdir_vals(bc_extdir_vals),
-          m_z_phys_nd(z_phys_nd), m_detJ_cc(detJ_cc),
-
+        : m_lev(lev), m_time_mt(time_mt), m_delta_t(delta_t),
+          m_geom(geom), m_domain_bcs_type(domain_bcs_type),
+          m_domain_bcs_type_d(domain_bcs_type_d),
+          m_var_idx(var_idx), m_terrain_type(terrain_type), m_data(data),
+          m_bc_extdir_vals(bc_extdir_vals),
+          m_z_phys_nd(z_phys_nd),
+          m_detJ_cc(detJ_cc),
 #ifdef ERF_USE_NETCDF
           m_init_type(init_type),
           m_bdy_data_xlo(bdy_data_xlo),
@@ -94,13 +97,15 @@ public:
                           const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                           amrex::Real time, int bccomp);
 
-    void impose_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
-                          const amrex::Array4<amrex::Real const>& velx_arr,
-                          const amrex::Array4<amrex::Real const>& vely_arr,
-                          const amrex::Array4<amrex::Real const>& z_nd,
-                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dx,
-                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
-                          amrex::Real time, int bccomp, int terrain_type);
+
+    void impose_zvel_bcs (const amrex::Array4<Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
+                          const amrex::Array4<Real const>& velx_arr,
+                          const amrex::Array4<Real const>& vely_arr,
+                          const amrex::Array4<Real const>& z_nd,
+                          const GpuArray<Real,AMREX_SPACEDIM> dx,
+                          const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+                          amrex::Real time, amrex::Real time_mt, amrex::Real delta_t,
+                          int bccomp, int terrain_type);
 
     void impose_cons_bcs (const amrex::Array4<amrex::Real>& mf, const amrex::Box& bx, const amrex::Box& domain,
                           const amrex::Array4<amrex::Real const>& z_nd,
@@ -127,8 +132,10 @@ public:
 
 private:
     int                  m_lev;
+    amrex::Real          m_time_mt;
+    amrex::Real          m_delta_t;
     amrex::Geometry      m_geom;
-    amrex::Vector<amrex::BCRec> m_domain_bcs_type;
+    amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
     int           m_var_idx;
     int           m_terrain_type;
