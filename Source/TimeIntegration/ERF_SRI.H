@@ -322,7 +322,6 @@ public:
 
             // Fill F[i], the RHS at the current stage
             // F[i] = RHS(y, t) at y = stage_value, t = stage_time
-            amrex::Print() << "RK3: " << time << ' ' << stage_time << "\n";
             rhs(*F_nodes[in], S_new, S_scratch, time, stage_time, RHSVar::all);
         }
 
