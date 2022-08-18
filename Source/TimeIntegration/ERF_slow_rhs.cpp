@@ -291,7 +291,7 @@ void erf_slow_rhs (int level,
         // *********************************************************************
         if (rhs_vars != RHSVar::slow) {
         amrex::ParallelFor(tbx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) 
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
 
             bool on_coarse_fine_boundary = false;
@@ -417,9 +417,9 @@ void erf_slow_rhs (int level,
                 amrex::Real gpy;
                 if (l_use_terrain) {
                     Real met_h_xi,met_h_eta,met_h_zeta;
-    
+
                     ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
-    
+
                     Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
                     Real gp_zeta_on_jface;
                     if(k==0) {
@@ -462,7 +462,7 @@ void erf_slow_rhs (int level,
                 // Add geostrophic forcing
                 if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
                     rho_v_rhs(i, j, k) += solverChoice.abl_geo_forcing[1];
-    
+
                 // Add Rayleigh damping
                 if (solverChoice.use_rayleigh_damping)
                 {
@@ -470,7 +470,7 @@ void erf_slow_rhs (int level,
                     rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
                 }
 
-            } else { 
+            } else {
                 // on coarse-fine boundary
                 rho_v_rhs(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
             }
@@ -489,7 +489,7 @@ void erf_slow_rhs (int level,
                 // Add advective terms
                 rho_w_rhs(i, j, k) = -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, z_t, w,
                                           z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
-    
+
                 // Add diffusive terms
                 int k_diff = (k == domhi_z+1) ? domhi_z : k;
                 amrex::Real diff_update;
@@ -534,7 +534,7 @@ void erf_slow_rhs (int level,
                 // Add driving pressure gradient
                 if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
                     rho_w_rhs(i, j, k) += -solverChoice.abl_pressure_grad[2];
-    
+
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (solverChoice.use_coriolis)
                 {
