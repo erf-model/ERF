@@ -361,9 +361,9 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
 ComputeMetricAtEdgeCenterJ (const int &i, const int &j, const int &k,
-                            amrex::Real met_h_xi,
-                            amrex::Real met_h_eta,
-                            amrex::Real met_h_zeta,
+                            amrex::Real& met_h_xi,
+                            amrex::Real& met_h_eta,
+                            amrex::Real& met_h_zeta,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                             const amrex::Array4<const amrex::Real>& z_nd, int flag)
 {
@@ -420,9 +420,9 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
 ComputeMetricAtEdgeCenterI (int i, int j, int k,
-                            amrex::Real met_h_xi,
-                            amrex::Real met_h_eta,
-                            amrex::Real met_h_zeta,
+                            amrex::Real& met_h_xi,
+                            amrex::Real& met_h_eta,
+                            amrex::Real& met_h_zeta,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                             const amrex::Array4<const amrex::Real>& z_nd, int flag)
 {
