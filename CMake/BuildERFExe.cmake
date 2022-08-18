@@ -86,18 +86,22 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
-       ${SRC_DIR}/SpatialStencils/Advection.cpp
-       ${SRC_DIR}/SpatialStencils/Diffusion.cpp
+       ${SRC_DIR}/SpatialStencils/AdvectionSrcForState.cpp
+       ${SRC_DIR}/SpatialStencils/AdvectionSrcForMom.H
+       ${SRC_DIR}/SpatialStencils/DiffusionSrcForState.cpp
+       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom.H
        ${SRC_DIR}/SpatialStencils/EddyViscosity.H
        ${SRC_DIR}/SpatialStencils/ExpansionRate.H
+       ${SRC_DIR}/SpatialStencils/Interpolation.H
        ${SRC_DIR}/SpatialStencils/StrainRate.H
        ${SRC_DIR}/SpatialStencils/StressTerm.H
-       ${SRC_DIR}/SpatialStencils/Interpolation.H
+       ${SRC_DIR}/SpatialStencils/ComputeQKESourceTerm.H
        ${SRC_DIR}/SpatialStencils/ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/SpatialStencils/MomentumToVelocity.cpp
-       ${SRC_DIR}/SpatialStencils/VelocityToMomentum.cpp
+       ${SRC_DIR}/SpatialStencils/PBLModels.cpp
        ${SRC_DIR}/SpatialStencils/TerrainMetrics.H
        ${SRC_DIR}/SpatialStencils/TerrainMetrics.cpp
+       ${SRC_DIR}/SpatialStencils/VelocityToMomentum.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStepping.cpp
        ${SRC_DIR}/TimeIntegration/ERF_MRI.H

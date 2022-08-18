@@ -8,6 +8,7 @@
 
 #include <AMReX_buildInfo.H>
 
+#include <SpatialStencils.H>
 #include <TerrainMetrics.H>
 
 #ifdef ERF_USE_MULTIBLOCK

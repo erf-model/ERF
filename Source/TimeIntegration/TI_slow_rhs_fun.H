@@ -1,3 +1,5 @@
+#include <TerrainMetrics.H>
+
     // *************************************************************
     // The "slow" integrator for MRI and the only integrator for SRI
     // *************************************************************

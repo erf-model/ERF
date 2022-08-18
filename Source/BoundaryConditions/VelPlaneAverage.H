@@ -35,7 +35,7 @@ public:
     amrex::Real line_hvelmag_average_interpolated(amrex::Real x) const;
 };
 
-inline VelPlaneAverage::VelPlaneAverage(amrex::Geometry geom_in)
+VelPlaneAverage::VelPlaneAverage(amrex::Geometry geom_in)
      : m_geom(geom_in)
 {
     m_xlo   = m_geom.ProbLo(2);
@@ -102,7 +102,8 @@ VelPlaneAverage::compute_hvelmag_averages(amrex::MultiFab& u_mf,
     amrex::ParallelDescriptor::ReduceRealSum(m_line_hvelmag_average.data(), m_line_hvelmag_average.size());
 }
 
-inline amrex::Real
+AMREX_FORCE_INLINE
+amrex::Real
 VelPlaneAverage::line_hvelmag_average_interpolated(amrex::Real x) const
 {
     amrex::Real c = 0.0;

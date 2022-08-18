@@ -11,14 +11,15 @@ using namespace amrex;
 /**
  * Convert updated momentum to updated velocity
  */
-void MomentumToVelocity( MultiFab& xvel,
-                         const IntVect& xvel_ngrow,
-                         MultiFab& yvel,
-                         const IntVect& yvel_ngrow,
-                         MultiFab& zvel,
-                         const IntVect& zvel_ngrow,
-                         const MultiFab& cons_in,
-                         const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in)
+void
+MomentumToVelocity( MultiFab& xvel,
+                    const IntVect& xvel_ngrow,
+                    MultiFab& yvel,
+                    const IntVect& yvel_ngrow,
+                    MultiFab& zvel,
+                    const IntVect& zvel_ngrow,
+                    const MultiFab& cons_in,
+                    const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in)
 {
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
 

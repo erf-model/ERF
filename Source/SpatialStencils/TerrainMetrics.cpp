@@ -13,7 +13,7 @@ using namespace amrex;
 //       problem is fixed. For now, make sure to run on a single level. -mmsanders
 //*****************************************************************************************
 void
-init_terrain_grid(const Geometry& geom, MultiFab& z_phys_nd)
+init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
 {
   auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();
@@ -344,5 +344,46 @@ init_terrain_grid(const Geometry& geom, MultiFab& z_phys_nd)
        amrex::Print(rank) << "Cleared..." << "\n";
    }
   */
+}
 
+//*****************************************************************************************
+// Compute detJ & z_phys at cell-center
+//*****************************************************************************************
+void
+make_metrics(const amrex::Geometry& geom,
+             amrex::MultiFab& z_phys_nd,
+             amrex::MultiFab& z_phys_cc,
+             amrex::MultiFab& detJ_cc)
+{
+    auto dx = geom.CellSize();
+    amrex::Real dzInv = 1.0/dx[2];
+
+    // Domain valid box (z_nd is nodal)
+    const amrex::Box& domain = geom.Domain();
+    int domlo_z = domain.smallEnd(2);
+
+    // Number of ghost cells
+    int ngrow = z_phys_cc.nGrow();
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( amrex::MFIter mfi(z_phys_cc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        const amrex::Box& gbx = mfi.growntilebox(ngrow);
+        amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
+        amrex::Array4<amrex::Real      > z_cc = z_phys_cc.array(mfi);
+        amrex::Array4<amrex::Real      > detJ = detJ_cc.array(mfi);
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (k >= domlo_z) {
+               z_cc(i, j, k) = .125 * (
+                       z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
+                      +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
+               detJ(i, j, k) = .25 * dzInv * (
+                       z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
+                      -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
+            }
+       });
+    }
+    detJ_cc.FillBoundary(geom.periodicity());
 }

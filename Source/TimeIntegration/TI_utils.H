@@ -6,8 +6,6 @@
 // #include <TimeIntegration.H>
 // #include <ERF.H>
 
-// using namespace amrex;
-
     // **************************************************************************************
     // Temporary array that we use to store primitive advected quantities for the RHS
     // **************************************************************************************

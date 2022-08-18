@@ -2,6 +2,8 @@
 #include "IndexDefines.H"
 #include <ERF_PhysBCFunct.H>
 
+using namespace amrex;
+
 //
 // mf is the multifab to be filled
 // icomp is the index into the MultiFab -- if cell-centered this can be any value
