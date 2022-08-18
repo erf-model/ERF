@@ -16,7 +16,7 @@ private:
     */
     std::function<void(T&,         const T&,     const amrex::Real, const amrex::Real, int)> rhs;
     std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real, int)> slow_rhs;
-    std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real     )> fast_rhs;
+    std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real, const amrex::Real     )> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -41,7 +41,7 @@ private:
    /**
     * \brief The post_update function is called by the integrator on state data before using it to evaluate a right-hand side.
     */
-    std::function<void (T&, amrex::Real, int, int)> post_update;
+    std::function<void (T&, amrex::Real, amrex::Real, int, int)> post_update;
 
     std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> post_substep;
 
@@ -102,7 +102,7 @@ public:
         slow_rhs = F;
     }
 
-    void set_fast_rhs (std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real)> F)
+    void set_fast_rhs (std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
     {
         fast_rhs = F;
     }
@@ -122,7 +122,7 @@ public:
         return slow_fast_timestep_ratio;
     }
 
-    void set_post_update (std::function<void (T&, amrex::Real, int, int)> F)
+    void set_post_update (std::function<void (T&, amrex::Real, amrex::Real, int, int)> F)
     {
         post_update = F;
     }
@@ -132,7 +132,7 @@ public:
         post_substep = F;
     }
 
-    std::function<void (T&, amrex::Real, int, int)> get_post_update ()
+    std::function<void (T&, amrex::Real, amrex::Real, int, int)> get_post_update ()
     {
         return post_update;
     }
@@ -253,7 +253,8 @@ public:
                 } // use_fluxes
             }
         }
-        post_update(S_new, time, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+
+        post_update(S_new, time, time_step, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
 
         // Timestep taken by the fast integrator
         amrex::Real dtau;
@@ -478,7 +479,7 @@ public:
                     // Evaluate F_fast(S_pert, S_old) on the fast variables
                     // S_sum is used in the fast RHS to internally define S_pert = (S_sum - S_stage)
                     // *******************************************************************************
-                    fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_scratch, dtau, inv_fac);
+                    fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_scratch, dtau, inv_fac, time + (ks+1) * dtau);
 
                     // *******************************************************************************
                     // Call the post-substep hook for S_sum at t = time + (ks+1) * sub_dt
@@ -640,7 +641,7 @@ public:
             // Call the post-update hook for S_new after all the fast steps completed
             // This will update S_prim that is used in the slow RHS
             if (nrk < 2)
-               post_update(S_new, time + nsubsteps*dtau,S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+              post_update(S_new, time + nsubsteps*dtau, dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
         } // nrk
 
         // Return timestep

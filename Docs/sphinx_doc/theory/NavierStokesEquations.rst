@@ -120,7 +120,7 @@ and :math:`Q` represents the transformation of cloud water and water vapor to ra
 
   \theta_m = c_p T - gz - L_c (q_c + q_r) - L_s (q_i + q_s + q_g)
 
-is the ice/water static energy. 
+is the ice/water static energy.
 
 
 Single Moment Microphysics Model

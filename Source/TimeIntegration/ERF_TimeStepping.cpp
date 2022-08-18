@@ -99,7 +99,10 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     V_new.setVal(1.e34,V_new.nGrowVect());
     W_new.setVal(1.e34,W_new.nGrowVect());
 
-    FillPatch(lev, time, vars_old[lev]);
+    // Moving terrain
+    Real time_mt = time - 0.5*dt_lev;
+
+    FillPatch(lev, time, time_mt, dt_lev, vars_old[lev]);
 
     MultiFab* S_crse;
     MultiFab rU_crse, rV_crse, rW_crse;

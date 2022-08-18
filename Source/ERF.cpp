@@ -470,13 +470,19 @@ ERF::InitData ()
         }
     }
 
+    // Moving terrain
+    ComputeDt();
+
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        FillPatch(lev, t_new[lev], lev_new);
+        // Moving terrain
+        Real time_mt = t_new[lev] - 0.5*dt[lev];
+
+        FillPatch(lev, t_new[lev], time_mt, dt[lev], lev_new);
 
         // Copy from new into old just in case
         int ngs   = lev_new[Vars::cons].nGrow();
@@ -509,7 +515,7 @@ ERF::restart()
 // overrides the pure virtual function in AmrCore
 void
 ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
-                                    const DistributionMapping& dm)
+                             const DistributionMapping& dm)
 {
     const auto& crse_new = vars_new[lev-1];
     auto& lev_new = vars_new[lev];
@@ -530,7 +536,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
-    FillCoarsePatchAllVars(lev, time, vars_new[lev]);
+    // Moving terrain
+    Real time_mt = time - 0.5*dt[lev];
+
+    FillCoarsePatchAllVars(lev, time, time_mt, dt[lev], vars_new[lev]);
 
     initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
 }
@@ -559,9 +568,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     temp_lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     temp_lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
+    // Moving terrain
+    Real time_mt = time - 0.5*dt[lev];
+
     // This will fill the temporary MultiFabs with data from vars_new
-    FillPatch(lev, time, temp_lev_new);
-    FillPatch(lev, time, temp_lev_old);
+    FillPatch(lev, time, time_mt, dt[lev], temp_lev_new);
+    FillPatch(lev, time, time_mt, dt[lev], temp_lev_old);
 
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         std::swap(temp_lev_new[var_idx], vars_new[lev][var_idx]);

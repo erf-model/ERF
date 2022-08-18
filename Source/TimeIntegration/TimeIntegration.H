@@ -49,7 +49,7 @@ void erf_slow_rhs(int level,
                   const amrex::Real* dptr_rayleigh_thetabar,
                   const int rhs_vars=RHSVar::all);
 
-void erf_fast_rhs (int level,
+void erf_fast_rhs (int level, const amrex::Real time,
                    amrex::Vector<amrex::MultiFab >& S_rhs,
                    amrex::Vector<amrex::MultiFab >& S_slow_rhs,
                    amrex::Vector<amrex::MultiFab >& S_stage_data,

@@ -144,7 +144,8 @@ amrex_probinit(
 AMREX_GPU_DEVICE
 Real
 dhdt(int i, int j,
-     const GpuArray<Real,AMREX_SPACEDIM> dx, const Real time)
+     const GpuArray<Real,AMREX_SPACEDIM> dx,
+     const Real time_mt, const Real delta_t)
 {
     return 0.;
 }

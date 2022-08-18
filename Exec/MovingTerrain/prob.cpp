@@ -188,12 +188,11 @@ init_custom_prob(
   });
 
   Real H           = geomdata.ProbHi()[2];
+  Real Ampl        = parms.Ampl;
   Real wavelength  = 100.;
   Real kp          = 2. * 3.1415926535 / wavelength;
   Real g           = 9.8;
   Real omega       = std::sqrt(g * kp);
-
-  Real Ampl        = parms.Ampl;
 
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -305,7 +304,7 @@ init_custom_terrain (const Geometry& geom,
     // Populate bottom plane
     int k0 = domlo_z;
 
-    Real Ampl        = 0.16;
+    Real Ampl        = parms.Ampl;
     Real wavelength  = 100.;
     Real kp          = 2. * 3.1415926535 / wavelength;
     Real g           = 9.8;
@@ -339,16 +338,20 @@ init_custom_terrain (const Geometry& geom,
 AMREX_GPU_DEVICE
 Real
 dhdt(int i, int j,
-     const GpuArray<Real,AMREX_SPACEDIM> dx, const Real time)
+     const GpuArray<Real,AMREX_SPACEDIM> dx,
+     const Real time_mt, const Real delta_t)
 {
     Real Ampl        = parms.Ampl;
-
     Real wavelength  = 100.;
     Real kp          = 2. * 3.1415926535 / wavelength;
     Real g           = 9.8;
     Real omega       = std::sqrt(g * kp);
 
+    // Location of w-faces
     const Real x  = (i + 0.5) * dx[0];
 
-    return Ampl * omega * std::sin(kp * x - omega * time);
+    Real h_old = Ampl * std::sin(kp * x - omega *  time_mt);
+    Real h_new = Ampl * std::sin(kp * x - omega * (time_mt + delta_t));
+
+    return ( (h_new - h_old) / delta_t );
 }

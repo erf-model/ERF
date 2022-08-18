@@ -43,6 +43,6 @@ AMREX_GPU_DEVICE
 amrex::Real
 dhdt (int i, int j,
       const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dx,
-      const amrex::Real time);
+      const amrex::Real time_mt, const amrex::Real delta_t);
 #endif
 

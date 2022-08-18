@@ -46,7 +46,8 @@
                 // Loop over horizontal plane
                 amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
                 {
-                    z_t_arr(i,j,0) = dhdt(i,j,dX,old_step_time);
+                    // Evaluate between RK stages
+                    z_t_arr(i,j,0) = dhdt(i,j,dX,step_time,delta_t);
                     for (int k = 1; k <= khi; k++)
                     {
                         // NOTE: J in this code is (1/J) in Sullivan et al (JAS 2014)
@@ -84,9 +85,14 @@
     // *************************************************************
     // This called after every RK stage -- from MRI or SRI
     // *************************************************************
-    auto post_update_fun = [&](Vector<MultiFab>& S_data, const Real time_for_fp, int ng_cons, int ng_vel)
+   auto post_update_fun = [&](Vector<MultiFab>& S_data,
+                              const Real time_for_fp, const Real delta_t,
+                              int ng_cons, int ng_vel)
     {
+        // Moving terrain
+        Real time_mt = time_for_fp - 0.5*delta_t;
+
         bool fast_only = false;
-        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only);
+        apply_bcs(S_data, time_for_fp, time_mt, delta_t, ng_cons, ng_vel, fast_only);
         cons_to_prim(S_data[IntVar::cons], S_prim, ng_cons);
     };
