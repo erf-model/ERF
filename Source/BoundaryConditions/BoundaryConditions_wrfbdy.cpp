@@ -1,6 +1,8 @@
 #include "AMReX_PhysBCFunct.H"
 #include <ERF_PhysBCFunct.H>
 
+using namespace amrex;
+
 #ifdef ERF_USE_NETCDF
 //
 // dest_arr is the Array4 to be filled
