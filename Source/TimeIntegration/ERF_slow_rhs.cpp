@@ -291,9 +291,8 @@ void erf_slow_rhs (int level,
         // *********************************************************************
         if (rhs_vars != RHSVar::slow) {
         amrex::ParallelFor(tbx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) { // x-momentum equation
-
-            rho_u_rhs(i, j, k) = 0.0; // Initialize the updated x-mom eqn term to zero
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) 
+        { // x-momentum equation
 
             bool on_coarse_fine_boundary = false;
             if (level > 0)
@@ -306,8 +305,8 @@ void erf_slow_rhs (int level,
             {
 
             // Add advective terms
-            rho_u_rhs(i, j, k) += -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, z_t, u, z_nd, detJ,
-                                                       dxInv, l_spatial_order, l_use_terrain);
+            rho_u_rhs(i, j, k) = -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, z_t, u, z_nd, detJ,
+                                                      dxInv, l_spatial_order, l_use_terrain);
 
             // Add diffusive terms
             amrex::Real diff_update;
@@ -381,12 +380,13 @@ void erf_slow_rhs (int level,
                 rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
             }
 
-            } // not on coarse-fine boundary
+            } else {
+                // on coarse-fine boundary
+                rho_u_rhs(i, j, k) = 0.0;
+            }
         });
         amrex::ParallelFor(tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
-            rho_v_rhs(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
-
             bool on_coarse_fine_boundary = false;
             if (level > 0)
             {
@@ -396,87 +396,87 @@ void erf_slow_rhs (int level,
 
             if (!on_coarse_fine_boundary)
             {
+                // Add advective terms
+                rho_v_rhs(i, j, k) = -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, z_t, v, z_nd, detJ,
+                                                          dxInv, l_spatial_order, l_use_terrain);
 
-            // Add advective terms
-            rho_v_rhs(i, j, k) += -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, z_t, v, z_nd, detJ,
-                                                       dxInv, l_spatial_order, l_use_terrain);
-
-            // Add diffusive terms
-            amrex::Real diff_update;
-            if (k < domhi_z && l_use_terrain) {
-                diff_update = DiffusionSrcForMomWithTerrain(i, j, k, u, v, w, cell_data,
-                                                            MomentumEqn::y, dxInv, K_turb, solverChoice,
-                                                            z_nd, detJ, domain, bc_ptr);
-            } else {
-                diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
-                                                 MomentumEqn::y, dxInv, K_turb, solverChoice,
-                                                 domain, bc_ptr, er_arr);
-            }
-            rho_v_rhs(i, j, k) += diff_update;
-
-            // Add pressure gradient
-            amrex::Real gpy;
-            if (l_use_terrain) {
-                Real met_h_xi,met_h_eta,met_h_zeta;
-
-                ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
-
-                Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-                Real gp_zeta_on_jface;
-                if(k==0) {
-                    gp_zeta_on_jface = 0.5 * dxInv[2] * (
-                                                        pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
-                                                      - pp_arr(i,j,k  ) - pp_arr(i,j-1,k  ) );
-                } else if (k==domhi_z) {
-                    gp_zeta_on_jface = 0.5 * dxInv[2] * (
-                                                        pp_arr(i,j,k  ) + pp_arr(i,j-1,k  )
-                                                      - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                // Add diffusive terms
+                amrex::Real diff_update;
+                if (k < domhi_z && l_use_terrain) {
+                    diff_update = DiffusionSrcForMomWithTerrain(i, j, k, u, v, w, cell_data,
+                                                                MomentumEqn::y, dxInv, K_turb, solverChoice,
+                                                                z_nd, detJ, domain, bc_ptr);
                 } else {
-                    gp_zeta_on_jface = 0.25 * dxInv[2] * (
-                                                         pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
-                                                       - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                    diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
+                                                     MomentumEqn::y, dxInv, K_turb, solverChoice,
+                                                     domain, bc_ptr, er_arr);
                 }
-                gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
-            } else {
-                gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-            }
+                rho_v_rhs(i, j, k) += diff_update;
+
+                // Add pressure gradient
+                amrex::Real gpy;
+                if (l_use_terrain) {
+                    Real met_h_xi,met_h_eta,met_h_zeta;
+    
+                    ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
+    
+                    Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
+                    Real gp_zeta_on_jface;
+                    if(k==0) {
+                        gp_zeta_on_jface = 0.5 * dxInv[2] * (
+                                                            pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
+                                                          - pp_arr(i,j,k  ) - pp_arr(i,j-1,k  ) );
+                    } else if (k==domhi_z) {
+                        gp_zeta_on_jface = 0.5 * dxInv[2] * (
+                                                            pp_arr(i,j,k  ) + pp_arr(i,j-1,k  )
+                                                          - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                    } else {
+                        gp_zeta_on_jface = 0.25 * dxInv[2] * (
+                                                             pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
+                                                           - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                    }
+                    gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+                } else {
+                    gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
+                }
 
 #ifdef ERF_USE_MOISUTRE
-            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
-                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
-            rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
+                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
+                rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
 #else
-            rho_v_rhs(i, j, k) -= gpy;
+                rho_v_rhs(i, j, k) -= gpy;
 #endif
 
-            // Add driving pressure gradient
-            if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
-                rho_v_rhs(i, j, k) += -solverChoice.abl_pressure_grad[1];
+                // Add driving pressure gradient
+                if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
+                    rho_v_rhs(i, j, k) += -solverChoice.abl_pressure_grad[1];
 
-            // Add Coriolis forcing (that assumes east is +x, north is +y)
-            if (solverChoice.use_coriolis)
-            {
-                Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                rho_v_rhs(i, j, k) += -solverChoice.coriolis_factor * rho_u_loc * solverChoice.sinphi;
+                // Add Coriolis forcing (that assumes east is +x, north is +y)
+                if (solverChoice.use_coriolis)
+                {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                    rho_v_rhs(i, j, k) += -solverChoice.coriolis_factor * rho_u_loc * solverChoice.sinphi;
+                }
+
+                // Add geostrophic forcing
+                if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
+                    rho_v_rhs(i, j, k) += solverChoice.abl_geo_forcing[1];
+    
+                // Add Rayleigh damping
+                if (solverChoice.use_rayleigh_damping)
+                {
+                    Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
+                    rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
+                }
+
+            } else { 
+                // on coarse-fine boundary
+                rho_v_rhs(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
             }
-
-            // Add geostrophic forcing
-            if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
-                rho_v_rhs(i, j, k) += solverChoice.abl_geo_forcing[1];
-
-            // Add Rayleigh damping
-            if (solverChoice.use_rayleigh_damping)
-            {
-                Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
-                rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
-            }
-
-            } // not on coarse-fine boundary
         });
         amrex::ParallelFor(tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
-            rho_w_rhs(i, j, k) = 0.0; // Initialize the updated z-mom eqn term to zero
-
             bool on_coarse_fine_boundary = false;
             if (level > 0)
             {
@@ -486,79 +486,83 @@ void erf_slow_rhs (int level,
 
             if (!on_coarse_fine_boundary && k > 0)
             {
-            // Add advective terms
-            rho_w_rhs(i, j, k) += -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, z_t, w,
-                                       z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
+                // Add advective terms
+                rho_w_rhs(i, j, k) = -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, z_t, w,
+                                          z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
+    
+                // Add diffusive terms
+                int k_diff = (k == domhi_z+1) ? domhi_z : k;
+                amrex::Real diff_update;
+                if (k < domhi_z && l_use_terrain) {
+                    diff_update = DiffusionSrcForMomWithTerrain(i, j, k_diff, u, v, w, cell_data,
+                                           MomentumEqn::z, dxInv, K_turb, solverChoice,
+                                           z_nd, detJ, domain, bc_ptr);
+                } else {
+                    diff_update = DiffusionSrcForMom(i, j, k_diff, u, v, w, cell_data,
+                                                     MomentumEqn::z, dxInv, K_turb, solverChoice,
+                                                     domain, bc_ptr, er_arr);
+                }
+                rho_w_rhs(i, j, k) += diff_update;
 
-            // Add diffusive terms
-            int k_diff = (k == domhi_z+1) ? domhi_z : k;
-            amrex::Real diff_update;
-            if (k < domhi_z && l_use_terrain) {
-                diff_update = DiffusionSrcForMomWithTerrain(i, j, k_diff, u, v, w, cell_data,
-                                       MomentumEqn::z, dxInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr);
-            } else {
-                diff_update = DiffusionSrcForMom(i, j, k_diff, u, v, w, cell_data,
-                                                 MomentumEqn::z, dxInv, K_turb, solverChoice,
-                                                 domain, bc_ptr, er_arr);
-            }
-            rho_w_rhs(i, j, k) += diff_update;
-
-            // Add pressure gradient
-            amrex::Real gpz;
-            if (l_use_terrain) {
-                Real met_h_xi,met_h_eta,met_h_zeta;
-                ComputeMetricAtKface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_zeta);
-                gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / met_h_zeta;
-            } else {
-                gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
-            }
+                // Add pressure gradient
+                amrex::Real gpz;
+                if (l_use_terrain) {
+                    Real met_h_xi,met_h_eta,met_h_zeta;
+                    ComputeMetricAtKface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_zeta);
+                    gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / met_h_zeta;
+                } else {
+                    gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
+                }
 
 #ifdef ERF_USE_MOISUTRE
-            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
-                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
-            rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
+                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
+                rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
 #else
-            rho_w_rhs(i, j, k) -= gpz;
+                rho_w_rhs(i, j, k) -= gpz;
 #endif
 
-            // Add gravity term
-            if (solverChoice.use_gravity)
-            {
-                int local_spatial_order = 2;
-                rho_w_rhs(i, j, k) += grav_gpu[2] *
-                     InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
-                                                          Coord::z, local_spatial_order, r0_arr);
+                // Add gravity term
+                if (solverChoice.use_gravity)
+                {
+                    int local_spatial_order = 2;
+                    rho_w_rhs(i, j, k) += grav_gpu[2] *
+                         InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
+                                                              Coord::z, local_spatial_order, r0_arr);
+                }
+
+                // Add driving pressure gradient
+                if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
+                    rho_w_rhs(i, j, k) += -solverChoice.abl_pressure_grad[2];
+    
+                // Add Coriolis forcing (that assumes east is +x, north is +y)
+                if (solverChoice.use_coriolis)
+                {
+                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
+                    rho_w_rhs(i, j, k) += solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
+                }
+
+                // Add geostrophic forcing
+                if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
+                    rho_w_rhs(i, j, k) += solverChoice.abl_geo_forcing[2];
+
+                // Add Rayleigh damping
+                if (solverChoice.use_rayleigh_damping)
+                {
+                    rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
+                }
+
+                // Enforce no forcing term at bottom boundary
+                if (k == 0) {
+                    rho_w_rhs(i,j,k) = 0.;
+                } else if (k == domhi_z+1) {
+                    rho_w_rhs(i, j, k) = 0.;
+                }
+            } else {
+                // on coarse-fine boundary
+                rho_w_rhs(i, j, k) = 0.0;
             }
 
-            // Add driving pressure gradient
-            if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
-                rho_w_rhs(i, j, k) += -solverChoice.abl_pressure_grad[2];
-
-            // Add Coriolis forcing (that assumes east is +x, north is +y)
-            if (solverChoice.use_coriolis)
-            {
-                Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                rho_w_rhs(i, j, k) += solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
-            }
-
-            // Add geostrophic forcing
-            if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
-                rho_w_rhs(i, j, k) += solverChoice.abl_geo_forcing[2];
-
-            // Add Rayleigh damping
-            if (solverChoice.use_rayleigh_damping)
-            {
-                rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
-            }
-
-            // Enforce no forcing term at bottom boundary
-            if (k == 0) {
-                rho_w_rhs(i,j,k) = 0.;
-            } else if (k == domhi_z+1) {
-                rho_w_rhs(i, j, k) = 0.;
-            }
-            } // not on coarse-fine boundary
         });
         } // not (rhs_vars == RHSVar::slow)
     }
