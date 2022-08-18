@@ -305,7 +305,7 @@ void erf_slow_rhs (int level,
             {
 
             // Add advective terms
-            rho_u_rhs(i, j, k) = -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, z_t, u, z_nd, detJ,
+            rho_u_rhs(i, j, k) = -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, z_t, cell_data, u, z_nd, detJ,
                                                       dxInv, l_spatial_order, l_use_terrain);
 
             // Add diffusive terms
@@ -397,7 +397,7 @@ void erf_slow_rhs (int level,
             if (!on_coarse_fine_boundary)
             {
                 // Add advective terms
-                rho_v_rhs(i, j, k) = -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, z_t, v, z_nd, detJ,
+                rho_v_rhs(i, j, k) = -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, z_t, cell_data, v, z_nd, detJ,
                                                           dxInv, l_spatial_order, l_use_terrain);
 
                 // Add diffusive terms
@@ -487,7 +487,7 @@ void erf_slow_rhs (int level,
             if (!on_coarse_fine_boundary && k > 0)
             {
                 // Add advective terms
-                rho_w_rhs(i, j, k) = -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, z_t, w,
+                rho_w_rhs(i, j, k) = -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, z_t, cell_data, w,
                                           z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
 
                 // Add diffusive terms

@@ -9,6 +9,7 @@ amrex::Real
 AdvectionSrcForXMom (int i, int j, int k,
                      const amrex::Array4<const amrex::Real>& rho_u, const amrex::Array4<const amrex::Real>& rho_v,
                      const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& z_t,
+                     const amrex::Array4<const amrex::Real>& rho,
                      const amrex::Array4<const amrex::Real>& u,
                      const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -63,11 +64,14 @@ AdvectionSrcForXMom (int i, int j, int k,
     amrex::Real z_t_ihi_zhi = (z_t) ? z_t(i  ,j,k+1) : 0.;
     amrex::Real z_t_ilo_zhi = (z_t) ? z_t(i-1,j,k+1) : 0.;
 
+    amrex::Real rho_ihi_zhi = 0.5 * ( rho(i  ,j,k) + rho(i  ,j,k+1) );
+    amrex::Real rho_ilo_zhi = 0.5 * ( rho(i-1,j,k) + rho(i-1,j,k+1) );
+
     rho_w_avg = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
 
     amrex::Real edgeFluxXZNext = 0.5 *
-        ( (OmegaFromW(i  ,j,k+1,rho_w(i  ,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_ihi_zhi)
-         +(OmegaFromW(i-1,j,k+1,rho_w(i-1,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_ilo_zhi) ) *
+        ( (OmegaFromW(i  ,j,k+1,rho_w(i  ,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_ihi_zhi * rho_ihi_zhi)
+         +(OmegaFromW(i-1,j,k+1,rho_w(i-1,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_ilo_zhi * rho_ilo_zhi) ) *
         InterpolateFromCellOrFace(i, j, k+1, u, 0, rho_w_avg, Coord::z, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -75,11 +79,14 @@ AdvectionSrcForXMom (int i, int j, int k,
     amrex::Real z_t_ihi_zlo = (z_t) ? z_t(i  ,j,k) : 0.;
     amrex::Real z_t_ilo_zlo = (z_t) ? z_t(i-1,j,k) : 0.;
 
+    amrex::Real rho_ihi_zlo = 0.5 * ( rho(i  ,j,k) + rho(i  ,j,k-1) );
+    amrex::Real rho_ilo_zlo = 0.5 * ( rho(i-1,j,k) + rho(i-1,j,k-1) );
+
     rho_w_avg = 0.5 * (rho_w(i, j, k) + rho_w(i-1, j, k));
 
     amrex::Real edgeFluxXZPrev = 0.5 *
-        ( (OmegaFromW(i  ,j,k,rho_w(i  ,j,k),rho_u,rho_v,z_nd,cellSizeInv) - z_t_ihi_zlo)
-         +(OmegaFromW(i-1,j,k,rho_w(i-1,j,k),rho_u,rho_v,z_nd,cellSizeInv) - z_t_ilo_zlo) ) *
+        ( (OmegaFromW(i  ,j,k,rho_w(i  ,j,k),rho_u,rho_v,z_nd,cellSizeInv) - z_t_ihi_zlo * rho_ihi_zlo)
+         +(OmegaFromW(i-1,j,k,rho_w(i-1,j,k),rho_u,rho_v,z_nd,cellSizeInv) - z_t_ilo_zlo * rho_ilo_zlo) ) *
         InterpolateFromCellOrFace(i, j, k  , u, 0, rho_w_avg, Coord::z, spatial_order);
 
     // ****************************************************************************************
@@ -129,6 +136,7 @@ amrex::Real
 AdvectionSrcForYMom (int i, int j, int k,
                      const amrex::Array4<const amrex::Real>& rho_u, const amrex::Array4<const amrex::Real>& rho_v,
                      const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& z_t,
+                     const amrex::Array4<const amrex::Real>& rho,
                      const amrex::Array4<const amrex::Real>& v,
                      const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -184,11 +192,14 @@ AdvectionSrcForYMom (int i, int j, int k,
     amrex::Real z_t_jhi_zhi = (z_t) ? z_t(i,j  ,k+1) : 0.;
     amrex::Real z_t_jlo_zhi = (z_t) ? z_t(i,j-1,k+1) : 0.;
 
+    amrex::Real rho_jhi_zhi = 0.5 * ( rho(i,j  ,k) + rho(i,j  ,k+1) );
+    amrex::Real rho_jlo_zhi = 0.5 * ( rho(i,j-1,k) + rho(i,j-1,k+1) );
+
     rho_w_avg = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
 
     amrex::Real edgeFluxYZNext = 0.5 *
-        ( (OmegaFromW(i,j  ,k,rho_w(i,j  ,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_jhi_zhi)
-         +(OmegaFromW(i,j-1,k,rho_w(i,j-1,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_jlo_zhi) ) *
+        ( (OmegaFromW(i,j  ,k,rho_w(i,j  ,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_jhi_zhi * rho_jhi_zhi)
+         +(OmegaFromW(i,j-1,k,rho_w(i,j-1,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_jlo_zhi * rho_jlo_zhi) ) *
         InterpolateFromCellOrFace(i, j, k+1, v, 0, rho_w_avg, Coord::z, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -196,11 +207,14 @@ AdvectionSrcForYMom (int i, int j, int k,
     amrex::Real z_t_jhi_zlo = (z_t) ? z_t(i,j  ,k) : 0.;
     amrex::Real z_t_jlo_zlo = (z_t) ? z_t(i,j-1,k) : 0.;
 
+    amrex::Real rho_jhi_zlo = 0.5 * ( rho(i,j  ,k) + rho(i,j  ,k-1) );
+    amrex::Real rho_jlo_zlo = 0.5 * ( rho(i,j-1,k) + rho(i,j-1,k-1) );
+
     rho_w_avg = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k));
 
     amrex::Real edgeFluxYZPrev = 0.5 *
-        ( (OmegaFromW(i,j  ,k,rho_w(i,j  ,k),rho_u,rho_v,z_nd,cellSizeInv) - z_t_jhi_zlo)
-         +(OmegaFromW(i,j-1,k,rho_w(i,j-1,k),rho_u,rho_v,z_nd,cellSizeInv) - z_t_jlo_zlo) ) *
+        ( (OmegaFromW(i,j  ,k,rho_w(i,j  ,k),rho_u,rho_v,z_nd,cellSizeInv) - z_t_jhi_zlo * rho_jhi_zlo)
+         +(OmegaFromW(i,j-1,k,rho_w(i,j-1,k),rho_u,rho_v,z_nd,cellSizeInv) - z_t_jlo_zlo * rho_jlo_zlo) ) *
         InterpolateFromCellOrFace(i, j, k  , v, 0, rho_w_avg, Coord::z, spatial_order);
 
     // ****************************************************************************************
@@ -249,6 +263,7 @@ amrex::Real
 AdvectionSrcForZMom (int i, int j, int k,
                      const amrex::Array4<const amrex::Real>& rho_u, const amrex::Array4<const amrex::Real>& rho_v,
                      const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& z_t,
+                     const amrex::Array4<const amrex::Real>& rho,
                      const amrex::Array4<const amrex::Real>& w,
                      const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
@@ -318,7 +333,7 @@ AdvectionSrcForZMom (int i, int j, int k,
     if (z_t)
         z_t_zhi = (k == domhi_z+1) ? z_t(i,j,k) : 0.5 * (z_t(i,j,k) + z_t(i,j,k+1));
 
-    amrex::Real centFluxZZNext = vec - z_t_zhi;
+    amrex::Real centFluxZZNext = vec - z_t_zhi * rho(i,j,k);
 
     centFluxZZNext *= (k == domhi_z+1) ? rho_w(i,j,k) :
         InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
@@ -337,7 +352,7 @@ AdvectionSrcForZMom (int i, int j, int k,
     if (z_t)
         z_t_zlo = (k == 0) ? z_t(i,j,k) : 0.5 * (z_t(i,j,k) + z_t(i,j,k-1));
 
-    amrex::Real centFluxZZPrev = vec - z_t_zlo;
+    amrex::Real centFluxZZPrev = vec - z_t_zlo * rho(i,j,k-1);
 
     centFluxZZPrev *= (k == 0) ? rho_w(i,j,k) :
                           InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
