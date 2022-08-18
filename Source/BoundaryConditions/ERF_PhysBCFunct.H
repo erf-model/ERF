@@ -98,7 +98,7 @@ public:
                           amrex::Real time, int bccomp);
 
 
-    void impose_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr, 
+    void impose_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                           const amrex::Box& bx, const amrex::Box& domain,
                           const amrex::Array4<amrex::Real const>& velx_arr,
                           const amrex::Array4<amrex::Real const>& vely_arr,
