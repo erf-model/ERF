@@ -574,7 +574,7 @@ void erf_fast_rhs (int level, const Real time,
         const Array4<Real>& advflux_z  =  advflux[2].array(mfi);
 
         AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w, Array4<Real>{},
-                             prim, fast_rhs_cons, advflux_x, advflux_y, advflux_z,
+                             cell_stage_cons, prim, fast_rhs_cons, advflux_x, advflux_y, advflux_z,
                              z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, false, false);
 
         // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count

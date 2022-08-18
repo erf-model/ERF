@@ -209,11 +209,11 @@ void erf_slow_rhs (int level,
         // NOTE: given how we fill the fluxes, we must call AdvectionSrcForState before
         //       we call DiffusionSrcForState
         if (rhs_vars == RHSVar::fast || rhs_vars == RHSVar::all) {
-            AdvectionSrcForState(bx, start_comp, num_comp, rho_u, rho_v, rho_w, z_t, cell_prim, cell_rhs,
+            AdvectionSrcForState(bx, start_comp, num_comp, rho_u, rho_v, rho_w, z_t, cell_data, cell_prim, cell_rhs,
                                  advflux_x, advflux_y, advflux_z, z_nd, detJ,
                                  dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
         } else if (rhs_vars == RHSVar::slow) {
-            AdvectionSrcForState(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom, z_t, cell_prim, cell_rhs,
+            AdvectionSrcForState(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom, z_t, cell_data, cell_prim, cell_rhs,
                                  advflux_x, advflux_y, advflux_z, z_nd, detJ,
                                  dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
         }

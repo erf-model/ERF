@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 50
-max_step = 5
+max_step = 20
 
 amrex.fpe_trap_invalid = 1
 
@@ -21,13 +21,13 @@ erf.terrain_type = 1        # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
 # TIME STEP CONTROL (SRI)
-erf.use_native_mri     = 0
-erf.fixed_dt           = 0.005
+#erf.use_native_mri     = 0
+#erf.fixed_dt           = 0.005
 
 # TIME STEP CONTROL (MRI)
-#erf.use_native_mri     = 1
-#erf.fixed_mri_dt_ratio = 40
-#erf.fixed_dt           = 0.2
+erf.use_native_mri     = 1
+erf.fixed_mri_dt_ratio = 40
+erf.fixed_dt           = 0.2
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass

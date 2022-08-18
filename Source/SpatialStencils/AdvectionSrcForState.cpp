@@ -9,6 +9,7 @@ void
 AdvectionSrcForState (const Box& bx, const int &icomp, const int &ncomp,
                       const Array4<const Real>& rho_u, const Array4<const Real>& rho_v,
                       const Array4<const Real>& rho_w, const Array4<const Real>& z_t,
+                      const Array4<const Real>& cell_data,
                       const Array4<const Real>& cell_prim,
                       const Array4<Real>& advectionSrc,
                       const Array4<Real>& xflux, const Array4<Real>& yflux, const Array4<Real>& zflux,
@@ -109,7 +110,8 @@ AdvectionSrcForState (const Box& bx, const int &icomp, const int &ncomp,
         Real z_t_zlo = (z_t) ? z_t(i,j,k) : 0.;
 
         if (use_terrain) {
-            zflux_lo = (k == 0) ? 0.0_rt : (OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zlo);
+            Real rho_zlo = 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1) );
+            zflux_lo = (k == 0) ? 0.0_rt : (OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zlo * rho_zlo);
         } else {
             zflux_lo = rho_w(i,j,k  );
         }
