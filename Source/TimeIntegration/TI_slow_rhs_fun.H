@@ -18,7 +18,6 @@
             if (verbose) Print() << "Making new geometry at stage_time " << std::endl;
 
             const auto dz = fine_geom.CellSizeArray()[2];
-            const Real old_step_time = step_time;
 
             init_custom_terrain(fine_geom,*z_phys_nd_new[level],stage_time); // This defines h(i,j,k=0,t)
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);        // This defines z_phys for all k given h

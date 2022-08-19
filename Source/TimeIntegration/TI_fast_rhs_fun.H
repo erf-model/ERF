@@ -20,10 +20,6 @@
         const amrex::GpuArray<int, IntVar::NumVars> scomp_fast = {0,0,0,0,0,0,0};
         const amrex::GpuArray<int, IntVar::NumVars> ncomp_fast = {2,1,1,1,2,2,2};
 
-        int nsv = Cons::NumVars-2;
-        const amrex::GpuArray<int, IntVar::NumVars> scomp_slow = {  2,0,0,0,  2,  2,  2};
-        const amrex::GpuArray<int, IntVar::NumVars> ncomp_slow = {nsv,0,0,0,nsv,nsv,nsv};
-
         // Update S_sum = S_pert + S_stage only for the fast variables
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
