@@ -3,7 +3,6 @@
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
-#include <EddyViscosity.H>
 #include <ABLMost.H>
 #include <AdvectionSrcForMom.H>
 #include <DiffusionSrcForMom.H>
@@ -17,7 +16,7 @@
 
 using namespace amrex;
 
-void erf_slow_rhs (int level,
+void erf_slow_rhs_pre (int level,
                    Vector<MultiFab>& S_rhs,
                    const Vector<MultiFab>& S_data,
                    const MultiFab& S_prim,
@@ -26,7 +25,8 @@ void erf_slow_rhs (int level,
                    const MultiFab& yvel,
                    const MultiFab& zvel,
                    const MultiFab* z_t_mf,
-                   MultiFab& source,
+                   const MultiFab& source,
+                   const MultiFab& eddyDiffs,
                    std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
                    std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
                    const amrex::Geometry geom,
@@ -40,7 +40,7 @@ void erf_slow_rhs (int level,
                    const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
                    const int rhs_vars)
 {
-    BL_PROFILE_VAR("erf_slow_rhs()",erf_slow_rhs);
+    BL_PROFILE_VAR("erf_slow_rhs_pre()",erf_slow_rhs_pre);
 
     amrex::Real theta_mean;
     if (most) theta_mean = most->theta_mean;
@@ -70,23 +70,9 @@ void erf_slow_rhs (int level,
 
     // *************************************************************************
     // Set gravity as a vector
+    // *************************************************************************
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
-
-    // *************************************************************************
-    // Calculate cell-centered eddy viscosity & diffusivities
-    //
-    // Notes -- we fill all the data in ghost cells before calling this so
-    //    that we can fill the eddy viscosity in the ghost regions and
-    //    not have to call a boundary filler on this data itself
-    //
-    // LES - updates both horizontal and vertical eddy viscosity components
-    // PBL - only updates vertical eddy viscosity components so horizontal
-    //       components come from the LES model or are left as zero.
-    // *************************************************************************
-    MultiFab eddyDiffs(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),EddyDiff::NumDiffs,1);
-    ComputeTurbulentViscosity(xvel, yvel, zvel, S_data[IntVar::cons],
-                              eddyDiffs, geom, solverChoice, most, domain_bcs_type_d);
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
@@ -139,7 +125,7 @@ void erf_slow_rhs (int level,
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
-        const Array4<Real> & source_fab = source.array(mfi);
+        const Array4<const Real> & source_fab = source.const_array(mfi);
 
         Array4<Real> avg_xmom;
         Array4<Real> avg_ymom;
@@ -176,7 +162,7 @@ void erf_slow_rhs (int level,
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
-        const Array4<Real>& K_turb = eddyDiffs.array(mfi);
+        const Array4<const Real>& K_turb = eddyDiffs.const_array(mfi);
 
         const Array4<const Real>& z_nd = l_use_terrain ? z0->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& detJ = l_use_terrain ? dJ->const_array(mfi) : Array4<const Real>{};

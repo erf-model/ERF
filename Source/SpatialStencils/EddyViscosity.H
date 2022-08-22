@@ -114,7 +114,7 @@ ComputeTKEProduction (int i, int j, int k,
                       const amrex::Array4<const amrex::Real>& u,
                       const amrex::Array4<const amrex::Real>& v,
                       const amrex::Array4<const amrex::Real>& w,
-                      const amrex::Array4<amrex::Real>& K_turb,
+                      const amrex::Array4<const amrex::Real>& K_turb,
                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                       const amrex::Box& domain, const amrex::BCRec* bc_ptr, const int& use_terrain)
 {
@@ -135,7 +135,7 @@ amrex::Real
 InterpolateTurbulentViscosity (int i, int j, int k,
                                enum MomentumEqn momentumEqn,
                                enum DiffusionDir diffDir,
-                               const amrex::Array4<amrex::Real>& K_turb)
+                               const amrex::Array4<const amrex::Real>& K_turb)
 {
   // Assuming we already have 'K_turb' computed for all (i, j, k)
   amrex::Real turbViscInterpolated = 1.0;

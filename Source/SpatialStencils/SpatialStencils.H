@@ -66,7 +66,7 @@ void DiffusionSrcForState (const amrex::Box& bx, const amrex::Box& domain, int n
                            const amrex::Array4<amrex::Real>& yflux,
                            const amrex::Array4<amrex::Real>& zflux,
                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                           const amrex::Array4<amrex::Real>& K_turb,
+                           const amrex::Array4<const amrex::Real>& K_turb,
                            const SolverChoice &solverChoice,
                            const amrex::Real& theta_mean,
                            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,

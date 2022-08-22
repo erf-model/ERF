@@ -111,7 +111,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/TI_utils.H
        ${SRC_DIR}/TimeIntegration/TI_slow_rhs_fun.H
        ${SRC_DIR}/TimeIntegration/TI_fast_rhs_fun.H
-       ${SRC_DIR}/TimeIntegration/ERF_slow_rhs.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs.cpp
   )
 
