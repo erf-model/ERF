@@ -77,9 +77,6 @@ void erf_slow_rhs_pre (int level,
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
     const iMultiFab *mlo_mf_z, *mhi_mf_z;
 
-    bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
-    bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
-
     if (level > 0)
     {
         mlo_mf_x = &(ifr->mask(Orientation(0,Orientation::low)));

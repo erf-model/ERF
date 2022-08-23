@@ -440,11 +440,9 @@ public:
         #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
         #endif
             {
-                  for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                  for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                  {
                     const Box bx = mfi.tilebox();
-                    const Box tbx = mfi.nodaltilebox(0);
-                    const Box tby = mfi.nodaltilebox(1);
-                    const Box tbz = mfi.nodaltilebox(2);
 
                     const Box gbx = mfi.tilebox().grow(S_old[IntVar::cons].nGrowVect());
                     const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
