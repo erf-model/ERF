@@ -11,25 +11,6 @@
         if (verbose) Print() << "Calling slow rhs for fast variables at level " << level << " for advancing from "
                              << step_time << " to " << stage_time << std::endl;
 
-        // *************************************************************************
-        // Calculate cell-centered eddy viscosity & diffusivities
-        //
-        // Notes -- we fill all the data in ghost cells before calling this so
-        //    that we can fill the eddy viscosity in the ghost regions and
-        //    not have to call a boundary filler on this data itself
-        //
-        // LES - updates both horizontal and vertical eddy viscosity components
-        // PBL - only updates vertical eddy viscosity components so horizontal
-        //       components come from the LES model or are left as zero.
-        // *************************************************************************
-        if ( (solverChoice.les_type        !=       LESType::None) ||
-             (solverChoice.pbl_type        !=       PBLType::None) )
-        {
-               ComputeTurbulentViscosity(xvel_new, yvel_new, zvel_new, S_data[IntVar::cons],
-                                         eddyDiffs, fine_geom, solverChoice, m_most, domain_bcs_type_d);
-        }
-        // *************************************************************************
-
         // Moving terrain
         if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
         {
