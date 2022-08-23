@@ -55,8 +55,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 
            Real z_t_zlo = (z_t) ? z_t(i,j,k  ) : 0.;
            Real z_t_zhi = (z_t) ? z_t(i,j,k+1) : 0.;
-           zflux_lo *= (k == 0) ? -z_t_zlo : (OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zlo);
-           zflux_hi *=                       (OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zhi);
+           Real zflux_lo = (k == 0) ? -z_t_zlo : (OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zlo);
+           Real zflux_hi =                       (OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zhi);
         }
 
         avg_xmom(i  ,j,k) += fac*xflux_lo;
