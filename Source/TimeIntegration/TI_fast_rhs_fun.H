@@ -25,7 +25,8 @@
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         {
-            for ( MFIter mfi(S_sum[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            for ( MFIter mfi(S_sum[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
                 const Box bx = mfi.tilebox();
                 const Box tbx = mfi.nodaltilebox(0);
                 const Box tby = mfi.nodaltilebox(1);
