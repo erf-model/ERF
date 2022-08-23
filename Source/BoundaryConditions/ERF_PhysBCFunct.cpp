@@ -36,8 +36,8 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
     }
 
     MultiFab* z_phys_ptr = nullptr;
-    MultiFab* xvel_ptr = nullptr;
-    MultiFab* yvel_ptr = nullptr;
+    MultiFab* xvel_ptr   = nullptr;
+    MultiFab* yvel_ptr   = nullptr;
 
     if (m_z_phys_nd) {
             // We must make copies of these MultiFabs onto mf's boxArray for when this operator is
@@ -81,6 +81,9 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 Array4<const Real> velx_arr;
                 Array4<const Real> vely_arr;
 
+                // For single proc, the bx will coincide with gdomain for zvel with x&y periodic
+                //bool fill_zvel = ( (gdomain == bx) && (m_var_idx == Vars::zvel) );
+
                 if (m_z_phys_nd)
                 {
                     BoxArray mf_nodal_grids = mf.boxArray();
@@ -101,6 +104,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
                 //!
+                //if (!gdomain.contains(bx) || fill_zvel)
                 if (!gdomain.contains(bx))
                 {
                     if (m_var_idx == Vars::xvel) {

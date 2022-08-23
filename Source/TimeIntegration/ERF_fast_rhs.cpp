@@ -519,7 +519,7 @@ void erf_fast_rhs (int level, const Real time,
           // Moving terrain
           if (l_use_terrain && l_move_terrain) {
               Real time_mt  = time - 0.5*dtau;
-              Real omega_bc = dhdt(i,j,dx,time_mt,dtau);
+              Real omega_bc = dhdt(i,j,dx,time_mt,dtau) - cell_stage_zmom(i,j,0) / cell_stage_cons(i,j,0); // w'' = w(t) - w^{RK stage}
               RHS(0) = cur_data_cons(i,j,0) * omega_bc;
           }
 
