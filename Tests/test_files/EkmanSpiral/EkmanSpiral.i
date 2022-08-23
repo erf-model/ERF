@@ -16,9 +16,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-integration.type       = RungeKutta
-integration.rk.type    = 3
-erf.use_native_mri     = 0
+erf.no_substepping     = 1
 erf.fixed_dt           = 0.5     # fixed time step
 
 # DIAGNOSTICS & VERBOSITY

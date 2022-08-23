@@ -37,22 +37,35 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          amrex::MultiFab& zmom_out);
 
 /** Compute advection source for the continuity, energy, and scalar equations */
-void AdvectionSrcForState (const amrex::Box& bx,
-                           const int &start_comp, const int &num_comp,
-                           const amrex::Array4<const amrex::Real>& rho_u,
-                           const amrex::Array4<const amrex::Real>& rho_v,
-                           const amrex::Array4<const amrex::Real>& rho_w,
-                           const amrex::Array4<const amrex::Real>& z_t,
-                           const amrex::Array4<const amrex::Real>& cell_prim,
-                           const amrex::Array4<amrex::Real>& src,
-                           const amrex::Array4<amrex::Real>& flux_x,
-                           const amrex::Array4<amrex::Real>& flux_y,
-                           const amrex::Array4<amrex::Real>& flux_z,
-                           const amrex::Array4<const amrex::Real>& z_nd,
-                           const amrex::Array4<const amrex::Real>& detJ,
-                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
-                           const int& spatial_order, const int& use_terrain,
-                           const int& use_deardorff, const int& use_QKE);
+void AdvectionSrcForRhoAndTheta (const amrex::Box& bx, const amrex::Box& valid_bx,
+                                 const amrex::Array4<amrex::Real>& src,
+                                 const amrex::Array4<const amrex::Real>& rho_u,    // These are being used
+                                 const amrex::Array4<const amrex::Real>& rho_v,    //  to define the fluxes
+                                 const amrex::Array4<const amrex::Real>& rho_w,
+                                 amrex::Real fac,
+                                 const amrex::Array4<      amrex::Real>& avg_xmom, // These are being defined
+                                 const amrex::Array4<      amrex::Real>& avg_ymom, //  from the rho fluxes
+                                 const amrex::Array4<      amrex::Real>& avg_zmom,
+                                 const amrex::Array4<const amrex::Real>& z_t,
+                                 const amrex::Array4<const amrex::Real>& cell_prim,
+                                 const amrex::Array4<const amrex::Real>& z_nd,
+                                 const amrex::Array4<const amrex::Real>& detJ,
+                                 const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
+                                 const int& spatial_order, const int& use_terrain);
+
+void AdvectionSrcForScalars (const amrex::Box& bx,
+                             const int &start_comp, const int &num_comp,
+                             const amrex::Array4<const amrex::Real>& rho_u,
+                             const amrex::Array4<const amrex::Real>& rho_v,
+                             const amrex::Array4<const amrex::Real>& rho_w,
+                             const amrex::Array4<const amrex::Real>& z_t,
+                             const amrex::Array4<const amrex::Real>& cell_prim,
+                             const amrex::Array4<amrex::Real>& src,
+                             const amrex::Array4<const amrex::Real>& z_nd,
+                             const amrex::Array4<const amrex::Real>& detJ,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
+                             const int& spatial_order, const int& use_terrain,
+                             const int& use_deardorff, const int& use_QKE);
 
 void DiffusionSrcForState (const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
                            const amrex::Array4<const amrex::Real>& u,

@@ -4,8 +4,6 @@
 #include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
 #include <ABLMost.H>
-#include <AdvectionSrcForMom.H>
-#include <DiffusionSrcForMom.H>
 #include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
@@ -26,7 +24,6 @@ void erf_slow_rhs_post (int level,
                         const MultiFab& zvel,
                         const MultiFab* z_t_mf,
                         const MultiFab& source, const MultiFab& eddyDiffs,
-                        std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
                         std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
                         const amrex::Geometry geom,
                         const SolverChoice& solverChoice,
@@ -38,9 +35,6 @@ void erf_slow_rhs_post (int level,
 
     amrex::Real theta_mean;
     if (most) theta_mean = most->theta_mean;
-
-    int start_comp = 2;
-    int   num_comp = S_data[IntVar::cons].nComp() - 2;
 
     const int l_spatial_order = solverChoice.spatial_order;
     const int l_use_terrain   = solverChoice.use_terrain;
@@ -105,9 +99,6 @@ void erf_slow_rhs_post (int level,
             z_t = Array4<const Real>{};
 
         // These are temporaries we use to add to the S_rhs for the fluxes
-        const Array4<Real>& advflux_x  =  advflux[0].array(mfi);
-        const Array4<Real>& advflux_y  =  advflux[1].array(mfi);
-        const Array4<Real>& advflux_z  =  advflux[2].array(mfi);
         const Array4<Real>& diffflux_x = diffflux[0].array(mfi);
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
@@ -121,11 +112,11 @@ void erf_slow_rhs_post (int level,
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
 
-        // NOTE: given how we fill the fluxes, we must call AdvectionSrcForState before
-        //       we call DiffusionSrcForState
-        AdvectionSrcForState(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom, z_t, cell_prim, cell_rhs,
-                             advflux_x, advflux_y, advflux_z, z_nd, detJ,
-                             dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
+        int start_comp = 2;
+        int   num_comp = S_data[IntVar::cons].nComp() - 2;
+        AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                               z_t, cell_prim, cell_rhs,z_nd, detJ,
+                               dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
 
         // NOTE: No diffusion for continuity, so n starts at 1.
         //       KE calls moved inside DiffSrcForState.
@@ -135,32 +126,5 @@ void erf_slow_rhs_post (int level,
                              cell_data, cell_prim, source_fab, cell_rhs,
                              diffflux_x, diffflux_y, diffflux_z,
                              dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
-
-        // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
-        //         fluxes at fine-fine interfaces
-        int use_fluxes = (S_rhs.size() > 1+AMREX_SPACEDIM);
-        if (use_fluxes)
-        {
-            const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
-            const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
-            const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
-
-            amrex::ParallelFor(
-            tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
-            {
-                 int n = start_comp + n_in;
-                 xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n) + diffflux_x(i,j,k,n);
-            },
-            tby, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
-            {
-                 int n = start_comp + n_in;
-                 yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n) + diffflux_y(i,j,k,n);
-            },
-            tbz, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
-            {
-                 int n = start_comp + n_in;
-                 zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n) + diffflux_z(i,j,k,n);
-            });
-        }
     } // mfi
 }

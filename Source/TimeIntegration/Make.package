@@ -10,7 +10,6 @@ CEXE_headers += TI_slow_rhs_fun.H
 CEXE_headers += TI_utils.H
 
 CEXE_headers += ERF_MRI.H
-CEXE_headers += ERF_SRI.H
 
 CEXE_headers += TimeIntegration.H
 

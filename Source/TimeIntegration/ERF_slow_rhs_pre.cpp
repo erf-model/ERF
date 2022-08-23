@@ -27,7 +27,6 @@ void erf_slow_rhs_pre (int level,
                    const MultiFab* z_t_mf,
                    const MultiFab& source,
                    const MultiFab& eddyDiffs,
-                   std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
                    std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
                    const amrex::Geometry geom,
                          amrex::InterpFaceRegister* ifr,
@@ -100,8 +99,8 @@ void erf_slow_rhs_pre (int level,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-
+    for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
         const Box& bx = mfi.tilebox();
         const Box& tbx = mfi.nodaltilebox(0);
         const Box& tby = mfi.nodaltilebox(1);
@@ -127,14 +126,14 @@ void erf_slow_rhs_pre (int level,
         const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & source_fab = source.const_array(mfi);
 
-        Array4<Real> avg_xmom;
-        Array4<Real> avg_ymom;
-        Array4<Real> avg_zmom;
-        if (S_scratch.size() > 0) {
-            avg_xmom = S_scratch[IntVar::xmom].array(mfi);
-            avg_ymom = S_scratch[IntVar::ymom].array(mfi);
-            avg_zmom = S_scratch[IntVar::zmom].array(mfi);
-        }
+        // We must initialize these to zero each RK step
+        S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.);
+        S_scratch[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.);
+        S_scratch[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.);
+
+        Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
+        Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
+        Array4<Real> avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
@@ -155,9 +154,6 @@ void erf_slow_rhs_pre (int level,
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
 
         // These are temporaries we use to add to the S_rhs for the fluxes
-        const Array4<Real>& advflux_x  =  advflux[0].array(mfi);
-        const Array4<Real>& advflux_y  =  advflux[1].array(mfi);
-        const Array4<Real>& advflux_z  =  advflux[2].array(mfi);
         const Array4<Real>& diffflux_x = diffflux[0].array(mfi);
         const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
         const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
@@ -192,17 +188,11 @@ void erf_slow_rhs_pre (int level,
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
 
-        // NOTE: given how we fill the fluxes, we must call AdvectionSrcForState before
-        //       we call DiffusionSrcForState
-        if (rhs_vars == RHSVar::fast || rhs_vars == RHSVar::all) {
-            AdvectionSrcForState(bx, start_comp, num_comp, rho_u, rho_v, rho_w, z_t, cell_prim, cell_rhs,
-                                 advflux_x, advflux_y, advflux_z, z_nd, detJ,
-                                 dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
-        } else if (rhs_vars == RHSVar::slow) {
-            AdvectionSrcForState(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom, z_t, cell_prim, cell_rhs,
-                                 advflux_x, advflux_y, advflux_z, z_nd, detJ,
-                                 dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
-        }
+        Real fac = 1.0;
+        AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs, rho_u, rho_v, rho_w,  // these are being used to build the fluxes
+                                   fac, avg_xmom, avg_ymom, avg_zmom,  // these are being defined from the rho fluxes
+                                   z_t, cell_prim, z_nd, detJ,
+                                   dxInv, l_spatial_order, l_use_terrain);
 
         // NOTE: No diffusion for continuity, so n starts at 1.
         //       KE calls moved inside DiffSrcForState.
@@ -223,52 +213,6 @@ void erf_slow_rhs_pre (int level,
             {
                 Real theta = cell_prim(i,j,k,np);
                 cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,nr);
-            });
-        }
-
-        // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
-        //         fluxes at fine-fine interfaces
-        int use_fluxes = (S_rhs.size() > 1+AMREX_SPACEDIM);
-        if (use_fluxes)
-        {
-            const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
-            const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
-            const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
-
-            amrex::ParallelFor(
-            tbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
-            {
-                 int n = start_comp + n_in;
-                 xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n) + diffflux_x(i,j,k,n);
-            },
-            tby, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
-            {
-                 int n = start_comp + n_in;
-                 yflux_rhs(i,j,k,n) += advflux_y(i,j,k,n) + diffflux_y(i,j,k,n);
-            },
-            tbz, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n_in) noexcept
-            {
-                 int n = start_comp + n_in;
-                 zflux_rhs(i,j,k,n) += advflux_z(i,j,k,n) + diffflux_z(i,j,k,n);
-            });
-        }
-
-        int update_mom = (S_scratch.size() > 0);
-        if (update_mom)
-        {
-            int n = Rho_comp;
-            amrex::ParallelFor(tbx, tby, tbz,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                avg_xmom(i,j,k) = advflux_x(i,j,k,n);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                avg_ymom(i,j,k) = advflux_y(i,j,k,n);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                avg_zmom(i,j,k) = advflux_z(i,j,k,n);
             });
         }
 
