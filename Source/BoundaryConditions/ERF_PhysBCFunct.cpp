@@ -34,7 +34,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
             gdomain.grow(i, nghost[i]);
         }
     }
-      
+
     MultiFab* z_phys_ptr = nullptr;
     MultiFab* xvel_ptr   = nullptr;
     MultiFab* yvel_ptr   = nullptr;

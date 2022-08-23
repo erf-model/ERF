@@ -256,7 +256,7 @@ init_custom_prob(
       Real x   = (i + 0.5) * dx[0];
       Real z   = 0.25 * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k) );
       Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
-      
+
       z_vel(i, j, k) = Ampl * omega * fac * std::cos(kp * x);
   });
 
