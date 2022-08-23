@@ -204,7 +204,7 @@ init_custom_prob(
     state(i, j, k, Rho_comp) = r_hse(i,j,k);
 
     Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
-    Real p_prime = -(omega * omega / kp) * fac * Ampl * std::sin(kp * x);
+    Real p_prime = -(Ampl * omega * omega / kp) * fac * std::sin(kp * x);
     Real p_total = p_hse(i,j,k) + p_prime;
 
     // Define (rho theta) given pprime
@@ -229,10 +229,9 @@ init_custom_prob(
 
       const Real x = prob_lo[0] + i * dx[0];
       const Real z = 0.5 * (z_nd(i,j,k) + z_nd(i,j,k+1));
+      Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
 
-      Real fac    = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
-
-      x_vel(i, j, k) = -omega * fac * Ampl * std::sin(k * x);
+      x_vel(i, j, k) = -Ampl * omega * fac * std::sin(kp * x);
   });
 
   // Construct a box that is on y-faces
@@ -255,9 +254,10 @@ init_custom_prob(
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       Real x   = (i + 0.5) * dx[0];
-      Real z   = z_cc(i,j,k);
+      Real z   = 0.25 * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k) );
       Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
-      z_vel(i, j, k) = omega * fac * Ampl * std::cos(kp * x);
+      
+      z_vel(i, j, k) = Ampl * omega * fac * std::cos(kp * x);
   });
 
   amrex::Gpu::streamSynchronize();
@@ -353,5 +353,8 @@ dhdt(int i, int j,
     Real h_old = Ampl * std::sin(kp * x - omega *  time_mt);
     Real h_new = Ampl * std::sin(kp * x - omega * (time_mt + delta_t));
 
-    return ( (h_new - h_old) / delta_t );
+    // Use analytical just for debugging
+    Real test = -Ampl * omega * std::cos(kp * x - omega * (time_mt + 0.5*delta_t));
+
+    return test; //( (h_new - h_old) / delta_t );
 }

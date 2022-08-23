@@ -300,6 +300,17 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
          m_w2d->write_planes(istep[0], time, vars_new);
       }
     }
+
+    // Moving terrain
+    if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
+    {
+      for (int lev = finest_level; lev >= 0; lev--)
+      {
+        // Copy z_phs_nd and detJ_cc at end of timestep
+        MultiFab::Copy(*z_phys_nd[lev], *z_phys_nd_new[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
+        MultiFab::Copy(  *detJ_cc[lev],   *detJ_cc_new[lev], 0, 0, 1,   detJ_cc[lev]->nGrowVect());
+      }
+    }
 }
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
