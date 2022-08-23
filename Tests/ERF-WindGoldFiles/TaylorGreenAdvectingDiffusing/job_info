@@ -1,33 +1,33 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: ../../Tests/test_files/TaylorGreenAdvectingDiffusing/TaylorGreenAdvectingDiffusing.i
+inputs file: /home/amlattanzi/git/ERF/Tests/test_files/TaylorGreenAdvectingDiffusing/TaylorGreenAdvectingDiffusing.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.000151337
+CPU time used since start of simulation (CPU-hours): 0.000106921
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Sun Aug 14 10:46:04 2022
-output dir:         /home/almgren/GitCode/ERF/build/Exec/TaylorGreenVortex
+output data / time: Tue Aug 23 15:06:12 2022
+output dir:         /home/amlattanzi/git/ERF/Exec/TaylorGreenVortex
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    Aug 14 2022 10:40:20
-build machine: Linux manda 5.15.0-43-generic #46~20.04.1-Ubuntu SMP Thu Jul 14 15:20:17 UTC 2022 x86_64
-build dir:     /home/almgren/GitCode/ERF/build/Exec
-AMReX dir:     /home/almgren/GitCode/ERF/Submodules/AMReX
+build date:    2022-08-23 15:04:06.963184
+build machine: Linux ghidorah 5.15.0-46-generic #49~20.04.1-Ubuntu SMP Thu Aug 4 19:15:44 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
+build dir:     /home/amlattanzi/git/ERF/Exec/TaylorGreenVortex
+AMReX dir:     /home/amlattanzi/git/amrex
 
-COMP:          GNU
+COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: last-amrlevel-version-459-g360c14f13bc2-dirty
-AMReX       git hash: 22.08-12-g4f639294606d
+ERF       git hash: last-amrlevel-version-471-gc921f324-dirty
+AMReX       git hash: 22.05-130-g8294c3afb
 
 
 ===============================================================================
@@ -57,8 +57,6 @@ geometry.prob_extent = 6.283185307179586476925 6.283185307179586476925 6.2831853
 amr.n_cell = 16 16 16
 zlo.type = SlipWall
 zhi.type = SlipWall
-erf.fixed_dt = 1e-2
-erf.use_native_mri = 1
 erf.fixed_dt = .16
 erf.mri_fixed_dt_ratio(nvals = 1)  :: [4]
 erf.sum_interval = 1

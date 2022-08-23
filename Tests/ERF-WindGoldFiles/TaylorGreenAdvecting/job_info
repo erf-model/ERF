@@ -1,33 +1,33 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: ../../../Tests/test_files/TaylorGreenAdvecting/TaylorGreenAdvecting.i
+inputs file: /home/amlattanzi/git/ERF/Tests/test_files/TaylorGreenAdvecting/TaylorGreenAdvecting.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.000346373
+CPU time used since start of simulation (CPU-hours): 7.46696e-05
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Wed Apr 27 12:15:20 2022
-output dir:         /home/almgren/GitCode/ERF/build/Exec/TaylorGreenVortex
+output data / time: Tue Aug 23 15:07:08 2022
+output dir:         /home/amlattanzi/git/ERF/Exec/TaylorGreenVortex
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    Apr 27 2022 12:10:58
-build machine: Linux manda 5.13.0-40-generic #45~20.04.1-Ubuntu SMP Mon Apr 4 09:38:31 UTC 2022 x86_64
-build dir:     /home/almgren/GitCode/ERF/build/Exec
-AMReX dir:     /home/almgren/GitCode/ERF/Submodules/AMReX
+build date:    2022-08-23 15:04:06.963184
+build machine: Linux ghidorah 5.15.0-46-generic #49~20.04.1-Ubuntu SMP Thu Aug 4 19:15:44 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
+build dir:     /home/amlattanzi/git/ERF/Exec/TaylorGreenVortex
+AMReX dir:     /home/amlattanzi/git/amrex
 
-COMP:          GNU
+COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: last-amrlevel-version-163-g9129ef03c1e8-dirty
-AMReX       git hash: 20.06-1428-ga0668e9b25f1
+ERF       git hash: last-amrlevel-version-471-gc921f324-dirty
+AMReX       git hash: 22.05-130-g8294c3afb
 
 
 ===============================================================================
@@ -57,20 +57,18 @@ geometry.prob_extent = 6.283185307179586476925 6.283185307179586476925 6.2831853
 amr.n_cell = 16 16 16
 zlo.type = SlipWall
 zhi.type = SlipWall
-erf.use_native_mri = 1
 erf.fixed_dt = 0.16
 erf.mri_fixed_dt_ratio(nvals = 1)  :: [4]
 erf.sum_interval = 1
 erf.v = 1
 amr.v = 1
-amr.data_log = datlog
+amr.data_log(nvals = 1)  :: [datlog]
 amr.max_level = 0
-amr.check_file = chk
-amr.check_int = 100
-amr.plot_file = plt
-amr.plot_int = 10
-amr.plot_vars = density x_velocity y_velocity z_velocity
-amr.derive_plot_vars = pressure temp theta scalar
+erf.check_file = chk
+erf.check_int = 100
+erf.plot_file_1 = plt
+erf.plot_int_1 = 10
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity pressure temp theta scalar
 erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = false
@@ -86,7 +84,8 @@ amr.refine_grid_layout_y = 1
 amr.refine_grid_layout_z = 0
 amr.n_proper = 2
 amr.max_grid_size = 2048
-amr.blocking_factor = 2
+amr.blocking_factor = 1
+amr.n_error_buf = 0
 amrex.v = 1
 amrex.verbose = 1
 amrex.regtest_reduction = 0

@@ -550,6 +550,10 @@ void erf_fast_rhs (int level, const Real time,
                   new_drho_w(i,j,k) = soln(k);
               }
               fast_rhs_rho_w(i,j,k) = ( new_drho_w(i,j,k) - old_drho_w(i,j,k) - dtau * slow_rhs_rho_w(i,j,k)) / dtau;
+
+              // Sum implicit and explicit W for AdvSrc
+              new_drho_w(i,j,k) *= beta_2;
+              new_drho_w(i,j,k) += beta_1 * old_drho_w(i,j,k);
           }
         });
 
