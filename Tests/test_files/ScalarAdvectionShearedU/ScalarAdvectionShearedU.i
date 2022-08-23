@@ -15,7 +15,6 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.use_native_mri = 1
 erf.use_lowM_dt    = 1
 erf.cfl            = 0.9
 

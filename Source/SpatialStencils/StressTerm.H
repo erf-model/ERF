@@ -13,7 +13,7 @@ amrex::Real
 ComputeStressGivenRates (int i, int j, int k,
                          enum MomentumEqn momentumEqn,
                          enum DiffusionDir &diffDir,
-                         const amrex::Array4<amrex::Real>& K_turb,
+                         const amrex::Array4<const amrex::Real>& K_turb,
                          const SolverChoice &solverChoice,
                          amrex::Real strainRateDeviatoric)
 {
@@ -50,7 +50,7 @@ ComputeStressTermWithTerrain (int i, int j, int k,
                                     enum MomentumEqn  momentumEqn,
                                     enum DiffusionDir diffDir,
                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                              const amrex::Array4<amrex::Real>& K_turb,
+                              const amrex::Array4<const amrex::Real>& K_turb,
                               const SolverChoice &solverChoice,
                               const amrex::Array4<const amrex::Real>& z_nd,
                               const amrex::Box& domain, const amrex::BCRec* bc_ptr)
@@ -95,7 +95,7 @@ ComputeStressTerm (int i, int j, int k,
                          enum MomentumEqn  momentumEqn,
                          enum DiffusionDir diffDir,
                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                   const amrex::Array4<amrex::Real>& K_turb,
+                   const amrex::Array4<const amrex::Real>& K_turb,
                    const SolverChoice &solverChoice,
                    const amrex::Box& domain, const amrex::BCRec* bc_ptr,
                    amrex::Real expansionRate)

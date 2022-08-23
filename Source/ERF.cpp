@@ -141,7 +141,6 @@ ERF::ERF ()
     }
 
     mri_integrator_mem.resize(nlevs_max);
-    sri_integrator_mem.resize(nlevs_max);
 
     flux_registers.resize(nlevs_max);
 
@@ -598,11 +597,7 @@ ERF::ClearLevel (int lev)
     }
 
     // Clears the integrator memory
-    if (use_native_mri) {
-        mri_integrator_mem[lev].reset();
-    } else {
-        sri_integrator_mem[lev].reset();
-    }
+    mri_integrator_mem[lev].reset();
 }
 
 // Make a new level from scratch using provided BoxArray and DistributionMapping.
@@ -718,14 +713,8 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
         int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
     }
 
-    if (use_native_mri) {
-        mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
-        mri_integrator_mem[lev]->setUseFluxes(use_fluxes);
-        mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
-    } else {
-        sri_integrator_mem[lev] = std::make_unique<SRIIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
-        sri_integrator_mem[lev]->setUseFluxes(use_fluxes);
-    }
+    mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+    mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
 }
 
 void
@@ -1138,7 +1127,6 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     }
 
     mri_integrator_mem.resize(nlevs_max);
-    sri_integrator_mem.resize(nlevs_max);
 
     // Multiblock: public domain sizes (need to know which vars are nodal)
     Box nbx;

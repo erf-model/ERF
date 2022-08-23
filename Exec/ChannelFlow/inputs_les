@@ -15,7 +15,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "NoSlipWall"
 
 # TIME STEP CONTROL
-erf.use_native_mri  = 0
+erf.no_substepping  = 1
 erf.fixed_dt       = 2e-5    # fixed time step
 
 # DIAGNOSTICS & VERBOSITY

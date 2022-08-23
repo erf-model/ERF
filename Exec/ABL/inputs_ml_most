@@ -19,7 +19,6 @@ erf.most.zref = 200.0
 erf.most.surf_temp = 1.1
 
 # TIME STEP CONTROL
-erf.use_native_mri     = 1
 erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
 
 # DIAGNOSTICS & VERBOSITY

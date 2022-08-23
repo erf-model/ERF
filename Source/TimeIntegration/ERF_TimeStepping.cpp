@@ -50,7 +50,7 @@ ERF::timeStep (int lev, Real time, int iteration)
                        << " with dt = " << dt[lev] << std::endl;
     }
 
-    // Advance a single level for a single time step, updates flux registers
+    // Advance a single level for a single time step
     Advance(lev, time, dt[lev], iteration, nsubsteps[lev]);
 
     ++istep[lev];
@@ -73,7 +73,7 @@ ERF::timeStep (int lev, Real time, int iteration)
     }
 }
 
-// advance a single level for a single time step, updates flux registers
+// advance a single level for a single time step
 void
 ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/)
 {
@@ -153,17 +153,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     MultiFab source(ba,dm,nvars,1);
     source.setVal(0.0);
 
-    // These are the actual fluxes we will use to fill the flux registers
-    std::array< MultiFab, AMREX_SPACEDIM > flux;
-
-    flux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 1);
-    flux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 1);
-    flux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 1);
-
-    flux[0].setVal(0.);
-    flux[1].setVal(0.);
-    flux[2].setVal(0.);
-
     // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
     MultiFab::Copy(cons_mf,S_old,0,0,S_old.nComp(),S_old.nGrowVect());
@@ -197,30 +186,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 U_old, V_old, W_old,
                 U_new, V_new, W_new,
                 rU_crse, rV_crse, rW_crse,
-                source, flux,
-                Geom(lev), dt_lev, time, &ifr,
+                source, Geom(lev), dt_lev, time, &ifr,
                 r0, p0,
                 dptr_rayleigh_tau, dptr_rayleigh_ubar,
                 dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
-
-    // *****************************************************************
-    // Now fill the flux registers with the fluxes so we can reflux later
-    // *****************************************************************
-    const auto& dx = Geom(lev).CellSize();
-
-    if (finest_level > 0 && do_reflux)
-    {
-        if (lev < finest_level) {
-            flux_registers[lev+1]->setVal(0.0);
-            flux_registers[lev+1]->CrseInit(flux[0],0,0,0,nvars,-dx[1]*dx[2],amrex::FluxRegister::ADD);
-            flux_registers[lev+1]->CrseInit(flux[1],1,0,0,nvars,-dx[0]*dx[2],amrex::FluxRegister::ADD);
-            flux_registers[lev+1]->CrseInit(flux[2],2,0,0,nvars,-dx[0]*dx[1],amrex::FluxRegister::ADD);
-        }
-
-        if (lev > 0) {
-          flux_registers[lev]->FineAdd(flux[0], 0, 0, 0, nvars, dx[1]*dx[2]);
-          flux_registers[lev]->FineAdd(flux[1], 1, 0, 0, nvars, dx[0]*dx[2]);
-          flux_registers[lev]->FineAdd(flux[2], 2, 0, 0, nvars, dx[0]*dx[1]);
-        }
-    }
 }

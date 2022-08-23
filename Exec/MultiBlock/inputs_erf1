@@ -19,7 +19,6 @@ erf1.max_level = 0
 erf1.coord = 0
     
 # TIME STEP CONTROL
-erf1.use_native_mri = 1
 erf1.fixed_dt       = 1.0
 erf1.fixed_fast_dt  = 0.25
 

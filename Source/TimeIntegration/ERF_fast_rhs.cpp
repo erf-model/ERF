@@ -20,7 +20,6 @@ void erf_fast_rhs (int level, const Real time,
                    const MultiFab& S_stage_prim,
                    const Vector<MultiFab>& S_data,                 // S_sum = most recent full solution
                          Vector<MultiFab>& S_scratch,              // S_sum_old at most recent fast timestep for (rho theta)
-                   std::array< MultiFab, AMREX_SPACEDIM>&  advflux,
                    const amrex::Geometry geom,
                    amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
@@ -89,21 +88,23 @@ void erf_fast_rhs (int level, const Real time,
     MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
 
     // *************************************************************************
-    // Define updates in the current RK stage, fluxes are computed here itself
+    // Define updates in the current RK stage
     // *************************************************************************
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     {
 
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& valid_bx = mfi.validbox();
 
         const Box& bx = mfi.tilebox();
+
         const Box& tbx = mfi.nodaltilebox(0);
         const Box& tby = mfi.nodaltilebox(1);
         const Box& tbz = mfi.nodaltilebox(2);
 
-        Box const& valid_bx = mfi.validbox();
         int vlo_x = valid_bx.smallEnd(0);
         int vhi_x = valid_bx.bigEnd(0);
         int vlo_y = valid_bx.smallEnd(1);
@@ -259,8 +260,6 @@ void erf_fast_rhs (int level, const Real time,
 
                 if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
 
-                avg_xmom(i,j,k) += facinv * new_drho_u(i,j,k);
-
             } // not on coarse-fine boundary
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
@@ -318,8 +317,6 @@ void erf_fast_rhs (int level, const Real time,
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v(i,j,k)
                                                         + dtau * slow_rhs_rho_v(i,j,k);
                 if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
-
-                avg_ymom(i,j,k) += facinv * new_drho_v(i,j,k);
 
             } // not on coarse-fine boundary
         },
@@ -553,8 +550,6 @@ void erf_fast_rhs (int level, const Real time,
                   new_drho_w(i,j,k) = soln(k);
               }
               fast_rhs_rho_w(i,j,k) = ( new_drho_w(i,j,k) - old_drho_w(i,j,k) - dtau * slow_rhs_rho_w(i,j,k)) / dtau;
-
-              avg_zmom(i,j,k) += facinv * new_drho_w(i,j,k);
           }
         });
 
@@ -564,42 +559,11 @@ void erf_fast_rhs (int level, const Real time,
 
         const int l_spatial_order = 2;
 
-        // We only update rho and (rho theta) here
-        int start_comp = 0;
-        int      ncomp = 2;
-
-        // These are temporaries we use to add to the S_rhs for the fluxes
-        const Array4<Real>& advflux_x  =  advflux[0].array(mfi);
-        const Array4<Real>& advflux_y  =  advflux[1].array(mfi);
-        const Array4<Real>& advflux_z  =  advflux[2].array(mfi);
-
-        AdvectionSrcForState(bx, start_comp, ncomp, new_drho_u, new_drho_v, new_drho_w, Array4<Real>{},
-                             prim, fast_rhs_cons, advflux_x, advflux_y, advflux_z,
-                             z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, false, false);
-
-        // Compute the RHS for the flux terms from this stage -- we do it this way so we don't double count
-        //         fluxes at fine-fine interfaces
-        int use_fluxes = (S_rhs.size() > 1+AMREX_SPACEDIM);
-        if (use_fluxes)
-        {
-            const Array4<Real>& xflux_rhs = S_rhs[IntVar::xflux].array(mfi);
-            const Array4<Real>& yflux_rhs = S_rhs[IntVar::yflux].array(mfi);
-            const Array4<Real>& zflux_rhs = S_rhs[IntVar::zflux].array(mfi);
-
-            amrex::ParallelFor(
-            tbx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                 xflux_rhs(i,j,k,n) = advflux_x(i,j,k,n);
-            },
-            tby, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                 yflux_rhs(i,j,k,n) = advflux_y(i,j,k,n);
-            },
-            tbz, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                 zflux_rhs(i,j,k,n) = advflux_z(i,j,k,n);
-            });
-        } // use_fluxes
+        AdvectionSrcForRhoAndTheta(bx, valid_bx, fast_rhs_cons,
+                                   new_drho_u, new_drho_v, new_drho_w,      // these are being used to build the fluxes
+                                   facinv, avg_xmom, avg_ymom, avg_zmom,    // these are being defined from the rho fluxes
+                                   Array4<Real>{},  // z_t
+                                   prim, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain);
     } // mfi
     }
 }

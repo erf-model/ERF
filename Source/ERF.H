@@ -34,7 +34,6 @@
 #include <Derive.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
-#include <ERF_SRI.H>
 #include <ERF_MRI.H>
 
 #ifdef ERF_USE_NETCDF
@@ -143,7 +142,6 @@ public:
                       amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
                       amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
                       amrex::MultiFab& source,
-                      std::array< amrex::MultiFab, AMREX_SPACEDIM>& flux,
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
@@ -455,7 +453,6 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
-    amrex::Vector<std::unique_ptr<SRIIntegrator<amrex::Vector<amrex::MultiFab> > > > sri_integrator_mem;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
