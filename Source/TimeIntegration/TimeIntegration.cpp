@@ -107,16 +107,5 @@ void ERF::erf_advance(int level,
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
-    // **************************************************************************************
-    // Convert updated momentum to updated velocity on faces after we have taken a timestep
-    // **************************************************************************************
-    MomentumToVelocity(xvel_new, IntVect::TheZeroVector(),
-                       yvel_new, IntVect::TheZeroVector(),
-                       zvel_new, IntVect::TheZeroVector(),
-                       state_new[IntVar::cons],
-                       state_new[IntVar::xmom],
-                       state_new[IntVar::ymom],
-                       state_new[IntVar::zmom]);
-
     if (verbose) Print() << "Done with advance at level " << level << std::endl;
 }

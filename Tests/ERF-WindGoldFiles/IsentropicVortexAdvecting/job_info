@@ -1,16 +1,16 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: IsentropicVortexAdvecting.i
+inputs file: ../../Tests/test_files/IsentropicVortexAdvecting/IsentropicVortexAdvecting.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.000101867
+CPU time used since start of simulation (CPU-hours): 0.000102607
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Mon Aug 22 18:39:05 2022
+output data / time: Tue Aug 23 12:25:03 2022
 output dir:         /home/almgren/GitCode/ERF/Exec/IsentropicVortex
 
 
@@ -58,9 +58,6 @@ amr.n_cell = 48 48 4
 geometry.is_periodic = 1 1 0
 zlo.type = SlipWall
 zhi.type = SlipWall
-integration.type(nvals = 1)  :: [RungeKutta]
-integration.rk.type(nvals = 1)  :: [3]
-erf.use_native_mri = 0
 erf.no_substepping = 1
 erf.fixed_dt = 0.0005
 erf.sum_interval = 1

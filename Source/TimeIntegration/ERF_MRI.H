@@ -518,8 +518,7 @@ public:
 
             // Call the post-update hook for S_new after all the fast steps completed
             // This will update S_prim that is used in the slow RHS
-            if (nrk < 2)
-              post_update(S_new, time + nsubsteps*dtau, dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+            post_update(S_new, time + nsubsteps*dtau, dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
         } // nrk
 
         // Return timestep
