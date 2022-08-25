@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 800
+max_step = 3 #800
 
 amrex.fpe_trap_invalid = 1
 
@@ -20,13 +20,13 @@ erf.terrain_type = 1        # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
 # TIME STEP CONTROL
-erf.no_substepping     = 1
-erf.fixed_dt           = 0.005
+#erf.no_substepping     = 1
+#erf.fixed_dt           = 0.005
 
 # TIME STEP CONTROL (MRI)
-#erf.use_native_mri     = 1
-#erf.fixed_mri_dt_ratio = 40
-#erf.fixed_dt           = 0.2
+erf.use_native_mri     = 1
+erf.fixed_mri_dt_ratio = 20
+erf.fixed_dt           = 0.025
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
@@ -42,7 +42,7 @@ erf.check_int       = 100     # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 40       # number of timesteps between plotfiles
+erf.plot_int_1      = 1       # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y
 
 # SOLVER CHOICE

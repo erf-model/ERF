@@ -462,6 +462,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
 
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
