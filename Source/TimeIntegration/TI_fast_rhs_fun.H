@@ -37,7 +37,7 @@
                 const Array4<      Real>& zp_t_arr  =  z_t_pert->array(mfi);
                 const Array4<      Real>& z_t_arr   =  z_t_rk[level]->array(mfi);
 
-                Real delta_t  = time - 0.5*dtau;
+                Real delta_t  = dtau;
 
                 const auto& dX = fine_geom.CellSizeArray();
 
