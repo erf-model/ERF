@@ -651,6 +651,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     z_phys_cc_new.resize(lev+1);
     detJ_cc_new.resize(lev+1);
 
+    z_t_rk.resize(lev+1);
+
     BoxList bl2d = ba.boxList();
     for (auto& b : bl2d) {
         b.setRange(2,0);
@@ -681,6 +683,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         if (solverChoice.terrain_type > 0) {
             z_phys_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
               detJ_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
+              z_t_rk[lev].reset(new MultiFab( convert(ba, IntVect(0,0,1)), dm, 1, 1 ));
         }
 
         BoxArray ba_nd(ba);
@@ -693,13 +696,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
             z_phys_nd_new[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
         }
     } else {
-        z_phys_nd[lev] = nullptr;
-        z_phys_cc[lev] = nullptr;
-          detJ_cc[lev] = nullptr;
+            z_phys_nd[lev] = nullptr;
+            z_phys_cc[lev] = nullptr;
+              detJ_cc[lev] = nullptr;
 
         z_phys_nd_new[lev] = nullptr;
         z_phys_cc_new[lev] = nullptr;
           detJ_cc_new[lev] = nullptr;
+
+               z_t_rk[lev] = nullptr;
     }
 
     initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);

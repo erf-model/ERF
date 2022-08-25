@@ -23,6 +23,7 @@ void erf_fast_rhs (int level, const Real time,
                    const amrex::Geometry geom,
                    amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
+                   const MultiFab* z_t_pert,
                    std::unique_ptr<MultiFab>& z_phys_nd,
                    std::unique_ptr<MultiFab>& detJ_cc,
                    const MultiFab* r0,
@@ -156,6 +157,8 @@ void erf_fast_rhs (int level, const Real time,
 
         const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& detJ   = l_use_terrain ?   detJ_cc->const_array(mfi) : Array4<const Real>{};
+
+        const Array4<const Real>& zp_t_arr = l_move_terrain ? z_t_pert->const_array(mfi) : Array4<const Real>{};
 
         const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
@@ -566,7 +569,7 @@ void erf_fast_rhs (int level, const Real time,
         AdvectionSrcForRhoAndTheta(bx, valid_bx, fast_rhs_cons,
                                    new_drho_u, new_drho_v, new_drho_w,      // these are being used to build the fluxes
                                    facinv, avg_xmom, avg_ymom, avg_zmom,    // these are being defined from the rho fluxes
-                                   Array4<Real>{},  // z_t
+                                   zp_t_arr,  // z_t
                                    prim, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain);
     } // mfi
     }

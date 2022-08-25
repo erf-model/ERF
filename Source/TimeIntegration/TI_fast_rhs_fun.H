@@ -6,8 +6,62 @@
                                   const Real dtau, const Real inv_fac, const Real time)
     {
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
+
+        // Moving terrain
+        MultiFab* z_t_pert = nullptr;
+        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
+        {
+            if (verbose) Print() << "Making new geometry at substep " << time << std::endl;
+
+            const auto dz = fine_geom.CellSizeArray()[2];
+
+            init_custom_terrain(fine_geom,*z_phys_nd_new[level],time); // Defines h(i,j,k=0,t)
+            init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);            // Defines z_phys for all i,j,k
+            make_metrics       (fine_geom,*z_phys_nd_new[level], *z_phys_cc_new[level], *detJ_cc_new[level]);  // Defines detJ
+
+            z_t_pert = new MultiFab(S_data[IntVar::zmom].boxArray(), S_data[IntVar::zmom].DistributionMap(), 1, 1);
+
+            for (MFIter mfi(*z_t_pert,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                Box gbx = mfi.growntilebox(IntVect(1,1,0));
+
+                // This is the top face
+                int khi = gbx.bigEnd()[2];
+
+                // Now make this a 2D box (after we extract khi)
+                gbx.setRange(2,0);
+
+                const Array4<const Real>& detJ_new  =   detJ_cc_new[level]->const_array(mfi);
+                const Array4<const Real>& detJ_old  =       detJ_cc[level]->const_array(mfi);
+
+                const Array4<      Real>& zp_t_arr  =  z_t_pert->array(mfi);
+                const Array4<      Real>& z_t_arr   =  z_t_rk[level]->array(mfi);
+
+                Real delta_t  = dtau;
+
+                const auto& dX = fine_geom.CellSizeArray();
+
+                // Loop over horizontal plane
+                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+                {
+                    // Evaluate between RK stages
+                    zp_t_arr(i,j,0) = dhdt(i,j,dX,time,delta_t);
+                    for (int k = 1; k <= khi; k++)
+                    {
+                        // NOTE: J in this code is (1/J) in Sullivan et al (JAS 2014)
+                        Real J_new = detJ_new(i,j,k-1);
+                        Real J_old = detJ_old(i,j,k-1);
+                        zp_t_arr(i,j,k) = zp_t_arr(i,j,k-1) + ( (J_new - J_old) / delta_t ) * dz;
+
+                        // Convert to perturbation: z"_t(t) = z_t(t) - z_t^{RK}
+                        zp_t_arr(i,j,k) -= z_t_arr(i,j,k);
+                    }
+                });
+            } // mfi
+        }
+
         erf_fast_rhs(level, time, S_fast_rhs, S_slow_rhs, S_stage_data, S_prim,
-                     S_data, S_scratch, fine_geom, ifr, solverChoice,
+                     S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
                      z_phys_nd[level], detJ_cc[level], r0, p0, dtau, inv_fac);
     };
 
