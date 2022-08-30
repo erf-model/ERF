@@ -5,8 +5,7 @@
     auto slow_rhs_fun_pre = [&](      Vector<MultiFab>& S_rhs,
                                 const Vector<MultiFab>& S_data,
                                       Vector<MultiFab>& S_scratch,
-                                const Real step_time, const Real stage_time,
-                                const int rhs_vars=RHSVar::all)
+                                const Real step_time, const Real stage_time)
     {
         if (verbose) Print() << "Calling slow rhs for fast variables at level " << level << " for advancing from "
                              << step_time << " to " << stage_time << std::endl;
@@ -95,8 +94,7 @@
     auto slow_rhs_fun_post = [&](      Vector<MultiFab>& S_rhs,
                                  const Vector<MultiFab>& S_data,
                                        Vector<MultiFab>& S_scratch,
-                                 const Real step_time, const Real stage_time,
-                                 const int rhs_vars=RHSVar::all)
+                                 const Real step_time, const Real stage_time)
     {
         if (verbose) Print() << "Calling slow rhs for slow variables at level " << level << " for advancing from "
                              << step_time << " to " << stage_time << std::endl;

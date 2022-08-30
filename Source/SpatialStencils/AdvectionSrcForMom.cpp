@@ -40,10 +40,10 @@ AdvectionSrcForMom (int level, const Box& bx, const Box& valid_bx,
     bool  bot_edge_dirichlet = ( level > 0 && mlo_y(vlo_x,vlo_y,vlo_z) );
     bool  top_edge_dirichlet = ( level > 0 && mhi_y(vhi_x,vhi_y,vhi_z) );
 
-    if (left_edge_dirichlet) bxx.growLo(0,-1); 
-    if (rght_edge_dirichlet) bxx.growHi(0,-1); 
-    if ( bot_edge_dirichlet) bxy.growLo(1,-1); 
-    if ( top_edge_dirichlet) bxy.growHi(1,-1); 
+    if (left_edge_dirichlet) bxx.growLo(0,-1);
+    if (rght_edge_dirichlet) bxx.growHi(0,-1);
+    if ( bot_edge_dirichlet) bxy.growLo(1,-1);
+    if ( top_edge_dirichlet) bxy.growHi(1,-1);
 
     amrex::ParallelFor(
         bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
