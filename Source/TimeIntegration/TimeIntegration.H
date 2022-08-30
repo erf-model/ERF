@@ -43,8 +43,7 @@ void erf_slow_rhs_pre(int level,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
-                      const amrex::Real* dptr_rayleigh_thetabar,
-                      const int rhs_vars=RHSVar::all);
+                      const amrex::Real* dptr_rayleigh_thetabar);
 
 void erf_slow_rhs_post(int level,
                        amrex::Vector<amrex::MultiFab>& S_rhs,

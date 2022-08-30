@@ -14,10 +14,10 @@ private:
    /**
     * \brief rhs is the right-hand-side function the integrator will use.
     */
-    std::function<void(T&,         const T&,     const amrex::Real, const amrex::Real, int)> rhs;
-    std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real, int)> slow_rhs_pre;
-    std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real, int)> slow_rhs_post;
-    std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real, const amrex::Real     )> fast_rhs;
+    std::function<void(T&,         const T&,     const amrex::Real, const amrex::Real     )> rhs;
+    std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_pre;
+    std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_post;
+    std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -89,11 +89,11 @@ public:
         rhs = F;
     }
 
-    void set_slow_rhs_pre (std::function<void(T&, const T&, T&, const amrex::Real, const amrex::Real, int)> F)
+    void set_slow_rhs_pre (std::function<void(T&, const T&, T&, const amrex::Real, const amrex::Real)> F)
     {
         slow_rhs_pre = F;
     }
-    void set_slow_rhs_post (std::function<void(T&, const T&, T&, const amrex::Real, const amrex::Real, int)> F)
+    void set_slow_rhs_post (std::function<void(T&, const T&, T&, const amrex::Real, const amrex::Real)> F)
     {
         slow_rhs_post = F;
     }
@@ -390,7 +390,7 @@ public:
             // if (version == 0) evaluate F_slow(S_stage) only for the fast variables
             // if (version == 1) evaluate F_slow(S_stage) only for all the  variables
             // ****************************************************
-            slow_rhs_pre(*F_slow, S_new, *S_scratch, time, time_stage, RHSVar::fast);
+            slow_rhs_pre(*F_slow, S_new, *S_scratch, time, time_stage);
 
             amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
 
@@ -433,7 +433,7 @@ public:
             //       but we are using the "new" versions (in S_sum) of the velocities
             //      (because we did    update the fast variables in the substepping)
             // ****************************************************
-            slow_rhs_post(*F_slow, *S_sum, *S_scratch, time, time_stage, RHSVar::slow);
+            slow_rhs_post(*F_slow, *S_sum, *S_scratch, time, time_stage);
 
             // Then copy into S_new which holds the stage data
         #ifdef _OPENMP

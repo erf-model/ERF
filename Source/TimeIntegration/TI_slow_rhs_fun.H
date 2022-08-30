@@ -5,8 +5,7 @@
     auto slow_rhs_fun_pre = [&](      Vector<MultiFab>& S_rhs,
                                 const Vector<MultiFab>& S_data,
                                       Vector<MultiFab>& S_scratch,
-                                const Real step_time, const Real stage_time,
-                                const int rhs_vars=RHSVar::all)
+                                const Real step_time, const Real stage_time)
     {
         if (verbose) Print() << "Calling slow rhs for fast variables at level " << level << " for advancing from "
                              << step_time << " to " << stage_time << std::endl;
@@ -62,8 +61,7 @@
                              fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
                              z_phys_nd_new[level], detJ_cc_new[level], r0, p0,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
-                             rhs_vars);
+                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
         } else {
             erf_slow_rhs_pre(level, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
@@ -71,8 +69,7 @@
                              fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
                              z_phys_nd[level], detJ_cc[level], r0, p0,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
-                             rhs_vars);
+                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
         }
     };
 
@@ -97,8 +94,7 @@
     auto slow_rhs_fun_post = [&](      Vector<MultiFab>& S_rhs,
                                  const Vector<MultiFab>& S_data,
                                        Vector<MultiFab>& S_scratch,
-                                 const Real step_time, const Real stage_time,
-                                 const int rhs_vars=RHSVar::all)
+                                 const Real step_time, const Real stage_time)
     {
         if (verbose) Print() << "Calling slow rhs for slow variables at level " << level << " for advancing from "
                              << step_time << " to " << stage_time << std::endl;

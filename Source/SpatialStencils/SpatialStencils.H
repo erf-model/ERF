@@ -67,6 +67,21 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const int& spatial_order, const int& use_terrain,
                              const int& use_deardorff, const int& use_QKE);
 
+void
+AdvectionSrcForMom (int level, const amrex::Box& bx, const amrex::Box& valid_bx,
+                    const amrex::Array4<const int>& mlo_x, const amrex::Array4<const int>& mlo_y,
+                    const amrex::Array4<const int>& mlo_z, const amrex::Array4<const int>& mhi_x,
+                    const amrex::Array4<const int>& mhi_y, const amrex::Array4<const int>& mhi_z,
+                    const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
+                    const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                    const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
+                    const amrex::Array4<const amrex::Real>& w        ,
+                    const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
+                    const amrex::Array4<const amrex::Real>& rho_w    , const amrex::Array4<const amrex::Real>& z_t,
+                    const amrex::Array4<const amrex::Real>& z_nd     , const amrex::Array4<const amrex::Real>& detJ,
+                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                    const int spatial_order, const int use_terrain, const int domhi_z);
+
 void DiffusionSrcForState (const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
                            const amrex::Array4<const amrex::Real>& u,
                            const amrex::Array4<const amrex::Real>& v,

@@ -75,9 +75,6 @@ void erf_slow_rhs_post (int level,
     for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& bx = mfi.tilebox();
-        const Box& tbx = mfi.nodaltilebox(0);
-        const Box& tby = mfi.nodaltilebox(1);
-        const Box& tbz = mfi.nodaltilebox(2);
 
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
