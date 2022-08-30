@@ -4,7 +4,6 @@
 #include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
 #include <ABLMost.H>
-#include <AdvectionSrcForMom.H>
 #include <DiffusionSrcForMom.H>
 #include <SpatialStencils.H>
 #include <TimeIntegration.H>
@@ -36,26 +35,15 @@ void erf_slow_rhs_pre (int level,
                    std::unique_ptr<MultiFab>& z0, std::unique_ptr<MultiFab>& dJ,
                    const MultiFab* r0, const MultiFab* p0,
                    const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
-                   const int rhs_vars)
+                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
 {
     BL_PROFILE_VAR("erf_slow_rhs_pre()",erf_slow_rhs_pre);
 
     amrex::Real theta_mean;
     if (most) theta_mean = most->theta_mean;
 
-    int start_comp;
-    int   num_comp;
-    if (rhs_vars == RHSVar::fast) {
-        start_comp = 0;
-          num_comp = 2; // Rho_comp and RhoTheta_comp
-    } else if (rhs_vars == RHSVar::slow) {
-        start_comp = 2;
-          num_comp = S_data[IntVar::cons].nComp() - 2;
-    } else if (rhs_vars == RHSVar::all) {
-        start_comp = 0;
-          num_comp = S_data[IntVar::cons].nComp();
-    }
+    int start_comp = 0;
+    int   num_comp = 2;
 
     const int l_spatial_order = solverChoice.spatial_order;
     const int l_use_terrain   = solverChoice.use_terrain;
@@ -164,14 +152,12 @@ void erf_slow_rhs_pre (int level,
 
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
-        if (rhs_vars != RHSVar::slow) {
-            amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
-                    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
-                AMREX_ALWAYS_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-                pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
-            });
-        }
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
+                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+            AMREX_ALWAYS_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
+            pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
+        });
 
         const Box& gbx2 = mfi.growntilebox(IntVect(1,1,0));
         const Array4<Real> & er_arr  = expr.array(mfi);
@@ -187,7 +173,7 @@ void erf_slow_rhs_pre (int level,
 
         Real fac = 1.0;
         AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs, rho_u, rho_v, rho_w,  // these are being used to build the fluxes
-                                   fac, avg_xmom, avg_ymom, avg_zmom,  // these are being defined from the rho fluxes
+                                   fac, avg_xmom, avg_ymom, avg_zmom,            // these are being defined from the rho fluxes
                                    z_t, cell_prim, z_nd, detJ,
                                    dxInv, l_spatial_order, l_use_terrain);
 
@@ -213,10 +199,14 @@ void erf_slow_rhs_pre (int level,
             });
         }
 
+        AdvectionSrcForMom(level, bx, valid_bx,  mlo_x, mlo_y, mlo_z, mhi_x, mhi_y, mhi_z,
+			   rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, 
+			   rho_u    , rho_v    , rho_w    ,
+                           z_t, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
+
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
-        if (rhs_vars != RHSVar::slow) {
         amrex::ParallelFor(tbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
@@ -230,10 +220,6 @@ void erf_slow_rhs_pre (int level,
 
             if (!on_coarse_fine_boundary)
             {
-
-            // Add advective terms
-            rho_u_rhs(i, j, k) = -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, z_t, u, z_nd, detJ,
-                                                      dxInv, l_spatial_order, l_use_terrain);
 
             // Add diffusive terms
             amrex::Real diff_update;
@@ -323,10 +309,6 @@ void erf_slow_rhs_pre (int level,
 
             if (!on_coarse_fine_boundary)
             {
-                // Add advective terms
-                rho_v_rhs(i, j, k) = -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, z_t, v, z_nd, detJ,
-                                                          dxInv, l_spatial_order, l_use_terrain);
-
                 // Add diffusive terms
                 amrex::Real diff_update;
                 if (k < domhi_z && l_use_terrain) {
@@ -413,10 +395,6 @@ void erf_slow_rhs_pre (int level,
 
             if (!on_coarse_fine_boundary && k > 0)
             {
-                // Add advective terms
-                rho_w_rhs(i, j, k) = -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, z_t, w,
-                                          z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
-
                 // Add diffusive terms
                 int k_diff = (k == domhi_z+1) ? domhi_z : k;
                 amrex::Real diff_update;
@@ -491,6 +469,5 @@ void erf_slow_rhs_pre (int level,
             }
 
         });
-        } // not (rhs_vars == RHSVar::slow)
     }
 }
