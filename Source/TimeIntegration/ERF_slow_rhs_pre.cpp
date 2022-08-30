@@ -200,8 +200,8 @@ void erf_slow_rhs_pre (int level,
         }
 
         AdvectionSrcForMom(level, bx, valid_bx,  mlo_x, mlo_y, mlo_z, mhi_x, mhi_y, mhi_z,
-			   rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, 
-			   rho_u    , rho_v    , rho_w    ,
+               rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
+               rho_u    , rho_v    , rho_w    ,
                            z_t, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
 
         // *********************************************************************
