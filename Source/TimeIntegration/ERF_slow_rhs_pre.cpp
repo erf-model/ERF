@@ -1,4 +1,4 @@
-#include <AMReX.H>
+
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
@@ -199,10 +199,14 @@ void erf_slow_rhs_pre (int level,
             });
         }
 
-        AdvectionSrcForMom(level, bx, valid_bx,  mlo_x, mlo_y, mlo_z, mhi_x, mhi_y, mhi_z,
-               rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
-               rho_u    , rho_v    , rho_w    ,
+        AdvectionSrcForMom(level, bx, valid_bx, mlo_x, mlo_y, mhi_x, mhi_y,
+                           rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
+                           rho_u    , rho_v    , rho_w    ,
                            z_t, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
+
+        DiffusionSrcForMom(level, bx, valid_bx, domain, mlo_x, mlo_y, mhi_x, mhi_y,
+                           rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, K_turb, cell_data, er_arr,
+                           solverChoice, bc_ptr, z_nd, detJ, dxInv);
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
@@ -210,7 +214,6 @@ void erf_slow_rhs_pre (int level,
         amrex::ParallelFor(tbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
-
             bool on_coarse_fine_boundary = false;
             if (level > 0)
             {
@@ -220,20 +223,6 @@ void erf_slow_rhs_pre (int level,
 
             if (!on_coarse_fine_boundary)
             {
-
-            // Add diffusive terms
-            amrex::Real diff_update;
-            if (k < domhi_z && l_use_terrain) {
-                diff_update = DiffusionSrcForMomWithTerrain(i, j, k, u, v, w, cell_data,
-                                                            MomentumEqn::x, dxInv, K_turb, solverChoice,
-                                                            z_nd, detJ, domain, bc_ptr);
-            } else {
-                diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
-                                                 MomentumEqn::x, dxInv, K_turb, solverChoice,
-                                                 domain, bc_ptr, er_arr);
-            }
-            rho_u_rhs(i, j, k) += diff_update;
-
             // Add pressure gradient
             amrex::Real gpx;
             if (l_use_terrain) {
@@ -309,19 +298,6 @@ void erf_slow_rhs_pre (int level,
 
             if (!on_coarse_fine_boundary)
             {
-                // Add diffusive terms
-                amrex::Real diff_update;
-                if (k < domhi_z && l_use_terrain) {
-                    diff_update = DiffusionSrcForMomWithTerrain(i, j, k, u, v, w, cell_data,
-                                                                MomentumEqn::y, dxInv, K_turb, solverChoice,
-                                                                z_nd, detJ, domain, bc_ptr);
-                } else {
-                    diff_update = DiffusionSrcForMom(i, j, k, u, v, w, cell_data,
-                                                     MomentumEqn::y, dxInv, K_turb, solverChoice,
-                                                     domain, bc_ptr, er_arr);
-                }
-                rho_v_rhs(i, j, k) += diff_update;
-
                 // Add pressure gradient
                 amrex::Real gpy;
                 if (l_use_terrain) {
@@ -395,20 +371,6 @@ void erf_slow_rhs_pre (int level,
 
             if (!on_coarse_fine_boundary && k > 0)
             {
-                // Add diffusive terms
-                int k_diff = (k == domhi_z+1) ? domhi_z : k;
-                amrex::Real diff_update;
-                if (k < domhi_z && l_use_terrain) {
-                    diff_update = DiffusionSrcForMomWithTerrain(i, j, k_diff, u, v, w, cell_data,
-                                           MomentumEqn::z, dxInv, K_turb, solverChoice,
-                                           z_nd, detJ, domain, bc_ptr);
-                } else {
-                    diff_update = DiffusionSrcForMom(i, j, k_diff, u, v, w, cell_data,
-                                                     MomentumEqn::z, dxInv, K_turb, solverChoice,
-                                                     domain, bc_ptr, er_arr);
-                }
-                rho_w_rhs(i, j, k) += diff_update;
-
                 // Add pressure gradient
                 amrex::Real gpz;
                 if (l_use_terrain) {
@@ -467,7 +429,6 @@ void erf_slow_rhs_pre (int level,
                 // on coarse-fine boundary
                 rho_w_rhs(i, j, k) = 0.0;
             }
-
         });
     }
 }

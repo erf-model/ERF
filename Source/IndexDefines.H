@@ -170,4 +170,14 @@ namespace TerrainMet {
         all
   };
 }
+
+namespace IntVar {
+    enum {
+        cons = 0,
+        xmom,
+        ymom,
+        zmom,
+        NumVars
+    };
+}
 #endif

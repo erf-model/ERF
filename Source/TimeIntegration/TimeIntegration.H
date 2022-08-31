@@ -8,16 +8,6 @@
 #include "IndexDefines.H"
 #include "ABLMost.H"
 
-namespace IntVar {
-    enum {
-        cons = 0,
-        xmom,
-        ymom,
-        zmom,
-        NumVars
-    };
-}
-
 // This is the slow RHS when doing multi-rate, and the only RHS when doing RK3
 void erf_slow_rhs_pre(int level,
                       amrex::Vector<amrex::MultiFab>& S_rhs,

@@ -3,6 +3,7 @@ CEXE_sources += MomentumToVelocity.cpp
 CEXE_sources += VelocityToMomentum.cpp
 CEXE_sources += AdvectionSrcForMom.cpp
 CEXE_sources += AdvectionSrcForState.cpp
+CEXE_sources += DiffusionSrcForMom.cpp
 CEXE_sources += DiffusionSrcForState.cpp
 CEXE_sources += PBLModels.cpp
 

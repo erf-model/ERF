@@ -102,7 +102,6 @@ void erf_slow_rhs_post (int level,
 
         const Array4<Real const>& K_turb = eddyDiffs.const_array(mfi);
 
-        const Array4<const Real>& z_nd = l_use_terrain ? z0->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& detJ = l_use_terrain ? dJ->const_array(mfi) : Array4<const Real>{};
 
         // **************************************************************************
@@ -112,7 +111,7 @@ void erf_slow_rhs_post (int level,
         int start_comp = 2;
         int   num_comp = S_data[IntVar::cons].nComp() - 2;
         AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                               z_t, cell_prim, cell_rhs,z_nd, detJ,
+                               cell_prim, cell_rhs, detJ,
                                dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
 
         // NOTE: No diffusion for continuity, so n starts at 1.
