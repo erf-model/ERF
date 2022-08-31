@@ -9,8 +9,7 @@ using namespace amrex;
 void
 AdvectionSrcForMom (int level, const Box& bx, const Box& valid_bx,
                     const Array4<const int>& mlo_x, const Array4<const int>& mlo_y,
-                    const Array4<const int>& mlo_z, const Array4<const int>& mhi_x,
-                    const Array4<const int>& mhi_y, const Array4<const int>& mhi_z,
+                    const Array4<const int>& mhi_x, const Array4<const int>& mhi_y,
                     const Array4<      Real>& rho_u_rhs, const Array4<      Real>& rho_v_rhs,
                     const Array4<      Real>& rho_w_rhs,
                     const Array4<const Real>& u        , const Array4<const Real>& v,
@@ -22,7 +21,6 @@ AdvectionSrcForMom (int level, const Box& bx, const Box& valid_bx,
                     const int spatial_order, const int use_terrain, const int domhi_z)
 {
     BL_PROFILE_VAR("AdvectionSrcForMom", AdvectionSrcForMom);
-    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
     Box bxx = surroundingNodes(bx,0);
     Box bxy = surroundingNodes(bx,1);

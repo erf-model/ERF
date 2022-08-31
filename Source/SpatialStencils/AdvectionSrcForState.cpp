@@ -23,7 +23,6 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
     // We note that valid_bx is the actual grid, while bx may be a tile within that grid
-    const auto& vbx_lo = amrex::lbound(valid_bx);
     const auto& vbx_hi = amrex::ubound(valid_bx);
 
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -55,8 +54,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 
            Real z_t_zlo = (z_t) ? z_t(i,j,k  ) : 0.;
            Real z_t_zhi = (z_t) ? z_t(i,j,k+1) : 0.;
-           Real zflux_lo = (k == 0) ? -z_t_zlo : (OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zlo);
-           Real zflux_hi =                       (OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zhi);
+                zflux_lo = (k == 0) ? -z_t_zlo : (OmegaFromW(i,j,k  ,rho_w(i,j,k  ),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zlo);
+                zflux_hi =                       (OmegaFromW(i,j,k+1,rho_w(i,j,k+1),rho_u,rho_v,z_nd,cellSizeInv) - z_t_zhi);
         }
 
         avg_xmom(i  ,j,k) += fac*xflux_lo;
@@ -86,10 +85,10 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 void
 AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
                         const Array4<const Real>& avg_xmom, const Array4<const Real>& avg_ymom,
-                        const Array4<const Real>& avg_zmom, const Array4<const Real>& z_t,
+                        const Array4<const Real>& avg_zmom,
                         const Array4<const Real>& cell_prim,
                         const Array4<Real>& advectionSrc,
-                        const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
+                        const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const int &spatial_order, const int& use_terrain,
                         const int &use_deardorff, const int &use_QKE)
