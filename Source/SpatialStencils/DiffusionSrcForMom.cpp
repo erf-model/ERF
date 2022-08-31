@@ -43,6 +43,9 @@ DiffusionSrcForMom (int level, const Box& bx, const Box& valid_bx, const Box& do
     if ( bot_edge_dirichlet) bxy.growLo(1,-1);
     if ( top_edge_dirichlet) bxy.growHi(1,-1);
 
+    // We don't compute diffusion src for w at k = 0
+    bxz.setSmall(2,1);
+
     // *********************************************************************
     // Define diffusive updates in the RHS of {x, y, z}-momentum equations
     // *********************************************************************

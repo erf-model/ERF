@@ -43,6 +43,9 @@ AdvectionSrcForMom (int level, const Box& bx, const Box& valid_bx,
     if ( bot_edge_dirichlet) bxy.growLo(1,-1);
     if ( top_edge_dirichlet) bxy.growHi(1,-1);
 
+    // We don't compute advective src for w at k = 0
+    bxz.setSmall(2,1);
+
     amrex::ParallelFor(
         bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
