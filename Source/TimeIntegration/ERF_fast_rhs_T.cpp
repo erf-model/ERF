@@ -13,22 +13,21 @@
 
 using namespace amrex;
 
-void erf_fast_rhs (int level, const Real time,
-                   Vector<MultiFab>& S_rhs,                        // the fast RHS we will return
-                   Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
-                   Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
-                   const MultiFab& S_stage_prim,
-                   Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
-                   Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
-                   const amrex::Geometry geom,
-                   amrex::InterpFaceRegister* ifr,
-                   const SolverChoice& solverChoice,
-                   const MultiFab* z_t_pert,
-                   std::unique_ptr<MultiFab>& z_phys_nd,
-                   std::unique_ptr<MultiFab>& detJ_cc,
-                   const MultiFab* r0,
-                   const MultiFab* p0,
-                   const amrex::Real dtau, const amrex::Real facinv)
+void erf_fast_rhs_T (int level, const Real time,
+                     Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
+                     Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
+                     const MultiFab& S_stage_prim,
+                     Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
+                     Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
+                     const amrex::Geometry geom,
+                     amrex::InterpFaceRegister* ifr,
+                     const SolverChoice& solverChoice,
+                     const MultiFab* z_t_pert,
+                     std::unique_ptr<MultiFab>& z_phys_nd,
+                     std::unique_ptr<MultiFab>& detJ_cc,
+                     const MultiFab* r0,
+                     const MultiFab* p0,
+                     const amrex::Real dtau, const amrex::Real facinv)
 {
     BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
 
@@ -100,19 +99,36 @@ void erf_fast_rhs (int level, const Real time,
 
         const Box& bx = mfi.tilebox();
 
-        const Box& tbx = mfi.nodaltilebox(0);
-        const Box& tby = mfi.nodaltilebox(1);
-        const Box& tbz = mfi.nodaltilebox(2);
+        Box tbx = mfi.nodaltilebox(0);
+        Box tby = mfi.nodaltilebox(1);
+        Box tbz = mfi.nodaltilebox(2);
 
-        int vlo_x = valid_bx.smallEnd(0);
-        int vhi_x = valid_bx.bigEnd(0);
-        int vlo_y = valid_bx.smallEnd(1);
-        int vhi_y = valid_bx.bigEnd(1);
+	if (level > 0) {
+            int vlo_x = valid_bx.smallEnd(0);
+            int vhi_x = valid_bx.bigEnd(0);
+            int vlo_y = valid_bx.smallEnd(1);
+            int vhi_y = valid_bx.bigEnd(1);
+            int vlo_z = valid_bx.smallEnd(2);
+            int vhi_z = valid_bx.bigEnd(2);
 
-        auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
-        auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
-        auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
-        auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
+            auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
+            auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
+            auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
+            auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
+
+            // ******************************************************************
+            // This assumes that refined regions are always rectangular
+            // ******************************************************************
+            bool left_edge_dirichlet = ( level > 0 && mlo_x(vlo_x  ,vlo_y  ,vlo_z) );
+            bool rght_edge_dirichlet = ( level > 0 && mhi_x(vhi_x+1,vhi_y  ,vhi_z) );
+            bool  bot_edge_dirichlet = ( level > 0 && mlo_y(vlo_x  ,vlo_y  ,vlo_z) );
+            bool  top_edge_dirichlet = ( level > 0 && mhi_y(vhi_x  ,vhi_y+1,vhi_z) );
+
+            if (left_edge_dirichlet) tbx.growLo(0,-1);
+            if (rght_edge_dirichlet) tbx.growHi(0,-1);
+            if ( bot_edge_dirichlet) tby.growLo(1,-1);
+            if ( top_edge_dirichlet) tby.growHi(1,-1);
+        }  // level > 0
 
         const Array4<const Real> & cell_stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
         const Array4<const Real> & cell_stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
@@ -126,10 +142,7 @@ void erf_fast_rhs (int level, const Real time,
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
 
-        const Array4<      Real>& fast_rhs_cons  = S_rhs[IntVar::cons].array(mfi);
-        const Array4<      Real>& fast_rhs_rho_u = S_rhs[IntVar::xmom].array(mfi);
-        const Array4<      Real>& fast_rhs_rho_v = S_rhs[IntVar::ymom].array(mfi);
-        const Array4<      Real>& fast_rhs_rho_w = S_rhs[IntVar::zmom].array(mfi);
+        const Array4<      Real>& fast_rhs_cons  = S_scratch[IntVar::cons].array(mfi);
 
         const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
@@ -195,20 +208,11 @@ void erf_fast_rhs (int level, const Real time,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
-        amrex::ParallelFor(tbx, tby, tbz,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) { // x-momentum equation
-
-            fast_rhs_rho_u(i, j, k) = 0.0; // Initialize the updated x-mom eqn term to zero
-
-            bool on_coarse_fine_boundary = false;
-            if (level > 0)
-            {
-               on_coarse_fine_boundary =
-                 ( (i == vlo_x && mlo_x(i,j,k)) || (i == vhi_x+1 && mhi_x(i,j,k)) );
-            }
-
-            if (!on_coarse_fine_boundary)
-            {
+	if (l_use_terrain)
+	{
+            amrex::ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+	    {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real pi_l = getExnergivenRTh(cell_stage_cons(i-1,j,k,RhoTheta_comp));
                 Real pi_r = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
@@ -245,29 +249,16 @@ void erf_fast_rhs (int level, const Real time,
                                 +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
                 gpx /= (1.0 + q);
 #endif
-                fast_rhs_rho_u(i, j, k) = -Gamma * R_d * pi_c * gpx;
-
-                new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u(i,j,k)
+                Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
+    
+                new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                         + dtau * slow_rhs_rho_u(i,j,k);
-
+    
                 if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
 
                 cur_data_xmom(i,j,k) = cell_stage_xmom(i,j,k) + new_drho_u(i,j,k);
-
-            } // not on coarse-fine boundary
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            fast_rhs_rho_v(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
-
-            bool on_coarse_fine_boundary = false;
-            if (level > 0)
-            {
-               on_coarse_fine_boundary =
-                 ( (j == vlo_y && mlo_y(i,j,k)) || (j == vhi_y+1 && mhi_y(i,j,k)) );
-            }
-
-            if (!on_coarse_fine_boundary)
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real pi_l = getExnergivenRTh(cell_stage_cons(i,j-1,k,RhoTheta_comp));
@@ -276,7 +267,7 @@ void erf_fast_rhs (int level, const Real time,
 
                 Real drho_theta_hi = extrap_arr(i,j,k);
                 Real drho_theta_lo = extrap_arr(i,j-1,k);
-
+    
                 Real gpy;
                 if (l_use_terrain) {
                     Real met_h_xi,met_h_eta,met_h_zeta;
@@ -300,27 +291,73 @@ void erf_fast_rhs (int level, const Real time,
                } else {
                     gpy = (drho_theta_hi - drho_theta_lo)*dyi;
                }
+    
+#ifdef ERF_USE_MOISTURE
+                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
+                                +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
+                gpy /= (1.0 + q);
+#endif
+                Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
+    
+                new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
+                                                        + dtau * slow_rhs_rho_v(i,j,k);
+                if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
+    
+                cur_data_ymom(i,j,k) = cell_stage_ymom(i,j,k) + new_drho_v(i,j,k);
+            });
+	} else { // no terrain
+            amrex::ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+	    {
+                // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
+                Real pi_l = getExnergivenRTh(cell_stage_cons(i-1,j,k,RhoTheta_comp));
+                Real pi_r = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
+                Real pi_c =  0.5 * (pi_l + pi_r);
+                Real drho_theta_hi = extrap_arr(i  ,j,k);
+                Real drho_theta_lo = extrap_arr(i-1,j,k);
+
+                Real gpx = (drho_theta_hi - drho_theta_lo)*dxi;
+
+#ifdef ERF_USE_MOISTURE
+                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
+                                +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
+                gpx /= (1.0 + q);
+#endif
+                Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
+    
+                new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
+                                                        + dtau * slow_rhs_rho_u(i,j,k);
+    
+                if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
+
+                cur_data_xmom(i,j,k) = cell_stage_xmom(i,j,k) + new_drho_u(i,j,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
+                Real pi_l = getExnergivenRTh(cell_stage_cons(i,j-1,k,RhoTheta_comp));
+                Real pi_r = getExnergivenRTh(cell_stage_cons(i,j  ,k,RhoTheta_comp));
+                Real pi_c =  0.5 * (pi_l + pi_r);
+
+                Real drho_theta_hi = extrap_arr(i,j,k);
+                Real drho_theta_lo = extrap_arr(i,j-1,k);
+    
+                Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
                                 +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
                 gpy /= (1.0 + q);
 #endif
-                fast_rhs_rho_v(i, j, k) = -Gamma * R_d * pi_c * gpy;
-
-                new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v(i,j,k)
+                Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
+    
+                new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
                                                         + dtau * slow_rhs_rho_v(i,j,k);
                 if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
-
+    
                 cur_data_ymom(i,j,k) = cell_stage_ymom(i,j,k) + new_drho_v(i,j,k);
-
-            } // not on coarse-fine boundary
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
-
-            fast_rhs_rho_w(i, j, k) = 0.0; // Initialize the updated z-mom eqn term to zero
-
-        });
+            });
+	} // end of no terrain
 
         // *********************************************************************
         // *********************************************************************
@@ -545,8 +582,6 @@ void erf_fast_rhs (int level, const Real time,
               } else {
                   new_drho_w(i,j,k) = soln(k);
               }
-              fast_rhs_rho_w(i,j,k) = ( new_drho_w(i,j,k) - old_drho_w(i,j,k) - dtau * slow_rhs_rho_w(i,j,k)) / dtau;
-
               cur_data_zmom(i,j,k) = cell_stage_zmom(i,j,k) + new_drho_w(i,j,k);
 
               // Sum implicit and explicit W for AdvSrc
