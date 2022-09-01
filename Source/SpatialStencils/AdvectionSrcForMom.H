@@ -322,7 +322,7 @@ AdvectionSrcForZMom (int i, int j, int k,
 
     rho_w_avg = (k == domhi_z+1) ? rho_w(i,j,k) : 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
 
-    centFluxZZNext *= (k == domhi_z+1) ? rho_w(i,j,k) :
+    centFluxZZNext *= (k == domhi_z+1) ? w(i,j,k) :
         InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -343,7 +343,7 @@ AdvectionSrcForZMom (int i, int j, int k,
 
     rho_w_avg = (k == 0) ? rho_w(i,j,k) : 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
 
-    centFluxZZPrev *= (k == 0) ? rho_w(i,j,k) :
+    centFluxZZPrev *= (k == 0) ? w(i,j,k) :
                           InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -387,7 +387,7 @@ AdvectionSrcForZMom (int i, int j, int k,
             centFluxZZPrev = rho_w(i,j,k) * w(i,j,k);
         } else {
             rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
-            centFluxZZPrev = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1)) *
+            centFluxZZPrev = rho_w_avg *
                 InterpolateFromCellOrFace(i, j, k  , w, 0, rho_w_avg, Coord::z, local_spatial_order);
         }
 
@@ -395,7 +395,7 @@ AdvectionSrcForZMom (int i, int j, int k,
             centFluxZZNext =  rho_w(i,j,k) * w(i,j,k);
         } else {
             rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
-            centFluxZZNext = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1)) *
+            centFluxZZNext = rho_w_avg *
                 InterpolateFromCellOrFace(i, j, k+1, w, 0, rho_w_avg, Coord::z, local_spatial_order);
         }
 

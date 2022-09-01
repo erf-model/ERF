@@ -102,7 +102,7 @@ void erf_fast_rhs_N (int level, const Real time,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-	if (level > 0) {
+    if (level > 0) {
             int vlo_x = valid_bx.smallEnd(0);
             int vhi_x = valid_bx.bigEnd(0);
             int vlo_y = valid_bx.smallEnd(1);
