@@ -1,9 +1,9 @@
-    auto fast_rhs_fun = [&](      Vector<MultiFab>& S_fast_rhs,
-                                  Vector<MultiFab>& S_slow_rhs,
-                                  Vector<MultiFab>& S_stage_data,
-                            const Vector<MultiFab>& S_data,
-                                  Vector<MultiFab>& S_scratch,
-                                  const Real dtau, const Real inv_fac, const Real time)
+    auto fast_rhs_fun = [&](Vector<MultiFab>& S_fast_rhs,
+                            Vector<MultiFab>& S_slow_rhs,
+                            Vector<MultiFab>& S_stage_data,
+                            Vector<MultiFab>& S_data,
+                            Vector<MultiFab>& S_scratch,
+                            const Real dtau, const Real inv_fac, const Real time)
     {
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
 
@@ -216,7 +216,6 @@
                 Gpu::copy(Gpu::hostToDevice,  ssum_h.begin(),  ssum_h.end(),  ssum_d.begin());
                 Gpu::copy(Gpu::hostToDevice, fslow_h.begin(), fslow_h.end(), fslow_d.begin());
                 Gpu::copy(Gpu::hostToDevice, fpert_h.begin(), fpert_h.end(), fpert_d.begin());
-
                 Array4<Real>*  ssum =  ssum_d.dataPtr();
                 Array4<Real>* fslow = fslow_d.dataPtr();
                 Array4<Real>* fpert = fpert_d.dataPtr();
@@ -227,6 +226,7 @@
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);
 
+#if 0
                     ParallelFor(bx, ncomp_fast[IntVar::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVar::cons] + nn;
@@ -259,10 +259,12 @@
                             ssum[IntVar::zmom](i,j,k) *= ( dJ_old_zface / dJ_new_zface );
                         }
                     });
+#endif
 
                 // No terrain, or terrain is static
                 } else {
 
+#if 0
                     ParallelFor(bx, ncomp_fast[IntVar::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVar::cons] + nn;
@@ -283,6 +285,7 @@
                         ssum[IntVar::zmom](i,j,k) += dtau *
                            ( fslow[IntVar::zmom](i,j,k) + fpert[IntVar::zmom](i,j,k) );
                     });
+#endif
                 }
             }
         }

@@ -18,8 +18,8 @@ void erf_fast_rhs (int level, const Real time,
                    Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                    Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
                    const MultiFab& S_stage_prim,
-                   const Vector<MultiFab>& S_data,                 // S_sum = most recent full solution
-                         Vector<MultiFab>& S_scratch,              // S_sum_old at most recent fast timestep for (rho theta)
+                   Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
+                   Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
                    const amrex::Geometry geom,
                    amrex::InterpFaceRegister* ifr,
                    const SolverChoice& solverChoice,
@@ -67,8 +67,6 @@ void erf_fast_rhs (int level, const Real time,
     MultiFab New_rho_u(convert(ba,IntVect(1,0,0)), dm, 1, 1);
     MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
     MultiFab New_rho_w(convert(ba,IntVect(0,0,1)), dm, 1, 1);
-
-    MultiFab Exner_mf(convert(ba,IntVect(1,1,1)), dm, 1, 1);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -142,12 +140,10 @@ void erf_fast_rhs (int level, const Real time,
         const Array4<      Real>& new_drho_v = New_rho_v.array(mfi);
         const Array4<      Real>& new_drho_w = New_rho_w.array(mfi);
 
-        const Array4<      Real>& Exner_arr  = Exner_mf.array(mfi);
-
-        const Array4<const Real>& cur_data_cons = S_data[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& cur_data_xmom = S_data[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>& cur_data_ymom = S_data[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& cur_data_zmom = S_data[IntVar::zmom].const_array(mfi);
+        const Array4<      Real>& cur_data_cons = S_data[IntVar::cons].array(mfi);
+        const Array4<      Real>& cur_data_xmom = S_data[IntVar::xmom].array(mfi);
+        const Array4<      Real>& cur_data_ymom = S_data[IntVar::ymom].array(mfi);
+        const Array4<      Real>& cur_data_zmom = S_data[IntVar::zmom].array(mfi);
         const Array4<const Real>& old_data = S_scratch[IntVar::cons].const_array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
@@ -174,7 +170,6 @@ void erf_fast_rhs (int level, const Real time,
         const Box gtbx  = mfi.nodaltilebox(0).grow(1);
         const Box gtby  = mfi.nodaltilebox(1).grow(1);
         const Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
-        const Box gntbx = mfi.nodaltilebox().grow(1);
 
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_data_cons(i,j,k,Rho_comp)      - cell_stage_cons(i,j,k,Rho_comp);
@@ -197,11 +192,6 @@ void erf_fast_rhs (int level, const Real time,
             new_drho_w(i,j,k) = old_drho_w(i,j,k);
         });
 
-        amrex::ParallelFor(gntbx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Exner_arr(i,j,k) = getExnergivenRTh(cell_stage_cons(i,j,k,RhoTheta_comp));
-        });
-
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
@@ -220,10 +210,9 @@ void erf_fast_rhs (int level, const Real time,
             if (!on_coarse_fine_boundary)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = Exner_arr(i-1,j,k);
-                Real pi_r = Exner_arr(i  ,j,k);
+                Real pi_l = getExnergivenRTh(cell_stage_cons(i-1,j,k,RhoTheta_comp));
+                Real pi_r = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
                 Real pi_c =  0.5 * (pi_l + pi_r);
-
                 Real drho_theta_hi = extrap_arr(i  ,j,k);
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
 
@@ -263,10 +252,12 @@ void erf_fast_rhs (int level, const Real time,
 
                 if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
 
+                cur_data_xmom(i,j,k) = cell_stage_xmom(i,j,k) + new_drho_u(i,j,k);
+
             } // not on coarse-fine boundary
         },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
-
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
             fast_rhs_rho_v(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
 
             bool on_coarse_fine_boundary = false;
@@ -279,8 +270,8 @@ void erf_fast_rhs (int level, const Real time,
             if (!on_coarse_fine_boundary)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = Exner_arr(i,j-1,k);
-                Real pi_r = Exner_arr(i,j  ,k);
+                Real pi_l = getExnergivenRTh(cell_stage_cons(i,j-1,k,RhoTheta_comp));
+                Real pi_r = getExnergivenRTh(cell_stage_cons(i,j  ,k,RhoTheta_comp));
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
                 Real drho_theta_hi = extrap_arr(i,j,k);
@@ -320,6 +311,8 @@ void erf_fast_rhs (int level, const Real time,
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v(i,j,k)
                                                         + dtau * slow_rhs_rho_v(i,j,k);
                 if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
+
+                cur_data_ymom(i,j,k) = cell_stage_ymom(i,j,k) + new_drho_v(i,j,k);
 
             } // not on coarse-fine boundary
         },
@@ -363,8 +356,8 @@ void erf_fast_rhs (int level, const Real time,
                 // We define halfg to match the notes (which is why we take the absolute value)
                 Real halfg = std::abs(0.5 * grav_gpu[2]);
 
-                Real pi_lo = Exner_arr(i,j,k-1);
-                Real pi_hi = Exner_arr(i,j,k  );
+                Real pi_lo = getExnergivenRTh(cell_stage_cons(i,j,k-1,RhoTheta_comp));
+                Real pi_hi = getExnergivenRTh(cell_stage_cons(i,j,k  ,RhoTheta_comp));
                 Real pi_c =  0.5 * (pi_lo + pi_hi);
 
                 Real detJ_on_kface      = 1.0;
@@ -554,6 +547,8 @@ void erf_fast_rhs (int level, const Real time,
               }
               fast_rhs_rho_w(i,j,k) = ( new_drho_w(i,j,k) - old_drho_w(i,j,k) - dtau * slow_rhs_rho_w(i,j,k)) / dtau;
 
+              cur_data_zmom(i,j,k) = cell_stage_zmom(i,j,k) + new_drho_w(i,j,k);
+
               // Sum implicit and explicit W for AdvSrc
               new_drho_w(i,j,k) *= beta_2;
               new_drho_w(i,j,k) += beta_1 * old_drho_w(i,j,k);
@@ -571,6 +566,11 @@ void erf_fast_rhs (int level, const Real time,
                                    facinv, avg_xmom, avg_ymom, avg_zmom,    // these are being defined from the rho fluxes
                                    zp_t_arr,  // z_t
                                    prim, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            cur_data_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_cons(i,j,k,0));
+            cur_data_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_cons(i,j,k,1));
+        });
     } // mfi
     }
 }
