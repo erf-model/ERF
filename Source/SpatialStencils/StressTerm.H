@@ -41,7 +41,11 @@ ComputeStressGivenRates (int i, int j, int k,
 
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
 AMREX_GPU_DEVICE
+#ifdef AMREX_DEBUG
+inline AMREX_NO_INLINE
+#else
 AMREX_FORCE_INLINE
+#endif
 amrex::Real
 ComputeStressTermWithTerrain (int i, int j, int k,
                               const amrex::Array4<const amrex::Real>& u,
