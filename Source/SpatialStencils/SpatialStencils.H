@@ -78,17 +78,29 @@ void AdvectionSrcForMom (int level, const amrex::Box& bx, const amrex::Box& vali
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                          const int spatial_order, const int use_terrain, const int domhi_z);
 
-void DiffusionSrcForMom (int level, const amrex::Box& bx, const amrex::Box& valid_bx, const amrex::Box& domain,
-                         const amrex::Array4<const int>& mlo_x            , const amrex::Array4<const int>& mlo_y,
-                         const amrex::Array4<const int>& mhi_x            , const amrex::Array4<const int>& mhi_y,
-                         const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
-                         const amrex::Array4<      amrex::Real>& rho_w_rhs,
-                         const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
-                         const amrex::Array4<const amrex::Real>& w        , const amrex::Array4<const amrex::Real>& K_turb,
-                         const amrex::Array4<const amrex::Real>& cell_data, const amrex::Array4<const amrex::Real>& er_arr,
-                         const SolverChoice& solverChoice                 , const amrex::BCRec* bc_ptr,
-                         const amrex::Array4<const amrex::Real>& z_nd     , const amrex::Array4<const amrex::Real>& detJ,
-                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+void DiffusionSrcForMom_N (int level, const amrex::Box& bx, const amrex::Box& valid_bx, const amrex::Box& domain,
+                           const amrex::Array4<const int>& mlo_x            , const amrex::Array4<const int>& mlo_y,
+                           const amrex::Array4<const int>& mhi_x            , const amrex::Array4<const int>& mhi_y,
+                           const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
+                           const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                           const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
+                           const amrex::Array4<const amrex::Real>& w        , const amrex::Array4<const amrex::Real>& K_turb,
+                           const amrex::Array4<const amrex::Real>& cell_data, const amrex::Array4<const amrex::Real>& er_arr,
+                           const SolverChoice& solverChoice                 , const amrex::BCRec* bc_ptr,
+                           const amrex::Array4<const amrex::Real>& z_nd     , const amrex::Array4<const amrex::Real>& detJ,
+                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+
+void DiffusionSrcForMom_T (int level, const amrex::Box& bx, const amrex::Box& valid_bx, const amrex::Box& domain,
+                           const amrex::Array4<const int>& mlo_x            , const amrex::Array4<const int>& mlo_y,
+                           const amrex::Array4<const int>& mhi_x            , const amrex::Array4<const int>& mhi_y,
+                           const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
+                           const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                           const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
+                           const amrex::Array4<const amrex::Real>& w        , const amrex::Array4<const amrex::Real>& K_turb,
+                           const amrex::Array4<const amrex::Real>& cell_data, const amrex::Array4<const amrex::Real>& er_arr,
+                           const SolverChoice& solverChoice                 , const amrex::BCRec* bc_ptr,
+                           const amrex::Array4<const amrex::Real>& z_nd     , const amrex::Array4<const amrex::Real>& detJ,
+                           const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
 void DiffusionSrcForState (const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
                            const amrex::Array4<const amrex::Real>& u,

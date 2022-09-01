@@ -89,9 +89,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SpatialStencils/AdvectionSrcForMom.cpp
        ${SRC_DIR}/SpatialStencils/AdvectionSrcForState.cpp
        ${SRC_DIR}/SpatialStencils/AdvectionSrcForMom.H
-       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom.cpp
+       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_N.cpp
+       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_T.cpp
        ${SRC_DIR}/SpatialStencils/DiffusionSrcForState.cpp
-       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom.H
+       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_N.H
+       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_T.H
        ${SRC_DIR}/SpatialStencils/EddyViscosity.H
        ${SRC_DIR}/SpatialStencils/ExpansionRate.H
        ${SRC_DIR}/SpatialStencils/Interpolation.H
