@@ -103,7 +103,7 @@ void erf_fast_rhs_T (int level, const Real time,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-	if (level > 0) {
+    if (level > 0) {
             int vlo_x = valid_bx.smallEnd(0);
             int vhi_x = valid_bx.bigEnd(0);
             int vlo_y = valid_bx.smallEnd(1);
@@ -208,11 +208,11 @@ void erf_fast_rhs_T (int level, const Real time,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
-	if (l_use_terrain)
-	{
+    if (l_use_terrain)
+    {
             amrex::ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
-	    {
+        {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real pi_l = getExnergivenRTh(cell_stage_cons(i-1,j,k,RhoTheta_comp));
                 Real pi_r = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
@@ -305,10 +305,10 @@ void erf_fast_rhs_T (int level, const Real time,
 
                 cur_data_ymom(i,j,k) = cell_stage_ymom(i,j,k) + new_drho_v(i,j,k);
             });
-	} else { // no terrain
+    } else { // no terrain
             amrex::ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
-	    {
+        {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real pi_l = getExnergivenRTh(cell_stage_cons(i-1,j,k,RhoTheta_comp));
                 Real pi_r = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
@@ -357,7 +357,7 @@ void erf_fast_rhs_T (int level, const Real time,
 
                 cur_data_ymom(i,j,k) = cell_stage_ymom(i,j,k) + new_drho_v(i,j,k);
             });
-	} // end of no terrain
+    } // end of no terrain
 
         // *********************************************************************
         // *********************************************************************

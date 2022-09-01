@@ -63,11 +63,11 @@
             erf_fast_rhs_T(level, new_time, S_slow_rhs, S_stage_data, S_prim,
                            S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
                            z_phys_nd[level], detJ_cc[level], r0, p0, dtau, inv_fac);
-	else
+    else
             erf_fast_rhs_N(level, new_time, S_slow_rhs, S_stage_data, S_prim,
                            S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
                            z_phys_nd[level], detJ_cc[level], r0, p0, dtau, inv_fac);
-	//
+    //
         // Moving terrain
         Real time_mt = new_time - 0.5*dtau;
 
