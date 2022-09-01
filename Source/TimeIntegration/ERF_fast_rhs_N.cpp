@@ -31,7 +31,7 @@ void erf_fast_rhs_N (int level, const Real time,
     BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
 
     bool l_use_terrain  = solverChoice.use_terrain;
-    AMREX_ALWAYS_ASSERT(!l_use_terrain);  
+    AMREX_ALWAYS_ASSERT(!l_use_terrain);
 
     // Per p2902 of Klemp-Skamarock-Dudhia-2007
     // beta_s = -1.0 : fully explicit
@@ -225,10 +225,10 @@ void erf_fast_rhs_N (int level, const Real time,
             gpx /= (1.0 + q);
 #endif
             Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
-   
+
             new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                     + dtau * slow_rhs_rho_u(i,j,k);
-  
+
             if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
 
             cur_data_xmom(i,j,k) = cell_stage_xmom(i,j,k) + new_drho_u(i,j,k);

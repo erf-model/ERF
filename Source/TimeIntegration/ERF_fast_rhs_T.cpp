@@ -250,10 +250,10 @@ void erf_fast_rhs_T (int level, const Real time,
                 gpx /= (1.0 + q);
 #endif
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
-    
+
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                         + dtau * slow_rhs_rho_u(i,j,k);
-    
+
                 if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
 
                 cur_data_xmom(i,j,k) = cell_stage_xmom(i,j,k) + new_drho_u(i,j,k);
@@ -267,7 +267,7 @@ void erf_fast_rhs_T (int level, const Real time,
 
                 Real drho_theta_hi = extrap_arr(i,j,k);
                 Real drho_theta_lo = extrap_arr(i,j-1,k);
-    
+
                 Real gpy;
                 if (l_use_terrain) {
                     Real met_h_xi,met_h_eta,met_h_zeta;
@@ -291,18 +291,18 @@ void erf_fast_rhs_T (int level, const Real time,
                } else {
                     gpy = (drho_theta_hi - drho_theta_lo)*dyi;
                }
-    
+
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
                                 +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
                 gpy /= (1.0 + q);
 #endif
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
-    
+
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
                                                         + dtau * slow_rhs_rho_v(i,j,k);
                 if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
-    
+
                 cur_data_ymom(i,j,k) = cell_stage_ymom(i,j,k) + new_drho_v(i,j,k);
             });
 	} else { // no terrain
@@ -324,10 +324,10 @@ void erf_fast_rhs_T (int level, const Real time,
                 gpx /= (1.0 + q);
 #endif
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
-    
+
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                         + dtau * slow_rhs_rho_u(i,j,k);
-    
+
                 if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
 
                 cur_data_xmom(i,j,k) = cell_stage_xmom(i,j,k) + new_drho_u(i,j,k);
@@ -341,7 +341,7 @@ void erf_fast_rhs_T (int level, const Real time,
 
                 Real drho_theta_hi = extrap_arr(i,j,k);
                 Real drho_theta_lo = extrap_arr(i,j-1,k);
-    
+
                 Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
 
 #ifdef ERF_USE_MOISTURE
@@ -350,11 +350,11 @@ void erf_fast_rhs_T (int level, const Real time,
                 gpy /= (1.0 + q);
 #endif
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
-    
+
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
                                                         + dtau * slow_rhs_rho_v(i,j,k);
                 if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
-    
+
                 cur_data_ymom(i,j,k) = cell_stage_ymom(i,j,k) + new_drho_v(i,j,k);
             });
 	} // end of no terrain
