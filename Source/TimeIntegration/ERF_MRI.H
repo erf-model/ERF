@@ -17,7 +17,7 @@ private:
     std::function<void(T&,         const T&,     const amrex::Real, const amrex::Real     )> rhs;
     std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_pre;
     std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_post;
-    std::function<void(T&, T&, T&,       T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
+    std::function<void(T&, T&,           T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -38,16 +38,13 @@ private:
     * \brief The post_update function is called by the integrator on state data before using it to evaluate a right-hand side.
     */
     std::function<void (T&, amrex::Real, amrex::Real, int, int)> post_update;
-
-    std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> post_substep;
-    std::function<void (T&, T&,     amrex::Real, amrex::Real)> post_no_substep;
+    std::function<void (T&, T&, amrex::Real, amrex::Real)> post_no_substep;
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
     T* S_sum;
     T* S_scratch;
     T* F_slow;
-    T* F_pert;
 
     void initialize_data (const T& S_data)
     {
@@ -60,8 +57,6 @@ private:
         S_scratch = T_store[1].get();
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         F_slow = T_store[2].get();
-        amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
-        F_pert = T_store[3].get();
     }
 
 public:
@@ -98,15 +93,17 @@ public:
         slow_rhs_post = F;
     }
 
-    void set_fast_rhs (std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
+    void set_fast_rhs (std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
     {
         fast_rhs = F;
     }
 
+#if 0
     std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real)> get_fast_rhs ()
     {
         return fast_rhs;
     }
+#endif
 
     void set_slow_fast_timestep_ratio (const int timestep_ratio = 1)
     {
@@ -123,19 +120,9 @@ public:
         post_update = F;
     }
 
-    void set_post_substep (std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> F)
-    {
-        post_substep = F;
-    }
-
     void set_post_no_substep (std::function<void (T&, T&, amrex::Real, amrex::Real)> F)
     {
         post_no_substep = F;
-    }
-
-    std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> get_post_substep ()
-    {
-        return post_substep;
     }
 
     std::function<void (T&, T&, amrex::Real, amrex::Real)> get_post_no_substep ()
@@ -399,27 +386,13 @@ public:
             // ****************************************************
             if (version == 0)
             {
+                // *******************************************************************************
+                // Update the fast variables
+                // *******************************************************************************
                 for (int ks = 0; ks < nsubsteps; ++ks)
                 {
-                    // *******************************************************************************
-                    // Evaluate F_fast(S_pert, S_old) on the fast variables
-                    // S_sum is used in the fast RHS to internally define S_pert = (S_sum - S_stage)
-                    // *******************************************************************************
-                    fast_rhs(*F_pert, *F_slow, S_new, *S_sum, *S_scratch, dtau, inv_fac, time + (ks+1) * dtau);
+                    fast_rhs(*F_slow, S_new, *S_sum, *S_scratch, dtau, inv_fac, time + (ks+1) * dtau);
 
-                    // *******************************************************************************
-                    // Call the post-substep hook for S_sum at t = time + (ks+1) * sub_dt
-                    // This adds dtau*(F_slow + F_pert) to S_sum for the fast variables,  and
-                    // if version == 1, adds dtau*F_slow to S_sum for the slow variables.
-                    // It also calls apply_bc and constoprim
-                    // *******************************************************************************
-                    post_substep(*S_sum, *F_slow, *F_pert, time + (ks+1) * dtau, dtau);
-
-                    // *******************************************************************************
-                    // Copy only (rho theta), including ghost cells
-                    // *******************************************************************************
-                    MultiFab::Copy((*S_scratch)[IntVar::cons], (*S_sum)[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1,
-                                   (*S_sum)[IntVar::cons].nGrowVect());
                 } // ks
 
             } else {
