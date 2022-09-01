@@ -17,7 +17,7 @@ private:
     std::function<void(T&,         const T&,     const amrex::Real, const amrex::Real     )> rhs;
     std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_pre;
     std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_post;
-    std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
+    std::function<void(T&, T&, T&,       T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -98,12 +98,12 @@ public:
         slow_rhs_post = F;
     }
 
-    void set_fast_rhs (std::function<void(T&, T&, T&, const T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
+    void set_fast_rhs (std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
     {
         fast_rhs = F;
     }
 
-    std::function<void(T&, T&, T&, const T&, const amrex::Real, const amrex::Real)> get_fast_rhs ()
+    std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real)> get_fast_rhs ()
     {
         return fast_rhs;
     }
