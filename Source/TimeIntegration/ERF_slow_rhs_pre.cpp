@@ -4,8 +4,8 @@
 #include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
 #include <ABLMost.H>
-#include <DiffusionSrcForMom.H>
 #include <SpatialStencils.H>
+#include <Interpolation.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 #include <ERF.H>
@@ -204,9 +204,15 @@ void erf_slow_rhs_pre (int level,
                            rho_u    , rho_v    , rho_w    ,
                            z_t, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
 
-        DiffusionSrcForMom(level, bx, valid_bx, domain, mlo_x, mlo_y, mhi_x, mhi_y,
-                           rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, K_turb, cell_data, er_arr,
-                           solverChoice, bc_ptr, z_nd, detJ, dxInv);
+        if (l_use_terrain) {
+            DiffusionSrcForMom_T(level, bx, valid_bx, domain, mlo_x, mlo_y, mhi_x, mhi_y,
+                                rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, K_turb, cell_data, er_arr,
+                                solverChoice, bc_ptr, z_nd, detJ, dxInv);
+        } else {
+            DiffusionSrcForMom_N(level, bx, valid_bx, domain, mlo_x, mlo_y, mhi_x, mhi_y,
+                                rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, K_turb, cell_data, er_arr,
+                                solverChoice, bc_ptr, z_nd, detJ, dxInv);
+        }
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations

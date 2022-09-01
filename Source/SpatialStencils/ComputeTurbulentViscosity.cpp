@@ -213,6 +213,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel, const amrex::MultiF
                                 const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                                 bool vert_only)
 {
+    BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
     // In LES mode, the turbulent viscosity is isotropic, so the LES model sets both horizontal and vertical viscosities
     // In PBL mode, the primary purpose of the PBL model is to control vertical transport, so the PBL model sets the vertical viscosity.
