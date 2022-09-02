@@ -14,6 +14,8 @@ void ERF::erf_advance(int level,
                       MultiFab& cons_old,  MultiFab& cons_new,
                       MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
                       MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
+                      MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
+                      MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
                       MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                       MultiFab& source,
                       const amrex::Geometry fine_geom,
@@ -38,11 +40,16 @@ void ERF::erf_advance(int level,
     MultiFab    S_prim(ba, dm, NUM_PRIM,          cons_old.nGrowVect());
     MultiFab eddyDiffs(ba, dm, EddyDiff::NumDiffs,1);
 
+    amrex::Vector<amrex::MultiFab> state_old;
+    amrex::Vector<amrex::MultiFab> state_new;
+
     // **************************************************************************************
     // These are temporary arrays that we use to store the accumulation of the fluxes
     // **************************************************************************************
     std::array< MultiFab, AMREX_SPACEDIM > diffflux;
 
+    {
+    BL_PROFILE("erf_advance_part_1");
     diffflux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
     diffflux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
     diffflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
@@ -55,18 +62,17 @@ void ERF::erf_advance(int level,
     // Here we define state_old and state_new which are to be advanced
     // **************************************************************************************
     // Initial solution
-    amrex::Vector<amrex::MultiFab> state_old;
     state_old.push_back(MultiFab(cons_old, amrex::make_alias, 0, nvars)); // cons
-    state_old.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
-    state_old.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
-    state_old.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
+    state_old.push_back(MultiFab(xmom_old, amrex::make_alias, 0,     1)); // xmom
+    state_old.push_back(MultiFab(ymom_old, amrex::make_alias, 0,     1)); // ymom
+    state_old.push_back(MultiFab(zmom_old, amrex::make_alias, 0,     1)); // zmom
 
     // Final solution
-    amrex::Vector<amrex::MultiFab> state_new;
     state_new.push_back(MultiFab(cons_new, amrex::make_alias, 0, nvars)); // cons
-    state_new.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, xvel_old.nGrow())); // xmom
-    state_new.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, yvel_old.nGrow())); // ymom
-    state_new.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, zvel_old.nGrow())); // zmom
+    state_new.push_back(MultiFab(xmom_new, amrex::make_alias, 0,     1)); // xmom
+    state_new.push_back(MultiFab(ymom_new, amrex::make_alias, 0,     1)); // ymom
+    state_new.push_back(MultiFab(zmom_new, amrex::make_alias, 0,     1)); // zmom
+    } // end profile
 
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
@@ -91,6 +97,8 @@ void ERF::erf_advance(int level,
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // ***********************************************************************************************
 
+    {
+    BL_PROFILE("pre_set_up_mri");
     VelocityToMomentum(xvel_old, xvel_old.nGrowVect(),
                        yvel_old, yvel_old.nGrowVect(),
                        zvel_old, zvel_old.nGrowVect(),
@@ -104,6 +112,7 @@ void ERF::erf_advance(int level,
     apply_bcs(state_old, old_time, time_mt, dt_advance,
               state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only);
     cons_to_prim(state_old[IntVar::cons], S_prim, state_old[IntVar::cons].nGrow());
+    }
 
 #include "TI_slow_rhs_fun.H"
 #include "TI_fast_rhs_fun.H"
@@ -113,6 +122,8 @@ void ERF::erf_advance(int level,
     // **************************************************************************************
     MRISplitIntegrator<Vector<MultiFab> >& mri_integrator = *mri_integrator_mem[level];
 
+    {
+    BL_PROFILE("set_up_mri_integrator");
     // Define rhs and 'post update' utility function that is called after calculating
     // any state data (e.g. at RK stages or at the end of a timestep)
     mri_integrator.set_slow_rhs_pre(slow_rhs_fun_pre);
@@ -122,6 +133,7 @@ void ERF::erf_advance(int level,
     mri_integrator.set_fast_rhs(fast_rhs_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
     mri_integrator.set_post_no_substep(post_no_substep_fun);
+    }
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
