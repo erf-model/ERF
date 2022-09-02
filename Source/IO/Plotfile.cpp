@@ -180,15 +180,19 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         calculate_derived("QKE",         derived::erf_derQKE);
         calculate_derived("scalar",      derived::erf_derscalar);
 
+        MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
+        MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
+
         if (containerHasElement(plot_var_names, "pres_hse"))
         {
-            MultiFab::Copy(mf[lev],pres_hse[lev],0,mf_comp,1,0);
+            // p_0 is second component of base_state
+            MultiFab::Copy(mf[lev],p_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
-
         if (containerHasElement(plot_var_names, "dens_hse"))
         {
-            MultiFab::Copy(mf[lev],dens_hse[lev],0,mf_comp,1,0);
+            // r_0 is first component of base_state
+            MultiFab::Copy(mf[lev],r_hse,0,mf_comp,1,0);
             mf_comp ++;
         }
 
@@ -198,7 +202,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
-                const Array4<Real const>& p0_arr = pres_hse[lev].const_array(mfi);
+                const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
@@ -215,7 +219,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat  = mf[lev].array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                const Array4<Real const>& r0_arr = dens_hse[lev].const_array(mfi);
+                const Array4<Real const>& r0_arr = r_hse.const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     derdat(i, j, k, mf_comp) = S_arr(i,j,k,Rho_comp) - r0_arr(i,j,k);
                 });
@@ -386,12 +390,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
         if (containerHasElement(plot_var_names, "pres_hse_x"))
         {
+            MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
             auto dxInv = geom[lev].InvCellSizeArray();
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
-                const Array4<Real      >&  derdat =       mf[lev].array(mfi);
-                const Array4<Real const>&   p_arr = pres_hse[lev].const_array(mfi);
+                const Array4<Real      >&  derdat = mf[lev].array(mfi);
+                const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
 
                 //USE_TERRAIN POSSIBLE ISSUE HERE
                 const Array4<Real const>& z_nd  = z_phys_nd[lev]->const_array(mfi);
@@ -444,12 +449,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         if (containerHasElement(plot_var_names, "pres_hse_y"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
+            MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >& derdat = mf[lev].array(mfi);
-                const Array4<Real const>&   p_arr = pres_hse[lev].const_array(mfi);
-                const Array4<Real const>& z_nd  = z_phys_nd[lev]->const_array(mfi);
+                const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
+                const Array4<Real const>& z_nd    = z_phys_nd[lev]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
                     ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);

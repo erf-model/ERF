@@ -669,12 +669,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     mapfac_u[lev]->setVal(1.);
     mapfac_v[lev]->setVal(1.);
 
-    pres_hse.resize(lev+1);
-    dens_hse.resize(lev+1);
-    pres_hse[lev].define(ba,dm,1,1);
-    dens_hse[lev].define(ba,dm,1,1);
-    pres_hse[lev].setVal(0.);
-    dens_hse[lev].setVal(0.);
+    // Base state holds r_0, pres_0, pi_0 (in that order)
+    base_state.resize(lev+1);
+    base_state[lev].define(ba,dm,3,1);
+    base_state[lev].setVal(0.);
 
     if (solverChoice.use_terrain) {
         z_phys_cc[lev].reset(new MultiFab(ba,dm,1,1));

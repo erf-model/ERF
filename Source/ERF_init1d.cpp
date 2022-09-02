@@ -50,16 +50,18 @@ ERF::initHSE()
 {
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        erf_init_dens_hse(dens_hse[lev], z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
-        erf_enforce_hse(lev, dens_hse[lev], pres_hse[lev], z_phys_cc[lev]);
-
+        MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
+        MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
+        MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
+        erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+        erf_enforce_hse  (lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
     }
 }
 
 //terrain
 void
 ERF::erf_enforce_hse(int lev,
-                     MultiFab& dens, MultiFab& pres,
+                     MultiFab& dens, MultiFab& pres, MultiFab& pi,
                      std::unique_ptr<MultiFab>& z_cc)
 {
     amrex::Real l_gravity = solverChoice.gravity;
@@ -90,6 +92,7 @@ ERF::erf_enforce_hse(int lev,
 
         Array4<Real>  rho_arr = dens.array(mfi);
         Array4<Real> pres_arr = pres.array(mfi);
+        Array4<Real>   pi_arr =   pi.array(mfi);
         Array4<Real> zcc_arr;
         if (l_use_terrain)
            zcc_arr = z_cc->array(mfi);
@@ -106,9 +109,11 @@ ERF::erf_enforce_hse(int lev,
 
             // Set value at surface from Newton iteration for rho
             pres_arr(i,j,k0  ) = p_0 - hz * rho_arr(i,j,k0) * l_gravity;
+              pi_arr(i,j,k0  ) = getExnergivenP(pres_arr(i,j,k0  ));
 
             // Set ghost cell with dz and rho at boundary
             pres_arr(i,j,k0-1) = p_0 + hz * rho_arr(i,j,k0) * l_gravity;
+              pi_arr(i,j,k0-1) = getExnergivenP(pres_arr(i,j,k0-1));
 
             Real dens_interp;
             for (int k = 1; k <= nz; k++) {
@@ -119,6 +124,8 @@ ERF::erf_enforce_hse(int lev,
                     dz_loc = dz;
                 dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                 pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
+
+                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k));
             }
         });
 
@@ -132,6 +139,7 @@ ERF::erf_enforce_hse(int lev,
             bx.setBig(0,domlo_x-1);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
+                  pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k));
             });
         }
 
@@ -142,6 +150,7 @@ ERF::erf_enforce_hse(int lev,
             bx.setBig(0,domhi_x+1);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(domhi_x,j,k);
+                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k));
             });
         }
 
@@ -152,6 +161,7 @@ ERF::erf_enforce_hse(int lev,
             bx.setBig(1,domlo_y-1);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(i,domlo_y,k);
+                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k));
             });
         }
 
@@ -162,6 +172,7 @@ ERF::erf_enforce_hse(int lev,
             bx.setBig(1,domhi_y+1);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(i,domhi_y,k);
+                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k));
             });
         }
     }

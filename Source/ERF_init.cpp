@@ -358,6 +358,9 @@ void
 ERF::init_custom(int lev)
 {
     auto& lev_new = vars_new[lev];
+    MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
+    MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -372,8 +375,8 @@ ERF::init_custom(int lev)
         Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
-        Array4<Real> r_hse_arr = dens_hse[lev].array(mfi);
-        Array4<Real> p_hse_arr = pres_hse[lev].array(mfi);
+        Array4<Real> r_hse_arr = r_hse.array(mfi);
+        Array4<Real> p_hse_arr = p_hse.array(mfi);
 
         init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
                          r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr, geom[lev].data());
