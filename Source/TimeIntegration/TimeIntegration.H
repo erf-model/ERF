@@ -68,6 +68,7 @@ void erf_fast_rhs_N (int level, const amrex::Real time,
                      std::unique_ptr<amrex::MultiFab>& dJ,
                      const amrex::MultiFab* r0,
                      const amrex::MultiFab* p0,
+                     const amrex::MultiFab* pi0,
                      const amrex::Real fast_dt, const amrex::Real invfac);
 
 void erf_fast_rhs_T (int level, const amrex::Real time,
@@ -84,5 +85,6 @@ void erf_fast_rhs_T (int level, const amrex::Real time,
                      std::unique_ptr<amrex::MultiFab>& dJ,
                      const amrex::MultiFab* r0,
                      const amrex::MultiFab* p0,
+                     const amrex::MultiFab* pi0,
                      const amrex::Real fast_dt, const amrex::Real invfac);
 #endif

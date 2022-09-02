@@ -25,8 +25,8 @@ void erf_fast_rhs_T (int level, const Real time,
                      const MultiFab* z_t_pert,
                      std::unique_ptr<MultiFab>& z_phys_nd,
                      std::unique_ptr<MultiFab>& detJ_cc,
-                     const MultiFab* r0,
-                     const MultiFab* p0,
+                     const MultiFab* r0, const MultiFab* p0,
+                     const MultiFab* pi0,
                      const amrex::Real dtau, const amrex::Real facinv)
 {
     BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
@@ -171,8 +171,9 @@ void erf_fast_rhs_T (int level, const Real time,
 
         const Array4<const Real>& zp_t_arr = l_move_terrain ? z_t_pert->const_array(mfi) : Array4<const Real>{};
 
-        const Array4<const Real>& r0_arr = r0->const_array(mfi);
-        const Array4<const Real>& p0_arr = p0->const_array(mfi);
+        const Array4<const Real>& r0_arr  = r0->const_array(mfi);
+        const Array4<const Real>& p0_arr  = p0->const_array(mfi);
+        const Array4<const Real>& pi0_arr = pi0->const_array(mfi);
 
         const Array4<Real>& extrap_arr = extrap.array(mfi);
 
@@ -206,7 +207,7 @@ void erf_fast_rhs_T (int level, const Real time,
 
         Box tmpbox = bx;
         tmpbox.grow(Direction::x,1).grow(Direction::y,1);
-        pifab.resize(tmpbox,2);
+        pifab.resize(tmpbox,1);
         auto const& pi_a = pifab.array();
         auto const& pi_ca = pifab.const_array();
         Elixir pieli = pifab.elixir();
@@ -400,8 +401,8 @@ void erf_fast_rhs_T (int level, const Real time,
                 Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
                 rhobar_lo = (k == 0) ?  r0_arr(i,j,k) : r0_arr(i,j,k-1);
                 rhobar_hi = r0_arr(i,j,k  );
-                 pibar_lo = pi_ca(i,j,k-1,1);
-                 pibar_hi = pi_ca(i,j,k  ,1);
+                 pibar_lo = pi0_arr(i,j,k-1);
+                 pibar_hi = pi0_arr(i,j,k  );
 
                 // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
                 // We set grav_gpu[2] to be the vector component which is negative

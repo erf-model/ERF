@@ -147,7 +147,7 @@ public:
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
-                      amrex::MultiFab* r0, amrex::MultiFab* p0,
+                      amrex::MultiFab* r0, amrex::MultiFab* p0, amrex::MultiFab* pi0,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
@@ -184,7 +184,7 @@ public:
                                                 const std::string &mfPrefix) const;
 
     void erf_enforce_hse(int lev,
-                         amrex::MultiFab& dens, amrex::MultiFab& pres,
+                         amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
                          std::unique_ptr<amrex::MultiFab>& z_cc);
 
 #ifdef ERF_USE_NETCDF
@@ -472,8 +472,7 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sst;
 
-    amrex::Vector<amrex::MultiFab> pres_hse;
-    amrex::Vector<amrex::MultiFab> dens_hse;
+    amrex::Vector<amrex::MultiFab> base_state;
 
     // array of flux registers
     amrex::Vector<amrex::FluxRegister*> flux_registers;

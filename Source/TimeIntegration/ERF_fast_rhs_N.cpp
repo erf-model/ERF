@@ -24,8 +24,8 @@ void erf_fast_rhs_N (int level, const Real time,
                      const MultiFab* z_t_pert,
                      std::unique_ptr<MultiFab>& z_phys_nd,
                      std::unique_ptr<MultiFab>& detJ_cc,
-                     const MultiFab* r0,
-                     const MultiFab* p0,
+                     const MultiFab* r0, const MultiFab* p0,
+                     const MultiFab* pi0,
                      const amrex::Real dtau, const amrex::Real facinv)
 {
     BL_PROFILE_REGION("erf_fast_rhs_N()");
@@ -171,13 +171,16 @@ void erf_fast_rhs_N (int level, const Real time,
         const Array4<      Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
         const Array4<      Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
+        const Array4<      Real>& pi_0 = S_scratch[IntVar::zmom].array(mfi);
+
         const Array4<const Real>& z_nd   = Array4<const Real>{};
         const Array4<const Real>& detJ   = Array4<const Real>{};
 
         const Array4<const Real>& zp_t_arr = Array4<const Real>{};
 
-        const Array4<const Real>& r0_arr = r0->const_array(mfi);
-        const Array4<const Real>& p0_arr = p0->const_array(mfi);
+        const Array4<const Real>& r0_arr  = r0->const_array(mfi);
+        const Array4<const Real>& p0_arr  = p0->const_array(mfi);
+        const Array4<const Real>& pi0_arr = pi0->const_array(mfi);
 
         const Array4<Real>& extrap_arr = extrap.array(mfi);
 
@@ -211,8 +214,8 @@ void erf_fast_rhs_N (int level, const Real time,
 
         Box tmpbox = bx;
         tmpbox.grow(Direction::x,1).grow(Direction::y,1);
-        pifab.resize(tmpbox,2);
-        auto const& pi_a = pifab.array();
+        pifab.resize(tmpbox,1);
+        auto const& pi_a  = pifab.array();
         auto const& pi_ca = pifab.const_array();
         Elixir pieli = pifab.elixir();
 
@@ -248,8 +251,6 @@ void erf_fast_rhs_N (int level, const Real time,
             amrex::ParallelFor(tmpbox, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 pi_a(i,j,k,0) = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
-                pi_a(i,j,k,1) = getExnergivenP  (p0_arr(i,j,k));
-
             });
         } // end profile
 
@@ -324,10 +325,10 @@ void erf_fast_rhs_N (int level, const Real time,
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-            rhobar_lo = r0_arr(i,j,k-1);
-            rhobar_hi = r0_arr(i,j,k  );
-             pibar_lo = pi_ca(i,j,k-1,1);
-             pibar_hi = pi_ca(i,j,k  ,1);
+            rhobar_lo =  r0_arr(i,j,k-1);
+            rhobar_hi =  r0_arr(i,j,k  );
+             pibar_lo = pi0_arr(i,j,k-1);
+             pibar_hi = pi0_arr(i,j,k  );
 
              // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
              // We set grav_gpu[2] to be the vector component which is negative
