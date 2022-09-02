@@ -248,7 +248,7 @@ void erf_fast_rhs_N (int level, const Real time,
             amrex::ParallelFor(tmpbox, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 pi_a(i,j,k,0) = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
-                pi_a(i,j,k,1) = getExnergivenRTh(p0_arr(i,j,k));
+                pi_a(i,j,k,1) = getExnergivenP  (p0_arr(i,j,k));
 
             });
         } // end profile
