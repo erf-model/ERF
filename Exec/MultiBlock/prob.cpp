@@ -94,6 +94,7 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
       if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
       if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
   }
+  r[khi+1] = r[khi];
 }
 
 void
@@ -111,8 +112,8 @@ erf_init_dens_hse(MultiFab& rho_hse,
   const Real Thetabar = T_sfc;
 
   // These are at cell centers (unstaggered)
-  Vector<Real> h_r(khi+1);
-  Vector<Real> h_p(khi+1);
+  Vector<Real> h_r(khi+2);
+  Vector<Real> h_p(khi+2);
 
   amrex::Gpu::DeviceVector<Real> d_r(khi+1);
   amrex::Gpu::DeviceVector<Real> d_p(khi+1);
@@ -123,8 +124,6 @@ erf_init_dens_hse(MultiFab& rho_hse,
   amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
 
   Real* r = d_r.data();
-
-  init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
