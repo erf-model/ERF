@@ -5,7 +5,6 @@
 #include <ERF_Constants.H>
 #include <ABLMost.H>
 #include <SpatialStencils.H>
-#include <Interpolation.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 #include <ERF.H>
@@ -37,7 +36,7 @@ void erf_slow_rhs_pre (int level,
                    const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                    const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
 {
-    BL_PROFILE_VAR("erf_slow_rhs_pre()",erf_slow_rhs_pre);
+    BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
     amrex::Real theta_mean;
     if (most) theta_mean = most->theta_mean;
@@ -399,9 +398,8 @@ void erf_slow_rhs_pre (int level,
                 if (solverChoice.use_gravity)
                 {
                     int local_spatial_order = 2;
-                    rho_w_rhs(i, j, k) += grav_gpu[2] *
-                         InterpolateDensityPertFromCellToFace(i, j, k, cell_data, rho_w(i,j,k),
-                                                              Coord::z, local_spatial_order, r0_arr);
+		    Real rho_prime = 0.5 * (cell_data(i,j,k) + cell_data(i,j,k-1) - r0_arr(i,j,k) - r0_arr(i,j,k-1));
+                    rho_w_rhs(i, j, k) += grav_gpu[2] * rho_prime;
                 }
 
                 // Add driving pressure gradient

@@ -31,7 +31,7 @@ void erf_slow_rhs_post (int level,
                         const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                         std::unique_ptr<MultiFab>& z0, std::unique_ptr<MultiFab>& dJ)
 {
-    BL_PROFILE_VAR("erf_slow_rhs_post()",erf_slow_rhs_post);
+    BL_PROFILE_REGION("erf_slow_rhs_post()");
 
     amrex::Real theta_mean;
     if (most) theta_mean = most->theta_mean;

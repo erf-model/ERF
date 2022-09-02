@@ -93,6 +93,16 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
+    MultiFab rU_old, rV_old, rW_old;
+    rU_old.define(U_old.boxArray(), U_old.DistributionMap(), 1, U_old.nGrow());
+    rV_old.define(V_old.boxArray(), V_old.DistributionMap(), 1, V_old.nGrow());
+    rW_old.define(W_old.boxArray(), W_old.DistributionMap(), 1, W_old.nGrow());
+
+    MultiFab rU_new, rV_new, rW_new;
+    rU_new.define(U_new.boxArray(), U_new.DistributionMap(), 1, U_new.nGrow());
+    rV_new.define(V_new.boxArray(), V_new.DistributionMap(), 1, V_new.nGrow());
+    rW_new.define(W_new.boxArray(), W_new.DistributionMap(), 1, W_new.nGrow());
+
     // We need to set these because otherwise in the first call to erf_advance we may
     //    read uninitialized data on ghost values in setting the bc's on the velocities
     U_new.setVal(1.e34,U_new.nGrowVect());
@@ -185,6 +195,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 cons_mf, S_new,
                 U_old, V_old, W_old,
                 U_new, V_new, W_new,
+                rU_old, rV_old, rW_old,
+                rU_new, rV_new, rW_new,
                 rU_crse, rV_crse, rW_crse,
                 source, Geom(lev), dt_lev, time, &ifr,
                 r0, p0,

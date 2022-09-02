@@ -116,7 +116,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/TI_fast_rhs_fun.H
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_fast_rhs.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
