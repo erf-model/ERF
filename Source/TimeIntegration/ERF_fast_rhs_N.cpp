@@ -243,7 +243,7 @@ void erf_fast_rhs_N (int level, const Real time,
         auto const& gam_a  = gam_fab.array();
         auto const& gam_ca = gam_fab.const_array();
 
-	{
+    {
         BL_PROFILE("fast_rhs_eos");
             amrex::ParallelFor(tmpbox, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
@@ -321,7 +321,7 @@ void erf_fast_rhs_N (int level, const Real time,
         {
         BL_PROFILE("fast_loop_on_shrunk");
         //Note we don't act on the bottom or top boundaries of the domain
-        ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k) 
+        ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
             rhobar_lo = r0_arr(i,j,k-1);

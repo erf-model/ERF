@@ -48,7 +48,7 @@ void ERF::erf_advance(int level,
     // **************************************************************************************
     std::array< MultiFab, AMREX_SPACEDIM > diffflux;
 
-    { 
+    {
     BL_PROFILE("erf_advance_part_1");
     diffflux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
     diffflux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
@@ -72,7 +72,7 @@ void ERF::erf_advance(int level,
     state_new.push_back(MultiFab(xmom_new, amrex::make_alias, 0,     1)); // xmom
     state_new.push_back(MultiFab(ymom_new, amrex::make_alias, 0,     1)); // ymom
     state_new.push_back(MultiFab(zmom_new, amrex::make_alias, 0,     1)); // zmom
-    } // end profile 
+    } // end profile
 
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities

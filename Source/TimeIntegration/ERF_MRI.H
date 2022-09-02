@@ -137,7 +137,7 @@ public:
 
     amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
     {
-	BL_PROFILE_VAR("MRI_advance",MRI_advance); 
+    BL_PROFILE_VAR("MRI_advance",MRI_advance);
         using namespace amrex;
 
         // *******************************************************************************

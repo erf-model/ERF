@@ -398,7 +398,7 @@ void erf_slow_rhs_pre (int level,
                 if (solverChoice.use_gravity)
                 {
                     int local_spatial_order = 2;
-		    Real rho_prime = 0.5 * (cell_data(i,j,k) + cell_data(i,j,k-1) - r0_arr(i,j,k) - r0_arr(i,j,k-1));
+            Real rho_prime = 0.5 * (cell_data(i,j,k) + cell_data(i,j,k-1) - r0_arr(i,j,k) - r0_arr(i,j,k-1));
                     rho_w_rhs(i, j, k) += grav_gpu[2] * rho_prime;
                 }
 
