@@ -93,6 +93,8 @@ void erf_fast_rhs_T (int level, const Real time,
 #endif
     {
 
+    FArrayBox pifab;
+
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& valid_bx = mfi.validbox();
@@ -194,28 +196,41 @@ void erf_fast_rhs_T (int level, const Real time,
         amrex::ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_u(i,j,k) = cur_data_xmom(i,j,k) - cell_stage_xmom(i,j,k);
-            new_drho_u(i,j,k) = old_drho_u(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_v(i,j,k) = cur_data_ymom(i,j,k) - cell_stage_ymom(i,j,k);
-            new_drho_v(i,j,k) = old_drho_v(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_w(i,j,k) = cur_data_zmom(i,j,k) - cell_stage_zmom(i,j,k);
-            new_drho_w(i,j,k) = old_drho_w(i,j,k);
         });
+
+        Box tmpbox = bx;
+        tmpbox.grow(Direction::x,1).grow(Direction::y,1);
+        pifab.resize(tmpbox,2);
+        auto const& pi_a = pifab.array();
+        auto const& pi_ca = pifab.const_array();
+        Elixir pieli = pifab.elixir();
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
     if (l_use_terrain)
     {
+        {
+        BL_PROFILE("fast_rhs_eos_t");
+            amrex::ParallelFor(tmpbox, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                pi_a(i,j,k,0) = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
+                pi_a(i,j,k,1) = getExnergivenP  (p0_arr(i,j,k));
+            });
+        } // end profile
+
             amrex::ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = getExnergivenRTh(cell_stage_cons(i-1,j,k,RhoTheta_comp));
-                Real pi_r = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
+                Real pi_l = pi_ca(i-1,j,k,0);
+                Real pi_r = pi_ca(i  ,j,k,0);
                 Real pi_c =  0.5 * (pi_l + pi_r);
                 Real drho_theta_hi = extrap_arr(i  ,j,k);
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
@@ -261,8 +276,8 @@ void erf_fast_rhs_T (int level, const Real time,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = getExnergivenRTh(cell_stage_cons(i,j-1,k,RhoTheta_comp));
-                Real pi_r = getExnergivenRTh(cell_stage_cons(i,j  ,k,RhoTheta_comp));
+                Real pi_l = pi_ca(i,j-1,k,0);
+                Real pi_r = pi_ca(i,j  ,k,0);
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
                 Real drho_theta_hi = extrap_arr(i,j,k);
@@ -310,8 +325,8 @@ void erf_fast_rhs_T (int level, const Real time,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = getExnergivenRTh(cell_stage_cons(i-1,j,k,RhoTheta_comp));
-                Real pi_r = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
+                Real pi_l = pi_ca(i-1,j,k,0);
+                Real pi_r = pi_ca(i  ,j,k,0);
                 Real pi_c =  0.5 * (pi_l + pi_r);
                 Real drho_theta_hi = extrap_arr(i  ,j,k);
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
@@ -335,8 +350,8 @@ void erf_fast_rhs_T (int level, const Real time,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = getExnergivenRTh(cell_stage_cons(i,j-1,k,RhoTheta_comp));
-                Real pi_r = getExnergivenRTh(cell_stage_cons(i,j  ,k,RhoTheta_comp));
+                Real pi_l = pi_ca(i,j-1,k,0);
+                Real pi_r = pi_ca(i,j  ,k,0);
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
                 Real drho_theta_hi = extrap_arr(i,j,k);
@@ -385,16 +400,16 @@ void erf_fast_rhs_T (int level, const Real time,
                 Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
                 rhobar_lo = (k == 0) ?  r0_arr(i,j,k) : r0_arr(i,j,k-1);
                 rhobar_hi = r0_arr(i,j,k  );
-                 pibar_lo = getExnergivenRTh(p0_arr(i,j,k-1));
-                 pibar_hi = getExnergivenRTh(p0_arr(i,j,k  ));
+                 pibar_lo = pi_ca(i,j,k-1,1);
+                 pibar_hi = pi_ca(i,j,k  ,1);
 
                 // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
                 // We set grav_gpu[2] to be the vector component which is negative
                 // We define halfg to match the notes (which is why we take the absolute value)
                 Real halfg = std::abs(0.5 * grav_gpu[2]);
 
-                Real pi_lo = getExnergivenRTh(cell_stage_cons(i,j,k-1,RhoTheta_comp));
-                Real pi_hi = getExnergivenRTh(cell_stage_cons(i,j,k  ,RhoTheta_comp));
+                Real pi_lo = pi_ca(i,j,k-1,0);
+                Real pi_hi = pi_ca(i,j,k  ,0);
                 Real pi_c =  0.5 * (pi_lo + pi_hi);
 
                 Real detJ_on_kface      = 1.0;
