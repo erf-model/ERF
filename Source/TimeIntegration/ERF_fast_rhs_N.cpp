@@ -171,8 +171,6 @@ void erf_fast_rhs_N (int level, const Real time,
         const Array4<      Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
         const Array4<      Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
-        const Array4<      Real>& pi_0 = S_scratch[IntVar::zmom].array(mfi);
-
         const Array4<const Real>& z_nd   = Array4<const Real>{};
         const Array4<const Real>& detJ   = Array4<const Real>{};
 

@@ -29,7 +29,7 @@ void erf_fast_rhs_T (int level, const Real time,
                      const MultiFab* pi0,
                      const amrex::Real dtau, const amrex::Real facinv)
 {
-    BL_PROFILE_VAR("erf_fast_rhs()",erf_fast_rhs);
+    BL_PROFILE_REGION("erf_fast_rhs_T()");
 
     bool l_use_terrain  = solverChoice.use_terrain;
     bool l_move_terrain = (solverChoice.terrain_type == 1);
@@ -222,7 +222,6 @@ void erf_fast_rhs_T (int level, const Real time,
             amrex::ParallelFor(tmpbox, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 pi_a(i,j,k,0) = getExnergivenRTh(cell_stage_cons(i  ,j,k,RhoTheta_comp));
-                pi_a(i,j,k,1) = getExnergivenP  (p0_arr(i,j,k));
             });
         } // end profile
 
