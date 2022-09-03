@@ -14,9 +14,9 @@ private:
    /**
     * \brief rhs is the right-hand-side function the integrator will use.
     */
-    std::function<void(T&,         const T&,     const amrex::Real, const amrex::Real     )> rhs;
-    std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_pre;
-    std::function<void(T&,         const T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_post;
+    std::function<void(T&, const T&,     const amrex::Real, const amrex::Real     )> rhs;
+    std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_pre;
+    std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_post;
     std::function<void(T&, T&,           T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
@@ -84,11 +84,11 @@ public:
         rhs = F;
     }
 
-    void set_slow_rhs_pre (std::function<void(T&, const T&, T&, const amrex::Real, const amrex::Real)> F)
+    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real)> F)
     {
         slow_rhs_pre = F;
     }
-    void set_slow_rhs_post (std::function<void(T&, const T&, T&, const amrex::Real, const amrex::Real)> F)
+    void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real)> F)
     {
         slow_rhs_post = F;
     }
@@ -97,13 +97,6 @@ public:
     {
         fast_rhs = F;
     }
-
-#if 0
-    std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real)> get_fast_rhs ()
-    {
-        return fast_rhs;
-    }
-#endif
 
     void set_slow_fast_timestep_ratio (const int timestep_ratio = 1)
     {
@@ -137,7 +130,7 @@ public:
 
     amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
     {
-    BL_PROFILE_VAR("MRI_advance",MRI_advance);
+    BL_PROFILE_REGION("MRI_advance");
         using namespace amrex;
 
         // *******************************************************************************
@@ -407,88 +400,7 @@ public:
             //       but we are using the "new" versions (in S_sum) of the velocities
             //      (because we did    update the fast variables in the substepping)
             // ****************************************************
-            slow_rhs_post(*F_slow, *S_sum, *S_scratch, time, time_stage);
-
-            // Then copy into S_new which holds the stage data
-        #ifdef _OPENMP
-        #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-        #endif
-            {
-                  for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-                  {
-                    const Box bx = mfi.tilebox();
-
-                    const Box gbx = mfi.tilebox().grow(S_old[IntVar::cons].nGrowVect());
-                    const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
-                    const Box gtby = mfi.nodaltilebox(1).grow(S_old[IntVar::ymom].nGrowVect());
-                    const Box gtbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zmom].nGrowVect());
-
-                    Vector<Array4<Real> >  sold_h(n_data);
-                    Vector<Array4<Real> >  snew_h(n_data);
-                    Vector<Array4<Real> >  ssum_h(n_data);
-                    Vector<Array4<Real> > fslow_h(n_data);
-
-                    for (int i = 0; i < n_data; ++i) {
-                        ssum_h[i]  = (*S_sum )[i].array(mfi);
-                        fslow_h[i] = (*F_slow)[i].array(mfi);
-                        sold_h[i]  = S_old[i].array(mfi);
-                        snew_h[i]  = S_new[i].array(mfi);
-                    }
-
-                    Gpu::AsyncVector<Array4<Real> > sold_d(n_data);
-                    Gpu::AsyncVector<Array4<Real> > snew_d(n_data);
-                    Gpu::AsyncVector<Array4<Real> > ssum_d(n_data);
-                    Gpu::AsyncVector<Array4<Real> > fslow_d(n_data);
-
-                    Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
-                    Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
-                    Gpu::copy(Gpu::hostToDevice, ssum_h.begin(), ssum_h.end(), ssum_d.begin());
-                    Gpu::copy(Gpu::hostToDevice, fslow_h.begin(), fslow_h.end(), fslow_d.begin());
-
-                    Array4<Real>* sold = sold_d.dataPtr();
-                    Array4<Real>* snew = snew_d.dataPtr();
-                    Array4<Real>* ssum = ssum_d.dataPtr();
-                    Array4<Real>* fslow = fslow_d.dataPtr();
-
-                    if (version == 0)
-                    {
-                        ParallelFor(gbx, ncomp_slow[IntVar::cons],
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                            const int n = scomp_slow[IntVar::cons] + nn;
-                            ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                            if (bx.contains(i,j,k)) {
-                                ssum[IntVar::cons](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::cons](i,j,k,n);
-                            }
-                        });
-                    } else {
-                        ParallelFor(gbx, ncomp_all[IntVar::cons],
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                            const int n = scomp_all[IntVar::cons] + nn;
-                            ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                            if (bx.contains(i,j,k)) {
-                                ssum[IntVar::cons](i,j,k,n) += nsubsteps * dtau * fslow[IntVar::cons](i,j,k,n);
-                            }
-                        });
-                    }
-
-                    ParallelFor(gbx, ncomp_all[IntVar::cons],
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-                        const int n = scomp_all[IntVar::cons] + nn;
-                        snew[IntVar::cons](i,j,k,n) = ssum[IntVar::cons](i,j,k,n);
-                    });
-
-                    ParallelFor(gtbx, gtby, gtbz,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        snew[IntVar::xmom](i,j,k) = ssum[IntVar::xmom](i,j,k);
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        snew[IntVar::ymom](i,j,k) = ssum[IntVar::ymom](i,j,k);
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        snew[IntVar::zmom](i,j,k) = ssum[IntVar::zmom](i,j,k);
-                    });
-                  } // mfi
-            } // omp
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, time_stage);
 
             // Call the post-update hook for S_new after all the fast steps completed
             // This will update S_prim that is used in the slow RHS

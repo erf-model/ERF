@@ -14,9 +14,11 @@
 
 using namespace amrex;
 
-void erf_slow_rhs_post (int level,
+void erf_slow_rhs_post (int level, Real dt,
                         Vector<MultiFab>& S_rhs,
-                        const Vector<MultiFab>& S_data,
+                        Vector<MultiFab>& S_old,
+                        Vector<MultiFab>& S_new,
+                        Vector<MultiFab>& S_data,
                         const MultiFab& S_prim,
                               Vector<MultiFab>& S_scratch,
                         const MultiFab& xvel,
@@ -76,10 +78,20 @@ void erf_slow_rhs_post (int level,
 
         const Box& bx = mfi.tilebox();
 
-        const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+        const Array4<      Real> & cell_old   = S_old[IntVar::cons].array(mfi);
+        const Array4<      Real> & cell_new   = S_new[IntVar::cons].array(mfi);
+        const Array4<      Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & source_fab = source.const_array(mfi);
+
+        const Array4<      Real> & xmom_new  = S_new[IntVar::xmom].array(mfi);
+        const Array4<      Real> & ymom_new  = S_new[IntVar::ymom].array(mfi);
+        const Array4<      Real> & zmom_new  = S_new[IntVar::zmom].array(mfi);
+
+        const Array4<      Real> & xmom_data  = S_data[IntVar::xmom].array(mfi);
+        const Array4<      Real> & ymom_data  = S_data[IntVar::ymom].array(mfi);
+        const Array4<      Real> & zmom_data  = S_data[IntVar::zmom].array(mfi);
 
         Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
@@ -122,5 +134,35 @@ void erf_slow_rhs_post (int level,
                              cell_data, cell_prim, source_fab, cell_rhs,
                              diffflux_x, diffflux_y, diffflux_z,
                              dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+
+        // This updates just the "slow" conserved variables
+        ParallelFor(bx, num_comp,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+            const int n = start_comp + nn;
+            cell_data(i,j,k,n) = cell_old(i,j,k,n);
+            cell_data(i,j,k,n) += dt * cell_rhs(i,j,k,n);
+        });
+
+        // This updates all the conserved variables (not just the "slow" ones)
+        int   num_comp_all = S_data[IntVar::cons].nComp();
+        ParallelFor(bx, num_comp_all,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            cell_new(i,j,k,n)  = cell_data(i,j,k,n);
+        });
+
+        const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
+        const Box gtby = mfi.nodaltilebox(1).grow(S_old[IntVar::ymom].nGrowVect());
+        const Box gtbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zmom].nGrowVect());
+
+        ParallelFor(gtbx, gtby, gtbz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            xmom_new(i,j,k) = xmom_data(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            ymom_new(i,j,k) = ymom_data(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            zmom_new(i,j,k) = zmom_data(i,j,k);
+        });
     } // mfi
 }

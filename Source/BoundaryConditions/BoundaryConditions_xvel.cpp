@@ -180,7 +180,6 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr, const Box& b
                 int k0 = 0;
 
                 // Get the dz cell size
-                GeometryData const& geomdata = m_geom.data();
                 Real dz = geomdata.CellSize(2);
 
                 // Fill all the Neumann srcs with terrain

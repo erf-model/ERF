@@ -2,9 +2,9 @@
     // *************************************************************
     // The "slow" integrator for MRI and the only integrator for SRI
     // *************************************************************
-    auto slow_rhs_fun_pre = [&](      Vector<MultiFab>& S_rhs,
-                                const Vector<MultiFab>& S_data,
-                                      Vector<MultiFab>& S_scratch,
+    auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
+                                Vector<MultiFab>& S_data,
+                                Vector<MultiFab>& S_scratch,
                                 const Real step_time, const Real stage_time)
     {
         if (verbose) Print() << "Calling slow rhs for fast variables at level " << level << " for advancing from "
@@ -91,24 +91,28 @@
     // *************************************************************
     // The "slow" integrator for MRI and the only integrator for SRI
     // *************************************************************
-    auto slow_rhs_fun_post = [&](      Vector<MultiFab>& S_rhs,
-                                 const Vector<MultiFab>& S_data,
-                                       Vector<MultiFab>& S_scratch,
+    auto slow_rhs_fun_post = [&](Vector<MultiFab>& S_rhs,
+                                 Vector<MultiFab>& S_old,
+                                 Vector<MultiFab>& S_new,
+                                 Vector<MultiFab>& S_data,
+                                 Vector<MultiFab>& S_scratch,
                                  const Real step_time, const Real stage_time)
     {
         if (verbose) Print() << "Calling slow rhs for slow variables at level " << level << " for advancing from "
                              << step_time << " to " << stage_time << std::endl;
 
+        Real slow_dt = stage_time - step_time;
+
         // Moving terrain
         if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
         {
-            erf_slow_rhs_post(level, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_post(level, slow_dt, S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               z_t_rk[level], source, eddyDiffs, diffflux,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd_new[level], detJ_cc_new[level]);
         } else {
-            erf_slow_rhs_post(level, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_post(level, slow_dt, S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               z_t_rk[level], source, eddyDiffs, diffflux,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
