@@ -45,8 +45,7 @@ DiffusionSrcForXMom (int i, int j, int k,
                     + (tau13Next - tau13Prev) * dzInv; // Contribution to x-mom eqn from diffusive flux in z-dir
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-            diffContrib *= InterpolateFromCellOrFace(i, j, k, cons, Rho_comp, u(i,j,k), Coord::x, l_spatial_order) /
-                           solverChoice.rho0_trans;
+            diffContrib *= InterpolateInX(i, j, k, cons, Rho_comp, u(i,j,k),l_spatial_order) / solverChoice.rho0_trans;
         }
     }
     return diffContrib;
@@ -95,8 +94,7 @@ DiffusionSrcForYMom (int i, int j, int k,
                     + (tau23Next - tau23Prev) * dzInv; // Contribution to y-mom eqn from diffusive flux in z-dir
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-            diffContrib *= InterpolateFromCellOrFace(i, j, k, cons, Rho_comp, v(i,j,k), Coord::y, l_spatial_order) /
-                           solverChoice.rho0_trans;
+            diffContrib *= InterpolateInY(i, j, k, cons, Rho_comp, v(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
         }
     }
     return diffContrib;
@@ -145,8 +143,7 @@ DiffusionSrcForZMom (int i, int j, int k,
                     + (tau33Next - tau33Prev) * dzInv; // Contribution to z-mom eqn from diffusive flux in z-dir
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-            diffContrib *= InterpolateFromCellOrFace(i, j, k, cons, Rho_comp, w(i,j,k), Coord::z, l_spatial_order) /
-                           solverChoice.rho0_trans;
+            diffContrib *= InterpolateInZ(i, j, k, cons, Rho_comp, w(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
         }
     }
     return diffContrib;

@@ -141,8 +141,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
 
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-          diffContrib *= InterpolateFromCellOrFace(i, j, k, cons, Rho_comp, u(i,j,k), Coord::x, l_spatial_order) /
-            solverChoice.rho0_trans;
+          diffContrib *= InterpolateInX(i, j, k, cons, Rho_comp, u(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
         }
     }
     return diffContrib;
@@ -275,8 +274,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
 
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-          diffContrib *= InterpolateFromCellOrFace(i, j, k, cons, Rho_comp, v(i,j,k), Coord::y, l_spatial_order) /
-            solverChoice.rho0_trans;
+          diffContrib *= InterpolateInY(i, j, k, cons, Rho_comp, v(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
         }
     }
     return diffContrib;
@@ -453,8 +451,7 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
 
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-          diffContrib *= InterpolateFromCellOrFace(i, j, k, cons, Rho_comp, w(i,j,k), Coord::z, l_spatial_order) /
-            solverChoice.rho0_trans;
+          diffContrib *= InterpolateInZ(i, j, k, cons, Rho_comp, w(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
         }
     }
     return diffContrib;

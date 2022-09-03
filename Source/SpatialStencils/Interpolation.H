@@ -33,59 +33,94 @@ interpolatedVal (amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-InterpolateFromCellOrFace (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty,
-                           int qty_index, amrex::Real upw, Coord coordDir, int spatial_order)
+InterpolateInX (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty,
+                int qty_index, amrex::Real upw, int spatial_order)
 {
-    amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
-    amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
-    amrex::Real scaled_upw = 0.;
 
-    // The value that comes in has not been normalized so we do that here
-    if (upw != 0.)
-      scaled_upw = (upw > 0) ? 1. : -1.;
+    if (spatial_order == 2) {
+        return 0.5 * (qty(i,j,k,qty_index) + qty(i-1,j,k,qty_index));
+    } else {
 
-    if (coordDir ==  Coord::x) {
+        amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
+        amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
+        amrex::Real scaled_upw = 0.;
+	    //
+        // The value that comes in has not been normalized so we do that here
+        if (upw != 0.)
+          scaled_upw = (upw > 0) ? 1. : -1.;
+
         avg1  = (qty(i, j, k, qty_index) + qty(i-1, j, k, qty_index));
         diff1 = (qty(i, j, k, qty_index) - qty(i-1, j, k, qty_index));
-        if (spatial_order > 2)
-        {
-            avg2  = (qty(i+1, j, k, qty_index) + qty(i-2, j, k, qty_index));
-            diff2 = (qty(i+1, j, k, qty_index) - qty(i-2, j, k, qty_index));
-        }
+        avg2  = (qty(i+1, j, k, qty_index) + qty(i-2, j, k, qty_index));
+        diff2 = (qty(i+1, j, k, qty_index) - qty(i-2, j, k, qty_index));
         if (spatial_order > 4)
         {
             avg3  = (qty(i+2, j, k, qty_index) + qty(i-3, j, k, qty_index));
             diff3 = (qty(i+2, j, k, qty_index) - qty(i-3, j, k, qty_index));
         }
-    } else if (coordDir ==  Coord::y) {
+        return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
+    }
+}
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+InterpolateInY (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty,
+                int qty_index, amrex::Real upw, int spatial_order)
+{
+    if (spatial_order == 2) {
+        return 0.5 * (qty(i,j,k,qty_index) + qty(i,j-1,k,qty_index));
+    } else {
+
+        amrex::Real avg1; amrex::Real avg2; amrex::Real avg3 = 0.;
+        amrex::Real diff1; amrex::Real diff2; amrex::Real diff3 = 0.;
+        amrex::Real scaled_upw = 0.;
+
+        // The value that comes in has not been normalized so we do that here
+        if (upw != 0.)
+          scaled_upw = (upw > 0) ? 1. : -1.;
+
         avg1  = (qty(i, j  , k, qty_index) + qty(i, j-1, k, qty_index));
         diff1 = (qty(i, j  , k, qty_index) - qty(i, j-1, k, qty_index));
-        if (spatial_order > 2)
-        {
-            avg2  = (qty(i, j+1, k, qty_index) + qty(i, j-2, k, qty_index));
-            diff2 = (qty(i, j+1, k, qty_index) - qty(i, j-2, k, qty_index));
-        }
+        avg2  = (qty(i, j+1, k, qty_index) + qty(i, j-2, k, qty_index));
+        diff2 = (qty(i, j+1, k, qty_index) - qty(i, j-2, k, qty_index));
         if (spatial_order > 4)
         {
             avg3  = (qty(i, j+2, k, qty_index) + qty(i, j-3, k, qty_index));
             diff3 = (qty(i, j+2, k, qty_index) - qty(i, j-3, k, qty_index));
         }
+        return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
+    }
+}
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+InterpolateInZ (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty,
+                int qty_index, amrex::Real upw, int spatial_order)
+{
+    if (spatial_order == 2) {
+        return 0.5 * (qty(i,j,k,qty_index) + qty(i,j,k-1,qty_index));
     } else {
+
+        amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
+        amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
+        amrex::Real scaled_upw = 0.;
+        // The value that comes in has not been normalized so we do that here
+        if (upw != 0.)
+          scaled_upw = (upw > 0) ? 1. : -1.;
+
         avg1  = (qty(i, j, k  , qty_index) + qty(i, j, k-1, qty_index));
         diff1 = (qty(i, j, k  , qty_index) - qty(i, j, k-1, qty_index));
-        if (spatial_order > 2)
-        {
-            avg2  = (qty(i, j, k+1, qty_index) + qty(i, j, k-2, qty_index));
-            diff2 = (qty(i, j, k+1, qty_index) - qty(i, j, k-2, qty_index));
-        }
+        avg2  = (qty(i, j, k+1, qty_index) + qty(i, j, k-2, qty_index));
+        diff2 = (qty(i, j, k+1, qty_index) - qty(i, j, k-2, qty_index));
         if (spatial_order > 4)
         {
             avg3  = (qty(i, j, k+2, qty_index) + qty(i, j, k-3, qty_index));
             diff3 = (qty(i, j, k+2, qty_index) - qty(i, j, k-3, qty_index));
         }
+        return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
     }
-
-    return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
 }
 
 AMREX_GPU_DEVICE
