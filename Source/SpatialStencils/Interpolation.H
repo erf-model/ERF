@@ -44,7 +44,7 @@ InterpolateInX (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
         amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
         amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
         amrex::Real scaled_upw = 0.;
-	    //
+        //
         // The value that comes in has not been normalized so we do that here
         if (upw != 0.)
           scaled_upw = (upw > 0) ? 1. : -1.;

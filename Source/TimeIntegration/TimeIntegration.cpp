@@ -114,6 +114,7 @@ void ERF::erf_advance(int level,
     cons_to_prim(state_old[IntVar::cons], S_prim, state_old[IntVar::cons].nGrow());
     }
 
+#include "TI_no_substep_fun.H"
 #include "TI_slow_rhs_fun.H"
 #include "TI_fast_rhs_fun.H"
 
@@ -132,7 +133,7 @@ void ERF::erf_advance(int level,
 
     mri_integrator.set_fast_rhs(fast_rhs_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
-    mri_integrator.set_post_no_substep(post_no_substep_fun);
+    mri_integrator.set_no_substep(no_substep_fun);
     }
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);

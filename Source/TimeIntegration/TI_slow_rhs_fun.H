@@ -7,6 +7,7 @@
                                 Vector<MultiFab>& S_scratch,
                                 const Real step_time, const Real stage_time)
     {
+        BL_PROFILE("slow_rhs_fun_pre");
         if (verbose) Print() << "Calling slow rhs for fast variables at level " << level << " for advancing from "
                              << step_time << " to " << stage_time << std::endl;
 

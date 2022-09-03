@@ -17,7 +17,7 @@ private:
     std::function<void(T&, const T&,     const amrex::Real, const amrex::Real     )> rhs;
     std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_pre;
     std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real     )> slow_rhs_post;
-    std::function<void(T&, T&,           T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
+    std::function<void(int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -38,7 +38,7 @@ private:
     * \brief The post_update function is called by the integrator on state data before using it to evaluate a right-hand side.
     */
     std::function<void (T&, amrex::Real, amrex::Real, int, int)> post_update;
-    std::function<void (T&, T&, amrex::Real, amrex::Real)> post_no_substep;
+    std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> no_substep;
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
@@ -93,7 +93,7 @@ public:
         slow_rhs_post = F;
     }
 
-    void set_fast_rhs (std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
+    void set_fast_rhs (std::function<void(int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
     {
         fast_rhs = F;
     }
@@ -113,14 +113,9 @@ public:
         post_update = F;
     }
 
-    void set_post_no_substep (std::function<void (T&, T&, amrex::Real, amrex::Real)> F)
+    void set_no_substep (std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> F)
     {
-        post_no_substep = F;
-    }
-
-    std::function<void (T&, T&, amrex::Real, amrex::Real)> get_post_no_substep ()
-    {
-        return post_no_substep;
+        no_substep = F;
     }
 
     std::function<void(T&, const T&, const amrex::Real, int)> get_rhs ()
@@ -284,6 +279,7 @@ public:
             // step 2 starts with S_stage = S^*  and we always start substepping at the old time
             // step 3 starts with S_stage = S^** and we always start substepping at the old time
 
+#if 0
             // We fill the fast variables with the data from the start of the RK iteration, while
             // we fill the slow variables with the most recent RK stage data
             // Also, S_scratch will hold (rho theta) from the previous fast timestep
@@ -327,40 +323,17 @@ public:
                     if (version == 0) {
                         ParallelFor(gbx, static_cast<int>(Cons::NumVars),
                         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                            if (n >= scomp_fast[IntVar::cons] && n < scomp_fast[IntVar::cons] + ncomp_fast[IntVar::cons]) {
-                                ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                            }
-                            if (n >= scomp_slow[IntVar::cons] && n < scomp_slow[IntVar::cons] + ncomp_slow[IntVar::cons]) {
-                                ssum[IntVar::cons](i,j,k,n) = snew[IntVar::cons](i,j,k,n);
-                            }
+//                          if (n >= scomp_slow[IntVar::cons] && n < scomp_slow[IntVar::cons] + ncomp_slow[IntVar::cons]) {
+//                              ssum[IntVar::cons](i,j,k,n) = snew[IntVar::cons](i,j,k,n);
+//                          }
                             if (n >= scomp_rth[IntVar::cons] && n < scomp_rth[IntVar::cons] + ncomp_rth[IntVar::cons]) {
                                 scrh[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
                             }
                         });
-                    } else {
-                        ParallelFor(gbx, static_cast<int>(Cons::NumVars),
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                            if (n >= scomp_all[IntVar::cons] && n < scomp_all[IntVar::cons] + ncomp_all[IntVar::cons]) {
-                                ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                            }
-                            if (n >= scomp_rth[IntVar::cons] && n < scomp_rth[IntVar::cons] + ncomp_rth[IntVar::cons]) {
-                                scrh[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                            }
-                        });
-                    } // version
-
-                    ParallelFor(gtbx, gtby, gtbz,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        ssum[IntVar::xmom](i,j,k) = sold[IntVar::xmom](i,j,k);
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        ssum[IntVar::ymom](i,j,k) = sold[IntVar::ymom](i,j,k);
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        ssum[IntVar::zmom](i,j,k) = sold[IntVar::zmom](i,j,k);
-                    });
+                    } // with substepping only
                 }
             }
+#endif
 
             // S_scratch also holds the average momenta over the fast iterations --
             //    to be used to update the slow variables -- we will initialize with
@@ -385,12 +358,12 @@ public:
                 // *******************************************************************************
                 for (int ks = 0; ks < nsubsteps; ++ks)
                 {
-                    fast_rhs(*F_slow, S_new, *S_sum, *S_scratch, dtau, inv_fac, time + (ks+1) * dtau);
+                    fast_rhs(ks, *F_slow, S_old, S_new, *S_sum, *S_scratch, dtau, inv_fac, time + (ks+1) * dtau);
 
                 } // ks
 
             } else {
-                post_no_substep(*S_sum, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau);
+                no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau);
             }
 
             // ****************************************************

@@ -56,8 +56,9 @@ void erf_slow_rhs_post(int level, amrex::Real time,
                        std::unique_ptr<amrex::MultiFab>& z0,
                        std::unique_ptr<amrex::MultiFab>& dJ);
 
-void erf_fast_rhs_N (int level, const amrex::Real time,
+void erf_fast_rhs_N (int step, int level, const amrex::Real time,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
+                     const amrex::Vector<amrex::MultiFab >& S_old,
                      amrex::Vector<amrex::MultiFab >& S_stage_data,
                      const amrex::MultiFab& S_stage_prim,
                      amrex::Vector<amrex::MultiFab >& S_data,
@@ -69,12 +70,12 @@ void erf_fast_rhs_N (int level, const amrex::Real time,
                      std::unique_ptr<amrex::MultiFab>& z0,
                      std::unique_ptr<amrex::MultiFab>& dJ,
                      const amrex::MultiFab* r0,
-                     const amrex::MultiFab* p0,
                      const amrex::MultiFab* pi0,
                      const amrex::Real fast_dt, const amrex::Real invfac);
 
-void erf_fast_rhs_T (int level, const amrex::Real time,
+void erf_fast_rhs_T (int step, int level, const amrex::Real time,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
+                     const amrex::Vector<amrex::MultiFab >& S_old,
                      amrex::Vector<amrex::MultiFab >& S_stage_data,
                      const amrex::MultiFab& S_stage_prim,
                      amrex::Vector<amrex::MultiFab >& S_data,
@@ -86,7 +87,6 @@ void erf_fast_rhs_T (int level, const amrex::Real time,
                      std::unique_ptr<amrex::MultiFab>& z0,
                      std::unique_ptr<amrex::MultiFab>& dJ,
                      const amrex::MultiFab* r0,
-                     const amrex::MultiFab* p0,
                      const amrex::MultiFab* pi0,
                      const amrex::Real fast_dt, const amrex::Real invfac);
 #endif

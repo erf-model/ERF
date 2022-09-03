@@ -78,20 +78,20 @@ void erf_slow_rhs_post (int level, Real dt,
 
         const Box& bx = mfi.tilebox();
 
-        const Array4<      Real> & cell_old   = S_old[IntVar::cons].array(mfi);
-        const Array4<      Real> & cell_new   = S_new[IntVar::cons].array(mfi);
-        const Array4<      Real> & cell_data  = S_data[IntVar::cons].array(mfi);
-        const Array4<const Real> & cell_prim  = S_prim.array(mfi);
+        const Array4<      Real> & old_cons   = S_old[IntVar::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & source_fab = source.const_array(mfi);
 
-        const Array4<      Real> & xmom_new  = S_new[IntVar::xmom].array(mfi);
-        const Array4<      Real> & ymom_new  = S_new[IntVar::ymom].array(mfi);
-        const Array4<      Real> & zmom_new  = S_new[IntVar::zmom].array(mfi);
+        const Array4<      Real> & new_cons   = S_new[IntVar::cons].array(mfi);
+        const Array4<      Real> & new_xmom  = S_new[IntVar::xmom].array(mfi);
+        const Array4<      Real> & new_ymom  = S_new[IntVar::ymom].array(mfi);
+        const Array4<      Real> & new_zmom  = S_new[IntVar::zmom].array(mfi);
 
-        const Array4<      Real> & xmom_data  = S_data[IntVar::xmom].array(mfi);
-        const Array4<      Real> & ymom_data  = S_data[IntVar::ymom].array(mfi);
-        const Array4<      Real> & zmom_data  = S_data[IntVar::zmom].array(mfi);
+        const Array4<      Real> & cur_cons  = S_data[IntVar::cons].array(mfi);
+        const Array4<const Real> & cur_prim  = S_prim.array(mfi);
+        const Array4<      Real> & cur_xmom  = S_data[IntVar::xmom].array(mfi);
+        const Array4<      Real> & cur_ymom  = S_data[IntVar::ymom].array(mfi);
+        const Array4<      Real> & cur_zmom  = S_data[IntVar::zmom].array(mfi);
 
         Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
@@ -117,13 +117,26 @@ void erf_slow_rhs_post (int level, Real dt,
         const Array4<const Real>& detJ = l_use_terrain ? dJ->const_array(mfi) : Array4<const Real>{};
 
         // **************************************************************************
+        // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
+        // **************************************************************************
+        int nsv = Cons::NumVars-2;
+        const amrex::GpuArray<int, IntVar::NumVars> scomp_slow = {  2,0,0,0};
+        const amrex::GpuArray<int, IntVar::NumVars> ncomp_slow = {nsv,0,0,0};
+
+        ParallelFor(bx, ncomp_slow[IntVar::cons],
+        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
+            const int n = scomp_slow[IntVar::cons] + nn;
+            cur_cons(i,j,k,n) = new_cons(i,j,k,n);
+        });
+
+
+        // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-
         int start_comp = 2;
         int   num_comp = S_data[IntVar::cons].nComp() - 2;
         AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                               cell_prim, cell_rhs, detJ,
+                               cur_prim, cell_rhs, detJ,
                                dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
 
         // NOTE: No diffusion for continuity, so n starts at 1.
@@ -131,7 +144,7 @@ void erf_slow_rhs_post (int level, Real dt,
         int n_start = amrex::max(start_comp,RhoTheta_comp);
         int n_end   = start_comp + num_comp - 1;
         DiffusionSrcForState(bx, domain, n_start, n_end, u, v, w,
-                             cell_data, cell_prim, source_fab, cell_rhs,
+                             cur_cons, cur_prim, source_fab, cell_rhs,
                              diffflux_x, diffflux_y, diffflux_z,
                              dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
 
@@ -139,15 +152,15 @@ void erf_slow_rhs_post (int level, Real dt,
         ParallelFor(bx, num_comp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
             const int n = start_comp + nn;
-            cell_data(i,j,k,n) = cell_old(i,j,k,n);
-            cell_data(i,j,k,n) += dt * cell_rhs(i,j,k,n);
+            cur_cons(i,j,k,n) = old_cons(i,j,k,n);
+            cur_cons(i,j,k,n) += dt * cell_rhs(i,j,k,n);
         });
 
         // This updates all the conserved variables (not just the "slow" ones)
         int   num_comp_all = S_data[IntVar::cons].nComp();
         ParallelFor(bx, num_comp_all,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
-            cell_new(i,j,k,n)  = cell_data(i,j,k,n);
+            new_cons(i,j,k,n)  = cur_cons(i,j,k,n);
         });
 
         const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
@@ -156,13 +169,13 @@ void erf_slow_rhs_post (int level, Real dt,
 
         ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            xmom_new(i,j,k) = xmom_data(i,j,k);
+            new_xmom(i,j,k) = cur_xmom(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            ymom_new(i,j,k) = ymom_data(i,j,k);
+            new_ymom(i,j,k) = cur_ymom(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            zmom_new(i,j,k) = zmom_data(i,j,k);
+            new_zmom(i,j,k) = cur_zmom(i,j,k);
         });
     } // mfi
 }

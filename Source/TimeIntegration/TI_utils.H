@@ -9,7 +9,9 @@
     // **************************************************************************************
     // Temporary array that we use to store primitive advected quantities for the RHS
     // **************************************************************************************
-    auto cons_to_prim = [&](const MultiFab& cons_state, MultiFab& prim_state, int ng) {
+    auto cons_to_prim = [&](const MultiFab& cons_state, MultiFab& prim_state, int ng)
+    {
+        BL_PROFILE("cons_to_prim()");
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -37,6 +39,7 @@
                          const Real time_mt, const Real delta_t,
                          int ng_cons, int ng_vel, bool fast_only)
     {
+        BL_PROFILE("apply_bcx()");
         amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
         amrex::Array<MultiFab*,3> fmf{&S_data[IntVar::xmom],
                                       &S_data[IntVar::ymom],
