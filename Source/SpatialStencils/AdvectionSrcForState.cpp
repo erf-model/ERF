@@ -73,12 +73,12 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 
         const int prim_index = 0;
         advectionSrc(i,j,k,1) = - invdetJ * (
-          ( xflux_hi * InterpolateFromCellOrFace(i+1,j  , k  , cell_prim, prim_index, rho_u(i+1,j,k), Coord::x, spatial_order) -
-            xflux_lo * InterpolateFromCellOrFace(i  ,j  , k  , cell_prim, prim_index, rho_u(i  ,j,k), Coord::x, spatial_order) ) * dxInv +
-          ( yflux_hi * InterpolateFromCellOrFace(i  ,j+1, k  , cell_prim, prim_index, rho_v(i,j+1,k), Coord::y, spatial_order) -
-            yflux_lo * InterpolateFromCellOrFace(i  ,j  , k  , cell_prim, prim_index, rho_v(i  ,j,k), Coord::y, spatial_order) ) * dyInv +
-          ( zflux_hi * InterpolateFromCellOrFace(i  ,j  , k+1, cell_prim, prim_index, rho_w(i,j,k+1), Coord::z, spatial_order) -
-            zflux_lo * InterpolateFromCellOrFace(i  ,j  , k  , cell_prim, prim_index, rho_w(i  ,j,k), Coord::z, spatial_order) ) * dzInv );
+          ( xflux_hi * InterpolateInX(i+1,j  , k  , cell_prim, prim_index, rho_u(i+1,j,k), spatial_order) -
+            xflux_lo * InterpolateInX(i  ,j  , k  , cell_prim, prim_index, rho_u(i  ,j,k), spatial_order) ) * dxInv +
+          ( yflux_hi * InterpolateInY(i  ,j+1, k  , cell_prim, prim_index, rho_v(i,j+1,k), spatial_order) -
+            yflux_lo * InterpolateInY(i  ,j  , k  , cell_prim, prim_index, rho_v(i  ,j,k), spatial_order) ) * dyInv +
+          ( zflux_hi * InterpolateInZ(i  ,j  , k+1, cell_prim, prim_index, rho_w(i,j,k+1), spatial_order) -
+            zflux_lo * InterpolateInZ(i  ,j  , k  , cell_prim, prim_index, rho_w(i  ,j,k), spatial_order) ) * dzInv );
     });
 }
 
@@ -116,17 +116,17 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
 
               advectionSrc(i,j,k,n) = - invdetJ * (
               ( avg_xmom(i+1,j,k) *
-                  InterpolateFromCellOrFace(i+1,j,k,cell_prim, prim_index, avg_xmom(i+1,j,k), Coord::x, spatial_order) -
+                  InterpolateInX(i+1,j,k,cell_prim, prim_index, avg_xmom(i+1,j,k), spatial_order) -
                 avg_xmom(i  ,j,k) *
-                  InterpolateFromCellOrFace(i  ,j,k,cell_prim, prim_index, avg_xmom(i  ,j,k), Coord::x, spatial_order) ) * dxInv +
+                  InterpolateInX(i  ,j,k,cell_prim, prim_index, avg_xmom(i  ,j,k), spatial_order) ) * dxInv +
               ( avg_ymom(i,j+1,k) *
-                  InterpolateFromCellOrFace(i,j+1,k,cell_prim, prim_index, avg_ymom(i,j+1,k), Coord::y, spatial_order) -
+                  InterpolateInY(i,j+1,k,cell_prim, prim_index, avg_ymom(i,j+1,k), spatial_order) -
                 avg_ymom(i,j  ,k) *
-                  InterpolateFromCellOrFace(i,j  ,k,cell_prim, prim_index, avg_ymom(i  ,j,k), Coord::y, spatial_order) ) * dyInv +
+                  InterpolateInY(i,j  ,k,cell_prim, prim_index, avg_ymom(i  ,j,k), spatial_order) ) * dyInv +
               ( avg_zmom(i,j,k+1) *
-                  InterpolateFromCellOrFace(i,j,k+1,cell_prim, prim_index, avg_zmom(i,j,k+1), Coord::z, spatial_order) -
+                  InterpolateInZ(i,j,k+1,cell_prim, prim_index, avg_zmom(i,j,k+1), spatial_order) -
                 avg_zmom(i,j,k  ) *
-                  InterpolateFromCellOrFace(i,j,k  ,cell_prim, prim_index, avg_zmom(i  ,j,k), Coord::z, spatial_order) ) * dzInv);
+                  InterpolateInZ(i,j,k  ,cell_prim, prim_index, avg_zmom(i  ,j,k), spatial_order) ) * dzInv);
           } else {
               advectionSrc(i,j,k,n) = 0.;
           }
