@@ -390,7 +390,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
         if (containerHasElement(plot_var_names, "pres_hse_x"))
         {
-            MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
             auto dxInv = geom[lev].InvCellSizeArray();
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
@@ -449,7 +448,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         if (containerHasElement(plot_var_names, "pres_hse_y"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
-            MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();

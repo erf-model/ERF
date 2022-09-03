@@ -16,7 +16,7 @@ using namespace amrex;
 
 void erf_slow_rhs_pre (int level,
                    Vector<MultiFab>& S_rhs,
-                   const Vector<MultiFab>& S_data,
+                   Vector<MultiFab>& S_data,
                    const MultiFab& S_prim,
                          Vector<MultiFab>& S_scratch,
                    const MultiFab& xvel,

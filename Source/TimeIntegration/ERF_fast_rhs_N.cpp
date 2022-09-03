@@ -230,19 +230,10 @@ void erf_fast_rhs_N (int level, const Real time,
         Elixir rCeli =     RHS_fab.elixir();
 
         auto const& coeffA_a  = coeff_A_fab.array();
-        auto const& coeffA_ca = coeff_A_fab.const_array();
-
         auto const& coeffB_a  = coeff_B_fab.array();
-        auto const& coeffB_ca = coeff_B_fab.const_array();
-
         auto const& coeffC_a  = coeff_C_fab.array();
-        auto const& coeffC_ca = coeff_C_fab.const_array();
-
         auto const& RHS_a  = RHS_fab.array();
-        auto const& RHS_ca = RHS_fab.const_array();
-
         auto const& gam_a  = gam_fab.array();
-        auto const& gam_ca = gam_fab.const_array();
 
     {
         BL_PROFILE("fast_rhs_eos");
