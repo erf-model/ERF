@@ -18,34 +18,44 @@ AdvectionSrcForXMom_N (int i, int j, int k,
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     amrex::Real rho_u_avg, rho_v_avg, rho_w_avg;
 
+    amrex::Real xflux_hi; amrex::Real xflux_lo;
+    amrex::Real yflux_hi; amrex::Real yflux_lo;
+    amrex::Real zflux_hi; amrex::Real zflux_lo;
 
-    rho_u_avg = 0.5 * (rho_u(i+1, j, k) + rho_u(i, j, k));
-    amrex::Real centFluxXXNext = rho_u_avg *
-                          InterpolateInX(i+1, j, k, u, 0, rho_u_avg, spatial_order);
+    if (spatial_order == 2) {
 
-    rho_u_avg = 0.5 * (rho_u(i-1, j, k) + rho_u(i, j, k));
-    amrex::Real centFluxXXPrev = rho_u_avg *
-                          InterpolateInX(i  , j, k, u, 0, rho_u_avg, spatial_order);
+        xflux_hi = 0.25 * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (u(i+1,j,k) + u(i,j,k));
+        xflux_lo = 0.25 * (rho_u(i, j  , k) + rho_u(i-1, j  , k)) * (u(i-1,j,k) + u(i,j,k));
 
-    rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
-    amrex::Real edgeFluxXYNext = rho_v_avg *
-                          InterpolateInY(i, j+1, k, u, 0, rho_v_avg, spatial_order);
+        yflux_hi = 0.25 * (rho_v(i, j+1, k) + rho_v(i-1, j+1, k)) * (u(i,j+1,k) + u(i,j,k));
+        yflux_lo = 0.25 * (rho_v(i, j  , k) + rho_v(i-1, j  , k)) * (u(i,j-1,k) + u(i,j,k));
 
-    rho_v_avg = 0.5 * (rho_v(i, j  , k) + rho_v(i-1, j  , k));
-    amrex::Real edgeFluxXYPrev = rho_v_avg *
-                          InterpolateInY(i, j  , k, u, 0, rho_v_avg, spatial_order);
+        zflux_hi = 0.25 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k));
+        zflux_lo = 0.25 * (rho_w(i, j, k  ) + rho_w(i-1, j, k  )) * (u(i,j,k-1) + u(i,j,k));
 
-    rho_w_avg = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
-    amrex::Real edgeFluxXZNext = rho_w_avg *
-                          InterpolateInZ(i, j, k+1, u, 0, rho_w_avg, spatial_order);
+    } else {
+        rho_u_avg = 0.5 * (rho_u(i+1, j, k) + rho_u(i, j, k));
+        xflux_hi = rho_u_avg * InterpolateInX(i+1, j, k, u, 0, rho_u_avg, spatial_order);
 
-    rho_w_avg = 0.5 * (rho_w(i, j, k) + rho_w(i-1, j, k));
-    amrex::Real edgeFluxXZPrev = rho_w_avg *
-                              InterpolateInZ(i, j, k  , u, 0, rho_w_avg, spatial_order);
+        rho_u_avg = 0.5 * (rho_u(i-1, j, k) + rho_u(i, j, k));
+        xflux_lo = rho_u_avg * InterpolateInX(i  , j, k, u, 0, rho_u_avg, spatial_order);
 
-    advectionSrc = (centFluxXXNext - centFluxXXPrev) * dxInv
-                 + (edgeFluxXYNext - edgeFluxXYPrev) * dyInv
-                 + (edgeFluxXZNext - edgeFluxXZPrev) * dzInv;
+        rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
+        yflux_hi = rho_v_avg * InterpolateInY(i, j+1, k, u, 0, rho_v_avg, spatial_order);
+
+        rho_v_avg = 0.5 * (rho_v(i, j  , k) + rho_v(i-1, j  , k));
+        yflux_lo = rho_v_avg * InterpolateInY(i, j  , k, u, 0, rho_v_avg, spatial_order);
+
+        rho_w_avg = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
+        zflux_hi = rho_w_avg * InterpolateInZ(i, j, k+1, u, 0, rho_w_avg, spatial_order);
+
+        rho_w_avg = 0.5 * (rho_w(i, j, k) + rho_w(i-1, j, k));
+        zflux_lo = rho_w_avg * InterpolateInZ(i, j, k  , u, 0, rho_w_avg, spatial_order);
+    }
+
+    advectionSrc = (xflux_hi - xflux_lo) * dxInv
+                 + (yflux_hi - yflux_lo) * dyInv
+                 + (zflux_hi - zflux_lo) * dzInv;
 
     return advectionSrc;
 }
@@ -65,33 +75,45 @@ AdvectionSrcForYMom_N (int i, int j, int k,
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     amrex::Real rho_u_avg, rho_v_avg, rho_w_avg;
 
-    rho_u_avg = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
-    amrex::Real edgeFluxYXNext = rho_u_avg *
-                          InterpolateInX(i+1, j, k, v, 0, rho_u_avg, spatial_order);
+    amrex::Real xflux_hi; amrex::Real xflux_lo;
+    amrex::Real yflux_hi; amrex::Real yflux_lo;
+    amrex::Real zflux_hi; amrex::Real zflux_lo;
 
-    rho_u_avg = 0.5*(rho_u(i  , j, k) + rho_u(i  , j-1, k));
-    amrex::Real edgeFluxYXPrev = rho_u_avg *
-                          InterpolateInX(i  , j, k, v, 0, rho_u_avg, spatial_order);
+    if (spatial_order == 2) {
 
-    rho_v_avg = 0.5*(rho_v(i, j, k) + rho_v(i, j+1, k));
-    amrex::Real centFluxYYNext = rho_v_avg *
-                          InterpolateInY(i, j+1, k, v, 0, rho_v_avg, spatial_order);
+        xflux_hi = 0.25 * (rho_u(i+1, j, k) + rho_u(i+1, j-1, k)) * (v(i+1,j,k) + v(i,j,k));
+        xflux_lo = 0.25 * (rho_u(i  , j, k) + rho_u(i  , j-1, k)) * (v(i-1,j,k) + v(i,j,k));
 
-    rho_v_avg = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k));
-    amrex::Real centFluxYYPrev = rho_v_avg *
-                          InterpolateInY(i, j  , k, v, 0, rho_v_avg, spatial_order);
+        yflux_hi = 0.25 * (rho_v(i, j, k  ) + rho_v(i  , j+1, k)) * (v(i,j+1,k) + v(i,j,k));
+        yflux_lo = 0.25 * (rho_v(i, j, k  ) + rho_v(i  , j-1, k)) * (v(i,j-1,k) + v(i,j,k));
 
-    rho_w_avg = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
-    amrex::Real edgeFluxYZNext = rho_w_avg *
-                          InterpolateInZ(i, j, k+1, v, 0, rho_w_avg, spatial_order);
+        zflux_hi = 0.25 * (rho_w(i, j, k+1) + rho_w(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k));
+        zflux_lo = 0.25 * (rho_w(i, j, k  ) + rho_w(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k));
 
-    rho_w_avg = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k));
-    amrex::Real edgeFluxYZPrev = rho_w_avg *
-                          InterpolateInZ(i, j, k  , v, 0, rho_w_avg, spatial_order);
+    } else {
 
-    advectionSrc = (edgeFluxYXNext - edgeFluxYXPrev) * dxInv
-                 + (centFluxYYNext - centFluxYYPrev) * dyInv
-                 + (edgeFluxYZNext - edgeFluxYZPrev) * dzInv;
+        rho_u_avg = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
+        xflux_hi = rho_u_avg * InterpolateInX(i+1, j, k, v, 0, rho_u_avg, spatial_order);
+
+        rho_u_avg = 0.5*(rho_u(i  , j, k) + rho_u(i  , j-1, k));
+        xflux_lo = rho_u_avg * InterpolateInX(i  , j, k, v, 0, rho_u_avg, spatial_order);
+
+        rho_v_avg = 0.5*(rho_v(i, j, k) + rho_v(i, j+1, k));
+        yflux_hi = rho_v_avg * InterpolateInY(i, j+1, k, v, 0, rho_v_avg, spatial_order);
+
+        rho_v_avg = 0.5*(rho_v(i, j, k) + rho_v(i, j-1, k));
+        yflux_lo = rho_v_avg * InterpolateInY(i, j  , k, v, 0, rho_v_avg, spatial_order);
+
+        rho_w_avg = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
+        zflux_hi = rho_w_avg * InterpolateInZ(i, j, k+1, v, 0, rho_w_avg, spatial_order);
+
+        rho_w_avg = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k));
+        zflux_lo = rho_w_avg * InterpolateInZ(i, j, k  , v, 0, rho_w_avg, spatial_order);
+    }
+
+    advectionSrc = (xflux_hi - xflux_lo) * dxInv
+                 + (yflux_hi - yflux_lo) * dyInv
+                 + (zflux_hi - zflux_lo) * dzInv;
 
     return advectionSrc;
 }
@@ -111,49 +133,63 @@ AdvectionSrcForZMom_N (int i, int j, int k,
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     amrex::Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
 
-    rho_u_avg = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
-    amrex::Real edgeFluxZXNext = rho_u_avg *
-                          InterpolateInX(i+1, j, k, w, 0, rho_u_avg, spatial_order);
+    amrex::Real xflux_hi; amrex::Real xflux_lo;
+    amrex::Real yflux_hi; amrex::Real yflux_lo;
+    amrex::Real zflux_hi; amrex::Real zflux_lo;
 
-    rho_u_avg = 0.5*(rho_u(i  , j, k) + rho_u(i  , j, k-1));
-    amrex::Real edgeFluxZXPrev = rho_u_avg *
-                          InterpolateInX(i  , j, k, w, 0, rho_u_avg, spatial_order);
+    if (spatial_order == 2) {
 
-    rho_v_avg = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
-    amrex::Real edgeFluxZYNext = rho_v_avg *
-                          InterpolateInY(i, j+1, k, w, 0, rho_v_avg, spatial_order);
+        xflux_hi = 0.25*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * (w(i+1,j,k) + w(i,j,k));
+        xflux_lo = 0.25*(rho_u(i  , j, k) + rho_u(i  , j, k-1)) * (w(i-1,j,k) + w(i,j,k));
 
-    rho_v_avg = 0.5*(rho_v(i, j  , k) + rho_v(i, j  , k-1));
-    amrex::Real edgeFluxZYPrev = rho_v_avg *
-                          InterpolateInY(i, j  , k, w, 0, rho_v_avg, spatial_order);
+        yflux_hi = 0.25*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * (w(i,j+1,k) + w(i,j,k));
+        yflux_lo = 0.25*(rho_v(i, j  , k) + rho_v(i, j  , k-1)) * (w(i,j-1,k) + w(i,j,k));
 
-    amrex::Real centFluxZZPrev;
-    amrex::Real centFluxZZNext;
+        zflux_lo = (k == 0) ? rho_w(i,j,k) * w(i,j,k) :
+            0.25 * (rho_w(i,j,k) + rho_w(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
-    int local_spatial_order = spatial_order;
-    if (k <= 1 || k >= domhi_z) {
-            local_spatial_order = std::min(local_spatial_order,2);
-    } else if (k == 2 || k == domhi_z-1) {
-        local_spatial_order = std::min(local_spatial_order,4);
-    }
+        zflux_hi = (k == domhi_z+1) ? rho_w(i,j,k) * w(i,j,k) :
+            0.25 * (rho_w(i,j,k) + rho_w(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1));
 
-    if (k == 0) {
-        centFluxZZPrev = rho_w(i,j,k) * w(i,j,k);
     } else {
-        rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
-        centFluxZZPrev = rho_w_avg * InterpolateInZ(i, j, k  , w, 0, rho_w_avg, local_spatial_order);
+
+        rho_u_avg = 0.5*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1));
+        xflux_hi = rho_u_avg * InterpolateInX(i+1, j, k, w, 0, rho_u_avg, spatial_order);
+
+        rho_u_avg = 0.5*(rho_u(i  , j, k) + rho_u(i  , j, k-1));
+        xflux_lo = rho_u_avg * InterpolateInX(i  , j, k, w, 0, rho_u_avg, spatial_order);
+
+        rho_v_avg = 0.5*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1));
+        yflux_hi = rho_v_avg * InterpolateInY(i, j+1, k, w, 0, rho_v_avg, spatial_order);
+
+        rho_v_avg = 0.5*(rho_v(i, j  , k) + rho_v(i, j  , k-1));
+        yflux_lo = rho_v_avg * InterpolateInY(i, j  , k, w, 0, rho_v_avg, spatial_order);
+
+        int local_spatial_order = spatial_order;
+        if (k <= 1 || k >= domhi_z) {
+                local_spatial_order = std::min(local_spatial_order,2);
+        } else if (k == 2 || k == domhi_z-1) {
+            local_spatial_order = std::min(local_spatial_order,4);
+        }
+
+        if (k == 0) {
+            zflux_lo = rho_w(i,j,k) * w(i,j,k);
+        } else {
+            rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
+            zflux_lo = rho_w_avg * InterpolateInZ(i, j, k  , w, 0, rho_w_avg, local_spatial_order);
+        }
+
+        if (k == domhi_z+1) {
+            zflux_hi =  rho_w(i,j,k) * w(i,j,k);
+        } else {
+            rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
+            zflux_hi = rho_w_avg * InterpolateInZ(i, j, k+1, w, 0, rho_w_avg, local_spatial_order);
+        }
     }
 
-    if (k == domhi_z+1) {
-        centFluxZZNext =  rho_w(i,j,k) * w(i,j,k);
-    } else {
-        rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
-        centFluxZZNext = rho_w_avg * InterpolateInZ(i, j, k+1, w, 0, rho_w_avg, local_spatial_order);
-    }
-
-    advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv
-                 + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
-                 + (centFluxZZNext - centFluxZZPrev) * dzInv;
+    advectionSrc = (xflux_hi - xflux_lo) * dxInv
+                 + (yflux_hi - yflux_lo) * dyInv
+                 + (zflux_hi - zflux_lo) * dzInv;
 
     return advectionSrc;
 }

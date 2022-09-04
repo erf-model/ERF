@@ -19,6 +19,11 @@ DiffusionSrcForMom_N (int level, const Box& bx, const Box& valid_bx, const Box& 
 {
     BL_PROFILE_VAR("DiffusionSrcForMom_N()",DiffusionSrcForMom_N);
 
+    if ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+         (solverChoice.les_type        !=       LESType::None) ||
+     (solverChoice.pbl_type        !=       PBLType::None) )
+    {
+
     const int l_use_terrain   = solverChoice.use_terrain;
 
     AMREX_ALWAYS_ASSERT(!l_use_terrain);
@@ -74,4 +79,5 @@ DiffusionSrcForMom_N (int level, const Box& bx, const Box& valid_bx, const Box& 
                                                   dxInv, K_turb, solverChoice,
                                                   domain, bc_ptr, er_arr);
     });
+    }
 }
