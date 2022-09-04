@@ -8,7 +8,8 @@ CEXE_sources += DiffusionSrcForMom_T.cpp
 CEXE_sources += DiffusionSrcForState.cpp
 CEXE_sources += PBLModels.cpp
 
-CEXE_headers += AdvectionSrcForMom.H
+CEXE_headers += AdvectionSrcForMom_N.H
+CEXE_headers += AdvectionSrcForMom_T.H
 CEXE_headers += DiffusionSrcForMom_N.H
 CEXE_headers += DiffusionSrcForMom_T.H
 CEXE_headers += Interpolation.H
