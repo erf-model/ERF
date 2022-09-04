@@ -1,8 +1,6 @@
-#include <IndexDefines.H>
 #include <SpatialStencils.H>
-#include <AdvectionSrcForMom.H>
-#include <TerrainMetrics.H>
-#include <Interpolation.H>
+#include <AdvectionSrcForMom_N.H>
+#include <AdvectionSrcForMom_T.H>
 
 using namespace amrex;
 
@@ -46,26 +44,40 @@ AdvectionSrcForMom (int level, const Box& bx, const Box& valid_bx,
     // We don't compute advective src for w at k = 0
     bxz.setSmall(2,1);
 
-    amrex::ParallelFor(
-        bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    if (use_terrain) {
+        amrex::ParallelFor(bxx, bxy, bxz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            rho_u_rhs(i, j, k) = -AdvectionSrcForXMom(i, j, k, rho_u, rho_v, rho_w, z_t, u, z_nd, detJ,
-                                                      cellSizeInv, spatial_order, use_terrain);
-        }
-    );
-    amrex::ParallelFor(
-        bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_T(i, j, k, rho_u, rho_v, rho_w, z_t, u, z_nd, detJ,
+                                                        cellSizeInv, spatial_order);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            rho_v_rhs(i, j, k) = -AdvectionSrcForYMom(i, j, k, rho_u, rho_v, rho_w, z_t, v, z_nd, detJ,
-                                                      cellSizeInv, spatial_order, use_terrain);
-        }
-    );
-    amrex::ParallelFor(
-        bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_T(i, j, k, rho_u, rho_v, rho_w, z_t, v, z_nd, detJ,
+                                                        cellSizeInv, spatial_order);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            rho_w_rhs(i, j, k) = -AdvectionSrcForZMom(i, j, k, rho_u, rho_v, rho_w, z_t, w, z_nd, detJ,
-                                                      cellSizeInv, spatial_order, use_terrain, domhi_z);
-        }
-    );
+            rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_T(i, j, k, rho_u, rho_v, rho_w, z_t, w, z_nd, detJ,
+                                                        cellSizeInv, spatial_order, domhi_z);
+        });
+    } else {
+        amrex::ParallelFor(bxx, bxy, bxz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_N(i, j, k, rho_u, rho_v, rho_w, z_t, u, z_nd, detJ,
+                                                        cellSizeInv, spatial_order);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_N(i, j, k, rho_u, rho_v, rho_w, z_t, v, z_nd, detJ,
+                                                        cellSizeInv, spatial_order);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, z_t, w, z_nd, detJ,
+                                                        cellSizeInv, spatial_order, domhi_z);
+        });
+    }
 }
 

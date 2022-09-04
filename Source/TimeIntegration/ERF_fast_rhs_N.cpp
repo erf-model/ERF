@@ -141,7 +141,7 @@ void erf_fast_rhs_N (int step, int level, const Real time,
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
-        const Array4<const Real> & prim            = S_stage_prim.const_array(mfi);
+        const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
