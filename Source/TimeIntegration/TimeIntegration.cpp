@@ -7,6 +7,7 @@
 #include <TerrainMetrics.H>
 #include <TimeIntegration.H>
 #include <ERF.H>
+#include <EOS.H>
 
 using namespace amrex;
 
@@ -35,10 +36,11 @@ void ERF::erf_advance(int level,
     const BoxArray& ba            = cons_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();
 
-#include "TI_utils.H"
-
     MultiFab    S_prim(ba, dm, NUM_PRIM,          cons_old.nGrowVect());
+    MultiFab  pi_stage(ba, dm,        1,          cons_old.nGrowVect());
     MultiFab eddyDiffs(ba, dm, EddyDiff::NumDiffs,1);
+
+#include "TI_utils.H"
 
     amrex::Vector<amrex::MultiFab> state_old;
     amrex::Vector<amrex::MultiFab> state_new;
@@ -111,7 +113,7 @@ void ERF::erf_advance(int level,
     bool fast_only = false;
     apply_bcs(state_old, old_time, time_mt, dt_advance,
               state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only);
-    cons_to_prim(state_old[IntVar::cons], S_prim, state_old[IntVar::cons].nGrow());
+    cons_to_prim(state_old[IntVar::cons], state_old[IntVar::cons].nGrow());
     }
 
 #include "TI_no_substep_fun.H"
@@ -129,6 +131,7 @@ void ERF::erf_advance(int level,
     // any state data (e.g. at RK stages or at the end of a timestep)
     mri_integrator.set_slow_rhs_pre(slow_rhs_fun_pre);
     mri_integrator.set_slow_rhs_post(slow_rhs_fun_post);
+    mri_integrator.set_pre_update (pre_update_fun);
     mri_integrator.set_post_update(post_update_fun);
 
     mri_integrator.set_fast_rhs(fast_rhs_fun);
