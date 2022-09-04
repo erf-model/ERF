@@ -16,7 +16,7 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
                                       const Array4<Real const>& z_nd_arr,
                                       const GpuArray<Real,AMREX_SPACEDIM> dx,
                                       const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                      Real time, Real time_mt, Real delta_t,
+                                      Real /*time*/, Real time_mt, Real delta_t,
                                       int bccomp, int terrain_type)
 {
     const auto& dom_lo = amrex::lbound(domain);
