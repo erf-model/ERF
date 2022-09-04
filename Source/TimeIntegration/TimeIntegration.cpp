@@ -34,11 +34,13 @@ void ERF::erf_advance(int level,
     int nvars = cons_old.nComp();
 
     const BoxArray& ba            = cons_old.boxArray();
+    const BoxArray& ba_z          = zvel_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();
 
-    MultiFab    S_prim(ba, dm, NUM_PRIM,          cons_old.nGrowVect());
-    MultiFab  pi_stage(ba, dm,        1,          cons_old.nGrowVect());
-    MultiFab eddyDiffs(ba, dm, EddyDiff::NumDiffs,1);
+    MultiFab    S_prim  (ba  , dm, NUM_PRIM,          cons_old.nGrowVect());
+    MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
+    MultiFab fast_coeffs(ba_z, dm,       3,          0);
+    MultiFab eddyDiffs  (ba  , dm, EddyDiff::NumDiffs,1);
 
 #include "TI_utils.H"
 

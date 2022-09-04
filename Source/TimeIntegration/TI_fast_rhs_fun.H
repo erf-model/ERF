@@ -62,14 +62,21 @@
             } // mfi
         }
 
-        if (solverChoice.use_terrain)
-            erf_fast_rhs_T(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage,
+        // If this is the first substep we make the coefficients since they are based only on stage data
+        if (fast_step == 0) {
+            make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
+                             z_phys_nd[level], detJ_cc[level], r0, pi0, dtau);
+        }
+
+        if (solverChoice.use_terrain) {
+            erf_fast_rhs_T(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                            S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
                            z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
-        else
-            erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage,
+        } else {
+            erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                            S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
                            z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
+        }
 
         // Moving terrain
         Real time_mt = new_time - 0.5*dtau;
