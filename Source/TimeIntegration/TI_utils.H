@@ -96,6 +96,13 @@
             ncomp_cons = S_data[IntVar::cons].nComp();
         }
 
+        bool allow_most_bcs = true;
+        if (fast_only) {
+            allow_most_bcs = false;
+        } else {
+            allow_most_bcs = true;
+        }
+
         // We must have at least one extra ghost cell of density to convert from velocity to momentum
         //    on the valid region
         int ng_cons_to_use = std::max(ng_cons, ng_vel+1);
@@ -103,7 +110,8 @@
         cons_only = false;
         FillIntermediatePatch(level, time_for_fp, time_mt, delta_t,
                               {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
-                              ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons);
+                              ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons,
+                              allow_most_bcs);
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density

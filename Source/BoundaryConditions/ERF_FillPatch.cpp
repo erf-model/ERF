@@ -200,7 +200,8 @@ ERF::FillPatch (int lev, Real time, Real time_mt, Real delta_t, Vector<MultiFab>
 void
 ERF::FillIntermediatePatch (int lev, Real time, Real time_mt, Real delta_t,
                             Vector<std::reference_wrapper<MultiFab> > mfs,
-                            int ng_cons, int ng_vel, bool cons_only, int scomp_cons, int ncomp_cons)
+                            int ng_cons, int ng_vel, bool cons_only, int scomp_cons, int ncomp_cons,
+                            bool allow_most_bcs)
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
     int bccomp;
@@ -321,7 +322,7 @@ ERF::FillIntermediatePatch (int lev, Real time, Real time_mt, Real delta_t,
     // It is important that we apply the MOST bcs after we have imposed all the others
     //    so that we have enough information in the ghost cells to calculate the viscosity
     //
-    if (!(cons_only && ncomp_cons == 1) && m_most)
+    if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
     {
         MultiFab eddyDiffs(mfs[Vars::cons].get().boxArray(),
                            mfs[Vars::cons].get().DistributionMap(),

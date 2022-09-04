@@ -306,7 +306,8 @@ private:
     void FillIntermediatePatch (int lev, amrex::Real time,
                                 amrex::Real time_mt, amrex::Real delta_t,
                                 amrex::Vector<std::reference_wrapper<amrex::MultiFab> > mfs,
-                                int ng_cons, int ng_vel, bool cons_only, int scomp_cons, int ncomp_cons);
+                                int ng_cons, int ng_vel, bool cons_only, int scomp_cons, int ncomp_cons,
+                                bool allow_most_bcs = true);
 
     // fill an entire multifab by interpolating from the coarser level
     // this comes into play when a new level of refinement appears
