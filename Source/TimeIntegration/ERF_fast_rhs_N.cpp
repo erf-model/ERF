@@ -464,6 +464,13 @@ void erf_fast_rhs_N (int step, int level, const Real time,
               new_drho_w(i,j,k) -= gam_a(i,j,k+1)*new_drho_w(i,j,k+1);
           }
         });
+
+        {
+        BL_PROFILE("fast_rhs_update_zmom");
+        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+        cur_zmom(i,j,k) = stage_zmom(i,j,k) + new_drho_w(i,j,k);
+    });
+    } // end profile
 #else
         auto const lo = amrex::lbound(bx);
         auto const hi = amrex::ubound(bx);
@@ -497,26 +504,23 @@ void erf_fast_rhs_N (int step, int level, const Real time,
                 }
             }
         }
+        int k = hi.z+1;
+            for (int j = lo.y; j <= hi.y; ++j) {
+                AMREX_PRAGMA_SIMD
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    cur_zmom(i,j,k) = stage_zmom(i,j,k) + new_drho_w(i,j,k);
+                }
+            }
         for (int k = hi.z; k >= lo.z; --k) {
             for (int j = lo.y; j <= hi.y; ++j) {
                 AMREX_PRAGMA_SIMD
                 for (int i = lo.x; i <= hi.x; ++i) {
                     new_drho_w(i,j,k) -= gam_a(i,j,k+1)*new_drho_w(i,j,k+1);
+                    cur_zmom(i,j,k) = stage_zmom(i,j,k) + new_drho_w(i,j,k);
                 }
             }
         }
 #endif
-        } // end profile
-
-        {
-        BL_PROFILE("fast_rhs_new_drhow");
-        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            cur_zmom(i,j,k) = stage_zmom(i,j,k) + new_drho_w(i,j,k);
-
-            // Sum implicit and explicit W for AdvSrc
-            new_drho_w(i,j,k) *= beta_2;
-            new_drho_w(i,j,k) += beta_1 * old_drho_w(i,j,k);
-        });
         } // end profile
 
         // **************************************************************************
@@ -534,8 +538,8 @@ void erf_fast_rhs_N (int step, int level, const Real time,
             Real xflux_hi = new_drho_u(i+1,j,k);
             Real yflux_lo = new_drho_v(i,j  ,k);
             Real yflux_hi = new_drho_v(i,j+1,k);
-            Real zflux_lo = new_drho_w(i,j,k  );
-            Real zflux_hi = new_drho_w(i,j,k+1);
+            Real zflux_lo = beta_2 * new_drho_w(i,j,k  ) + beta_1 * old_drho_w(i,j,k  );
+            Real zflux_hi = beta_2 * new_drho_w(i,j,k+1) + beta_1 * old_drho_w(i,j,k+1);
 
             avg_xmom(i  ,j,k) += facinv*xflux_lo;
             if (i == vbx_hi.x)
