@@ -149,8 +149,6 @@ void erf_fast_rhs_N (int step, int level, const Real time,
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
 
-        const Array4<Real>& fast_rhs_cons  = S_scratch[IntVar::cons].array(mfi);
-
         const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
@@ -192,10 +190,10 @@ void erf_fast_rhs_N (int step, int level, const Real time,
         //    so that we don't have to fill ghost cells of the new MultiFabs
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
-        const Box gbx   = mfi.growntilebox(1);
-        const Box gtbx  = mfi.nodaltilebox(0).grow(1);
-        const Box gtby  = mfi.nodaltilebox(1).grow(1);
-        const Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
+        Box gbx   = mfi.growntilebox(1);
+        Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
+        Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
+        Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
         if (step == 0) {
             amrex::ParallelFor(gbx,
@@ -332,6 +330,11 @@ void erf_fast_rhs_N (int step, int level, const Real time,
         bx_shrunk_in_k.setSmall(2,klo+1);
         bx_shrunk_in_k.setBig(2,khi-1);
 
+        // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
+        // We set grav_gpu[2] to be the vector component which is negative
+        // We define halfg to match the notes (which is why we take the absolute value)
+        Real halfg = std::abs(0.5 * grav_gpu[2]);
+
         {
         BL_PROFILE("fast_loop_on_shrunk");
         //Note we don't act on the bottom or top boundaries of the domain
@@ -342,11 +345,6 @@ void erf_fast_rhs_N (int step, int level, const Real time,
             rhobar_hi =  r0_arr(i,j,k  );
              pibar_lo = pi0_arr(i,j,k-1);
              pibar_hi = pi0_arr(i,j,k  );
-
-             // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
-             // We set grav_gpu[2] to be the vector component which is negative
-             // We define halfg to match the notes (which is why we take the absolute value)
-             Real halfg = std::abs(0.5 * grav_gpu[2]);
 
              Real pi_lo = pi_ca(i,j,k-1,0);
              Real pi_hi = pi_ca(i,j,k  ,0);
@@ -361,65 +359,65 @@ void erf_fast_rhs_N (int step, int level, const Real time,
                           ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
 
 #ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
-                coeff_P /= (1.0 + q);
-                coeff_Q /= (1.0 + q);
+            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
+                            +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
+            coeff_P /= (1.0 + q);
+            coeff_Q /= (1.0 + q);
 #endif
 
-                Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-                Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+            Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+            Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
+            Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
-                // LHS for tri-diagonal system
-                Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-                coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
-                coeffB_a(i,j,k) = 1.0 + D * (coeff_Q - coeff_P) * theta_t_mid;
+            // LHS for tri-diagonal system
+            Real D = dtau * dtau * beta_2 * beta_2 * dzi;
+            coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
+            coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
+            coeffB_a(i,j,k) = 1.0 + D * (coeff_Q - coeff_P) * theta_t_mid;
 
-                amrex::Real R_tmp = 0.;
+            amrex::Real R_tmp = 0.;
 
-                // line 2 last two terms (order dtau)
-                R_tmp += coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
-                       - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
+            // line 2 last two terms (order dtau)
+            R_tmp += coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
+                   - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
 
-                // line 3 residuals (order dtau^2) 1.0 <-> beta_2
-                R_tmp += -dtau * beta_2 * halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
-                                                    slow_rhs_cons(i,j,k-1,Rho_comp) )
-                       +  dtau * beta_2 * ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
-                                            coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
+            // line 3 residuals (order dtau^2) 1.0 <-> beta_2
+            R_tmp += -dtau * beta_2 * halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
+                                                slow_rhs_cons(i,j,k-1,Rho_comp) )
+                   +  dtau * beta_2 * ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
+                                        coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
 
-                // line 4 (order dtau^2)
-                Real Omega_hi = old_drho_w(i,j,k+1);
-                Real Omega_lo = old_drho_w(i,j,k  );
-                R_tmp += ( dtau * beta_2 * halfg ) *
-                         ( beta_1 * dzi * (Omega_hi - Omega_lo)    +
+            // line 4 (order dtau^2)
+            Real Omega_hi = old_drho_w(i,j,k+1);
+            Real Omega_lo = old_drho_w(i,j,k  );
+            R_tmp += ( dtau * beta_2 * halfg ) *
+                     ( beta_1 * dzi * (Omega_hi - Omega_lo)    +
                                     dxi * (new_drho_u(i+1,j,k)-
-                                           new_drho_u(i  ,j,k)) +
-                                    dyi * (new_drho_v(i,j+1,k)-
-                                           new_drho_v(i,j  ,k)) );
+                                       new_drho_u(i  ,j,k)) +
+                                dyi * (new_drho_v(i,j+1,k)-
+                                       new_drho_v(i,j  ,k)) );
 
-                // line 6 (reuse Omega & metrics) (order dtau^2)
-                Real Theta_x_hi = 0.5 * ( prim(i+1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
-                Real Theta_x_lo = 0.5 * ( prim(i-1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
-                Real Theta_y_hi = 0.5 * ( prim(i  ,j+1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
-                Real Theta_y_lo = 0.5 * ( prim(i  ,j-1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
-                R_tmp += -( dtau * beta_2 * coeff_P ) *
-                          ( beta_1 * dzi * (Omega_hi*theta_t_hi - Omega_lo*theta_t_mid) +
-                                     dxi * (new_drho_u(i+1,j,k)*Theta_x_hi-
-                                            new_drho_u(i  ,j,k)*Theta_x_lo) +
-                                     dyi * (new_drho_v(i,j+1,k)*Theta_y_hi-
-                                            new_drho_v(i,j  ,k)*Theta_y_lo) );
+            // line 6 (reuse Omega & metrics) (order dtau^2)
+            Real Theta_x_hi = 0.5 * ( prim(i+1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+            Real Theta_x_lo = 0.5 * ( prim(i-1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+            Real Theta_y_hi = 0.5 * ( prim(i  ,j+1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+            Real Theta_y_lo = 0.5 * ( prim(i  ,j-1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+            R_tmp += -( dtau * beta_2 * coeff_P ) *
+                      ( beta_1 * dzi * (Omega_hi*theta_t_hi - Omega_lo*theta_t_mid) +
+                                 dxi * (new_drho_u(i+1,j,k)*Theta_x_hi-
+                                        new_drho_u(i  ,j,k)*Theta_x_lo) +
+                                 dyi * (new_drho_v(i,j+1,k)*Theta_y_hi-
+                                        new_drho_v(i,j  ,k)*Theta_y_lo) );
 
-                // line 5 (order dtau^2)
-                Omega_hi = old_drho_w(i,j,k  );
-                Omega_lo = old_drho_w(i,j,k-1);
-                R_tmp += ( dtau * beta_2 * halfg ) *
-                         ( beta_1 * dzi * (Omega_hi - Omega_lo) +
-                                    dxi * (new_drho_u(i+1,j,k-1)-
-                                           new_drho_u(i  ,j,k-1)) +
-                                    dyi * (new_drho_v(i,j+1,k-1)-
-                                           new_drho_v(i,j  ,k-1)) );
+            // line 5 (order dtau^2)
+            Omega_hi = old_drho_w(i,j,k  );
+            Omega_lo = old_drho_w(i,j,k-1);
+            R_tmp += ( dtau * beta_2 * halfg ) *
+                     ( beta_1 * dzi * (Omega_hi - Omega_lo) +
+                                dxi * (new_drho_u(i+1,j,k-1)-
+                                       new_drho_u(i  ,j,k-1)) +
+                                dyi * (new_drho_v(i,j+1,k-1)-
+                                       new_drho_v(i,j  ,k-1)) );
 
                 // line 7 (reuse Omega & metrics) (order dtau^2)
                 Theta_x_hi = 0.5 * ( prim(i+1,j  ,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
@@ -445,6 +443,7 @@ void erf_fast_rhs_N (int step, int level, const Real time,
 
         {
         BL_PROFILE("fast_rhs_b2d_loop");
+#ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
           // w_0 = 0
           coeffA_a(i,j,0) =  0.0;
@@ -472,6 +471,48 @@ void erf_fast_rhs_N (int step, int level, const Real time,
               new_drho_w(i,j,k) -= gam_a(i,j,k+1)*new_drho_w(i,j,k+1);
           }
         });
+#else
+        auto const lo = amrex::lbound(bx);
+        auto const hi = amrex::ubound(bx);
+        for (int j = lo.y; j <= hi.y; ++j) {
+            AMREX_PRAGMA_SIMD
+            for (int i = lo.x; i <= hi.x; ++i) {
+                coeffA_a(i,j,0) =  0.0;
+                coeffB_a(i,j,0) =  1.0;
+                coeffC_a(i,j,0) =  0.0;
+                RHS_a   (i,j,0) =  0.0;
+                new_drho_w(i,j,0) = RHS_a(i,j,0) / coeffB_a(i,j,0);
+            }
+        }
+        for (int j = lo.y; j <= hi.y; ++j) {
+            AMREX_PRAGMA_SIMD
+            for (int i = lo.x; i <= hi.x; ++i) {
+                coeffA_a(i,j,hi.z+1) =  0.0;
+                coeffB_a(i,j,hi.z+1) =  1.0;
+                coeffC_a(i,j,hi.z+1) =  0.0;
+                RHS_a   (i,j,hi.z+1) =  0.0;
+            }
+        }
+        for (int k = lo.z+1; k <= hi.z+1; ++k) {
+            for (int j = lo.y; j <= hi.y; ++j) {
+                AMREX_PRAGMA_SIMD
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    gam_a(i,j,k) = coeffC_a(i,j,k-1) / coeffB_a(i,j,k-1);
+                    Real bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k);
+                    coeffB_a(i,j,k) = bet;
+                    new_drho_w(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*new_drho_w(i,j,k-1)) / bet;
+                }
+            }
+        }
+        for (int k = hi.z; k >= lo.z; --k) {
+            for (int j = lo.y; j <= hi.y; ++j) {
+                AMREX_PRAGMA_SIMD
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    new_drho_w(i,j,k) -= gam_a(i,j,k+1)*new_drho_w(i,j,k+1);
+                }
+            }
+        }
+#endif
         } // end profile
 
         {

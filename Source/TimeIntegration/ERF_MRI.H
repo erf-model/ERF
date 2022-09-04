@@ -219,20 +219,6 @@ public:
         // How many timesteps taken by the fast integrator
         int nsubsteps;
 
-        int nav = Cons::NumVars;
-        const amrex::GpuArray<int, IntVar::NumVars> scomp_all = {0,0,0,0};
-        const amrex::GpuArray<int, IntVar::NumVars> ncomp_all = {nav,1,1,1};
-
-        const amrex::GpuArray<int, IntVar::NumVars> scomp_fast = {0,0,0,0};
-        const amrex::GpuArray<int, IntVar::NumVars> ncomp_fast = {2,1,1,1};
-
-        int nsv = Cons::NumVars-2;
-        const amrex::GpuArray<int, IntVar::NumVars> scomp_slow = {  2,0,0,0};
-        const amrex::GpuArray<int, IntVar::NumVars> ncomp_slow = {nsv,0,0,0};
-
-        const amrex::GpuArray<int, IntVar::NumVars> scomp_rth  = {1,0,0,0};
-        const amrex::GpuArray<int, IntVar::NumVars> ncomp_rth  = {1,0,0,0};
-
         // We copy (rho theta) and the velocities here -- the velocities
         //    will be over-written in slow_rhs on all valid faces but we
         //    use this copy to fill in the ghost locations which will
