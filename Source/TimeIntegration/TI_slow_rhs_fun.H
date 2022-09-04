@@ -75,6 +75,14 @@
     };
 
     // *************************************************************
+    // This called after before RK stage
+    // *************************************************************
+    auto pre_update_fun = [&](Vector<MultiFab>& S_data, int ng_cons)
+    {
+        cons_to_prim(S_data[IntVar::cons], ng_cons);
+    };
+
+    // *************************************************************
     // This called after every RK stage -- from MRI or SRI
     // *************************************************************
     auto post_update_fun = [&](Vector<MultiFab>& S_data,
@@ -86,7 +94,6 @@
 
         bool fast_only = false;
         apply_bcs(S_data, time_for_fp, time_mt, delta_t, ng_cons, ng_vel, fast_only);
-        cons_to_prim(S_data[IntVar::cons], S_prim, ng_cons);
     };
 
     // *************************************************************

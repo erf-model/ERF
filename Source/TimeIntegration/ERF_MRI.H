@@ -35,10 +35,12 @@ private:
     int no_substepping;
 
    /**
-    * \brief The post_update function is called by the integrator on state data before using it to evaluate a right-hand side.
+    * \brief The  pre_update function is called by the integrator on stage data before using it to evaluate a right-hand side.
+    * \brief The post_update function is called by the integrator on stage data at the end of the stage
     */
+    std::function<void (T&, int)> pre_update;
     std::function<void (T&, amrex::Real, amrex::Real, int, int)> post_update;
-    std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> no_substep;
+    std::function<void (T&, T&, T&, amrex::Real, amrex::Real)>   no_substep;
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
@@ -106,6 +108,11 @@ public:
     int get_slow_fast_timestep_ratio ()
     {
         return slow_fast_timestep_ratio;
+    }
+
+    void set_pre_update (std::function<void (T&, int)> F)
+    {
+        pre_update = F;
     }
 
     void set_post_update (std::function<void (T&, amrex::Real, amrex::Real, int, int)> F)
@@ -211,8 +218,6 @@ public:
             }
         }
 
-        post_update(S_new, time, time_step, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
-
         // Timestep taken by the fast integrator
         amrex::Real dtau;
 
@@ -265,61 +270,7 @@ public:
             // step 2 starts with S_stage = S^*  and we always start substepping at the old time
             // step 3 starts with S_stage = S^** and we always start substepping at the old time
 
-#if 0
-            // We fill the fast variables with the data from the start of the RK iteration, while
-            // we fill the slow variables with the most recent RK stage data
-            // Also, S_scratch will hold (rho theta) from the previous fast timestep
-        #ifdef _OPENMP
-        #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-        #endif
-            {
-                for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box gbx = mfi.tilebox().grow(S_old[IntVar::cons].nGrowVect());
-                    const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
-                    const Box gtby = mfi.nodaltilebox(1).grow(S_old[IntVar::ymom].nGrowVect());
-                    const Box gtbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zmom].nGrowVect());
-
-                    Vector<Array4<Real> > sold_h(n_data);
-                    Vector<Array4<Real> > snew_h(n_data);
-                    Vector<Array4<Real> > ssum_h(n_data);
-                    Vector<Array4<Real> > scrh_h(n_data);
-
-                    for (int i = 0; i < n_data; ++i) {
-                        ssum_h[i] = (*S_sum)[i].array(mfi);
-                        sold_h[i] = S_old[i].array(mfi);
-                        snew_h[i] = S_new[i].array(mfi);
-                        scrh_h[i] = (*S_scratch)[i].array(mfi);
-                    }
-
-                    Gpu::AsyncVector<Array4<Real> > sold_d(n_data);
-                    Gpu::AsyncVector<Array4<Real> > snew_d(n_data);
-                    Gpu::AsyncVector<Array4<Real> > ssum_d(n_data);
-                    Gpu::AsyncVector<Array4<Real> > scrh_d(n_data);
-
-                    Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
-                    Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
-                    Gpu::copy(Gpu::hostToDevice, ssum_h.begin(), ssum_h.end(), ssum_d.begin());
-                    Gpu::copy(Gpu::hostToDevice, scrh_h.begin(), scrh_h.end(), scrh_d.begin());
-
-                    Array4<Real>* sold = sold_d.dataPtr();
-                    Array4<Real>* snew = snew_d.dataPtr();
-                    Array4<Real>* ssum = ssum_d.dataPtr();
-                    Array4<Real>* scrh = scrh_d.dataPtr();
-
-                    if (version == 0) {
-                        ParallelFor(gbx, static_cast<int>(Cons::NumVars),
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-//                          if (n >= scomp_slow[IntVar::cons] && n < scomp_slow[IntVar::cons] + ncomp_slow[IntVar::cons]) {
-//                              ssum[IntVar::cons](i,j,k,n) = snew[IntVar::cons](i,j,k,n);
-//                          }
-                            if (n >= scomp_rth[IntVar::cons] && n < scomp_rth[IntVar::cons] + ncomp_rth[IntVar::cons]) {
-                                scrh[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                            }
-                        });
-                    } // with substepping only
-                }
-            }
-#endif
+            pre_update(S_new, S_new[IntVar::cons].nGrow());
 
             // S_scratch also holds the average momenta over the fast iterations --
             //    to be used to update the slow variables -- we will initialize with

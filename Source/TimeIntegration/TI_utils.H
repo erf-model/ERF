@@ -1,15 +1,7 @@
-// #include <AMReX_BC_TYPES.H>
-// #include <SpatialStencils.H>
-// #include <prob_common.H>
-// #include <AMReX_TimeIntegrator.H>
-// #include <TerrainMetrics.H>
-// #include <TimeIntegration.H>
-// #include <ERF.H>
-
     // **************************************************************************************
     // Temporary array that we use to store primitive advected quantities for the RHS
     // **************************************************************************************
-    auto cons_to_prim = [&](const MultiFab& cons_state, MultiFab& prim_state, int ng)
+    auto cons_to_prim = [&](const MultiFab& cons_state, int ng)
     {
         BL_PROFILE("cons_to_prim()");
 #ifdef _OPENMP
@@ -18,12 +10,17 @@
       for (MFIter mfi(cons_state,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
           const Box& gbx = mfi.growntilebox(ng);
-          const Array4<const Real>& cons_arr = cons_state.array(mfi);
-          const Array4<Real>& prim_arr = prim_state.array(mfi);
+          const Array4<const Real>& cons_arr     = cons_state.array(mfi);
+          const Array4<      Real>& prim_arr     = S_prim.array(mfi);
+          const Array4<      Real>& pi_stage_arr = pi_stage.array(mfi);
 
           amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            for (int n = 0; n < NUM_PRIM; ++n) {
-              prim_arr(i,j,k,PrimTheta_comp + n) = cons_arr(i,j,k,RhoTheta_comp + n) / cons_arr(i,j,k,Rho_comp);
+            Real rho       = cons_arr(i,j,k,Rho_comp);
+            Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
+            prim_arr(i,j,k,PrimTheta_comp) = rho_theta / rho;
+            pi_stage_arr(i,j,k) = getExnergivenRTh(rho_theta);
+            for (int n = 1; n < NUM_PRIM; ++n) {
+              prim_arr(i,j,k,PrimTheta_comp + n) = cons_arr(i,j,k,RhoTheta_comp + n) / rho;
             }
           });
       } // mfi
@@ -31,7 +28,7 @@
 
     // ***************************************************************************************
     // This routine is called before the first step of the time integration, *and* in the case
-    //  of a multi-stage method like RK3, this is called from "post_update_fun" which is called
+    //  of a multi-stage method like RK3, this is called from "pre_update_fun" which is called
     //  before every subsequent stage.  Since we advance the variables in conservative form,
     //  we must convert momentum to velocity before imposing the bcs.
     // ***************************************************************************************

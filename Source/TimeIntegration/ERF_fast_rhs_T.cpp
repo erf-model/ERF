@@ -18,6 +18,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                      const Vector<MultiFab>& S_old,
                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
                      const MultiFab& S_stage_prim,
+                     const MultiFab& pi_stage,                       // Exner function evaluated at last stage
                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
                      Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
                      const amrex::Geometry geom,
@@ -183,8 +184,9 @@ void erf_fast_rhs_T (int step, int level, const Real time,
 
         const Array4<const Real>& zp_t_arr = l_move_terrain ? z_t_pert->const_array(mfi) : Array4<const Real>{};
 
-        const Array4<const Real>& r0_arr  = r0->const_array(mfi);
-        const Array4<const Real>& pi0_arr = pi0->const_array(mfi);
+        const Array4<const Real>& r0_ca       = r0->const_array(mfi);
+        const Array4<const Real>& pi0_ca      = pi0->const_array(mfi);
+        const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         const Array4<Real>& extrap_arr = extrap.array(mfi);
 
@@ -235,13 +237,6 @@ void erf_fast_rhs_T (int step, int level, const Real time,
               (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
         });
 
-        Box tmpbox = bx;
-        tmpbox.grow(Direction::x,1).grow(Direction::y,1);
-        pifab.resize(tmpbox,1);
-        auto const& pi_a = pifab.array();
-        auto const& pi_ca = pifab.const_array();
-        Elixir pieli = pifab.elixir();
-
         coeff_A_fab.resize(tbz,1);
         coeff_B_fab.resize(tbz,1);
         coeff_C_fab.resize(tbz,1);
@@ -263,14 +258,6 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         auto const& gam_a     = gam_fab.array();
         auto const& soln_a    = soln_fab.array();
 
-        {
-        BL_PROFILE("fast_rhs_eos_t");
-            amrex::ParallelFor(tmpbox, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                pi_a(i,j,k,0) = getExnergivenRTh(stage_cons(i  ,j,k,RhoTheta_comp));
-            });
-        } // end profile
-
         if (l_use_terrain)
         {
         // *********************************************************************
@@ -280,8 +267,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = pi_ca(i-1,j,k,0);
-                Real pi_r = pi_ca(i  ,j,k,0);
+                Real pi_l = pi_stage_ca(i-1,j,k,0);
+                Real pi_r = pi_stage_ca(i  ,j,k,0);
                 Real pi_c =  0.5 * (pi_l + pi_r);
                 Real drho_theta_hi = extrap_arr(i  ,j,k);
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
@@ -327,8 +314,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = pi_ca(i,j-1,k,0);
-                Real pi_r = pi_ca(i,j  ,k,0);
+                Real pi_l = pi_stage_ca(i,j-1,k,0);
+                Real pi_r = pi_stage_ca(i,j  ,k,0);
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
                 Real drho_theta_hi = extrap_arr(i,j,k);
@@ -376,8 +363,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = pi_ca(i-1,j,k,0);
-                Real pi_r = pi_ca(i  ,j,k,0);
+                Real pi_l = pi_stage_ca(i-1,j,k,0);
+                Real pi_r = pi_stage_ca(i  ,j,k,0);
                 Real pi_c =  0.5 * (pi_l + pi_r);
                 Real drho_theta_hi = extrap_arr(i  ,j,k);
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
@@ -401,8 +388,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = pi_ca(i,j-1,k,0);
-                Real pi_r = pi_ca(i,j  ,k,0);
+                Real pi_l = pi_stage_ca(i,j-1,k,0);
+                Real pi_r = pi_stage_ca(i,j  ,k,0);
                 Real pi_c =  0.5 * (pi_l + pi_r);
 
                 Real drho_theta_hi = extrap_arr(i,j,k);
@@ -446,13 +433,13 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-            rhobar_lo =  r0_arr(i,j,k-1);
-            rhobar_hi =  r0_arr(i,j,k  );
-             pibar_lo = pi0_arr(i,j,k-1);
-             pibar_hi = pi0_arr(i,j,k  );
+            rhobar_lo =  r0_ca(i,j,k-1);
+            rhobar_hi =  r0_ca(i,j,k  );
+             pibar_lo = pi0_ca(i,j,k-1);
+             pibar_hi = pi0_ca(i,j,k  );
 
-            Real pi_lo = pi_ca(i,j,k-1,0);
-            Real pi_hi = pi_ca(i,j,k  ,0);
+            Real pi_lo = pi_stage_ca(i,j,k-1,0);
+            Real pi_hi = pi_stage_ca(i,j,k  ,0);
             Real pi_c =  0.5 * (pi_lo + pi_hi);
 
             Real detJ_on_kface      = 1.0;

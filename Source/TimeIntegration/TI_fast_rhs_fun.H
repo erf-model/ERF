@@ -63,11 +63,11 @@
         }
 
         if (solverChoice.use_terrain)
-            erf_fast_rhs_T(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim,
+            erf_fast_rhs_T(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage,
                            S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
                            z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
         else
-            erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim,
+            erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage,
                            S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
                            z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
 
