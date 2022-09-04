@@ -75,7 +75,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
             for (MFIter mfi(mf); mfi.isValid(); ++mfi)
             {
                 const Array4<Real>& dest_arr = mf.array(mfi);
-                const Box& bx = mfi.fabbox();
+                Box bx = mfi.validbox(); bx.grow(nghost);
 
                 Array4<const Real> z_nd_arr;
                 Array4<const Real> velx_arr;

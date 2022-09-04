@@ -44,7 +44,6 @@ void erf_slow_rhs_post (int level, Real dt,
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
     const Box& domain = geom.Domain();
-    const int domhi_z = domain.bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 

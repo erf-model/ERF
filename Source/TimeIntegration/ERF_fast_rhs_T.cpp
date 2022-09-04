@@ -94,6 +94,14 @@ void erf_fast_rhs_T (int step, int level, const Real time,
     {
 
     FArrayBox pifab;
+    FArrayBox srcfab;
+
+    FArrayBox coeff_A_fab;
+    FArrayBox coeff_B_fab;
+    FArrayBox coeff_C_fab;
+    FArrayBox RHS_fab;
+    FArrayBox soln_fab;
+    FArrayBox gam_fab;
 
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -105,7 +113,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-    if (level > 0) {
+        if (level > 0) {
             int vlo_x = valid_bx.smallEnd(0);
             int vhi_x = valid_bx.bigEnd(0);
             int vlo_y = valid_bx.smallEnd(1);
@@ -144,31 +152,31 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
 
-        const Array4<      Real>& fast_rhs_cons  = S_scratch[IntVar::cons].array(mfi);
-
         const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVar::zmom].const_array(mfi);
 
-        const Array4<      Real>& new_drho_u = New_rho_u.array(mfi);
-        const Array4<      Real>& new_drho_v = New_rho_v.array(mfi);
-        const Array4<      Real>& new_drho_w = New_rho_w.array(mfi);
+        const Array4<Real>& new_drho_u = New_rho_u.array(mfi);
+        const Array4<Real>& new_drho_v = New_rho_v.array(mfi);
+        const Array4<Real>& new_drho_w = New_rho_w.array(mfi);
 
-        const Array4<      Real>& cur_cons = S_data[IntVar::cons].array(mfi);
-        const Array4<      Real>& cur_xmom = S_data[IntVar::xmom].array(mfi);
-        const Array4<      Real>& cur_ymom = S_data[IntVar::ymom].array(mfi);
-        const Array4<      Real>& cur_zmom = S_data[IntVar::zmom].array(mfi);
-        const Array4<const Real>& old_data = S_scratch[IntVar::cons].const_array(mfi);
+        const Array4<Real>& cur_cons = S_data[IntVar::cons].array(mfi);
+        const Array4<Real>& cur_xmom = S_data[IntVar::xmom].array(mfi);
+        const Array4<Real>& cur_ymom = S_data[IntVar::ymom].array(mfi);
+        const Array4<Real>& cur_zmom = S_data[IntVar::zmom].array(mfi);
 
+        const Array4<Real>& scratch_rtheta = S_scratch[IntVar::cons].array(mfi);
+
+        const Array4<const Real>& old_cons = S_old[IntVar::cons].const_array(mfi);
         const Array4<const Real>& old_xmom = S_old[IntVar::xmom].const_array(mfi);
         const Array4<const Real>& old_ymom = S_old[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& old_zmom = S_old[IntVar::zmom].const_array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
-        const Array4<      Real>& avg_xmom = S_scratch[IntVar::xmom].array(mfi);
-        const Array4<      Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
-        const Array4<      Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
+        const Array4<Real>& avg_xmom = S_scratch[IntVar::xmom].array(mfi);
+        const Array4<Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
+        const Array4<Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
         const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& detJ   = l_use_terrain ?   detJ_cc->const_array(mfi) : Array4<const Real>{};
@@ -185,24 +193,23 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         //    so that we don't have to fill ghost cells of the new MultiFabs
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
-        const Box gbx   = mfi.growntilebox(1);
-        const Box gtbx  = mfi.nodaltilebox(0).grow(1);
-        const Box gtby  = mfi.nodaltilebox(1).grow(1);
-        const Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
-
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
-            old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
-            extrap_arr(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
-              (cur_cons(i,j  ,k,RhoTheta_comp) - old_data(i,j  ,k,RhoTheta_comp)));
-        });
+        Box gbx   = mfi.growntilebox(1);
+        Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
+        Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
+        Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
         if (step == 0) {
+            amrex::ParallelFor(gbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                cur_cons(i,j,k,Rho_comp)            = old_cons(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp)       = old_cons(i,j,k,RhoTheta_comp);
+                scratch_rtheta(i,j,k,RhoTheta_comp) = old_cons(i,j,k,RhoTheta_comp);
+            });
+
             amrex::ParallelFor(gtbx, gtby, gtbz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 old_drho_u(i,j,k) = old_xmom(i,j,k) - stage_xmom(i,j,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            }, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 old_drho_v(i,j,k) = old_ymom(i,j,k) - stage_ymom(i,j,k);
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -221,6 +228,13 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             });
         }
 
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
+            old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
+            extrap_arr(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
+              (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
+        });
+
         Box tmpbox = bx;
         tmpbox.grow(Direction::x,1).grow(Direction::y,1);
         pifab.resize(tmpbox,1);
@@ -228,11 +242,27 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         auto const& pi_ca = pifab.const_array();
         Elixir pieli = pifab.elixir();
 
-        // *********************************************************************
-        // Define updates in the RHS of {x, y, z}-momentum equations
-        // *********************************************************************
-    if (l_use_terrain)
-    {
+        coeff_A_fab.resize(tbz,1);
+        coeff_B_fab.resize(tbz,1);
+        coeff_C_fab.resize(tbz,1);
+        soln_fab.resize(tbz,1);
+        gam_fab.resize(tbz,1);
+        RHS_fab.resize(tbz,1);
+
+        Elixir cAeli = coeff_A_fab.elixir();
+        Elixir cBeli = coeff_B_fab.elixir();
+        Elixir cCeli = coeff_C_fab.elixir();
+        Elixir gCeli =     gam_fab.elixir();
+        Elixir rCeli =     RHS_fab.elixir();
+        Elixir sCeli =    soln_fab.elixir();
+
+        auto const& coeffA_a  = coeff_A_fab.array();
+        auto const& coeffB_a  = coeff_B_fab.array();
+        auto const& coeffC_a  = coeff_C_fab.array();
+        auto const& RHS_a     = RHS_fab.array();
+        auto const& gam_a     = gam_fab.array();
+        auto const& soln_a    = soln_fab.array();
+
         {
         BL_PROFILE("fast_rhs_eos_t");
             amrex::ParallelFor(tmpbox, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -241,8 +271,13 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             });
         } // end profile
 
-            amrex::ParallelFor(tbx, tby,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        if (l_use_terrain)
+        {
+        // *********************************************************************
+        // Define updates in the RHS of {x, y, z}-momentum equations
+        // *********************************************************************
+        amrex::ParallelFor(tbx, tby,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real pi_l = pi_ca(i-1,j,k,0);
@@ -394,249 +429,302 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         // *********************************************************************
         // *********************************************************************
 
-        int klen = bx.bigEnd(2) - bx.smallEnd(2) + 1;
-        if (klen > 256) amrex::Abort("Tridiagonal solver is not big enough!");
-
-        amrex::Box b2d = tbz; // Copy constructor
+        Box bx_shrunk_in_k = bx;
         int klo = tbz.smallEnd(2);
         int khi = tbz.bigEnd(2);
-        b2d.setRange(2,0);
-        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+        bx_shrunk_in_k.setSmall(2,klo+1);
+        bx_shrunk_in_k.setBig(2,khi-1);
 
-            Array1D<Real,0,256> coeff_A;
-            Array1D<Real,0,256> coeff_B;
-            Array1D<Real,0,256> coeff_C;
-            Array1D<Real,0,256> RHS;
-            Array1D<Real,0,256> soln;
-            Array1D<Real,0,256> gam;
+        // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
+        // We set grav_gpu[2] to be the vector component which is negative
+        // We define halfg to match the notes (which is why we take the absolute value)
+        Real halfg = std::abs(0.5 * grav_gpu[2]);
 
-            //Note we don't act on the bottom or top boundaries of the domain
-            for (int k = klo+1; k < khi; ++k)
-            {
-                Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-                rhobar_lo = (k == 0) ?  r0_arr(i,j,k) : r0_arr(i,j,k-1);
-                rhobar_hi = r0_arr(i,j,k  );
-                 pibar_lo = pi0_arr(i,j,k-1);
-                 pibar_hi = pi0_arr(i,j,k  );
+        {
+        BL_PROFILE("fast_loop_on_shrunk_t");
+        //Note we don't act on the bottom or top boundaries of the domain
+        ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
+            rhobar_lo =  r0_arr(i,j,k-1);
+            rhobar_hi =  r0_arr(i,j,k  );
+             pibar_lo = pi0_arr(i,j,k-1);
+             pibar_hi = pi0_arr(i,j,k  );
 
-                // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
-                // We set grav_gpu[2] to be the vector component which is negative
-                // We define halfg to match the notes (which is why we take the absolute value)
-                Real halfg = std::abs(0.5 * grav_gpu[2]);
+            Real pi_lo = pi_ca(i,j,k-1,0);
+            Real pi_hi = pi_ca(i,j,k  ,0);
+            Real pi_c =  0.5 * (pi_lo + pi_hi);
 
-                Real pi_lo = pi_ca(i,j,k-1,0);
-                Real pi_hi = pi_ca(i,j,k  ,0);
-                Real pi_c =  0.5 * (pi_lo + pi_hi);
+            Real detJ_on_kface      = 1.0;
+            Real h_zeta_on_kface    = 1.0;
+            Real h_zeta_cc_xface_hi = 1.0;
+            Real h_zeta_cc_xface_lo = 1.0;
+            Real h_zeta_cc_yface_hi = 1.0;
+            Real h_zeta_cc_yface_lo = 1.0;
 
-                Real detJ_on_kface      = 1.0;
-                Real h_zeta_on_kface    = 1.0;
-                Real h_zeta_cc_xface_hi = 1.0;
-                Real h_zeta_cc_xface_lo = 1.0;
-                Real h_zeta_cc_yface_hi = 1.0;
-                Real h_zeta_cc_yface_lo = 1.0;
+            if (l_use_terrain) {
+                h_zeta_on_kface = 0.125 * dzi * (
+                    z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
+                   -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
 
-                if (l_use_terrain) {
-                    h_zeta_on_kface = 0.125 * dzi * (
-                        z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
-                       -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
+                detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+            }
 
-                    detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
-                }
+            Real coeff_P = -Gamma * R_d * pi_c * dzi / h_zeta_on_kface
+                         +  halfg * R_d * rhobar_hi * pi_hi  /
+                         (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
 
-                Real coeff_P = -Gamma * R_d * pi_c * dzi / h_zeta_on_kface
-                             +  halfg * R_d * rhobar_hi * pi_hi  /
-                             (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
-
-                Real coeff_Q = Gamma * R_d * pi_c * dzi / h_zeta_on_kface
-                             + halfg * R_d * rhobar_lo * pi_lo  /
-                             ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+            Real coeff_Q = Gamma * R_d * pi_c * dzi / h_zeta_on_kface
+                         + halfg * R_d * rhobar_lo * pi_lo  /
+                         ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
 
 #ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
-                coeff_P /= (1.0 + q);
-                coeff_Q /= (1.0 + q);
+            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
+                            +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
+            coeff_P /= (1.0 + q);
+            coeff_Q /= (1.0 + q);
 #endif
 
-                Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
-                Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
+            Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+            Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
+            Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
-                // LHS for tri-diagonal system
-                Real D = dtau * dtau * beta_2 * beta_2 * dzi / detJ_on_kface;
-                coeff_A(k) = D * ( halfg - coeff_Q * theta_t_lo );
-                coeff_C(k) = D * (-halfg + coeff_P * theta_t_hi );
-                coeff_B(k) = 1.0 + D * (coeff_Q - coeff_P) * theta_t_mid;
+            // LHS for tri-diagonal system
+            Real D = dtau * dtau * beta_2 * beta_2 * dzi / detJ_on_kface;
+            coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
+            coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
+            coeffB_a(i,j,k) = 1.0 + D * (coeff_Q - coeff_P) * theta_t_mid;
 
-                amrex::Real R_tmp = 0.;
+            amrex::Real R_tmp = 0.;
 
-                // line 2 last two terms (order dtau)
-                R_tmp += coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
-                       - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
+            // line 2 last two terms (order dtau)
+            R_tmp += coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
+                   - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
 
-                // line 3 residuals (order dtau^2) 1.0 <-> beta_2
-                R_tmp += -dtau * beta_2 * halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
-                                                    slow_rhs_cons(i,j,k-1,Rho_comp) )
-                       +  dtau * beta_2 * ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
-                                            coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
+            // line 3 residuals (order dtau^2) 1.0 <-> beta_2
+            R_tmp += -dtau * beta_2 * halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
+                                                slow_rhs_cons(i,j,k-1,Rho_comp) )
+                   +  dtau * beta_2 * ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
+                                        coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
 
-                // line 4 (order dtau^2)
-                Real Omega_hi;
-                Real Omega_lo;
-                if (l_use_terrain) {
-                    Omega_hi = OmegaFromW(i,j,k+1,old_drho_w(i,j,k+1),old_drho_u,old_drho_v,z_nd,dxInv);
-                    Omega_lo = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
-                    h_zeta_cc_xface_hi = 0.5 * dzi *
-                      (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
-                        -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
+            // line 4 (order dtau^2)
+            Real Omega_hi;
+            Real Omega_lo;
+            if (l_use_terrain) {
+                Omega_hi = OmegaFromW(i,j,k+1,old_drho_w(i,j,k+1),old_drho_u,old_drho_v,z_nd,dxInv);
+                Omega_lo = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
+                h_zeta_cc_xface_hi = 0.5 * dzi *
+                  (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
+                    -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
 
-                    h_zeta_cc_xface_lo = 0.5 * dzi *
-                      (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
-                        -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
+                h_zeta_cc_xface_lo = 0.5 * dzi *
+                  (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
+                    -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
 
-                    h_zeta_cc_yface_hi = 0.5 * dzi *
-                      (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                        -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
+                h_zeta_cc_yface_hi = 0.5 * dzi *
+                  (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
+                    -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
 
-                    h_zeta_cc_yface_lo = 0.5 * dzi *
-                      (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
-                        -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
-                } else {
-                    Omega_hi = old_drho_w(i,j,k+1);
-                    Omega_lo = old_drho_w(i,j,k  );
-                }
-                R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
-                         ( beta_1 * dzi * (Omega_hi - Omega_lo)    +
-                                    dxi * (new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi  -
-                                           new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo) +
-                                    dyi * (new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi  -
-                                           new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo) );
+                h_zeta_cc_yface_lo = 0.5 * dzi *
+                  (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
+                    -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
+            } else {
+                Omega_hi = old_drho_w(i,j,k+1);
+                Omega_lo = old_drho_w(i,j,k  );
+            }
+            R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
+                     ( beta_1 * dzi * (Omega_hi - Omega_lo)    +
+                                dxi * (new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi  -
+                                       new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo) +
+                                dyi * (new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi  -
+                                       new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo) );
 
-                // line 6 (reuse Omega & metrics) (order dtau^2)
-                Real Theta_x_hi = 0.5 * ( prim(i+1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
-                Real Theta_x_lo = 0.5 * ( prim(i-1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
-                Real Theta_y_hi = 0.5 * ( prim(i  ,j+1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
-                Real Theta_y_lo = 0.5 * ( prim(i  ,j-1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
-                R_tmp += -( dtau * beta_2 * coeff_P / detJ_on_kface ) *
-                          ( beta_1 * dzi * (Omega_hi*theta_t_hi - Omega_lo*theta_t_mid) +
-                                     dxi * (new_drho_u(i+1,j,k)*Theta_x_hi*h_zeta_cc_xface_hi  -
-                                            new_drho_u(i  ,j,k)*Theta_x_lo*h_zeta_cc_xface_lo) +
-                                     dyi * (new_drho_v(i,j+1,k)*Theta_y_hi*h_zeta_cc_yface_hi  -
-                                            new_drho_v(i,j  ,k)*Theta_y_lo*h_zeta_cc_yface_lo) );
+            // line 6 (reuse Omega & metrics) (order dtau^2)
+            Real Theta_x_hi = 0.5 * ( prim(i+1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+            Real Theta_x_lo = 0.5 * ( prim(i-1,j  ,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+            Real Theta_y_hi = 0.5 * ( prim(i  ,j+1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+            Real Theta_y_lo = 0.5 * ( prim(i  ,j-1,k,PrimTheta_comp) + prim(i,j,k,PrimTheta_comp) );
+            R_tmp += -( dtau * beta_2 * coeff_P / detJ_on_kface ) *
+                      ( beta_1 * dzi * (Omega_hi*theta_t_hi - Omega_lo*theta_t_mid) +
+                                 dxi * (new_drho_u(i+1,j,k)*Theta_x_hi*h_zeta_cc_xface_hi  -
+                                        new_drho_u(i  ,j,k)*Theta_x_lo*h_zeta_cc_xface_lo) +
+                                 dyi * (new_drho_v(i,j+1,k)*Theta_y_hi*h_zeta_cc_yface_hi  -
+                                        new_drho_v(i,j  ,k)*Theta_y_lo*h_zeta_cc_yface_lo) );
 
-                // line 5 (order dtau^2)
-                if (l_use_terrain) {
-                    Omega_hi = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
-                    Omega_lo = OmegaFromW(i,j,k-1,old_drho_w(i,j,k-1),old_drho_u,old_drho_v,z_nd,dxInv);
-                    h_zeta_cc_xface_hi = 0.5 * dzi *
-                      (  z_nd(i+1,j  ,k  ) + z_nd(i+1,j+1,k  )
-                        -z_nd(i+1,j  ,k-1) - z_nd(i+1,j+1,k-1) );
+            // line 5 (order dtau^2)
+            if (l_use_terrain) {
+                Omega_hi = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
+                Omega_lo = OmegaFromW(i,j,k-1,old_drho_w(i,j,k-1),old_drho_u,old_drho_v,z_nd,dxInv);
+                h_zeta_cc_xface_hi = 0.5 * dzi *
+                  (  z_nd(i+1,j  ,k  ) + z_nd(i+1,j+1,k  )
+                    -z_nd(i+1,j  ,k-1) - z_nd(i+1,j+1,k-1) );
 
-                    h_zeta_cc_xface_lo = 0.5 * dzi *
-                      (  z_nd(i  ,j  ,k  ) + z_nd(i  ,j+1,k  )
-                        -z_nd(i  ,j  ,k-1) - z_nd(i  ,j+1,k-1) );
+                h_zeta_cc_xface_lo = 0.5 * dzi *
+                  (  z_nd(i  ,j  ,k  ) + z_nd(i  ,j+1,k  )
+                    -z_nd(i  ,j  ,k-1) - z_nd(i  ,j+1,k-1) );
 
-                    h_zeta_cc_yface_hi = 0.5 * dzi *
-                      (  z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
-                        -z_nd(i  ,j+1,k-1) - z_nd(i+1,j+1,k-1) );
+                h_zeta_cc_yface_hi = 0.5 * dzi *
+                  (  z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
+                    -z_nd(i  ,j+1,k-1) - z_nd(i+1,j+1,k-1) );
 
-                    h_zeta_cc_yface_lo = 0.5 * dzi *
-                      (  z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
-                        -z_nd(i  ,j  ,k-1) - z_nd(i+1,j  ,k-1) );
-                } else {
-                    Omega_hi = old_drho_w(i,j,k  );
-                    Omega_lo = old_drho_w(i,j,k-1);
-                }
-                R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
-                         ( beta_1 * dzi * (Omega_hi - Omega_lo) +
-                                    dxi * (new_drho_u(i+1,j,k-1)*h_zeta_cc_xface_hi  -
-                                           new_drho_u(i  ,j,k-1)*h_zeta_cc_xface_lo) +
-                                    dyi * (new_drho_v(i,j+1,k-1)*h_zeta_cc_yface_hi  -
-                                           new_drho_v(i,j  ,k-1)*h_zeta_cc_yface_lo) );
+                h_zeta_cc_yface_lo = 0.5 * dzi *
+                  (  z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
+                    -z_nd(i  ,j  ,k-1) - z_nd(i+1,j  ,k-1) );
+            } else {
+                Omega_hi = old_drho_w(i,j,k  );
+                Omega_lo = old_drho_w(i,j,k-1);
+            }
+            R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
+                     ( beta_1 * dzi * (Omega_hi - Omega_lo) +
+                                dxi * (new_drho_u(i+1,j,k-1)*h_zeta_cc_xface_hi  -
+                                       new_drho_u(i  ,j,k-1)*h_zeta_cc_xface_lo) +
+                                dyi * (new_drho_v(i,j+1,k-1)*h_zeta_cc_yface_hi  -
+                                       new_drho_v(i,j  ,k-1)*h_zeta_cc_yface_lo) );
 
-                // line 7 (reuse Omega & metrics) (order dtau^2)
-                Theta_x_hi = 0.5 * ( prim(i+1,j  ,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Theta_x_lo = 0.5 * ( prim(i-1,j  ,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Theta_y_hi = 0.5 * ( prim(i  ,j+1,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                Theta_y_lo = 0.5 * ( prim(i  ,j-1,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
-                R_tmp += -( dtau * beta_2 * coeff_Q / detJ_on_kface ) *
-                          ( beta_1 * dzi * (Omega_hi*theta_t_mid - Omega_lo*theta_t_lo) +
-                                     dxi * (new_drho_u(i+1,j,k-1)*Theta_x_hi*h_zeta_cc_xface_hi  -
-                                            new_drho_u(i  ,j,k-1)*Theta_x_lo*h_zeta_cc_xface_lo) +
-                                     dyi * (new_drho_v(i,j+1,k-1)*Theta_y_hi*h_zeta_cc_yface_hi  -
-                                            new_drho_v(i,j  ,k-1)*Theta_y_lo*h_zeta_cc_yface_lo) );
+            // line 7 (reuse Omega & metrics) (order dtau^2)
+            Theta_x_hi = 0.5 * ( prim(i+1,j  ,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+            Theta_x_lo = 0.5 * ( prim(i-1,j  ,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+            Theta_y_hi = 0.5 * ( prim(i  ,j+1,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+            Theta_y_lo = 0.5 * ( prim(i  ,j-1,k-1,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
+            R_tmp += -( dtau * beta_2 * coeff_Q / detJ_on_kface ) *
+                      ( beta_1 * dzi * (Omega_hi*theta_t_mid - Omega_lo*theta_t_lo) +
+                                 dxi * (new_drho_u(i+1,j,k-1)*Theta_x_hi*h_zeta_cc_xface_hi  -
+                                        new_drho_u(i  ,j,k-1)*Theta_x_lo*h_zeta_cc_xface_lo) +
+                                 dyi * (new_drho_v(i,j+1,k-1)*Theta_y_hi*h_zeta_cc_yface_hi  -
+                                        new_drho_v(i,j  ,k-1)*Theta_y_lo*h_zeta_cc_yface_lo) );
 
-                // line 1
-                RHS(k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
+            // line 1
+            RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
 
-                // Terrain solves for Omega
-                if (l_use_terrain)
-                    RHS(k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
-          } // k
+            // Terrain solves for Omega
+            if (l_use_terrain)
+                RHS_a(i,j,k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
+      });
+      } // end profile
 
+      int klen = bx.bigEnd(2) - bx.smallEnd(2) + 1;
+
+      amrex::Box b2d = tbz; // Copy constructor
+      b2d.setRange(2,0);
+
+      {
+      BL_PROFILE("fast_rhs_b2d_loop_t");
+#ifdef AMREX_USE_GPU
+      ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+      {
           // w_0 = 0
-          coeff_A(0) =  0.0;
-          coeff_B(0) =  1.0;
-          coeff_C(0) =  0.0;
-          RHS(0)     =  0.0;
+          coeffA_a(i,j,0) =  0.0;
+          coeffB_a(i,j,0) =  1.0;
+          coeffC_a(i,j,0) =  0.0;
+          RHS_a   (i,j,0) =  0.0;
 
           // Moving terrain
           if (l_use_terrain && l_move_terrain) {
               Real time_mt  = time - 0.5*dtau;
               Real omega_bc = dhdt(i,j,dx,time_mt,dtau) - stage_zmom(i,j,0) / stage_cons(i,j,0); // w'' = w(t) - w^{RK stage}
-              RHS(0) = cur_cons(i,j,0) * omega_bc;
+              RHS_a(i,j,0) = cur_cons(i,j,0) * omega_bc;
           }
 
           // w_khi = 0
-          coeff_A(klen) =  0.0;
-          coeff_B(klen) =  1.0;
-          coeff_C(klen) =  0.0;
-          RHS(klen)     =  0.0;
+          coeffA_a(i,j,klen) =  0.0;
+          coeffB_a(i,j,klen) =  1.0;
+          coeffC_a(i,j,klen) =  0.0;
+          RHS_a(i,j,klen)     =  0.0;
 
           // w = 0 at k = 0
-          Real bet = coeff_B(0);
-          soln(0) = RHS(0) / bet;
+          Real bet = coeffB_a(i,j,0);
+          soln_a(i,j,0) = RHS_a(i,j,0) / bet;
 
           for (int k = 1; k <= klen; k++) {
-              gam(k) = coeff_C(k-1) / bet;
-              bet = coeff_B(k) - coeff_A(k)*gam(k);
-              if (bet == 0) amrex::Abort(">>>TRIDIAG FAILED");
-              soln(k) = (RHS(k)-coeff_A(k)*soln(k-1)) / bet;
+              gam_a(i,j,k) = coeffC_a(i,j,k-1) / bet;
+              bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k);
+              soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) / bet;
           }
           for (int k = klen-1; k >= 0; k--) {
-              soln(k) = soln(k) - gam(k+1)*soln(k+1);
+              soln_a(i,j,k) -= gam_a(i,j,k+1)*soln_a(i,j,k+1);
           }
+      });
+#else
+        auto const lo = amrex::lbound(bx);
+        auto const hi = amrex::ubound(bx);
+        for (int j = lo.y; j <= hi.y; ++j) {
+            AMREX_PRAGMA_SIMD
+            for (int i = lo.x; i <= hi.x; ++i) {
+                coeffA_a(i,j,0) =  0.0;
+                coeffB_a(i,j,0) =  1.0;
+                coeffC_a(i,j,0) =  0.0;
+                RHS_a   (i,j,0) =  0.0;
+                soln_a(i,j,0) = RHS_a(i,j,0) / coeffB_a(i,j,0);
+            }
+        }
+        for (int j = lo.y; j <= hi.y; ++j) {
+            AMREX_PRAGMA_SIMD
+            for (int i = lo.x; i <= hi.x; ++i) {
+                coeffA_a(i,j,hi.z+1) =  0.0;
+                coeffB_a(i,j,hi.z+1) =  1.0;
+                coeffC_a(i,j,hi.z+1) =  0.0;
+                RHS_a   (i,j,hi.z+1) =  0.0;
+            }
+        }
+        for (int k = lo.z+1; k <= hi.z+1; ++k) {
+            for (int j = lo.y; j <= hi.y; ++j) {
+                AMREX_PRAGMA_SIMD
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    gam_a(i,j,k) = coeffC_a(i,j,k-1) / coeffB_a(i,j,k-1);
+                    Real bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k);
+                    coeffB_a(i,j,k) = bet;
+                    soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) / bet;
+                }
+            }
+        }
+        for (int k = hi.z; k >= lo.z; --k) {
+            for (int j = lo.y; j <= hi.y; ++j) {
+                AMREX_PRAGMA_SIMD
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    soln_a(i,j,k) -= gam_a(i,j,k+1)*soln_a(i,j,k+1);
+                }
+            }
+        }
+#endif
+      } // end profile
 
-          for (int k = 0; k <= klen; k++) {
-              if (l_use_terrain) {
-                  new_drho_w(i,j,k) = WFromOmega(i,j,k,soln(k),new_drho_u,new_drho_v,z_nd,dxInv);
-              } else {
-                  new_drho_w(i,j,k) = soln(k);
-              }
-              cur_zmom(i,j,k) = stage_zmom(i,j,k) + new_drho_w(i,j,k);
+      {
+      BL_PROFILE("fast_rhs_new_drhow_t");
+      ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+      {
+            if (l_use_terrain) {
+                new_drho_w(i,j,k) = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
+            } else {
+                new_drho_w(i,j,k) = soln_a(i,j,k);
+            }
+            cur_zmom(i,j,k) = stage_zmom(i,j,k) + new_drho_w(i,j,k);
 
-              // Sum implicit and explicit W for AdvSrc
-              new_drho_w(i,j,k) *= beta_2;
-              new_drho_w(i,j,k) += beta_1 * old_drho_w(i,j,k);
-          }
-        });
+            // Sum implicit and explicit W for AdvSrc
+            new_drho_w(i,j,k) *= beta_2;
+            new_drho_w(i,j,k) += beta_1 * old_drho_w(i,j,k);
+      });
+      } // end profile
 
-        // **************************************************************************
-        // Define updates in the RHS of rho and (rho theta)
-        // **************************************************************************
+      // **************************************************************************
+      // Define updates in the RHS of rho and (rho theta)
+      // **************************************************************************
 
-        const int l_spatial_order = 2;
+      const int l_spatial_order = 2;
 
-        AdvectionSrcForRhoAndTheta(bx, valid_bx, fast_rhs_cons,
-                                   new_drho_u, new_drho_v, new_drho_w,      // these are being used to build the fluxes
-                                   facinv, avg_xmom, avg_ymom, avg_zmom,    // these are being defined from the rho fluxes
-                                   zp_t_arr,  // z_t
-                                   prim, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain);
+      srcfab.resize(bx,2);
+      auto const& src_a = srcfab.array();
+      Elixir src_eli = srcfab.elixir();
 
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_cons(i,j,k,0));
-            cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_cons(i,j,k,1));
-        });
+      AdvectionSrcForRhoAndTheta(bx, valid_bx, src_a,
+                                 new_drho_u, new_drho_v, new_drho_w,      // these are being used to build the fluxes
+                                 facinv, avg_xmom, avg_ymom, avg_zmom,    // these are being defined from the rho fluxes
+                                 zp_t_arr,  // z_t
+                                 prim, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain);
+
+      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+          cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) + src_a(i,j,k,0));
+          cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + src_a(i,j,k,1));
+      });
     } // mfi
     }
 }

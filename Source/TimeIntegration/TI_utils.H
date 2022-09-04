@@ -39,7 +39,7 @@
                          const Real time_mt, const Real delta_t,
                          int ng_cons, int ng_vel, bool fast_only)
     {
-        BL_PROFILE("apply_bcx()");
+        BL_PROFILE("apply_bcs()");
         amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
         amrex::Array<MultiFab*,3> fmf{&S_data[IntVar::xmom],
                                       &S_data[IntVar::ymom],
@@ -63,6 +63,11 @@
         int scomp_cons = 0;
         int ncomp_cons = 1;
         bool cons_only = true;
+
+        // We must have at least one ghost cell of density to convert from momentum to velocity
+        //    on the valid region
+        AMREX_ALWAYS_ASSERT (ng_cons >= 1);
+
         FillIntermediatePatch(level, time_for_fp, time_mt, delta_t,
                               {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
                               ng_cons, 0, cons_only, scomp_cons, ncomp_cons);
@@ -90,10 +95,15 @@
         } else {
             ncomp_cons = S_data[IntVar::cons].nComp();
         }
+
+        // We must have at least one extra ghost cell of density to convert from velocity to momentum
+        //    on the valid region
+        int ng_cons_to_use = std::max(ng_cons, ng_vel+1);
+
         cons_only = false;
         FillIntermediatePatch(level, time_for_fp, time_mt, delta_t,
                               {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
-                              ng_cons, ng_vel, cons_only, scomp_cons, ncomp_cons);
+                              ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons);
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density

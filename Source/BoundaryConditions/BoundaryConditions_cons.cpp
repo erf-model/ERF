@@ -143,7 +143,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
     {
         // Populate ghost cells on lo-y and hi-y domain boundaries
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1); bx_ylo.setSmall(2,dom_lo.z); bx_ylo.setBig(2,dom_hi.z);
-        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.x+1); bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
+        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1); bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int jflip = dom_lo.y - 1 - j;
