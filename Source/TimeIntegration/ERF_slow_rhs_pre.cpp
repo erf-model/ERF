@@ -118,6 +118,9 @@ void erf_slow_rhs_pre (int level,
         if ( bot_edge_dirichlet) tby.growLo(1,-1);
         if ( top_edge_dirichlet) tby.growHi(1,-1);
 
+        // We don't compute a source term for z-momentum on the bottom boundary
+        tbz.growLo(2,-1);
+
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
