@@ -415,7 +415,7 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
 
           // w = 0 at k = 0
           new_drho_w(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
-          cur_zmom(i,j,k) = stage_zmom(i,j,k) + new_drho_w(i,j,k);
+          cur_zmom(i,j,0) = stage_zmom(i,j,0) + new_drho_w(i,j,0);
 
           for (int k = 1; k <= hi.z+1; k++) {
               new_drho_w(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*new_drho_w(i,j,k-1)) * inv_coeffB_a(i,j,k);
