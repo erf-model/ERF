@@ -21,7 +21,7 @@ DiffusionSrcForMom_N (int level, const Box& bx, const Box& valid_bx, const Box& 
 
     if ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
          (solverChoice.les_type        !=       LESType::None) ||
-     (solverChoice.pbl_type        !=       PBLType::None) )
+         (solverChoice.pbl_type        !=       PBLType::None) )
     {
 
     const int l_use_terrain   = solverChoice.use_terrain;
