@@ -118,8 +118,9 @@ void erf_slow_rhs_pre (int level,
         if ( bot_edge_dirichlet) tby.growLo(1,-1);
         if ( top_edge_dirichlet) tby.growHi(1,-1);
 
-        // We don't compute a source term for z-momentum on the bottom boundary
+        // We don't compute a source term for z-momentum on the bottom or top boundary
         tbz.growLo(2,-1);
+        tbz.growHi(2,-1);
 
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
@@ -366,6 +367,18 @@ void erf_slow_rhs_pre (int level,
         });
         } // end profile
         {
+        BL_PROFILE("slow_rhs_pre_zmom_2d");
+        amrex::Box b2d = tbz;
+        b2d.setSmall(2,0);
+        b2d.setBig(2,0);
+        // Enforce no forcing term at top and bottom boundaries
+        amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            rho_w_rhs(i,j,        0) = 0.;
+            rho_w_rhs(i,j,domhi_z+1) = 0.;
+        });
+        } // end profile
+
+        {
         BL_PROFILE("slow_rhs_pre_zmom");
         amrex::ParallelFor(tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
@@ -413,13 +426,6 @@ void erf_slow_rhs_pre (int level,
                 if (solverChoice.use_rayleigh_damping)
                 {
                     rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
-                }
-
-                // Enforce no forcing term at bottom boundary
-                if (k == 0) {
-                    rho_w_rhs(i,j,k) = 0.;
-                } else if (k == domhi_z+1) {
-                    rho_w_rhs(i, j, k) = 0.;
                 }
         });
         } // end profile
