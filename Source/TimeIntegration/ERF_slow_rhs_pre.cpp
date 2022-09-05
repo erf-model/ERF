@@ -86,9 +86,9 @@ void erf_slow_rhs_pre (int level,
     for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
-        const Box& tbx = mfi.nodaltilebox(0);
-        const Box& tby = mfi.nodaltilebox(1);
-        const Box& tbz = mfi.nodaltilebox(2);
+        Box tbx = mfi.nodaltilebox(0);
+        Box tby = mfi.nodaltilebox(1);
+        Box tbz = mfi.nodaltilebox(2);
 
         Box const& valid_bx = mfi.validbox();
         int vlo_x = valid_bx.smallEnd(0);
@@ -104,6 +104,19 @@ void erf_slow_rhs_pre (int level,
         auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
         auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
         auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
+
+        // ******************************************************************
+        // This assumes that refined regions are always rectangular
+        // ******************************************************************
+        bool left_edge_dirichlet = ( level > 0 && mlo_x(vlo_x  ,vlo_y  ,vlo_z) );
+        bool rght_edge_dirichlet = ( level > 0 && mhi_x(vhi_x+1,vhi_y  ,vhi_z) );
+        bool  bot_edge_dirichlet = ( level > 0 && mlo_y(vlo_x  ,vlo_y  ,vlo_z) );
+        bool  top_edge_dirichlet = ( level > 0 && mhi_y(vhi_x  ,vhi_y+1,vhi_z) );
+
+        if (left_edge_dirichlet) tbx.growLo(0,-1);
+        if (rght_edge_dirichlet) tbx.growHi(0,-1);
+        if ( bot_edge_dirichlet) tby.growLo(1,-1);
+        if ( top_edge_dirichlet) tby.growHi(1,-1);
 
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
@@ -158,13 +171,19 @@ void erf_slow_rhs_pre (int level,
             pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
         });
 
-        const Box& gbx2 = mfi.growntilebox(IntVect(1,1,0));
-        const Array4<Real> & er_arr  = expr.array(mfi);
-        amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                er_arr(i,j,k) = (u(i+1, j  , k  ) - u(i, j, k))*dxInv[0] +
-                                (v(i  , j+1, k  ) - v(i, j, k))*dxInv[1] +
-                                (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
-        });
+        const Array4<Real> & er_arr = expr.array(mfi);
+        if ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+             (solverChoice.les_type        !=       LESType::None) ||
+             (solverChoice.pbl_type        !=       PBLType::None) )
+        {
+            const Box& gbx2 = mfi.growntilebox(IntVect(1,1,0));
+            //const Array4<Real> & er_arr  = expr.array(mfi);
+            amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    er_arr(i,j,k) = (u(i+1, j  , k  ) - u(i, j, k))*dxInv[0] +
+                                    (v(i  , j+1, k  ) - v(i, j, k))*dxInv[1] +
+                                    (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
+            });
+        }
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
@@ -216,18 +235,11 @@ void erf_slow_rhs_pre (int level,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
+        {
+        BL_PROFILE("slow_rhs_pre_xmom");
         amrex::ParallelFor(tbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
-            bool on_coarse_fine_boundary = false;
-            if (level > 0)
-            {
-               on_coarse_fine_boundary =
-                 ( (i == vlo_x && mlo_x(i,j,k)) || (i == vhi_x+1 && mhi_x(i,j,k)) );
-            }
-
-            if (!on_coarse_fine_boundary)
-            {
             // Add pressure gradient
             amrex::Real gpx;
             if (l_use_terrain) {
@@ -286,23 +298,12 @@ void erf_slow_rhs_pre (int level,
                 Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
                 rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
             }
-
-            } else {
-                // on coarse-fine boundary
-                rho_u_rhs(i, j, k) = 0.0;
-            }
         });
+        } // end profile
+        {
+        BL_PROFILE("slow_rhs_pre_ymom");
         amrex::ParallelFor(tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // y-momentum equation
-            bool on_coarse_fine_boundary = false;
-            if (level > 0)
-            {
-               on_coarse_fine_boundary =
-                 ( (j == vlo_y && mlo_y(i,j,k)) || (j == vhi_y+1 && mhi_y(i,j,k)) );
-            }
-
-            if (!on_coarse_fine_boundary)
-            {
                 // Add pressure gradient
                 amrex::Real gpy;
                 if (l_use_terrain) {
@@ -359,23 +360,12 @@ void erf_slow_rhs_pre (int level,
                     Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
                     rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
                 }
-
-            } else {
-                // on coarse-fine boundary
-                rho_v_rhs(i, j, k) = 0.0; // Initialize the updated y-mom eqn term to zero
-            }
         });
+        } // end profile
+        {
+        BL_PROFILE("slow_rhs_pre_zmom");
         amrex::ParallelFor(tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
-            bool on_coarse_fine_boundary = false;
-            if (level > 0)
-            {
-               on_coarse_fine_boundary =
-                 ( (k == vlo_z && mlo_z(i,j,k)) || (k == vhi_z+1 && mhi_z(i,j,k)) );
-            }
-
-            if (!on_coarse_fine_boundary && k > 0)
-            {
                 // Add pressure gradient
                 amrex::Real gpz;
                 if (l_use_terrain) {
@@ -428,10 +418,7 @@ void erf_slow_rhs_pre (int level,
                 } else if (k == domhi_z+1) {
                     rho_w_rhs(i, j, k) = 0.;
                 }
-            } else {
-                // on coarse-fine boundary
-                rho_w_rhs(i, j, k) = 0.0;
-            }
         });
-    }
+        } // end profile
+    } // mfi
 }
