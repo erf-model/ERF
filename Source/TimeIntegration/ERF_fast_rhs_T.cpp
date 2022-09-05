@@ -602,14 +602,14 @@ void erf_fast_rhs_T (int step, int level, const Real time,
           RHS_a(i,j,hi.z+1)     =  0.0;
 
           // w = 0 at k = 0
-          soln(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+          soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
 
           for (int k = 1; k <= hi.z+1; k++) {
-              soln(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln(i,j,k-1)) * inv_coeffB_a(i,j,k);
+              soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
           }
-          cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln(i,j,hi.z+1);
+          cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
           for (int k = hi.z; k >= 0; k--) {
-              soln(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln(i,j,k+1);
+              soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
           }
       });
 #else

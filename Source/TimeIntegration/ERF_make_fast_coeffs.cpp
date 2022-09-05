@@ -248,14 +248,14 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
           coeffC_a(i,j,0) =  0.0;
 
           // w_khi = 0
-          coeffA_a(i,j,klen) =  0.0;
-          coeffB_a(i,j,klen) =  1.0;
-          coeffC_a(i,j,klen) =  0.0;
+          coeffA_a(i,j,hi.z+1) =  0.0;
+          coeffB_a(i,j,hi.z+1) =  1.0;
+          coeffC_a(i,j,hi.z+1) =  0.0;
 
           // w = 0 at k = 0
           Real bet = coeffB_a(i,j,0);
 
-          for (int k = 1; k <= klen; k++) {
+          for (int k = 1; k <= hi.z+1; k++) {
               gam_a(i,j,k) = coeffC_a(i,j,k-1) / bet;
               bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k);
               coeffB_a(i,j,k) = bet;
