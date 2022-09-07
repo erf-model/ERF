@@ -58,15 +58,45 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
     // *********************************************************************
     // Define diffusive updates in the RHS of {x, y, z}-momentum equations
     // *********************************************************************
+
     amrex::ParallelFor(bxx, bxy, bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-        amrex::Real diff_update;
+        amrex::Real diff_update = 0.0_rt;
         if (k < domhi_z) {
             diff_update = DiffusionSrcForXMomWithTerrain(i, j, k, u, v, w, cell_data,
                                                          dxInv, K_turb, solverChoice,
                                                          z_nd, detJ, domain, bc_ptr);
-        } else {
+        } 
+        rho_u_rhs(i, j, k) += diff_update;
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    {
+        amrex::Real diff_update = 0.0_rt;
+        if (k < domhi_z) {
+            diff_update = DiffusionSrcForYMomWithTerrain(i, j, k, u, v, w, cell_data,
+                                                         dxInv, K_turb, solverChoice,
+                                                         z_nd, detJ, domain, bc_ptr);
+        }
+        rho_v_rhs(i, j, k) += diff_update;
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    {
+        int k_diff = (k == domhi_z+1) ? domhi_z : k;
+        amrex::Real diff_update = 0.0_rt;
+        if (k < domhi_z) {
+            diff_update = DiffusionSrcForZMomWithTerrain(i, j, k_diff, u, v, w, cell_data,
+                                                         dxInv, K_turb, solverChoice,
+                                                         z_nd, detJ, domain, bc_ptr);
+        }
+        rho_w_rhs(i, j, k) += diff_update;
+    });
+
+    amrex::ParallelFor(bxx, bxy, bxz,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    {
+        amrex::Real diff_update = 0.0_rt;
+        if (k >= domhi_z) {
             diff_update = DiffusionSrcForXMom(i, j, k, u, v, w, cell_data,
                                               dxInv, K_turb, solverChoice,
                                               domain, bc_ptr, er_arr);
@@ -75,12 +105,8 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-        amrex::Real diff_update;
-        if (k < domhi_z) {
-            diff_update = DiffusionSrcForYMomWithTerrain(i, j, k, u, v, w, cell_data,
-                                                         dxInv, K_turb, solverChoice,
-                                                         z_nd, detJ, domain, bc_ptr);
-        } else {
+        amrex::Real diff_update = 0.0_rt;
+        if (k >= domhi_z) {
             diff_update = DiffusionSrcForYMom(i, j, k, u, v, w, cell_data,
                                               dxInv, K_turb, solverChoice,
                                               domain, bc_ptr, er_arr);
@@ -90,12 +116,8 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
         int k_diff = (k == domhi_z+1) ? domhi_z : k;
-        amrex::Real diff_update;
-        if (k < domhi_z) {
-            diff_update = DiffusionSrcForZMomWithTerrain(i, j, k_diff, u, v, w, cell_data,
-                                                         dxInv, K_turb, solverChoice,
-                                                         z_nd, detJ, domain, bc_ptr);
-        } else {
+        amrex::Real diff_update = 0.0_rt;
+        if (k >= domhi_z) {
             diff_update = DiffusionSrcForZMom(i, j, k_diff, u, v, w, cell_data,
                                               dxInv, K_turb, solverChoice,
                                               domain, bc_ptr, er_arr);
