@@ -67,7 +67,7 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
             diff_update = DiffusionSrcForXMomWithTerrain(i, j, k, u, v, w, cell_data,
                                                          dxInv, K_turb, solverChoice,
                                                          z_nd, detJ, domain, bc_ptr);
-        } 
+        }
         rho_u_rhs(i, j, k) += diff_update;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
