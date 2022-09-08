@@ -78,7 +78,7 @@ init_isentropic_hse(const Real& r_sfc, const Real& theta,
           Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
           // Gamma * p_0 * std::pow( (R_d * theta / p_0), Gamma) * std::pow(r[k], Gamma-1.0) ;
 
-          Real drho = A / (dpdr + 0.5 * dz * CONST_GRAV);
+          Real drho = A / (dpdr + dz * CONST_GRAV);
 
           r[k] = std::max(0.9*r[k-1], std::min(r[k] + drho, 1.1*r[k-1]));
           p[k] = getPgivenRTh(r[k]*theta);

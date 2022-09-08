@@ -53,10 +53,11 @@ ComputeStressTermWithTerrain (int i, int j, int k,
                               const amrex::Array4<const amrex::Real>& w,
                                     enum MomentumEqn  momentumEqn,
                                     enum DiffusionDir diffDir,
-                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
                               const amrex::Array4<const amrex::Real>& K_turb,
                               const SolverChoice &solverChoice,
                               const amrex::Array4<const amrex::Real>& z_nd,
+                              const amrex::Array4<const amrex::Real>& detJ,
                               const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
     const auto& dom_lo = amrex::lbound(domain);
@@ -69,17 +70,20 @@ ComputeStressTermWithTerrain (int i, int j, int k,
 
     // S_ij term
     if ( (momentumEqn == MomentumEqn::z && k <= dom_hi.z) ||
-         (momentumEqn != MomentumEqn::z && k <  dom_hi.z) )
-        strainRate = ComputeStrainRateWithTerrain(i, j, kk, u, v, w, momentumEqn, diffDir, cellSizeInv, z_nd, domain, bc_ptr);
-    else
-        strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, cellSizeInv, domain, bc_ptr);
+         (momentumEqn != MomentumEqn::z && k <  dom_hi.z) ) {
+        strainRate = ComputeStrainRateWithTerrain(i, j, kk, u, v, w, momentumEqn, diffDir, dxInv, z_nd, domain, bc_ptr);
+    } else {
+        strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, dxInv, domain, bc_ptr);
+    }
 
     // D_ij term
     if ( (momentumEqn == MomentumEqn::z && k <= dom_hi.z) ||
-         (momentumEqn != MomentumEqn::z && k <  dom_hi.z) )
-        expansionRate = ComputeExpansionRateWithTerrain(i, j, kk, u, v, w, momentumEqn, diffDir, z_nd, cellSizeInv);
-    else
-        expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, cellSizeInv);
+         (momentumEqn != MomentumEqn::z && k <  dom_hi.z) ) {
+        expansionRate = ComputeExpansionRateWithTerrain(i, j, kk, u, v, w, momentumEqn, diffDir, z_nd, dxInv);
+    } else {
+        const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv_terr{dxInv[0], dxInv[1], dxInv[2]/detJ(i,j,k)};
+        expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, dxInv_terr);
+    }
 
     // sigma_ij = S_ij - D_ij
     amrex::Real strainRateDeviatoric = strainRate - expansionRate;
