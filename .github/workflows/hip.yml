@@ -86,7 +86,7 @@ jobs:
 
         pushd ${{runner.workspace}}/ERF/build-${{matrix.sundials_state}}-${{matrix.os}};
         #make -j ${{env.NPROCS}};
-        make;
+        make -j 2;
 
     # - name: Regression Tests
     #   run: |
