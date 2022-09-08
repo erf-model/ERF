@@ -96,7 +96,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_N.H
        ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_T.H
        ${SRC_DIR}/SpatialStencils/EddyViscosity.H
-       ${SRC_DIR}/SpatialStencils/ExpansionRate.H
        ${SRC_DIR}/SpatialStencils/Interpolation.H
        ${SRC_DIR}/SpatialStencils/StrainRate.H
        ${SRC_DIR}/SpatialStencils/StressTerm.H

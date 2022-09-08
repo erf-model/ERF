@@ -13,7 +13,6 @@ CEXE_headers += AdvectionSrcForMom_T.H
 CEXE_headers += DiffusionSrcForMom_N.H
 CEXE_headers += DiffusionSrcForMom_T.H
 CEXE_headers += Interpolation.H
-CEXE_headers += ExpansionRate.H
 CEXE_headers += StrainRate.H
 CEXE_headers += StressTerm.H
 CEXE_headers += EddyViscosity.H

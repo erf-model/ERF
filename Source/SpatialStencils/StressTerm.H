@@ -2,7 +2,6 @@
 #define _COMPUTE_STRESSTERM_H
 
 #include <EddyViscosity.H>
-#include <ExpansionRate.H>
 #include <StrainRate.H>
 
 // Compute tau_ij (m + 1/2), tau_ij (m - 1/2) where m = {i, j, k} for DNS or Smagorinsky
@@ -58,7 +57,8 @@ ComputeStressTermWithTerrain (int i, int j, int k,
                               const SolverChoice &solverChoice,
                               const amrex::Array4<const amrex::Real>& z_nd,
                               const amrex::Array4<const amrex::Real>& detJ,
-                              const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+                              const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                              amrex::Real expansionRate)
 {
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
@@ -66,7 +66,7 @@ ComputeStressTermWithTerrain (int i, int j, int k,
     // We don't want to compute strain or expansion below the bottom surface
     int kk = std::max(k,dom_lo.z);
 
-    amrex::Real strainRate, expansionRate;
+    amrex::Real strainRate;
 
     // S_ij term
     if ( (momentumEqn == MomentumEqn::z && k <= dom_hi.z) ||
@@ -76,17 +76,8 @@ ComputeStressTermWithTerrain (int i, int j, int k,
         strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, dxInv, domain, bc_ptr);
     }
 
-    // D_ij term
-    if ( (momentumEqn == MomentumEqn::z && k <= dom_hi.z) ||
-         (momentumEqn != MomentumEqn::z && k <  dom_hi.z) ) {
-        expansionRate = ComputeExpansionRateWithTerrain(i, j, kk, u, v, w, momentumEqn, diffDir, z_nd, dxInv);
-    } else {
-        const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv_terr{dxInv[0], dxInv[1], dxInv[2]/detJ(i,j,k)};
-        expansionRate = ComputeExpansionRate(i, j, k, u, v, w, momentumEqn, diffDir, dxInv_terr);
-    }
-
     // sigma_ij = S_ij - D_ij
-    amrex::Real strainRateDeviatoric = strainRate - expansionRate;
+    amrex::Real strainRateDeviatoric = strainRate - (1.0/3.0)*expansionRate;
 
     amrex::Real stressTerm = ComputeStressGivenRates(i, j, k, momentumEqn, diffDir, K_turb, solverChoice, strainRateDeviatoric);
 

@@ -181,12 +181,53 @@ void erf_slow_rhs_pre (int level,
              (solverChoice.pbl_type        !=       PBLType::None) )
         {
             const Box& gbx2 = mfi.growntilebox(IntVect(1,1,0));
-            //const Array4<Real> & er_arr  = expr.array(mfi);
-            amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+
+            if (l_use_terrain){
+                // We must include the factor of 3 here because the ComputeExpansion routine returns 1/3 of the divergence
+                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+
+                    Real met_h_xi,met_h_eta,met_h_zeta;
+
+                    Real met_u_h_xi_hi,met_u_h_eta_hi,met_u_h_zeta_hi;
+                    Real met_u_h_xi_lo,met_u_h_eta_lo,met_u_h_zeta_lo;
+
+                    Real met_v_h_xi_hi,met_v_h_eta_hi,met_v_h_zeta_hi;
+                    Real met_v_h_xi_lo,met_v_h_eta_lo,met_v_h_zeta_lo;
+
+                    ComputeMetricAtIface(i+1,j  ,k  ,
+                                         met_u_h_xi_hi,met_u_h_eta_hi,met_u_h_zeta_hi,
+                                         dxInv,z_nd,TerrainMet::h_zeta);
+                    ComputeMetricAtIface(i  ,j  ,k  ,
+                                         met_u_h_xi_lo,met_u_h_eta_lo,met_u_h_zeta_lo,
+                                         dxInv,z_nd,TerrainMet::h_zeta);
+
+                    ComputeMetricAtJface(i  ,j+1,k  ,
+                                         met_v_h_xi_hi,met_v_h_eta_hi,met_v_h_zeta_hi,
+                                         dxInv,z_nd,TerrainMet::h_zeta);
+                    ComputeMetricAtJface(i  ,j  ,k  ,
+                                         met_v_h_xi_lo,met_v_h_eta_lo,met_v_h_zeta_lo,
+                                         dxInv,z_nd,TerrainMet::h_zeta);
+
+                    Real Omega_hi = OmegaFromW(i,j,k+1,w(i,j,k+1),u,v,z_nd,dxInv);
+                    Real Omega_lo = OmegaFromW(i,j,k  ,w(i,j,k  ),u,v,z_nd,dxInv);
+
+                    Real expansionRate = (u(i+1,j  ,k)*met_u_h_zeta_hi - u(i,j,k)*met_u_h_zeta_lo)*dxInv[0] +
+                                         (v(i  ,j+1,k)*met_v_h_zeta_hi - v(i,j,k)*met_v_h_zeta_lo)*dxInv[1] +
+                                         (Omega_hi - Omega_lo)*dxInv[2];
+
+                    ComputeMetricAtCellCenter(i,j,k,
+                                              met_h_xi,met_h_eta,met_h_zeta,
+                                              dxInv,z_nd,TerrainMet::h_zeta);
+
+                    er_arr(i,j,k) = expansionRate / met_h_zeta;
+                });
+            } else {
+                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     er_arr(i,j,k) = (u(i+1, j  , k  ) - u(i, j, k))*dxInv[0] +
                                     (v(i  , j+1, k  ) - v(i, j, k))*dxInv[1] +
                                     (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
-            });
+                });
+            }
         }
 
         // **************************************************************************

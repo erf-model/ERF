@@ -65,7 +65,8 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
         if (k < domhi_z) {
             diff_update = DiffusionSrcForXMomWithTerrain(i, j, k, u, v, w, cell_data,
                                                          dxInv, K_turb, solverChoice,
-                                                         z_nd, detJ, domain, bc_ptr);
+                                                         z_nd, detJ,
+                                                         domain, bc_ptr, er_arr);
         } else {
             diff_update = DiffusionSrcForXMom(i, j, k, u, v, w, cell_data,
                                               dxInv, K_turb, solverChoice,
@@ -79,7 +80,8 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
         if (k < domhi_z) {
             diff_update = DiffusionSrcForYMomWithTerrain(i, j, k, u, v, w, cell_data,
                                                          dxInv, K_turb, solverChoice,
-                                                         z_nd, detJ, domain, bc_ptr);
+                                                         z_nd, detJ,
+                                                         domain, bc_ptr, er_arr);
         } else {
             diff_update = DiffusionSrcForYMom(i, j, k, u, v, w, cell_data,
                                               dxInv, K_turb, solverChoice,
@@ -94,7 +96,8 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
         if (k < domhi_z) {
             diff_update = DiffusionSrcForZMomWithTerrain(i, j, k_diff, u, v, w, cell_data,
                                                          dxInv, K_turb, solverChoice,
-                                                         z_nd, detJ, domain, bc_ptr);
+                                                         z_nd, detJ,
+                                                         domain, bc_ptr, er_arr);
         } else {
             diff_update = DiffusionSrcForZMom(i, j, k_diff, u, v, w, cell_data,
                                               dxInv, K_turb, solverChoice,

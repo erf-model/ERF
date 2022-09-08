@@ -14,7 +14,8 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
                                 const amrex::Array4<const amrex::Real>& K_turb,
                                 const SolverChoice &solverChoice,
                                 const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
-                                const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+                                const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                                const amrex::Array4<const amrex::Real>& er_arr)
 {
     amrex::Real diffContrib = 0.0;
 
@@ -37,7 +38,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
                                   cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau11Next = ComputeStressTermWithTerrain(i+1,j  ,k  , u, v, w, MomentumEqn::x,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, er_arr(i,j,k));
         // Save for average
         Tmp11 = tau11Next;
         // Scale by metric
@@ -49,7 +50,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
                                   cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau11Prev = ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::x,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, er_arr(i-1,j,k));
         // Accumulate for average
         Tmp11 += tau11Prev;
         // Scale by metric
@@ -61,7 +62,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
                                      cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau12Next = ComputeStressTermWithTerrain(i  ,j+1,k  , u, v, w, MomentumEqn::x,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         // Save for average
         Tmp12 = tau12Next;
         // Scale by metric
@@ -73,7 +74,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
                                    cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau12Prev = ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::x,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         // Accumulate for average
         Tmp12 += tau12Prev;
         // Scale by metric
@@ -85,17 +86,17 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
         tau12BarN  = Tmp12;
         tau11BarN += ComputeStressTermWithTerrain(i+1,j  ,k+1, u, v, w, MomentumEqn::x,
                                   DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                  z_nd, detJ, domain, bc_ptr);
+                                  z_nd, detJ, domain, bc_ptr, er_arr(i  ,j,k+1));
         tau11BarN += ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::x,
                                   DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                  z_nd, detJ, domain, bc_ptr);
+                                  z_nd, detJ, domain, bc_ptr, er_arr(i-1,j,k+1));
         tau11BarN *= 0.25;
         tau12BarN += ComputeStressTermWithTerrain(i  ,j+1,k+1, u, v, w, MomentumEqn::x,
                                   DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                  z_nd, detJ, domain, bc_ptr);
+                                  z_nd, detJ, domain, bc_ptr, 0.);
         tau12BarN += ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::x,
                                   DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                  z_nd, detJ, domain, bc_ptr);
+                                  z_nd, detJ, domain, bc_ptr, 0.);
         tau12BarN *= 0.25;
 
         // Metric at EdgeCenterJ
@@ -104,7 +105,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
         tau13Next = -met_h_xi * tau11BarN - met_h_eta * tau12BarN
                    + ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::x,
                                        DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr);
+                                       z_nd, detJ, domain, bc_ptr, 0.);
         //-----------------------------------------------------------------------------------
         // 13 Prev
         // Accumulate averages
@@ -112,17 +113,17 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
         tau12BarP = Tmp12;
         tau11BarP += ComputeStressTermWithTerrain(i+1,j  ,k-1, u, v, w, MomentumEqn::x,
                                    DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                   z_nd, detJ, domain, bc_ptr);
+                                   z_nd, detJ, domain, bc_ptr, er_arr(i  ,j,k-1));
         tau11BarP += ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::x,
                                    DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                   z_nd, detJ, domain, bc_ptr);
+                                   z_nd, detJ, domain, bc_ptr, er_arr(i-1,j,k-1));
         tau11BarP *= 0.25;
         tau12BarP += ComputeStressTermWithTerrain(i  ,j+1,k-1, u, v, w, MomentumEqn::x,
                                    DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                   z_nd, detJ, domain, bc_ptr);
+                                   z_nd, detJ, domain, bc_ptr, 0.);
         tau12BarP += ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::x,
                                    DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                   z_nd, detJ, domain, bc_ptr);
+                                   z_nd, detJ, domain, bc_ptr, 0.);
         tau12BarP *= 0.25;
 
         // Metric at EdgeCenterJ
@@ -131,7 +132,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
         tau13Prev = -met_h_xi * tau11BarP - met_h_eta * tau12BarP
                    + ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::x,
                                        DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr);
+                                       z_nd, detJ, domain, bc_ptr, 0.);
         //************************************************************************************
         diffContrib = (tau11Next - tau11Prev) * dxInv  // Contribution to x-mom eqn from diffusive flux in x-dir
                     + (tau12Next - tau12Prev) * dyInv  // Contribution to x-mom eqn from diffusive flux in y-dir
@@ -159,7 +160,8 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
                                 const amrex::Array4<const amrex::Real>& K_turb,
                                 const SolverChoice &solverChoice,
                                 const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
-                                const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+                                const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                                const amrex::Array4<const amrex::Real>& er_arr)
 {
     amrex::Real diffContrib = 0.0;
 
@@ -181,7 +183,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
                                    cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau21Next = ComputeStressTermWithTerrain(i+1,j  ,k  , u, v, w, MomentumEqn::y,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         Tmp21 = tau21Next;
         tau21Next *= met_h_zeta;
         //-----------------------------------------------------------------------------------
@@ -190,7 +192,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
                                    cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau21Prev = ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::y,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         Tmp21 += tau21Prev;
         tau21Prev *= met_h_zeta;
         //************************************************************************************
@@ -199,7 +201,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
                                   cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau22Next = ComputeStressTermWithTerrain(i  ,j+1,k  , u, v, w, MomentumEqn::y,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, er_arr(i,j,k));
         Tmp22 = tau22Next;
         tau22Next *= met_h_zeta;
         //-----------------------------------------------------------------------------------
@@ -208,7 +210,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
                                   cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau22Prev = ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::y,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, er_arr(i,j-1,k));
         Tmp22 += tau22Prev;
         tau22Prev *= met_h_zeta;
         //************************************************************************************
@@ -218,17 +220,17 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
         tau22BarN  = Tmp22;
         tau21BarN += ComputeStressTermWithTerrain(i+1,j  ,k+1, u, v, w, MomentumEqn::y,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         tau21BarN += ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::y,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         tau21BarN *= 0.25;
         tau22BarN += ComputeStressTermWithTerrain(i  ,j+1,k+1, u, v, w, MomentumEqn::y,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, er_arr(i,j  ,k+1));
         tau22BarN += ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::y,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, er_arr(i,j-1,k+1));
         tau22BarN *= 0.25;
 
         // Metric at EdgeCenterI
@@ -237,7 +239,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
         tau23Next = -met_h_xi * tau21BarN - met_h_eta * tau22BarN
                    + ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::y,
                                                   DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
-                                                  z_nd, detJ, domain, bc_ptr);
+                                                  z_nd, detJ, domain, bc_ptr, 0.);
         //-----------------------------------------------------------------------------------
         // 23 Prev
         // Accumulate averages
@@ -245,17 +247,17 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
         tau22BarP = Tmp22;
         tau21BarP += ComputeStressTermWithTerrain(i+1,j  ,k-1, u, v, w, MomentumEqn::y,
                                        DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr);
+                                       z_nd, detJ, domain, bc_ptr, 0.);
         tau21BarP += ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::y,
                                        DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr);
+                                       z_nd, detJ, domain, bc_ptr, 0.);
         tau21BarP *= 0.25;
         tau22BarP += ComputeStressTermWithTerrain(i  ,j+1,k-1, u, v, w, MomentumEqn::y,
                                        DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr);
+                                       z_nd, detJ, domain, bc_ptr, er_arr(i,j  ,k-1));
         tau22BarP += ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::y,
                                        DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr);
+                                       z_nd, detJ, domain, bc_ptr, er_arr(i,j-1,k-1));
         tau22BarP *= 0.25;
 
         // Metric at EdgeCenterI
@@ -264,7 +266,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
         tau23Prev = -met_h_xi * tau21BarP - met_h_eta * tau22BarP
                    + ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::y,
                                        DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr);
+                                       z_nd, detJ, domain, bc_ptr, 0.);
         //************************************************************************************
         diffContrib = (tau21Next - tau21Prev) * dxInv  // Contribution to y-mom eqn from diffusive flux in x-dir
                     + (tau22Next - tau22Prev) * dyInv  // Contribution to y-mom eqn from diffusive flux in y-dir
@@ -292,7 +294,8 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
                                 const amrex::Array4<const amrex::Real>& K_turb,
                                 const SolverChoice &solverChoice,
                                 const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
-                                const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+                                const amrex::Box& domain, const amrex::BCRec* bc_ptr,
+                                const amrex::Array4<const amrex::Real>& er_arr)
 {
     amrex::Real diffContrib = 0.0;
 
@@ -319,7 +322,7 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
                                    cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau31Next = ComputeStressTermWithTerrain(i+1,j  ,k  , u, v, w, MomentumEqn::z,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         Tmp31 = tau31Next;
         tau31Next *= met_h_zeta;
         //-----------------------------------------------------------------------------------
@@ -328,7 +331,7 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
                                    cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau31Prev = ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::z,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         Tmp31 += tau31Prev;
         tau31Prev *= met_h_zeta;
         //************************************************************************************
@@ -337,7 +340,7 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
                                    cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau32Next = ComputeStressTermWithTerrain(i  ,j+1,k  , u, v, w, MomentumEqn::z,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         Tmp32 = tau32Next;
         tau32Next *= met_h_zeta;
         //-----------------------------------------------------------------------------------
@@ -346,7 +349,7 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
                                    cellSizeInv,z_nd,TerrainMet::h_zeta);
         tau32Prev = ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::z,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                      z_nd, detJ, domain, bc_ptr);
+                                      z_nd, detJ, domain, bc_ptr, 0.);
         Tmp32 += tau32Prev;
         tau32Prev *= met_h_zeta;
         //************************************************************************************
@@ -358,32 +361,32 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
           tau31BarN *= 0.75;
           tau31BarN -= 0.25 * ComputeStressTermWithTerrain(i+1,j  ,k-1, u, v, w, MomentumEqn::z,
                                             DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                            z_nd, detJ, domain, bc_ptr);
+                                            z_nd, detJ, domain, bc_ptr, 0.);
           tau31BarN -= 0.25 * ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::z,
                                             DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                            z_nd, detJ, domain, bc_ptr);
+                                            z_nd, detJ, domain, bc_ptr, 0.);
           tau32BarN *= 0.75;
           tau32BarN -= 0.25 * ComputeStressTermWithTerrain(i  ,j+1,k-1, u, v, w, MomentumEqn::z,
                                             DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                            z_nd, detJ, domain, bc_ptr);
+                                            z_nd, detJ, domain, bc_ptr, 0.);
           tau32BarN -= 0.25 * ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::z,
                                             DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                            z_nd, detJ, domain, bc_ptr);
+                                            z_nd, detJ, domain, bc_ptr, 0.);
         } else {
           // Accumulate averages
           tau31BarN += ComputeStressTermWithTerrain(i+1,j  ,k+1, u, v, w, MomentumEqn::z,
                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                         z_nd, detJ, domain, bc_ptr);
+                                         z_nd, detJ, domain, bc_ptr, 0.);
           tau31BarN += ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::z,
                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                         z_nd, detJ, domain, bc_ptr);
+                                         z_nd, detJ, domain, bc_ptr, 0.);
           tau31BarN *= 0.25;
           tau32BarN += ComputeStressTermWithTerrain(i  ,j+1,k+1, u, v, w, MomentumEqn::z,
                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                         z_nd, detJ, domain, bc_ptr);
+                                         z_nd, detJ, domain, bc_ptr, 0.);
           tau32BarN += ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::z,
                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                         z_nd, detJ, domain, bc_ptr);
+                                         z_nd, detJ, domain, bc_ptr, 0.);
           tau32BarN *= 0.25;
         }
 
@@ -394,7 +397,7 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
         tau33Next = -met_h_xi * tau31BarN - met_h_eta * tau32BarN
                    + ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::z,
                                        DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr);
+                                       z_nd, detJ, domain, bc_ptr, er_arr(i,j,k));
         //-----------------------------------------------------------------------------------
         // 33 Prev
         tau31BarP  = Tmp31;
@@ -404,32 +407,32 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
           tau31BarP *= 0.75;
           tau31BarP -= 0.25 * ComputeStressTermWithTerrain(i+1,j  ,k+1, u, v, w, MomentumEqn::z,
                                                 DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                                z_nd, detJ, domain, bc_ptr);
+                                                z_nd, detJ, domain, bc_ptr, 0.);
           tau31BarP -= 0.25 * ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::z,
                                                 DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                                z_nd, detJ, domain, bc_ptr);
+                                                z_nd, detJ, domain, bc_ptr, 0.);
           tau32BarP *= 0.75;
           tau32BarP -= 0.25 * ComputeStressTermWithTerrain(i  ,j+1,k+1, u, v, w, MomentumEqn::z,
                                                 DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                                z_nd, detJ, domain, bc_ptr);
+                                                z_nd, detJ, domain, bc_ptr, 0.);
           tau32BarP -= 0.25 * ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::z,
                                                 DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                                z_nd, detJ, domain, bc_ptr);
+                                                z_nd, detJ, domain, bc_ptr, 0.);
         } else {
           // Accumulate average to tau31BarN
           tau31BarP += ComputeStressTermWithTerrain(i+1,j  ,k-1, u, v, w, MomentumEqn::z,
                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                         z_nd, detJ, domain, bc_ptr);
+                                         z_nd, detJ, domain, bc_ptr, 0.);
           tau31BarP += ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::z,
                                          DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                         z_nd, detJ, domain, bc_ptr);
+                                         z_nd, detJ, domain, bc_ptr, 0.);
           tau31BarP *= 0.25;
           tau32BarP += ComputeStressTermWithTerrain(i  ,j+1,k-1, u, v, w, MomentumEqn::z,
                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                         z_nd, detJ, domain, bc_ptr);
+                                         z_nd, detJ, domain, bc_ptr, 0.);
           tau32BarP += ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::z,
                                          DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                         z_nd, detJ, domain, bc_ptr);
+                                         z_nd, detJ, domain, bc_ptr, 0.);
           tau32BarP *= 0.25;
         }
 
@@ -440,8 +443,10 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
         tau33Prev = -met_h_xi * tau31BarP - met_h_eta * tau32BarP
                    + ComputeStressTermWithTerrain(i, j, k, u, v, w, MomentumEqn::z,
                                                   DiffusionDir::z, cellSizeInv, K_turb, solverChoice,
-                                                  z_nd, detJ, domain, bc_ptr);
+                                                  z_nd, detJ, domain, bc_ptr, er_arr(i,j,k-1));
+
         //************************************************************************************
+
         diffContrib = (tau31Next - tau31Prev) * dxInv  // Contribution to z-mom eqn from diffusive flux in x-dir
                     + (tau32Next - tau32Prev) * dyInv  // Contribution to z-mom eqn from diffusive flux in y-dir
                     + (tau33Next - tau33Prev) * dzInv; // Contribution to z-mom eqn from diffusive flux in z-dir
