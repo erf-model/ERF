@@ -1,6 +1,5 @@
 #include <SpatialStencils.H>
 #include <StressTerm.H>
-#include <Interpolation.H>
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -24,8 +23,6 @@ DiffusionSrcForXMom (int i, int j, int k,
     {
         auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-        int l_spatial_order = solverChoice.spatial_order;
-
         amrex::Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
         tau11Next = ComputeStressTerm(i+1, j, k, u, v, w, MomentumEqn::x,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, er_arr(i  ,j,k) );
@@ -45,7 +42,7 @@ DiffusionSrcForXMom (int i, int j, int k,
                     + (tau13Next - tau13Prev) * dzInv; // Contribution to x-mom eqn from diffusive flux in z-dir
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-            diffContrib *= InterpolateInX(i, j, k, cons, Rho_comp, u(i,j,k),l_spatial_order) / solverChoice.rho0_trans;
+            diffContrib *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i-1,j,k,Rho_comp))  / solverChoice.rho0_trans;
         }
     }
     return diffContrib;
@@ -73,8 +70,6 @@ DiffusionSrcForYMom (int i, int j, int k,
     {
         auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-        int l_spatial_order = solverChoice.spatial_order;
-
         amrex::Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
         tau21Next = ComputeStressTerm(i+1, j, k, u, v, w, MomentumEqn::y,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice, domain, bc_ptr, 0.);
@@ -94,7 +89,7 @@ DiffusionSrcForYMom (int i, int j, int k,
                     + (tau23Next - tau23Prev) * dzInv; // Contribution to y-mom eqn from diffusive flux in z-dir
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-            diffContrib *= InterpolateInY(i, j, k, cons, Rho_comp, v(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
+            diffContrib *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j-1,k,Rho_comp))  / solverChoice.rho0_trans;
         }
     }
     return diffContrib;
@@ -122,7 +117,6 @@ DiffusionSrcForZMom (int i, int j, int k,
     {
         auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-        int l_spatial_order = solverChoice.spatial_order;
         amrex::Real tau31Next, tau31Prev, tau32Next, tau32Prev, tau33Next, tau33Prev;
 
         tau31Next = ComputeStressTerm(i+1, j, k, u, v, w, MomentumEqn::z,
@@ -143,7 +137,7 @@ DiffusionSrcForZMom (int i, int j, int k,
                     + (tau33Next - tau33Prev) * dzInv; // Contribution to z-mom eqn from diffusive flux in z-dir
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-            diffContrib *= InterpolateInZ(i, j, k, cons, Rho_comp, w(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
+            diffContrib *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j,k-1,Rho_comp))  / solverChoice.rho0_trans;
         }
     }
     return diffContrib;

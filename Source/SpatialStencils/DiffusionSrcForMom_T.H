@@ -1,6 +1,5 @@
 #include <SpatialStencils.H>
 #include <StressTerm.H>
-#include <Interpolation.H>
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -27,7 +26,6 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
 
         const auto& dom_lo = amrex::lbound(domain);
 
-        int l_spatial_order = solverChoice.spatial_order;
         amrex::Real met_h_xi,met_h_eta,met_h_zeta;
 
         amrex::Real tau11Next, tau11Prev, tau12Next, tau12Prev, tau13Next, tau13Prev;
@@ -147,7 +145,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
 
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-          diffContrib *= InterpolateInX(i, j, k, cons, Rho_comp, u(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
+          diffContrib *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i-1,j,k,Rho_comp)) / solverChoice.rho0_trans;
         }
     }
     return diffContrib;
@@ -178,7 +176,6 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
 
         const auto& dom_lo = amrex::lbound(domain);
 
-        int l_spatial_order = solverChoice.spatial_order;
         amrex::Real met_h_xi,met_h_eta,met_h_zeta;
 
         amrex::Real tau21Next, tau21Prev, tau22Next, tau22Prev, tau23Next, tau23Prev;
@@ -286,7 +283,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
 
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-          diffContrib *= InterpolateInY(i, j, k, cons, Rho_comp, v(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
+          diffContrib *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j-1,k,Rho_comp)) / solverChoice.rho0_trans;
         }
     }
     return diffContrib;
@@ -315,7 +312,6 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
     {
         auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-        int l_spatial_order = solverChoice.spatial_order;
         amrex::Real met_h_xi,met_h_eta,met_h_zeta;
 
         // Nodal in k for w-momentum
@@ -466,7 +462,7 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
 
         if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
         {
-          diffContrib *= InterpolateInZ(i, j, k, cons, Rho_comp, w(i,j,k), l_spatial_order) / solverChoice.rho0_trans;
+          diffContrib *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j,k-1)) / solverChoice.rho0_trans;
         }
     }
     return diffContrib;
