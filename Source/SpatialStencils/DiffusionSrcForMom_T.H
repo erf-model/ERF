@@ -25,6 +25,8 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
     {
         auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
+        const auto& dom_lo = amrex::lbound(domain);
+
         int l_spatial_order = solverChoice.spatial_order;
         amrex::Real met_h_xi,met_h_eta,met_h_zeta;
 
@@ -111,12 +113,15 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
         // Accumulate averages
         tau11BarP = Tmp11;
         tau12BarP = Tmp12;
+        amrex::Real e1 = (k == dom_lo.z) ? er_arr(i,j,k) : er_arr(i,j,k-1);
         tau11BarP += ComputeStressTermWithTerrain(i+1,j  ,k-1, u, v, w, MomentumEqn::x,
                                    DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                   z_nd, detJ, domain, bc_ptr, er_arr(i  ,j,k-1));
+                                   z_nd, detJ, domain, bc_ptr, e1);
+
+        amrex::Real e2 = (k == dom_lo.z) ? er_arr(i-1,j,k) : er_arr(i-1,j,k-1);
         tau11BarP += ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::x,
                                    DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
-                                   z_nd, detJ, domain, bc_ptr, er_arr(i-1,j,k-1));
+                                   z_nd, detJ, domain, bc_ptr, e2);
         tau11BarP *= 0.25;
         tau12BarP += ComputeStressTermWithTerrain(i  ,j+1,k-1, u, v, w, MomentumEqn::x,
                                    DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
@@ -170,6 +175,8 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
          (solverChoice.pbl_type        !=       PBLType::None) )
     {
         auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
+
+        const auto& dom_lo = amrex::lbound(domain);
 
         int l_spatial_order = solverChoice.spatial_order;
         amrex::Real met_h_xi,met_h_eta,met_h_zeta;
@@ -252,12 +259,15 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
                                        DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
                                        z_nd, detJ, domain, bc_ptr, 0.);
         tau21BarP *= 0.25;
+        amrex::Real e1 = (k == dom_lo.z) ? er_arr(i,j,k) : er_arr(i,j,k-1);
         tau22BarP += ComputeStressTermWithTerrain(i  ,j+1,k-1, u, v, w, MomentumEqn::y,
                                        DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr, er_arr(i,j  ,k-1));
+                                       z_nd, detJ, domain, bc_ptr, e1);
+
+        amrex::Real e2 = (k == dom_lo.z) ? er_arr(i,j-1,k) : er_arr(i,j-1,k-1);
         tau22BarP += ComputeStressTermWithTerrain(i  ,j  ,k-1, u, v, w, MomentumEqn::y,
                                        DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
-                                       z_nd, detJ, domain, bc_ptr, er_arr(i,j-1,k-1));
+                                       z_nd, detJ, domain, bc_ptr, e2);
         tau22BarP *= 0.25;
 
         // Metric at EdgeCenterI
