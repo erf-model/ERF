@@ -6,6 +6,7 @@
 #include <EOS.H>
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
+#include <Advection.H>
 #include <SpatialStencils.H>
 #include <TerrainMetrics.H>
 #include <TimeIntegration.H>
