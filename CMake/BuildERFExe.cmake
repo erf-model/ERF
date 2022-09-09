@@ -59,7 +59,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/IndexDefines.H
        ${SRC_DIR}/prob_common.H
-       ${SRC_DIR}/ERF_Math.H
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/ERF_init.cpp
@@ -97,6 +96,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/DiffusionSrcForMom_N.H
        ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.H
        ${SRC_DIR}/Diffusion/EddyViscosity.H
+       ${SRC_DIR}/Utils/ERF_Math.H
        ${SRC_DIR}/Utils/Interpolation.H
        ${SRC_DIR}/Diffusion/StrainRate.H
        ${SRC_DIR}/Diffusion/StressTerm.H
