@@ -10,8 +10,6 @@ using namespace amrex;
 
 ProbParm parms;
 
-AMREX_GPU_DEVICE
-static
 void
 init_isentropic_hse_no_terrain(const Real& r_sfc, const Real& theta,
                                Real* r,           Real* p,
@@ -299,10 +297,6 @@ init_custom_prob(
   amrex::Gpu::DeviceVector<Real> d_p(khi+1);
 
   if (z_cc) {
-
-    // These are at cell centers (unstaggered)
-    amrex::Vector<Real> h_r(khi+1);
-    amrex::Vector<Real> h_p(khi+1);
 
     // Create a flat box with same horizontal extent but only one cell in vertical
     Box b2d = surroundingNodes(bx); // Copy constructor
