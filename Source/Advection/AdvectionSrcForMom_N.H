@@ -23,7 +23,6 @@ AdvectionSrcForXMom_N (int i, int j, int k,
     amrex::Real zflux_hi; amrex::Real zflux_lo;
 
     if (spatial_order == 2) {
-
         xflux_hi = 0.25 * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (u(i+1,j,k) + u(i,j,k));
         xflux_lo = 0.25 * (rho_u(i, j  , k) + rho_u(i-1, j  , k)) * (u(i-1,j,k) + u(i,j,k));
 
