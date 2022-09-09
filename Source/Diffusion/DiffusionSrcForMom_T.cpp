@@ -68,8 +68,9 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
                                                          z_nd, detJ,
                                                          domain, bc_ptr, er_arr);
         } else {
+            const GpuArray<Real, AMREX_SPACEDIM>& dxInv_terr = {dxInv[0], dxInv[1], dxInv[2]/detJ(i,j,k)};
             diff_update = DiffusionSrcForXMom(i, j, k, u, v, w, cell_data,
-                                              dxInv, K_turb, solverChoice,
+                                              dxInv_terr, K_turb, solverChoice,
                                               domain, bc_ptr, er_arr);
         }
         rho_u_rhs(i, j, k) += diff_update;
@@ -83,24 +84,26 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
                                                          z_nd, detJ,
                                                          domain, bc_ptr, er_arr);
         } else {
+            const GpuArray<Real, AMREX_SPACEDIM>& dxInv_terr = {dxInv[0], dxInv[1], dxInv[2]/detJ(i,j,k)};
             diff_update = DiffusionSrcForYMom(i, j, k, u, v, w, cell_data,
-                                              dxInv, K_turb, solverChoice,
+                                              dxInv_terr, K_turb, solverChoice,
                                               domain, bc_ptr, er_arr);
         }
         rho_v_rhs(i, j, k) += diff_update;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-        int k_diff = (k == domhi_z+1) ? domhi_z : k;
         amrex::Real diff_update;
         if (k < domhi_z) {
-            diff_update = DiffusionSrcForZMomWithTerrain(i, j, k_diff, u, v, w, cell_data,
+            diff_update = DiffusionSrcForZMomWithTerrain(i, j, k, u, v, w, cell_data,
                                                          dxInv, K_turb, solverChoice,
                                                          z_nd, detJ,
                                                          domain, bc_ptr, er_arr);
         } else {
+            int k_diff = domhi_z;
+            const GpuArray<Real, AMREX_SPACEDIM>& dxInv_terr = {dxInv[0], dxInv[1], dxInv[2]/detJ(i,j,k_diff)};
             diff_update = DiffusionSrcForZMom(i, j, k_diff, u, v, w, cell_data,
-                                              dxInv, K_turb, solverChoice,
+                                              dxInv_terr, K_turb, solverChoice,
                                               domain, bc_ptr, er_arr);
         }
         rho_w_rhs(i, j, k) += diff_update;

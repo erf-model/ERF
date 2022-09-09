@@ -69,11 +69,11 @@ ComputeStressTermWithTerrain (int i, int j, int k,
     amrex::Real strainRate;
 
     // S_ij term
-    if ( (momentumEqn == MomentumEqn::z && k <= dom_hi.z) ||
-         (momentumEqn != MomentumEqn::z && k <  dom_hi.z) ) {
+    if (k <= dom_hi.z) {
         strainRate = ComputeStrainRateWithTerrain(i, j, kk, u, v, w, momentumEqn, diffDir, dxInv, z_nd, domain, bc_ptr);
     } else {
-        strainRate = ComputeStrainRate(i, j, kk, u, v, w, momentumEqn, diffDir, dxInv, domain, bc_ptr);
+        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv_terr = {dxInv[0], dxInv[1], dxInv[2]/detJ(i,j,k)};
+        strainRate = ComputeStrainRate(i, j, k, u, v, w, momentumEqn, diffDir, dxInv_terr, domain, bc_ptr);
     }
 
     // sigma_ij = S_ij - D_ij
