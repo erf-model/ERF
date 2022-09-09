@@ -122,21 +122,39 @@ void erf_slow_rhs_post (int level, Real dt,
         const amrex::GpuArray<int, IntVar::NumVars> scomp_slow = {  2,0,0,0};
         const amrex::GpuArray<int, IntVar::NumVars> ncomp_slow = {nsv,0,0,0};
 
+        {
+        BL_PROFILE("rhs_post_7");
         ParallelFor(bx, ncomp_slow[IntVar::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVar::cons] + nn;
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
+        } // end profile
 
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        int start_comp = 2;
-        int   num_comp = S_data[IntVar::cons].nComp() - 2;
+        if (l_use_deardorff) {
+            int start_comp = RhoKE_comp;
+            int   num_comp = 1;
+            AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                   cur_prim, cell_rhs, detJ,
+                                   dxInv, l_spatial_order, l_use_terrain);
+        }
+        if (l_use_QKE) {
+            int start_comp = RhoQKE_comp;
+            int   num_comp = 1;
+            AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                   cur_prim, cell_rhs, detJ,
+                                   dxInv, l_spatial_order, l_use_terrain);
+        }
+        int start_comp = RhoScalar_comp;
+        int   num_comp = S_data[IntVar::cons].nComp() - start_comp;
         AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ,
-                               dxInv, l_spatial_order, l_use_terrain, l_use_deardorff, l_use_QKE);
+                               dxInv, l_spatial_order, l_use_terrain);
+
 
         // NOTE: No diffusion for continuity, so n starts at 1.
         //       KE calls moved inside DiffSrcForState.
@@ -148,24 +166,32 @@ void erf_slow_rhs_post (int level, Real dt,
                              dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
 
         // This updates just the "slow" conserved variables
+        {
+        BL_PROFILE("rhs_post_8");
         ParallelFor(bx, num_comp,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
             const int n = start_comp + nn;
             cur_cons(i,j,k,n) = old_cons(i,j,k,n);
             cur_cons(i,j,k,n) += dt * cell_rhs(i,j,k,n);
         });
+        } // end profile
 
+        {
+        BL_PROFILE("rhs_post_9");
         // This updates all the conserved variables (not just the "slow" ones)
         int   num_comp_all = S_data[IntVar::cons].nComp();
         ParallelFor(bx, num_comp_all,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             new_cons(i,j,k,n)  = cur_cons(i,j,k,n);
         });
+        } // end profile
 
         const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
         const Box gtby = mfi.nodaltilebox(1).grow(S_old[IntVar::ymom].nGrowVect());
         const Box gtbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zmom].nGrowVect());
 
+        {
+        BL_PROFILE("rhs_post_10()");
         ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             new_xmom(i,j,k) = cur_xmom(i,j,k);
@@ -176,5 +202,6 @@ void erf_slow_rhs_post (int level, Real dt,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             new_zmom(i,j,k) = cur_zmom(i,j,k);
         });
+        } // end profile
     } // mfi
 }

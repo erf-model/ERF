@@ -326,8 +326,6 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
-    default:
-      amrex::Abort("Error: Diffusion direction is unrecognized");
     }
     break;
   case MomentumEqn::y:
@@ -353,8 +351,6 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
-    default:
-      amrex::Abort("Error: Diffusion direction is unrecognized");
     }
     break;
   case MomentumEqn::z:
@@ -380,12 +376,8 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
       strainRate = ComputeS33WithTerrain(i,j,k,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,domain);
       break;
-    default:
-      amrex::Abort("Error: Diffusion direction is unrecognized");
     }
     break;
-  default:
-    amrex::Abort("Error: Momentum equation is unrecognized");
   }
 
   return strainRate;
@@ -596,8 +588,6 @@ ComputeStrainRate (int i, int j, int k,
           case DiffusionDir::z: // S13
              strainRate = ComputeS13(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
              break;
-          default:
-             amrex::Abort("Error: Diffusion direction is unrecognized");
           }
           break;
       case MomentumEqn::y:
@@ -611,8 +601,6 @@ ComputeStrainRate (int i, int j, int k,
           case DiffusionDir::z: // S23
             strainRate = ComputeS23(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
             break;
-          default:
-            amrex::Abort("Error: Diffusion direction is unrecognized");
         }
         break;
       case MomentumEqn::z:
@@ -626,12 +614,8 @@ ComputeStrainRate (int i, int j, int k,
           case DiffusionDir::z: // S33
             strainRate = ComputeS33(i,j,k,w,cellSizeInv,domain);
             break;
-          default:
-            amrex::Abort("Error: Diffusion direction is unrecognized");
         }
         break;
-      default:
-          amrex::Abort("Error: Momentum equation is unrecognized");
   }
 
   return strainRate;

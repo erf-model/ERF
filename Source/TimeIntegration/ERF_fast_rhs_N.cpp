@@ -69,6 +69,8 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
     MultiFab     coeff_A(fast_coeffs, amrex::make_alias, 0, 1);
     MultiFab inv_coeff_B(fast_coeffs, amrex::make_alias, 1, 1);
     MultiFab     coeff_C(fast_coeffs, amrex::make_alias, 2, 1);
+    MultiFab     coeff_P(fast_coeffs, amrex::make_alias, 3, 1);
+    MultiFab     coeff_Q(fast_coeffs, amrex::make_alias, 4, 1);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -229,6 +231,8 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         auto const&     coeffA_a =     coeff_A.array(mfi);
         auto const& inv_coeffB_a = inv_coeff_B.array(mfi);
         auto const&     coeffC_a =     coeff_C.array(mfi);
+        auto const&     coeffP_a =     coeff_P.array(mfi);
+        auto const&     coeffQ_a =     coeff_Q.array(mfi);
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
@@ -239,9 +243,8 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-            Real pi_l = pi_stage_ca(i-1,j,k,0);
-            Real pi_r = pi_stage_ca(i  ,j,k,0);
-            Real pi_c =  0.5 * (pi_l + pi_r);
+            Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i,j,k,0));
+
             Real drho_theta_hi = extrap_arr(i  ,j,k);
             Real drho_theta_lo = extrap_arr(i-1,j,k);
 
@@ -257,8 +260,6 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
             new_drho_u(i, j, k) = prev_xmom(i,j,k) - stage_xmom(i,j,k)
                 + dtau * fast_rhs_rho_u + dtau * slow_rhs_rho_u(i,j,k);
 
-            if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
-
             avg_xmom(i,j,k) += facinv*new_drho_u(i,j,k);
 
             cur_xmom(i,j,k) = stage_xmom(i,j,k) + new_drho_u(i,j,k);
@@ -266,9 +267,7 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-            Real pi_l = pi_stage_ca(i,j-1,k,0);
-            Real pi_r = pi_stage_ca(i,j  ,k,0);
-            Real pi_c =  0.5 * (pi_l + pi_r);
+            Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j,k,0));
 
             Real drho_theta_hi = extrap_arr(i,j,k);
             Real drho_theta_lo = extrap_arr(i,j-1,k);
@@ -284,7 +283,6 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
 
             new_drho_v(i, j, k) = prev_ymom(i,j,k) - stage_ymom(i,j,k)
                  + dtau * fast_rhs_rho_v + dtau * slow_rhs_rho_v(i,j,k);
-            if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
 
             avg_ymom(i,j,k) += facinv*new_drho_v(i,j,k);
 
@@ -310,8 +308,6 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         });
         } // end profile
 
-        // *********************************************************************
-        // *********************************************************************
 
         Box bx_shrunk_in_k = bx;
         int klo = tbz.smallEnd(2);
@@ -324,11 +320,15 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         // We define halfg to match the notes (which is why we take the absolute value)
         Real halfg = std::abs(0.5 * grav_gpu[2]);
 
+        // *********************************************************************
+        // fast_loop_on_shrunk
+        // *********************************************************************
         {
         BL_PROFILE("fast_loop_on_shrunk");
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+#if 0
             Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
             rhobar_lo =  r0_ca(i,j,k-1);
             rhobar_hi =  r0_ca(i,j,k  );
@@ -346,6 +346,10 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
              Real coeff_Q = Gamma * R_d * pi_c * dzi
                           + halfg * R_d * rhobar_lo * pi_lo  /
                           ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+#else
+             Real coeff_P = coeffP_a(i,j,k);
+             Real coeff_Q = coeffQ_a(i,j,k);
+#endif
 
 #ifdef ERF_USE_MOISTURE
             Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
@@ -358,14 +362,9 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
             Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
             Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
-            // LHS for tri-diagonal system
-            Real D = dtau * dtau * beta_2 * beta_2 * dzi;
-
-            amrex::Real R_tmp = 0.;
-
             // line 2 last two terms (order dtau)
-            R_tmp += coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
-                   - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
+            Real R_tmp = coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
+                         - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
 
             // line 3 residuals (order dtau^2) 1.0 <-> beta_2
             R_tmp += -dtau * beta_2 * halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +

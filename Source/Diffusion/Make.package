@@ -1,22 +1,12 @@
 CEXE_sources += ComputeTurbulentViscosity.cpp
-CEXE_sources += MomentumToVelocity.cpp
-CEXE_sources += VelocityToMomentum.cpp
-CEXE_sources += AdvectionSrcForMom.cpp
-CEXE_sources += AdvectionSrcForState.cpp
 CEXE_sources += DiffusionSrcForMom_N.cpp
 CEXE_sources += DiffusionSrcForMom_T.cpp
 CEXE_sources += DiffusionSrcForState.cpp
 CEXE_sources += PBLModels.cpp
 
-CEXE_headers += AdvectionSrcForMom_N.H
-CEXE_headers += AdvectionSrcForMom_T.H
 CEXE_headers += DiffusionSrcForMom_N.H
 CEXE_headers += DiffusionSrcForMom_T.H
-CEXE_headers += Interpolation.H
 CEXE_headers += StrainRate.H
 CEXE_headers += StressTerm.H
 CEXE_headers += EddyViscosity.H
 CEXE_headers += ComputeQKESourceTerm.H
-
-CEXE_headers += TerrainMetrics.H
-CEXE_sources += TerrainMetrics.cpp

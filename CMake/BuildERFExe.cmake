@@ -86,26 +86,26 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
-       ${SRC_DIR}/SpatialStencils/AdvectionSrcForMom.cpp
-       ${SRC_DIR}/SpatialStencils/AdvectionSrcForState.cpp
-       ${SRC_DIR}/SpatialStencils/AdvectionSrcForMom_N.H
-       ${SRC_DIR}/SpatialStencils/AdvectionSrcForMom_T.H
-       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_N.cpp
-       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_T.cpp
-       ${SRC_DIR}/SpatialStencils/DiffusionSrcForState.cpp
-       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_N.H
-       ${SRC_DIR}/SpatialStencils/DiffusionSrcForMom_T.H
-       ${SRC_DIR}/SpatialStencils/EddyViscosity.H
-       ${SRC_DIR}/SpatialStencils/Interpolation.H
-       ${SRC_DIR}/SpatialStencils/StrainRate.H
-       ${SRC_DIR}/SpatialStencils/StressTerm.H
-       ${SRC_DIR}/SpatialStencils/ComputeQKESourceTerm.H
-       ${SRC_DIR}/SpatialStencils/ComputeTurbulentViscosity.cpp
-       ${SRC_DIR}/SpatialStencils/MomentumToVelocity.cpp
-       ${SRC_DIR}/SpatialStencils/PBLModels.cpp
-       ${SRC_DIR}/SpatialStencils/TerrainMetrics.H
-       ${SRC_DIR}/SpatialStencils/TerrainMetrics.cpp
-       ${SRC_DIR}/SpatialStencils/VelocityToMomentum.cpp
+       ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
+       ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
+       ${SRC_DIR}/Advection/AdvectionSrcForMom_N.H
+       ${SRC_DIR}/Advection/AdvectionSrcForMom_T.H
+       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_N.cpp
+       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.cpp
+       ${SRC_DIR}/Diffusion/DiffusionSrcForState.cpp
+       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_N.H
+       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.H
+       ${SRC_DIR}/Diffusion/EddyViscosity.H
+       ${SRC_DIR}/Utils/Interpolation.H
+       ${SRC_DIR}/Diffusion/StrainRate.H
+       ${SRC_DIR}/Diffusion/StressTerm.H
+       ${SRC_DIR}/Diffusion/ComputeQKESourceTerm.H
+       ${SRC_DIR}/Diffusion/ComputeTurbulentViscosity.cpp
+       ${SRC_DIR}/Utils/MomentumToVelocity.cpp
+       ${SRC_DIR}/Diffusion/PBLModels.cpp
+       ${SRC_DIR}/Utils/TerrainMetrics.H
+       ${SRC_DIR}/Utils/TerrainMetrics.cpp
+       ${SRC_DIR}/Utils/VelocityToMomentum.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStepping.cpp
        ${SRC_DIR}/TimeIntegration/ERF_MRI.H
@@ -148,7 +148,9 @@ function(build_erf_lib erf_lib_name)
   #ERF include directories
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR})
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/BoundaryConditions)
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/SpatialStencils)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Advection)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Diffusion)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Utils)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})

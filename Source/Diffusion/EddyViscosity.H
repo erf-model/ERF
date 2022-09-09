@@ -154,8 +154,6 @@ InterpolateTurbulentViscosity (int i, int j, int k,
       turbViscInterpolated = 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
                                   + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
       break;
-    default:
-      amrex::Abort("Error: Diffusion direction is unrecognized");
     }
     break;
   case MomentumEqn::y: // Reference face is y-face index (i, j, k)
@@ -171,8 +169,6 @@ InterpolateTurbulentViscosity (int i, int j, int k,
       turbViscInterpolated = 0.25*( K_turb(i, j-1, k, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
                                   + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
       break;
-    default:
-      amrex::Abort("Error: Diffusion direction is unrecognized");
     }
     break;
   case MomentumEqn::z: // Reference face is z-face index (i, j, k)
@@ -188,12 +184,8 @@ InterpolateTurbulentViscosity (int i, int j, int k,
     case DiffusionDir::z:
       turbViscInterpolated = K_turb(i, j, k-1, EddyDiff::Mom_v);
       break;
-    default:
-      amrex::Abort("Error: Diffusion direction is unrecognized");
     }
     break;
-  default:
-    amrex::Abort("Error: Momentum equation is unrecognized");
   }
 
   return turbViscInterpolated;

@@ -46,6 +46,8 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
     MultiFab coeff_A(fast_coeffs, amrex::make_alias, 0, 1);
     MultiFab coeff_B(fast_coeffs, amrex::make_alias, 1, 1);
     MultiFab coeff_C(fast_coeffs, amrex::make_alias, 2, 1);
+    MultiFab coeff_P(fast_coeffs, amrex::make_alias, 3, 1);
+    MultiFab coeff_Q(fast_coeffs, amrex::make_alias, 4, 1);
 
     FArrayBox gam;
 
@@ -126,6 +128,8 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
         auto const& coeffA_a  = coeff_A.array(mfi);
         auto const& coeffB_a  = coeff_B.array(mfi);
         auto const& coeffC_a  = coeff_C.array(mfi);
+        auto const& coeffP_a  = coeff_P.array(mfi);
+        auto const& coeffQ_a  = coeff_Q.array(mfi);
         auto const&    gam_a  = gam.array();
 
         // *********************************************************************
@@ -172,6 +176,9 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
                                + halfg * R_d * rhobar_lo * pi_lo  /
                                ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
 
+                 coeffP_a(i,j,k) = coeff_P;
+                 coeffQ_a(i,j,k) = coeff_Q;
+
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
                                 +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
@@ -212,6 +219,9 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
                  Real coeff_Q = Gamma * R_d * pi_c * dzi
                               + halfg * R_d * rhobar_lo * pi_lo  /
                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+
+                 coeffP_a(i,j,k) = coeff_P;
+                 coeffQ_a(i,j,k) = coeff_Q;
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
