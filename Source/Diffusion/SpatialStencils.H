@@ -62,8 +62,7 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<amrex::Real>& src,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
-                             const int& spatial_order, const int& use_terrain,
-                             const int& use_deardorff, const int& use_QKE);
+                             const int& spatial_order, const int& use_terrain);
 
 void AdvectionSrcForMom (int level, const amrex::Box& bx, const amrex::Box& valid_bx,
                          const amrex::Array4<const int>& mlo_x            , const amrex::Array4<const int>& mlo_y,

@@ -136,7 +136,7 @@ add_test_r(CouetteFlow "CouetteFlow/erf_couette_flow" "plt00050")
 add_test_r(PoiseuilleFlow "PoiseuilleFlow/erf_poiseuille_flow" "plt00010")
 add_test_r(EkmanSpiral "EkmanSpiral_custom/ekman_spiral_custom" "plt00010")
 add_test_r(DensityCurrent "DensityCurrent/density_current" "plt00010")
-add_test_r(DensityCurrent2x "DensityCurrent/density_current" "plt00010")
+add_test_r(DensityCurrent_zlev "DensityCurrent/density_current" "plt00010")
 
 #=============================================================================
 # Performance tests

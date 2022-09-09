@@ -39,7 +39,7 @@ void ERF::erf_advance(int level,
 
     MultiFab    S_prim  (ba  , dm, NUM_PRIM,          cons_old.nGrowVect());
     MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
-    MultiFab fast_coeffs(ba_z, dm,       3,          0);
+    MultiFab fast_coeffs(ba_z, dm,        5,          0);
     MultiFab eddyDiffs  (ba  , dm, EddyDiff::NumDiffs,1);
 
 #include "TI_utils.H"
