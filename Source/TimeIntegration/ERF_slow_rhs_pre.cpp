@@ -4,6 +4,7 @@
 #include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
 #include <ABLMost.H>
+#include <Advection.H>
 #include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
@@ -168,14 +169,19 @@ void erf_slow_rhs_pre (int level,
 
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
+        {
+        BL_PROFILE("slow_rhs_pre_pprime");
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
                 i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
             AMREX_ALWAYS_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
             pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
         });
+        } // end profile
 
         const Array4<Real> & er_arr = expr.array(mfi);
+        {
+        BL_PROFILE("slow_rhs_pre_pprime");
         if ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
              (solverChoice.les_type        !=       LESType::None) ||
              (solverChoice.pbl_type        !=       PBLType::None) )
@@ -229,6 +235,7 @@ void erf_slow_rhs_pre (int level,
                 });
             }
         }
+        } // end profile
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations

@@ -4,6 +4,7 @@
 #include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
 #include <ABLMost.H>
+#include <Advection.H>
 #include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
