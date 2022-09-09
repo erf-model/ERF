@@ -420,7 +420,7 @@ void erf_slow_rhs_pre (int level,
         b2d.setSmall(2,0);
         b2d.setBig(2,0);
         // Enforce no forcing term at top and bottom boundaries
-        amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+        amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             rho_w_rhs(i,j,        0) = 0.;
             rho_w_rhs(i,j,domhi_z+1) = 0.;
         });
