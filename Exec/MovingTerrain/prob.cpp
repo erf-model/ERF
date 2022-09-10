@@ -164,13 +164,11 @@ init_custom_prob(
   const Real rho_sfc  = p_0 / (R_d*T_sfc);
   const Real thetabar = T_sfc;
 
-  // These are at cell centers (unstaggered)
-  amrex::Vector<Real> h_r(khi+1);
-  amrex::Vector<Real> h_p(khi+1);
-
   // Create a flat box with same horizontal extent but only one cell in vertical
   Box b2d = surroundingNodes(bx); // Copy constructor
   b2d.setRange(2,0);
+
+  if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 
   ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
   {
@@ -243,16 +241,13 @@ init_custom_prob(
   });
 
   // Construct a box that is on z-faces
-  const auto dx         = geomdata.CellSize();
   const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
-  amrex::GpuArray<Real, AMREX_SPACEDIM> dxInv;
-  dxInv[0] = 1. / dx[0];
-  dxInv[1] = 1. / dx[1];
-  dxInv[2] = 1. / dx[2];
 
   // Set the z-velocity from impenetrable condition
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
+      const auto dx         = geomdata.CellSize();
+
       Real x   = (i + 0.5) * dx[0];
       Real z   = 0.25 * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k) );
       Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
@@ -271,7 +266,7 @@ erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
                   amrex::Vector<Real>& /*thetabar*/,
                   amrex::Geometry      const& /*geom*/)
 {
-   amrex::Error("Should never get here for DensityCurrent problem");
+   amrex::Error("Should never get here for MovingTerrain problem");
 }
 
 void
