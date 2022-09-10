@@ -273,7 +273,7 @@ erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
                   amrex::Vector<Real>& /*thetabar*/,
                   amrex::Geometry      const& /*geom*/)
 {
-   amrex::Error("Should never get here for DensityCurrent problem");
+   amrex::Error("Should never get here for WitchOfAgnesi problem");
 }
 
 void
