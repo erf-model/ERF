@@ -170,10 +170,6 @@ init_custom_prob(
   const Real rho_sfc   = p_0 / (R_d*parms.T_0);
   const Real thetabar  = parms.T_0;
 
-  // These are at cell centers (unstaggered)
-  amrex::Vector<Real> h_r(khi+1);
-  amrex::Vector<Real> h_p(khi+1);
-
   // Create a flat box with same horizontal extent but only one cell in vertical
   Box b2d = surroundingNodes(bx); // Copy constructor
   b2d.setRange(2,0);
