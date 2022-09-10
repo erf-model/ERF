@@ -105,6 +105,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
     FArrayBox RHS_fab;
     FArrayBox soln_fab;
 
+    FArrayBox dhdtfab;
+
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& valid_bx = mfi.validbox();
@@ -351,80 +353,28 @@ void erf_fast_rhs_T (int step, int level, const Real time,
 
                 cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
             });
-    } else { // no terrain
-            amrex::ParallelFor(tbx, tby,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-                // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = pi_stage_ca(i-1,j,k,0);
-                Real pi_r = pi_stage_ca(i  ,j,k,0);
-                Real pi_c =  0.5 * (pi_l + pi_r);
-                Real drho_theta_hi = extrap_arr(i  ,j,k);
-                Real drho_theta_lo = extrap_arr(i-1,j,k);
+    } // terrain
 
-                Real gpx = (drho_theta_hi - drho_theta_lo)*dxi;
+    // *********************************************************************
+    // *********************************************************************
+    // *********************************************************************
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
-                gpx /= (1.0 + q);
-#endif
-                Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
+    Box bx_shrunk_in_k = bx;
+    int klo = tbz.smallEnd(2);
+    int khi = tbz.bigEnd(2);
+    bx_shrunk_in_k.setSmall(2,klo+1);
+    bx_shrunk_in_k.setBig(2,khi-1);
 
-                new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
-                                                        + dtau * slow_rhs_rho_u(i,j,k);
+    // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
+    // We set grav_gpu[2] to be the vector component which is negative
+    // We define halfg to match the notes (which is why we take the absolute value)
+    Real halfg = std::abs(0.5 * grav_gpu[2]);
 
-                if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
-
-                cur_xmom(i,j,k) = stage_xmom(i,j,k) + new_drho_u(i,j,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = pi_stage_ca(i,j-1,k,0);
-                Real pi_r = pi_stage_ca(i,j  ,k,0);
-                Real pi_c =  0.5 * (pi_l + pi_r);
-
-                Real drho_theta_hi = extrap_arr(i,j,k);
-                Real drho_theta_lo = extrap_arr(i,j-1,k);
-
-                Real gpy = (drho_theta_hi - drho_theta_lo)*dyi;
-
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
-                gpy /= (1.0 + q);
-#endif
-                Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
-
-                new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
-                                                        + dtau * slow_rhs_rho_v(i,j,k);
-                if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
-
-                cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
-            });
-    } // end of no terrain
-
-        // *********************************************************************
-        // *********************************************************************
-        // *********************************************************************
-
-        Box bx_shrunk_in_k = bx;
-        int klo = tbz.smallEnd(2);
-        int khi = tbz.bigEnd(2);
-        bx_shrunk_in_k.setSmall(2,klo+1);
-        bx_shrunk_in_k.setBig(2,khi-1);
-
-        // Note that the notes use "g" to mean the magnitude of gravity, so it is positive
-        // We set grav_gpu[2] to be the vector component which is negative
-        // We define halfg to match the notes (which is why we take the absolute value)
-        Real halfg = std::abs(0.5 * grav_gpu[2]);
-
-        {
-        BL_PROFILE("fast_loop_on_shrunk_t");
-        //Note we don't act on the bottom or top boundaries of the domain
-        ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
+    {
+    BL_PROFILE("fast_loop_on_shrunk_t");
+    //Note we don't act on the bottom or top boundaries of the domain
+    ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    {
             Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
             rhobar_lo =  r0_ca(i,j,k-1);
             rhobar_hi =  r0_ca(i,j,k  );
@@ -587,64 +537,113 @@ void erf_fast_rhs_T (int step, int level, const Real time,
       {
       BL_PROFILE("fast_rhs_b2d_loop_t");
 #ifdef AMREX_USE_GPU
-      ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+      if (l_use_terrain && l_move_terrain)
       {
-          // w_0 = 0
-          RHS_a   (i,j,0) =  0.0;
+          dhdtfab.resize(b2d,1);
+          auto const& dhdt_arr = dhdtfab.array();
+          Elixir dhdt_eli = dhdtfab.elixir();
 
-          // Moving terrain
-          if (l_use_terrain && l_move_terrain) {
-              Real time_mt  = time - 0.5*dtau;
-              Real omega_bc = dhdt(i,j,dx,time_mt,dtau) - stage_zmom(i,j,0) / stage_cons(i,j,0); // w'' = w(t) - w^{RK stage}
-              RHS_a(i,j,0) = cur_cons(i,j,0) * omega_bc;
-          }
+          Real time_mt  = time - 0.5*dtau;
+          fill_dhdt(dhdt_arr,b2d,dx,time_mt,dtau);,
+          ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+          {
+              // Moving terrain
+              Real stage_rho_on_bdy = 1.5 * stage_cons(i,j,0) - 0.5 * stage_cons(i,j,0);
+              Real   cur_rho_on_bdy = 1.5 *   cur_cons(i,j,0) - 0.5 *   cur_cons(i,j,0);
 
-          // w_khi = 0
-          RHS_a(i,j,hi.z+1)     =  0.0;
+              Real omega_bc = dhdt_arr(i,j,0) - stage_zmom(i,j,0) / stage_rho_on_bdy; // w'' = w(t) - w^{RK stage}
+              RHS_a(i,j,0) = cur_rho_on_bdy * omega_bc;
 
-          // w = 0 at k = 0
-          soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+              // w_khi = 0
+              RHS_a(i,j,hi.z+1)     =  0.0;
 
-          for (int k = 1; k <= hi.z+1; k++) {
-              soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
-          }
-          cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
-          for (int k = hi.z; k >= 0; k--) {
-              soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
-          }
-      });
+              // w = 0 at k = 0
+              soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+
+              for (int k = 1; k <= hi.z+1; k++) {
+                  soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
+              }
+              cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+              for (int k = hi.z; k >= 0; k--) {
+                  soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
+              }
+          });
+      } else {
+          ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+          {
+              // w_0 = 0  w_khi = 0
+              RHS_a(i,j     ,0) =  0.0;
+              RHS_a(i,j,hi.z+1) =  0.0;
+
+              // w = 0 at k = 0
+              soln_a(i,j,0) = 0.
+
+              for (int k = 1; k <= hi.z+1; k++) {
+                  soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
+              }
+              cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+              for (int k = hi.z; k >= 0; k--) {
+                  soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
+              }
+          });
+      }
 #else
-        auto const lo = amrex::lbound(bx);
-        auto const hi = amrex::ubound(bx);
-        for (int j = lo.y; j <= hi.y; ++j) {
+      auto const lo = amrex::lbound(bx);
+      auto const hi = amrex::ubound(bx);
+
+      if (l_use_terrain && l_move_terrain) {
+          dhdtfab.resize(b2d,1);
+          auto const& dhdt_arr = dhdtfab.array();
+          Elixir dhdt_eli = dhdtfab.elixir();
+
+          Real time_mt  = time - 0.5*dtau;
+          fill_dhdt(dhdt_arr,b2d,dx,time_mt,dtau);
+
+          for (int j = lo.y; j <= hi.y; ++j) {
+               AMREX_PRAGMA_SIMD
+               for (int i = lo.x; i <= hi.x; ++i) {
+                   RHS_a (i,j,0) =  0.0;
+                   // Moving terrain
+                   Real stage_rho_on_bdy = 1.5 * stage_cons(i,j,0) - 0.5 * stage_cons(i,j,0);
+                   Real   cur_rho_on_bdy = 1.5 *   cur_cons(i,j,0) - 0.5 *   cur_cons(i,j,0);
+
+                   Real omega_bc = dhdt_arr(i,j,0) - stage_zmom(i,j,0) / stage_rho_on_bdy; // w'' = w(t) - w^{RK stage}
+                   RHS_a(i,j,0) = cur_rho_on_bdy * omega_bc;
+                   soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+               }
+          }
+      } else {
+         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
                 RHS_a (i,j,0) =  0.0;
                 soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
             }
         }
-        for (int j = lo.y; j <= hi.y; ++j) {
-            AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a (i,j,hi.z+1) =  0.0;
-            }
-        }
-        for (int k = lo.z+1; k <= hi.z+1; ++k) {
-            for (int j = lo.y; j <= hi.y; ++j) {
-                AMREX_PRAGMA_SIMD
-                for (int i = lo.x; i <= hi.x; ++i) {
-                    soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
-                }
-            }
-        }
-        for (int k = hi.z; k >= lo.z; --k) {
-            for (int j = lo.y; j <= hi.y; ++j) {
-                AMREX_PRAGMA_SIMD
-                for (int i = lo.x; i <= hi.x; ++i) {
-                    soln_a(i,j,k) -= (coeffC_a(i,j,k) * inv_coeffB_a(i,j,k)) * soln_a(i,j,k+1);
-                }
-            }
-        }
+      }
+
+      for (int j = lo.y; j <= hi.y; ++j) {
+           AMREX_PRAGMA_SIMD
+           for (int i = lo.x; i <= hi.x; ++i) {
+               RHS_a (i,j,hi.z+1) =  0.0;
+           }
+      }
+      for (int k = lo.z+1; k <= hi.z+1; ++k) {
+           for (int j = lo.y; j <= hi.y; ++j) {
+               AMREX_PRAGMA_SIMD
+               for (int i = lo.x; i <= hi.x; ++i) {
+                   soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
+               }
+           }
+      }
+      for (int k = hi.z; k >= lo.z; --k) {
+           for (int j = lo.y; j <= hi.y; ++j) {
+               AMREX_PRAGMA_SIMD
+               for (int i = lo.x; i <= hi.x; ++i) {
+                   soln_a(i,j,k) -= (coeffC_a(i,j,k) * inv_coeffB_a(i,j,k)) * soln_a(i,j,k+1);
+               }
+           }
+      }
 #endif
       } // end profile
 

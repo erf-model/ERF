@@ -25,13 +25,13 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     // ****************************************************************************************
 
     rho_u_avg = 0.5 * (rho_u(i+1, j, k) + rho_u(i, j, k));
-    amrex::Real centFluxXXNext = rho_u_avg * Compute_h_zeta_AtCellCenter(i,j,k,cellSizeInv,z_nd) *
+    amrex::Real centFluxXXNext = rho_u_avg * detJ(i,j,k) *
                           InterpolateInX(i+1, j, k, u, 0, rho_u_avg, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     rho_u_avg = 0.5 * (rho_u(i-1, j, k) + rho_u(i, j, k));
-    amrex::Real centFluxXXPrev = rho_u_avg * Compute_h_zeta_AtCellCenter(i-1,j,k,cellSizeInv,z_nd) *
+    amrex::Real centFluxXXPrev = rho_u_avg * detJ(i-1,j,k) *
                           InterpolateInX(i  , j, k, u, 0, rho_u_avg, spatial_order);
 
     // ****************************************************************************************
@@ -132,13 +132,13 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     // ****************************************************************************************
 
     rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j, k));
-    amrex::Real centFluxYYNext = rho_v_avg * Compute_h_zeta_AtCellCenter(i,j,k,cellSizeInv,z_nd) *
+    amrex::Real centFluxYYNext = rho_v_avg * detJ(i,j,k) *
                           InterpolateInY(i, j+1, k, v, 0, rho_v_avg, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     rho_v_avg = 0.5 * (rho_v(i, j-1, k) + rho_v(i, j, k));
-    amrex::Real centFluxYYPrev = rho_v_avg * Compute_h_zeta_AtCellCenter(i,j-1,k,cellSizeInv,z_nd) *
+    amrex::Real centFluxYYPrev = rho_v_avg * detJ(i,j-1,k) *
                           InterpolateInY(i  , j, k, v, 0, rho_v_avg, spatial_order);
 
 

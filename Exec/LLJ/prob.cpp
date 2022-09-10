@@ -88,11 +88,9 @@ amrex_probinit(
   pp.query("T_0", parms.Theta_0);
 }
 
-AMREX_GPU_DEVICE
-Real
-dhdt(int /*i*/, int /*j*/,
-     const GpuArray<Real,AMREX_SPACEDIM> /*dx*/,
-     const Real /*time_mt*/, const Real /*delta_t*/)
+void
+fill_dhdt(Array4<Real> const& dhdt_arr, const Box& bx,
+          const GpuArray<Real,AMREX_SPACEDIM> dx,
+          const Real time_mt, const Real delta_t)
 {
-    return 0.;
 }

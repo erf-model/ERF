@@ -56,10 +56,15 @@ void erf_slow_rhs_pre (int level,
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
     // *************************************************************************
-    // Set gravity as a vector
+    // Combine external forcing terms
     // *************************************************************************
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+
+    const GpuArray<Real, AMREX_SPACEDIM> ext_forcing = {
+       -solverChoice.abl_pressure_grad[0] + solverChoice.abl_geo_forcing[0],
+       -solverChoice.abl_pressure_grad[1] + solverChoice.abl_geo_forcing[1],
+       -solverChoice.abl_pressure_grad[2] + solverChoice.abl_geo_forcing[2]};
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
@@ -191,7 +196,7 @@ void erf_slow_rhs_pre (int level,
             if (l_use_terrain){
                 amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
-                    Real met_h_xi,met_h_eta,met_h_zeta;
+                    Real met_h_xi,met_h_eta;
 
                     Real met_u_h_xi_hi,met_u_h_eta_hi,met_u_h_zeta_hi;
                     Real met_u_h_xi_lo,met_u_h_eta_lo,met_u_h_zeta_lo;
@@ -220,11 +225,7 @@ void erf_slow_rhs_pre (int level,
                                          (v(i  ,j+1,k)*met_v_h_zeta_hi - v(i,j,k)*met_v_h_zeta_lo)*dxInv[1] +
                                          (Omega_hi - Omega_lo)*dxInv[2];
 
-                    ComputeMetricAtCellCenter(i,j,k,
-                                              met_h_xi,met_h_eta,met_h_zeta,
-                                              dxInv,z_nd,TerrainMet::h_zeta);
-
-                    er_arr(i,j,k) = expansionRate / met_h_zeta;
+                    er_arr(i,j,k) = expansionRate / detJ(i,j,k);
                 });
             } else {
                 amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -326,9 +327,8 @@ void erf_slow_rhs_pre (int level,
             rho_u_rhs(i, j, k) -= gpx;
 #endif
 
-            // Add driving pressure gradient
-            if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
-                rho_u_rhs(i, j, k) += -solverChoice.abl_pressure_grad[0];
+            // Add external drivers
+            rho_u_rhs(i, j, k) += ext_forcing[0];
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
             if (solverChoice.use_coriolis)
@@ -338,10 +338,6 @@ void erf_slow_rhs_pre (int level,
                 rho_u_rhs(i, j, k) += solverChoice.coriolis_factor *
                         (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
             }
-
-            // Add geostrophic forcing
-            if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
-                rho_u_rhs(i, j, k) += solverChoice.abl_geo_forcing[0];
 
             // Add Rayleigh damping
             if (solverChoice.use_rayleigh_damping)
@@ -390,9 +386,8 @@ void erf_slow_rhs_pre (int level,
                 rho_v_rhs(i, j, k) -= gpy;
 #endif
 
-                // Add driving pressure gradient
-                if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
-                    rho_v_rhs(i, j, k) += -solverChoice.abl_pressure_grad[1];
+                // Add external drivers
+                rho_v_rhs(i, j, k) += ext_forcing[1];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (solverChoice.use_coriolis)
@@ -400,10 +395,6 @@ void erf_slow_rhs_pre (int level,
                     Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
                     rho_v_rhs(i, j, k) += -solverChoice.coriolis_factor * rho_u_loc * solverChoice.sinphi;
                 }
-
-                // Add geostrophic forcing
-                if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
-                    rho_v_rhs(i, j, k) += solverChoice.abl_geo_forcing[1];
 
                 // Add Rayleigh damping
                 if (solverChoice.use_rayleigh_damping)
@@ -454,9 +445,8 @@ void erf_slow_rhs_pre (int level,
                     rho_w_rhs(i, j, k) += grav_gpu[2] * rho_prime;
                 }
 
-                // Add driving pressure gradient
-                if (solverChoice.abl_driver_type == ABLDriverType::PressureGradient)
-                    rho_w_rhs(i, j, k) += -solverChoice.abl_pressure_grad[2];
+                // Add external drivers
+                rho_w_rhs(i, j, k) += ext_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (solverChoice.use_coriolis)
@@ -464,10 +454,6 @@ void erf_slow_rhs_pre (int level,
                     Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
                     rho_w_rhs(i, j, k) += solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
                 }
-
-                // Add geostrophic forcing
-                if (solverChoice.abl_driver_type == ABLDriverType::GeostrophicWind)
-                    rho_w_rhs(i, j, k) += solverChoice.abl_geo_forcing[2];
 
                 // Add Rayleigh damping
                 if (solverChoice.use_rayleigh_damping)

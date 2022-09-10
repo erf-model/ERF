@@ -339,9 +339,9 @@ AMREX_GPU_DEVICE
 Real
 dhdt(int i, int j,
      const GpuArray<Real,AMREX_SPACEDIM> dx,
-     const Real time_mt, const Real delta_t)
+     const Real time_mt, const Real delta_t,
+     const Real Ampl)
 {
-    Real Ampl        = parms.Ampl;
     Real wavelength  = 100.;
     Real kp          = 2. * 3.1415926535 / wavelength;
     Real g           = 9.8;
@@ -357,4 +357,17 @@ dhdt(int i, int j,
     Real test = -Ampl * omega * std::cos(kp * x - omega * (time_mt + 0.5*delta_t));
 
     return test; //( (h_new - h_old) / delta_t );
+}
+
+void
+fill_dhdt(Array4<Real> const& dhdt_arr, const Box& bx,
+          const GpuArray<Real,AMREX_SPACEDIM> dx,
+          const Real time_mt, const Real delta_t)
+{
+    Real Ampl = parms.Ampl;
+    Box b2d = bx; b2d.setSmall(2,0); b2d.setBig(2,0);
+    ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+    {
+        dhdt_arr(i,j,0) = dhdt(i,j,dx,time_mt,delta_t,Ampl);
+    });
 }
