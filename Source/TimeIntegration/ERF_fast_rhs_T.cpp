@@ -544,7 +544,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
           Elixir dhdt_eli = dhdtfab.elixir();
 
           Real time_mt  = time - 0.5*dtau;
-          fill_dhdt(dhdt_arr,b2d,dx,time_mt,dtau);,
+          fill_dhdt(dhdt_arr,b2d,dx,time_mt,dtau);
           ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
           {
               // Moving terrain
@@ -576,7 +576,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
               RHS_a(i,j,hi.z+1) =  0.0;
 
               // w = 0 at k = 0
-              soln_a(i,j,0) = 0.
+              soln_a(i,j,0) = 0.;
 
               for (int k = 1; k <= hi.z+1; k++) {
                   soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
