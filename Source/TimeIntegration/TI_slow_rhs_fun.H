@@ -41,11 +41,12 @@
 
                 const auto& dX = fine_geom.CellSizeArray();
 
+                fill_dhdt(z_t_arr,gbx,dX,step_time,delta_t);
+
                 // Loop over horizontal plane
                 amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
                 {
                     // Evaluate between RK stages
-                    z_t_arr(i,j,0) = dhdt(i,j,dX,step_time,delta_t);
                     for (int k = 1; k <= khi; k++)
                     {
                         // NOTE: J in this code is (1/J) in Sullivan et al (JAS 2014)
