@@ -132,11 +132,12 @@ add_test_r(IsentropicVortexStationary       "IsentropicVortex/erf_isentropic_vor
 add_test_r(IsentropicVortexAdvecting        "IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(TaylorGreenAdvecting             "TaylorGreenVortex/taylor_green" "plt00010")
 add_test_r(TaylorGreenAdvectingDiffusing    "TaylorGreenVortex/taylor_green" "plt00010")
-add_test_r(CouetteFlow "CouetteFlow/erf_couette_flow" "plt00050")
-add_test_r(PoiseuilleFlow "PoiseuilleFlow/erf_poiseuille_flow" "plt00010")
-add_test_r(EkmanSpiral "EkmanSpiral_custom/ekman_spiral_custom" "plt00010")
-add_test_r(DensityCurrent "DensityCurrent/density_current" "plt00010")
-add_test_r(DensityCurrent_zlev "DensityCurrent/density_current" "plt00010")
+add_test_r(CouetteFlow                       "CouetteFlow/erf_couette_flow" "plt00050")
+add_test_r(PoiseuilleFlow                    "PoiseuilleFlow/erf_poiseuille_flow" "plt00010")
+add_test_r(EkmanSpiral                       "EkmanSpiral_custom/ekman_spiral_custom" "plt00010")
+add_test_r(DensityCurrent                    "DensityCurrent/density_current" "plt00010")
+add_test_r(DensityCurrent_detJ2              "DensityCurrent/density_current" "plt00010")
+add_test_r(MovingTerrain                     "MovingTerrain/moving_terrain"   "plt00020")
 
 #=============================================================================
 # Performance tests

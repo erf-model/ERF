@@ -189,7 +189,6 @@ void erf_slow_rhs_pre (int level,
             const Box& gbx2 = mfi.growntilebox(IntVect(1,1,0));
 
             if (l_use_terrain){
-                // We must include the factor of 3 here because the ComputeExpansion routine returns 1/3 of the divergence
                 amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
                     Real met_h_xi,met_h_eta,met_h_zeta;
