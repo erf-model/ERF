@@ -81,9 +81,6 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 Array4<const Real> velx_arr;
                 Array4<const Real> vely_arr;
 
-                // For single proc, the bx will coincide with gdomain for zvel with x&y periodic
-                //bool fill_zvel = ( (gdomain == bx) && (m_var_idx == Vars::zvel) );
-
                 if (m_z_phys_nd)
                 {
                     BoxArray mf_nodal_grids = mf.boxArray();
@@ -104,8 +101,7 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                 //! if there are cells not in the valid + periodic grown box
                 //! we need to fill them here
                 //!
-                //if (!gdomain.contains(bx) || fill_zvel)
-                if (!gdomain.contains(bx))
+                if (!gdomain.contains(bx) || (m_var_idx == Vars::zvel))
                 {
                     if (m_var_idx == Vars::xvel) {
                         AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
