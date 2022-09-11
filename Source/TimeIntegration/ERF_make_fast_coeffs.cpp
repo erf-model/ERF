@@ -1,12 +1,7 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_MultiFabUtil.H>
-#include <AMReX_ArrayLim.H>
-#include <AMReX_BC_TYPES.H>
-#include <EOS.H>
-#include <ERF_Constants.H>
+//#include <ERF_Constants.H>
 #include <IndexDefines.H>
-#include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <prob_common.H>
 
@@ -35,21 +30,17 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
 
     Real c_v = c_p - R_d;
 
-    const Box domain(geom.Domain());
-    const int domhi_z = domain.bigEnd()[2];
-
-    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
     Real dzi = dxInv[2];
 
-    MultiFab coeff_A(fast_coeffs, amrex::make_alias, 0, 1);
-    MultiFab coeff_B(fast_coeffs, amrex::make_alias, 1, 1);
-    MultiFab coeff_C(fast_coeffs, amrex::make_alias, 2, 1);
-    MultiFab coeff_P(fast_coeffs, amrex::make_alias, 3, 1);
-    MultiFab coeff_Q(fast_coeffs, amrex::make_alias, 4, 1);
+    MultiFab coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
+    MultiFab coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
+    MultiFab coeff_C_mf(fast_coeffs, amrex::make_alias, 2, 1);
+    MultiFab coeff_P_mf(fast_coeffs, amrex::make_alias, 3, 1);
+    MultiFab coeff_Q_mf(fast_coeffs, amrex::make_alias, 4, 1);
 
-    FArrayBox gam;
+    FArrayBox gam_fab;
 
     // *************************************************************************
     // Set gravity as a vector
@@ -122,15 +113,15 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
         const Array4<const Real>& pi0_ca      = pi0->const_array(mfi);
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
-        gam.resize(coeff_A[mfi].box());
-        Elixir gEli = gam.elixir();
+        gam_fab.resize(coeff_A_mf[mfi].box());
+        Elixir gEli = gam_fab.elixir();
 
-        auto const& coeffA_a  = coeff_A.array(mfi);
-        auto const& coeffB_a  = coeff_B.array(mfi);
-        auto const& coeffC_a  = coeff_C.array(mfi);
-        auto const& coeffP_a  = coeff_P.array(mfi);
-        auto const& coeffQ_a  = coeff_Q.array(mfi);
-        auto const&    gam_a  = gam.array();
+        auto const& coeffA_a  = coeff_A_mf.array(mfi);
+        auto const& coeffB_a  = coeff_B_mf.array(mfi);
+        auto const& coeffC_a  = coeff_C_mf.array(mfi);
+        auto const& coeffP_a  = coeff_P_mf.array(mfi);
+        auto const& coeffQ_a  = coeff_Q_mf.array(mfi);
+        auto const&    gam_a  = gam_fab.array();
 
         // *********************************************************************
         // *********************************************************************

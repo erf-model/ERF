@@ -1,4 +1,6 @@
-#include <SpatialStencils.H>
+#include <AMReX.H>
+#include <IndexDefines.H>
+#include <DataStruct.H>
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE

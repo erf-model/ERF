@@ -1,6 +1,6 @@
 #include "ABLMost.H"
 #include "DirectionSelector.H"
-#include "SpatialStencils.H"
+#include "Diffusion.H"
 
 void
 ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,

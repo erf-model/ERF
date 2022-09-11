@@ -7,7 +7,6 @@
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
 #include <Advection.H>
-#include <SpatialStencils.H>
 #include <TerrainMetrics.H>
 #include <TimeIntegration.H>
 #include <prob_common.H>
@@ -26,6 +25,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                      const amrex::Geometry geom,
                      amrex::InterpFaceRegister* ifr,
                      const SolverChoice& solverChoice,
+                           MultiFab& Omega,
                      const MultiFab* z_t_pert,
                      std::unique_ptr<MultiFab>& z_phys_nd,
                      std::unique_ptr<MultiFab>& detJ_cc,
@@ -186,6 +186,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         const Array4<const Real>& detJ   = l_use_terrain ?   detJ_cc->const_array(mfi) : Array4<const Real>{};
 
         const Array4<const Real>& zp_t_arr = l_move_terrain ? z_t_pert->const_array(mfi) : Array4<const Real>{};
+
+        const Array4<      Real>& omega_arr = Omega.array(mfi);
 
         const Array4<const Real>& r0_ca       = r0->const_array(mfi);
         const Array4<const Real>& pi0_ca      = pi0->const_array(mfi);
@@ -352,11 +354,13 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                 if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
 
                 cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
-            });
-    } // terrain
+        });
 
-    // *********************************************************************
-    // *********************************************************************
+        Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
+        });
+    } // terrain
     // *********************************************************************
 
     Box bx_shrunk_in_k = bx;
@@ -419,9 +423,6 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
             Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
-            // LHS for tri-diagonal system
-            Real D = dtau * dtau * beta_2 * beta_2 * dzi / detJ_on_kface;
-
             amrex::Real R_tmp = 0.;
 
             // line 2 last two terms (order dtau)
@@ -435,30 +436,24 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                                         coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
 
             // line 4 (order dtau^2)
-            Real Omega_hi;
-            Real Omega_lo;
-            if (l_use_terrain) {
-                Omega_hi = OmegaFromW(i,j,k+1,old_drho_w(i,j,k+1),old_drho_u,old_drho_v,z_nd,dxInv);
-                Omega_lo = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
-                h_zeta_cc_xface_hi = 0.5 * dzi *
-                  (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
-                    -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
+            Real Omega_hi = omega_arr(i,j,k+1);
+            Real Omega_lo = omega_arr(i,j,k  );
+            h_zeta_cc_xface_hi = 0.5 * dzi *
+              (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
+                -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
 
-                h_zeta_cc_xface_lo = 0.5 * dzi *
-                  (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
-                    -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
+            h_zeta_cc_xface_lo = 0.5 * dzi *
+              (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
+            -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
 
-                h_zeta_cc_yface_hi = 0.5 * dzi *
-                  (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                    -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
+            h_zeta_cc_yface_hi = 0.5 * dzi *
+              (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
+                -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
 
-                h_zeta_cc_yface_lo = 0.5 * dzi *
-                  (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
-                    -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
-            } else {
-                Omega_hi = old_drho_w(i,j,k+1);
-                Omega_lo = old_drho_w(i,j,k  );
-            }
+            h_zeta_cc_yface_lo = 0.5 * dzi *
+              (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
+                -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
+
             R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
                      ( beta_1 * dzi * (Omega_hi - Omega_lo)    +
                                 dxi * (new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi  -
@@ -479,28 +474,24 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                                         new_drho_v(i,j  ,k)*Theta_y_lo*h_zeta_cc_yface_lo) );
 
             // line 5 (order dtau^2)
-            if (l_use_terrain) {
-                Omega_hi = OmegaFromW(i,j,k  ,old_drho_w(i,j,k  ),old_drho_u,old_drho_v,z_nd,dxInv);
-                Omega_lo = OmegaFromW(i,j,k-1,old_drho_w(i,j,k-1),old_drho_u,old_drho_v,z_nd,dxInv);
-                h_zeta_cc_xface_hi = 0.5 * dzi *
-                  (  z_nd(i+1,j  ,k  ) + z_nd(i+1,j+1,k  )
-                    -z_nd(i+1,j  ,k-1) - z_nd(i+1,j+1,k-1) );
+            Omega_hi = omega_arr(i,j,k  );
+            Omega_lo = omega_arr(i,j,k-1);
+            h_zeta_cc_xface_hi = 0.5 * dzi *
+              (  z_nd(i+1,j  ,k  ) + z_nd(i+1,j+1,k  )
+                -z_nd(i+1,j  ,k-1) - z_nd(i+1,j+1,k-1) );
 
-                h_zeta_cc_xface_lo = 0.5 * dzi *
-                  (  z_nd(i  ,j  ,k  ) + z_nd(i  ,j+1,k  )
-                    -z_nd(i  ,j  ,k-1) - z_nd(i  ,j+1,k-1) );
+            h_zeta_cc_xface_lo = 0.5 * dzi *
+              (  z_nd(i  ,j  ,k  ) + z_nd(i  ,j+1,k  )
+                -z_nd(i  ,j  ,k-1) - z_nd(i  ,j+1,k-1) );
 
-                h_zeta_cc_yface_hi = 0.5 * dzi *
-                  (  z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
-                    -z_nd(i  ,j+1,k-1) - z_nd(i+1,j+1,k-1) );
+            h_zeta_cc_yface_hi = 0.5 * dzi *
+              (  z_nd(i  ,j+1,k  ) + z_nd(i+1,j+1,k  )
+                -z_nd(i  ,j+1,k-1) - z_nd(i+1,j+1,k-1) );
 
-                h_zeta_cc_yface_lo = 0.5 * dzi *
-                  (  z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
-                    -z_nd(i  ,j  ,k-1) - z_nd(i+1,j  ,k-1) );
-            } else {
-                Omega_hi = old_drho_w(i,j,k  );
-                Omega_lo = old_drho_w(i,j,k-1);
-            }
+            h_zeta_cc_yface_lo = 0.5 * dzi *
+              (  z_nd(i  ,j  ,k  ) + z_nd(i+1,j  ,k  )
+                -z_nd(i  ,j  ,k-1) - z_nd(i+1,j  ,k-1) );
+
             R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
                      ( beta_1 * dzi * (Omega_hi - Omega_lo) +
                                 dxi * (new_drho_u(i+1,j,k-1)*h_zeta_cc_xface_hi  -
@@ -523,15 +514,15 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             // line 1
             RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
 
-            // Terrain solves for Omega
-            if (l_use_terrain)
-                RHS_a(i,j,k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
+            // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
+            RHS_a(i,j,k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
       });
       } // end profile
 
       amrex::Box b2d = tbz; // Copy constructor
       b2d.setRange(2,0);
 
+      auto const lo = amrex::lbound(bx);
       auto const hi = amrex::ubound(bx);
 
       {
@@ -588,8 +579,6 @@ void erf_fast_rhs_T (int step, int level, const Real time,
           });
       }
 #else
-      auto const lo = amrex::lbound(bx);
-      auto const hi = amrex::ubound(bx);
 
       if (l_use_terrain && l_move_terrain) {
           dhdtfab.resize(b2d,1);
@@ -649,19 +638,40 @@ void erf_fast_rhs_T (int step, int level, const Real time,
 
       {
       BL_PROFILE("fast_rhs_new_drhow_t");
-      ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-      {
-            Real wpp;
-            if (l_use_terrain) {
-                wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
-            } else {
-                wpp = soln_a(i,j,k);
-            }
-            cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
+      if (l_use_terrain && l_move_terrain) {
+           ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+           {
+                 Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
+                 cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
 
-            // Sum implicit and explicit W for AdvSrc
-            new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
-      });
+                 // Sum implicit and explicit W for AdvSrc
+                 new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
+                 omega_arr(i,j,k) = (k == 0) ? 0. :
+                           OmegaFromW(i,j,k,new_drho_w(i,j,k  ),new_drho_u,new_drho_v,z_nd,dxInv)
+                          -0.5 * (cur_cons(i,j,k)+cur_cons(i,j,k-1)) * zp_t_arr(i,j,k);
+           });
+      } else if (l_use_terrain) {
+           ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+           {
+                 Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
+                 cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
+
+                 // Sum implicit and explicit W for AdvSrc
+                 new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
+                 omega_arr(i,j,k) = (k == 0) ? 0. :
+                           OmegaFromW(i,j,k,new_drho_w(i,j,k  ),new_drho_u,new_drho_v,z_nd,dxInv);
+           });
+      } else {
+           ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+           {
+                 Real wpp = soln_a(i,j,k);
+                 cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
+
+                 // Sum implicit and explicit W for AdvSrc
+                 new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
+                 omega_arr(i,j,k) = new_drho_w(i,j,k);
+           });
+      }
       } // end profile
 
       // **************************************************************************
@@ -675,9 +685,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
       Elixir src_eli = srcfab.elixir();
 
       AdvectionSrcForRhoAndTheta(bx, valid_bx, src_a,
-                                 new_drho_u, new_drho_v, new_drho_w,      // these are being used to build the fluxes
+                                 new_drho_u, new_drho_v, omega_arr,      // these are being used to build the fluxes
                                  facinv, avg_xmom, avg_ymom, avg_zmom,    // these are being defined from the rho fluxes
-                                 zp_t_arr,  // z_t
                                  prim, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain);
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

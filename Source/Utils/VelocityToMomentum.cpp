@@ -3,7 +3,7 @@
  */
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-#include <SpatialStencils.H>
+#include <Utils.H>
 
 using namespace amrex;
 

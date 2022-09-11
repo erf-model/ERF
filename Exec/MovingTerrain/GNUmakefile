@@ -20,6 +20,9 @@ USE_DPCPP = FALSE
 # Debugging
 DEBUG = FALSE
 
+TEST = TRUE
+USE_ASSERTION = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

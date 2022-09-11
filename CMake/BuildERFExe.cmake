@@ -98,12 +98,14 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/EddyViscosity.H
        ${SRC_DIR}/Utils/ERF_Math.H
        ${SRC_DIR}/Utils/Interpolation.H
+       ${SRC_DIR}/Diffusion/Diffusion.H
        ${SRC_DIR}/Diffusion/StrainRate.H
        ${SRC_DIR}/Diffusion/StressTerm.H
        ${SRC_DIR}/Diffusion/ComputeQKESourceTerm.H
        ${SRC_DIR}/Diffusion/ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/Utils/MomentumToVelocity.cpp
        ${SRC_DIR}/Diffusion/PBLModels.cpp
+       ${SRC_DIR}/Utils/Utils.H
        ${SRC_DIR}/Utils/TerrainMetrics.H
        ${SRC_DIR}/Utils/TerrainMetrics.cpp
        ${SRC_DIR}/Utils/VelocityToMomentum.cpp

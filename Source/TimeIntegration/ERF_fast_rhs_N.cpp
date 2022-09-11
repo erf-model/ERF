@@ -6,7 +6,6 @@
 #include <EOS.H>
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
-#include <SpatialStencils.H>
 #include <TimeIntegration.H>
 #include <prob_common.H>
 
@@ -27,7 +26,6 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
                      const MultiFab* /*z_t_pert*/,
                      std::unique_ptr<MultiFab>& /*z_phys_nd*/,
                      std::unique_ptr<MultiFab>& /*detJ_cc*/,
-                     const MultiFab* r0, const MultiFab* pi0,
                      const amrex::Real dtau, const amrex::Real facinv)
 {
     BL_PROFILE_REGION("erf_fast_rhs_N()");
@@ -45,16 +43,12 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = 0.1;
 
-    Real c_v = c_p - R_d;
-
-    const Box domain(geom.Domain());
-    const int domhi_z = domain.bigEnd()[2];
-
-    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
     Real dzi = dxInv[2];
+
     const auto& ba = S_stage_data[IntVar::cons].boxArray();
     const auto& dm = S_stage_data[IntVar::cons].DistributionMap();
 
@@ -66,11 +60,11 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
     MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
     MultiFab New_rho_w(convert(ba,IntVect(0,0,1)), dm, 1, 1);
 
-    MultiFab     coeff_A(fast_coeffs, amrex::make_alias, 0, 1);
-    MultiFab inv_coeff_B(fast_coeffs, amrex::make_alias, 1, 1);
-    MultiFab     coeff_C(fast_coeffs, amrex::make_alias, 2, 1);
-    MultiFab     coeff_P(fast_coeffs, amrex::make_alias, 3, 1);
-    MultiFab     coeff_Q(fast_coeffs, amrex::make_alias, 4, 1);
+    MultiFab     coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
+    MultiFab inv_coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
+    MultiFab     coeff_C_mf(fast_coeffs, amrex::make_alias, 2, 1);
+    MultiFab     coeff_P_mf(fast_coeffs, amrex::make_alias, 3, 1);
+    MultiFab     coeff_Q_mf(fast_coeffs, amrex::make_alias, 4, 1);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -174,8 +168,6 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         const Array4<      Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
         const Array4<      Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
-        const Array4<const Real>& r0_ca       = r0->const_array(mfi);
-        const Array4<const Real>& pi0_ca      = pi0->const_array(mfi);
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         const Array4<Real>& extrap_arr = extrap.array(mfi);
@@ -228,11 +220,11 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         auto const& temp_rhs_arr = temp_rhs_fab.array();
         Elixir temp_rhs_eli      = temp_rhs_fab.elixir();
 
-        auto const&     coeffA_a =     coeff_A.array(mfi);
-        auto const& inv_coeffB_a = inv_coeff_B.array(mfi);
-        auto const&     coeffC_a =     coeff_C.array(mfi);
-        auto const&     coeffP_a =     coeff_P.array(mfi);
-        auto const&     coeffQ_a =     coeff_Q.array(mfi);
+        auto const&     coeffA_a =     coeff_A_mf.array(mfi);
+        auto const& inv_coeffB_a = inv_coeff_B_mf.array(mfi);
+        auto const&     coeffC_a =     coeff_C_mf.array(mfi);
+        auto const&     coeffP_a =     coeff_P_mf.array(mfi);
+        auto const&     coeffQ_a =     coeff_Q_mf.array(mfi);
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
@@ -328,28 +320,8 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-#if 0
-            Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-            rhobar_lo =  r0_ca(i,j,k-1);
-            rhobar_hi =  r0_ca(i,j,k  );
-             pibar_lo = pi0_ca(i,j,k-1);
-             pibar_hi = pi0_ca(i,j,k  );
-
-             Real pi_lo = pi_stage_ca(i,j,k-1,0);
-             Real pi_hi = pi_stage_ca(i,j,k  ,0);
-             Real pi_c =  0.5 * (pi_lo + pi_hi);
-
-             Real coeff_P = -Gamma * R_d * pi_c * dzi
-                          +  halfg * R_d * rhobar_hi * pi_hi  /
-                          (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
-
-             Real coeff_Q = Gamma * R_d * pi_c * dzi
-                          + halfg * R_d * rhobar_lo * pi_lo  /
-                          ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
-#else
              Real coeff_P = coeffP_a(i,j,k);
              Real coeff_Q = coeffQ_a(i,j,k);
-#endif
 
 #ifdef ERF_USE_MOISTURE
             Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
@@ -450,13 +422,12 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
                 }
             }
         }
-        int k = hi.z+1;
-            for (int j = lo.y; j <= hi.y; ++j) {
-                AMREX_PRAGMA_SIMD
-                for (int i = lo.x; i <= hi.x; ++i) {
-                    cur_zmom(i,j,k) = stage_zmom(i,j,k) + new_drho_w(i,j,k);
-                }
+        for (int j = lo.y; j <= hi.y; ++j) {
+            AMREX_PRAGMA_SIMD
+            for (int i = lo.x; i <= hi.x; ++i) {
+                cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + new_drho_w(i,j,hi.z+1);
             }
+        }
         for (int k = hi.z; k >= lo.z; --k) {
             for (int j = lo.y; j <= hi.y; ++j) {
                 AMREX_PRAGMA_SIMD
@@ -474,7 +445,7 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         // **************************************************************************
 
         // We note that valid_bx is the actual grid, while bx may be a tile within that grid
-        const auto& vbx_hi = amrex::ubound(valid_bx);
+        // const auto& vbx_hi = amrex::ubound(valid_bx);
 
         {
         BL_PROFILE("fast_rho_final_update");
@@ -484,6 +455,7 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
             Real zflux_hi = beta_2 * new_drho_w(i,j,k+1) + beta_1 * old_drho_w(i,j,k+1);
 
             avg_zmom(i,j,k  ) += facinv*zflux_lo;
+
             // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
             // so we don't update avg_zmom at k=vbx_hi.z+1
 

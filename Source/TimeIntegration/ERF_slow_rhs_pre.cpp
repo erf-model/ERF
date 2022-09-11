@@ -3,9 +3,9 @@
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
-#include <ABLMost.H>
+//#include <ABLMost.H>
 #include <Advection.H>
-#include <SpatialStencils.H>
+#include <Diffusion.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 #include <ERF.H>
@@ -24,6 +24,7 @@ void erf_slow_rhs_pre (int level,
                    const MultiFab& yvel,
                    const MultiFab& zvel,
                    std::unique_ptr<MultiFab>& z_t_mf,
+                         MultiFab& Omega,
                    const MultiFab& source,
                    const MultiFab& eddyDiffs,
                    std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
@@ -68,7 +69,6 @@ void erf_slow_rhs_pre (int level,
 
     const iMultiFab *mlo_mf_x, *mhi_mf_x;
     const iMultiFab *mlo_mf_y, *mhi_mf_y;
-    const iMultiFab *mlo_mf_z, *mhi_mf_z;
 
     if (level > 0)
     {
@@ -76,8 +76,6 @@ void erf_slow_rhs_pre (int level,
         mhi_mf_x = &(ifr->mask(Orientation(0,Orientation::high)));
         mlo_mf_y = &(ifr->mask(Orientation(1,Orientation::low)));
         mhi_mf_y = &(ifr->mask(Orientation(1,Orientation::high)));
-        mlo_mf_z = &(ifr->mask(Orientation(2,Orientation::low)));
-        mhi_mf_z = &(ifr->mask(Orientation(2,Orientation::high)));
     }
 
     MultiFab pprime(S_data[IntVar::cons].boxArray(), S_data[IntVar::cons].DistributionMap(), 1, 1);
@@ -108,8 +106,6 @@ void erf_slow_rhs_pre (int level,
         auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
         auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
         auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
-        auto mlo_z = (level > 0) ? mlo_mf_z->const_array(mfi) : Array4<const int>{};
-        auto mhi_z = (level > 0) ? mhi_mf_z->const_array(mfi) : Array4<const int>{};
 
         // ******************************************************************
         // This assumes that refined regions are always rectangular
@@ -150,6 +146,8 @@ void erf_slow_rhs_pre (int level,
         const Array4<const Real>& rho_v = S_data[IntVar::ymom].array(mfi);
         const Array4<const Real>& rho_w = S_data[IntVar::zmom].array(mfi);
 
+        const Array4<      Real>& omega_arr = Omega.array(mfi);
+
         Array4<const Real> z_t;
         if (z_t_mf)
             z_t = z_t_mf->array(mfi);
@@ -185,18 +183,23 @@ void erf_slow_rhs_pre (int level,
         } // end profile
 
         const Array4<Real> & er_arr = expr.array(mfi);
+
         {
-        BL_PROFILE("slow_rhs_pre_pprime");
+        BL_PROFILE("slow_rhs_making_er");
         if ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
              (solverChoice.les_type        !=       LESType::None) ||
              (solverChoice.pbl_type        !=       PBLType::None) )
         {
             const Box& gbx2 = mfi.growntilebox(IntVect(1,1,0));
 
-            if (l_use_terrain){
-                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (l_use_terrain) {
+                // First create Omega using velocity (not momentum)
+                Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
+                amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,z_nd,dxInv);
+                });
 
-                    Real met_h_xi,met_h_eta;
+                amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
                     Real met_u_h_xi_hi,met_u_h_eta_hi,met_u_h_zeta_hi;
                     Real met_u_h_xi_lo,met_u_h_eta_lo,met_u_h_zeta_lo;
@@ -218,8 +221,8 @@ void erf_slow_rhs_pre (int level,
                                          met_v_h_xi_lo,met_v_h_eta_lo,met_v_h_zeta_lo,
                                          dxInv,z_nd,TerrainMet::h_zeta);
 
-                    Real Omega_hi = OmegaFromW(i,j,k+1,w(i,j,k+1),u,v,z_nd,dxInv);
-                    Real Omega_lo = OmegaFromW(i,j,k  ,w(i,j,k  ),u,v,z_nd,dxInv);
+                    Real Omega_hi = omega_arr(i,j,k+1);
+                    Real Omega_lo = omega_arr(i,j,k  );
 
                     Real expansionRate = (u(i+1,j  ,k)*met_u_h_zeta_hi - u(i,j,k)*met_u_h_zeta_lo)*dxInv[0] +
                                          (v(i  ,j+1,k)*met_v_h_zeta_hi - v(i,j,k)*met_v_h_zeta_lo)*dxInv[1] +
@@ -227,6 +230,7 @@ void erf_slow_rhs_pre (int level,
 
                     er_arr(i,j,k) = expansionRate / detJ(i,j,k);
                 });
+
             } else {
                 amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     er_arr(i,j,k) = (u(i+1, j  , k  ) - u(i, j, k))*dxInv[0] +
@@ -237,14 +241,42 @@ void erf_slow_rhs_pre (int level,
         }
         } // end profile
 
+        {
+        BL_PROFILE("slow_rhs_making_omega");
+            Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
+            // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
+            if (l_use_terrain) {
+                if (z_t) {
+                    amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        Real rho_at_face;
+                        if (w(i,j,k) != 0.)
+                            rho_at_face = rho_w(i,j,k) / w(i,j,k);
+                        else
+                            rho_at_face = 0.;
+                        omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv) -
+                            rho_at_face * z_t(i,j,k);
+                    });
+                } else {
+                    amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
+                    });
+                }
+            } else {
+                amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = rho_w(i,j,k);
+                });
+            }
+        } // end profile
+
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
 
         Real fac = 1.0;
-        AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs, rho_u, rho_v, rho_w,  // these are being used to build the fluxes
-                                   fac, avg_xmom, avg_ymom, avg_zmom,            // these are being defined from the rho fluxes
-                                   z_t, cell_prim, z_nd, detJ,
+        AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs,       // these are being used to build the fluxes
+                                   rho_u, rho_v, omega_arr, fac,
+                                   avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
+                                   cell_prim, z_nd, detJ,
                                    dxInv, l_spatial_order, l_use_terrain);
 
         // NOTE: No diffusion for continuity, so n starts at 1.
@@ -269,8 +301,8 @@ void erf_slow_rhs_pre (int level,
             });
         }
 
-        AdvectionSrcForMom(level, bx, valid_bx, mlo_x, mlo_y, mhi_x, mhi_y,
-                           rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
+        AdvectionSrcForMom(tbx, tby, tbz,
+                           rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, omega_arr,
                            rho_u    , rho_v    , rho_w    ,
                            z_t, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
 
@@ -281,7 +313,7 @@ void erf_slow_rhs_pre (int level,
         } else {
             DiffusionSrcForMom_N(level, bx, valid_bx, domain, mlo_x, mlo_y, mhi_x, mhi_y,
                                 rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, K_turb, cell_data, er_arr,
-                                solverChoice, bc_ptr, z_nd, detJ, dxInv);
+                                solverChoice, bc_ptr, dxInv);
         }
 
         // *********************************************************************
@@ -410,7 +442,7 @@ void erf_slow_rhs_pre (int level,
         b2d.setSmall(2,0);
         b2d.setBig(2,0);
         // Enforce no forcing term at top and bottom boundaries
-        amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+        amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rho_w_rhs(i,j,        0) = 0.;
             rho_w_rhs(i,j,domhi_z+1) = 0.;
         });

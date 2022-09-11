@@ -2,7 +2,7 @@
 
 #include <ABLMost.H>
 #include <EddyViscosity.H>
-#include <SpatialStencils.H>
+#include <Diffusion.H>
 
 using namespace amrex;
 

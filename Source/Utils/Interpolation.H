@@ -1,6 +1,8 @@
 #ifndef INTERPOLATE_H_
 #define INTERPOLATE_H_
 
+#include "DataStruct.H"
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
