@@ -6,9 +6,7 @@
 using namespace amrex;
 
 void
-DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& domain,
-                      const Array4<const  int>& mlo_x    , const Array4<const int>& mlo_y,
-                      const Array4<const  int>& mhi_x    , const Array4<const int>& mhi_y,
+DiffusionSrcForMom_T (const Box& bxx, const Box& bxy, const Box& bxz, const Box& domain,
                       const Array4<      Real>& rho_u_rhs, const Array4<      Real>& rho_v_rhs,
                       const Array4<      Real>& rho_w_rhs,
                       const Array4<const Real>& u        , const Array4<const Real>& v,
@@ -29,31 +27,7 @@ DiffusionSrcForMom_T (int level, const Box& bx, const Box& valid_bx, const Box& 
 
     AMREX_ALWAYS_ASSERT(l_use_terrain);
 
-    const int domhi_z = domain.bigEnd(2);
-
-    int vlo_x = valid_bx.smallEnd(0); int vhi_x = valid_bx.bigEnd(0);
-    int vlo_y = valid_bx.smallEnd(1); int vhi_y = valid_bx.bigEnd(1);
-    int vlo_z = valid_bx.smallEnd(2); int vhi_z = valid_bx.bigEnd(2);
-
-    Box bxx = surroundingNodes(bx,0);
-    Box bxy = surroundingNodes(bx,1);
-    Box bxz = surroundingNodes(bx,2);
-
-    // ******************************************************************
-    // This assumes that refined regions are always rectangular
-    // ******************************************************************
-    bool left_edge_dirichlet = ( level > 0 && mlo_x(vlo_x,vlo_y,vlo_z) );
-    bool rght_edge_dirichlet = ( level > 0 && mhi_x(vhi_x,vhi_y,vhi_z) );
-    bool  bot_edge_dirichlet = ( level > 0 && mlo_y(vlo_x,vlo_y,vlo_z) );
-    bool  top_edge_dirichlet = ( level > 0 && mhi_y(vhi_x,vhi_y,vhi_z) );
-
-    if (left_edge_dirichlet) bxx.growLo(0,-1);
-    if (rght_edge_dirichlet) bxx.growHi(0,-1);
-    if ( bot_edge_dirichlet) bxy.growLo(1,-1);
-    if ( top_edge_dirichlet) bxy.growHi(1,-1);
-
-    // We don't compute diffusion src for w at k = 0
-    bxz.setSmall(2,1);
+    int domhi_z = domain.bigEnd(2);
 
     // *********************************************************************
     // Define diffusive updates in the RHS of {x, y, z}-momentum equations

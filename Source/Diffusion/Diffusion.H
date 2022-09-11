@@ -9,9 +9,7 @@
 #include <IndexDefines.H>
 #include <ABLMost.H>
 
-void DiffusionSrcForMom_N (int level, const amrex::Box& bx, const amrex::Box& valid_bx, const amrex::Box& domain,
-                           const amrex::Array4<const int>& mlo_x            , const amrex::Array4<const int>& mlo_y,
-                           const amrex::Array4<const int>& mhi_x            , const amrex::Array4<const int>& mhi_y,
+void DiffusionSrcForMom_N (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz, const amrex::Box& domain,
                            const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
                            const amrex::Array4<      amrex::Real>& rho_w_rhs,
                            const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
@@ -20,9 +18,7 @@ void DiffusionSrcForMom_N (int level, const amrex::Box& bx, const amrex::Box& va
                            const SolverChoice& solverChoice                 , const amrex::BCRec* bc_ptr,
                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
-void DiffusionSrcForMom_T (int level, const amrex::Box& bx, const amrex::Box& valid_bx, const amrex::Box& domain,
-                           const amrex::Array4<const int>& mlo_x            , const amrex::Array4<const int>& mlo_y,
-                           const amrex::Array4<const int>& mhi_x            , const amrex::Array4<const int>& mhi_y,
+void DiffusionSrcForMom_T (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz, const amrex::Box& domain,
                            const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
                            const amrex::Array4<      amrex::Real>& rho_w_rhs,
                            const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,

@@ -307,13 +307,13 @@ void erf_slow_rhs_pre (int level,
                            z_t, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
 
         if (l_use_terrain) {
-            DiffusionSrcForMom_T(level, bx, valid_bx, domain, mlo_x, mlo_y, mhi_x, mhi_y,
-                                rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, K_turb, cell_data, er_arr,
-                                solverChoice, bc_ptr, z_nd, detJ, dxInv);
+            DiffusionSrcForMom_T(tbx, tby, tbz, domain, rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                 u, v, w, K_turb, cell_data, er_arr,
+                                 solverChoice, bc_ptr, z_nd, detJ, dxInv);
         } else {
-            DiffusionSrcForMom_N(level, bx, valid_bx, domain, mlo_x, mlo_y, mhi_x, mhi_y,
-                                rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, K_turb, cell_data, er_arr,
-                                solverChoice, bc_ptr, dxInv);
+            DiffusionSrcForMom_N(tbx, tby, tbz, domain,  rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                 u, v, w, K_turb, cell_data, er_arr,
+                                 solverChoice, bc_ptr, dxInv);
         }
 
         // *********************************************************************
