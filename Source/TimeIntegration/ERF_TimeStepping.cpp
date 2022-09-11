@@ -1,6 +1,5 @@
-
 #include <ERF.H>
-#include <SpatialStencils.H>
+#include <Utils.H>
 
 using namespace amrex;
 

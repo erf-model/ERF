@@ -1,11 +1,11 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_ArrayLim.H>
-#include <AMReX_BCRec.H>
-#include <ERF_Constants.H>
-#include <ABLMost.H>
+//#include <AMReX_ArrayLim.H>
+//#include <AMReX_BCRec.H>
+//#include <ERF_Constants.H>
+//#include <ABLMost.H>
 #include <Advection.H>
-#include <SpatialStencils.H>
+#include <Diffusion.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 #include <ERF.H>
@@ -15,7 +15,7 @@
 
 using namespace amrex;
 
-void erf_slow_rhs_post (int level, Real dt,
+void erf_slow_rhs_post (int /*level*/, Real dt,
                         Vector<MultiFab>& S_rhs,
                         Vector<MultiFab>& S_old,
                         Vector<MultiFab>& S_new,
@@ -25,7 +25,6 @@ void erf_slow_rhs_post (int level, Real dt,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
                         const MultiFab& zvel,
-                        std::unique_ptr<MultiFab>& z_t_mf,
                         const MultiFab& source, const MultiFab& eddyDiffs,
                         std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
                         const amrex::Geometry geom,
@@ -100,12 +99,6 @@ void erf_slow_rhs_post (int level, Real dt,
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
         const Array4<const Real> & w = zvel.array(mfi);
-
-        Array4<const Real> z_t;
-        if (z_t_mf)
-            z_t = z_t_mf->array(mfi);
-        else
-            z_t = Array4<const Real>{};
 
         // These are temporaries we use to add to the S_rhs for the fluxes
         const Array4<Real>& diffflux_x = diffflux[0].array(mfi);

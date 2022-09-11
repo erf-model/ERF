@@ -14,7 +14,6 @@ DiffusionSrcForMom_N (int level, const Box& bx, const Box& valid_bx, const Box& 
                      const Array4<const Real>& w        , const Array4<const Real>& K_turb,
                      const Array4<const Real>& cell_data, const Array4<const Real>& er_arr,
                      const SolverChoice& solverChoice   , const BCRec* bc_ptr,
-                     const Array4<const Real>& z_nd     , const Array4<const Real>& detJ,
                      const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
     BL_PROFILE_VAR("DiffusionSrcForMom_N()",DiffusionSrcForMom_N);

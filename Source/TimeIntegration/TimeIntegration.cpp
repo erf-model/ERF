@@ -1,6 +1,4 @@
 #include <AMReX_BC_TYPES.H>
-#include <SpatialStencils.H>
-#include <prob_common.H>
 #include <AMReX_TimeIntegrator.H>
 #include <ERF_MRI.H>
 #include <EddyViscosity.H>
@@ -41,6 +39,8 @@ void ERF::erf_advance(int level,
     MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
     MultiFab eddyDiffs  (ba  , dm, EddyDiff::NumDiffs,1);
+
+    MultiFab Omega (zmom_old.boxArray(),dm,1,1);
 
 #include "TI_utils.H"
 

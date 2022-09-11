@@ -1,5 +1,4 @@
 #include <IndexDefines.H>
-#include <SpatialStencils.H>
 #include <TerrainMetrics.H>
 #include <Interpolation.H>
 
@@ -8,9 +7,7 @@ AMREX_FORCE_INLINE
 amrex::Real
 AdvectionSrcForXMom_N (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& rho_u, const amrex::Array4<const amrex::Real>& rho_v,
-                       const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& z_t,
-                       const amrex::Array4<const amrex::Real>& u,
-                       const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
+                       const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& u,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        int spatial_order)
 {
@@ -64,9 +61,7 @@ AMREX_FORCE_INLINE
 amrex::Real
 AdvectionSrcForYMom_N (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& rho_u, const amrex::Array4<const amrex::Real>& rho_v,
-                       const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& z_t,
-                       const amrex::Array4<const amrex::Real>& v,
-                       const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
+                       const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& v,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        int spatial_order)
 {
@@ -122,15 +117,13 @@ AMREX_FORCE_INLINE
 amrex::Real
 AdvectionSrcForZMom_N (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& rho_u, const amrex::Array4<const amrex::Real>& rho_v,
-                       const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& z_t,
-                       const amrex::Array4<const amrex::Real>& w,
-                       const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
+                       const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& w,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        int spatial_order, int domhi_z)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-    amrex::Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
+    amrex::Real rho_u_avg, rho_v_avg, rho_w_avg;
 
     amrex::Real xflux_hi; amrex::Real xflux_lo;
     amrex::Real yflux_hi; amrex::Real yflux_lo;

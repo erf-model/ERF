@@ -1,4 +1,3 @@
-#include <SpatialStencils.H>
 #include <StressTerm.H>
 
 AMREX_GPU_DEVICE

@@ -73,12 +73,12 @@
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_T(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
+                               S_data, S_scratch, fine_geom, ifr, solverChoice, Omega, z_t_pert,
                                z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_T(fast_step, level, new_time, S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
+                               S_data, S_scratch, fine_geom, ifr, solverChoice, Omega, z_t_pert,
                                z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
             }
                 // If this is not the first substep we pass in S_data as the previous step's solution
@@ -87,12 +87,12 @@
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
-                               z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
+                               z_phys_nd[level], detJ_cc[level], dtau, inv_fac);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
-                               z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
+                               z_phys_nd[level], detJ_cc[level], dtau, inv_fac);
             }
         }
 

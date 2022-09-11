@@ -1,5 +1,5 @@
-#ifndef _STENCILS_H_
-#define _STENCILS_H_
+#ifndef _DIFFUSION_H_
+#define _DIFFUSION_H_
 
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
@@ -8,33 +8,6 @@
 #include <DataStruct.H>
 #include <IndexDefines.H>
 #include <ABLMost.H>
-
-void make_metrics (const amrex::Geometry& geom,
-                   amrex::MultiFab& z_phys_nd,
-                   amrex::MultiFab& z_phys_cc,
-                   amrex::MultiFab& detJ_cc);
-
-void MomentumToVelocity (amrex::MultiFab& xvel_out,
-                         const amrex::IntVect& xvel_ngrow,
-                         amrex::MultiFab& yvel_out,
-                         const amrex::IntVect& yvel_ngrow,
-                         amrex::MultiFab& zvel_out,
-                         const amrex::IntVect& zvel_ngrow,
-                         const amrex::MultiFab& cons_in,
-                         const amrex::MultiFab& xmom_in,
-                         const amrex::MultiFab& ymom_in,
-                         const amrex::MultiFab& zmom_in);
-
-void VelocityToMomentum (const amrex::MultiFab& xvel_in,
-                         const amrex::IntVect& xvel_ngrow,
-                         const amrex::MultiFab& yvel_in,
-                         const amrex::IntVect& yvel_ngrow,
-                         const amrex::MultiFab& zvel_in,
-                         const amrex::IntVect& zvel_ngrow,
-                         const amrex::MultiFab& cons_in,
-                         amrex::MultiFab& xmom_out,
-                         amrex::MultiFab& ymom_out,
-                         amrex::MultiFab& zmom_out);
 
 void DiffusionSrcForMom_N (int level, const amrex::Box& bx, const amrex::Box& valid_bx, const amrex::Box& domain,
                            const amrex::Array4<const int>& mlo_x            , const amrex::Array4<const int>& mlo_y,
@@ -45,7 +18,6 @@ void DiffusionSrcForMom_N (int level, const amrex::Box& bx, const amrex::Box& va
                            const amrex::Array4<const amrex::Real>& w        , const amrex::Array4<const amrex::Real>& K_turb,
                            const amrex::Array4<const amrex::Real>& cell_data, const amrex::Array4<const amrex::Real>& er_arr,
                            const SolverChoice& solverChoice                 , const amrex::BCRec* bc_ptr,
-                           const amrex::Array4<const amrex::Real>& z_nd     , const amrex::Array4<const amrex::Real>& detJ,
                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
 void DiffusionSrcForMom_T (int level, const amrex::Box& bx, const amrex::Box& valid_bx, const amrex::Box& domain,
