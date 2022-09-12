@@ -81,7 +81,6 @@
                                S_data, S_scratch, fine_geom, ifr, solverChoice, Omega, z_t_pert,
                                z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
             }
-                // If this is not the first substep we pass in S_data as the previous step's solution
         } else {
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
