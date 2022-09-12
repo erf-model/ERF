@@ -55,7 +55,6 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy, const Box& bxz, const Box&
         rho_w_rhs(i, j, k) += temp;
     });
 # else
-    #else
     auto dxinv = dxInv[0], dyinv = dxInv[1], dzinv = dxInv[2];
     Real OneThird = (1./3.);
 
