@@ -70,9 +70,11 @@ void erf_fast_rhs_T (int step, int level, const Real time,
     MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
     MultiFab New_rho_w(convert(ba,IntVect(0,0,1)), dm, 1, 1);
 
-    MultiFab     coeff_A(fast_coeffs, amrex::make_alias, 0, 1);
-    MultiFab inv_coeff_B(fast_coeffs, amrex::make_alias, 1, 1);
-    MultiFab     coeff_C(fast_coeffs, amrex::make_alias, 2, 1);
+    MultiFab     coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
+    MultiFab inv_coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
+    MultiFab     coeff_C_mf(fast_coeffs, amrex::make_alias, 2, 1);
+    MultiFab     coeff_P_mf(fast_coeffs, amrex::make_alias, 3, 1);
+    MultiFab     coeff_Q_mf(fast_coeffs, amrex::make_alias, 4, 1);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -251,15 +253,17 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         auto const& RHS_a     = RHS_fab.array();
         auto const& soln_a    = soln_fab.array();
 
-        auto const&     coeffA_a =     coeff_A.array(mfi);
-        auto const& inv_coeffB_a = inv_coeff_B.array(mfi);
-        auto const&     coeffC_a =     coeff_C.array(mfi);
+        auto const&     coeffA_a =     coeff_A_mf.array(mfi);
+        auto const& inv_coeffB_a = inv_coeff_B_mf.array(mfi);
+        auto const&     coeffC_a =     coeff_C_mf.array(mfi);
+        auto const&     coeffP_a =     coeff_P_mf.array(mfi);
+        auto const&     coeffQ_a =     coeff_Q_mf.array(mfi);
 
-        if (l_use_terrain)
-        {
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
+        {
+        BL_PROFILE("fast_rhs_xymom_T");
         amrex::ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -271,28 +275,24 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
 
                 Real gpx;
-                if (l_use_terrain) {
-                    Real met_h_xi,met_h_eta,met_h_zeta;
-                    ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
-                    Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
-                    Real gp_zeta_on_iface;
-                    if(k==0) {
-                        gp_zeta_on_iface = 0.5 * dzi * (
-                                                       extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
-                                                     - extrap_arr(i-1,j,k  ) - extrap_arr(i,j,k  ) );
-                    } else if(k==domhi_z) {
-                        gp_zeta_on_iface = 0.5 * dzi * (
-                                                       extrap_arr(i-1,j,k  ) + extrap_arr(i,j,k  )
-                                                     - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
-                    } else {
-                        gp_zeta_on_iface = 0.25 * dzi * (
-                                                        extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
-                                                      - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
-                    }
-                    gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
+                Real met_h_xi,met_h_eta,met_h_zeta;
+                ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
+                Real gp_zeta_on_iface;
+                if(k==0) {
+                  gp_zeta_on_iface = 0.5 * dzi * (
+                                                  extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
+                                                - extrap_arr(i-1,j,k  ) - extrap_arr(i,j,k  ) );
+                } else if(k==domhi_z) {
+                  gp_zeta_on_iface = 0.5 * dzi * (
+                                                  extrap_arr(i-1,j,k  ) + extrap_arr(i,j,k  )
+                                                - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
                 } else {
-                    gpx = (drho_theta_hi - drho_theta_lo)*dxi;
+                  gp_zeta_on_iface = 0.25 * dzi * (
+                                                   extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
+                                                 - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
                 }
+                gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
@@ -319,28 +319,24 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                 Real drho_theta_lo = extrap_arr(i,j-1,k);
 
                 Real gpy;
-                if (l_use_terrain) {
-                    Real met_h_xi,met_h_eta,met_h_zeta;
-                    ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
-                    Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
-                    Real gp_zeta_on_jface;
-                    if(k==0) {
-                        gp_zeta_on_jface = 0.5 * dzi * (
-                                                       extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
-                                                     - extrap_arr(i,j,k  ) - extrap_arr(i,j-1,k  ) );
-                    } else if(k==domhi_z) {
-                        gp_zeta_on_jface = 0.5 * dzi * (
-                                                       extrap_arr(i,j,k  ) + extrap_arr(i,j-1,k  )
-                                                     - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
-                    } else {
-                        gp_zeta_on_jface = 0.25 * dzi * (
-                                                        extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
-                                                      - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
-                    }
-                    gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
-               } else {
-                    gpy = (drho_theta_hi - drho_theta_lo)*dyi;
-               }
+                Real met_h_xi,met_h_eta,met_h_zeta;
+                ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
+                Real gp_zeta_on_jface;
+                if(k==0) {
+                  gp_zeta_on_jface = 0.5 * dzi * (
+                                                  extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
+                                                - extrap_arr(i,j,k  ) - extrap_arr(i,j-1,k  ) );
+                } else if(k==domhi_z) {
+                  gp_zeta_on_jface = 0.5 * dzi * (
+                                                  extrap_arr(i,j,k  ) + extrap_arr(i,j-1,k  )
+                                                - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
+                } else {
+                  gp_zeta_on_jface = 0.25 * dzi * (
+                                                   extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
+                                                 - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
+                }
+                gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
@@ -355,12 +351,12 @@ void erf_fast_rhs_T (int step, int level, const Real time,
 
                 cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
         });
+        } // end profile
 
         Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
         amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
         });
-    } // terrain
     // *********************************************************************
 
     Box bx_shrunk_in_k = bx;
@@ -379,38 +375,17 @@ void erf_fast_rhs_T (int step, int level, const Real time,
     //Note we don't act on the bottom or top boundaries of the domain
     ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
     {
-            Real rhobar_lo, rhobar_hi, pibar_lo, pibar_hi;
-            rhobar_lo =  r0_ca(i,j,k-1);
-            rhobar_hi =  r0_ca(i,j,k  );
-             pibar_lo = pi0_ca(i,j,k-1);
-             pibar_hi = pi0_ca(i,j,k  );
-
-            Real pi_lo = pi_stage_ca(i,j,k-1,0);
-            Real pi_hi = pi_stage_ca(i,j,k  ,0);
-            Real pi_c =  0.5 * (pi_lo + pi_hi);
-
-            Real detJ_on_kface      = 1.0;
-            Real h_zeta_on_kface    = 1.0;
-            Real h_zeta_cc_xface_hi = 1.0;
-            Real h_zeta_cc_xface_lo = 1.0;
-            Real h_zeta_cc_yface_hi = 1.0;
-            Real h_zeta_cc_yface_lo = 1.0;
-
-            if (l_use_terrain) {
-                h_zeta_on_kface = 0.125 * dzi * (
+            Real detJ_on_kface      = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+            Real h_zeta_on_kface    = 0.125 * dzi * (
                     z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
                    -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
+            Real h_zeta_cc_xface_hi;
+            Real h_zeta_cc_xface_lo;
+            Real h_zeta_cc_yface_hi;
+            Real h_zeta_cc_yface_lo;
 
-                detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
-            }
-
-            Real coeff_P = -Gamma * R_d * pi_c * dzi / h_zeta_on_kface
-                         +  halfg * R_d * rhobar_hi * pi_hi  /
-                         (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
-
-            Real coeff_Q = Gamma * R_d * pi_c * dzi / h_zeta_on_kface
-                         + halfg * R_d * rhobar_lo * pi_lo  /
-                         ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+            Real coeff_P = coeffP_a(i,j,k);
+            Real coeff_Q = coeffQ_a(i,j,k);
 
 #ifdef ERF_USE_MOISTURE
             Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
@@ -427,7 +402,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
 
             // line 2 last two terms (order dtau)
             R_tmp += coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
-                   - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
+                   - halfg   * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
 
             // line 3 residuals (order dtau^2) 1.0 <-> beta_2
             R_tmp += -dtau * beta_2 * halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
@@ -528,7 +503,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
       {
       BL_PROFILE("fast_rhs_b2d_loop_t");
 #ifdef AMREX_USE_GPU
-      if (l_use_terrain && l_move_terrain)
+      if (l_move_terrain)
       {
           dhdtfab.resize(b2d,1);
           auto const& dhdt_arr = dhdtfab.array();
@@ -580,7 +555,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
       }
 #else
 
-      if (l_use_terrain && l_move_terrain) {
+      if (l_move_terrain) {
           dhdtfab.resize(b2d,1);
           auto const& dhdt_arr = dhdtfab.array();
           Elixir dhdt_eli = dhdtfab.elixir();
@@ -638,7 +613,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
 
       {
       BL_PROFILE("fast_rhs_new_drhow_t");
-      if (l_use_terrain && l_move_terrain) {
+      if (l_move_terrain) {
            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
            {
                  Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
@@ -650,7 +625,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                            OmegaFromW(i,j,k,new_drho_w(i,j,k  ),new_drho_u,new_drho_v,z_nd,dxInv)
                           -0.5 * (cur_cons(i,j,k)+cur_cons(i,j,k-1)) * zp_t_arr(i,j,k);
            });
-      } else if (l_use_terrain) {
+      } else {
            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
            {
                  Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
@@ -660,16 +635,6 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                  new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
                  omega_arr(i,j,k) = (k == 0) ? 0. :
                            OmegaFromW(i,j,k,new_drho_w(i,j,k  ),new_drho_u,new_drho_v,z_nd,dxInv);
-           });
-      } else {
-           ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-           {
-                 Real wpp = soln_a(i,j,k);
-                 cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
-
-                 // Sum implicit and explicit W for AdvSrc
-                 new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
-                 omega_arr(i,j,k) = new_drho_w(i,j,k);
            });
       }
       } // end profile
