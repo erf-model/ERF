@@ -394,7 +394,7 @@ ERF::InitData ()
         if(solverChoice.use_terrain) {
             // This must come after the call to restart because that
             //      is where we read in the mesh data
-            for (int lev = finest_level-1; lev >= 0; --lev)
+            for (int lev = finest_level; lev >= 0; --lev)
                 make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
         }
     }
@@ -689,6 +689,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
         // We need this to be one greater than the ghost cells to handle levels > 0
         int ngrow = ComputeGhostCells(solverChoice.spatial_order)+2;
+        amrex::Print() << "ngrow ERF.cpp: " << ngrow << std::endl;
         z_phys_nd[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
         if (solverChoice.terrain_type > 0) {
             z_phys_nd_new[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));

@@ -243,6 +243,7 @@ ERF::ReadCheckpointFile ()
            // Note that we read the ghost cells of z_phys_nd (unlike above)
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,1);
            VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
+           z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,1);
        }
     }

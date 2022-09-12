@@ -370,19 +370,18 @@ make_metrics(const amrex::Geometry& geom,
 #endif
     for ( amrex::MFIter mfi(z_phys_cc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        const amrex::Box& gbx = mfi.growntilebox(ngrow);
+        amrex::Box gbx = mfi.growntilebox(ngrow);
+        gbx.setSmall(2,domlo_z);
         amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
         amrex::Array4<amrex::Real      > z_cc = z_phys_cc.array(mfi);
         amrex::Array4<amrex::Real      > detJ = detJ_cc.array(mfi);
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            if (k >= domlo_z) {
                z_cc(i, j, k) = .125 * (
                        z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                       +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
                detJ(i, j, k) = .25 * dzInv * (
                        z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
                       -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
-            }
        });
     }
     detJ_cc.FillBoundary(geom.periodicity());
