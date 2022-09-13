@@ -33,10 +33,11 @@ void erf_slow_rhs_pre (int level,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<ABLMost>& most,
                    const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                   std::unique_ptr<MultiFab>& z0, std::unique_ptr<MultiFab>& dJ,
+                   std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
                    const MultiFab* r0, const MultiFab* p0,
                    const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
+                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
+                   bool ingested_bcs)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -94,26 +95,39 @@ void erf_slow_rhs_pre (int level,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-        Box const& valid_bx = mfi.validbox();
-        int vlo_x = valid_bx.smallEnd(0);
-        int vhi_x = valid_bx.bigEnd(0);
-        int vlo_y = valid_bx.smallEnd(1);
-        int vhi_y = valid_bx.bigEnd(1);
-        int vlo_z = valid_bx.smallEnd(2);
-        int vhi_z = valid_bx.bigEnd(2);
+        bool left_edge_dirichlet = false;
+        bool rght_edge_dirichlet = false;
+        bool  bot_edge_dirichlet = false;
+        bool  top_edge_dirichlet = false;
 
-        auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
-        auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
-        auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
-        auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
+        const Box& valid_bx = mfi.validbox();
 
-        // ******************************************************************
-        // This assumes that refined regions are always rectangular
-        // ******************************************************************
-        bool left_edge_dirichlet = ( level > 0 && mlo_x(vlo_x  ,vlo_y  ,vlo_z) );
-        bool rght_edge_dirichlet = ( level > 0 && mhi_x(vhi_x+1,vhi_y  ,vhi_z) );
-        bool  bot_edge_dirichlet = ( level > 0 && mlo_y(vlo_x  ,vlo_y  ,vlo_z) );
-        bool  top_edge_dirichlet = ( level > 0 && mhi_y(vhi_x  ,vhi_y+1,vhi_z) );
+        if (level == 0 && ingested_bcs) {
+            left_edge_dirichlet = (bx.smallEnd(0) == domain.smallEnd(0));
+            rght_edge_dirichlet = (bx.bigEnd(1)   == domain.bigEnd(0));
+            bot_edge_dirichlet  = (bx.smallEnd(0) == domain.smallEnd(1));
+            top_edge_dirichlet  = (bx.bigEnd(1)   == domain.bigEnd(1));
+        } else if (level > 0) {
+            int vlo_x = valid_bx.smallEnd(0);
+            int vhi_x = valid_bx.bigEnd(0);
+            int vlo_y = valid_bx.smallEnd(1);
+            int vhi_y = valid_bx.bigEnd(1);
+            int vlo_z = valid_bx.smallEnd(2);
+            int vhi_z = valid_bx.bigEnd(2);
+
+            auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
+            auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
+            auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
+            auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
+
+            // ******************************************************************
+            // This assumes that refined regions are always rectangular
+            // ******************************************************************
+            left_edge_dirichlet = mlo_x(vlo_x  ,vlo_y  ,vlo_z);
+            rght_edge_dirichlet = mhi_x(vhi_x+1,vhi_y  ,vhi_z);
+            bot_edge_dirichlet  = mlo_y(vlo_x  ,vlo_y  ,vlo_z);
+            top_edge_dirichlet  = mhi_y(vhi_x  ,vhi_y+1,vhi_z);
+        } // level > 0
 
         if (left_edge_dirichlet) tbx.growLo(0,-1);
         if (rght_edge_dirichlet) tbx.growHi(0,-1);
@@ -165,8 +179,8 @@ void erf_slow_rhs_pre (int level,
 
         const Array4<const Real>& K_turb = eddyDiffs.const_array(mfi);
 
-        const Array4<const Real>& z_nd = l_use_terrain ? z0->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ = l_use_terrain ? dJ->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& z_nd = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
@@ -175,9 +189,9 @@ void erf_slow_rhs_pre (int level,
         {
         BL_PROFILE("slow_rhs_pre_pprime");
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
-                i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
-            AMREX_ALWAYS_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
+            //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
+            //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+            AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
             pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
         });
         } // end profile

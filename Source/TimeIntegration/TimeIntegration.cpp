@@ -42,6 +42,8 @@ void ERF::erf_advance(int level,
 
     MultiFab Omega (zmom_old.boxArray(),dm,1,1);
 
+    bool ingested_bcs = (init_type == "real");
+
 #include "TI_utils.H"
 
     amrex::Vector<amrex::MultiFab> state_old;

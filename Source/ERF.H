@@ -203,7 +203,9 @@ public:
                             amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_SST_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
+                            amrex::Vector<amrex::FArrayBox>& NC_RDNW_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab,
+                            amrex::Vector<amrex::FArrayBox>& NC_ALB_fab, amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
 
     // Copy from the NC*fabs into the MultiFabs holding the initial data
     void init_state_from_wrfinput(int lev,
@@ -224,6 +226,16 @@ public:
     void init_terrain_from_wrfinput(int lev,  amrex::FArrayBox& z_phys,
                                     const amrex::Vector<amrex::FArrayBox>& NC_PH_fab,
                                     const amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
+
+    // Copy from NC_PB fabs into the MultiFab holding the base state
+    void init_base_state_from_wrfinput(int lev, const amrex::Box& bx,
+                                       amrex::FArrayBox& p_hse_fab,
+                                       amrex::FArrayBox& pi_hse_fab,
+                                       amrex::FArrayBox& r_hse_fab,
+                                       const amrex::FArrayBox& z_phys_nd_fab,
+                                       const amrex::FArrayBox& z_phys_cc_fab,
+                                       const amrex::Vector<amrex::FArrayBox>& NC_ALB_fab,
+                                       const amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
 #endif //ERF_USE_NETCDF
 
     void init_from_input_sounding(int lev);
@@ -391,8 +403,8 @@ private:
     amrex::FArrayBox NC_PSFC_fab;   // Surface pressure
 
     // TODO: Clarify the relation between SST and TSK
-    amrex::FArrayBox NC_SST_fab;    // Sea Surface Temperature; Defined even for land area
-    amrex::FArrayBox NC_TSK_fab;    // Surface Skin Temperature; Appears to be same as SST...
+    // amrex::FArrayBox NC_SST_fab;    // Sea Surface Temperature; Defined even for land area
+    // amrex::FArrayBox NC_TSK_fab;    // Surface Skin Temperature; Appears to be same as SST...
 
     amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab;
 #endif // ERF_USE_NETCDF

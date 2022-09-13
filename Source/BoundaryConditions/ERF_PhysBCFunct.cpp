@@ -159,19 +159,19 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
 
 #ifdef ERF_USE_NETCDF
                     if (m_init_type == "real") {
-                        int icomp_for_wrfbdy, ncomp_for_wrfbdy, bccomp_for_wrfbdy;
+
                         if (m_var_idx == Vars::cons) {
-                            icomp_for_wrfbdy = RhoTheta_comp;
-                            bccomp_for_wrfbdy = BCVars::RhoTheta_bc_comp;
-                            ncomp_for_wrfbdy = 1; // (Because we are currently only filling U, V, W, T)
-                        } else {
-                            icomp_for_wrfbdy = icomp;
-                            bccomp_for_wrfbdy = bccomp;
-                            ncomp_for_wrfbdy = 1; // (Because we are currently only filling U, V, W, T)
+                            fill_from_wrfbdy(m_lev, bx, dest_arr, Rho_comp, BCVars::Rho_bc_comp, 1,
+                                             domain, bc_ptr, time, m_bdy_time_interval);
+
+                            fill_from_wrfbdy(m_lev, bx, dest_arr, RhoTheta_comp, BCVars::RhoTheta_bc_comp, 1,
+                                             domain, bc_ptr, time, m_bdy_time_interval);
+
+                        } else if (m_var_idx == Vars::xvel || m_var_idx == Vars::yvel) {
+
+                            fill_from_wrfbdy(m_lev, bx, dest_arr, icomp, bccomp, 1,
+                                             domain, bc_ptr, time, m_bdy_time_interval);
                         }
-                        fill_from_wrfbdy(m_lev, bx, dest_arr, icomp_for_wrfbdy, bccomp_for_wrfbdy, ncomp_for_wrfbdy,
-                                         domain, bc_ptr,
-                                         time, m_bdy_time_interval);
                     }
 #endif
                         Gpu::streamSynchronize(); // because of bcrs_d
