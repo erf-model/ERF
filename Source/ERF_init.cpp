@@ -3,6 +3,9 @@
  */
 
 #include <ERF.H>
+#include <EOS.H>
+#include <ERF_Constants.H>
+#include <Utils.H>
 #include <prob_common.H>
 
 using namespace amrex;
@@ -23,8 +26,11 @@ convert_wrfbdy_data(int which, const Box& domain,
                     const FArrayBox& NC_MSFU_fab,
                     const FArrayBox& NC_MSFV_fab,
                     const FArrayBox& NC_MSFM_fab,
+                    const FArrayBox& NC_PH_fab,
+                    const FArrayBox& NC_PHB_fab,
                     const FArrayBox& NC_C1H_fab,
                     const FArrayBox& NC_C2H_fab,
+                    const FArrayBox& NC_RDNW_fab,
                     const FArrayBox& NC_xvel_fab,
                     const FArrayBox& NC_yvel_fab,
                     const FArrayBox& NC_rho_fab,
@@ -47,8 +53,10 @@ ERF::init_from_wrfinput(int lev)
     Vector<FArrayBox> NC_SST_fab  ; NC_SST_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C1H_fab  ; NC_C1H_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C2H_fab  ; NC_C2H_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_RDNW_fab ; NC_RDNW_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PH_fab   ; NC_PH_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PHB_fab  ; NC_PHB_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_PB_fab   ; NC_PB_fab.resize(num_boxes_at_level[lev]);
 
     if (nc_init_file.size() == 0)
         amrex::Error("NetCDF initialization file name must be provided via input");
@@ -59,7 +67,7 @@ ERF::init_from_wrfinput(int lev)
                            NC_rhop_fab,NC_rhoth_fab,NC_MUB_fab,
                            NC_MSFU_fab,NC_MSFV_fab,NC_MSFM_fab,
                            NC_SST_fab,
-                           NC_C1H_fab,NC_C2H_fab,NC_PH_fab,NC_PHB_fab);
+                           NC_C1H_fab,NC_C2H_fab,NC_RDNW_fab,NC_PH_fab,NC_PHB_fab,NC_PB_fab);
     }
 
     auto& lev_new = vars_new[lev];
@@ -106,7 +114,24 @@ ERF::init_from_wrfinput(int lev)
         } // mf
     } // use_terrain
 
-    if (init_type == "real" && (lev == 0) ) {
+    make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
+
+    MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
+    MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
+    MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
+
+    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        FArrayBox&  p_hse_fab = p_hse[mfi];
+        FArrayBox& pi_hse_fab = pi_hse[mfi];
+        FArrayBox&  r_hse_fab = r_hse[mfi];
+        FArrayBox& z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
+
+        const Box& bx = mfi.validbox();
+        init_base_state_from_wrfinput(lev, bx, p_hse_fab, pi_hse_fab, r_hse_fab, z_phys_cc_fab, NC_PB_fab);
+    }
+
+    if (init_type == "real" && (lev == 0)) {
         if (nc_bdy_file.empty())
             amrex::Error("NetCDF boundary file name must be provided via input");
         bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi);
@@ -115,19 +140,23 @@ ERF::init_from_wrfinput(int lev)
 
         convert_wrfbdy_data(0,domain,bdy_data_xlo,
                             NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
-                            NC_C1H_fab[0], NC_C2H_fab[0],
+                            NC_PH_fab[0] , NC_PHB_fab[0],
+                            NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
         convert_wrfbdy_data(1,domain,bdy_data_xhi,
                             NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
-                            NC_C1H_fab[0], NC_C2H_fab[0],
+                            NC_PH_fab[0] , NC_PHB_fab[0],
+                            NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
         convert_wrfbdy_data(2,domain,bdy_data_ylo,
                             NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
-                            NC_C1H_fab[0], NC_C2H_fab[0],
+                            NC_PH_fab[0] , NC_PHB_fab[0],
+                            NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
         convert_wrfbdy_data(3,domain,bdy_data_yhi,
                             NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
-                            NC_C1H_fab[0], NC_C2H_fab[0],
+                            NC_PH_fab[0] , NC_PHB_fab[0],
+                            NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
     }
 }
@@ -189,6 +218,46 @@ ERF::init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
 
         // This copies mapfac_m
         msfm_fab.template copy<RunOn::Device>(NC_MSFM_fab[idx]);
+    } // idx
+}
+
+void
+ERF::init_base_state_from_wrfinput(int lev, const Box& bx, FArrayBox& p_hse, FArrayBox& pi_hse,
+                                   FArrayBox& r_hse, const FArrayBox& z_phys_cc_fab, const Vector<FArrayBox>& NC_PB_fab)
+{
+    for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
+    {
+        //
+        // FArrayBox to FArrayBox copy does "copy on intersection"
+        // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
+        //
+
+        // This copies from NC_zphys on z-faces to z_phys_nd on nodes
+        const Array4<Real      >&  p_hse_arr =  p_hse.array();
+        const Array4<Real      >& pi_hse_arr = pi_hse.array();
+        const Array4<Real      >&  r_hse_arr =  r_hse.array();
+        const Array4<Real const>& nc_pb_arr = NC_PB_fab[idx].const_array();
+        const Array4<Real const>&   z_cc_arr = z_phys_cc_fab.array();
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            p_hse_arr(i,j,k)  = nc_pb_arr(i,j,k);
+            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k));
+        });
+
+        Box b2d(bx); b2d.setSmall(2,0); b2d.setBig(2,0);
+        int khi = p_hse.box().bigEnd(2);
+        amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+
+            r_hse_arr(i,j,0) = - (p_hse_arr(i,j,0) - p_0) / z_cc_arr(i,j,0) / CONST_GRAV;
+
+            for (int k = 1; k <= khi; k++) {
+                Real dz = ( z_cc_arr(i,j,k) -  z_cc_arr(i,j,k-1));
+                Real dp = (p_hse_arr(i,j,k) - p_hse_arr(i,j,k-1));
+                r_hse_arr(i,j,k)  = -2.0 * dp / CONST_GRAV / dz - r_hse_arr(i,j,k-1);
+                // if (r_hse_arr(i,j,k) < 0.) amrex::Print() << " NEG AT " << IntVect(i,j,k) << " " << dp << " " <<
+                //       dp/CONST_GRAV/dz << " " << r_hse_arr(i,j,k-1) << std::endl;
+            } // k
+        });
     } // idx
 }
 

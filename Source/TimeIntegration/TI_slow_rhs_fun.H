@@ -64,7 +64,8 @@
                              fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
                              z_phys_nd[level], detJ_cc[level], r0, p0,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
+                             ingested_bcs);
         } else {
             erf_slow_rhs_pre(level, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
@@ -72,7 +73,8 @@
                              fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d,
                              z_phys_nd[level], detJ_cc[level], r0, p0,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
+                             ingested_bcs);
         }
     };
 

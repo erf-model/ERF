@@ -111,10 +111,10 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
     // ******************************************************************
     // Read the netcdf file and fill these FABs
     // NOTE: the order and number of these must match the WRFBdyVars enum!
-    // WRFBdyVars:  U, V, T, QV, MU, PC
+    // WRFBdyVars:  U, V, R, T, QV, MU, PC
     // ******************************************************************
     Vector<std::string> nc_var_names;
-    Vector<std::string> nc_var_prefix = {"U","V","T","QVAPOR","MU","PC"};
+    Vector<std::string> nc_var_prefix = {"U","V","R","T","QVAPOR","MU","PC"};
 
     for (int ip = 0; ip < nc_var_prefix.size(); ++ip)
     {
@@ -155,6 +155,8 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
             bdyVarType = WRFBdyVars::U;
         } else if (first1 == "V") {
             bdyVarType = WRFBdyVars::V;
+        } else if (first1 == "R") {
+            bdyVarType = WRFBdyVars::R;
         } else if (first1 == "T") {
             bdyVarType = WRFBdyVars::T;
         } else if (first2 == "QV") {
@@ -206,6 +208,10 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_y_stag , 1)); // V
                     }
+                } else if (bdyVarType == WRFBdyVars::R) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // R
+                    }
                 } else if (bdyVarType == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // T
@@ -248,6 +254,10 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_y_stag , 1)); // V
                     }
+                } else if (bdyVarType == WRFBdyVars::R) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // R
+                    }
                 } else if (bdyVarType == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // T
@@ -285,6 +295,10 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 } else if (bdyVarType == WRFBdyVars::V) {
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_y_stag, 1)); // V
+                    }
+                } else if (bdyVarType == WRFBdyVars::R) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1)); // R
                     }
                 } else if (bdyVarType == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -328,9 +342,13 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                     for (int nt(0); nt < ntimes; ++nt) {
                         bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_y_stag, 1)); // V
                     }
+                } else if (bdyVarType == WRFBdyVars::R) {
+                    for (int nt(0); nt < ntimes; ++nt) {
+                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); // R
+                    }
                 } else if (bdyVarType == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); //
+                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); // T
                     }
                 } else if (bdyVarType == WRFBdyVars::QV) {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -356,7 +374,8 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
 
             Array4<Real> fab_arr;
             if (bdyVarType == WRFBdyVars::U || bdyVarType == WRFBdyVars::V ||
-                bdyVarType == WRFBdyVars::T || bdyVarType == WRFBdyVars::QV)
+                bdyVarType == WRFBdyVars::R || bdyVarType == WRFBdyVars::T ||
+                bdyVarType == WRFBdyVars::QV)
             {
                 int ns2 = arrays[iv].get_vshape()[2];
                 int ns3 = arrays[iv].get_vshape()[3];
@@ -519,16 +538,22 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
                     const FArrayBox& NC_MUB_fab,
                     const FArrayBox& NC_MSFU_fab, const FArrayBox& NC_MSFV_fab,
                     const FArrayBox& NC_MSFM_fab,
+                    const FArrayBox& NC_PH_fab, const FArrayBox& NC_PHB_fab,
                     const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
+                    const FArrayBox& NC_RDNW_fab,
                     const FArrayBox& NC_xvel_fab, const FArrayBox& NC_yvel_fab,
                     const FArrayBox& NC_rho_fab, const FArrayBox& NC_rhotheta_fab)
 {
     // These were filled from wrfinput
     Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();
     Array4<Real const> c2h_arr  = NC_C2H_fab.const_array();
+    Array4<Real const> rdnw_arr = NC_RDNW_fab.const_array();
     Array4<Real const> mub_arr  = NC_MUB_fab.const_array();
     Array4<Real const> msfu_arr = NC_MSFU_fab.const_array();
     Array4<Real const> msfv_arr = NC_MSFV_fab.const_array();
+
+    Array4<Real const>  ph_arr  = NC_PH_fab.const_array();
+    Array4<Real const> phb_arr  = NC_PHB_fab.const_array();
 
     Array4<Real const> u_arr   = NC_xvel_fab.const_array();
     Array4<Real const> v_arr   = NC_yvel_fab.const_array();
@@ -540,6 +565,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
     {
         Array4<Real> bdy_u_arr  = bdy_data[nt][WRFBdyVars::U].array();  // This is face-centered
         Array4<Real> bdy_v_arr  = bdy_data[nt][WRFBdyVars::V].array();
+        Array4<Real> bdy_r_arr  = bdy_data[nt][WRFBdyVars::R].array();
         Array4<Real> bdy_t_arr  = bdy_data[nt][WRFBdyVars::T].array();
         Array4<Real> bdy_qv_arr = bdy_data[nt][WRFBdyVars::QV].array();
         Array4<Real> mu_arr     = bdy_data[nt][WRFBdyVars::MU].array(); // This is cell-centered
@@ -615,6 +641,22 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
 
         auto& bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
 
+        // Define density
+        amrex::ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+
+            Real xmu = c1h_arr(0,0,k) * (mu_arr(i,j,0) + mub_arr(i,j,0)) + c2h_arr(0,0,k);
+
+            Real dpht =  (ph_arr(i,j,k+1) + phb_arr(i,j,k+1)) - (ph_arr(i,j,k) + phb_arr(i,j,k));
+
+            bdy_r_arr(i,j,k) = -xmu / ( dpht * rdnw_arr(0,0,k) );
+
+            //if (nt == 0 and std::abs(r_arr(i,j,k) - bdy_r_arr(i,j,k)) > 0.) {
+            //    amrex::Print() << "INIT VS BDY DEN " << IntVect(i,j,k) << " " << r_arr(i,j,k) << " " << bdy_r_arr(i,j,k) <<
+            //                    " " << std::abs(r_arr(i,j,k) - bdy_r_arr(i,j,k)) << std::endl;
+            //}
+        });
+
+        // Define theta
         amrex::Real theta_ref = 300.;
         amrex::ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
@@ -627,20 +669,30 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
 
             new_bdy_Th /= qv_fac;
 
-            bdy_t_arr(i,j,k) = new_bdy_Th; // STILL NEED TO CONVERT THIS TO RHO THETA
+            bdy_t_arr(i,j,k) = new_bdy_Th * bdy_r_arr(i,j,k);
 
-            // Real inp_Th = rth_arr(i,j,k) / r_arr(i,j,k);
-            // if (nt == 0 and std::abs(inp_Th - new_bdy_Th) > 0.) {
-            //     amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << inp_Th << " " << new_bdy_Th <<
-            //                     " " << std::abs(inp_Th - new_bdy_Th) << std::endl;
-            // }
+            //if (nt == 0 and std::abs(rth_arr(i,j,k) - bdy_t_arr(i,j,k)) > 0.) {
+            //    amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << rth_arr(i,j,k) << " " << bdy_t_arr(i,j,k) <<
+            //                    " " << std::abs(th_arr(i,j,k) - bdy_t_arr(i,j,k)) << std::endl;
+            //}
         });
 
 #ifndef AMREX_USE_GPU
         if (nt == 0) {
             FArrayBox diff(bx_t,1);
+            diff.template copy<RunOn::Device>(bdy_data[0][WRFBdyVars::R]);
+            //diff.template mult<RunOn::Device>(NC_rho_fab);
+            diff.template minus<RunOn::Device>(NC_rho_fab);
+            if (which == 0)
+                amrex::Print() << "Max norm of diff between initial r and bdy r on lo x face: " << diff.norm(0) << std::endl;
+            if (which == 1)
+                amrex::Print() << "Max norm of diff between initial r and bdy r on hi x face: " << diff.norm(0) << std::endl;
+            if (which == 2)
+                amrex::Print() << "Max norm of diff between initial r and bdy r on lo y face: " << diff.norm(0) << std::endl;
+            if (which == 3)
+                amrex::Print() << "Max norm of diff between initial r and bdy r on hi y face: " << diff.norm(0) << std::endl;
+
             diff.template copy<RunOn::Device>(bdy_data[0][WRFBdyVars::T]);
-            diff.template mult<RunOn::Device>(NC_rho_fab);
             diff.template minus<RunOn::Device>(NC_rhotheta_fab);
             if (which == 0)
                 amrex::Print() << "Max norm of diff between initial rTh and bdy rTh on lo x face: " << diff.norm(0) << std::endl;

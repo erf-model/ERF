@@ -26,7 +26,8 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
                      const MultiFab* /*z_t_pert*/,
                      std::unique_ptr<MultiFab>& /*z_phys_nd*/,
                      std::unique_ptr<MultiFab>& /*detJ_cc*/,
-                     const amrex::Real dtau, const amrex::Real facinv)
+                     const amrex::Real dtau, const amrex::Real facinv,
+                     bool ingested_bcs)
 {
     BL_PROFILE_REGION("erf_fast_rhs_N()");
 
@@ -43,6 +44,7 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = 0.1;
 
+    const Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
     Real dxi = dxInv[0];
@@ -105,7 +107,17 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-        if (level > 0) {
+        bool left_edge_dirichlet = false;
+        bool rght_edge_dirichlet = false;
+        bool  bot_edge_dirichlet = false;
+        bool  top_edge_dirichlet = false;
+
+        if (level == 0 && ingested_bcs) {
+            left_edge_dirichlet = (bx.smallEnd(0) == domain.smallEnd(0));
+            rght_edge_dirichlet = (bx.bigEnd(1)   == domain.bigEnd(0));
+            bot_edge_dirichlet  = (bx.smallEnd(0) == domain.smallEnd(1));
+            top_edge_dirichlet  = (bx.bigEnd(1)   == domain.bigEnd(1));
+        } else if (level > 0) {
             int vlo_x = valid_bx.smallEnd(0);
             int vhi_x = valid_bx.bigEnd(0);
             int vlo_y = valid_bx.smallEnd(1);
@@ -121,16 +133,16 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
             // ******************************************************************
             // This assumes that refined regions are always rectangular
             // ******************************************************************
-            bool left_edge_dirichlet = ( level > 0 && mlo_x(vlo_x  ,vlo_y  ,vlo_z) );
-            bool rght_edge_dirichlet = ( level > 0 && mhi_x(vhi_x+1,vhi_y  ,vhi_z) );
-            bool  bot_edge_dirichlet = ( level > 0 && mlo_y(vlo_x  ,vlo_y  ,vlo_z) );
-            bool  top_edge_dirichlet = ( level > 0 && mhi_y(vhi_x  ,vhi_y+1,vhi_z) );
+            left_edge_dirichlet = mlo_x(vlo_x  ,vlo_y  ,vlo_z);
+            rght_edge_dirichlet = mhi_x(vhi_x+1,vhi_y  ,vhi_z);
+            bot_edge_dirichlet  = mlo_y(vlo_x  ,vlo_y  ,vlo_z);
+            top_edge_dirichlet  = mhi_y(vhi_x  ,vhi_y+1,vhi_z);
+        } // level > 0
 
-            if (left_edge_dirichlet) tbx.growLo(0,-1);
-            if (rght_edge_dirichlet) tbx.growHi(0,-1);
-            if ( bot_edge_dirichlet) tby.growLo(1,-1);
-            if ( top_edge_dirichlet) tby.growHi(1,-1);
-        }  // level > 0
+        if (left_edge_dirichlet) tbx.growLo(0,-1);
+        if (rght_edge_dirichlet) tbx.growHi(0,-1);
+        if ( bot_edge_dirichlet) tby.growLo(1,-1);
+        if ( top_edge_dirichlet) tby.growHi(1,-1);
 
         const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);

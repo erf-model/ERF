@@ -34,7 +34,8 @@ void erf_slow_rhs_pre(int level,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
-                      const amrex::Real* dptr_rayleigh_thetabar);
+                      const amrex::Real* dptr_rayleigh_thetabar,
+                      bool ingested_bcs);
 
 void erf_slow_rhs_post(int level, amrex::Real time,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
@@ -71,7 +72,8 @@ void erf_fast_rhs_N (int step, int level, const amrex::Real time,
                      const amrex::MultiFab* z_t_pert,
                      std::unique_ptr<amrex::MultiFab>& z0,
                      std::unique_ptr<amrex::MultiFab>& dJ,
-                     const amrex::Real fast_dt, const amrex::Real invfac);
+                     const amrex::Real fast_dt, const amrex::Real invfac,
+                     bool ingested_bcs);
 
 void erf_fast_rhs_T (int step, int level, const amrex::Real time,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
@@ -91,7 +93,8 @@ void erf_fast_rhs_T (int step, int level, const amrex::Real time,
                      std::unique_ptr<amrex::MultiFab>& dJ,
                      const amrex::MultiFab* r0,
                      const amrex::MultiFab* pi0,
-                     const amrex::Real fast_dt, const amrex::Real invfac);
+                     const amrex::Real fast_dt, const amrex::Real invfac,
+                     bool ingested_bcs);
 
 void make_fast_coeffs (int level, amrex::MultiFab& fast_coeffs,
                        amrex::Vector<amrex::MultiFab >& S_stage_data,
@@ -104,5 +107,6 @@ void make_fast_coeffs (int level, amrex::MultiFab& fast_coeffs,
                        std::unique_ptr<amrex::MultiFab>& dJ,
                        const amrex::MultiFab* r0,
                        const amrex::MultiFab* pi0,
-                       const amrex::Real fast_dt);
+                       const amrex::Real fast_dt,
+                       bool ingested_bcs);
 #endif

@@ -4,7 +4,8 @@
                             Vector<MultiFab>& S_stage,
                             Vector<MultiFab>& S_data,
                             Vector<MultiFab>& S_scratch,
-                            const Real dtau, const Real inv_fac, const Real new_time)
+                            const Real dtau, const Real inv_fac,
+                            const Real new_time)
     {
         BL_PROFILE("fast_rhs_fun");
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
@@ -66,7 +67,7 @@
         // If this is the first substep we make the coefficients since they are based only on stage data
         if (fast_step == 0) {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
-                             z_phys_nd[level], detJ_cc[level], r0, pi0, dtau);
+                             z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, ingested_bcs);
         }
 
         if (solverChoice.use_terrain) {
@@ -74,12 +75,12 @@
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_T(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, ifr, solverChoice, Omega, z_t_pert,
-                               z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
+                               z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac, ingested_bcs);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_T(fast_step, level, new_time, S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, ifr, solverChoice, Omega, z_t_pert,
-                               z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac);
+                               z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, inv_fac, ingested_bcs);
             }
                 // If this is not the first substep we pass in S_data as the previous step's solution
         } else {
@@ -87,12 +88,12 @@
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
-                               z_phys_nd[level], detJ_cc[level], dtau, inv_fac);
+                               z_phys_nd[level], detJ_cc[level], dtau, inv_fac, ingested_bcs);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
-                               z_phys_nd[level], detJ_cc[level], dtau, inv_fac);
+                               z_phys_nd[level], detJ_cc[level], dtau, inv_fac, ingested_bcs);
             }
         }
 

@@ -214,19 +214,25 @@ void ReadWRFFile(const std::string& fname, amrex::Vector<std::string> names,
         //amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
         for (auto n=0; n<arrays.size(); ++n) {
             // read the data from NetCDF file
-            std::string vname         = names[n];
-            std::vector<size_t> shape = ncf.var(vname).shape();
-            arrays[n]                 = NDArray<DType>(vname,shape);
+            std::string vname_to_write = names[n];
+            std::string vname_to_read  = names[n];
+            if (vname_to_read.substr(0,2) == "R_") {
+                vname_to_read  = names[n+4]; // This allows us to read "T" instead -- we will over-write this later
+            }
+            // amrex::Print() << "About to read " << vname_to_read << " while filling the array for " << vname_to_write << std::endl;
+            std::vector<size_t> shape = ncf.var(vname_to_read).shape();
+            arrays[n]                 = NDArray<DType>(vname_to_read,shape);
             // auto numPts               = arrays[n].ndim();
             DType* dataPtr            = arrays[n].get_data();
 
             std::vector<size_t> start(shape.size(), 0);
-            // amrex::Print() << "NetCDF Variable name = " << vname << "; numPts read from NetCDF file/var = " << numPts << std::endl;
+            // amrex::Print() << "NetCDF Variable name = " << vname_to_read << std::endl;
+            // amrex::Print() << "numPts read from NetCDF file/var = " << numPts << std::endl;
             // amrex::Print()  << "Dims of the variable = (";
             // for (auto &dim:shape)
             //     amrex::Print() << dim << ", " ;
             // amrex::Print()  << ")" << std::endl;
-            ncf.var(vname).get(dataPtr, start, shape);
+            ncf.var(vname_to_read).get(dataPtr, start, shape);
         }
         ncf.close();
     }

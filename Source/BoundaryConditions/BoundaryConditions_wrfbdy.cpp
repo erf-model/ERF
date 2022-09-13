@@ -15,7 +15,6 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
                                        const Box& domain, const BCRec* bc_ptr,
                                        const Real time, const Real dT)
 {
-#if 0
     //
     // This uses data read in from WRF real.exe output
     // We assume the data has been read in at the level 0 resolution
@@ -28,6 +27,7 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
     amrex::Real alpha = (time - n * dT) / dT;
     amrex::Real oma   = 1.0 - alpha;
 
+
     int ivar;
     // NOTE: we currently only store 1 component for each of bdy_data_xlo etc of each type, so for now we set
     //       bccomp = 0 to use in bdy_data_xlo etc ... but if we start to fill more than one component of cons
@@ -37,13 +37,12 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
     AMREX_ALWAYS_ASSERT(ncomp == 1);
 
     if (bccomp_in == BCVars::xvel_bc) {
-       amrex::Print() << "FILLING XVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
        ivar = WRFBdyVars::U; // U
     } else if (bccomp_in == BCVars::yvel_bc) {
-       amrex::Print() << "FILLING YVEL BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
        ivar = WRFBdyVars::V; // V
+    } else  if (bccomp_in == BCVars::Rho_bc_comp) {
+       ivar = WRFBdyVars::R; // R
     } else  if (bccomp_in == BCVars::RhoTheta_bc_comp) {
-       amrex::Print() << "FILLING RHO THETA BC FROM WRFBDY " << icomp << " " << bccomp_in << " " << ncomp << std::endl;
        ivar = WRFBdyVars::T; // T
     } else {
        amrex::Print() << "In fill_from_wrfbdy: icomp = " << icomp << " , bccomp = " << bccomp_in << " , ncomp = " << ncomp << std::endl;
@@ -66,76 +65,61 @@ void ERFPhysBCFunct::fill_from_wrfbdy (int lev, const Box& bx, const Array4<Real
     const auto& bdatyhi_n   = m_bdy_data_yhi[n  ][ivar].const_array();
     const auto& bdatyhi_np1 = m_bdy_data_yhi[n+1][ivar].const_array();
 
-    // Fill here all the boundary conditions which are supplied by
-    // planes we have read in and are interpolating in time
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    // x-faces
     {
-        if (i < dom_lo.x) {
-            int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-            int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-            dest_arr(i,j,k,icomp) = oma   * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp)
-                                  + alpha * bdatxlo_np1(dom_lo.x-1,jb,kb,bccomp);
-        }
-        if (j < dom_lo.y) {
-            int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
-            int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-            dest_arr(i,j,k,icomp) = oma   * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp)
-                                  + alpha * bdatylo_np1(ib,dom_lo.y-1,kb,bccomp);
-        }
-        if (k < dom_lo.z) {
-            // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
-            // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-            // dest_arr(i,j,k,icomp) = oma   * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp)
-            //                       + alpha * bdatzlo_np1(ib,jb,dom_lo.z-1,bccomp);
-        }
-        if (i > dom_hi.x) {
-            int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-            int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-            dest_arr(i,j,k,icomp) = oma   * bdatxhi_n  (dom_hi.x+1,jb,kb,bccomp)
-                                  + alpha * bdatxhi_np1(dom_hi.x+1,jb,kb,bccomp);
-        }
-        if (j > dom_hi.y) {
-            int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
-            int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-            dest_arr(i,j,k,icomp) = oma   * bdatyhi_n  (ib,dom_hi.y+1,kb,bccomp)
-                                  + alpha * bdatyhi_np1(ib,dom_hi.y+1,kb,bccomp);
-        }
-        if (k > dom_hi.z) {
-            // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
-            // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-            // dest_arr(i,j,k,icomp) = oma   * bdatzhi_n  (ib,jb,dom_hi.z+1,bccomp)
-            //                       + alpha * bdatzhi_np1(ib,jb,dom_hi.z+1,bccomp);
+        Box bx_xlo(bx);
+        bx_xlo.setSmall(0,dom_lo.x); bx_xlo.setBig(0,dom_lo.x);
+        bx_xlo.setSmall(1,dom_lo.y); bx_xlo.setBig(1,dom_hi.y);
+        bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
+
+        Box bx_xhi(bx);
+        bx_xhi.setSmall(1,dom_lo.y); bx_xhi.setBig(1,dom_hi.y);
+        bx_xhi.setSmall(2,dom_lo.z); bx_xhi.setBig(2,dom_hi.z);
+        if (bccomp == BCVars::xvel_bc) {
+            bx_xhi.setSmall(0,dom_hi.x+1); bx_xhi.setBig(0,dom_hi.x+1);
+        } else {
+            bx_xhi.setSmall(0,dom_hi.x); bx_xhi.setBig(0,dom_hi.x);
         }
 
-        if (bccomp == BCVars::xvel_bc)
-        {
-            if (i == dom_lo.x) {
-                int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                dest_arr(i,j,k,icomp) = oma * bdatxlo_n  (dom_lo.x-1,jb,kb,bccomp)
-                                    + alpha * bdatxlo_np1(dom_lo.x-1,jb,kb,bccomp);
+        ParallelFor(
+            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                dest_arr(i,j,k,icomp) = oma   * bdatxlo_n  (i,j,k,bccomp)
+                                      + alpha * bdatxlo_np1(i,j,k,bccomp);
+            },
+            bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                dest_arr(i,j,k,icomp) = oma   * bdatxhi_n  (i,j,k,bccomp)
+                                      + alpha * bdatxhi_np1(i,j,k,bccomp);
             }
-        }
-        if (bccomp == BCVars::yvel_bc)
-        {
-            if (j == dom_lo.y) {
-                int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
-                int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                dest_arr(i,j,k,icomp) = oma * bdatylo_n  (ib,dom_lo.y-1,kb,bccomp)
-                                    + alpha * bdatylo_np1(ib,dom_lo.y-1,kb,bccomp);
-            }
-        }
-        if (bccomp == BCVars::zvel_bc)
-        {
-            if (k == dom_lo.z) {
-                // int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
-                // int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
-                // dest_arr(i,j,k,icomp) = oma * bdatzlo_n  (ib,jb,dom_lo.z-1,bccomp)
-                //                         + alpha * bdatzlo_np1(ib,jb,dom_lo.z-1,bccomp);
-            }
+        );
+    }
+
+    // y-faces
+    {
+        Box bx_ylo(bx);
+        bx_ylo.setSmall(0,dom_lo.x); bx_ylo.setBig(0,dom_hi.x);
+        bx_ylo.setSmall(1,dom_lo.y); bx_ylo.setBig(1,dom_lo.y);
+        bx_ylo.setSmall(2,dom_lo.z); bx_ylo.setBig(2,dom_hi.z);
+
+        Box bx_yhi(bx);
+        bx_yhi.setSmall(0,dom_lo.x); bx_yhi.setBig(0,dom_hi.x);
+        bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
+
+        if (bccomp == BCVars::yvel_bc) {
+            bx_yhi.setSmall(1,dom_hi.y+1); bx_yhi.setBig(1,dom_hi.y+1);
+        } else {
+            bx_yhi.setSmall(1,dom_hi.y); bx_yhi.setBig(1,dom_hi.y);
         }
 
-     }); // ParallelFor
-#endif
+        ParallelFor(
+           bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                dest_arr(i,j,k,icomp) = oma   * bdatylo_n  (i,j,k,bccomp)
+                                      + alpha * bdatylo_np1(i,j,k,bccomp);
+            },
+            bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                dest_arr(i,j,k,icomp) = oma   * bdatyhi_n  (i,j,k,bccomp)
+                                      + alpha * bdatyhi_np1(i,j,k,bccomp);
+            }
+        );
+    }
 }
 #endif

@@ -373,19 +373,11 @@ ERF::InitData ()
             }
         }
 
+        // Note that make_metrics is now called inside init_from_wrfinput
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
 
         AverageDown();
-
-        if(solverChoice.use_terrain) {
-            if (init_type == "real") {
-                for (int lev = 0; lev <= finest_level; lev++)
-                {
-                    make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
-                }
-            }
-        }
 
     } else { // Restart from a checkpoint
 
@@ -420,7 +412,10 @@ ERF::InitData ()
         }
     }
 
-    initHSE();
+    // If we are reading initial data from wrfinput, the base state is defined there.
+    if (init_type != "real") {
+        initHSE();
+    }
 
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine before calling WritePlotFile because

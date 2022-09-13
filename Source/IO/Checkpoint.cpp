@@ -118,6 +118,10 @@ ERF::WriteCheckpointFile () const
        MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
        VisMF::Write(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
+       MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),0);
+       MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),0);
+       VisMF::Write(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
+
        if (solverChoice.use_terrain)  {
            // Note that we write the ghost cells of z_phys_nd (unlike above)
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,1);
@@ -239,11 +243,16 @@ ERF::ReadCheckpointFile ()
         VisMF::Read(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
+        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),0);
+        VisMF::Read(base, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
+        MultiFab::Copy(base_state[lev],base,0,0,base.nComp(),0);
+
        if (solverChoice.use_terrain)  {
            // Note that we read the ghost cells of z_phys_nd (unlike above)
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,1);
            VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,1);
+           z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
        }
     }
 }
