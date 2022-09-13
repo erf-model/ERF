@@ -114,25 +114,28 @@ ERF::init_from_wrfinput(int lev)
             FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
             init_terrain_from_wrfinput(lev, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
         } // mf
-    } // use_terrain
 
-    make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
+        make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
+
+    } // use_terrain
 
     MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
-    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        FArrayBox&  p_hse_fab = p_hse[mfi];
-        FArrayBox& pi_hse_fab = pi_hse[mfi];
-        FArrayBox&  r_hse_fab = r_hse[mfi];
-        FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
-        FArrayBox& z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
+    if (init_type == "real") {
+        for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            FArrayBox&  p_hse_fab = p_hse[mfi];
+            FArrayBox& pi_hse_fab = pi_hse[mfi];
+            FArrayBox&  r_hse_fab = r_hse[mfi];
+            FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
+            FArrayBox& z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
 
-        const Box& bx = mfi.validbox();
-        init_base_state_from_wrfinput(lev, bx, p_hse_fab, pi_hse_fab, r_hse_fab, z_phys_nd_fab, z_phys_cc_fab,
-                                     NC_ALB_fab, NC_PB_fab);
+            const Box& bx = mfi.validbox();
+            init_base_state_from_wrfinput(lev, bx, p_hse_fab, pi_hse_fab, r_hse_fab, z_phys_nd_fab, z_phys_cc_fab,
+                                         NC_ALB_fab, NC_PB_fab);
+        }
     }
 
     if (init_type == "real" && (lev == 0)) {
