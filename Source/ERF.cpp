@@ -684,7 +684,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
         // We need this to be one greater than the ghost cells to handle levels > 0
         int ngrow = ComputeGhostCells(solverChoice.spatial_order)+2;
-        amrex::Print() << "ngrow ERF.cpp: " << ngrow << std::endl;
         z_phys_nd[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
         if (solverChoice.terrain_type > 0) {
             z_phys_nd_new[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
@@ -769,6 +768,7 @@ ERF::ReadParameters ()
     }
 
     ParmParse pp(pp_prefix);
+    ParmParse pp_amr("amr");
     {
         // The type of the file we restart from
         pp.query("restart_type", restart_type);
@@ -778,6 +778,10 @@ ERF::ReadParameters ()
         pp.query("check_type", check_type);
         pp.query("check_int", check_int);
 
+        // The regression tests use "amr.restart" so we allow for that
+        //    or "erf.restart" with the latter taking precedence if both
+        //    are specified
+        pp_amr.query("restart", restart_chkfile);
         pp.query("restart", restart_chkfile);
 
         if (pp.contains("data_log"))
