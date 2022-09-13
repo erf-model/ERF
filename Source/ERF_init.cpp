@@ -56,6 +56,7 @@ ERF::init_from_wrfinput(int lev)
     Vector<FArrayBox> NC_RDNW_fab ; NC_RDNW_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PH_fab   ; NC_PH_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PHB_fab  ; NC_PHB_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_ALB_fab  ; NC_ALB_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PB_fab   ; NC_PB_fab.resize(num_boxes_at_level[lev]);
 
     if (nc_init_file.size() == 0)
@@ -67,7 +68,8 @@ ERF::init_from_wrfinput(int lev)
                            NC_rhop_fab,NC_rhoth_fab,NC_MUB_fab,
                            NC_MSFU_fab,NC_MSFV_fab,NC_MSFM_fab,
                            NC_SST_fab,
-                           NC_C1H_fab,NC_C2H_fab,NC_RDNW_fab,NC_PH_fab,NC_PHB_fab,NC_PB_fab);
+                           NC_C1H_fab,NC_C2H_fab,NC_RDNW_fab,
+                           NC_PH_fab,NC_PHB_fab,NC_ALB_fab,NC_PB_fab);
     }
 
     auto& lev_new = vars_new[lev];
@@ -125,10 +127,12 @@ ERF::init_from_wrfinput(int lev)
         FArrayBox&  p_hse_fab = p_hse[mfi];
         FArrayBox& pi_hse_fab = pi_hse[mfi];
         FArrayBox&  r_hse_fab = r_hse[mfi];
+        FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
         FArrayBox& z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
 
         const Box& bx = mfi.validbox();
-        init_base_state_from_wrfinput(lev, bx, p_hse_fab, pi_hse_fab, r_hse_fab, z_phys_cc_fab, NC_PB_fab);
+        init_base_state_from_wrfinput(lev, bx, p_hse_fab, pi_hse_fab, r_hse_fab, z_phys_nd_fab, z_phys_cc_fab,
+                                     NC_ALB_fab, NC_PB_fab);
     }
 
     if (init_type == "real" && (lev == 0)) {
@@ -223,7 +227,10 @@ ERF::init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
 
 void
 ERF::init_base_state_from_wrfinput(int lev, const Box& bx, FArrayBox& p_hse, FArrayBox& pi_hse,
-                                   FArrayBox& r_hse, const FArrayBox& z_phys_cc_fab, const Vector<FArrayBox>& NC_PB_fab)
+                                   FArrayBox& r_hse, const FArrayBox& z_phys_nd_fab,
+                                   const FArrayBox& z_phys_cc_fab,
+                                   const Vector<FArrayBox>& NC_ALB_fab,
+                                   const Vector<FArrayBox>& NC_PB_fab)
 {
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
     {
@@ -236,27 +243,16 @@ ERF::init_base_state_from_wrfinput(int lev, const Box& bx, FArrayBox& p_hse, FAr
         const Array4<Real      >&  p_hse_arr =  p_hse.array();
         const Array4<Real      >& pi_hse_arr = pi_hse.array();
         const Array4<Real      >&  r_hse_arr =  r_hse.array();
+        const Array4<Real const>& alpha_arr = NC_ALB_fab[idx].const_array();
         const Array4<Real const>& nc_pb_arr = NC_PB_fab[idx].const_array();
+        const Array4<Real const>&   z_nd_arr = z_phys_nd_fab.array();
         const Array4<Real const>&   z_cc_arr = z_phys_cc_fab.array();
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             p_hse_arr(i,j,k)  = nc_pb_arr(i,j,k);
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k));
-        });
+            r_hse_arr(i,j,k)  = 1.0 / alpha_arr(i,j,k);
 
-        Box b2d(bx); b2d.setSmall(2,0); b2d.setBig(2,0);
-        int khi = p_hse.box().bigEnd(2);
-        amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-
-            r_hse_arr(i,j,0) = - (p_hse_arr(i,j,0) - p_0) / z_cc_arr(i,j,0) / CONST_GRAV;
-
-            for (int k = 1; k <= khi; k++) {
-                Real dz = ( z_cc_arr(i,j,k) -  z_cc_arr(i,j,k-1));
-                Real dp = (p_hse_arr(i,j,k) - p_hse_arr(i,j,k-1));
-                r_hse_arr(i,j,k)  = -2.0 * dp / CONST_GRAV / dz - r_hse_arr(i,j,k-1);
-                // if (r_hse_arr(i,j,k) < 0.) amrex::Print() << " NEG AT " << IntVect(i,j,k) << " " << dp << " " <<
-                //       dp/CONST_GRAV/dz << " " << r_hse_arr(i,j,k-1) << std::endl;
-            } // k
         });
     } // idx
 }

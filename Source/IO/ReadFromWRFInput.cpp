@@ -16,7 +16,7 @@ ERF::read_from_wrfinput(int lev, int idx,
                         Vector<FArrayBox>& NC_C1H_fab , Vector<FArrayBox>& NC_C2H_fab,
                         Vector<FArrayBox>& NC_RDNW_fab,
                         Vector<FArrayBox>& NC_PH_fab, Vector<FArrayBox>& NC_PHB_fab,
-                        Vector<FArrayBox>& NC_PB_fab)
+                        Vector<FArrayBox>& NC_ALB_fab, Vector<FArrayBox>& NC_PB_fab)
 {
     amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
     Box input_box;
@@ -55,6 +55,9 @@ ERF::read_from_wrfinput(int lev, int idx,
     // Pressure on cell centers
     NC_PB_fab[idx].resize(input_box,1);
 
+    // Reference density on cell centers
+    NC_ALB_fab[idx].resize(input_box,1);
+
     // These are 2D (x-y) arrays
     NC_MUB_fab[idx].resize(mubx,1);
     NC_MSFU_fab[idx].resize(msfubx,1);
@@ -76,7 +79,10 @@ ERF::read_from_wrfinput(int lev, int idx,
         FArrayBox host_NC_rhotheta_fab(NC_rhotheta_fab[idx].box(), NC_rhotheta_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_PH_fab (NC_PH_fab[idx].box(),  NC_PH_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_PHB_fab(NC_PHB_fab[idx].box(), NC_PHB_fab[idx].nComp(),amrex::The_Pinned_Arena());
-        FArrayBox host_NC_PB_fab(NC_PB_fab[idx].box(), NC_PB_fab[idx].nComp(),amrex::The_Pinned_Arena());
+
+        FArrayBox host_NC_PB_fab (NC_PB_fab[idx].box() , NC_PB_fab[idx].nComp(),amrex::The_Pinned_Arena());
+        FArrayBox host_NC_ALB_fab(NC_ALB_fab[idx].box(), NC_ALB_fab[idx].nComp(),amrex::The_Pinned_Arena());
+
         FArrayBox host_NC_MUB_fab (NC_MUB_fab[idx].box(),  NC_MUB_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_MSFU_fab(NC_MSFU_fab[idx].box(), NC_MSFU_fab[idx].nComp(),amrex::The_Pinned_Arena());
         FArrayBox host_NC_MSFV_fab(NC_MSFV_fab[idx].box(), NC_MSFV_fab[idx].nComp(),amrex::The_Pinned_Arena());
@@ -95,6 +101,7 @@ ERF::read_from_wrfinput(int lev, int idx,
         FArrayBox host_NC_PH_fab      (NC_PH_fab[idx]      , amrex::make_alias, 0, NC_PH_fab[idx].nComp());
         FArrayBox host_NC_PHB_fab     (NC_PHB_fab[idx]     , amrex::make_alias, 0, NC_PHB_fab[idx].nComp());
         FArrayBox host_NC_PB_fab      (NC_PB_fab[idx]      , amrex::make_alias, 0, NC_PB_fab[idx].nComp());
+        FArrayBox host_NC_ALB_fab     (NC_ALB_fab[idx]     , amrex::make_alias, 0, NC_ALB_fab[idx].nComp());
         FArrayBox host_NC_MUB_fab     (NC_MUB_fab[idx]     , amrex::make_alias, 0, NC_MUB_fab[idx].nComp());
         FArrayBox host_NC_MSFU_fab    (NC_MSFU_fab[idx]    , amrex::make_alias, 0, NC_MSFU_fab[idx].nComp());
         FArrayBox host_NC_MSFV_fab    (NC_MSFV_fab[idx]    , amrex::make_alias, 0, NC_MSFV_fab[idx].nComp());
@@ -120,6 +127,7 @@ ERF::read_from_wrfinput(int lev, int idx,
             NC_fabs.push_back(&host_NC_PH_fab);        NC_names.push_back("PH");   NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_PHB_fab);       NC_names.push_back("PHB");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_PB_fab);        NC_names.push_back("PB");   NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+            NC_fabs.push_back(&host_NC_ALB_fab);       NC_names.push_back("ALB");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
             NC_fabs.push_back(&host_NC_MUB_fab);       NC_names.push_back("MUB");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
             NC_fabs.push_back(&host_NC_MSFU_fab);      NC_names.push_back("MAPFAC_UY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
             NC_fabs.push_back(&host_NC_MSFV_fab);      NC_names.push_back("MAPFAC_VY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
@@ -152,6 +160,7 @@ ERF::read_from_wrfinput(int lev, int idx,
         ParallelDescriptor::Bcast(host_NC_PHB_fab.dataPtr() ,NC_PHB_fab[idx].box().numPts(),ioproc);
         ParallelDescriptor::Bcast(host_NC_PH_fab.dataPtr()  ,NC_PH_fab[idx].box().numPts() ,ioproc);
         ParallelDescriptor::Bcast(host_NC_PB_fab.dataPtr()  ,NC_PB_fab[idx].box().numPts(),ioproc);
+        ParallelDescriptor::Bcast(host_NC_ALB_fab.dataPtr() ,NC_ALB_fab[idx].box().numPts(),ioproc);
         ParallelDescriptor::Bcast(host_NC_MUB_fab.dataPtr() ,NC_MUB_fab[idx].box().numPts() ,ioproc);
         ParallelDescriptor::Bcast(host_NC_MSFU_fab.dataPtr(),NC_MSFU_fab[idx].box().numPts() ,ioproc);
         ParallelDescriptor::Bcast(host_NC_MSFV_fab.dataPtr(),NC_MSFV_fab[idx].box().numPts() ,ioproc);
@@ -180,6 +189,8 @@ ERF::read_from_wrfinput(int lev, int idx,
                                            NC_PHB_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_PB_fab.dataPtr(), host_NC_PB_fab.dataPtr()+host_NC_PB_fab.size(),
                                            NC_PB_fab[idx].dataPtr());
+         Gpu::copy(Gpu::hostToDevice, host_NC_ALB_fab.dataPtr(), host_NC_ALB_fab.dataPtr()+host_NC_ALB_fab.size(),
+                                           NC_ALB_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_MUB_fab.dataPtr(), host_NC_MUB_fab.dataPtr()+host_NC_MUB_fab.size(),
                                            NC_MUB_fab[idx].dataPtr());
          Gpu::copy(Gpu::hostToDevice, host_NC_MSFU_fab.dataPtr(), host_NC_MSFU_fab.dataPtr()+host_NC_MSFU_fab.size(),

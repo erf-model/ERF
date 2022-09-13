@@ -205,7 +205,7 @@ public:
                             amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_RDNW_fab,
                             amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
+                            amrex::Vector<amrex::FArrayBox>& NC_ALB_fab, amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
 
     // Copy from the NC*fabs into the MultiFabs holding the initial data
     void init_state_from_wrfinput(int lev,
@@ -232,7 +232,9 @@ public:
                                        amrex::FArrayBox& p_hse_fab,
                                        amrex::FArrayBox& pi_hse_fab,
                                        amrex::FArrayBox& r_hse_fab,
+                                       const amrex::FArrayBox& z_phys_nd_fab,
                                        const amrex::FArrayBox& z_phys_cc_fab,
+                                       const amrex::Vector<amrex::FArrayBox>& NC_ALB_fab,
                                        const amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
 #endif //ERF_USE_NETCDF
 
