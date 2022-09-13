@@ -776,11 +776,13 @@ ERF::ReadParameters ()
         pp.query("regrid_int", regrid_int);
         pp.query("check_file", check_file);
         pp.query("check_type", check_type);
+
+        // The regression tests use "amr.restart" and "amr.check_int" so we allow
+        //    for those or "erf.restart" / "erf.check_int" with the latter taking precedence
+        //    if both are specified
+        pp_amr.query("check_int", check_int);
         pp.query("check_int", check_int);
 
-        // The regression tests use "amr.restart" so we allow for that
-        //    or "erf.restart" with the latter taking precedence if both
-        //    are specified
         pp_amr.query("restart", restart_chkfile);
         pp.query("restart", restart_chkfile);
 
