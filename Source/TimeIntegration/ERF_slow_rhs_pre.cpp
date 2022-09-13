@@ -316,9 +316,9 @@ void erf_slow_rhs_pre (int level,
         }
 
         AdvectionSrcForMom(tbx, tby, tbz,
-                           rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w, omega_arr,
-                           rho_u    , rho_v    , rho_w    ,
-                           z_t, z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
+                           rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
+                           rho_u    , rho_v    , omega_arr,
+                           z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
 
         if (l_use_terrain) {
             DiffusionSrcForMom_T(tbx, tby, tbz, domain, rho_u_rhs, rho_v_rhs, rho_w_rhs,
