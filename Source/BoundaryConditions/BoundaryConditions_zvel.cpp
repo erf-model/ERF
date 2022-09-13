@@ -182,11 +182,12 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
                 // time_mt = time - delta_t/2   delta_t = dt[lev] or dt_stage
                 //************************************************************
                 if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-                    if (l_use_terrain)
+                    if (l_use_terrain) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
                                                      velx_arr,vely_arr,z_nd_arr,dxInv);
-                    else
+                    } else {
                        dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
+                    }
                 }
             }
           );
