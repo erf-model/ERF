@@ -157,15 +157,14 @@ AMREX_FORCE_INLINE
 amrex::Real
 AdvectionSrcForZMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& rho_u, const amrex::Array4<const amrex::Real>& rho_v,
-                       const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& z_t,
-                       const amrex::Array4<const amrex::Real>& w,
+                       const amrex::Array4<const amrex::Real>& Omega, const amrex::Array4<const amrex::Real>& w,
                        const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        int spatial_order, int domhi_z)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-    amrex::Real rho_u_avg, rho_v_avg, rho_w_avg, vec;
+    amrex::Real rho_u_avg, rho_v_avg, Omega_avg, vec;
 
     amrex::Real met_h_xi, met_h_eta,  met_h_zeta;
 
@@ -213,72 +212,18 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     // z-fluxes (at cell centers)
     // ****************************************************************************************
 
-    // Cell-Center is staggered
-    ComputeMetricAtCellCenter(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_xi_eta);
-
-    // This is at the cell (i,j,k)
-    vec  = -met_h_xi  * 0.5 * ( rho_u(i,j,k) + rho_u(i+1,j  ,k))
-           -met_h_eta * 0.5 * ( rho_v(i,j,k) + rho_v(i  ,j+1,k));
-    vec += (k == domhi_z+1) ? rho_w(i,j,k) : 0.5 * ( rho_w(i,j,k) + rho_w(i  ,j  ,k+1));
-
-    amrex::Real rho_z_t_zhi = 0.;
-    if (z_t) {
-        amrex::Real rho_at_lo_face;
-        amrex::Real rho_at_hi_face;
-        if (w(i,j,k) != 0.)
-            rho_at_lo_face = rho_w(i,j,k) / w(i,j,k);
-        else
-            rho_at_lo_face = 0.;
-
-        if (k == domhi_z+1) {
-            rho_z_t_zhi =  rho_at_lo_face * z_t(i,j,k);
-        } else {
-            if (w(i,j,k+1) != 0.)
-                rho_at_hi_face = rho_w(i,j,k+1) / w(i,j,k+1);
-            else
-                rho_at_hi_face = 0.;
-            rho_z_t_zhi =  0.5 * (rho_at_lo_face*z_t(i,j,k) + rho_at_hi_face*z_t(i,j,k+1));
-        }
-    }
-
-    amrex::Real centFluxZZNext = vec - rho_z_t_zhi;
-
-    rho_w_avg = (k == domhi_z+1) ? rho_w(i,j,k) : 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
+    Omega_avg = (k == domhi_z+1) ? Omega(i,j,k) : 0.5 * (Omega(i,j,k) + Omega(i,j,k+1));
+    amrex::Real centFluxZZNext = Omega_avg;
 
     centFluxZZNext *= (k == domhi_z+1) ? w(i,j,k) :
-        InterpolateInZ(i, j, k+1, w, 0, rho_w_avg, spatial_order);
+        InterpolateInZ(i, j, k+1, w, 0, Omega_avg, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    // Cell-Center is staggered
-    ComputeMetricAtCellCenter(i  ,j  ,k-1,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_xi_eta);
+    Omega_avg = (k == 0) ? Omega(i,j,k) : 0.5 * (Omega(i,j,k) + Omega(i,j,k-1));
+    amrex::Real centFluxZZPrev = Omega_avg;
 
-    // This is at the cell (i,j,k-1)
-    vec  = -met_h_xi  * 0.5 * ( rho_u(i,j,k-1) + rho_u(i+1,j  ,k-1))
-           -met_h_eta * 0.5 * ( rho_v(i,j,k-1) + rho_v(i  ,j+1,k-1));
-    vec += (k == 0) ? rho_w(i,j,k) : 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
-
-    amrex::Real rho_z_t_zlo = 0.;
-    if (z_t) {
-        amrex::Real rho_at_lo_face;
-        amrex::Real rho_at_hi_face;
-        if (w(i,j,k-1) != 0.)
-            rho_at_lo_face = rho_w(i,j,k-1) / w(i,j,k-1);
-        else
-            rho_at_lo_face = 0.;
-
-        if (w(i,j,k+1) != 0.)
-            rho_at_hi_face = rho_w(i,j,k) / w(i,j,k);
-        else
-            rho_at_hi_face = 0.;
-        rho_z_t_zhi =  0.5 * (rho_at_lo_face*z_t(i,j,k-1) + rho_at_hi_face*z_t(i,j,k));
-    }
-
-    amrex::Real centFluxZZPrev = vec - rho_z_t_zlo;
-
-    rho_w_avg = (k == 0) ? rho_w(i,j,k) : 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
-
-    centFluxZZPrev *= (k == 0) ? w(i,j,k) : InterpolateInZ(i, j, k  , w, 0, rho_w_avg, spatial_order);
+    centFluxZZPrev *= (k == 0) ? w(i,j,k) : InterpolateInZ(i, j, k  , w, 0, Omega_avg, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 

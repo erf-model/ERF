@@ -41,9 +41,9 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
                          const amrex::Array4<      amrex::Real>& rho_w_rhs,
                          const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
-                         const amrex::Array4<const amrex::Real>& w        , const amrex::Array4<const amrex::Real>& om,
+                         const amrex::Array4<const amrex::Real>& w        ,
                          const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
-                         const amrex::Array4<const amrex::Real>& rho_w    , const amrex::Array4<const amrex::Real>& z_t,
+                         const amrex::Array4<const amrex::Real>& Omega    ,
                          const amrex::Array4<const amrex::Real>& z_nd     , const amrex::Array4<const amrex::Real>& detJ,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                          const int spatial_order, const int use_terrain, const int domhi_z);
