@@ -778,13 +778,13 @@ ERF::ReadParameters ()
         pp.query("check_type", check_type);
 
         // The regression tests use "amr.restart" and "amr.check_int" so we allow
-        //    for those or "erf.restart" / "erf.check_int" with the latter taking precedence
-        //    if both are specified
-        pp_amr.query("check_int", check_int);
+        //    for those or "erf.restart" / "erf.check_int" with the former taking
+        //    precedenceif both are specified
         pp.query("check_int", check_int);
+        pp_amr.query("check_int", check_int);
 
-        pp_amr.query("restart", restart_chkfile);
         pp.query("restart", restart_chkfile);
+        pp_amr.query("restart", restart_chkfile);
 
         if (pp.contains("data_log"))
         {
