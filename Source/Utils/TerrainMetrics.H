@@ -281,7 +281,7 @@ Compute_h_eta_AtEdgeCenterJ (const int &i, const int &j, const int &k,
     return met_h_eta;
 }
 
-// -- EdgeCenterI -- 
+// -- EdgeCenterI --
 
 // Metric is at edge and center Y (magenta cross)
 AMREX_GPU_DEVICE

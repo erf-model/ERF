@@ -313,15 +313,16 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
       strainRate = ComputeS11WithTerrain(i,j,k,u,cellSizeInv,met_h_xi,met_h_eta,met_h_zeta);
       break;
     case DiffusionDir::y: // S12
-      ComputeMetricAtEdgeCenterK(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                                 cellSizeInv,z_nd,TerrainMet::all);
+      met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,cellSizeInv,z_nd);
+      met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,cellSizeInv,z_nd);
+      met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,cellSizeInv,z_nd);
       strainRate = ComputeS12WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
     case DiffusionDir::z: // S13
-      ComputeMetricAtEdgeCenterJ(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                                 cellSizeInv,z_nd,TerrainMet::h_xi_zeta);
+      met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,cellSizeInv,z_nd);
+      met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,cellSizeInv,z_nd);
       strainRate = ComputeS13WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
@@ -331,8 +332,9 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
   case MomentumEqn::y:
     switch (diffDir) {
     case DiffusionDir::x: // S21
-      ComputeMetricAtEdgeCenterK(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                                 cellSizeInv,z_nd,TerrainMet::all);
+      met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,cellSizeInv,z_nd);
+      met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,cellSizeInv,z_nd);
+      met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,cellSizeInv,z_nd);
       strainRate = ComputeS21WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
@@ -345,8 +347,8 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
                               met_h_xi,met_h_eta,met_h_zeta);
       break;
     case DiffusionDir::z: // S23
-      ComputeMetricAtEdgeCenterI(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                                 cellSizeInv,z_nd,TerrainMet::h_eta_zeta);
+      met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,cellSizeInv,z_nd);
+      met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,cellSizeInv,z_nd);
       strainRate = ComputeS23WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
@@ -356,15 +358,15 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
   case MomentumEqn::z:
     switch (diffDir) {
     case DiffusionDir::x: // S31
-      ComputeMetricAtEdgeCenterJ(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                                 cellSizeInv,z_nd,TerrainMet::h_xi_zeta);
+      met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,cellSizeInv,z_nd);
+      met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,cellSizeInv,z_nd);
       strainRate = ComputeS31WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
       break;
     case DiffusionDir::y: // S32
-      ComputeMetricAtEdgeCenterI(i,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                                 cellSizeInv,z_nd,TerrainMet::h_eta_zeta);
+      met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,cellSizeInv,z_nd);
+      met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,cellSizeInv,z_nd);
       strainRate = ComputeS32WithTerrain(i,j,k,u,v,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,
                               domain,bc_ptr);
