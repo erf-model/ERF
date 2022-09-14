@@ -33,8 +33,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
 
         // 11 Next
         // Metric at cell center
-        ComputeMetricAtCellCenter(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,
-                                  cellSizeInv,z_nd,TerrainMet::h_zeta);
+        met_h_zeta = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
         tau11Next = ComputeStressTermWithTerrain(i+1,j  ,k  , u, v, w, MomentumEqn::x,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
                                       z_nd, detJ, domain, bc_ptr, er_arr(i,j,k));
@@ -45,8 +44,7 @@ DiffusionSrcForXMomWithTerrain (int i, int j, int k,
         //-----------------------------------------------------------------------------------
         // 11 Prev
         // Metric at cell center
-        ComputeMetricAtCellCenter(i-1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,
-                                  cellSizeInv,z_nd,TerrainMet::h_zeta);
+        met_h_zeta = Compute_h_zeta_AtCellCenter(i-1,j  ,k  ,cellSizeInv,z_nd);
         tau11Prev = ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::x,
                                       DiffusionDir::x, cellSizeInv, K_turb, solverChoice,
                                       z_nd, detJ, domain, bc_ptr, er_arr(i-1,j,k));
@@ -200,8 +198,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
         tau21Prev *= met_h_zeta;
         //************************************************************************************
         // 22 Next
-        ComputeMetricAtCellCenter(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,
-                                  cellSizeInv,z_nd,TerrainMet::h_zeta);
+        met_h_zeta = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
         tau22Next = ComputeStressTermWithTerrain(i  ,j+1,k  , u, v, w, MomentumEqn::y,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
                                       z_nd, detJ, domain, bc_ptr, er_arr(i,j,k));
@@ -209,8 +206,7 @@ DiffusionSrcForYMomWithTerrain (int i, int j, int k,
         tau22Next *= met_h_zeta;
         //-----------------------------------------------------------------------------------
         // 22 Prev
-        ComputeMetricAtCellCenter(i  ,j-1,k  ,met_h_xi,met_h_eta,met_h_zeta,
-                                  cellSizeInv,z_nd,TerrainMet::h_zeta);
+        met_h_zeta = Compute_h_zeta_AtCellCenter(i  ,j-1,k  ,cellSizeInv,z_nd);
         tau22Prev = ComputeStressTermWithTerrain(i  ,j  ,k  , u, v, w, MomentumEqn::y,
                                       DiffusionDir::y, cellSizeInv, K_turb, solverChoice,
                                       z_nd, detJ, domain, bc_ptr, er_arr(i,j-1,k));
@@ -395,9 +391,9 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
           tau32BarN *= 0.25;
         }
 
-        // Metric at cell center
-        ComputeMetricAtCellCenter(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,
-                                  cellSizeInv,z_nd,TerrainMet::h_xi_eta);
+        // Metrics at cell center
+        met_h_xi  = Compute_h_xi_AtCellCenter (i  ,j  ,k  ,cellSizeInv,z_nd);
+        met_h_eta = Compute_h_eta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
 
         tau33Next = -met_h_xi * tau31BarN - met_h_eta * tau32BarN
                    + ComputeStressTermWithTerrain(i  ,j  ,k+1, u, v, w, MomentumEqn::z,
@@ -442,8 +438,8 @@ DiffusionSrcForZMomWithTerrain (int i, int j, int k,
         }
 
         // Metrics at cell center
-        ComputeMetricAtCellCenter(i  ,j  ,k-1,met_h_xi,met_h_eta,met_h_zeta,
-                                  cellSizeInv,z_nd,TerrainMet::h_xi_eta);
+        met_h_xi  = Compute_h_xi_AtCellCenter (i  ,j  ,k-1,cellSizeInv,z_nd);
+        met_h_eta = Compute_h_eta_AtCellCenter(i  ,j  ,k-1,cellSizeInv,z_nd);
 
         tau33Prev = -met_h_xi * tau31BarP - met_h_eta * tau32BarP
                    + ComputeStressTermWithTerrain(i, j, k, u, v, w, MomentumEqn::z,

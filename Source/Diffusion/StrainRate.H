@@ -308,8 +308,8 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
     switch (diffDir) {
     case DiffusionDir::x: // S11
       // Cell-Center is staggered
-      ComputeMetricAtCellCenter(i-1,j,k,met_h_xi,met_h_eta,met_h_zeta,
-                                cellSizeInv,z_nd,TerrainMet::h_xi_zeta);
+      met_h_xi   = Compute_h_xi_AtCellCenter  (i-1,j,k,cellSizeInv,z_nd);
+      met_h_zeta = Compute_h_zeta_AtCellCenter(i-1,j,k,cellSizeInv,z_nd);
       strainRate = ComputeS11WithTerrain(i,j,k,u,cellSizeInv,met_h_xi,met_h_eta,met_h_zeta);
       break;
     case DiffusionDir::y: // S12
@@ -339,8 +339,8 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
       break;
     case DiffusionDir::y: // S22
       // Cell-Center is staggered
-      ComputeMetricAtCellCenter(i,j-1,k,met_h_xi,met_h_eta,met_h_zeta,
-                                cellSizeInv,z_nd,TerrainMet::h_eta_zeta);
+      met_h_eta  = Compute_h_eta_AtCellCenter (i,j-1,k,cellSizeInv,z_nd);
+      met_h_zeta = Compute_h_zeta_AtCellCenter(i,j-1,k,cellSizeInv,z_nd);
       strainRate = ComputeS22WithTerrain(i,j,k,v,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta);
       break;
@@ -371,8 +371,7 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
       break;
     case DiffusionDir::z: // S33
       // Cell-Center is staggered
-      ComputeMetricAtCellCenter(i,j,k-1,met_h_xi,met_h_eta,met_h_zeta,
-                                cellSizeInv,z_nd,TerrainMet::h_zeta);
+      met_h_zeta = Compute_h_zeta_AtCellCenter(i,j-1,k,cellSizeInv,z_nd);
       strainRate = ComputeS33WithTerrain(i,j,k,w,cellSizeInv,
                               met_h_xi,met_h_eta,met_h_zeta,domain);
       break;

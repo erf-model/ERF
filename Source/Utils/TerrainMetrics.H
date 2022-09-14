@@ -30,72 +30,31 @@ Compute_h_zeta_AtCellCenter (const int &i, const int &j, const int &k,
 // Metric is at cell center
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-void
-ComputeMetricAtCellCenter (const int &i, const int &j, const int &k,
-                           amrex::Real& met_h_xi,
-                           amrex::Real& met_h_eta,
-                           amrex::Real& met_h_zeta,
+amrex::Real
+Compute_h_xi_AtCellCenter (const int &i, const int &j, const int &k,
                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                           const amrex::Array4<const amrex::Real>& z_nd, const int flag)
+                           const amrex::Array4<const amrex::Real>& z_nd)
 {
-  met_h_xi   = 0.0;
-  met_h_eta  = 0.0;
-  met_h_zeta = 0.0;
-  amrex::Real dxInv = cellSizeInv[0];
-  amrex::Real dyInv = cellSizeInv[1];
-  amrex::Real dzInv = cellSizeInv[2];
+    amrex::Real dxInv = cellSizeInv[0];
+    amrex::Real met_h_xi   = 0.25 * dxInv *
+      ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
+       -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) - z_nd(i  ,j,k+1) - z_nd(i  ,j+1,k+1) );
+    return met_h_xi;
+}
 
-  switch(flag) {
-  case TerrainMet::h_xi:
-    met_h_xi   = 0.25 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) - z_nd(i  ,j,k+1) - z_nd(i  ,j+1,k+1) );
-    break;
-  case TerrainMet::h_eta:
-    met_h_eta  = 0.25 * dyInv *
+// Metric is at cell center
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_eta_AtCellCenter (const int &i, const int &j, const int &k,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dyInv = cellSizeInv[1];
+    amrex::Real met_h_eta  = 0.25 * dyInv *
       ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
        -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) - z_nd(i,j  ,k+1) - z_nd(i+1,j  ,k+1) );
-    break;
-  case TerrainMet::h_zeta:
-    met_h_zeta = 0.25 * dzInv *
-      ( z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-       -z_nd(i+1,j,k  ) - z_nd(i+1,j+1,k  ) - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
-    break;
-  case TerrainMet::h_xi_eta:
-    met_h_xi   = 0.25 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) - z_nd(i  ,j,k+1) - z_nd(i  ,j+1,k+1) );
-    met_h_eta  = 0.25 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) - z_nd(i,j  ,k+1) - z_nd(i+1,j  ,k+1) );
-    break;
-  case TerrainMet::h_xi_zeta:
-    met_h_xi   = 0.25 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) - z_nd(i  ,j,k+1) - z_nd(i  ,j+1,k+1) );
-    met_h_zeta = 0.25 * dzInv *
-      ( z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-       -z_nd(i+1,j,k  ) - z_nd(i+1,j+1,k  ) - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
-     break;
-  case TerrainMet::h_eta_zeta:
-    met_h_eta  = 0.25 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) - z_nd(i,j  ,k+1) - z_nd(i+1,j  ,k+1) );
-    met_h_zeta = 0.25 * dzInv *
-      ( z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-       -z_nd(i+1,j,k  ) - z_nd(i+1,j+1,k  ) - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
-    break;
-  default:
-    met_h_xi   = 0.25 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) - z_nd(i  ,j,k+1) - z_nd(i  ,j+1,k+1) );
-    met_h_eta  = 0.25 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) - z_nd(i,j  ,k+1) - z_nd(i+1,j  ,k+1) );
-    met_h_zeta = 0.25 * dzInv *
-      ( z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-       -z_nd(i+1,j,k  ) - z_nd(i+1,j+1,k  ) - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
-  }
+    return met_h_eta;
 }
 
 //*****************************************************************************************

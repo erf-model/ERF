@@ -21,14 +21,14 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     // X-fluxes (at cell centers)
     // ****************************************************************************************
 
-    met_h_zeta = detJ(i,j,k);
+    met_h_zeta = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i+1, j, k) + rho_u(i, j, k));
     amrex::Real centFluxXXNext = rho_u_avg * met_h_zeta *
                           InterpolateInX(i+1, j, k, u, 0, rho_u_avg, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    met_h_zeta = detJ(i-1,j,k);
+    met_h_zeta = Compute_h_zeta_AtCellCenter(i-1,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i-1, j, k) + rho_u(i, j, k));
     amrex::Real centFluxXXPrev = rho_u_avg * met_h_zeta *
                           InterpolateInX(i  , j, k, u, 0, rho_u_avg, spatial_order);
@@ -115,14 +115,14 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     // y-fluxes (at cell centers)
     // ****************************************************************************************
 
-    met_h_zeta = detJ(i,j,k),
+    met_h_zeta = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j, k));
     amrex::Real centFluxYYNext = rho_v_avg * met_h_zeta *
                           InterpolateInY(i, j+1, k, v, 0, rho_v_avg, spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    met_h_zeta = detJ(i,j-1,k),
+    met_h_zeta = Compute_h_zeta_AtCellCenter(i  ,j-1,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j-1, k) + rho_v(i, j, k));
     amrex::Real centFluxYYPrev = rho_v_avg * met_h_zeta *
                           InterpolateInY(i  , j, k, v, 0, rho_v_avg, spatial_order);
@@ -231,7 +231,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
                  + (edgeFluxZYNext - edgeFluxZYPrev) * dyInv
                  + (centFluxZZNext - centFluxZZPrev) * dzInv;
 
-    amrex::Real denom = (k == 0) ? detJ(i,j,k) : 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
+    amrex::Real denom = 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
     advectionSrc /= denom;
 
     return advectionSrc;
