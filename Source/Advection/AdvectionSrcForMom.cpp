@@ -21,8 +21,8 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
-#if 0
     if (use_terrain && (spatial_order == 2)) {
+
         ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -84,8 +84,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             ComputeMetricAtEdgeCenterI(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta_lo,cellSizeInv,z_nd,TerrainMet::h_zeta);
             Real yflux_lo = 0.25*(rho_v(i, j  , k) + rho_v(i, j  , k-1)) * (w(i,j-1,k) + w(i,j,k)) * met_h_zeta_lo;
 
-            Real zflux_lo = (k == 0) ? Omega(i,j,k) * w(i,j,k) :
-                0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
+            Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
             Real zflux_hi = (k == domhi_z+1) ? Omega(i,j,k) * w(i,j,k) :
                 0.25 * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1));
@@ -94,13 +93,10 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                               + (yflux_hi - yflux_lo) * dyInv
                               + (zflux_hi - zflux_lo) * dzInv;
 
-            Real denom = (k == 0) ? detJ(i,j,k) : 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
-
-            rho_w_rhs(i, j, k) = -advectionSrc / denom;
+            rho_w_rhs(i, j, k) = -advectionSrc / (0.5*(detJ(i,j,k) + detJ(i,j,k-1)));
         });
+
     } else if (!use_terrain && (spatial_order == 2)) {
-#endif
-    if (!use_terrain && (spatial_order == 2)) {
 
         ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -143,8 +139,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             Real yflux_hi = 0.25*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * (w(i,j+1,k) + w(i,j,k));
             Real yflux_lo = 0.25*(rho_v(i, j  , k) + rho_v(i, j  , k-1)) * (w(i,j-1,k) + w(i,j,k));
 
-            Real zflux_lo = (k == 0) ? Omega(i,j,k) * w(i,j,k) :
-                0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
+            Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
             Real zflux_hi = (k == domhi_z+1) ? Omega(i,j,k) * w(i,j,k) :
                 0.25 * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1));
@@ -155,8 +150,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             rho_w_rhs(i, j, k) = -advectionSrc;
         });
 
-    // } else if (use_terrain && (spatial_order > 2)) {
-    } else if (use_terrain) {
+    } else if (use_terrain && (spatial_order > 2)) {
 
         amrex::ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -176,6 +170,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         });
 
     } else if (!use_terrain && (spatial_order > 2)) {
+
         amrex::ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
