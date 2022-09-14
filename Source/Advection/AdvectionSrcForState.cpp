@@ -38,38 +38,38 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             Real yflux_hi = rho_v(i,j+1,k);
             Real zflux_lo = Omega(i,j,k  );
             Real zflux_hi = Omega(i,j,k+1);
+            
+            Real met_h_zeta_xlo = Compute_h_zeta_AtIface(i  ,j  ,k,cellSizeInv,z_nd);
+            xflux_lo *= met_h_zeta_xlo;
+            Real met_h_zeta_xhi = Compute_h_zeta_AtIface(i+1,j  ,k,cellSizeInv,z_nd);
+            xflux_hi *= met_h_zeta_xhi;
 
-           ComputeMetricAtIface(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-           xflux_lo *= met_h_zeta;
-           ComputeMetricAtIface(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-           xflux_hi *= met_h_zeta;
+            Real met_h_zeta_ylo = Compute_h_zeta_AtJface(i  ,j  ,k,cellSizeInv,z_nd);
+            yflux_lo *= met_h_zeta_ylo;
+            Real met_h_zeta_yhi = Compute_h_zeta_AtJface(i  ,j+1,k,cellSizeInv,z_nd);
+            yflux_hi *= met_h_zeta_yhi;
 
-           ComputeMetricAtJface(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-           yflux_lo *= met_h_zeta;
-           ComputeMetricAtJface(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-           yflux_hi *= met_h_zeta;
+            avg_xmom(i  ,j,k) += fac*xflux_lo;
+            if (i == vbx_hi.x)
+                avg_xmom(i+1,j,k) += fac*xflux_hi;
+            avg_ymom(i,j  ,k) += fac*yflux_lo;
+            if (j == vbx_hi.y)
+                avg_ymom(i,j+1,k) += fac*yflux_hi;
+            avg_zmom(i,j,k  ) += fac*zflux_lo;
+            if (k == vbx_hi.z)
+                avg_zmom(i,j,k+1) += fac*zflux_hi;
 
-           avg_xmom(i  ,j,k) += fac*xflux_lo;
-           if (i == vbx_hi.x)
-               avg_xmom(i+1,j,k) += fac*xflux_hi;
-           avg_ymom(i,j  ,k) += fac*yflux_lo;
-           if (j == vbx_hi.y)
-               avg_ymom(i,j+1,k) += fac*yflux_hi;
-           avg_zmom(i,j,k  ) += fac*zflux_lo;
-           if (k == vbx_hi.z)
-              avg_zmom(i,j,k+1) += fac*zflux_hi;
+            advectionSrc(i,j,k,0) = - invdetJ * (
+                ( xflux_hi - xflux_lo ) * dxInv + ( yflux_hi - yflux_lo ) * dyInv + ( zflux_hi - zflux_lo ) * dzInv );
 
-           advectionSrc(i,j,k,0) = - invdetJ * (
-               ( xflux_hi - xflux_lo ) * dxInv + ( yflux_hi - yflux_lo ) * dyInv + ( zflux_hi - zflux_lo ) * dzInv );
-
-           const int prim_index = 0;
-           advectionSrc(i,j,k,1) = - invdetJ * 0.5 * (
-             ( xflux_hi * (cell_prim(i,j,k,prim_index) + cell_prim(i+1,j,k,prim_index)) -
-               xflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index)) ) * dxInv +
-             ( yflux_hi * (cell_prim(i,j,k,prim_index) + cell_prim(i,j+1,k,prim_index)) -
-               yflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index)) ) * dyInv +
-             ( zflux_hi * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index)) -
-               zflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index)) ) * dzInv );
+            const int prim_index = 0;
+            advectionSrc(i,j,k,1) = - invdetJ * 0.5 * (
+                ( xflux_hi * (cell_prim(i,j,k,prim_index) + cell_prim(i+1,j,k,prim_index)) -
+                  xflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index)) ) * dxInv +
+                ( yflux_hi * (cell_prim(i,j,k,prim_index) + cell_prim(i,j+1,k,prim_index)) -
+                  yflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index)) ) * dyInv +
+                ( zflux_hi * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index)) -
+                  zflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index)) ) * dzInv );
     });
     } else if ( use_terrain && (spatial_order > 2) ) {
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
