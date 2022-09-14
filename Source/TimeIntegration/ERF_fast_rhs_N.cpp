@@ -361,7 +361,7 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
             Real Omega_k   = prev_zmom(i,j,k  ) - stage_zmom(i,j,k  );
             Real Omega_km1 = prev_zmom(i,j,k-1) - stage_zmom(i,j,k-1);
             R_tmp += ( dtau * beta_2 * halfg ) *
-                     ( beta_1 * dzi * (Omega_kp1 - Omega_k) + temp_rhs_arr(i,j,k) );
+                     ( beta_1 * dzi * (Omega_kp1 - Omega_k) + temp_rhs_arr(i,j,k,0) );
 
             // line 6 (reuse Omega & metrics) (order dtau^2)
             R_tmp += -( dtau * beta_2 * coeff_P ) *

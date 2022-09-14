@@ -91,8 +91,6 @@ void erf_fast_rhs_T (int step, int level, const amrex::Real time,
                      const amrex::MultiFab* z_t_pert,
                      std::unique_ptr<amrex::MultiFab>& z0,
                      std::unique_ptr<amrex::MultiFab>& dJ,
-                     const amrex::MultiFab* r0,
-                     const amrex::MultiFab* pi0,
                      const amrex::Real fast_dt, const amrex::Real invfac,
                      bool ingested_bcs);
 

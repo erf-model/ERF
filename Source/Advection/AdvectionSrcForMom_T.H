@@ -164,7 +164,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-    amrex::Real rho_u_avg, rho_v_avg, Omega_avg, vec;
+    amrex::Real rho_u_avg, rho_v_avg, Omega_avg;
 
     amrex::Real met_h_xi, met_h_eta,  met_h_zeta;
 
