@@ -284,8 +284,9 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
 
                 Real gpx;
-                Real met_h_xi,met_h_eta,met_h_zeta;
-                ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                Real met_h_xi   = Compute_h_xi_AtIface(i, j, k, dxInv, z_nd);
+                Real met_h_eta  = Compute_h_eta_AtIface(i, j, k, dxInv, z_nd);
+                Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
                 Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
                 Real gp_zeta_on_iface;
                 if(k==0) {
@@ -328,8 +329,9 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                 Real drho_theta_lo = extrap_arr(i,j-1,k);
 
                 Real gpy;
-                Real met_h_xi,met_h_eta,met_h_zeta;
-                ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                Real met_h_xi   = Compute_h_xi_AtJface(i, j, k, dxInv, z_nd);
+                Real met_h_eta  = Compute_h_eta_AtJface(i, j, k, dxInv, z_nd);
+                Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
                 Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
                 Real gp_zeta_on_jface;
                 if(k==0) {

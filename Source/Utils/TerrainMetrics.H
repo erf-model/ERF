@@ -63,196 +63,178 @@ Compute_h_eta_AtCellCenter (const int &i, const int &j, const int &k,
 // Metric coincides with U location
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-void
-ComputeMetricAtIface (int i, int j, int k,
-                      amrex::Real& met_h_xi,
-                      amrex::Real& met_h_eta,
-                      amrex::Real& met_h_zeta,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      const amrex::Array4<const amrex::Real>& z_nd, int flag)
+amrex::Real
+Compute_h_zeta_AtIface (const int &i, const int &j, const int &k,
+                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-  met_h_xi   = 0.0;
-  met_h_eta  = 0.0;
-  met_h_zeta = 0.0;
-  amrex::Real dxInv = cellSizeInv[0];
-  amrex::Real dyInv = cellSizeInv[1];
-  amrex::Real dzInv = cellSizeInv[2];
+    amrex::Real dzInv = cellSizeInv[2];
+    amrex::Real met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
+                                           - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
+    return met_h_zeta;
+}
 
-  switch(flag) {
-  case TerrainMet::h_xi:
-    met_h_xi   = 0.125 * dxInv *
+// Metric coincides with U location
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_xi_AtIface (const int &i, const int &j, const int &k,
+                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                      const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dxInv = cellSizeInv[0];
+    amrex::Real met_h_xi   = 0.125 * dxInv *
       ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
        -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
-    break;
-  case TerrainMet::h_eta:
-    met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k  ) + z_nd(i,j+1,k+1)
-                               - z_nd(i,j  ,k  ) - z_nd(i,j  ,k+1) );
-    break;
-  case TerrainMet::h_zeta:
-    met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-                               - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
-    break;
-  case TerrainMet::h_xi_eta:
-    met_h_xi   = 0.125 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
-    met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k  ) + z_nd(i,j+1,k+1)
-                               - z_nd(i,j  ,k  ) - z_nd(i,j  ,k+1) );
-    break;
-  case TerrainMet::h_xi_zeta:
-    met_h_xi   = 0.125 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
-    met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-                               - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
-     break;
-  case TerrainMet::h_eta_zeta:
-    met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k  ) + z_nd(i,j+1,k+1)
-                               - z_nd(i,j  ,k  ) - z_nd(i,j  ,k+1) );
-    met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-                               - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
-    break;
-  default:
-    met_h_xi   = 0.125 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) - z_nd(i-1,j+1,k) - z_nd(i-1,j+1,k+1) );
-    met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k  ) + z_nd(i,j+1,k+1)
-                               - z_nd(i,j  ,k  ) - z_nd(i,j  ,k+1) );
-    met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
-                               - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
-  }
+    return met_h_xi;
+}
+
+// Metric coincides with U location
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_eta_AtIface (const int &i, const int &j, const int &k,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dyInv = cellSizeInv[1];
+    amrex::Real met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k  ) + z_nd(i,j+1,k+1)
+                                           - z_nd(i,j  ,k  ) - z_nd(i,j  ,k+1) );
+    return met_h_eta;
 }
 
 // Metric coincides with V location
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-void
-ComputeMetricAtJface (int i, int j, int k,
-                      amrex::Real& met_h_xi,
-                      amrex::Real& met_h_eta,
-                      amrex::Real& met_h_zeta,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      const amrex::Array4<const amrex::Real>& z_nd, const int flag)
+amrex::Real
+Compute_h_zeta_AtJface (const int &i, const int &j, const int &k,
+                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                        const amrex::Array4<const amrex::Real>& z_nd)
 {
-  met_h_xi   = 0.0;
-  met_h_eta  = 0.0;
-  met_h_zeta = 0.0;
-  amrex::Real dxInv = cellSizeInv[0];
-  amrex::Real dyInv = cellSizeInv[1];
-  amrex::Real dzInv = cellSizeInv[2];
-
-  switch(flag) {
-  case TerrainMet::h_xi:
-    met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
-                                -z_nd(i  ,j,k) - z_nd(i  ,j,k+1) );
-    break;
-  case TerrainMet::h_eta:
-    met_h_eta  = 0.125 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
-    break;
-  case TerrainMet::h_zeta:
-    met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
-                               - z_nd(i,j,k  ) - z_nd(i+1,j,k  ) );
-    break;
-  case TerrainMet::h_xi_eta:
-    met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
-                                -z_nd(i  ,j,k) - z_nd(i  ,j,k+1) );
-    met_h_eta  = 0.125 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
-    break;
-  case TerrainMet::h_xi_zeta:
-    met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
-                                -z_nd(i  ,j,k) - z_nd(i  ,j,k+1) );
-    met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
-                               - z_nd(i,j,k  ) - z_nd(i+1,j,k  ) );
-     break;
-  case TerrainMet::h_eta_zeta:
-    met_h_eta  = 0.125 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
-    met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
-                               - z_nd(i,j,k  ) - z_nd(i+1,j,k  ) );
-    break;
-  default:
-    met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
-                                -z_nd(i  ,j,k) - z_nd(i  ,j,k+1) );
-    met_h_eta  = 0.125 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
-    met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
-                               - z_nd(i,j,k  ) - z_nd(i+1,j,k  ) );
-  }
+    amrex::Real dzInv = cellSizeInv[2];
+    amrex::Real met_h_zeta = 0.5 * dzInv * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
+                                           - z_nd(i,j,k  ) - z_nd(i+1,j,k  ) );
+    return met_h_zeta;
 }
 
-// Metric coincides with W location
+// Metric coincides with V location
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-void
-ComputeMetricAtKface(int i, int j, int k,
-                     amrex::Real& met_h_xi,
-                     amrex::Real& met_h_eta,
-                     amrex::Real& met_h_zeta,
-                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                     const amrex::Array4<const amrex::Real>& z_nd, int flag)
+amrex::Real
+Compute_h_xi_AtJface (const int &i, const int &j, const int &k,
+                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                      const amrex::Array4<const amrex::Real>& z_nd)
 {
-  met_h_xi   = 0.0;
-  met_h_eta  = 0.0;
-  met_h_zeta = 0.0;
-  amrex::Real dxInv = cellSizeInv[0];
-  amrex::Real dyInv = cellSizeInv[1];
-  amrex::Real dzInv = cellSizeInv[2];
+    amrex::Real dxInv = cellSizeInv[0];
+    amrex::Real met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
+                                            -z_nd(i  ,j,k) - z_nd(i  ,j,k+1) );
+    return met_h_xi;
+}
 
-  switch(flag) {
-  case TerrainMet::h_xi:
-    met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k)
-                                -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) );
-    break;
-  case TerrainMet::h_eta:
-    met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k)
-                                -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) );
-    break;
-  case TerrainMet::h_zeta:
-    met_h_zeta = 0.125 * dzInv *
+// Metric coincides with V location
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_eta_AtJface (const int &i, const int &j, const int &k,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dyInv = cellSizeInv[1];
+    amrex::Real met_h_eta  = 0.125 * dyInv *
+      ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k) + z_nd(i+1,j+1,k+1)
+       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) - z_nd(i+1,j-1,k) - z_nd(i+1,j-1,k+1) );
+    return met_h_eta;
+}
+
+// Metric coincides with K location
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_zeta_AtKface (const int &i, const int &j, const int &k,
+                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                        const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dzInv = cellSizeInv[2];
+    amrex::Real met_h_zeta = 0.125 * dzInv *
       ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
        -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
-    break;
-  case TerrainMet::h_xi_eta:
-    met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k)
-                                -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) );
-    met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k)
-                                -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) );
-    break;
-  case TerrainMet::h_xi_zeta:
-    met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k)
-                                -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) );
-    met_h_zeta = 0.125 * dzInv *
-      ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
-     break;
-  case TerrainMet::h_eta_zeta:
-    met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k)
-                                -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) );
-    met_h_zeta = 0.125 * dzInv *
-      ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
-    break;
-  default:
-    met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k)
-                                -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) );
-    met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k)
-                                -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) );
-    met_h_zeta = 0.125 * dzInv *
-      ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
-       -z_nd(i,j,k-1) - z_nd(i+1,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j+1,k-1) );
-  }
+    return met_h_zeta;
+}
+
+// Metric coincides with K location
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_xi_AtKface (const int &i, const int &j, const int &k,
+                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                      const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dxInv = cellSizeInv[0];
+    amrex::Real met_h_xi   = 0.5 * dxInv * ( z_nd(i+1,j,k) + z_nd(i+1,j+1,k)
+                                            -z_nd(i  ,j,k) - z_nd(i  ,j+1,k) );
+    return met_h_xi;
+}
+
+// Metric coincides with K location
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_eta_AtKface (const int &i, const int &j, const int &k,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dyInv = cellSizeInv[1];
+    amrex::Real met_h_eta  = 0.5 * dyInv * ( z_nd(i,j+1,k) + z_nd(i+1,j+1,k)
+                                            -z_nd(i,j  ,k) - z_nd(i+1,j  ,k) );
+    return met_h_eta;
 }
 
 //*****************************************************************************************
 // Compute terrain metric terms at edge-centers
 //*****************************************************************************************
 // Metric is at edge and center Z (red pentagon)
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_zeta_AtEdgeCenterK (const int &i, const int &j, const int &k,
+                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                              const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dzInv = cellSizeInv[2];
+    amrex::Real met_h_zeta = dzInv * (z_nd(i,j,k+1) - z_nd(i,j,k));
+    return met_h_zeta;
+}
+
+// Metric is at edge and center Z (red pentagon)
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_xi_AtEdgeCenterK (const int &i, const int &j, const int &k,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dxInv = cellSizeInv[0];
+    amrex::Real met_h_xi  = 0.25 * dxInv *
+      ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
+       -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) );
+    return met_h_xi;
+}
+
+// Metric is at edge and center Z (red pentagon)
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_h_eta_AtEdgeCenterK (const int &i, const int &j, const int &k,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                             const amrex::Array4<const amrex::Real>& z_nd)
+{
+    amrex::Real dyInv = cellSizeInv[1];
+    amrex::Real met_h_eta = 0.25 * dyInv *
+      ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1)
+       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) );
+    return met_h_eta;
+}
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
@@ -272,17 +254,10 @@ ComputeMetricAtEdgeCenterK (int i, int j, int k,
 
   switch(flag) {
   case TerrainMet::h_xi:
-    met_h_xi  = 0.25 * dxInv *
-      ( z_nd(i+1,j,k) + z_nd(i+1,j,k+1)
-       -z_nd(i-1,j,k) - z_nd(i-1,j,k+1) );
     break;
   case TerrainMet::h_eta:
-    met_h_eta = 0.25 * dyInv *
-      ( z_nd(i,j+1,k) + z_nd(i,j+1,k+1)
-       -z_nd(i,j-1,k) - z_nd(i,j-1,k+1) );
     break;
   case TerrainMet::h_zeta:
-    met_h_zeta = dzInv * (z_nd(i,j,k+1) - z_nd(i,j,k));
     break;
   case TerrainMet::h_xi_eta:
     met_h_xi  = 0.25 * dxInv *
