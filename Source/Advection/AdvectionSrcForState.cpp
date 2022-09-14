@@ -30,19 +30,17 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
         {
             Real invdetJ = 1./ detJ(i,j,k);
 
-            Real met_h_xi, met_h_eta, met_h_zeta;
-
             Real zflux_lo = Omega(i,j,k  );
             Real zflux_hi = Omega(i,j,k+1);
 
-            Real met_h_zeta_xhi = Compute_h_zeta_AtIface(i  ,j  ,k  ,cellSizeInv,z_nd);
-            Real xflux_hi = rho_u(i+1,k,k) * met_h_zeta_xhi;
-            Real met_h_zeta_xlo = Compute_h_zeta_AtIface(i  ,j  ,k  ,cellSizeInv,z_nd);
-            Real xflux_lo = rho_u(i  ,k,k) * met_h_zeta_xlo;
-            Real met_h_zeta_yhi = Compute_h_zeta_AtJface(i  ,j  ,k  ,cellSizeInv,z_nd);
-            Real yflux_hi = rho_v(i,j+1,k) * met_h_zeta_yhi;
-            Real met_h_zeta_ylo = Compute_h_zeta_AtJface(i  ,j  ,k  ,cellSizeInv,z_nd);
-            Real yflux_lo = rho_v(i,j  ,k) * met_h_zeta_ylo;
+            Real met_h_zeta_xhi = Compute_h_zeta_AtIface(i+1,j  ,k,cellSizeInv,z_nd);
+            Real xflux_hi = rho_u(i+1,j  ,k) * met_h_zeta_xhi;
+            Real met_h_zeta_xlo = Compute_h_zeta_AtIface(i  ,j  ,k,cellSizeInv,z_nd);
+            Real xflux_lo = rho_u(i  ,j  ,k) * met_h_zeta_xlo;
+            Real met_h_zeta_yhi = Compute_h_zeta_AtJface(i  ,j+1,k,cellSizeInv,z_nd);
+            Real yflux_hi = rho_v(i  ,j+1,k) * met_h_zeta_yhi;
+            Real met_h_zeta_ylo = Compute_h_zeta_AtJface(i  ,j  ,k,cellSizeInv,z_nd);
+            Real yflux_lo = rho_v(i  ,j  ,k) * met_h_zeta_ylo;
 
             avg_xmom(i  ,j,k) += fac*xflux_lo;
             if (i == vbx_hi.x)
