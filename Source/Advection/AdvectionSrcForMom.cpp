@@ -37,7 +37,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             ComputeMetricAtEdgeCenterK(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta_yhi,cellSizeInv,z_nd,TerrainMet::h_zeta);
             Real yflux_hi = 0.25 * (rho_v(i, j+1, k) + rho_v(i-1, j+1, k)) * (u(i,j+1,k) + u(i,j,k)) * met_h_zeta_yhi;
 
-            ComputeMetricAtEdgeCenterK(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta_ylo,cellSizeInv,z_nd,TerrainMet::h_zeta);
+            ComputeMetricAtEdgeCenterK(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta_ylo,cellSizeInv,z_nd,TerrainMet::h_zeta);
             Real yflux_lo = 0.25 * (rho_v(i, j  , k) + rho_v(i-1, j  , k)) * (u(i,j-1,k) + u(i,j,k)) * met_h_zeta_ylo;
 
             Real zflux_hi = 0.25 * (Omega(i, j, k+1) + Omega(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k));
