@@ -185,15 +185,14 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr, const Box& b
                 // Fill all the Neumann srcs with terrain
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-
                     // Clip indices for ghost-cells
                     int ii = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
                     int jj = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
 
                     // Get metrics
-                    Real met_h_xi,met_h_eta,met_h_zeta;
-
-                    ComputeMetricAtIface(ii,jj,k0,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::all);
+                    Real met_h_xi   = Compute_h_xi_AtIface  (ii, jj, k0, dxInv, z_nd);
+                    Real met_h_eta  = Compute_h_eta_AtIface (ii, jj, k0, dxInv, z_nd);
+                    Real met_h_zeta = Compute_h_zeta_AtIface(ii, jj, k0, dxInv, z_nd);
 
                     // GradX at IJK location inside domain -- this relies on the assumption that we have
                     // used foextrap for cell-centered quantities outside the domain to define the gradient as zero

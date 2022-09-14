@@ -38,8 +38,7 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     // ****************************************************************************************
 
     // Metric is at edge and center Z (red pentagon)
-    ComputeMetricAtEdgeCenterK(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
+    met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i  ,j+1,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i-1, j+1, k));
     amrex::Real edgeFluxXYNext = rho_v_avg * met_h_zeta *
                           InterpolateInY(i, j+1, k, u, 0, rho_v_avg, spatial_order);
@@ -47,8 +46,7 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     // Metric is at edge and center Z (red pentagon)
-    ComputeMetricAtEdgeCenterK(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
+    met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j  , k) + rho_v(i-1, j  , k));
     amrex::Real edgeFluxXYPrev = rho_v_avg * met_h_zeta *
                           InterpolateInY(i, j  , k, u, 0, rho_v_avg, spatial_order);
@@ -96,8 +94,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     // ****************************************************************************************
 
     // Metric is at edge and center Z (red pentagon)
-    ComputeMetricAtEdgeCenterK(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
+    met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i+1,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i+1, j, k) + rho_u(i+1, j-1, k));
     amrex::Real edgeFluxYXNext = rho_u_avg * met_h_zeta *
                           InterpolateInX(i+1, j, k, v, 0, rho_u_avg, spatial_order);
@@ -105,8 +102,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     // Metric is at edge and center Z (red pentagon)
-    ComputeMetricAtEdgeCenterK(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
+    met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i, j, k) + rho_u(i, j-1, k));
     amrex::Real edgeFluxYXPrev = rho_u_avg * met_h_zeta *
                           InterpolateInX(i  , j, k, v, 0, rho_u_avg, spatial_order);
@@ -173,8 +169,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     // ****************************************************************************************
 
     // Metric is at edge and center Y (magenta cross)
-    ComputeMetricAtEdgeCenterJ(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
+    met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i+1,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5*(rho_u(i+1,j,k) + rho_u(i+1,j,k-1));
     amrex::Real edgeFluxZXNext = rho_u_avg * met_h_zeta *
                           InterpolateInX(i+1, j, k, w, 0, rho_u_avg, spatial_order);
@@ -182,8 +177,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     // Metric is at edge and center Y (magenta cross)
-    ComputeMetricAtEdgeCenterJ(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
+    met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5*(rho_u(i,j,k) + rho_u(i,j,k-1));
     amrex::Real edgeFluxZXPrev = rho_u_avg * met_h_zeta *
                           InterpolateInX(i  , j, k, w, 0, rho_u_avg, spatial_order);
@@ -193,8 +187,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     // ****************************************************************************************
 
     // Metric is at edge and center I (purple hexagon)
-    ComputeMetricAtEdgeCenterI(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
+    met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i  ,j+1,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5*(rho_v(i,j+1,k) + rho_v(i,j+1,k-1));
     amrex::Real edgeFluxZYNext = rho_v_avg * met_h_zeta *
                           InterpolateInY(i, j+1, k, w, 0, rho_v_avg, spatial_order);
@@ -202,8 +195,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     // Metric is at edge and center I (purple hexagon)
-    ComputeMetricAtEdgeCenterI(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta,cellSizeInv,z_nd,TerrainMet::h_zeta);
-
+    met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5*(rho_v(i,j,k) + rho_v(i,j,k-1));
     amrex::Real edgeFluxZYPrev = rho_v_avg * met_h_zeta *
                           InterpolateInY(i, j  , k, w, 0, rho_v_avg, spatial_order);

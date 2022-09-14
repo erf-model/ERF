@@ -26,7 +26,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real met_h_xi, met_h_eta, met_h_zeta_ylo, met_h_zeta_yhi;
+            Real met_h_xi, met_h_eta;
 
             Real met_h_zeta_xhi = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
             Real xflux_hi = 0.25 * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (u(i+1,j,k) + u(i,j,k)) * met_h_zeta_xhi;
@@ -34,10 +34,10 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             Real met_h_zeta_xlo = Compute_h_zeta_AtCellCenter(i-1,j  ,k  ,cellSizeInv,z_nd);
             Real xflux_lo = 0.25 * (rho_u(i, j  , k) + rho_u(i-1, j  , k)) * (u(i-1,j,k) + u(i,j,k)) * met_h_zeta_xlo;
 
-            ComputeMetricAtEdgeCenterK(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta_yhi,cellSizeInv,z_nd,TerrainMet::h_zeta);
+            Real met_h_zeta_yhi = Compute_h_zeta_AtEdgeCenterK(i  ,j+1,k  ,cellSizeInv,z_nd);
             Real yflux_hi = 0.25 * (rho_v(i, j+1, k) + rho_v(i-1, j+1, k)) * (u(i,j+1,k) + u(i,j,k)) * met_h_zeta_yhi;
 
-            ComputeMetricAtEdgeCenterK(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta_ylo,cellSizeInv,z_nd,TerrainMet::h_zeta);
+            Real met_h_zeta_ylo = Compute_h_zeta_AtEdgeCenterK(i  ,j  ,k  ,cellSizeInv,z_nd);
             Real yflux_lo = 0.25 * (rho_v(i, j  , k) + rho_v(i-1, j  , k)) * (u(i,j-1,k) + u(i,j,k)) * met_h_zeta_ylo;
 
             Real zflux_hi = 0.25 * (Omega(i, j, k+1) + Omega(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k));
@@ -52,13 +52,13 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real met_h_xi, met_h_eta,  met_h_zeta_lo, met_h_zeta_hi;
+            Real met_h_xi, met_h_eta;
 
-            ComputeMetricAtEdgeCenterK(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta_hi,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            Real xflux_hi = 0.25 * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (v(i+1,j,k) + v(i,j,k)) * met_h_zeta_hi;
+            Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterK(i+1,j  ,k  ,cellSizeInv,z_nd);
+            Real xflux_hi = 0.25 * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (v(i+1,j,k) + v(i,j,k)) * met_h_zeta_xhi;
 
-            ComputeMetricAtEdgeCenterK(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta_lo,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            Real xflux_lo = 0.25 * (rho_u(i, j  , k) + rho_u(i-1, j  , k)) * (v(i-1,j,k) + v(i,j,k)) * met_h_zeta_lo;
+            Real met_h_zeta_xlo = Compute_h_zeta_AtEdgeCenterK(i  ,j  ,k  ,cellSizeInv,z_nd);
+            Real xflux_lo = 0.25 * (rho_u(i, j  , k) + rho_u(i-1, j  , k)) * (v(i-1,j,k) + v(i,j,k)) * met_h_zeta_xlo;
 
             Real met_h_zeta_yhi = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
             Real yflux_hi = 0.25 * (rho_v(i, j+1, k) + rho_v(i-1, j+1, k)) * (v(i,j+1,k) + v(i,j,k)) * met_h_zeta_yhi;
@@ -76,19 +76,19 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real met_h_xi, met_h_eta,  met_h_zeta_lo, met_h_zeta_hi;
+            Real met_h_xi, met_h_eta;
 
-            ComputeMetricAtEdgeCenterJ(i+1,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta_hi,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            Real xflux_hi = 0.25*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * (w(i+1,j,k) + w(i,j,k)) * met_h_zeta_hi;
+            Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterJ(i+1,j  ,k  ,cellSizeInv,z_nd);
+            Real xflux_hi = 0.25*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * (w(i+1,j,k) + w(i,j,k)) * met_h_zeta_xhi;
 
-            ComputeMetricAtEdgeCenterJ(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta_lo,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            Real xflux_lo = 0.25*(rho_u(i  , j, k) + rho_u(i  , j, k-1)) * (w(i-1,j,k) + w(i,j,k)) * met_h_zeta_lo;
+            Real met_h_zeta_xlo = Compute_h_zeta_AtEdgeCenterJ(i  ,j  ,k  ,cellSizeInv,z_nd);
+            Real xflux_lo = 0.25*(rho_u(i  , j, k) + rho_u(i  , j, k-1)) * (w(i-1,j,k) + w(i,j,k)) * met_h_zeta_xlo;
 
-            ComputeMetricAtEdgeCenterI(i  ,j+1,k  ,met_h_xi,met_h_eta,met_h_zeta_hi,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            Real yflux_hi = 0.25*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * (w(i,j+1,k) + w(i,j,k)) * met_h_zeta_hi;
+            Real met_h_zeta_yhi = Compute_h_zeta_AtEdgeCenterI(i  ,j+1,k  ,cellSizeInv,z_nd);
+            Real yflux_hi = 0.25*(rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * (w(i,j+1,k) + w(i,j,k)) * met_h_zeta_yhi;
 
-            ComputeMetricAtEdgeCenterI(i  ,j  ,k  ,met_h_xi,met_h_eta,met_h_zeta_lo,cellSizeInv,z_nd,TerrainMet::h_zeta);
-            Real yflux_lo = 0.25*(rho_v(i, j  , k) + rho_v(i, j  , k-1)) * (w(i,j-1,k) + w(i,j,k)) * met_h_zeta_lo;
+            Real met_h_zeta_ylo = Compute_h_zeta_AtEdgeCenterI(i  ,j  ,k  ,cellSizeInv,z_nd);
+            Real yflux_lo = 0.25*(rho_v(i, j  , k) + rho_v(i, j  , k-1)) * (w(i,j-1,k) + w(i,j,k)) * met_h_zeta_ylo;
 
             Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 

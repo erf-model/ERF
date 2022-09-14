@@ -215,25 +215,11 @@ void erf_slow_rhs_pre (int level,
 
                 amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
-                    Real met_u_h_xi_hi,met_u_h_eta_hi,met_u_h_zeta_hi;
-                    Real met_u_h_xi_lo,met_u_h_eta_lo,met_u_h_zeta_lo;
+                    Real met_u_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j  , k, dxInv, z_nd);
+                    Real met_u_h_zeta_lo = Compute_h_zeta_AtIface(i  , j  , k, dxInv, z_nd);
 
-                    Real met_v_h_xi_hi,met_v_h_eta_hi,met_v_h_zeta_hi;
-                    Real met_v_h_xi_lo,met_v_h_eta_lo,met_v_h_zeta_lo;
-
-                    ComputeMetricAtIface(i+1,j  ,k  ,
-                                         met_u_h_xi_hi,met_u_h_eta_hi,met_u_h_zeta_hi,
-                                         dxInv,z_nd,TerrainMet::h_zeta);
-                    ComputeMetricAtIface(i  ,j  ,k  ,
-                                         met_u_h_xi_lo,met_u_h_eta_lo,met_u_h_zeta_lo,
-                                         dxInv,z_nd,TerrainMet::h_zeta);
-
-                    ComputeMetricAtJface(i  ,j+1,k  ,
-                                         met_v_h_xi_hi,met_v_h_eta_hi,met_v_h_zeta_hi,
-                                         dxInv,z_nd,TerrainMet::h_zeta);
-                    ComputeMetricAtJface(i  ,j  ,k  ,
-                                         met_v_h_xi_lo,met_v_h_eta_lo,met_v_h_zeta_lo,
-                                         dxInv,z_nd,TerrainMet::h_zeta);
+                    Real met_v_h_zeta_hi = Compute_h_zeta_AtJface(i  , j+1, k, dxInv, z_nd);
+                    Real met_v_h_zeta_lo = Compute_h_zeta_AtJface(i  , j  , k, dxInv, z_nd);
 
                     Real Omega_hi = omega_arr(i,j,k+1);
                     Real Omega_lo = omega_arr(i,j,k  );
@@ -341,9 +327,9 @@ void erf_slow_rhs_pre (int level,
             // Add pressure gradient
             amrex::Real gpx;
             if (l_use_terrain) {
-                Real met_h_xi, met_h_eta, met_h_zeta;
 
-                ComputeMetricAtIface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
+                Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
 
                 Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
                 Real gp_zeta_on_iface;
@@ -400,9 +386,9 @@ void erf_slow_rhs_pre (int level,
                 // Add pressure gradient
                 amrex::Real gpy;
                 if (l_use_terrain) {
-                    Real met_h_xi,met_h_eta,met_h_zeta;
 
-                    ComputeMetricAtJface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                    Real met_h_eta  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
+                    Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
 
                     Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
                     Real gp_zeta_on_jface;
@@ -469,8 +455,7 @@ void erf_slow_rhs_pre (int level,
                 // Add pressure gradient
                 amrex::Real gpz;
                 if (l_use_terrain) {
-                    Real met_h_xi,met_h_eta,met_h_zeta;
-                    ComputeMetricAtKface(i,j,k,met_h_xi,met_h_eta,met_h_zeta,dxInv,z_nd,TerrainMet::h_zeta);
+                    Real met_h_zeta = Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd);
                     gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / met_h_zeta;
                 } else {
                     gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));

@@ -259,8 +259,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
                         // Pgrad at lower I face
-                        Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
-                        ComputeMetricAtIface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                        Real met_h_xi_lo   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
+                        Real met_h_zeta_lo = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
                         Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
                         Real gp_zeta_on_iface_lo;
                         if(k == klo) {
@@ -279,8 +279,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                         amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
                         // Pgrad at higher I face
-                        Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
-                        ComputeMetricAtIface(i+1,j,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                        Real met_h_xi_hi   = Compute_h_xi_AtIface  (i+1, j, k, dxInv, z_nd);
+                        Real met_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j, k, dxInv, z_nd);
                         Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
                         Real gp_zeta_on_iface_hi;
                         if(k == klo) {
@@ -339,8 +339,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-                        Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
-                        ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                        Real met_h_eta_lo  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
+                        Real met_h_zeta_lo = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
                         Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
                         Real gp_zeta_on_jface_lo;
                         if (k == klo) {
@@ -358,8 +358,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                         }
                         amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
-                        Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
-                        ComputeMetricAtJface(i,j+1,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                        Real met_h_eta_hi  = Compute_h_eta_AtJface (i, j+1, k, dxInv, z_nd);
+                        Real met_h_zeta_hi = Compute_h_zeta_AtJface(i, j+1, k, dxInv, z_nd);
                         Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
                         Real gp_zeta_on_jface_hi;
                         if (k == klo) {
@@ -401,8 +401,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real const>& z_nd  = z_phys_nd[lev]->const_array(mfi);
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
-                    ComputeMetricAtIface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                    Real met_h_xi_lo   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
+                    Real met_h_zeta_lo = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
                     Real gp_xi_lo = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
                     Real gp_zeta_on_iface_lo;
                     if (k == klo) {
@@ -420,8 +420,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     }
                     amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
-                    Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
-                    ComputeMetricAtIface(i+1,j,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_xi_zeta);
+                    Real met_h_xi_hi   = Compute_h_xi_AtIface  (i+1, j, k, dxInv, z_nd);
+                    Real met_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j, k, dxInv, z_nd);
                     Real gp_xi_hi = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
                     Real gp_zeta_on_iface_hi;
                     if (k == klo) {
@@ -455,8 +455,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real const>&   p_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& z_nd    = z_phys_nd[lev]->const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    Real met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo;
-                    ComputeMetricAtJface(i,j,k,met_h_xi_lo,met_h_eta_lo,met_h_zeta_lo,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                    Real met_h_eta_lo  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
+                    Real met_h_zeta_lo = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
                     Real gp_eta_lo = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
                     Real gp_zeta_on_jface_lo;
                     if (k == klo) {
@@ -474,8 +474,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     }
                     amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
-                    Real met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi;
-                    ComputeMetricAtJface(i,j+1,k,met_h_xi_hi,met_h_eta_hi,met_h_zeta_hi,dxInv,z_nd,TerrainMet::h_eta_zeta);
+                    Real met_h_eta_hi  = Compute_h_eta_AtJface (i, j+1, k, dxInv, z_nd);
+                    Real met_h_zeta_hi = Compute_h_zeta_AtJface(i, j+1, k, dxInv, z_nd);
                     Real gp_eta_hi = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
                     Real gp_zeta_on_jface_hi;
                     if (k == klo) {
