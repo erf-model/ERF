@@ -38,7 +38,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             Real yflux_hi = rho_v(i,j+1,k);
             Real zflux_lo = Omega(i,j,k  );
             Real zflux_hi = Omega(i,j,k+1);
-            
+
             Real met_h_zeta_xlo = Compute_h_zeta_AtIface(i  ,j  ,k,cellSizeInv,z_nd);
             xflux_lo *= met_h_zeta_xlo;
             Real met_h_zeta_xhi = Compute_h_zeta_AtIface(i+1,j  ,k,cellSizeInv,z_nd);
