@@ -49,6 +49,14 @@ void erf_slow_rhs_pre (int level,
 
     const int l_spatial_order = solverChoice.spatial_order;
     const int l_use_terrain   = solverChoice.use_terrain;
+    bool      l_use_diff      = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+                                  (solverChoice.les_type        !=       LESType::None) ||
+                                  (solverChoice.pbl_type        !=       PBLType::None) );
+    bool      cons_visc       = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
+                                  (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
+    bool      turb_visc       = ( (solverChoice.les_type == LESType::Smagorinsky) ||
+                                  (solverChoice.les_type == LESType::Deardorff  ) ||
+                                  (solverChoice.pbl_type == PBLType::MYNN25     )  );
 
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
@@ -79,8 +87,39 @@ void erf_slow_rhs_pre (int level,
         mhi_mf_y = &(ifr->mask(Orientation(1,Orientation::high)));
     }
 
-    MultiFab pprime(S_data[IntVar::cons].boxArray(), S_data[IntVar::cons].DistributionMap(), 1, 1);
-    MultiFab expr(S_data[IntVar::cons].boxArray(), S_data[IntVar::cons].DistributionMap(), 1, IntVect(1,1,0));
+    // *************************************************************************
+    // Pre-computed quantities
+    // *************************************************************************
+    const BoxArray& ba            = S_data[IntVar::cons].boxArray();
+    const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
+
+    BoxArray ba12 = convert(ba, IntVect(1,1,0));
+    BoxArray ba13 = convert(ba, IntVect(1,0,1));
+    BoxArray ba23 = convert(ba, IntVect(0,1,1));
+
+    MultiFab pprime(ba, dm, 1, 1);
+
+    MultiFab*  expr = nullptr;
+#ifdef ERF_DIFF_OPTIM
+    MultiFab* Tau11 = nullptr;
+    MultiFab* Tau22 = nullptr;
+    MultiFab* Tau33 = nullptr;
+    MultiFab* Tau12 = nullptr;
+    MultiFab* Tau13 = nullptr;
+    MultiFab* Tau23 = nullptr;
+#endif
+
+    if (l_use_diff) {
+        expr  = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+#ifdef ERF_DIFF_OPTIM
+        Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+        Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+        Tau33 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+        Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
+        Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
+        Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
+#endif
+    }
 
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
@@ -140,7 +179,7 @@ void erf_slow_rhs_pre (int level,
 
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
-        const Array4<Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
+        const Array4<Real> &       cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & source_fab = source.const_array(mfi);
 
         // We must initialize these to zero each RK step
@@ -179,10 +218,11 @@ void erf_slow_rhs_pre (int level,
 
         const Array4<const Real>& K_turb = eddyDiffs.const_array(mfi);
 
-        const Array4<const Real>& z_nd = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
+
 
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
@@ -196,13 +236,15 @@ void erf_slow_rhs_pre (int level,
         });
         } // end profile
 
-        const Array4<Real> & er_arr = expr.array(mfi);
 
+        Array4<Real> er_arr;
+        if (expr)
+            er_arr = expr->array(mfi);
+        else
+            er_arr = Array4<Real>{};
         {
         BL_PROFILE("slow_rhs_making_er");
-        if ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-             (solverChoice.les_type        !=       LESType::None) ||
-             (solverChoice.pbl_type        !=       PBLType::None) )
+        if (l_use_diff)
         {
             const Box& gbx2 = mfi.growntilebox(IntVect(1,1,0));
 
@@ -241,6 +283,7 @@ void erf_slow_rhs_pre (int level,
         }
         } // end profile
 
+
         {
         BL_PROFILE("slow_rhs_making_omega");
             Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
@@ -268,6 +311,51 @@ void erf_slow_rhs_pre (int level,
             }
         } // end profile
 
+#ifdef ERF_DIFF_OPTIM
+        Array4<Real> tau11,tau22,tau33;
+        Array4<Real> tau12,tau13,tau23;
+        if (Tau11) {
+            tau11 = Tau11->array(mfi);
+            tau22 = Tau22->array(mfi);
+            tau33 = Tau33->array(mfi);
+            tau12 = Tau12->array(mfi);
+            tau13 = Tau13->array(mfi);
+            tau23 = Tau23->array(mfi);
+        } else {
+            tau11 = Array4<Real>{};
+            tau22 = Array4<Real>{};
+            tau33 = Array4<Real>{};
+            tau12 = Array4<Real>{};
+            tau13 = Array4<Real>{};
+            tau23 = Array4<Real>{};
+        }
+        {
+        BL_PROFILE("slow_rhs_making_tau");
+        if (l_use_diff && !l_use_terrain) {
+            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
+            Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
+            Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
+            Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
+            Real mu_eff = 0.;
+            if (cons_visc)
+                mu_eff += 2.0 * solverChoice.dynamicViscosity;
+
+            if (turb_visc) {
+                ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                                       u, v, w,
+                                       tau11, tau22, tau33,
+                                       tau12, tau13, tau23,
+                                       er_arr, bc_ptr, dxInv);
+            } else {
+                ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                        u, v, w,
+                                        tau11, tau22, tau33,
+                                        tau12, tau13, tau23,
+                                        er_arr, bc_ptr, dxInv);
+            }
+        }
+        } // profile
+#endif
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
@@ -306,14 +394,24 @@ void erf_slow_rhs_pre (int level,
                            rho_u    , rho_v    , omega_arr,
                            z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
 
-        if (l_use_terrain) {
-            DiffusionSrcForMom_T(tbx, tby, tbz, domain, rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                 u, v, w, K_turb, cell_data, er_arr,
-                                 solverChoice, bc_ptr, z_nd, detJ, dxInv);
-        } else {
-            DiffusionSrcForMom_N(tbx, tby, tbz, domain,  rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                 u, v, w, K_turb, cell_data, er_arr,
-                                 solverChoice, bc_ptr, dxInv);
+        if (l_use_diff) {
+            if (l_use_terrain) {
+                DiffusionSrcForMom_T(tbx, tby, tbz, domain, rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                     u, v, w, K_turb, cell_data, er_arr,
+                                     solverChoice, bc_ptr, z_nd, detJ, dxInv);
+            } else {
+#ifdef ERF_DIFF_OPTIM
+                DiffusionSrcForMom_N(tbx, tby, tbz,
+                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                     tau11, tau22, tau33,
+                                     tau12, tau13, tau23,
+                                     cell_data, solverChoice, dxInv);
+#else
+                DiffusionSrcForMom_N(tbx, tby, tbz, domain,  rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                     u, v, w, K_turb, cell_data, er_arr,
+                                     solverChoice, bc_ptr, dxInv);
+#endif
+            }
         }
 
         // *********************************************************************

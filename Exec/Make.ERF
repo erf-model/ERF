@@ -70,6 +70,10 @@ ifeq ($(USE_MULTIBLOCK), TRUE)
   DEFINES += -DERF_USE_MULTIBLOCK
 endif
 
+ifeq ($(USE_OPTIMDIFF), TRUE)
+  DEFINES += -DERF_DIFF_OPTIM
+endif
+
 #turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
