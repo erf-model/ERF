@@ -356,10 +356,10 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
 
             // lines 3-5 residuals (order dtau^2) 1.0 <-> beta_2
             Real R1_tmp =  halfg * (-slow_rhs_cons(i,j,k  ,Rho_comp)
-                                    -slow_rhs_cons(i,j,k-1,Rho_comp) 
+                                    -slow_rhs_cons(i,j,k-1,Rho_comp)
                                     +temp_rhs_arr(i,j,k,0) + temp_rhs_arr(i,j,k-1) )
-                          + ( coeff_P * (slow_rhs_cons(i,j,k  ,RhoTheta_comp) - temp_rhs_arr(i,j,k  ,RhoTheta_comp)) +
-                              coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
+                + ( coeff_P * (slow_rhs_cons(i,j,k  ,RhoTheta_comp) - temp_rhs_arr(i,j,k  ,RhoTheta_comp)) +
+                    coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
             R1_tmp +=  beta_1 * dzi * ( (Omega_kp1 - Omega_km1)                         * halfg
