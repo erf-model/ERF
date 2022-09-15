@@ -304,11 +304,11 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
             Real yflux_lo = new_drho_v(i,j  ,k);
             Real yflux_hi = new_drho_v(i,j+1,k);
 
-            temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi;
-            temp_rhs_arr(i,j,k,1) = (( xflux_hi * (prim(i,j,k) + prim(i+1,j,k)) -
-                                       xflux_lo * (prim(i,j,k) + prim(i-1,j,k)) ) * dxi +
-                                     ( yflux_hi * (prim(i,j,k) + prim(i,j+1,k)) -
-                                       yflux_lo * (prim(i,j,k) + prim(i,j-1,k)) ) * dyi) * 0.5;
+            temp_rhs_arr(i,j,k,Rho_comp     ) =  ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi;
+            temp_rhs_arr(i,j,k,RhoTheta_comp) = (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
+                                                   xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi +
+                                                 ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
+                                                   yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi) * 0.5;
         });
         } // end profile
 
@@ -346,37 +346,28 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
             Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
             Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
-            // line 2 last two terms (order dtau)
-            Real R_tmp = coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
-                         - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
-
-            // line 3 residuals (order dtau^2) 1.0 <-> beta_2
-            R_tmp += -dtau * beta_2 * halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
-                                                slow_rhs_cons(i,j,k-1,Rho_comp) )
-                   +  dtau * beta_2 * ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
-                                        coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
-
-            // line 4 (order dtau^2)
             Real Omega_kp1 = prev_zmom(i,j,k+1) - stage_zmom(i,j,k+1);
             Real Omega_k   = prev_zmom(i,j,k  ) - stage_zmom(i,j,k  );
             Real Omega_km1 = prev_zmom(i,j,k-1) - stage_zmom(i,j,k-1);
-            R_tmp += ( dtau * beta_2 * halfg ) *
-                     ( beta_1 * dzi * (Omega_kp1 - Omega_k) + temp_rhs_arr(i,j,k,0) );
 
-            // line 6 (reuse Omega & metrics) (order dtau^2)
-            R_tmp += -( dtau * beta_2 * coeff_P ) *
-                      ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k,1) );
+            // line 2 last two terms (order dtau)
+            Real R0_tmp = coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
+                         - halfg * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
 
-            // line 5 (order dtau^2)
-            R_tmp += ( dtau * beta_2 * halfg ) *
-                     ( beta_1 * dzi * (Omega_k - Omega_km1) + temp_rhs_arr(i,j,k-1) );
+            // lines 3-5 residuals (order dtau^2) 1.0 <-> beta_2
+            Real R1_tmp =  halfg * (-slow_rhs_cons(i,j,k  ,Rho_comp)
+                                    -slow_rhs_cons(i,j,k-1,Rho_comp) 
+                                    +temp_rhs_arr(i,j,k,0) + temp_rhs_arr(i,j,k-1) )
+                          + ( coeff_P * (slow_rhs_cons(i,j,k  ,RhoTheta_comp) - temp_rhs_arr(i,j,k  ,RhoTheta_comp)) +
+                              coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
-            // line 7 (reuse Omega & metrics) (order dtau^2)
-            R_tmp += -( dtau * beta_2 * coeff_Q ) *
-                      ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,1) );
+            // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
+            R1_tmp +=  beta_1 * dzi * ( (Omega_kp1 - Omega_km1)                         * halfg
+                                       -(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P
+                                       -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q );
 
             // line 1
-            RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
+            RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp);
         });
         } // end profile
 

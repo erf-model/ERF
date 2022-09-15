@@ -428,7 +428,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real detJ_on_kface      = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+            Real inv_detJ_on_kface = 2.0 / (detJ(i,j,k) + detJ(i,j,k-1));
 
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);
@@ -444,41 +444,31 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
             Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
-            amrex::Real R_tmp;
-
             // line 2 last two terms (order dtau)
-            R_tmp  = coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
-                   - halfg   * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
+            Real R0_tmp  = coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
+                       - halfg   * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
 
             // line 3 residuals (order dtau^2) 1.0 <-> beta_2
-            R_tmp += -dtau * beta_2 * halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
-                                                slow_rhs_cons(i,j,k-1,Rho_comp) )
-                   +  dtau * beta_2 * ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
-                                        coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
+            Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
+                                      slow_rhs_cons(i,j,k-1,Rho_comp) )
+                      +   ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
+                            coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
             Real Omega_km1 = omega_arr(i,j,k-1);
 
             // consolidate lines 4&5 (order dtau^2)
-            // R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
-            //          ( beta_1 * dzi * (Omega_kp1 - Omega_k) + temp_rhs_arr(i,j,k,0) );
-            // R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
-            //          ( beta_1 * dzi * (Omega_k - Omega_km1) + temp_rhs_arr(i,j,k-1,0) );
-            R_tmp += ( dtau * beta_2 * halfg / detJ_on_kface ) *
-                     ( beta_1 * dzi * (Omega_kp1 - Omega_km1) + temp_rhs_arr(i,j,k,0) + temp_rhs_arr(i,j,k-1,0));
+            R1_tmp += ( halfg * inv_detJ_on_kface ) *
+                      ( beta_1 * dzi * (Omega_kp1 - Omega_km1) + temp_rhs_arr(i,j,k,Rho_comp) + temp_rhs_arr(i,j,k-1,Rho_comp));
 
             // consolidate lines 6&7 (order dtau^2)
-            // R_tmp += -( dtau * beta_2 * coeff_P / detJ_on_kface ) *
-            //           ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k,1) );
-            // R_tmp += -( dtau * beta_2 * coeff_Q / detJ_on_kface ) *
-            //           ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,1) );
-            R_tmp += -dtau * beta_2 / detJ_on_kface * (
-                coeff_P * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k,1) ) +
-                coeff_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,1) ) );
+            R1_tmp += -inv_detJ_on_kface * (
+                 coeff_P * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) ) +
+                 coeff_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
-            RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R_tmp);
+            RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
             RHS_a(i,j,k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
@@ -610,10 +600,10 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                    cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
 
                    // Sum implicit and explicit W for AdvSrc
-                   new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
-                   omega_arr(i,j,k) = (k == 0) ? 0. :
-                             OmegaFromW(i,j,k,new_drho_w(i,j,k  ),new_drho_u,new_drho_v,z_nd,dxInv)
-                            -0.5 * (cur_cons(i,j,k)+cur_cons(i,j,k-1)) * zp_t_arr(i,j,k);
+                   // new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
+                   // omega_arr(i,j,k) = (k == 0) ? 0. :
+                   //           OmegaFromW(i,j,k,new_drho_w(i,j,k  ),new_drho_u,new_drho_v,z_nd,dxInv)
+                   //          -0.5 * (cur_cons(i,j,k)+cur_cons(i,j,k-1)) * zp_t_arr(i,j,k);
              });
         } else {
              ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -622,9 +612,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                    cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
 
                    // Sum implicit and explicit W for AdvSrc
-                   new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
-                   omega_arr(i,j,k) = (k == 0) ? 0. :
-                             OmegaFromW(i,j,k,new_drho_w(i,j,k  ),new_drho_u,new_drho_v,z_nd,dxInv);
+                   // new_drho_w(i,j,k) = beta_2 * wpp + beta_1 * old_drho_w(i,j,k);
+                   // omega_arr(i,j,k) = soln_a(i,j,k);
              });
         }
         } // end profile
@@ -640,8 +629,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         BL_PROFILE("fast_rho_final_update");
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-              Real zflux_lo = omega_arr(i,j,k  );
-              Real zflux_hi = omega_arr(i,j,k+1);
+              Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
+              Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);
 
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
               // so we don't update avg_zmom at k=vbx_hi.z+1
