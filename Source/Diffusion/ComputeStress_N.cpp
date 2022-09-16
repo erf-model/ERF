@@ -2,7 +2,6 @@
 
 using namespace amrex;
 
-
 void
 ComputeStressConsVisc_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_eff,
                         const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
