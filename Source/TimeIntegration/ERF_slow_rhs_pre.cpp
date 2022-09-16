@@ -100,25 +100,21 @@ void erf_slow_rhs_pre (int level,
     MultiFab pprime(ba, dm, 1, 1);
 
     MultiFab*  expr = nullptr;
-#ifdef ERF_DIFF_OPTIM
     MultiFab* Tau11 = nullptr;
     MultiFab* Tau22 = nullptr;
     MultiFab* Tau33 = nullptr;
     MultiFab* Tau12 = nullptr;
     MultiFab* Tau13 = nullptr;
     MultiFab* Tau23 = nullptr;
-#endif
 
     if (l_use_diff) {
         expr  = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-#ifdef ERF_DIFF_OPTIM
         Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         Tau33 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
         Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
         Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
-#endif
     }
 
     // *************************************************************************
@@ -311,7 +307,7 @@ void erf_slow_rhs_pre (int level,
             }
         } // end profile
 
-#ifdef ERF_DIFF_OPTIM
+
         Array4<Real> tau11,tau22,tau33;
         Array4<Real> tau12,tau13,tau23;
         if (Tau11) {
@@ -355,7 +351,7 @@ void erf_slow_rhs_pre (int level,
             }
         }
         } // profile
-#endif
+
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
@@ -400,17 +396,11 @@ void erf_slow_rhs_pre (int level,
                                      u, v, w, K_turb, cell_data, er_arr,
                                      solverChoice, bc_ptr, z_nd, detJ, dxInv);
             } else {
-#ifdef ERF_DIFF_OPTIM
                 DiffusionSrcForMom_N(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                      tau11, tau22, tau33,
                                      tau12, tau13, tau23,
                                      cell_data, solverChoice, dxInv);
-#else
-                DiffusionSrcForMom_N(tbx, tby, tbz, domain,  rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                     u, v, w, K_turb, cell_data, er_arr,
-                                     solverChoice, bc_ptr, dxInv);
-#endif
             }
         }
 
