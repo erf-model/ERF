@@ -124,6 +124,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_MT.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
