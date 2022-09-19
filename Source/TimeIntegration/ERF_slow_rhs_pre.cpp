@@ -33,6 +33,7 @@ void erf_slow_rhs_pre (int level,
                    const SolverChoice& solverChoice,
                    std::unique_ptr<ABLMost>& most,
                    const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+                   const Vector<amrex::BCRec> domain_bcs_type,
                    std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
                    const MultiFab* r0, const MultiFab* p0,
                    const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
@@ -58,7 +59,8 @@ void erf_slow_rhs_pre (int level,
                                   (solverChoice.les_type == LESType::Deardorff  ) ||
                                   (solverChoice.pbl_type == PBLType::MYNN25     )  );
 
-    const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
+    const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
+    const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd()[2];
@@ -341,13 +343,13 @@ void erf_slow_rhs_pre (int level,
                                        u, v, w,
                                        tau11, tau22, tau33,
                                        tau12, tau13, tau23,
-                                       er_arr, bc_ptr, dxInv);
+                                       er_arr, bc_ptr_h, dxInv);
             } else {
                 ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                         u, v, w,
                                         tau11, tau22, tau33,
                                         tau12, tau13, tau23,
-                                        er_arr, bc_ptr, dxInv);
+                                        er_arr, bc_ptr_h, dxInv);
             }
         }
         } // profile
