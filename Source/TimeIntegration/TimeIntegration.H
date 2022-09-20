@@ -55,7 +55,6 @@ void erf_slow_rhs_post(int level, amrex::Real time,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
                        const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                       std::unique_ptr<amrex::MultiFab>& z_phyx,
                        std::unique_ptr<amrex::MultiFab>& dJ);
 
 void erf_fast_rhs_N (int step, int level, const amrex::Real time,

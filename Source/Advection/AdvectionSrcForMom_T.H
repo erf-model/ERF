@@ -15,7 +15,7 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     amrex::Real rho_u_avg, rho_v_avg, Omega_avg_lo, Omega_avg_hi;
 
-    amrex::Real met_h_xi, met_h_eta,  met_h_zeta;
+    amrex::Real met_h_zeta;
 
     // ****************************************************************************************
     // X-fluxes (at cell centers)
@@ -87,7 +87,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     amrex::Real rho_u_avg, rho_v_avg, Omega_avg_lo, Omega_avg_hi;
 
-    amrex::Real met_h_xi, met_h_eta,  met_h_zeta;
+    amrex::Real met_h_zeta;
 
     // ****************************************************************************************
     // x-fluxes (at edges in k-direction)
@@ -162,7 +162,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     amrex::Real rho_u_avg, rho_v_avg, Omega_avg;
 
-    amrex::Real met_h_xi, met_h_eta,  met_h_zeta;
+    amrex::Real met_h_zeta;
 
     // ****************************************************************************************
     // x-fluxes (at edges in j-direction)

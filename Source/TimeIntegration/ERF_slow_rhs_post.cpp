@@ -31,7 +31,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
                         const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                        std::unique_ptr<MultiFab>& z0, std::unique_ptr<MultiFab>& dJ)
+                        std::unique_ptr<MultiFab>& dJ)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 

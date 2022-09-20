@@ -307,7 +307,7 @@ private:
                     amrex::Real time_mt, amrex::Real delta_t,
                     amrex::Vector<amrex::MultiFab>& mf);
 
-    // compute new multifabs by coping in data from valid region and filling ghost cells
+    // compute new multifabs by copying in data from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     // unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
     // This is to support filling boundary cells at an intermediate time between old/new times
