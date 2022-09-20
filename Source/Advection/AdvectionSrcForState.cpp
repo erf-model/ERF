@@ -30,8 +30,6 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
         {
             Real invdetJ = 1./ detJ(i,j,k);
 
-            Real met_h_xi, met_h_eta, met_h_zeta;
-
             Real xflux_lo = rho_u(i  ,j,k);
             Real xflux_hi = rho_u(i+1,j,k);
             Real yflux_lo = rho_v(i,j  ,k);

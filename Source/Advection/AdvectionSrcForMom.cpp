@@ -26,8 +26,6 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real met_h_xi, met_h_eta;
-
             Real met_h_zeta_xhi = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
             Real xflux_hi = 0.25 * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (u(i+1,j,k) + u(i,j,k)) * met_h_zeta_xhi;
 
@@ -52,8 +50,6 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real met_h_xi, met_h_eta;
-
             Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterK(i+1,j  ,k  ,cellSizeInv,z_nd);
             Real xflux_hi = 0.25 * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (v(i+1,j,k) + v(i,j,k)) * met_h_zeta_xhi;
 
@@ -76,8 +72,6 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real met_h_xi, met_h_eta;
-
             Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterJ(i+1,j  ,k  ,cellSizeInv,z_nd);
             Real xflux_hi = 0.25*(rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * (w(i+1,j,k) + w(i,j,k)) * met_h_zeta_xhi;
 

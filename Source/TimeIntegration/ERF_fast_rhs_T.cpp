@@ -46,9 +46,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
     Real beta_d = 0.1;
 
     const Box domain(geom.Domain());
-    const int domhi_z = domain.bigEnd()[2];
 
-    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
@@ -64,7 +62,6 @@ void erf_fast_rhs_T (int step, int level, const Real time,
 
     MultiFab New_rho_u(convert(ba,IntVect(1,0,0)), dm, 1, 1);
     MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
-    MultiFab New_rho_w(convert(ba,IntVect(0,0,1)), dm, 1, 1);
 
     MultiFab     coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
     MultiFab inv_coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
@@ -179,7 +176,6 @@ void erf_fast_rhs_T (int step, int level, const Real time,
 
         const Array4<Real>& new_drho_u = New_rho_u.array(mfi);
         const Array4<Real>& new_drho_v = New_rho_v.array(mfi);
-        const Array4<Real>& new_drho_w = New_rho_w.array(mfi);
 
         const Array4<Real>& cur_cons = S_data[IntVar::cons].array(mfi);
         const Array4<Real>& cur_xmom = S_data[IntVar::xmom].array(mfi);
@@ -205,7 +201,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
 
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
-        const Array4<Real>& extrap_arr = extrap.array(mfi);
+        const Array4<Real>& theta_extrap = extrap.array(mfi);
 
         // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
         // Note that we do the Copy and Subtract including one ghost cell
@@ -253,7 +249,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
-            extrap_arr(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
+            theta_extrap(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
               (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
         });
 
@@ -284,44 +280,26 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = pi_stage_ca(i-1,j,k,0);
-                Real pi_r = pi_stage_ca(i  ,j,k,0);
-                Real pi_c =  0.5 * (pi_l + pi_r);
-                Real drho_theta_hi = extrap_arr(i  ,j,k);
-                Real drho_theta_lo = extrap_arr(i-1,j,k);
-
-                Real gpx;
                 Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
-                Real met_h_eta  = Compute_h_eta_AtIface (i, j, k, dxInv, z_nd);
                 Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
-                Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
-                Real gp_zeta_on_iface;
-                if(k==0) {
-                  gp_zeta_on_iface = 0.5 * dzi * (
-                                                  extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
-                                                - extrap_arr(i-1,j,k  ) - extrap_arr(i,j,k  ) );
-                } else if(k==domhi_z) {
-                  gp_zeta_on_iface = 0.5 * dzi * (
-                                                  extrap_arr(i-1,j,k  ) + extrap_arr(i,j,k  )
-                                                - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
-                } else {
-                  gp_zeta_on_iface = 0.25 * dzi * (
-                                                   extrap_arr(i-1,j,k+1) + extrap_arr(i,j,k+1)
-                                                 - extrap_arr(i-1,j,k-1) - extrap_arr(i,j,k-1) );
-                }
-                gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
+                Real gp_xi = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k)) * dxi;
+                Real gp_zeta_on_iface = (k == 0) ?
+                   0.5  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
+                                 -theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
+                   0.25 * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
+                                 -theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
+                Real gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
                                 +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
                 gpx /= (1.0 + q);
 #endif
+                Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i  ,j,k,0));
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
 
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
                                                         + dtau * slow_rhs_rho_u(i,j,k);
-
-                if (k == domhi_z) new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
 
                 avg_xmom(i,j,k) += facinv*new_drho_u(i,j,k);
 
@@ -330,44 +308,26 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real pi_l = pi_stage_ca(i,j-1,k,0);
-                Real pi_r = pi_stage_ca(i,j  ,k,0);
-                Real pi_c =  0.5 * (pi_l + pi_r);
-
-                Real drho_theta_hi = extrap_arr(i,j,k);
-                Real drho_theta_lo = extrap_arr(i,j-1,k);
-
-                Real gpy;
-                Real met_h_xi   = Compute_h_xi_AtJface(i, j, k, dxInv, z_nd);
                 Real met_h_eta  = Compute_h_eta_AtJface(i, j, k, dxInv, z_nd);
                 Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
-                Real gp_eta = (drho_theta_hi - drho_theta_lo) * dyi;
-                Real gp_zeta_on_jface;
-                if(k==0) {
-                  gp_zeta_on_jface = 0.5 * dzi * (
-                                                  extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
-                                                - extrap_arr(i,j,k  ) - extrap_arr(i,j-1,k  ) );
-                } else if(k==domhi_z) {
-                  gp_zeta_on_jface = 0.5 * dzi * (
-                                                  extrap_arr(i,j,k  ) + extrap_arr(i,j-1,k  )
-                                                - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
-                } else {
-                  gp_zeta_on_jface = 0.25 * dzi * (
-                                                   extrap_arr(i,j,k+1) + extrap_arr(i,j-1,k+1)
-                                                 - extrap_arr(i,j,k-1) - extrap_arr(i,j-1,k-1) );
-                }
-                gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+                Real gp_eta = (theta_extrap(i,j,k) -theta_extrap(i,j-1,k)) * dyi;
+                Real gp_zeta_on_jface = (k == 0) ?
+                    0.5  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
+                                 -theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
+                    0.25 * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
+                                  -theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
+                Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
                                 +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
                 gpy /= (1.0 + q);
 #endif
+                Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j  ,k,0));
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
 
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
                                                         + dtau * slow_rhs_rho_v(i,j,k);
-                if (k == domhi_z) new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
 
                 avg_ymom(i,j,k) += facinv*new_drho_v(i,j,k);
 
@@ -560,7 +520,7 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         // **************************************************************************
 
         // We note that valid_bx is the actual grid, while bx may be a tile within that grid
-        const auto& vbx_hi = amrex::ubound(valid_bx);
+        // const auto& vbx_hi = amrex::ubound(valid_bx);
 
         {
         BL_PROFILE("fast_rho_final_update");
