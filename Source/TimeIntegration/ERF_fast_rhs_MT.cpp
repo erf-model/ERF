@@ -13,14 +13,14 @@
 using namespace amrex;
 
 void erf_fast_rhs_MT (int step, int level, const Real time,
-                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
-                      const Vector<MultiFab>& S_old,
-                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
-                      const MultiFab& S_stage_prim,
-                      const MultiFab& pi_stage,                       // Exner function evaluated at last stage
-                      const MultiFab& fast_coeffs,                    // Coeffs for tridiagonal solve
-                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
-                      Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
+                      Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
+                      const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
+                      Vector<MultiFab>& S_stage_data,                // S_bar = S^n, S^* or S^**
+                      const MultiFab& S_stage_prim,                  // Primitive version of S_stage_data[IntVar::cons]
+                      const MultiFab& pi_stage,                      // Exner function evaluated at last stage
+                      const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
+                      Vector<MultiFab>& S_data,                      // S_sum = most recent full solution
+                      Vector<MultiFab>& S_scratch,                   // S_sum_old at most recent fast timestep for (rho theta)
                       const amrex::Geometry geom,
                       amrex::InterpFaceRegister* ifr,
                       const SolverChoice& solverChoice,
@@ -32,8 +32,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                       bool ingested_bcs)
 {
     BL_PROFILE_REGION("erf_fast_rhs_T()");
-
-    bool l_use_terrain  = solverChoice.use_terrain;
 
     AMREX_ASSERT(solverChoice.terrain_type == 1);
 
@@ -48,9 +46,9 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
     Real beta_d = 0.1;
 
     const Box domain(geom.Domain());
-
     const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
     Real dzi = dxInv[2];
@@ -187,18 +185,18 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
 
         const Array4<Real>& scratch_rtheta = S_scratch[IntVar::cons].array(mfi);
 
-        const Array4<const Real>& old_cons = S_old[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& old_xmom = S_old[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>& old_ymom = S_old[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& old_zmom = S_old[IntVar::zmom].const_array(mfi);
+        const Array4<const Real>& prev_cons = S_prev[IntVar::cons].const_array(mfi);
+        const Array4<const Real>& prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
+        const Array4<const Real>& prev_ymom = S_prev[IntVar::ymom].const_array(mfi);
+        const Array4<const Real>& prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
         const Array4<Real>& avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         const Array4<Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
         const Array4<Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
-        const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ   = l_use_terrain ?   detJ_cc->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& z_nd   = z_phys_nd->const_array(mfi);
+        const Array4<const Real>& detJ   = detJ_cc->const_array(mfi);
 
         const Array4<const Real>& zp_t_arr = z_t_pert->const_array(mfi);
 
@@ -218,48 +216,44 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
         Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
+        {
+        BL_PROFILE("fast_rhs_copies_0");
         if (step == 0) {
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                cur_cons(i,j,k,Rho_comp)            = old_cons(i,j,k,Rho_comp);
-                cur_cons(i,j,k,RhoTheta_comp)       = old_cons(i,j,k,RhoTheta_comp);
-                scratch_rtheta(i,j,k,RhoTheta_comp) = old_cons(i,j,k,RhoTheta_comp);
-            });
-
-            amrex::ParallelFor(gtbx, gtby, gtbz,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                old_drho_u(i,j,k) = old_xmom(i,j,k) - stage_xmom(i,j,k);
-                  cur_xmom(i,j,k) = stage_xmom(i,j,k);
-            }, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                old_drho_v(i,j,k) = old_ymom(i,j,k) - stage_ymom(i,j,k);
-                  cur_ymom(i,j,k) = stage_ymom(i,j,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                old_drho_w(i,j,k) = old_zmom(i,j,k) - stage_zmom(i,j,k);
-                  cur_zmom(i,j,k) = stage_zmom(i,j,k);
-            });
-        } else {
-            amrex::ParallelFor(gtbx, gtby, gtbz,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                old_drho_u(i,j,k) = cur_xmom(i,j,k) - stage_xmom(i,j,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                old_drho_v(i,j,k) = cur_ymom(i,j,k) - stage_ymom(i,j,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                old_drho_w(i,j,k) = cur_zmom(i,j,k) - stage_zmom(i,j,k);
+                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
+                scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
             });
         }
+        } // end profile
 
+        {
+        BL_PROFILE("fast_rhs_copies_1");
+        amrex::ParallelFor(gtbx, gtby, gtbz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
+        });
+        } // end profile
+
+        {
+        BL_PROFILE("fast_rhs_copies_2");
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
             theta_extrap(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
               (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
         });
+        } // end profile
 
-        soln_fab.resize(tbz,1);
         RHS_fab.resize(tbz,1);
+        soln_fab.resize(tbz,1);
         temp_rhs_fab.resize(tbz,2);
 
         Elixir rCeli        =      RHS_fab.elixir();
