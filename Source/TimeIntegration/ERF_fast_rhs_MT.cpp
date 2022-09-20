@@ -12,28 +12,30 @@
 
 using namespace amrex;
 
-void erf_fast_rhs_T (int step, int level, const Real time,
-                     Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
-                     const Vector<MultiFab>& S_old,
-                     Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
-                     const MultiFab& S_stage_prim,
-                     const MultiFab& pi_stage,                       // Exner function evaluated at last stage
-                     const MultiFab& fast_coeffs,                    // Coeffs for tridiagonal solve
-                     Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
-                     Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
-                     const amrex::Geometry geom,
-                     amrex::InterpFaceRegister* ifr,
-                     const SolverChoice& solverChoice,
-                           MultiFab& Omega,
-                     std::unique_ptr<MultiFab>& z_phys_nd,
-                     std::unique_ptr<MultiFab>& detJ_cc,
-                     const amrex::Real dtau, const amrex::Real facinv,
-                     bool ingested_bcs)
+void erf_fast_rhs_MT (int step, int level, const Real time,
+                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
+                      const Vector<MultiFab>& S_old,
+                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
+                      const MultiFab& S_stage_prim,
+                      const MultiFab& pi_stage,                       // Exner function evaluated at last stage
+                      const MultiFab& fast_coeffs,                    // Coeffs for tridiagonal solve
+                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
+                      Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
+                      const amrex::Geometry geom,
+                      amrex::InterpFaceRegister* ifr,
+                      const SolverChoice& solverChoice,
+                            MultiFab& Omega,
+                      const MultiFab* z_t_pert,
+                      std::unique_ptr<MultiFab>& z_phys_nd,
+                      std::unique_ptr<MultiFab>& detJ_cc,
+                      const amrex::Real dtau, const amrex::Real facinv,
+                      bool ingested_bcs)
 {
     BL_PROFILE_REGION("erf_fast_rhs_T()");
 
     bool l_use_terrain  = solverChoice.use_terrain;
-    AMREX_ASSERT(solverChoice.terrain_type == 0);
+
+    AMREX_ASSERT(solverChoice.terrain_type == 1);
 
     // Per p2902 of Klemp-Skamarock-Dudhia-2007
     // beta_s = -1.0 : fully explicit
@@ -201,6 +203,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& detJ   = l_use_terrain ?   detJ_cc->const_array(mfi) : Array4<const Real>{};
 
+        const Array4<const Real>& zp_t_arr = z_t_pert->const_array(mfi);
+
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
@@ -291,8 +295,8 @@ void erf_fast_rhs_T (int step, int level, const Real time,
                 Real drho_theta_lo = extrap_arr(i-1,j,k);
 
                 Real gpx;
-                Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
-                Real met_h_eta  = Compute_h_eta_AtIface (i, j, k, dxInv, z_nd);
+                Real met_h_xi   = Compute_h_xi_AtIface(i, j, k, dxInv, z_nd);
+                Real met_h_eta  = Compute_h_eta_AtIface(i, j, k, dxInv, z_nd);
                 Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
                 Real gp_xi = (drho_theta_hi - drho_theta_lo) * dxi;
                 Real gp_zeta_on_iface;
@@ -492,14 +496,26 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         {
         BL_PROFILE("fast_rhs_b2d_loop_t");
 #ifdef AMREX_USE_GPU
+        dhdtfab.resize(b2d,1);
+        auto const& dhdt_arr = dhdtfab.array();
+        Elixir dhdt_eli = dhdtfab.elixir();
+
+        Real time_mt  = time - 0.5*dtau;
+        fill_dhdt(dhdt_arr,b2d,dx,time_mt,dtau);
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            // w_0 = 0  w_khi = 0
-            RHS_a(i,j     ,0) =  0.0;
-            RHS_a(i,j,hi.z+1) =  0.0;
+            // Moving terrain
+            Real stage_rho_on_bdy = 1.5 * stage_cons(i,j,0) - 0.5 * stage_cons(i,j,0);
+            Real   cur_rho_on_bdy = 1.5 *   cur_cons(i,j,0) - 0.5 *   cur_cons(i,j,0);
+
+            Real omega_bc = dhdt_arr(i,j,0) - stage_zmom(i,j,0) / stage_rho_on_bdy; // w'' = w(t) - w^{RK stage}
+            RHS_a(i,j,0) = cur_rho_on_bdy * omega_bc;
+
+            // w_khi = 0
+            RHS_a(i,j,hi.z+1)     =  0.0;
 
             // w = 0 at k = 0
-            soln_a(i,j,0) = 0.;
+            soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
 
             for (int k = 1; k <= hi.z+1; k++) {
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
@@ -510,12 +526,25 @@ void erf_fast_rhs_T (int step, int level, const Real time,
             }
         });
 #else
+        dhdtfab.resize(b2d,1);
+        auto const& dhdt_arr = dhdtfab.array();
+        Elixir dhdt_eli = dhdtfab.elixir();
+
+        Real time_mt  = time - 0.5*dtau;
+        fill_dhdt(dhdt_arr,b2d,dx,time_mt,dtau);
+
         for (int j = lo.y; j <= hi.y; ++j) {
-            AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a (i,j,0) =  0.0;
-               soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
-           }
+             AMREX_PRAGMA_SIMD
+             for (int i = lo.x; i <= hi.x; ++i) {
+                 RHS_a (i,j,0) =  0.0;
+                 // Moving terrain
+                 Real stage_rho_on_bdy = 1.5 * stage_cons(i,j,0) - 0.5 * stage_cons(i,j,0);
+                 Real   cur_rho_on_bdy = 1.5 *   cur_cons(i,j,0) - 0.5 *   cur_cons(i,j,0);
+
+                 Real omega_bc = dhdt_arr(i,j,0) - stage_zmom(i,j,0) / stage_rho_on_bdy; // w'' = w(t) - w^{RK stage}
+                 RHS_a(i,j,0) = cur_rho_on_bdy * omega_bc;
+                 soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+             }
         }
 
         for (int j = lo.y; j <= hi.y; ++j) {
@@ -549,9 +578,6 @@ void erf_fast_rhs_T (int step, int level, const Real time,
         {
               Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
               cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
-
-              // Sum implicit and explicit W for AdvSrc
-              // omega_arr(i,j,k) = soln_a(i,j,k);
         });
         } // end profile
 
