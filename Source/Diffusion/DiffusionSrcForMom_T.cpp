@@ -72,8 +72,8 @@ DiffusionSrcForMom_T (const Box& bxx, const Box& bxy , const Box& bxz,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real diffContrib  = ( (tau13(i+1, j  , k  ) - tau13(i  , j  , k  )) * dxinv    // Contribution to z-mom eqn from diffusive flux in x-dir
-                                + (tau23(i  , j+1, k  ) - tau23(i  , j  , k  )) * dyinv    // Contribution to z-mom eqn from diffusive flux in y-dir
+            Real diffContrib  = ( (tau31(i+1, j  , k  ) - tau31(i  , j  , k  )) * dxinv    // Contribution to z-mom eqn from diffusive flux in x-dir
+                                + (tau32(i  , j+1, k  ) - tau32(i  , j  , k  )) * dyinv    // Contribution to z-mom eqn from diffusive flux in y-dir
                                 + (tau33(i  , j  , k  ) - tau33(i  , j  , k-1)) * dzinv ); // Contribution to z-mom eqn from diffusive flux in z-dir;
             diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
             rho_w_rhs(i,j,k) += diffContrib;
