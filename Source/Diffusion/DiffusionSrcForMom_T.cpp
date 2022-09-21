@@ -1,86 +1,82 @@
 #include <AMReX.H>
-#include <DiffusionSrcForMom_N.H>
 #include <DiffusionSrcForMom_T.H>
 #include <IndexDefines.H>
 
 using namespace amrex;
 
 void
-DiffusionSrcForMom_T (const Box& bxx, const Box& bxy, const Box& bxz, const Box& domain,
-                      const Array4<      Real>& rho_u_rhs, const Array4<      Real>& rho_v_rhs,
-                      const Array4<      Real>& rho_w_rhs,
-                      const Array4<const Real>& u        , const Array4<const Real>& v,
-                      const Array4<const Real>& w        , const Array4<const Real>& K_turb,
-                      const Array4<const Real>& cell_data, const Array4<const Real>& er_arr,
-                      const SolverChoice& solverChoice   , const BCRec* bc_ptr,
-                      const Array4<const Real>& z_nd     , const Array4<const Real>& detJ,
+DiffusionSrcForMom_T (const Box& bxx, const Box& bxy , const Box& bxz,
+                      const Array4<Real>& rho_u_rhs  ,
+                      const Array4<Real>& rho_v_rhs  ,
+                      const Array4<Real>& rho_w_rhs  ,
+                      const Array4<const Real>& tau11, const Array4<const Real>& tau22, const Array4<const Real>& tau33,
+                      const Array4<const Real>& tau12, const Array4<const Real>& tau13,
+                      const Array4<const Real>& tau21, const Array4<const Real>& tau23,
+                      const Array4<const Real>& tau31, const Array4<const Real>& tau32,
+                      const Array4<const Real>& cons , const Array4<const Real>& detJ ,
+                      const SolverChoice& solverChoice,
                       const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
     BL_PROFILE_VAR("DiffusionSrcForMom_T()",DiffusionSrcForMom_T);
 
-    if ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-         (solverChoice.les_type        !=       LESType::None) ||
-         (solverChoice.pbl_type        !=       PBLType::None) )
-    {
+    auto dxinv = dxInv[0], dyinv = dxInv[1], dzinv = dxInv[2];
 
-    const int l_use_terrain   = solverChoice.use_terrain;
-
-    AMREX_ALWAYS_ASSERT(l_use_terrain);
-
-    int domhi_z = domain.bigEnd(2);
-
-    // *********************************************************************
-    // Define diffusive updates in the RHS of {x, y, z}-momentum equations
-    // *********************************************************************
-    amrex::ParallelFor(bxx, bxy, bxz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
     {
-        amrex::Real diff_update;
-        if (k < domhi_z) {
-            diff_update = DiffusionSrcForXMomWithTerrain(i, j, k, u, v, w, cell_data,
-                                                         dxInv, K_turb, solverChoice,
-                                                         z_nd, detJ,
-                                                         domain, bc_ptr, er_arr);
-        } else {
-            const GpuArray<Real, AMREX_SPACEDIM>& dxInv_terr = {dxInv[0], dxInv[1], dxInv[2]/detJ(i,j,k)};
-            diff_update = DiffusionSrcForXMom(i, j, k, u, v, w, cell_data,
-                                              dxInv_terr, K_turb, solverChoice,
-                                              domain, bc_ptr, er_arr);
-        }
-        rho_u_rhs(i, j, k) += diff_update;
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k)
-    {
-        amrex::Real diff_update;
-        if (k < domhi_z) {
-            diff_update = DiffusionSrcForYMomWithTerrain(i, j, k, u, v, w, cell_data,
-                                                         dxInv, K_turb, solverChoice,
-                                                         z_nd, detJ,
-                                                         domain, bc_ptr, er_arr);
-        } else {
-            const GpuArray<Real, AMREX_SPACEDIM>& dxInv_terr = {dxInv[0], dxInv[1], dxInv[2]/detJ(i,j,k)};
-            diff_update = DiffusionSrcForYMom(i, j, k, u, v, w, cell_data,
-                                              dxInv_terr, K_turb, solverChoice,
-                                              domain, bc_ptr, er_arr);
-        }
-        rho_v_rhs(i, j, k) += diff_update;
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k)
-    {
-        amrex::Real diff_update;
-        if (k < domhi_z) {
-            diff_update = DiffusionSrcForZMomWithTerrain(i, j, k, u, v, w, cell_data,
-                                                         dxInv, K_turb, solverChoice,
-                                                         z_nd, detJ,
-                                                         domain, bc_ptr, er_arr);
-        } else {
-            int k_diff = domhi_z;
-            const GpuArray<Real, AMREX_SPACEDIM>& dxInv_terr = {dxInv[0], dxInv[1], dxInv[2]/detJ(i,j,k_diff)};
-            diff_update = DiffusionSrcForZMom(i, j, k_diff, u, v, w, cell_data,
-                                              dxInv_terr, K_turb, solverChoice,
-                                              domain, bc_ptr, er_arr);
-        }
-        rho_w_rhs(i, j, k) += diff_update;
-    });
+        amrex::ParallelFor(bxx, bxy, bxz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real diffContrib  = ( (tau11(i  , j  , k  ) - tau11(i-1, j  ,k  )) * dxinv    // Contribution to x-mom eqn from diffusive flux in x-dir
+                                + (tau12(i  , j+1, k  ) - tau12(i  , j  ,k  )) * dyinv    // Contribution to x-mom eqn from diffusive flux in y-dir
+                                + (tau13(i  , j  , k+1) - tau13(i  , j  ,k  )) * dzinv ); // Contribution to x-mom eqn from diffusive flux in z-dir;
+            diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i-1,j,k));
+            diffContrib      *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i-1,j,k,Rho_comp))  / solverChoice.rho0_trans;
+            rho_u_rhs(i,j,k) += diffContrib;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real diffContrib  = ( (tau21(i+1, j  , k  ) - tau21(i  , j  , k  )) * dxinv    // Contribution to y-mom eqn from diffusive flux in x-dir
+                                + (tau22(i  , j  , k  ) - tau22(i  , j-1, k  )) * dyinv    // Contribution to y-mom eqn from diffusive flux in y-dir
+                                + (tau23(i  , j  , k+1) - tau23(i  , j  , k  )) * dzinv ); // Contribution to y-mom eqn from diffusive flux in z-dir;
+            diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i,j-1,k));
+            diffContrib      *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j-1,k,Rho_comp))  / solverChoice.rho0_trans;
+            rho_v_rhs(i,j,k) += diffContrib;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real diffContrib  = ( (tau31(i+1, j  , k  ) - tau31(i  , j  , k  )) * dxinv    // Contribution to z-mom eqn from diffusive flux in x-dir
+                                + (tau32(i  , j+1, k  ) - tau32(i  , j  , k  )) * dyinv    // Contribution to z-mom eqn from diffusive flux in y-dir
+                                + (tau33(i  , j  , k  ) - tau33(i  , j  , k-1)) * dzinv ); // Contribution to z-mom eqn from diffusive flux in z-dir;
+            diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
+            diffContrib      *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j,k-1,Rho_comp))  / solverChoice.rho0_trans;
+            rho_w_rhs(i,j,k) += diffContrib;
+        });
+
+    } else {
+        amrex::ParallelFor(bxx, bxy, bxz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real diffContrib  = ( (tau11(i  , j  , k  ) - tau11(i-1, j  ,k  )) * dxinv    // Contribution to x-mom eqn from diffusive flux in x-dir
+                                + (tau12(i  , j+1, k  ) - tau12(i  , j  ,k  )) * dyinv    // Contribution to x-mom eqn from diffusive flux in y-dir
+                                + (tau13(i  , j  , k+1) - tau13(i  , j  ,k  )) * dzinv ); // Contribution to x-mom eqn from diffusive flux in z-dir;
+            diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i-1,j,k));
+            rho_u_rhs(i,j,k) += diffContrib;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real diffContrib  = ( (tau21(i+1, j  , k  ) - tau21(i  , j  , k  )) * dxinv    // Contribution to y-mom eqn from diffusive flux in x-dir
+                                + (tau22(i  , j  , k  ) - tau22(i  , j-1, k  )) * dyinv    // Contribution to y-mom eqn from diffusive flux in y-dir
+                                + (tau23(i  , j  , k+1) - tau23(i  , j  , k  )) * dzinv ); // Contribution to y-mom eqn from diffusive flux in z-dir;
+            diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i,j-1,k));
+            rho_v_rhs(i,j,k) += diffContrib;
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            Real diffContrib  = ( (tau31(i+1, j  , k  ) - tau31(i  , j  , k  )) * dxinv    // Contribution to z-mom eqn from diffusive flux in x-dir
+                                + (tau32(i  , j+1, k  ) - tau32(i  , j  , k  )) * dyinv    // Contribution to z-mom eqn from diffusive flux in y-dir
+                                + (tau33(i  , j  , k  ) - tau33(i  , j  , k-1)) * dzinv ); // Contribution to z-mom eqn from diffusive flux in z-dir;
+            diffContrib      /= 0.5*(detJ(i,j,k) + detJ(i,j,k-1));
+            rho_w_rhs(i,j,k) += diffContrib;
+        });
     }
 }

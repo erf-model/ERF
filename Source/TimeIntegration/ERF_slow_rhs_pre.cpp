@@ -102,21 +102,35 @@ void erf_slow_rhs_pre (int level,
     MultiFab pprime(ba, dm, 1, 1);
 
     MultiFab*  expr = nullptr;
+
     MultiFab* Tau11 = nullptr;
     MultiFab* Tau22 = nullptr;
     MultiFab* Tau33 = nullptr;
+
     MultiFab* Tau12 = nullptr;
     MultiFab* Tau13 = nullptr;
     MultiFab* Tau23 = nullptr;
 
+    MultiFab* Tau21 = nullptr;
+    MultiFab* Tau31 = nullptr;
+    MultiFab* Tau32 = nullptr;
+
     if (l_use_diff) {
         expr  = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+
         Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         Tau33 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+
         Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
         Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
         Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
+
+        if (l_use_terrain) {
+            Tau21 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
+            Tau31 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
+            Tau32 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
+        }
     }
 
     // *************************************************************************
@@ -309,7 +323,7 @@ void erf_slow_rhs_pre (int level,
             }
         } // end profile
 
-
+        // No terrain diffusion
         Array4<Real> tau11,tau22,tau33;
         Array4<Real> tau12,tau13,tau23;
         if (Tau11) {
@@ -327,9 +341,20 @@ void erf_slow_rhs_pre (int level,
             tau13 = Array4<Real>{};
             tau23 = Array4<Real>{};
         }
+        // Terrain diffusion
+        Array4<Real> tau21,tau31,tau32;
+        if (Tau21) {
+            tau21 = Tau21->array(mfi);
+            tau31 = Tau31->array(mfi);
+            tau32 = Tau32->array(mfi);
+        } else {
+            tau21 = Array4<Real>{};
+            tau31 = Array4<Real>{};
+            tau32 = Array4<Real>{};
+        }
         {
         BL_PROFILE("slow_rhs_making_tau");
-        if (l_use_diff && !l_use_terrain) {
+        if (l_use_diff) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
@@ -338,20 +363,40 @@ void erf_slow_rhs_pre (int level,
             if (cons_visc)
                 mu_eff += 2.0 * solverChoice.dynamicViscosity;
 
-            if (turb_visc) {
-                ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
-                                       u, v, w,
-                                       tau11, tau22, tau33,
-                                       tau12, tau13, tau23,
-                                       er_arr, bc_ptr_h, dxInv);
+            if (l_use_terrain) {
+                if (turb_visc) {
+                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                                           u, v, w,
+                                           tau11, tau22, tau33,
+                                           tau12, tau13,
+                                           tau21, tau23,
+                                           tau31, tau32,
+                                           er_arr, z_nd, bc_ptr_h, dxInv);
+                } else {
+                    ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                            u, v, w,
+                                            tau11, tau22, tau33,
+                                            tau12, tau13,
+                                            tau21, tau23,
+                                            tau31, tau32,
+                                            er_arr, z_nd, bc_ptr_h, dxInv);
+                }
             } else {
-                ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                        u, v, w,
-                                        tau11, tau22, tau33,
-                                        tau12, tau13, tau23,
-                                        er_arr, bc_ptr_h, dxInv);
-            }
-        }
+                if (turb_visc) {
+                    ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                                           u, v, w,
+                                           tau11, tau22, tau33,
+                                           tau12, tau13, tau23,
+                                           er_arr, bc_ptr_h, dxInv);
+                } else {
+                    ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                            u, v, w,
+                                            tau11, tau22, tau33,
+                                            tau12, tau13, tau23,
+                                            er_arr, bc_ptr_h, dxInv);
+                }
+            } // l_use_terrain
+        } // l_use_diff
         } // profile
 
         // **************************************************************************
@@ -394,9 +439,13 @@ void erf_slow_rhs_pre (int level,
 
         if (l_use_diff) {
             if (l_use_terrain) {
-                DiffusionSrcForMom_T(tbx, tby, tbz, domain, rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                     u, v, w, K_turb, cell_data, er_arr,
-                                     solverChoice, bc_ptr, z_nd, detJ, dxInv);
+                DiffusionSrcForMom_T(tbx, tby, tbz,
+                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                     tau11, tau22, tau33,
+                                     tau12, tau13,
+                                     tau21, tau23,
+                                     tau31, tau32,
+                                     cell_data, detJ, solverChoice, dxInv);
             } else {
                 DiffusionSrcForMom_N(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
