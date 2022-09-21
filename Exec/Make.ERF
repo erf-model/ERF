@@ -117,7 +117,8 @@ AMReX_buildInfo.cpp:
           --link_flags "$(LINKFLAGS) $(CPPFLAGS) $(includes) $(LDFLAGS)" \
           --libraries "$(FINAL_LIBS)" \
           --MODULES "$(MNAMES)" \
-          --GIT "$(ERF_HOME) $(AMREX_HOME)"
+          --GIT "$(ERF_HOME) $(AMREX_HOME)" \
+          --GIT_STYLE "--always --dirty"
 
 clean::
 	$(SILENT) $(RM) AMReX_buildInfo.cpp
