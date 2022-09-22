@@ -55,6 +55,12 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h};
     Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v};
 
+    // Capture pointers for device code
+    Real* d_alpha_eff     = alpha_eff.data();
+    int*  d_eddy_diff_idx = eddy_diff_idx.data();
+    int*  d_eddy_diff_idy = eddy_diff_idy.data();
+    int*  d_eddy_diff_idz = eddy_diff_idz.data();
+
     // Compute fluxes at each face
     if (l_consA && l_turb) {
         amrex::ParallelFor(xbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -63,9 +69,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int prim_index = qty_index - qty_offset;
 
             amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( K_turb(i  , j, k, eddy_diff_idx[prim_index])
-                              + K_turb(i-1, j, k, eddy_diff_idx[prim_index]) );
+            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+            rhoAlpha += 0.5 * ( K_turb(i  , j, k, d_eddy_diff_idx[prim_index])
+                              + K_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             xflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv;
         });
@@ -75,9 +81,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int prim_index = qty_index - qty_offset;
 
             amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( K_turb(i, j  , k, eddy_diff_idy[prim_index])
-                              + K_turb(i, j-1, k, eddy_diff_idy[prim_index]) );
+            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+            rhoAlpha += 0.5 * ( K_turb(i, j  , k, d_eddy_diff_idy[prim_index])
+                              + K_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             yflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv;
         });
@@ -87,9 +93,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int prim_index = qty_index - qty_offset;
 
             amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * alpha_eff[prim_index];
-            rhoAlpha += 0.5 * ( K_turb(i, j, k  , eddy_diff_idz[prim_index])
-                              + K_turb(i, j, k-1, eddy_diff_idz[prim_index]) );
+            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+            rhoAlpha += 0.5 * ( K_turb(i, j, k  , d_eddy_diff_idz[prim_index])
+                              + K_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
         });
@@ -99,9 +105,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = alpha_eff[prim_index];
-            Alpha += 0.5 * ( K_turb(i  , j, k, eddy_diff_idx[prim_index])
-                           + K_turb(i-1, j, k, eddy_diff_idx[prim_index]) );
+            amrex::Real Alpha = d_alpha_eff[prim_index];
+            Alpha += 0.5 * ( K_turb(i  , j, k, d_eddy_diff_idx[prim_index])
+                           + K_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             xflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv;
         });
@@ -110,9 +116,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = alpha_eff[prim_index];
-            Alpha += 0.5 * ( K_turb(i, j  , k, eddy_diff_idy[prim_index])
-                           + K_turb(i, j-1, k, eddy_diff_idy[prim_index]) );
+            amrex::Real Alpha = d_alpha_eff[prim_index];
+            Alpha += 0.5 * ( K_turb(i, j  , k, d_eddy_diff_idy[prim_index])
+                           + K_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             yflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv;
         });
@@ -121,9 +127,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = alpha_eff[prim_index];
-            Alpha += 0.5 * ( K_turb(i, j, k  , eddy_diff_idz[prim_index])
-                           + K_turb(i, j, k-1, eddy_diff_idz[prim_index]) );
+            amrex::Real Alpha = d_alpha_eff[prim_index];
+            Alpha += 0.5 * ( K_turb(i, j, k  , d_eddy_diff_idz[prim_index])
+                           + K_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
         });
@@ -134,7 +140,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int prim_index = qty_index - qty_offset;
 
             amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * alpha_eff[prim_index];
+            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             xflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv;
         });
@@ -144,7 +150,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int prim_index = qty_index - qty_offset;
 
             amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * alpha_eff[prim_index];
+            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             yflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv;
         });
@@ -154,7 +160,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int prim_index = qty_index - qty_offset;
 
             amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * alpha_eff[prim_index];
+            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
         });
@@ -164,7 +170,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = alpha_eff[prim_index];
+            amrex::Real Alpha = d_alpha_eff[prim_index];
 
             xflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i-1, j, k, prim_index)) * dx_inv;
         });
@@ -173,7 +179,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = alpha_eff[prim_index];
+            amrex::Real Alpha = d_alpha_eff[prim_index];
 
             yflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j-1, k, prim_index)) * dy_inv;
         });
@@ -182,7 +188,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = alpha_eff[prim_index];
+            amrex::Real Alpha = d_alpha_eff[prim_index];
 
             zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
         });
