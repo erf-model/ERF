@@ -49,21 +49,8 @@ void ERF::erf_advance(int level,
     amrex::Vector<amrex::MultiFab> state_old;
     amrex::Vector<amrex::MultiFab> state_new;
 
-    // **************************************************************************************
-    // These are temporary arrays that we use to store the accumulation of the fluxes
-    // **************************************************************************************
-    std::array< MultiFab, AMREX_SPACEDIM > diffflux;
-
     {
     BL_PROFILE("erf_advance_part_1");
-    diffflux[0].define(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-    diffflux[1].define(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-    diffflux[2].define(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
-
-    diffflux[0].setVal(0.);
-    diffflux[1].setVal(0.);
-    diffflux[2].setVal(0.);
-
     // **************************************************************************************
     // Here we define state_old and state_new which are to be advanced
     // **************************************************************************************

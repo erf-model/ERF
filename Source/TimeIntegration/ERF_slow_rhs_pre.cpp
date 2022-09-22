@@ -16,29 +16,28 @@
 using namespace amrex;
 
 void erf_slow_rhs_pre (int level,
-                   Vector<MultiFab>& S_rhs,
-                   Vector<MultiFab>& S_data,
-                   const MultiFab& S_prim,
-                         Vector<MultiFab>& S_scratch,
-                   const MultiFab& xvel,
-                   const MultiFab& yvel,
-                   const MultiFab& zvel,
-                   std::unique_ptr<MultiFab>& z_t_mf,
-                         MultiFab& Omega,
-                   const MultiFab& source,
-                   const MultiFab& eddyDiffs,
-                   std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
-                   const amrex::Geometry geom,
-                         amrex::InterpFaceRegister* ifr,
-                   const SolverChoice& solverChoice,
-                   std::unique_ptr<ABLMost>& most,
-                   const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                   const Vector<amrex::BCRec> domain_bcs_type,
-                   std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
-                   const MultiFab* r0, const MultiFab* p0,
-                   const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
-                   bool ingested_bcs)
+                       Vector<MultiFab>& S_rhs,
+                       Vector<MultiFab>& S_data,
+                       const MultiFab& S_prim,
+                       Vector<MultiFab>& S_scratch,
+                       const MultiFab& xvel,
+                       const MultiFab& yvel,
+                       const MultiFab& zvel,
+                       std::unique_ptr<MultiFab>& z_t_mf,
+                       MultiFab& Omega,
+                       const MultiFab& source,
+                       const MultiFab& eddyDiffs,
+                       const amrex::Geometry geom,
+                       amrex::InterpFaceRegister* ifr,
+                       const SolverChoice& solverChoice,
+                       std::unique_ptr<ABLMost>& most,
+                       const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+                       const Vector<amrex::BCRec> domain_bcs_type,
+                       std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
+                       const MultiFab* r0, const MultiFab* p0,
+                       const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
+                       const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
+                       bool ingested_bcs)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -92,6 +91,7 @@ void erf_slow_rhs_pre (int level,
     // *************************************************************************
     // Pre-computed quantities
     // *************************************************************************
+    int nvars                     = S_data[IntVar::cons].nComp();
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
 
@@ -102,35 +102,37 @@ void erf_slow_rhs_pre (int level,
     MultiFab pprime(ba, dm, 1, 1);
 
     MultiFab*  expr = nullptr;
-
     MultiFab* Tau11 = nullptr;
     MultiFab* Tau22 = nullptr;
     MultiFab* Tau33 = nullptr;
-
     MultiFab* Tau12 = nullptr;
     MultiFab* Tau13 = nullptr;
     MultiFab* Tau23 = nullptr;
-
     MultiFab* Tau21 = nullptr;
     MultiFab* Tau31 = nullptr;
     MultiFab* Tau32 = nullptr;
 
+    MultiFab* dflux_x = nullptr;
+    MultiFab* dflux_y = nullptr;
+    MultiFab* dflux_z = nullptr;
+
     if (l_use_diff) {
         expr  = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-
         Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         Tau33 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-
         Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
         Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
         Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
-
         if (l_use_terrain) {
             Tau21 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
             Tau31 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
             Tau32 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
         }
+
+        dflux_x = new MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
+        dflux_y = new MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+        dflux_z = new MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
     }
 
     // *************************************************************************
@@ -222,11 +224,6 @@ void erf_slow_rhs_pre (int level,
         const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom].array(mfi);
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
-
-        // These are temporaries we use to add to the S_rhs for the fluxes
-        const Array4<Real>& diffflux_x = diffflux[0].array(mfi);
-        const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
-        const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
         const Array4<const Real>& K_turb = eddyDiffs.const_array(mfi);
 
@@ -410,14 +407,21 @@ void erf_slow_rhs_pre (int level,
                                    cell_prim, z_nd, detJ,
                                    dxInv, l_spatial_order, l_use_terrain);
 
-        // NOTE: No diffusion for continuity, so n starts at 1.
-        //       KE calls moved inside DiffSrcForState.
-        int n_start = amrex::max(start_comp,RhoTheta_comp);
-        int n_end   = start_comp + num_comp - 1;
-        DiffusionSrcForState(bx, domain, n_start, n_end, u, v, w,
-                             cell_data, cell_prim, source_fab, cell_rhs,
-                             diffflux_x, diffflux_y, diffflux_z,
-                             dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+        if (l_use_diff && !l_use_terrain) {
+            Array4<Real> diffflux_x = dflux_x->array(mfi);
+            Array4<Real> diffflux_y = dflux_y->array(mfi);
+            Array4<Real> diffflux_z = dflux_z->array(mfi);
+
+            // NOTE: No diffusion for continuity, so n starts at 1.
+            //       KE calls moved inside DiffSrcForState.
+            int n_start = amrex::max(start_comp,RhoTheta_comp);
+            int n_end   = start_comp + num_comp - 1;
+            DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
+                                   cell_data, cell_prim, source_fab, cell_rhs,
+                                   diffflux_x, diffflux_y, diffflux_z,
+                                   dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+        }
+
 
         // Add Rayleigh damping
         if (solverChoice.use_rayleigh_damping) {

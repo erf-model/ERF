@@ -93,6 +93,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/DiffusionSrcForMom_N.cpp
        ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.cpp
        ${SRC_DIR}/Diffusion/DiffusionSrcForState.cpp
+       ${SRC_DIR}/Diffusion/DiffusionSrcForState_N.cpp
        ${SRC_DIR}/Diffusion/DiffusionSrcForMom_N.H
        ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.H
        ${SRC_DIR}/Diffusion/EddyViscosity.H
