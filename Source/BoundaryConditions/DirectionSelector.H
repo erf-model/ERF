@@ -15,19 +15,19 @@ struct DirectionSelector
 template <>
 struct DirectionSelector<0>
 {
-    AMREX_GPU_HOST_DEVICE int getIndx(int i, int, int) const { return i; };
+    AMREX_GPU_HOST_DEVICE int getIndx(int i, int, int) const { return i; }
 };
 
 template <>
 struct DirectionSelector<1>
 {
-    AMREX_GPU_HOST_DEVICE int getIndx(int, int j, int) const { return j; };
+    AMREX_GPU_HOST_DEVICE int getIndx(int, int j, int) const { return j; }
 };
 
 template <>
 struct DirectionSelector<2>
 {
-    AMREX_GPU_HOST_DEVICE int getIndx(int, int, int k) const { return k; };
+    AMREX_GPU_HOST_DEVICE int getIndx(int, int, int k) const { return k; }
 };
 
 using XDir = DirectionSelector<0>;

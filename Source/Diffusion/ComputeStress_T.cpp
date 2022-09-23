@@ -20,7 +20,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
     //       The boxes are copied here for the second block operations
     //***********************************************************************************
     Box bxcc2  = bxcc;  Box bxcc3  = bxcc;
-    Box tbxxy2 = tbxxy; Box tbxxy3 = tbxxy;
+                        Box tbxxy3 = tbxxy;
     Box tbxxz2 = tbxxz; Box tbxxz3 = tbxxz;
     Box tbxyz2 = tbxyz; Box tbxyz3 = tbxyz;
 
@@ -604,7 +604,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
     //       The boxes are copied here for the second block operations
     //***********************************************************************************
     Box bxcc2  = bxcc;  Box bxcc3  = bxcc;
-    Box tbxxy2 = tbxxy; Box tbxxy3 = tbxxy;
+                        Box tbxxy3 = tbxxy;
     Box tbxxz2 = tbxxz; Box tbxxz3 = tbxxz;
     Box tbxyz2 = tbxyz; Box tbxyz3 = tbxyz;
 

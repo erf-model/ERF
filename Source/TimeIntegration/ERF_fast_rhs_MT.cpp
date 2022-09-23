@@ -580,10 +580,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                    dtau * (                 slow_rhs_cons(i,j,k,0) + fast_rhs_rho );
               cur_cons(i,j,k,0) = temp_rho / detJ_new(i,j,k);
 
-              if (i == 151 and j == 3 and k == 42) amrex::Print() << "ADDING SLOW " << slow_rhs_cons(i,j,k,0) <<
-                   " and not multiplying by dJold " << detJ_old(i,j,k) << " to get " <<
-                     detJ_old(i,j,k) * slow_rhs_cons(i,j,k,0) <<     std::endl;
-
               // Note that the factor of (1/J) in the fast source term is canceled
               // when we multiply old and new by detJ_old and detJ_new , respectively
               // We have already scaled the slow source term to have the extra factor of dJ

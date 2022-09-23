@@ -20,8 +20,6 @@
         {
             if (verbose) Print() << "Making new geometry at substep " << new_time << std::endl;
 
-            const auto dz = fine_geom.CellSizeArray()[2];
-
             // Make "old" fast geom -- store in z_phys_nd for convenience
             if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;
             init_custom_terrain(fine_geom,*z_phys_nd[level],old_time,new_time,old_substep_time);
@@ -41,15 +39,6 @@
             for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box gbx = mfi.growntilebox(IntVect(1,1,0));
-
-                // This is the top face
-                // int khi = gbx.bigEnd()[2];
-
-                // Now make this a 2D box (after we extract khi)
-                // gbx.setRange(2,0);
-
-                const Array4<const Real>& detJ_new  =   detJ_cc_new[level]->const_array(mfi);
-                const Array4<const Real>& detJ_old  =       detJ_cc[level]->const_array(mfi);
 
                 const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
                 const Array4<Real      >& zp_t_arr     =  z_t_pert->array(mfi);

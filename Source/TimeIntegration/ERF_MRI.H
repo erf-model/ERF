@@ -262,7 +262,6 @@ public:
 
         // This is the final time of the full timestep (also the 3rd RK stage)
         Real new_time = time + timestep;
-        amrex::Print() << "OLD AND NEW TIME IN ERF_MRI " << time << " " << new_time << std::endl;
 
         amrex::Real time_stage = time;
         amrex::Real old_time_stage;
