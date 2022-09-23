@@ -111,7 +111,7 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& geom,
+init_custom_terrain (const Geometry& /*geom*/,
                            MultiFab& z_phys_nd,
                      const Real& /*old_time*/,
                      const Real& /*new_time*/,
@@ -120,21 +120,18 @@ init_custom_terrain (const Geometry& geom,
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
 
-    // Bottom of domain
-    int k0 = 0;
-
     for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
         // Grown box with no z range
-        Box xybx = mfi.growntilebox(ngrow);
+        amrex::Box xybx = mfi.growntilebox(ngrow);
         xybx.setRange(2,0);
 
-        Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+        Array4<Real> z_arr = z_phys_nd.array(mfi);
 
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
             // Flat terrain with z = 0 at k = 0
-            z_arr(i,j,k0) = 0.0;
+            z_arr(i,j,0) = 0.;
         });
     }
 }

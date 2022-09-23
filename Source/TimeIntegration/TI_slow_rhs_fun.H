@@ -18,7 +18,6 @@
         // Moving terrain
         if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
         {
-            const auto dz = fine_geom.CellSizeArray()[2];
             // Note that the "old" and "new" metric terms correspond to
             // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
             // will be used to advance to
@@ -44,14 +43,9 @@
 
             Real inv_dt  = 1./ (new_stage_time - old_time);
 
-            const auto& dX = fine_geom.CellSizeArray();
-
             for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box gbx = mfi.growntilebox(IntVect(1,1,0));
-
-                const Array4<const Real>& detJ_new  =   detJ_cc_new[level]->const_array(mfi);
-                const Array4<const Real>& detJ_old  =       detJ_cc[level]->const_array(mfi);
 
                 const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
                 const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[level]->const_array(mfi);

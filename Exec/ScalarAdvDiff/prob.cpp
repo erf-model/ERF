@@ -155,27 +155,29 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& geom,
+init_custom_terrain (const Geometry& /*geom*/,
                            MultiFab& z_phys_nd,
                      const Real& /*old_time*/,
                      const Real& /*new_time*/,
                      const Real& /*time*/)
 {
-    auto dx = geom.CellSizeArray();
+    // Number of ghost cells
+    int ngrow = z_phys_nd.nGrow();
 
     for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        const Box& gbx = mfi.growntilebox(1);
-        Array4<Real> z_arr = z_phys_nd.array(mfi);
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+        // Grown box with no z range
+        amrex::Box xybx = mfi.growntilebox(ngrow);
+        xybx.setRange(2,0);
 
-            Real z = k * dx[2];
+        Array4<Real> z_arr = z_phys_nd.array(mfi);
+
+        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
             // Flat terrain with z = 0 at k = 0
-            z_arr(i,j,k) = z;
+            z_arr(i,j,0) = 0.;
         });
     }
-    z_phys_nd.FillBoundary(geom.periodicity());
 }
 
 void

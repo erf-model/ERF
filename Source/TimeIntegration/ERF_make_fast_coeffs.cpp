@@ -170,10 +170,6 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
                  Real pi_hi = pi_stage_ca(i,j,k  ,0);
                  Real pi_c =  0.5 * (pi_lo + pi_hi);
 
-                 Real h_zeta_on_kface = 0.125 * dzi * (
-                        z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
-                       -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
-
                  Real     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
                  Real inv_detJ_on_kface = 1. / detJ_on_kface;
 
