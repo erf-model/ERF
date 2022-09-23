@@ -164,33 +164,32 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
             }
         });
 
-        if (l_use_terrain && l_moving_terrain) {
+        if (l_use_terrain && l_moving_terrain)
+        {
             //************************************************************
-            // time_mt = time - delta_t/2   delta_t = dt[lev] or dt_stage
+            // NOTE: z_t depends on the time interval in which it is
+            //       evaluated so we can't arbitrarily define it at a
+            //       given time, we must specify an interval
             //************************************************************
-            dhdtfab.resize(bx_zlo_face,1);
-            auto const& dhdt_arr = dhdtfab.array();
-            Elixir dhdt_eli = dhdtfab.elixir();
-
-            fill_dhdt(dhdt_arr,bx_zlo,dx,time_mt,delta_t);
-            ParallelFor(bx_zlo_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                dest_arr(i,j,k) = WFromOmega(i,j,k,dhdt_arr(i,j,0), velx_arr,vely_arr,z_nd_arr,dxInv);
-            });
-        } else {
-          ParallelFor(bx_zlo_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+        } else if (l_use_terrain) {
+            ParallelFor(bx_zlo_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 //************************************************************
                 // time_mt = time - delta_t/2   delta_t = dt[lev] or dt_stage
                 //************************************************************
                 if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-                    if (l_use_terrain) {
-                        dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
-                                                     velx_arr,vely_arr,z_nd_arr,dxInv);
-                    } else {
-                       dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
-                    }
+                    dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],
+                                                 velx_arr,vely_arr,z_nd_arr,dxInv);
                 }
-            }
-          );
+            });
+        } else {
+            ParallelFor(bx_zlo_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                //************************************************************
+                // time_mt = time - delta_t/2   delta_t = dt[lev] or dt_stage
+                //************************************************************
+                if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
+                   dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
+                }
+            });
         }
 
         ParallelFor(

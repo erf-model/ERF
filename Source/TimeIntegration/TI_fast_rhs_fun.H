@@ -4,8 +4,12 @@
                             Vector<MultiFab>& S_stage,
                             Vector<MultiFab>& S_data,
                             Vector<MultiFab>& S_scratch,
-                            const Real dtau, const Real inv_fac,
-                            const Real new_time)
+                            const Real dtau,
+                            const Real inv_fac,
+                            const Real old_time,
+                            const Real new_time,
+                            const Real old_substep_time,
+                            const Real new_substep_time)
     {
         BL_PROFILE("fast_rhs_fun");
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
@@ -16,74 +20,72 @@
         {
             if (verbose) Print() << "Making new geometry at substep " << new_time << std::endl;
 
-            const auto dz = fine_geom.CellSizeArray()[2];
+            // Make "old" fast geom -- store in z_phys_nd for convenience
+            if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;
+            init_custom_terrain(fine_geom,*z_phys_nd[level],old_time,new_time,old_substep_time);
+            init_terrain_grid  (fine_geom,*z_phys_nd[level]);
+            make_metrics       (fine_geom,*z_phys_nd[level], *z_phys_cc[level], *detJ_cc[level]);
 
-            init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_time); // Defines h(i,j,k=0,t)
-            init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);            // Defines z_phys for all i,j,k
-            make_metrics       (fine_geom,*z_phys_nd_new[level], *z_phys_cc_new[level], *detJ_cc_new[level]);  // Defines detJ
+            // Make "new" fast geom
+            if (verbose) Print() << "Making geometry for end of substep time :" << new_substep_time << std::endl;
+            init_custom_terrain(fine_geom,*z_phys_nd_new[level],old_time,new_time,new_substep_time);
+            init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);
+            make_metrics       (fine_geom,*z_phys_nd_new[level], *z_phys_cc_new[level], *detJ_cc_new[level]);
+
+            Real inv_dt   = 1./dtau;
 
             z_t_pert = new MultiFab(S_data[IntVar::zmom].boxArray(), S_data[IntVar::zmom].DistributionMap(), 1, 1);
 
-            for (MFIter mfi(*z_t_pert,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box gbx = mfi.growntilebox(IntVect(1,1,0));
 
-                // This is the top face
-                int khi = gbx.bigEnd()[2];
+                const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
+                const Array4<Real      >& zp_t_arr     =  z_t_pert->array(mfi);
 
-                // Now make this a 2D box (after we extract khi)
-                gbx.setRange(2,0);
-
-                const Array4<const Real>& detJ_new  =   detJ_cc_new[level]->const_array(mfi);
-                const Array4<const Real>& detJ_old  =       detJ_cc[level]->const_array(mfi);
-
-                const Array4<      Real>& zp_t_arr  =  z_t_pert->array(mfi);
-                const Array4<      Real>& z_t_arr   =  z_t_rk[level]->array(mfi);
-
-                Real delta_t  = dtau;
-
-                const auto& dX = fine_geom.CellSizeArray();
-
-                fill_dhdt(zp_t_arr,gbx,dX,new_time,delta_t);
+                const Array4<Real const>& z_nd_new_arr =  z_phys_nd_new[level]->const_array(mfi);
+                const Array4<Real const>& z_nd_old_arr =  z_phys_nd[level]->const_array(mfi);
 
                 // Loop over horizontal plane
-                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int ) noexcept
+                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    // Evaluate between RK stages
-                    for (int k = 1; k <= khi; k++)
-                    {
-                        // NOTE: J in this code is (1/J) in Sullivan et al (JAS 2014)
-                        Real J_new = detJ_new(i,j,k-1);
-                        Real J_old = detJ_old(i,j,k-1);
-                        zp_t_arr(i,j,k) = zp_t_arr(i,j,k-1) + ( (J_new - J_old) / delta_t ) * dz;
-
-                        // Convert to perturbation: z"_t(t) = z_t(t) - z_t^{RK}
-                        zp_t_arr(i,j,k) -= z_t_arr(i,j,k);
-                    }
+                    // Evaluate between RK stages assuming the geometry is linear between old and new time
+                    zp_t_arr(i,j,k) = 0.25 * inv_dt * (z_nd_new_arr(i+1,j+1,k) - z_nd_old_arr(i+1,j+1,k)
+                                                      +z_nd_new_arr(i  ,j+1,k) - z_nd_old_arr(  i,j+1,k)
+                                                      +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
+                                                      +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
+                    // Convert to perturbation: z"_t(t) = z_t(t) - z_t^{RK}
+                    zp_t_arr(i,j,k) -= z_t_arr(i,j,k);
                 });
             } // mfi
-        }
-
-        // If this is the first substep we make the coefficients since they are based only on stage data
-        if (fast_step == 0) {
-            make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
-                             z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, ingested_bcs);
-        }
+        } // moving terrain
 
         if (solverChoice.use_terrain && solverChoice.terrain_type == 1) {
+
+            // We have to call this each step since it depends on the substep time now
+            make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
+                             z_phys_nd_new[level], detJ_cc_new[level], r0, pi0, dtau, ingested_bcs);
+
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_MT(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                                S_data, S_scratch, fine_geom, ifr, solverChoice, Omega, z_t_pert,
-                                z_phys_nd[level], detJ_cc[level], dtau, inv_fac, ingested_bcs);
+                                S_data, S_scratch, fine_geom, ifr, solverChoice, Omega, // z_t_pert,
+                                z_phys_nd[level], z_phys_nd_new[level], detJ_cc[level], detJ_cc_new[level],
+                                dtau, inv_fac, ingested_bcs);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_MT(fast_step, level, new_time, S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                                S_data, S_scratch, fine_geom, ifr, solverChoice, Omega, z_t_pert,
-                                z_phys_nd[level], detJ_cc[level], dtau, inv_fac, ingested_bcs);
+                                S_data, S_scratch, fine_geom, ifr, solverChoice, Omega, // z_t_pert,
+                                z_phys_nd[level], z_phys_nd_new[level], detJ_cc[level], detJ_cc_new[level],
+                                dtau, inv_fac, ingested_bcs);
             }
         } else if (solverChoice.use_terrain && solverChoice.terrain_type == 0) {
             if (fast_step == 0) {
+
+                // If this is the first substep we make the coefficients since they are based only on stage data
+                make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
+                                 z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, ingested_bcs);
+
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_T(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, ifr, solverChoice, Omega,
@@ -96,15 +98,20 @@
             }
         } else {
             if (fast_step == 0) {
+
+                // If this is the first substep we make the coefficients since they are based only on stage data
+                make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
+                                 z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, ingested_bcs);
+
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
-                               z_phys_nd[level], detJ_cc[level], dtau, inv_fac, ingested_bcs);
+                               S_data, S_scratch, fine_geom, ifr, solverChoice,
+                               dtau, inv_fac, ingested_bcs);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_N(fast_step, level, new_time, S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, ifr, solverChoice, z_t_pert,
-                               z_phys_nd[level], detJ_cc[level], dtau, inv_fac, ingested_bcs);
+                               S_data, S_scratch, fine_geom, ifr, solverChoice,
+                               dtau, inv_fac, ingested_bcs);
             }
         }
 

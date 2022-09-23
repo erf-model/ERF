@@ -137,7 +137,9 @@ add_test_r(PoiseuilleFlow                    "PoiseuilleFlow/erf_poiseuille_flow
 add_test_r(EkmanSpiral                       "EkmanSpiral_custom/ekman_spiral_custom" "plt00010")
 add_test_r(DensityCurrent                    "DensityCurrent/density_current" "plt00010")
 add_test_r(DensityCurrent_detJ2              "DensityCurrent/density_current" "plt00010")
-add_test_r(MovingTerrain                     "MovingTerrain/moving_terrain"   "plt00020")
+add_test_r(DensityCurrent_detJ2_nosub        "DensityCurrent/density_current" "plt00020")
+add_test_r(DensityCurrent_detJ2_MT           "DensityCurrent/density_current" "plt00010")
+add_test_r(MovingTerrain_nosub               "MovingTerrain/moving_terrain"   "plt00020")
 
 #=============================================================================
 # Performance tests

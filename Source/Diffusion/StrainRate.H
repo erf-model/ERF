@@ -302,7 +302,9 @@ ComputeStrainRateWithTerrain (int i, int j, int k,
                               const amrex::Box& domain, const amrex::BCRec* bc_ptr)
 {
   amrex::Real strainRate;
-  amrex::Real met_h_xi,met_h_eta,met_h_zeta;
+  amrex::Real met_h_xi   = 0.;
+  amrex::Real met_h_eta  = 0.;
+  amrex::Real met_h_zeta = 0.;
   switch (momentumEqn) {
   case MomentumEqn::x:
     switch (diffDir) {

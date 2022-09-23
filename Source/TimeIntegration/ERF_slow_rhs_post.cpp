@@ -30,21 +30,23 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
                         const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                        std::unique_ptr<MultiFab>& dJ)
+                        std::unique_ptr<MultiFab>& dJ,
+                        std::unique_ptr<MultiFab>& dJ_new)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
     amrex::Real theta_mean;
     if (most) theta_mean = most->theta_mean;
 
-    bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
-    bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
-    bool l_use_diff      = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                             (solverChoice.les_type        !=       LESType::None) ||
-                             (solverChoice.pbl_type        !=       PBLType::None) );
+    const int l_spatial_order   = solverChoice.spatial_order;
+    const bool l_use_terrain    = solverChoice.use_terrain;
+    const bool l_moving_terrain = (solverChoice.terrain_type == 1);
 
-    const int l_spatial_order = solverChoice.spatial_order;
-    const int l_use_terrain   = solverChoice.use_terrain;
+    const bool l_use_QKE        = solverChoice.use_QKE && solverChoice.advect_QKE;
+    const bool l_use_deardorff  = (solverChoice.les_type == LESType::Deardorff);
+    const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+                                    (solverChoice.les_type        !=       LESType::None) ||
+                                    (solverChoice.pbl_type        !=       PBLType::None) );
 
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
@@ -121,7 +123,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
         const Array4<Real const>& K_turb = eddyDiffs.const_array(mfi);
 
-        const Array4<const Real>& detJ = l_use_terrain ? dJ->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ     = l_use_terrain ? dJ->const_array(mfi)     : Array4<const Real>{};
+        const Array4<const Real>& detJ_new = l_use_terrain ? dJ_new->const_array(mfi) : Array4<const Real>{};
 
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
@@ -181,12 +184,22 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         // This updates just the "slow" conserved variables
         {
         BL_PROFILE("rhs_post_8");
-        ParallelFor(bx, num_comp,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
-            const int n = start_comp + nn;
-            cur_cons(i,j,k,n) = old_cons(i,j,k,n);
-            cur_cons(i,j,k,n) += dt * cell_rhs(i,j,k,n);
-        });
+
+        if ( solverChoice.use_terrain && solverChoice.terrain_type == 1 )
+        {
+            ParallelFor(bx, num_comp,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                const int n = start_comp + nn;
+                cur_cons(i,j,k,n) =  old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
+                cur_cons(i,j,k,n) *= detJ(i,j,k) / detJ_new(i,j,k);
+            });
+        } else {
+            ParallelFor(bx, num_comp,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                const int n = start_comp + nn;
+                cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
+            });
+        }
         } // end profile
 
         {

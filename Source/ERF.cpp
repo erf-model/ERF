@@ -194,6 +194,8 @@ ERF::Evolve ()
         amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                        << " DT = " << dt[0]  << std::endl;
 
+        post_timestep(step, cur_time, dt[0]);
+
         if (plot_int_1 > 0 && (step+1) % plot_int_1 == 0) {
             last_plot_file_step_1 = step+1;
             WritePlotFile(1,plot_var_names_1);
@@ -214,8 +216,6 @@ ERF::Evolve ()
                WriteCheckpointFile();
             }
         }
-
-        post_timestep(step, cur_time, dt[0]);
 
 #ifdef AMREX_MEM_PROFILING
         {
@@ -308,6 +308,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       {
         // Copy z_phs_nd and detJ_cc at end of timestep
         MultiFab::Copy(*z_phys_nd[lev], *z_phys_nd_new[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
+        MultiFab::Copy(*z_phys_cc[lev], *z_phys_cc_new[lev], 0, 0, 1, z_phys_cc[lev]->nGrowVect());
         MultiFab::Copy(  *detJ_cc[lev],   *detJ_cc_new[lev], 0, 0, 1,   detJ_cc[lev]->nGrowVect());
       }
     }
@@ -366,7 +367,8 @@ ERF::InitData ()
             if (init_type != "real") {
                 for (int lev = 0; lev <= finest_level; lev++)
                 {
-                    init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
+                    Real dummy_dt = 1.0; // This value won't matter since time = old_time
+                    init_custom_terrain(geom[lev],*z_phys_nd[lev],time,time+dummy_dt,time);
                     init_terrain_grid(geom[lev],*z_phys_nd[lev]);
                     make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
                 }
@@ -646,6 +648,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     z_phys_cc_new.resize(lev+1);
     detJ_cc_new.resize(lev+1);
 
+    z_phys_nd_src.resize(lev+1);
+    z_phys_cc_src.resize(lev+1);
+    detJ_cc_src.resize(lev+1);
+
     z_t_rk.resize(lev+1);
 
     BoxList bl2d = ba.boxList();
@@ -676,6 +682,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         if (solverChoice.terrain_type > 0) {
             z_phys_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
               detJ_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
+            z_phys_cc_src[lev].reset(new MultiFab(ba,dm,1,1));
+              detJ_cc_src[lev].reset(new MultiFab(ba,dm,1,1));
               z_t_rk[lev].reset(new MultiFab( convert(ba, IntVect(0,0,1)), dm, 1, 1 ));
         }
 
@@ -687,6 +695,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         z_phys_nd[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
         if (solverChoice.terrain_type > 0) {
             z_phys_nd_new[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
+            z_phys_nd_src[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
         }
     } else {
             z_phys_nd[lev] = nullptr;
@@ -696,6 +705,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         z_phys_nd_new[lev] = nullptr;
         z_phys_cc_new[lev] = nullptr;
           detJ_cc_new[lev] = nullptr;
+
+        z_phys_nd_src[lev] = nullptr;
+        z_phys_cc_src[lev] = nullptr;
+          detJ_cc_src[lev] = nullptr;
 
                z_t_rk[lev] = nullptr;
     }
@@ -1212,8 +1225,10 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
 
         cur_time  += dt[0];
 
-         amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
+        amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                        << " DT = " << dt[0]  << std::endl;
+
+        post_timestep(step, cur_time, dt[0]);
 
         if (plot_int_1 > 0 && (step+1) % plot_int_1 == 0) {
             last_plot_file_step_1 = step+1;
@@ -1235,8 +1250,6 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
                WriteCheckpointFile();
             }
         }
-
-        post_timestep(step, cur_time, dt[0]);
 
 #ifdef AMREX_MEM_PROFILING
         {
