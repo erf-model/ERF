@@ -25,13 +25,15 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                       amrex::InterpFaceRegister* ifr,
                       const SolverChoice& solverChoice,
                             MultiFab& Omega,
-                      const MultiFab* z_t_pert,
-                      std::unique_ptr<MultiFab>& z_phys_nd,
-                      std::unique_ptr<MultiFab>& detJ_cc,
+                      // const MultiFab* z_t_pert,
+                      std::unique_ptr<MultiFab>& z_phys_nd_old,
+                      std::unique_ptr<MultiFab>& z_phys_nd_new,
+                      std::unique_ptr<MultiFab>& detJ_cc_old,
+                      std::unique_ptr<MultiFab>& detJ_cc_new,
                       const amrex::Real dtau, const amrex::Real facinv,
                       bool ingested_bcs)
 {
-    BL_PROFILE_REGION("erf_fast_rhs_T()");
+    BL_PROFILE_REGION("erf_fast_rhs_MT()");
 
     AMREX_ASSERT(solverChoice.terrain_type == 1);
 
@@ -195,10 +197,12 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         const Array4<Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
         const Array4<Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
-        const Array4<const Real>& z_nd   = z_phys_nd->const_array(mfi);
-        const Array4<const Real>& detJ   = detJ_cc->const_array(mfi);
+        const Array4<const Real>& z_nd_old = z_phys_nd_old->const_array(mfi);
+        const Array4<const Real>& z_nd_new = z_phys_nd_new->const_array(mfi);
+        const Array4<const Real>& detJ_old =   detJ_cc_old->const_array(mfi);
+        const Array4<const Real>& detJ_new =   detJ_cc_new->const_array(mfi);
 
-        const Array4<const Real>& zp_t_arr = z_t_pert->const_array(mfi);
+        // const Array4<const Real>& zp_t_arr = z_t_pert->const_array(mfi);
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
@@ -279,8 +283,8 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real met_h_xi   = Compute_h_xi_AtIface(i, j, k, dxInv, z_nd);
-                Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
+                Real met_h_xi   = Compute_h_xi_AtIface(i, j, k, dxInv, z_nd_old);
+                Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_old);
                 Real gp_xi = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k)) * dxi;
                 Real gp_zeta_on_iface = (k == 0) ?
                    0.5  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
@@ -297,8 +301,9 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                 Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i  ,j,k,0));
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
 
+                Real inv_detJ_on_iface = 2.0 / (detJ_old(i,j,k) + detJ_old(i-1,j,k));
                 new_drho_u(i, j, k) = old_drho_u(i,j,k) + dtau * fast_rhs_rho_u
-                                                        + dtau * slow_rhs_rho_u(i,j,k);
+                                                        + dtau * slow_rhs_rho_u(i,j,k) * inv_detJ_on_iface;
 
                 avg_xmom(i,j,k) += facinv*new_drho_u(i,j,k);
 
@@ -307,8 +312,8 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
-                Real met_h_eta  = Compute_h_eta_AtJface(i, j, k, dxInv, z_nd);
-                Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                Real met_h_eta  = Compute_h_eta_AtJface(i, j, k, dxInv, z_nd_old);
+                Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_old);
                 Real gp_eta = (theta_extrap(i,j,k) -theta_extrap(i,j-1,k)) * dyi;
                 Real gp_zeta_on_jface = (k == 0) ?
                     0.5  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
@@ -325,8 +330,9 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                 Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j  ,k,0));
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
 
+                Real inv_detJ_on_jface = 2.0 / (detJ_old(i,j,k) + detJ_old(i,j-1,k));
                 new_drho_v(i, j, k) = old_drho_v(i,j,k) + dtau * fast_rhs_rho_v
-                                                        + dtau * slow_rhs_rho_v(i,j,k);
+                                                        + dtau * slow_rhs_rho_v(i,j,k) * inv_detJ_on_jface;
 
                 avg_ymom(i,j,k) += facinv*new_drho_v(i,j,k);
 
@@ -340,20 +346,20 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real h_zeta_cc_xface_hi = 0.5 * dzi *
-              (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
-                -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
+              (  z_nd_new(i+1,j  ,k+1) + z_nd_new(i+1,j+1,k+1)
+                -z_nd_new(i+1,j  ,k  ) - z_nd_new(i+1,j+1,k  ) );
 
             Real h_zeta_cc_xface_lo = 0.5 * dzi *
-              (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
-            -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
+              (  z_nd_new(i  ,j  ,k+1) + z_nd_new(i  ,j+1,k+1)
+            -z_nd_new(i  ,j  ,k  ) - z_nd_new(i  ,j+1,k  ) );
 
             Real h_zeta_cc_yface_hi = 0.5 * dzi *
-              (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
+              (  z_nd_new(i  ,j+1,k+1) + z_nd_new(i+1,j+1,k+1)
+                -z_nd_new(i  ,j+1,k  ) - z_nd_new(i+1,j+1,k  ) );
 
             Real h_zeta_cc_yface_lo = 0.5 * dzi *
-              (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
-                -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
+              (  z_nd_new(i  ,j  ,k+1) + z_nd_new(i+1,j  ,k+1)
+                -z_nd_new(i  ,j  ,k  ) - z_nd_new(i+1,j  ,k  ) );
 
             Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_cc_xface_hi;
             Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_cc_xface_lo;
@@ -374,7 +380,7 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         {
         BL_PROFILE("fast_T_making_omega");
         amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
+            omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd_old,dxInv);
         });
         } // end profile
         // *********************************************************************
@@ -395,7 +401,7 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real inv_detJ_on_kface = 2.0 / (detJ(i,j,k) + detJ(i,j,k-1));
+            Real inv_detJ_on_kface = 2.0 / (detJ_old(i,j,k) + detJ_old(i,j,k-1));
 
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);
@@ -420,6 +426,7 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                                       slow_rhs_cons(i,j,k-1,Rho_comp) )
                       +   ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
                             coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
+            R1_tmp *= inv_detJ_on_kface;
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
@@ -435,10 +442,10 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                  coeff_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
-            RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
+            RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k)*inv_detJ_on_kface + R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
-            RHS_a(i,j,k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
+            RHS_a(i,j,k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd_new,dxInv);
         });
         } // end profile
 
@@ -450,21 +457,25 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
 
         {
         BL_PROFILE("fast_rhs_b2d_loop_t");
-#ifdef AMREX_USE_GPU
         dhdtfab.resize(b2d,1);
         auto const& dhdt_arr = dhdtfab.array();
         Elixir dhdt_eli = dhdtfab.elixir();
 
         Real time_mt  = time - 0.5*dtau;
         fill_dhdt(dhdt_arr,b2d,dx,time_mt,dtau);
+
+#ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Moving terrain
-            Real stage_rho_on_bdy = 1.5 * stage_cons(i,j,0) - 0.5 * stage_cons(i,j,0);
-            Real   cur_rho_on_bdy = 1.5 *   cur_cons(i,j,0) - 0.5 *   cur_cons(i,j,0);
+            // Real stage_rho_on_bdy = 1.5 * stage_cons(i,j,0) - 0.5 * stage_cons(i,j,0);
+            // Real   cur_rho_on_bdy = 1.5 *   cur_cons(i,j,0) - 0.5 *   cur_cons(i,j,0);
 
-            Real omega_bc = dhdt_arr(i,j,0) - stage_zmom(i,j,0) / stage_rho_on_bdy; // w'' = w(t) - w^{RK stage}
-            RHS_a(i,j,0) = cur_rho_on_bdy * omega_bc;
+            // Real omega_bc = dhdt_arr(i,j,0) - stage_zmom(i,j,0) / stage_rho_on_bdy; // w'' = w(t) - w^{RK stage}
+            // RHS_a(i,j,0) = cur_rho_on_bdy * omega_bc;
+
+            // HACK
+            RHS_a(i,j,0) = 0.;
 
             // w_khi = 0
             RHS_a(i,j,hi.z+1)     =  0.0;
@@ -481,23 +492,18 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
             }
         });
 #else
-        dhdtfab.resize(b2d,1);
-        auto const& dhdt_arr = dhdtfab.array();
-        Elixir dhdt_eli = dhdtfab.elixir();
-
-        Real time_mt  = time - 0.5*dtau;
-        fill_dhdt(dhdt_arr,b2d,dx,time_mt,dtau);
-
         for (int j = lo.y; j <= hi.y; ++j) {
              AMREX_PRAGMA_SIMD
              for (int i = lo.x; i <= hi.x; ++i) {
-                 RHS_a (i,j,0) =  0.0;
                  // Moving terrain
-                 Real stage_rho_on_bdy = 1.5 * stage_cons(i,j,0) - 0.5 * stage_cons(i,j,0);
-                 Real   cur_rho_on_bdy = 1.5 *   cur_cons(i,j,0) - 0.5 *   cur_cons(i,j,0);
+                 // Real stage_rho_on_bdy = 1.5 * stage_cons(i,j,0) - 0.5 * stage_cons(i,j,0);
+                 // Real   cur_rho_on_bdy = 1.5 *   cur_cons(i,j,0) - 0.5 *   cur_cons(i,j,0);
+                 // Real omega_bc = dhdt_arr(i,j,0) - stage_zmom(i,j,0) / stage_rho_on_bdy; // w'' = w(t) - w^{RK stage}
+                 // RHS_a(i,j,0) = cur_rho_on_bdy * omega_bc;
 
-                 Real omega_bc = dhdt_arr(i,j,0) - stage_zmom(i,j,0) / stage_rho_on_bdy; // w'' = w(t) - w^{RK stage}
-                 RHS_a(i,j,0) = cur_rho_on_bdy * omega_bc;
+                 // HACK
+                 RHS_a(i,j,0) = 0.;
+
                  soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
              }
         }
@@ -524,14 +530,23 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                  }
              }
         }
+
+        for (int j = lo.y; j <= hi.y; ++j) {
+             AMREX_PRAGMA_SIMD
+             for (int i = lo.x; i <= hi.x; ++i) {
+                cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
+            }
+        }
 #endif
         } // end profile
 
         {
+        BL_PROFILE("fast_rhs_new_drhow");
+        tbz.setBig(2,hi.z);
         BL_PROFILE("fast_rhs_new_drhow_t");
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-             Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
+             Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd_new,dxInv);
              cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
         });
         } // end profile
@@ -547,21 +562,38 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         BL_PROFILE("fast_rho_final_update");
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-              Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k)
-                               -0.5 * (cur_cons(i,j,k)+cur_cons(i,j,k-1)) * zp_t_arr(i,j,k);
-              Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1)
-                               -0.5 * (cur_cons(i,j,k)+cur_cons(i,j,k+1)) * zp_t_arr(i,j,k+1);
+              Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
+//                             -0.5 * (cur_cons(i,j,k)+cur_cons(i,j,k-1)) * zp_t_arr(i,j,k);
+              Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);
+//                             -0.5 * (cur_cons(i,j,k)+cur_cons(i,j,k+1)) * zp_t_arr(i,j,k+1);
 
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
               // so we don't update avg_zmom at k=vbx_hi.z+1
               avg_zmom(i,j,k) += facinv*zflux_lo;
 
-              Real fast_rhs_rho = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi) / detJ(i,j,k);
-              cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_rho);
+              // Note that the factor of (1/J) in the fast source term is canceled
+              // when we multiply old and new by detJ_old and detJ_new , respectively
+              // We have already scaled the slow source term to have the extra factor of dJ
+              Real fast_rhs_rho = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi);
+              Real temp_rho = detJ_old(i,j,k) * cur_cons(i,j,k,0) +
+              //   dtau * ( detJ_old(i,j,k)*slow_rhs_cons(i,j,k,0) + fast_rhs_rho );
+                   dtau * (                 slow_rhs_cons(i,j,k,0) + fast_rhs_rho );
+              cur_cons(i,j,k,0) = temp_rho / detJ_new(i,j,k);
 
+              if (i == 151 and j == 3 and k == 42) amrex::Print() << "ADDING SLOW " << slow_rhs_cons(i,j,k,0) <<
+                   " and not multiplying by dJold " << detJ_old(i,j,k) << " to get " <<
+                     detJ_old(i,j,k) * slow_rhs_cons(i,j,k,0) <<     std::endl;
+
+              // Note that the factor of (1/J) in the fast source term is canceled
+              // when we multiply old and new by detJ_old and detJ_new , respectively
+              // We have already scaled the slow source term to have the extra factor of dJ
               Real fast_rhs_rhotheta = -( temp_rhs_arr(i,j,k,1) + 0.5 *
-                ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi ) / detJ(i,j,k);
-              cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta);
+                ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi );
+              Real temp_rth = detJ_old(i,j,k) * cur_cons(i,j,k,1) +
+              //   dtau * ( detJ_old(i,j,k)*slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta );
+                   dtau * (                 slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta );
+              cur_cons(i,j,k,1) = temp_rth / detJ_new(i,j,k);
+
         });
         } // end profile
     } // mfi

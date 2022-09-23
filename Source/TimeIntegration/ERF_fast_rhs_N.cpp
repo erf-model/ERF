@@ -23,9 +23,6 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
                      const amrex::Geometry geom,
                      amrex::InterpFaceRegister* ifr,
                      const SolverChoice& solverChoice,
-                     const MultiFab* /*z_t_pert*/,
-                     std::unique_ptr<MultiFab>& /*z_phys_nd*/,
-                     std::unique_ptr<MultiFab>& /*detJ_cc*/,
                      const amrex::Real dtau, const amrex::Real facinv,
                      bool ingested_bcs)
 {

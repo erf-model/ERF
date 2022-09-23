@@ -55,7 +55,8 @@ void erf_slow_rhs_post(int level, amrex::Real time,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
                        const amrex::Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                       std::unique_ptr<amrex::MultiFab>& dJ);
+                       std::unique_ptr<amrex::MultiFab>& dJ_old,
+                       std::unique_ptr<amrex::MultiFab>& dJ_new);
 
 void erf_fast_rhs_N (int step, int level, const amrex::Real time,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
@@ -69,9 +70,6 @@ void erf_fast_rhs_N (int step, int level, const amrex::Real time,
                      const amrex::Geometry geom,
                      amrex::InterpFaceRegister* ifr,
                      const SolverChoice& solverChoice,
-                     const amrex::MultiFab* z_t_pert,
-                     std::unique_ptr<amrex::MultiFab>& z_phyx,
-                     std::unique_ptr<amrex::MultiFab>& dJ,
                      const amrex::Real fast_dt, const amrex::Real invfac,
                      bool ingested_bcs);
 
@@ -106,9 +104,10 @@ void erf_fast_rhs_MT (int step, int level, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr,
                       const SolverChoice& solverChoice,
                             amrex::MultiFab& Omega,
-                      const amrex::MultiFab* z_t_pert,
-                      std::unique_ptr<amrex::MultiFab>& z_phyx,
-                      std::unique_ptr<amrex::MultiFab>& dJ,
+                      std::unique_ptr<amrex::MultiFab>& z_phys_old,
+                      std::unique_ptr<amrex::MultiFab>& z_phys_new,
+                      std::unique_ptr<amrex::MultiFab>& dJ_old,
+                      std::unique_ptr<amrex::MultiFab>& dJ_new,
                       const amrex::Real fast_dt, const amrex::Real invfac,
                       bool ingested_bcs);
 

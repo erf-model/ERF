@@ -26,7 +26,8 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
     Real beta_s = 0.1;
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
-    bool l_use_terrain  = solverChoice.use_terrain;
+    bool l_use_terrain    = solverChoice.use_terrain;
+    bool l_moving_terrain = (solverChoice.terrain_type >= 1);
 
     Real c_v = c_p - R_d;
 
@@ -71,11 +72,7 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
     {
         const Box& valid_bx = mfi.validbox();
 
-        const Box& bx = mfi.tilebox();
-
-        Box tbx = mfi.nodaltilebox(0);
-        Box tby = mfi.nodaltilebox(1);
-        Box tbz = mfi.nodaltilebox(2);
+        Box bx = mfi.tilebox();
 
         bool left_edge_dirichlet = false;
         bool rght_edge_dirichlet = false;
@@ -109,10 +106,20 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
             top_edge_dirichlet  = mhi_y(vhi_x  ,vhi_y+1,vhi_z);
         } // level > 0
 
-        if (left_edge_dirichlet) tbx.growLo(0,-1);
-        if (rght_edge_dirichlet) tbx.growHi(0,-1);
-        if ( bot_edge_dirichlet) tby.growLo(1,-1);
-        if ( top_edge_dirichlet) tby.growHi(1,-1);
+        if (left_edge_dirichlet) {
+            bx.growLo(0,-1);
+        }
+        if (rght_edge_dirichlet) {
+            bx.growHi(0,-1);
+        }
+        if (bot_edge_dirichlet) {
+            bx.growLo(1,-1);
+        }
+        if (top_edge_dirichlet) {
+            bx.growHi(1,-1);
+        }
+
+        Box tbz = surroundingNodes(bx,2);
 
         const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
@@ -167,13 +174,14 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
                         z_nd(i,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j,k+1) + z_nd(i+1,j+1,k+1)
                        -z_nd(i,j,k-1) - z_nd(i,j+1,k-1) - z_nd(i+1,j,k-1) - z_nd(i+1,j-1,k-1) );
 
-                 Real detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+                 Real     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+                 Real inv_detJ_on_kface = 1. / detJ_on_kface;
 
-                 Real coeff_P = -Gamma * R_d * pi_c * dzi / h_zeta_on_kface
+                 Real coeff_P = -Gamma * R_d * pi_c * dzi * inv_detJ_on_kface
                                +  halfg * R_d * rhobar_hi * pi_hi  /
                                (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
 
-                 Real coeff_Q = Gamma * R_d * pi_c * dzi / h_zeta_on_kface
+                 Real coeff_Q =  Gamma * R_d * pi_c * dzi * inv_detJ_on_kface
                                + halfg * R_d * rhobar_lo * pi_lo  /
                                ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
 

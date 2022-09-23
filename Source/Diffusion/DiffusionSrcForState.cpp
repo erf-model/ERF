@@ -24,7 +24,7 @@ DiffusionSrcForState (const amrex::Box& bx, const amrex::Box& domain, int n_star
                       const amrex::BCRec* bc_ptr)
 {
     BL_PROFILE_VAR("DiffusionSrcForState()",DiffusionSrcForState);
-    
+
   if ( (solverChoice.molec_diff_type == MolecDiffType::None) &&
        (solverChoice.les_type        ==       LESType::None) &&
        (solverChoice.pbl_type        ==       PBLType::None) ) {

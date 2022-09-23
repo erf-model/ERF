@@ -49,7 +49,8 @@ void erf_slow_rhs_pre (int level,
     int   num_comp = 2;
 
     const int l_spatial_order = solverChoice.spatial_order;
-    const int l_use_terrain   = solverChoice.use_terrain;
+    const bool l_use_terrain    =  solverChoice.use_terrain;
+    const bool l_moving_terrain = (solverChoice.terrain_type == 1);
     bool      l_use_diff      = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
                                   (solverChoice.les_type        !=       LESType::None) ||
                                   (solverChoice.pbl_type        !=       PBLType::None) );
@@ -248,7 +249,6 @@ void erf_slow_rhs_pre (int level,
         });
         } // end profile
 
-
         Array4<Real> er_arr;
         if (expr)
             er_arr = expr->array(mfi);
@@ -432,6 +432,19 @@ void erf_slow_rhs_pre (int level,
             });
         }
 
+        // Multiply the slow RHS for rho and rhotheta by detJ here so we don't have to later
+        if (l_use_terrain && l_moving_terrain) {
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                cell_rhs(i,j,k,Rho_comp)      *= detJ(i,j,k);
+                cell_rhs(i,j,k,RhoTheta_comp) *= detJ(i,j,k);
+            });
+        }
+
+        // *********************************************************************
+        // Define updates in the RHS of {x, y, z}-momentum equations
+        // *********************************************************************
+
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
@@ -454,10 +467,6 @@ void erf_slow_rhs_pre (int level,
                                      cell_data, solverChoice, dxInv);
             }
         }
-
-        // *********************************************************************
-        // Define updates in the RHS of {x, y, z}-momentum equations
-        // *********************************************************************
         {
         BL_PROFILE("slow_rhs_pre_xmom");
         amrex::ParallelFor(tbx,
@@ -516,6 +525,11 @@ void erf_slow_rhs_pre (int level,
                 Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
                 rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
             }
+
+            if (l_use_terrain && l_moving_terrain) {
+                Real dJ_xface = 0.5 * (detJ(i,j,k) + detJ(i-1,j,k));
+                rho_u_rhs(i, j, k) *= dJ_xface;
+            }
         });
         } // end profile
         {
@@ -573,6 +587,11 @@ void erf_slow_rhs_pre (int level,
                     Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
                     rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
                 }
+
+                if (l_use_terrain && l_moving_terrain) {
+                     Real dJ_yface = 0.5 * (detJ(i,j,k) + detJ(i,j-1,k));
+                     rho_v_rhs(i, j, k) *= dJ_yface;
+                }
         });
         } // end profile
         {
@@ -629,6 +648,11 @@ void erf_slow_rhs_pre (int level,
                 if (solverChoice.use_rayleigh_damping)
                 {
                     rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
+                }
+
+                if (l_use_terrain && l_moving_terrain) {
+                     Real dJ_zface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+                     rho_w_rhs(i, j, k) *= dJ_zface;
                 }
         });
         } // end profile

@@ -1,33 +1,33 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: ../../Tests/test_files/MovingTerrain/MovingTerrain.i
+inputs file: MovingTerrain_nosub.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.000731308
+CPU time used since start of simulation (CPU-hours): 0.00113076
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Tue Sep 13 16:44:37 2022
-output dir:         /home/almgren/GitCode/ERF/Exec/MovingTerrain
+output data / time: Thu Sep 22 17:47:25 2022
+output dir:         /home/almgren/TEMP/ERF/Exec/MovingTerrain
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2022-09-10 17:43:59.997700
+build date:    2022-09-21 16:44:30.268468
 build machine: Linux manda 5.15.0-46-generic #49~20.04.1-Ubuntu SMP Thu Aug 4 19:15:44 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
-build dir:     /home/almgren/GitCode/ERF/Exec/MovingTerrain
+build dir:     /home/almgren/TEMP/ERF/Exec/MovingTerrain
 AMReX dir:     /home/almgren/GitCode/amrex
 
 COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: last-amrlevel-version-516-g643207d0-dirty
-AMReX       git hash: 22.09-9-g67384701a
+ERF       git hash: df0e0e74-dirty
+AMReX       git hash: 22.09-18-g3e5cc7780
 
 
 ===============================================================================

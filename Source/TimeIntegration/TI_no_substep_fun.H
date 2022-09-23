@@ -6,6 +6,8 @@
         BL_PROFILE("no_substep_fun");
         int n_data = IntVar::NumVars;
 
+        const auto& dxInv = fine_geom.InvCellSizeArray();
+
         const amrex::GpuArray<int, IntVar::NumVars> scomp_fast = {0,0,0,0};
         const amrex::GpuArray<int, IntVar::NumVars> ncomp_fast = {2,1,1,1};
 
@@ -49,41 +51,50 @@
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);
 
+                    const Array4<const Real>& z_nd_new = z_phys_nd_new[level]->const_array(mfi);
+
+                    const Array4<Real      >& z_t_arr  =  z_t_rk[level]->array(mfi);
+
+                    // We have already scaled the slow source term to have the extra factor of dJ
                     ParallelFor(bx, ncomp_fast[IntVar::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVar::cons] + nn;
-                        ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n) + slow_dt *
-                           ( fslow[IntVar::cons](i,j,k,n) );
-                        ssum[IntVar::cons](i,j,k,n) *= ( dJ_old(i,j,k) / dJ_new(i,j,k) );
+                        ssum[IntVar::cons](i,j,k,n) = dJ_old(i,j,k) *  sold[IntVar::cons](i,j,k,n)
+                                          + slow_dt                 * fslow[IntVar::cons](i,j,k,n);
+                        ssum[IntVar::cons](i,j,k,n) /= dJ_new(i,j,k);
                     });
 
-                    ParallelFor(tbx, tby, tbz,
+                    // We have already scaled the slow source term to have the extra factor of dJ
+                    ParallelFor(tbx, tby,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        ssum[IntVar::xmom](i,j,k) = sold[IntVar::xmom](i,j,k) + slow_dt *
-                           ( fslow[IntVar::xmom](i,j,k) );
-                        Real dJ_new_xface = 0.5 * (dJ_new(i,j,k) + dJ_new(i-1,j,k));
                         Real dJ_old_xface = 0.5 * (dJ_old(i,j,k) + dJ_old(i-1,j,k));
-                        ssum[IntVar::xmom](i,j,k) *= ( dJ_old_xface / dJ_new_xface );
+                        Real dJ_new_xface = 0.5 * (dJ_new(i,j,k) + dJ_new(i-1,j,k));
+                        ssum[IntVar::xmom](i,j,k) = dJ_old_xface *  sold[IntVar::xmom](i,j,k)
+                                        + slow_dt                * fslow[IntVar::xmom](i,j,k);
+                        ssum[IntVar::xmom](i,j,k) /= dJ_new_xface;
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        ssum[IntVar::ymom](i,j,k) = sold[IntVar::ymom](i,j,k) + slow_dt *
-                           ( fslow[IntVar::ymom](i,j,k) );
-                        Real dJ_new_yface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j-1,k));
                         Real dJ_old_yface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j-1,k));
-                        ssum[IntVar::ymom](i,j,k) *= ( dJ_old_yface / dJ_new_yface );
-                    },
+                        Real dJ_new_yface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j-1,k));
+                        ssum[IntVar::ymom](i,j,k) = dJ_old_yface *  sold[IntVar::ymom](i,j,k)
+                                        + slow_dt                * fslow[IntVar::ymom](i,j,k);
+                        ssum[IntVar::ymom](i,j,k) /= dJ_new_yface;
+                    });
+                    ParallelFor(tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        ssum[IntVar::zmom](i,j,k) = sold[IntVar::zmom](i,j,k) + slow_dt *
-                           ( fslow[IntVar::zmom](i,j,k) );
-                        if (k > 0) {
-                            Real dJ_new_zface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
+                        if (k == 0) {
+                            ssum[IntVar::zmom](i,j,k) = WFromOmega(i,j,k,z_t_arr(i,j,k),
+                                                                   ssum[IntVar::xmom],ssum[IntVar::ymom],z_nd_new,dxInv);
+                        } else {
                             Real dJ_old_zface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
-                            ssum[IntVar::zmom](i,j,k) *= ( dJ_old_zface / dJ_new_zface );
+                            Real dJ_new_zface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
+                            ssum[IntVar::zmom](i,j,k) = dJ_old_zface *  sold[IntVar::zmom](i,j,k)
+                                            + slow_dt                * fslow[IntVar::zmom](i,j,k);
+                            ssum[IntVar::zmom](i,j,k) /= dJ_new_zface;
                         }
                     });
 
-                // No terrain, or terrain is static
-                } else {
+                } else { // Fixed or no terrain
 
                     ParallelFor(bx, ncomp_fast[IntVar::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {

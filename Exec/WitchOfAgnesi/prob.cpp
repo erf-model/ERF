@@ -289,9 +289,11 @@ amrex_probinit(
 }
 
 void
-init_custom_terrain(const Geometry& geom,
-                          MultiFab& z_phys_nd,
-                    const Real& /*time*/)
+init_custom_terrain (const Geometry& geom,
+                           MultiFab& z_phys_nd,
+                     const Real& /*old_time*/,
+                     const Real& /*new_time*/,
+                     const Real& /*time*/)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
