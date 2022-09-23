@@ -60,11 +60,22 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h};
     Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v};
 
+    // Device vectors
+    Gpu::DeviceVector<Real> alpha_eff_d;
+    Gpu::DeviceVector<int>  eddy_diff_idx_d,eddy_diff_idy_d,eddy_diff_idz_d;
+    alpha_eff_d.resize(4,0.);
+    eddy_diff_idx_d.resize(4,0.); eddy_diff_idy_d.resize(4,0.); eddy_diff_idz_d.resize(4,0.);
+
+    Gpu::copy(Gpu::hostToDevice, alpha_eff.begin(), alpha_eff.end(), alpha_eff_d.begin());
+    Gpu::copy(Gpu::hostToDevice, eddy_diff_idx.begin(), eddy_diff_idx.end(), eddy_diff_idx_d.begin());
+    Gpu::copy(Gpu::hostToDevice, eddy_diff_idy.begin(), eddy_diff_idy.end(), eddy_diff_idy_d.begin());
+    Gpu::copy(Gpu::hostToDevice, eddy_diff_idz.begin(), eddy_diff_idz.end(), eddy_diff_idz_d.begin());
+
     // Capture pointers for device code
-    Real* d_alpha_eff     = alpha_eff.data();
-    int*  d_eddy_diff_idx = eddy_diff_idx.data();
-    int*  d_eddy_diff_idy = eddy_diff_idy.data();
-    int*  d_eddy_diff_idz = eddy_diff_idz.data();
+    Real* d_alpha_eff     = alpha_eff_d.data();
+    int*  d_eddy_diff_idx = eddy_diff_idx_d.data();
+    int*  d_eddy_diff_idy = eddy_diff_idy_d.data();
+    int*  d_eddy_diff_idz = eddy_diff_idz_d.data();
 
     // Compute fluxes at each face
     if (l_consA && l_turb) {
