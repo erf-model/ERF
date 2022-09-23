@@ -70,7 +70,7 @@
 
             erf_slow_rhs_pre(level, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
-                             Omega, source, eddyDiffs, diffflux,
+                             Omega, source, eddyDiffs,
                              fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], detJ_cc_src[level], r0, p0,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
@@ -79,7 +79,7 @@
         } else {
             erf_slow_rhs_pre(level, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
-                             Omega, source, eddyDiffs, diffflux,
+                             Omega, source, eddyDiffs,
                              fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], detJ_cc[level], r0, p0,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
@@ -136,13 +136,13 @@
         {
             erf_slow_rhs_post(level, slow_dt, S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
-                              source, eddyDiffs, diffflux,
+                              source, eddyDiffs,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               detJ_cc[level], detJ_cc_new[level]);
         } else {
             erf_slow_rhs_post(level, slow_dt, S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
-                              source, eddyDiffs, diffflux,
+                              source, eddyDiffs,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               detJ_cc[level], detJ_cc[level]);
         }

@@ -26,7 +26,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         const MultiFab& yvel,
                         const MultiFab& zvel,
                         const MultiFab& source, const MultiFab& eddyDiffs,
-                        std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
                         const amrex::Geometry geom,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
@@ -43,6 +42,12 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
     const bool l_use_terrain    = solverChoice.use_terrain;
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
 
+    const bool l_use_QKE        = solverChoice.use_QKE && solverChoice.advect_QKE;
+    const bool l_use_deardorff  = (solverChoice.les_type == LESType::Deardorff);
+    const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+                                    (solverChoice.les_type        !=       LESType::None) ||
+                                    (solverChoice.pbl_type        !=       PBLType::None) );
+
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
     const Box& domain = geom.Domain();
@@ -55,6 +60,23 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *************************************************************************
+    // Pre-computed quantities
+    // *************************************************************************
+    int nvars                     = S_data[IntVar::cons].nComp();
+    const BoxArray& ba            = S_data[IntVar::cons].boxArray();
+    const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
+
+    MultiFab* dflux_x = nullptr;
+    MultiFab* dflux_y = nullptr;
+    MultiFab* dflux_z = nullptr;
+
+    if (l_use_diff) {
+        dflux_x = new MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
+        dflux_y = new MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+        dflux_z = new MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+    }
+
+    // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
     //
     // Notes -- we fill all the data in ghost cells before calling this so
@@ -65,9 +87,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
     // PBL - only updates vertical eddy viscosity components so horizontal
     //       components come from the LES model or are left as zero.
     // *************************************************************************
-
-    bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
-    bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
 
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
@@ -101,11 +120,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
         const Array4<const Real> & w = zvel.array(mfi);
-
-        // These are temporaries we use to add to the S_rhs for the fluxes
-        const Array4<Real>& diffflux_x = diffflux[0].array(mfi);
-        const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
-        const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
 
         const Array4<Real const>& K_turb = eddyDiffs.const_array(mfi);
 
@@ -152,15 +166,20 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                                cur_prim, cell_rhs, detJ,
                                dxInv, l_spatial_order, l_use_terrain);
 
+        if (l_use_diff && !l_use_terrain) {
+            Array4<Real> diffflux_x = dflux_x->array(mfi);
+            Array4<Real> diffflux_y = dflux_y->array(mfi);
+            Array4<Real> diffflux_z = dflux_z->array(mfi);
 
-        // NOTE: No diffusion for continuity, so n starts at 1.
-        //       KE calls moved inside DiffSrcForState.
-        int n_start = amrex::max(start_comp,RhoTheta_comp);
-        int n_end   = start_comp + num_comp - 1;
-        DiffusionSrcForState(bx, domain, n_start, n_end, u, v, w,
-                             cur_cons, cur_prim, source_fab, cell_rhs,
-                             diffflux_x, diffflux_y, diffflux_z,
-                             dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+            // NOTE: No diffusion for continuity, so n starts at 1.
+            //       KE calls moved inside DiffSrcForState.
+            int n_start = amrex::max(start_comp,RhoTheta_comp);
+            int n_end   = start_comp + num_comp - 1;
+            DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
+                                   cur_cons, cur_prim, source_fab, cell_rhs,
+                                   diffflux_x, diffflux_y, diffflux_z,
+                                   dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+        }
 
         // This updates just the "slow" conserved variables
         {
