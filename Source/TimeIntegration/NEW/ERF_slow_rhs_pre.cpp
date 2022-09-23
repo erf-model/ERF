@@ -16,28 +16,29 @@
 using namespace amrex;
 
 void erf_slow_rhs_pre (int level,
-                       Vector<MultiFab>& S_rhs,
-                       Vector<MultiFab>& S_data,
-                       const MultiFab& S_prim,
-                       Vector<MultiFab>& S_scratch,
-                       const MultiFab& xvel,
-                       const MultiFab& yvel,
-                       const MultiFab& zvel,
-                       std::unique_ptr<MultiFab>& z_t_mf,
-                       MultiFab& Omega,
-                       const MultiFab& source,
-                       const MultiFab& eddyDiffs,
-                       const amrex::Geometry geom,
-                       amrex::InterpFaceRegister* ifr,
-                       const SolverChoice& solverChoice,
-                       std::unique_ptr<ABLMost>& most,
-                       const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                       const Vector<amrex::BCRec> domain_bcs_type,
-                       std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
-                       const MultiFab* r0, const MultiFab* p0,
-                       const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-                       const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
-                       bool ingested_bcs)
+                   Vector<MultiFab>& S_rhs,
+                   Vector<MultiFab>& S_data,
+                   const MultiFab& S_prim,
+                         Vector<MultiFab>& S_scratch,
+                   const MultiFab& xvel,
+                   const MultiFab& yvel,
+                   const MultiFab& zvel,
+                   std::unique_ptr<MultiFab>& z_t_mf,
+                         MultiFab& Omega,
+                   const MultiFab& source,
+                   const MultiFab& eddyDiffs,
+                   std::array< MultiFab, AMREX_SPACEDIM>& diffflux,
+                   const amrex::Geometry geom,
+                         amrex::InterpFaceRegister* ifr,
+                   const SolverChoice& solverChoice,
+                   std::unique_ptr<ABLMost>& most,
+                   const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+                   const Vector<amrex::BCRec> domain_bcs_type,
+                   std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
+                   const MultiFab* r0, const MultiFab* p0,
+                   const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
+                   const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
+                   bool ingested_bcs)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -47,17 +48,17 @@ void erf_slow_rhs_pre (int level,
     int start_comp = 0;
     int   num_comp = 2;
 
-    const int l_spatial_order = solverChoice.spatial_order;
-    const bool l_use_terrain    =  solverChoice.use_terrain;
+    const  int l_spatial_order  = solverChoice.spatial_order;
+    const bool l_use_terrain    = (solverChoice.use_terrain == 1);
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
-    bool      l_use_diff      = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                                  (solverChoice.les_type        !=       LESType::None) ||
-                                  (solverChoice.pbl_type        !=       PBLType::None) );
-    bool      cons_visc       = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
-                                  (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
-    bool      turb_visc       = ( (solverChoice.les_type == LESType::Smagorinsky) ||
-                                  (solverChoice.les_type == LESType::Deardorff  ) ||
-                                  (solverChoice.pbl_type == PBLType::MYNN25     )  );
+    bool       l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+                                    (solverChoice.les_type        !=       LESType::None) ||
+                                    (solverChoice.pbl_type        !=       PBLType::None) );
+    bool       cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
+                                    (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
+    bool       turb_visc        = ( (solverChoice.les_type == LESType::Smagorinsky) ||
+                                    (solverChoice.les_type == LESType::Deardorff  ) ||
+                                    (solverChoice.pbl_type == PBLType::MYNN25     )  );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -92,7 +93,6 @@ void erf_slow_rhs_pre (int level,
     // *************************************************************************
     // Pre-computed quantities
     // *************************************************************************
-    int nvars                     = S_data[IntVar::cons].nComp();
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
 
@@ -109,13 +109,6 @@ void erf_slow_rhs_pre (int level,
     MultiFab* Tau12 = nullptr;
     MultiFab* Tau13 = nullptr;
     MultiFab* Tau23 = nullptr;
-    MultiFab* Tau21 = nullptr;
-    MultiFab* Tau31 = nullptr;
-    MultiFab* Tau32 = nullptr;
-
-    MultiFab* dflux_x = nullptr;
-    MultiFab* dflux_y = nullptr;
-    MultiFab* dflux_z = nullptr;
 
     if (l_use_diff) {
         expr  = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
@@ -125,15 +118,6 @@ void erf_slow_rhs_pre (int level,
         Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
         Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
         Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
-        if (l_use_terrain) {
-            Tau21 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
-            Tau31 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
-            Tau32 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
-        }
-
-        dflux_x = new MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = new MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-        dflux_z = new MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
     }
 
     // *************************************************************************
@@ -226,6 +210,11 @@ void erf_slow_rhs_pre (int level,
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
 
+        // These are temporaries we use to add to the S_rhs for the fluxes
+        const Array4<Real>& diffflux_x = diffflux[0].array(mfi);
+        const Array4<Real>& diffflux_y = diffflux[1].array(mfi);
+        const Array4<Real>& diffflux_z = diffflux[2].array(mfi);
+
         const Array4<const Real>& K_turb = eddyDiffs.const_array(mfi);
 
         const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
@@ -245,6 +234,7 @@ void erf_slow_rhs_pre (int level,
             pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
         });
         } // end profile
+
 
         Array4<Real> er_arr;
         if (expr)
@@ -307,6 +297,8 @@ void erf_slow_rhs_pre (int level,
                             rho_at_face = 0.;
                         omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv) -
                             rho_at_face * z_t(i,j,k);
+                        if (i == 3 and j == 3 and k == 0) amrex::Print() <<" GOING FROM Z_T TO RHO_ZT " << z_t(i,j,k) << " "
+                          << rho_at_face * z_t(i,j,k) << " USING RHO " << rho_at_face << std::endl;
                     });
                 } else {
                     amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -320,7 +312,7 @@ void erf_slow_rhs_pre (int level,
             }
         } // end profile
 
-        // No terrain diffusion
+
         Array4<Real> tau11,tau22,tau33;
         Array4<Real> tau12,tau13,tau23;
         if (Tau11) {
@@ -338,20 +330,9 @@ void erf_slow_rhs_pre (int level,
             tau13 = Array4<Real>{};
             tau23 = Array4<Real>{};
         }
-        // Terrain diffusion
-        Array4<Real> tau21,tau31,tau32;
-        if (Tau21) {
-            tau21 = Tau21->array(mfi);
-            tau31 = Tau31->array(mfi);
-            tau32 = Tau32->array(mfi);
-        } else {
-            tau21 = Array4<Real>{};
-            tau31 = Array4<Real>{};
-            tau32 = Array4<Real>{};
-        }
         {
         BL_PROFILE("slow_rhs_making_tau");
-        if (l_use_diff) {
+        if (l_use_diff && !l_use_terrain) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
@@ -360,40 +341,20 @@ void erf_slow_rhs_pre (int level,
             if (cons_visc)
                 mu_eff += 2.0 * solverChoice.dynamicViscosity;
 
-            if (l_use_terrain) {
-                if (turb_visc) {
-                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
-                                           u, v, w,
-                                           tau11, tau22, tau33,
-                                           tau12, tau13,
-                                           tau21, tau23,
-                                           tau31, tau32,
-                                           er_arr, z_nd, bc_ptr_h, dxInv);
-                } else {
-                    ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                            u, v, w,
-                                            tau11, tau22, tau33,
-                                            tau12, tau13,
-                                            tau21, tau23,
-                                            tau31, tau32,
-                                            er_arr, z_nd, bc_ptr_h, dxInv);
-                }
+            if (turb_visc) {
+                ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                                       u, v, w,
+                                       tau11, tau22, tau33,
+                                       tau12, tau13, tau23,
+                                       er_arr, bc_ptr_h, dxInv);
             } else {
-                if (turb_visc) {
-                    ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
-                                           u, v, w,
-                                           tau11, tau22, tau33,
-                                           tau12, tau13, tau23,
-                                           er_arr, bc_ptr_h, dxInv);
-                } else {
-                    ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                            u, v, w,
-                                            tau11, tau22, tau33,
-                                            tau12, tau13, tau23,
-                                            er_arr, bc_ptr_h, dxInv);
-                }
-            } // l_use_terrain
-        } // l_use_diff
+                ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                        u, v, w,
+                                        tau11, tau22, tau33,
+                                        tau12, tau13, tau23,
+                                        er_arr, bc_ptr_h, dxInv);
+            }
+        }
         } // profile
 
         // **************************************************************************
@@ -407,21 +368,14 @@ void erf_slow_rhs_pre (int level,
                                    cell_prim, z_nd, detJ,
                                    dxInv, l_spatial_order, l_use_terrain);
 
-        if (l_use_diff && !l_use_terrain) {
-            Array4<Real> diffflux_x = dflux_x->array(mfi);
-            Array4<Real> diffflux_y = dflux_y->array(mfi);
-            Array4<Real> diffflux_z = dflux_z->array(mfi);
-
-            // NOTE: No diffusion for continuity, so n starts at 1.
-            //       KE calls moved inside DiffSrcForState.
-            int n_start = amrex::max(start_comp,RhoTheta_comp);
-            int n_end   = start_comp + num_comp - 1;
-            DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
-                                   cell_data, cell_prim, source_fab, cell_rhs,
-                                   diffflux_x, diffflux_y, diffflux_z,
-                                   dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
-        }
-
+        // NOTE: No diffusion for continuity, so n starts at 1.
+        //       KE calls moved inside DiffSrcForState.
+        int n_start = amrex::max(start_comp,RhoTheta_comp);
+        int n_end   = start_comp + num_comp - 1;
+        DiffusionSrcForState(bx, domain, n_start, n_end, u, v, w,
+                             cell_data, cell_prim, source_fab, cell_rhs,
+                             diffflux_x, diffflux_y, diffflux_z,
+                             dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
 
         // Add Rayleigh damping
         if (solverChoice.use_rayleigh_damping) {
@@ -456,13 +410,9 @@ void erf_slow_rhs_pre (int level,
 
         if (l_use_diff) {
             if (l_use_terrain) {
-                DiffusionSrcForMom_T(tbx, tby, tbz,
-                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                     tau11, tau22, tau33,
-                                     tau12, tau13,
-                                     tau21, tau23,
-                                     tau31, tau32,
-                                     cell_data, detJ, solverChoice, dxInv);
+                DiffusionSrcForMom_T(tbx, tby, tbz, domain, rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                     u, v, w, K_turb, cell_data, er_arr,
+                                     solverChoice, bc_ptr, z_nd, detJ, dxInv);
             } else {
                 DiffusionSrcForMom_N(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
@@ -471,6 +421,7 @@ void erf_slow_rhs_pre (int level,
                                      cell_data, solverChoice, dxInv);
             }
         }
+
         {
         BL_PROFILE("slow_rhs_pre_xmom");
         amrex::ParallelFor(tbx,
@@ -529,11 +480,6 @@ void erf_slow_rhs_pre (int level,
                 Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
                 rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
             }
-
-            if (l_use_terrain && l_moving_terrain) {
-                Real dJ_xface = 0.5 * (detJ(i,j,k) + detJ(i-1,j,k));
-                rho_u_rhs(i, j, k) *= dJ_xface;
-            }
         });
         } // end profile
         {
@@ -590,11 +536,6 @@ void erf_slow_rhs_pre (int level,
                 {
                     Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
                     rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
-                }
-
-                if (l_use_terrain && l_moving_terrain) {
-                     Real dJ_yface = 0.5 * (detJ(i,j,k) + detJ(i,j-1,k));
-                     rho_v_rhs(i, j, k) *= dJ_yface;
                 }
         });
         } // end profile
@@ -653,31 +594,7 @@ void erf_slow_rhs_pre (int level,
                 {
                     rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
                 }
-
-                if (l_use_terrain && l_moving_terrain) {
-                     Real dJ_zface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
-                     rho_w_rhs(i, j, k) *= dJ_zface;
-                }
         });
         } // end profile
     } // mfi
-
-    if (l_use_diff) {
-        delete expr;
-        delete Tau11;
-        delete Tau22;
-        delete Tau33;
-        delete Tau12;
-        delete Tau13;
-        delete Tau23;
-        if (l_use_terrain) {
-            delete Tau21;
-            delete Tau31;
-            delete Tau32;
-        }
-
-        delete dflux_x;
-        delete dflux_y;
-        delete dflux_z;
-    }
 }

@@ -230,4 +230,10 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         });
         } // end profile
     } // mfi
+
+    if (l_use_diff) {
+        delete dflux_x;
+        delete dflux_y;
+        delete dflux_z;
+    }
 }

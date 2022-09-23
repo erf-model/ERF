@@ -116,6 +116,11 @@
         }
 
         // Moving terrain
+        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
+        {
+            delete z_t_pert;
+        }
+
         Real time_mt = new_time - 0.5*dtau;
 
         // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
