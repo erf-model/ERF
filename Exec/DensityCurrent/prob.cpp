@@ -284,10 +284,17 @@ init_custom_prob(
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-  const Real& rho_sfc   = p_0 / (R_d*parms.T_0);
-  const Real& thetabar  = parms.T_0;
-  const Real& dz        = geomdata.CellSize()[2];
-  const Real& prob_lo_z = geomdata.ProbLo()[2];
+  const Real rho_sfc   = p_0 / (R_d*parms.T_0);
+  const Real thetabar  = parms.T_0;
+  const Real dz        = geomdata.CellSize()[2];
+  const Real prob_lo_z = geomdata.ProbLo()[2];
+
+  const Real l_x_r = parms.x_r;
+  const Real l_z_r = parms.z_r;
+  const Real l_x_c = parms.x_c;
+  const Real l_z_c = parms.z_c;
+  const Real l_c_p = parms.C_p;
+  const Real l_Tpt = parms.T_pert;
 
   // These are at cell centers (unstaggered)
   Vector<Real> h_r(khi+1);
@@ -317,7 +324,7 @@ init_custom_prob(
          r_hse(i,j,khi+1) = r_hse(i,j,khi);
       });
 
-      amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo         = geomdata.ProbLo();
@@ -330,19 +337,19 @@ init_custom_prob(
         const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
         Real L = std::sqrt(
-            std::pow((x - parms.x_c)/parms.x_r, 2) +
-            std::pow((z - parms.z_c)/parms.z_r, 2)
+            std::pow((x - l_x_c)/l_x_r, 2) +
+            std::pow((z - l_z_c)/l_z_r, 2)
         );
         Real dT;
         if (L > 1.0) {
             dT = 0.0;
         }
         else {
-            dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
+            dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
         }
 
         // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms.C_p);
+        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/l_c_p);
 
         // This version perturbs rho but not p
         state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_hse(i,j,k));
@@ -366,7 +373,14 @@ init_custom_prob(
       Real* r = d_r.data();
       Real* p = d_p.data();
 
-      amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+      const Real l_x_r = parms.x_r;
+      const Real l_z_r = parms.z_r;
+      const Real l_x_c = parms.x_c;
+      const Real l_z_c = parms.z_c;
+      const Real l_c_p = parms.C_p;
+      const Real l_Tpt = parms.T_pert;
+
+      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo         = geomdata.ProbLo();
@@ -379,19 +393,19 @@ init_custom_prob(
         const Real Tbar_hse = p[k] / (R_d * r[k]);
 
         Real L = std::sqrt(
-            std::pow((x - parms.x_c)/parms.x_r, 2) +
-            std::pow((z - parms.z_c)/parms.z_r, 2)
+            std::pow((x - l_x_c)/l_x_r, 2) +
+            std::pow((z - l_z_c)/l_z_r, 2)
         );
         Real dT;
         if (L > 1.0) {
             dT = 0.0;
         }
         else {
-            dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
+            dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
         }
 
         // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/parms.C_p);
+        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/l_c_p);
 
         // This version perturbs rho but not p
         state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p[k]);
@@ -407,12 +421,14 @@ init_custom_prob(
       });
   }
 
+  const Real u0 = parms.U_0;
+
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      x_vel(i, j, k) = parms.U_0;
+      x_vel(i, j, k) = u0;
   });
 
   // Construct a box that is on y-faces

@@ -58,9 +58,6 @@
                     zp_t_arr(i,j,k) -= z_t_arr(i,j,k);
                 });
             } // mfi
-        } // moving terrain
-
-        if (solverChoice.use_terrain && solverChoice.terrain_type == 1) {
 
             // We have to call this each step since it depends on the substep time now
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
