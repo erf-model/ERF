@@ -390,7 +390,7 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         {
         BL_PROFILE("fast_T_making_omega");
         amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = (k == 0) ? 0. : 
+            omega_arr(i,j,k) = (k == 0) ? 0. :
                OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd_old,dxInv) - zp_t_arr(i,j,k);
         });
         } // end profile
@@ -432,7 +432,7 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
             // line 2 last two terms (order dtau)
             Real R0_tmp  = coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
                        - halfg   * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
-            R0_tmp *= dJ_old_kface; 
+            R0_tmp *= dJ_old_kface;
 
             // line 3 residuals (order dtau^2) 1.0 <-> beta_2
             Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
@@ -606,7 +606,7 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
               // when we multiply old and new by detJ_old and detJ_new , respectively
               // We have already scaled the slow source term to have the extra factor of dJ
               Real fast_rhs_rhotheta = -( temp_rhs_arr(i,j,k,1) + 0.5 *
-                                        ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) 
+                                        ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
                                         - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi );
               Real temp_rth = detJ_old(i,j,k) * cur_cons(i,j,k,1) +
                               dtau * ( slow_rhs_cons(i,j,k,1) + fast_rhs_rhotheta );
