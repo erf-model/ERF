@@ -83,7 +83,8 @@
                     ParallelFor(tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         if (k == 0) {
-                            ssum[IntVar::zmom](i,j,k) = WFromOmega(i,j,k,z_t_arr(i,j,k),
+                            Real rho_on_face = 0.5 * ( sold[IntVar::cons](i,j,k,Rho_comp) +sold[IntVar::cons](i,j,k-1,Rho_comp) );
+                            ssum[IntVar::zmom](i,j,k) = WFromOmega(i,j,k,rho_on_face*z_t_arr(i,j,k),
                                                                    ssum[IntVar::xmom],ssum[IntVar::ymom],z_nd_new,dxInv);
                         } else {
                             Real dJ_old_zface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
