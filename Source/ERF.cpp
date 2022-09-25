@@ -367,8 +367,7 @@ ERF::InitData ()
             if (init_type != "real") {
                 for (int lev = 0; lev <= finest_level; lev++)
                 {
-                    Real dummy_dt = 1.0; // This value won't matter since time = old_time
-                    init_custom_terrain(geom[lev],*z_phys_nd[lev],time,time+dummy_dt,time);
+                    init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
                     init_terrain_grid(geom[lev],*z_phys_nd[lev]);
                     make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
                 }
@@ -487,10 +486,7 @@ ERF::InitData ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        // Moving terrain
-        Real time_mt = t_new[lev] - 0.5*dt[lev];
-
-        FillPatch(lev, t_new[lev], time_mt, dt[lev], lev_new);
+        FillPatch(lev, t_new[lev], lev_new);
 
         // Copy from new into old just in case
         int ngs   = lev_new[Vars::cons].nGrow();
@@ -544,12 +540,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
-    // Moving terrain
-    Real time_mt = time - 0.5*dt[lev];
+    FillCoarsePatchAllVars(lev, time, vars_new[lev]);
 
-    FillCoarsePatchAllVars(lev, time, time_mt, dt[lev], vars_new[lev]);
-
-    initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
+    initialize_integrator(lev, lev_new[Vars::cons], lev_new[Vars::xvel]);
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -576,12 +569,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     temp_lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     temp_lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
-    // Moving terrain
-    Real time_mt = time - 0.5*dt[lev];
-
     // This will fill the temporary MultiFabs with data from vars_new
-    FillPatch(lev, time, time_mt, dt[lev], temp_lev_new);
-    FillPatch(lev, time, time_mt, dt[lev], temp_lev_old);
+    FillPatch(lev, time, temp_lev_new);
+    FillPatch(lev, time, temp_lev_old);
 
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         std::swap(temp_lev_new[var_idx], vars_new[lev][var_idx]);

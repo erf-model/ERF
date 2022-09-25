@@ -5,12 +5,12 @@ inputs file: ../../Tests/test_files/MovingTerrain_sub/MovingTerrain_sub.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.00240399
+CPU time used since start of simulation (CPU-hours): 0.00247495
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Sat Sep 24 15:19:08 2022
+output data / time: Sat Sep 24 16:06:01 2022
 output dir:         /home/almgren/GitCode/ERF/Exec/MovingTerrain
 
 

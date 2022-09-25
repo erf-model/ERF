@@ -306,7 +306,7 @@ Problem Location: `Exec/ScalarAdvDiff`_
 
 
 Isentropic Vortex: Stationary
----------------------------------
+-----------------------------
 This tests advection of an isentropic vortex with triply periodic boundaries.
 
 Test Location: `Tests/test_files/IsentropicVortexStationary`_
@@ -318,7 +318,7 @@ Problem Location: `Exec/IsentropicVortex`_
 .. _`Exec/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
 
 Isentropic Vortex: Advecting
----------------------------
+----------------------------
 This tests advection of an isentropic vortex with triply periodic boundaries.
 
 Test Location: `Tests/test_files/IsentropicVortexAdvecting`_

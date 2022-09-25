@@ -144,6 +144,7 @@ communicates data back to the coarse mesh in two ways:
 - The fine cell-centered data is conservatively averaged onto the coarse mesh covered by fine mesh.
 
 - A "reflux" operation is performed for all cell-centered data.
+
 Because the normal momentum at the fine level is itself interpolated from the coarse, the
 difference between fluxes -- along the coarse-fine interfaces -- used to update the coarse data and fluxes
 used to update the fine data is due to the difference in the averaging of the advected quantity to the face

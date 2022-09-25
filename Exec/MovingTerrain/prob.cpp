@@ -192,7 +192,7 @@ init_custom_prob(
   Real g           = 9.8;
   Real omega       = std::sqrt(g * kp);
 
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     const auto prob_lo  = geomdata.ProbLo();
     const auto dx       = geomdata.CellSize();
@@ -220,7 +220,7 @@ init_custom_prob(
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const auto prob_lo  = geomdata.ProbLo();
       const auto dx       = geomdata.CellSize();
@@ -283,8 +283,6 @@ amrex_probinit(
 void
 init_custom_terrain (const Geometry& geom,
                            MultiFab& z_phys_nd,
-                     const Real& old_time,
-                     const Real& new_time,
                      const Real& time)
 {
     // Domain cell size and real bounds

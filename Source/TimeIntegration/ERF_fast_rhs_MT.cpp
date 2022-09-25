@@ -58,9 +58,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
     const auto& ba = S_stage_data[IntVar::cons].boxArray();
     const auto& dm = S_stage_data[IntVar::cons].DistributionMap();
 
-    MultiFab Delta_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
-    MultiFab Delta_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
-    MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,0));
     MultiFab Delta_rho  (            ba                , dm, 1, 1);
     MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
 
@@ -103,8 +100,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
 
     FArrayBox RHS_fab;
     FArrayBox soln_fab;
-
-    FArrayBox dhdtfab;
 
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -167,9 +162,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
-        const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
-        const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
-        const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
 
@@ -212,7 +204,7 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
-        // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
+        // Create old_drho/theta  = W'', Rho'', Theta'' in the docs
         // Note that we do the Copy and Subtract including one ghost cell
         //    so that we don't have to fill ghost cells of the new MultiFabs
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
@@ -232,20 +224,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                 scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
             });
         }
-        } // end profile
-
-        {
-        BL_PROFILE("fast_rhs_copies_1");
-        amrex::ParallelFor(gtbx, gtby, gtbz,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
-        });
         } // end profile
 
         {
@@ -391,7 +369,8 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         BL_PROFILE("fast_T_making_omega");
         amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = (k == 0) ? 0. :
-               OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd_old,dxInv) - zp_t_arr(i,j,k);
+               (OmegaFromW(i,j,k, prev_zmom(i,j,k), prev_xmom, prev_ymom,z_nd_old,dxInv)
+               -OmegaFromW(i,j,k,stage_zmom(i,j,k),stage_xmom,stage_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
         });
         } // end profile
         // *********************************************************************
@@ -454,7 +433,7 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                  coeff_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
-            RHS_a(i,j,k) = dJ_old_kface * old_drho_w(i,j,k) + dtau *
+            RHS_a(i,j,k) = dJ_old_kface * (prev_zmom(i,j,k) - stage_zmom(i,j,k)) + dtau *
                       (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp );
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
@@ -470,12 +449,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
 
         {
         BL_PROFILE("fast_rhs_b2d_loop_t");
-        dhdtfab.resize(b2d,1);
-        auto const& dhdt_arr = dhdtfab.array();
-        Elixir dhdt_eli = dhdtfab.elixir();
-
-        Real time_mt  = time - 0.5*dtau;
-        fill_dhdt(dhdt_arr,b2d,dx,time_mt,dtau);
 
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)

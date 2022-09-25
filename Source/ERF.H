@@ -304,7 +304,6 @@ private:
     // compute a new multifab by copying in phi from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     void FillPatch (int lev, amrex::Real time,
-                    amrex::Real time_mt, amrex::Real delta_t,
                     amrex::Vector<amrex::MultiFab>& mf);
 
     // compute new multifabs by copying in data from valid region and filling ghost cells
@@ -316,7 +315,6 @@ private:
     // NOTE: mfs should always contain {cons, xvel, yvel, zvel} multifab data.
     // if which_var is supplied, then only fill the specified variable in the vector of mfs
     void FillIntermediatePatch (int lev, amrex::Real time,
-                                amrex::Real time_mt, amrex::Real delta_t,
                                 amrex::Vector<std::reference_wrapper<amrex::MultiFab> > mfs,
                                 int ng_cons, int ng_vel, bool cons_only, int scomp_cons, int ncomp_cons,
                                 bool allow_most_bcs = true);
@@ -324,13 +322,11 @@ private:
     // fill an entire multifab by interpolating from the coarser level
     // this comes into play when a new level of refinement appears
     void FillCoarsePatch (int lev, amrex::Real time,
-                          amrex::Real time_mt, amrex::Real delta_t,
                           amrex::MultiFab& mf, int icomp, int ncomp, int var_idx);
 
     // fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
     void FillCoarsePatchAllVars (int lev, amrex::Real time,
-                                 amrex::Real time_mt, amrex::Real delta_t,
                                  amrex::Vector<amrex::MultiFab>& vmf);
 
     // utility to copy in data from old and/or new state into another multifab

@@ -629,7 +629,7 @@ List of Parameters
 +=============================+===================+====================+============+
 | **erf.init_type**           | Initialization    | “custom”,          | “*custom*” |
 |                             | type              | “ideal”,           |            |
-|                             |                   | “real”,            |            |
+|                             |                   | "real",            |            |
 |                             |                   |"input_sounding"    |            |
 +-----------------------------+-------------------+--------------------+------------+
 | **erf.nc_init_file**        | NetCDF file with  |  String            | NONE       |

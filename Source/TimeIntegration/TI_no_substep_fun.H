@@ -121,12 +121,9 @@
             }
         }
 
-        // Moving terrain
-        Real time_mt = time_for_fp - 0.5*slow_dt;
-
         // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
         int ng_cons    = 1;
         int ng_vel     = 1;
         bool fast_only = true;
-        apply_bcs(S_sum, time_for_fp, time_mt, slow_dt, ng_cons, ng_vel, fast_only);
+        apply_bcs(S_sum, time_for_fp, ng_cons, ng_vel, fast_only);
     };

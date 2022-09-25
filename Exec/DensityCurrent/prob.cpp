@@ -373,13 +373,6 @@ init_custom_prob(
       Real* r = d_r.data();
       Real* p = d_p.data();
 
-      const Real l_x_r = parms.x_r;
-      const Real l_z_r = parms.z_r;
-      const Real l_x_c = parms.x_c;
-      const Real l_z_c = parms.z_c;
-      const Real l_c_p = parms.C_p;
-      const Real l_Tpt = parms.T_pert;
-
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
@@ -455,8 +448,6 @@ init_custom_prob(
 void
 init_custom_terrain (const Geometry& /*geom*/,
                            MultiFab& z_phys_nd,
-                     const Real& /*old_time*/,
-                     const Real& /*new_time*/,
                      const Real& /*time*/)
 {
     // Number of ghost cells

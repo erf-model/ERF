@@ -55,5 +55,5 @@ with vertical grid stretching permitted.
 **Initial conditions**: ERF has an additional mode of "custom" initialization in which
 the user writes the initialization routine.
 
-ERF does **not* have the capability for global simulation
+ERF does *not* have the capability for global simulation
 
