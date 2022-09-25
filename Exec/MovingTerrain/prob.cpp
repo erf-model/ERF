@@ -192,7 +192,7 @@ init_custom_prob(
   Real g           = 9.8;
   Real omega       = std::sqrt(g * kp);
 
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     const auto prob_lo  = geomdata.ProbLo();
     const auto dx       = geomdata.CellSize();
@@ -220,7 +220,7 @@ init_custom_prob(
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const auto prob_lo  = geomdata.ProbLo();
       const auto dx       = geomdata.CellSize();
@@ -281,75 +281,10 @@ amrex_probinit(
 }
 
 void
-init_linear_terrain (const Geometry& geom,
-                           MultiFab& z_phys_nd,
-                     const Real& old_time,
-                     const Real& new_time,
-                     const Real& time)
-{
-    // Domain cell size and real bounds
-    auto dx = geom.CellSizeArray();
-
-    // Domain valid box (z_nd is nodal)
-    const amrex::Box& domain = geom.Domain();
-    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    int domlo_z = domain.smallEnd(2);
-
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
-
-    // Populate bottom plane
-    int k0 = domlo_z;
-
-    Real Ampl        = parms.Ampl;
-    Real wavelength  = 100.;
-    Real kp          = 2. * 3.1415926535 / wavelength;
-    Real g           = 9.8;
-    Real omega       = std::sqrt(g * kp);
-
-    Real dt = new_time - old_time;
-
-    Real fac_old = (new_time - time) / dt;
-    Real fac_new = (time - old_time) / dt;
-
-    for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
-
-        amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-
-            // Clip indices for ghost-cells
-            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-
-            // Location of nodes
-            Real x = ii  * dx[0];
-
-            // Wave heigght
-            Real height_new = Ampl * std::sin(kp * x - omega * new_time);
-            Real height_old = Ampl * std::sin(kp * x - omega * old_time);
-
-            Real height = fac_old * height_old + fac_new * height_new;
-
-            // Populate terrain height
-            z_arr(i,j,k0) = height;
-        });
-    }
-}
-
-void
 init_custom_terrain (const Geometry& geom,
                            MultiFab& z_phys_nd,
-                     const Real& old_time,
-                     const Real& new_time,
                      const Real& time)
 {
-#if 0
-     init_linear_terrain(geom,z_phys_nd,old_time,new_time,time);
-#else
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
 
@@ -393,7 +328,6 @@ init_custom_terrain (const Geometry& geom,
             z_arr(i,j,k0) = height;
         });
     }
-#endif
 }
 
 AMREX_GPU_DEVICE

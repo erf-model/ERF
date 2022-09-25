@@ -160,8 +160,6 @@ init_custom_prob(
 void
 init_custom_terrain (const Geometry& /*geom*/,
                            MultiFab& z_phys_nd,
-                     const Real& /*old_time*/,
-                     const Real& /*new_time*/,
                      const Real& /*time*/)
 {
     // Number of ghost cells

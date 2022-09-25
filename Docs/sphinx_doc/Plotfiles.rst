@@ -3,9 +3,9 @@
 
 .. _sec:Plotfiles:
 
-******
+*********
 Plotfiles
-******
+*********
 .. toctree::
    :maxdepth: 1
 

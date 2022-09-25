@@ -196,11 +196,11 @@ void make_fast_coeffs (int level,MultiFab& fast_coeffs,
                 Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
                 // LHS for tri-diagonal system
-                Real D = dtau * dtau * beta_2 * beta_2 * dzi / detJ_on_kface;
+                Real D = dtau * dtau * beta_2 * beta_2 * dzi;
                 coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
                 coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
 
-                coeffB_a(i,j,k) = 1.0 + D * (coeff_Q - coeff_P) * theta_t_mid;
+                coeffB_a(i,j,k) = detJ_on_kface + D * (coeff_Q - coeff_P) * theta_t_mid;
             });
 
         } else {

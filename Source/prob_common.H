@@ -30,8 +30,6 @@ init_custom_prob (
 void
 init_custom_terrain (const amrex::Geometry& geom,
                            amrex::MultiFab& z_phys_nd,
-                     const amrex::Real& old_time,
-                     const amrex::Real& new_time,
                      const amrex::Real& time);
 
 void

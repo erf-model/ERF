@@ -140,6 +140,7 @@ add_test_r(DensityCurrent_detJ2              "DensityCurrent/density_current" "p
 add_test_r(DensityCurrent_detJ2_nosub        "DensityCurrent/density_current" "plt00020")
 add_test_r(DensityCurrent_detJ2_MT           "DensityCurrent/density_current" "plt00010")
 add_test_r(MovingTerrain_nosub               "MovingTerrain/moving_terrain"   "plt00020")
+add_test_r(MovingTerrain_sub                 "MovingTerrain/moving_terrain"   "plt00010")
 
 #=============================================================================
 # Performance tests

@@ -25,19 +25,18 @@
             // The "src" metric terms correspond to the time at which we are evaluating the source here,
             // aka old_stage_time
 
-            if (verbose) Print() << "Interpolating between " << old_time << " and " << new_time << std::endl;
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd[level],old_time,new_time,old_time);           // Defines h(i,j,k=0,t)
+            init_custom_terrain(fine_geom,*z_phys_nd[level],old_time);           // Defines h(i,j,k=0,t)
             init_terrain_grid  (fine_geom,*z_phys_nd[level]);                                      // Defines z_phys for all i,j,k
             make_metrics       (fine_geom,*z_phys_nd[level], *z_phys_cc[level], *detJ_cc[level]);  // Defines detJ
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_time,new_time,old_stage_time);
+            init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_src[level]);
             make_metrics       (fine_geom,*z_phys_nd_src[level], *z_phys_cc_src[level], *detJ_cc_src[level]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_new[level],old_time,new_time,new_stage_time);
+            init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);
             make_metrics       (fine_geom,*z_phys_nd_new[level], *z_phys_cc_new[level], *detJ_cc_new[level]);
 
@@ -97,11 +96,8 @@
                                const Real time_for_fp, const Real delta_t,
                                int ng_cons, int ng_vel)
     {
-        // Moving terrain
-        Real time_mt = time_for_fp - 0.5*delta_t;
-
         bool fast_only = false;
-        apply_bcs(S_data, time_for_fp, time_mt, delta_t, ng_cons, ng_vel, fast_only);
+        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only);
     };
 
     // *************************************************************

@@ -388,7 +388,8 @@ void erf_fast_rhs_T (int step, int level, const Real /*time*/,
         //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            Real inv_detJ_on_kface = 2.0 / (detJ(i,j,k) + detJ(i,j,k-1));
+            Real     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+            Real inv_detJ_on_kface = 1.0 / detJ_on_kface;
 
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);
@@ -405,33 +406,34 @@ void erf_fast_rhs_T (int step, int level, const Real /*time*/,
             Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
             // line 2 last two terms (order dtau)
-            Real R0_tmp  = coeff_P * old_drho_theta(i,j,k) + coeff_Q * old_drho_theta(i,j,k-1)
-                       - halfg   * ( old_drho(i,j,k) + old_drho(i,j,k-1) );
+            Real R0_tmp  = (-halfg * old_drho(i,j,k  ) + coeff_P * old_drho_theta(i,j,k  )) * detJ(i,j,k  )
+                         + (-halfg * old_drho(i,j,k-1) + coeff_Q * old_drho_theta(i,j,k-1)) * detJ(i,j,k-1);
 
             // line 3 residuals (order dtau^2) 1.0 <-> beta_2
-            Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp) +
-                                      slow_rhs_cons(i,j,k-1,Rho_comp) )
-                      +   ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) +
-                            coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) );
+            Real R1_tmp = - halfg * ( slow_rhs_cons(i,j,k  ,Rho_comp     ) * detJ(i,j,k  ) +
+                                      slow_rhs_cons(i,j,k-1,Rho_comp     ) * detJ(i,j,k-1) )
+                        + ( coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp) * detJ(i,j,k  ) +
+                            coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp) * detJ(i,j,k-1) );
 
             Real Omega_kp1 = omega_arr(i,j,k+1);
             Real Omega_k   = omega_arr(i,j,k  );
             Real Omega_km1 = omega_arr(i,j,k-1);
 
             // consolidate lines 4&5 (order dtau^2)
-            R1_tmp += ( halfg * inv_detJ_on_kface ) *
+            R1_tmp += ( halfg ) *
                       ( beta_1 * dzi * (Omega_kp1 - Omega_km1) + temp_rhs_arr(i,j,k,Rho_comp) + temp_rhs_arr(i,j,k-1,Rho_comp));
 
             // consolidate lines 6&7 (order dtau^2)
-            R1_tmp += -inv_detJ_on_kface * (
+            R1_tmp += -(
                  coeff_P * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) ) +
                  coeff_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
-            RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
+            RHS_a(i,j,k) = detJ_on_kface * old_drho_w(i,j,k) + dtau * (detJ_on_kface * slow_rhs_rho_w(i,j,k) + R0_tmp
+                                                                     + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
-            RHS_a(i,j,k) += OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
+            RHS_a(i,j,k) += detJ_on_kface * OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
         });
         } // end profile
 

@@ -22,13 +22,13 @@
 
             // Make "old" fast geom -- store in z_phys_nd for convenience
             if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd[level],old_time,new_time,old_substep_time);
+            init_custom_terrain(fine_geom,*z_phys_nd[level],old_substep_time);
             init_terrain_grid  (fine_geom,*z_phys_nd[level]);
             make_metrics       (fine_geom,*z_phys_nd[level], *z_phys_cc[level], *detJ_cc[level]);
 
             // Make "new" fast geom
             if (verbose) Print() << "Making geometry for end of substep time :" << new_substep_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_new[level],old_time,new_time,new_substep_time);
+            init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_substep_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);
             make_metrics       (fine_geom,*z_phys_nd_new[level], *z_phys_cc_new[level], *detJ_cc_new[level]);
 
@@ -58,9 +58,6 @@
                     zp_t_arr(i,j,k) -= z_t_arr(i,j,k);
                 });
             } // mfi
-        } // moving terrain
-
-        if (solverChoice.use_terrain && solverChoice.terrain_type == 1) {
 
             // We have to call this each step since it depends on the substep time now
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
@@ -121,12 +118,10 @@
             delete z_t_pert;
         }
 
-        Real time_mt = new_time - 0.5*dtau;
-
         // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
         int ng_cons    = 1;
         int ng_vel     = 1;
-        apply_bcs(S_data, new_time, time_mt, dtau, ng_cons, ng_vel, true);
+        apply_bcs(S_data, new_time, ng_cons, ng_vel, true);
 
         MultiFab::Copy(S_scratch[IntVar::cons], S_data[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1, ng_cons);
     };
