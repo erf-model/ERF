@@ -130,10 +130,3 @@ amrex_probinit(
   pp.query("v_0", parms.v_0);
   pp.query("w_0", parms.w_0);
 }
-
-void
-fill_dhdt(Array4<Real> const& /*dhdt_arr*/, const Box& /*bx*/,
-          const GpuArray<Real,AMREX_SPACEDIM> /*dx*/,
-          const Real /*time_mt*/, const Real /*delta_t*/)
-{
-}

@@ -219,10 +219,3 @@ amrex_probinit(
                  << std::endl;
 
 }
-
-void
-fill_dhdt(Array4<Real> const& /*dhdt_arr*/, const Box& /*bx*/,
-          const GpuArray<Real,AMREX_SPACEDIM> /*dx*/,
-          const Real /*time_mt*/, const Real /*delta_t*/)
-{
-}
