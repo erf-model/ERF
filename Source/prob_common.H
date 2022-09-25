@@ -38,10 +38,4 @@ erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
                    amrex::Vector<amrex::Real>& vbar,
                    amrex::Vector<amrex::Real>& thetabar,
                    amrex::Geometry      const& geom);
-
-void
-fill_dhdt ( amrex::Array4<amrex::Real      > const& dhdt,
-            const amrex::Box& bx,
-            const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dx,
-            const amrex::Real time_mt, const amrex::Real delta_t);
 #endif

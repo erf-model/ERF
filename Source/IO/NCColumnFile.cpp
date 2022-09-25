@@ -102,11 +102,8 @@ ERF::writeToNCColumnFile(const int lev,
   const amrex::Box target_box(IntVect{iloc, jloc, kstart},
                               IntVect{iloc+1, jloc+1, kend});
 
-  // Moving terrain
-  Real time_mt = t_new[lev] - 0.5*dt[lev];
-
   //  Need data in one grow cell for interpolation
-  FillPatch(lev, t_new[lev], time_mt, dt[lev], vars_new[lev]);
+  FillPatch(lev, t_new[lev], vars_new[lev]);
 
   MultiFab& S_new = vars_new[lev][Vars::cons];
   MultiFab& U_new = vars_new[lev][Vars::xvel];

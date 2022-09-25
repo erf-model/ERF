@@ -152,10 +152,3 @@ amrex_probinit(
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
 }
-
-void
-fill_dhdt(Array4<Real> const& /*dhdt_arr*/, const Box& /*bx*/,
-          const GpuArray<Real,AMREX_SPACEDIM> /*dx*/,
-          const Real /*time_mt*/, const Real /*delta_t*/)
-{
-}
