@@ -45,9 +45,7 @@ To run the test suite, run ``ctest`` in the ``Build`` directory. CTest will run 
 Useful options for CTest are ``-VV`` which runs in a verbose mode where the output of each test can be seen. ``-R``
 where a regex string can be used to run specific sets of tests. ``-j`` where CTest will bin pack and run tests in
 parallel based on how many processes each test is specified to use and fit them into the amount of cores available
-on the machine. ``-L`` where the subset of tests containing a particular label will be run.
-(We note that using ``-L 'regression'`` will run all the tests that do not use SUNDIALS.)
-Output for the last set of tests run is available in the ``Build`` directory in ``Tests/Temporary/LastTest.log``.
+on the machine. ``-L`` where the subset of tests containing a particular label will be run. Output for the last set of tests run is available in the ``Build`` directory in ``Tests/Temporary/LastTest.log``.
 
 Adding Tests
 ~~~~~~~~~~~~

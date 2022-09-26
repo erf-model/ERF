@@ -133,7 +133,7 @@ Then build ERF as, for example (specify your own path to the AMReX submodule in 
 
 ::
 
-   make -j 4 COMP=gnu USE_MPI=TRUE USE_OMP=FALSE USE_CUDA=TRUE AMREX_HOME=/global/u2/d/dwillcox/dev-erf/ERF/Submodules/AMReX USE_SUNDIALS=FALSE
+   make -j 4 COMP=gnu USE_MPI=TRUE USE_OMP=FALSE USE_CUDA=TRUE AMREX_HOME=/global/u2/d/dwillcox/dev-erf/ERF/Submodules/AMReX
 
 Finally, you can prepare your SLURM job script, using the following as a guide:
 

@@ -257,7 +257,7 @@ The base temporal discretization strategy for ERF will be an explicit third-orde
 
 4. Numerical Solution Methods
 -----------------------------
-ERF should be formulated to support integration of a variety of numerical solution methods for different applications, and to incorporate future techniques that can provide superior performance or other advantages. The team will prioritize use of solvers available within the SUNDIALS and PETSc libraries that have already been incorporated into the mesh refinement framework that is also being used for ERF.
+ERF should be formulated to support integration of a variety of numerical solution methods for different applications, and to incorporate future techniques that can provide superior performance or other advantages. The team will prioritize use of solvers available within the PETSc libraries that have already been incorporated into the mesh refinement framework that is also being used for ERF.
 
 5. Mesh Refinement
 ------------------
