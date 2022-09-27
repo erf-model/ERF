@@ -106,8 +106,10 @@ void erf_fast_rhs_MT (int step, int level, const amrex::Real time,
                       const amrex::MultiFab* z_t_pert,
                       std::unique_ptr<amrex::MultiFab>& z_phys_old,
                       std::unique_ptr<amrex::MultiFab>& z_phys_new,
+                      std::unique_ptr<amrex::MultiFab>& z_phys_src,
                       std::unique_ptr<amrex::MultiFab>& dJ_old,
                       std::unique_ptr<amrex::MultiFab>& dJ_new,
+                      std::unique_ptr<amrex::MultiFab>& dJ_src,
                       const amrex::Real fast_dt, const amrex::Real invfac,
                       bool ingested_bcs);
 

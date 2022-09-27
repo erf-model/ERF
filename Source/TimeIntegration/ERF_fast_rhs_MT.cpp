@@ -15,11 +15,11 @@ using namespace amrex;
 void erf_fast_rhs_MT (int step, int level, const Real time,
                       Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
                       const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
-                      Vector<MultiFab>& S_stage_data,                // S_bar = S^n, S^* or S^**
+                      Vector<MultiFab>& S_stage_data,                // at last RK stage: S^n, S^* or S^**
                       const MultiFab& S_stage_prim,                  // Primitive version of S_stage_data[IntVar::cons]
-                      const MultiFab& pi_stage,                      // Exner function evaluated at last stage
+                      const MultiFab& pi_stage,                      // Exner function evaluated at last RK stage
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
-                      Vector<MultiFab>& S_data,                      // S_sum = most recent full solution
+                      Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
                       Vector<MultiFab>& S_scratch,                   // S_sum_old at most recent fast timestep for (rho theta)
                       const amrex::Geometry geom,
                       amrex::InterpFaceRegister* ifr,
@@ -29,8 +29,10 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
                       const MultiFab* z_t_pert,                      // evaluated from tau to (tau + delta tau) - z_t_rk
                       std::unique_ptr<MultiFab>& z_phys_nd_old,      // at previous substep time (tau)
                       std::unique_ptr<MultiFab>& z_phys_nd_new,      // at      new substep time (tau + delta tau)
+                      std::unique_ptr<MultiFab>& z_phys_nd_stg,      // at last RK stage
                       std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
                       std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
+                      std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stage
                       const amrex::Real dtau, const amrex::Real facinv,
                       bool ingested_bcs)
 {
@@ -333,26 +335,26 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         BL_PROFILE("fast_T_making_rho_rhs");
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real h_zeta_cc_xface_hi = 0.5 * dzi *
+            Real h_zeta_xface_hi = 0.5 * dzi *
               (  z_nd_new(i+1,j  ,k+1) + z_nd_new(i+1,j+1,k+1)
                 -z_nd_new(i+1,j  ,k  ) - z_nd_new(i+1,j+1,k  ) );
 
-            Real h_zeta_cc_xface_lo = 0.5 * dzi *
+            Real h_zeta_xface_lo = 0.5 * dzi *
               (  z_nd_new(i  ,j  ,k+1) + z_nd_new(i  ,j+1,k+1)
                 -z_nd_new(i  ,j  ,k  ) - z_nd_new(i  ,j+1,k  ) );
 
-            Real h_zeta_cc_yface_hi = 0.5 * dzi *
+            Real h_zeta_yface_hi = 0.5 * dzi *
               (  z_nd_new(i  ,j+1,k+1) + z_nd_new(i+1,j+1,k+1)
                 -z_nd_new(i  ,j+1,k  ) - z_nd_new(i+1,j+1,k  ) );
 
-            Real h_zeta_cc_yface_lo = 0.5 * dzi *
+            Real h_zeta_yface_lo = 0.5 * dzi *
               (  z_nd_new(i  ,j  ,k+1) + z_nd_new(i+1,j  ,k+1)
                 -z_nd_new(i  ,j  ,k  ) - z_nd_new(i+1,j  ,k  ) );
 
-            Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_cc_xface_hi;
-            Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_cc_xface_lo;
-            Real yflux_lo = new_drho_v(i,j  ,k)*h_zeta_cc_yface_hi;
-            Real yflux_hi = new_drho_v(i,j+1,k)*h_zeta_cc_yface_lo;
+            Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_xface_lo;
+            Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_xface_hi;
+            Real yflux_lo = new_drho_v(i,j  ,k)*h_zeta_yface_lo;
+            Real yflux_hi = new_drho_v(i,j+1,k)*h_zeta_yface_hi;
 
             // NOTE: we are saving the (1/J) weighting for later when we add this to rho and theta
             temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi;
