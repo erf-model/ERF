@@ -348,10 +348,10 @@ void erf_fast_rhs_T (int step, int level, const Real /*time*/,
               (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
                 -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
 
-            Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_cc_xface_hi;
-            Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_cc_xface_lo;
-            Real yflux_lo = new_drho_v(i,j  ,k)*h_zeta_cc_yface_hi;
-            Real yflux_hi = new_drho_v(i,j+1,k)*h_zeta_cc_yface_lo;
+            Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo;
+            Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi;
+            Real yflux_lo = new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo;
+            Real yflux_hi = new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi;
 
             // NOTE: we are saving the (1/J) weighting for later when we add this to rho and theta
             temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi;
