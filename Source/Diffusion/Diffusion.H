@@ -69,13 +69,12 @@ void ComputeStressConsVisc_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tb
                              const amrex::Array4<const amrex::Real>& er_arr,
                              const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
-void ComputeStressVarVisc_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
-                            const amrex::Array4<const amrex::Real>& K_turb,
+void ComputeStressVarVisc_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz,
                             const amrex::Array4<const amrex::Real>& u,
                             const amrex::Array4<const amrex::Real>& v,
                             const amrex::Array4<const amrex::Real>& w,
-                            amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
-                            amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13, amrex::Array4<amrex::Real>& tau23,
+                            amrex::Array4<amrex::Real>& s11, amrex::Array4<amrex::Real>& s22, amrex::Array4<amrex::Real>& s33,
+                            amrex::Array4<amrex::Real>& s12, amrex::Array4<amrex::Real>& s13, amrex::Array4<amrex::Real>& s23,
                             const amrex::Array4<const amrex::Real>& er_arr,
                             const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 

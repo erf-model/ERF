@@ -9,7 +9,8 @@
                                 const Real old_time,
                                 const Real new_time,
                                 const Real old_stage_time,
-                                const Real new_stage_time)
+                                const Real new_stage_time,
+                                const int nrk)
     {
         BL_PROFILE("slow_rhs_fun_pre");
         if (verbose) Print() << "Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
@@ -61,7 +62,7 @@
                 });
             } // mfi
 
-            erf_slow_rhs_pre(level, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
                              Omega, source, eddyDiffs,
                              fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
@@ -70,7 +71,7 @@
                              dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
                              ingested_bcs);
         } else {
-            erf_slow_rhs_pre(level, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
                              Omega, source, eddyDiffs,
                              fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
