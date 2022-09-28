@@ -1,4 +1,7 @@
 AMREX_HOME      ?= $(ERF_HOME)/Submodules/AMReX
+
+BL_NO_FORT = TRUE
+
 include $(AMREX_HOME)/Tools/GNUMake/Make.defs
 
 EBASE = ERF
@@ -73,8 +76,18 @@ endif
 #turn on NetCDF macro define
 ifeq ($(USE_NETCDF), TRUE)
   DEFINES += -DERF_USE_NETCDF
-  includes += $(shell pkg-config --cflags netcdf)
-  LIBRARIES += $(shell pkg-config --libs netcdf)
+# includes += $(shell pkg-config --cflags netcdf)
+# LIBRARIES += $(shell pkg-config --libs netcdf)
+##############################################
+# IF RUNNING ON PERLMUTTER USE THE LINES BELOW
+##############################################
+# LIBRARIES += -lnetcdf -lm -lz -ldl -lbz2 -lcurl
+#includes += -I/global/common/software/spackecp/perlmutter/e4s-21.11/software/cray-sles15-zen3/gcc-11.2.0/netcdf-c-4.8.1-4thfa4eawkpqteg2co2w6ptvh24hgxbi/include/
+#  LIBRARY_LOCATIONS +=  /global/common/software/spackecp/perlmutter/e4s-21.11/software/cray-sles15-zen3/gcc-11.2.0/netcdf-c-4.8.1-4thfa4eawkpqteg2co2w6ptvh24hgxbi/lib/
+##############################################
+# END PERLMUTTER-SPECIFIC 
+##############################################
+# LIBRARIES += -lnetcdf -lm -lz -ldl -lbz2 -lcurl
 endif
 
 ifeq ($(USE_HDF5), TRUE)

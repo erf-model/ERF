@@ -233,7 +233,6 @@ void erf_slow_rhs_pre (int level,
         const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
-
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
         {
@@ -292,7 +291,6 @@ void erf_slow_rhs_pre (int level,
         }
         } // end profile
 
-
         {
         BL_PROFILE("slow_rhs_making_omega");
             Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
@@ -300,11 +298,7 @@ void erf_slow_rhs_pre (int level,
             if (l_use_terrain) {
                 if (z_t) {
                     amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        Real rho_at_face;
-                        if (w(i,j,k) != 0.)
-                            rho_at_face = rho_w(i,j,k) / w(i,j,k);
-                        else
-                            rho_at_face = 0.;
+                        Real rho_at_face = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                         omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv) -
                             rho_at_face * z_t(i,j,k);
                     });
