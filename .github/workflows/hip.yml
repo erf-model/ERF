@@ -22,8 +22,6 @@ jobs:
   Build-And-Test-HIP:
     name: HIP ROCm GFortran@9.3 C++17 [tests]
     runs-on: ubuntu-20.04
-    strategy:
-      matrix:
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet
     # Have to have -Wno-gnu-zero-variadic-macro-arguments to avoid
     #    amrex/Src/Base/AMReX_GpuLaunchGlobal.H:15:5: error: must specify at least one argument for '...' parameter of variadic macro [-Werror,-Wgnu-zero-variadic-macro-arguments]
