@@ -20,13 +20,10 @@ USE_DPCPP = FALSE
 # Debugging
 DEBUG = FALSE
 
+#USE_NETCDF = TRUE
+
 TEST = TRUE
 USE_ASSERTION = TRUE
-
-# IF BUILDING ON PERLMUTTER AND USING NETCDF
-#   1) uncomment the relevant lines in Make.ERF
-#   2) add USE_RPATH = TRUE here
-# END IF PERLMUTTER AND USING NETCDF
 
 # GNU Make
 Bpack := ./Make.package
