@@ -399,11 +399,14 @@ void erf_slow_rhs_pre (int level, const int nrk,
         {
         BL_PROFILE("slow_rhs_making_eddydiff");
         if (nrk == 0 ) {
+            amrex::Print() << bx << "\n";
+            amrex::Print() << "\n";
+            
             const Real cellVol = 1.0 / (dxInv[0] * dxInv[1] * dxInv[2]);
             const Real Delta = std::pow(cellVol,1.0/3.0);
             Real Cs = solverChoice.Cs;
             Real CsDeltaSqr = Cs*Cs*Delta*Delta;
-            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real s11bar = s11(i,j,k);
                 Real s22bar = s22(i,j,k);
@@ -428,6 +431,12 @@ void erf_slow_rhs_pre (int level, const int nrk,
         Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
         Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
         Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
+
+        amrex::Print() << bxcc << "\n";
+        amrex::Print() << tbxxy << "\n";
+        amrex::Print() << tbxxz << "\n";
+        amrex::Print() << tbxyz << "\n";
+        
         Real mu_eff = 0.;
             if (cons_visc)
                 mu_eff += 2.0 * solverChoice.dynamicViscosity;
@@ -437,7 +446,7 @@ void erf_slow_rhs_pre (int level, const int nrk,
         amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real mu_11 = mu_eff + K_turb(i, j, k, EddyDiff::Mom_h);
             Real mu_22 = mu_11;
-            Real mu_33 = mu_eff + K_turb(i, j, k, EddyDiff::Mom_v);
+            Real mu_33 = mu_eff + K_turb(i, j, k, EddyDiff::Mom_h);
             tau11(i,j,k) = mu_11 * ( s11(i,j,k) - OneThird*er_arr(i,j,k) );
             tau22(i,j,k) = mu_22 * ( s22(i,j,k) - OneThird*er_arr(i,j,k) );
             tau33(i,j,k) = mu_33 * ( s33(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -451,13 +460,13 @@ void erf_slow_rhs_pre (int level, const int nrk,
             tau12(i,j,k) = mu_12 * s12(i,j,k); 
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real mu_13 = mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                       + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+            Real mu_13 = mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_h) + K_turb(i, j, k  , EddyDiff::Mom_h)
+                                       + K_turb(i-1, j, k-1, EddyDiff::Mom_h) + K_turb(i, j, k-1, EddyDiff::Mom_h) );
             tau13(i,j,k) = mu_13 * s13(i,j,k);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real mu_23 = mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                       + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+            Real mu_23 = mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_h) + K_turb(i, j, k  , EddyDiff::Mom_h)
+                                       + K_turb(i, j-1, k-1, EddyDiff::Mom_h) + K_turb(i, j, k-1, EddyDiff::Mom_h) );
             tau23(i,j,k) = mu_23 * s23(i,j,k);
         });
         }
