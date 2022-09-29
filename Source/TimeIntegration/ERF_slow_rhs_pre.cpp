@@ -401,7 +401,7 @@ void erf_slow_rhs_pre (int level,
                                    cell_prim, z_nd, detJ,
                                    dxInv, l_spatial_order, l_use_terrain);
 
-        if (l_use_diff && !l_use_terrain) {
+        if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
             Array4<Real> diffflux_y = dflux_y->array(mfi);
             Array4<Real> diffflux_z = dflux_z->array(mfi);
@@ -410,10 +410,18 @@ void erf_slow_rhs_pre (int level,
             //       KE calls moved inside DiffSrcForState.
             int n_start = amrex::max(start_comp,RhoTheta_comp);
             int n_end   = start_comp + num_comp - 1;
-            DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
-                                   cell_data, cell_prim, source_fab, cell_rhs,
-                                   diffflux_x, diffflux_y, diffflux_z,
-                                   dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+
+            if (l_use_terrain) {
+                DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
+                                       cell_data, cell_prim, source_fab, cell_rhs,
+                                       diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
+                                       dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+            } else {
+                DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
+                                       cell_data, cell_prim, source_fab, cell_rhs,
+                                       diffflux_x, diffflux_y, diffflux_z,
+                                       dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+            }
         }
 
 
