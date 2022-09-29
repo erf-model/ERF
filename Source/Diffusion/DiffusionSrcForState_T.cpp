@@ -1,5 +1,6 @@
 #include <Diffusion.H>
 #include <EddyViscosity.H>
+#include <TerrainMetrics.H>
 #include <ComputeQKESourceTerm.H>
 
 using namespace amrex;
@@ -16,6 +17,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                         const amrex::Array4<amrex::Real>& xflux,
                         const amrex::Array4<amrex::Real>& yflux,
                         const amrex::Array4<amrex::Real>& zflux,
+                        const amrex::Array4<const amrex::Real>& z_nd,
+                        const amrex::Array4<const amrex::Real>& detJ,
                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
                         const amrex::Array4<const amrex::Real>& K_turb,
                         const SolverChoice &solverChoice,
@@ -23,7 +26,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                         const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                         const amrex::BCRec* bc_ptr)
 {
-    BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
+    BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
     const amrex::Real dx_inv = dxInv[0];
     const amrex::Real dy_inv = dxInv[1];
@@ -93,8 +96,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                               + K_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             Real met_h_xi,met_h_zeta;
-            met_h_xi   = Compute_h_xi_AtIFace  (i,j,k,dxInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtIFace(i,j,k,dxInv,z_nd);
+            met_h_xi   = Compute_h_xi_AtIface  (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtIface(i,j,k,dxInv,z_nd);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -113,8 +116,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                               + K_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             Real met_h_eta,met_h_zeta;
-            met_h_eta  = Compute_h_eta_AtJFace (i,j,k,dxInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtJFace(i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtJface (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtJface(i,j,k,dxInv,z_nd);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -133,7 +136,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                               + K_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             Real met_h_zeta;
-            met_h_zeta = Compute_h_zeta_AtKFace(i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
             Real GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
 
@@ -151,8 +154,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                            + K_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
             Real met_h_xi,met_h_zeta;
-            met_h_xi   = Compute_h_xi_AtIFace  (i,j,k,dxInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtIFace(i,j,k,dxInv,z_nd);
+            met_h_xi   = Compute_h_xi_AtIface  (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtIface(i,j,k,dxInv,z_nd);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -170,8 +173,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                            + K_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
             Real met_h_eta,met_h_zeta;
-            met_h_eta  = Compute_h_eta_AtJFace (i,j,k,dxInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtJFace(i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtJface (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtJface(i,j,k,dxInv,z_nd);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -189,7 +192,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                            + K_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             Real met_h_zeta;
-            met_h_zeta = Compute_h_zeta_AtKFace(i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
             Real GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
 
@@ -258,7 +261,6 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
         });
     }
 
-
     // Linear combinations for z-flux with terrain
     //-----------------------------------------------------------------------------------
     // Extrapolate top and bottom cells
@@ -269,86 +271,86 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
       amrex::ParallelFor(planexy, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
       {
           const int  qty_index = n_start + n;
-          const int prim_index = qty_index - qty_offset;
           Real met_h_xi,met_h_eta;
-          
-          { // Bottom face        
-            met_h_xi  = Compute_h_xi_AtKFace (i,j,k_lo,dxInv,z_nd);
-            met_h_eta = Compute_h_eta_AtKFace(i,j,k_lo,dxInv,z_nd);
-            
-            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_lo  , prim_index) + xflux(i+1, j  , k_lo  , prim_index) );
-            Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_lo+1, prim_index) + xflux(i+1, j  , k_lo+1, prim_index) );
+
+          { // Bottom face
+            met_h_xi  = Compute_h_xi_AtKface (i,j,k_lo,dxInv,z_nd);
+            met_h_eta = Compute_h_eta_AtKface(i,j,k_lo,dxInv,z_nd);
+
+            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_lo  , qty_index) + xflux(i+1, j  , k_lo  , qty_index) );
+            Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_lo+1, qty_index) + xflux(i+1, j  , k_lo+1, qty_index) );
             Real xfluxbar = 1.5*xfluxlo - 0.5*xfluxhi;
-            
-            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_lo  , prim_index) + yflux(i  , j+1, k_lo  , prim_index) );
-            Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_lo+1, prim_index) + yflux(i  , j+1, k_lo+1, prim_index) );
+
+            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_lo  , qty_index) + yflux(i  , j+1, k_lo  , qty_index) );
+            Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_lo+1, qty_index) + yflux(i  , j+1, k_lo+1, qty_index) );
             Real yfluxbar = 1.5*yfluxlo - 0.5*yfluxhi;
-            
-            zflux(i,j,k_lo,prim_index) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
+
+            zflux(i,j,k_lo,qty_index) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
           }
-          
+
           { // Top face
-            met_h_xi  = Compute_h_xi_AtKFace (i,j,k_hi,dxInv,z_nd);
-            met_h_eta = Compute_h_eta_AtKFace(i,j,k_hi,dxInv,z_nd);
-            
-            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_hi-2, prim_index) + xflux(i+1, j  , k_hi-2, prim_index) );
-            Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_hi-1, prim_index) + xflux(i+1, j  , k_hi-1, prim_index) );
+            met_h_xi  = Compute_h_xi_AtKface (i,j,k_hi,dxInv,z_nd);
+            met_h_eta = Compute_h_eta_AtKface(i,j,k_hi,dxInv,z_nd);
+
+            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_hi-2, qty_index) + xflux(i+1, j  , k_hi-2, qty_index) );
+            Real xfluxhi  = 0.5 * ( xflux(i  , j  , k_hi-1, qty_index) + xflux(i+1, j  , k_hi-1, qty_index) );
             Real xfluxbar = 1.5*xfluxhi - 0.5*xfluxlo;
-            
-            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_hi-2, prim_index) + yflux(i  , j+1, k_hi-2, prim_index) );
-            Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_hi-1, prim_index) + yflux(i  , j+1, k_hi-1, prim_index) );
+
+            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_hi-2, qty_index) + yflux(i  , j+1, k_hi-2, qty_index) );
+            Real yfluxhi  = 0.5 * ( yflux(i  , j  , k_hi-1, qty_index) + yflux(i  , j+1, k_hi-1, qty_index) );
             Real yfluxbar = 1.5*yfluxhi - 0.5*yfluxlo;
-            
-            zflux(i,j,k_hi,prim_index) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
+
+            zflux(i,j,k_hi,qty_index) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
           }
-      });          
+      });
     }
     // Average interior cells
-    amrex::ParallelFor(zbx2, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+    amrex::ParallelFor(zbx2, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       const int  qty_index = n_start + n;
-      const int prim_index = qty_index - qty_offset;
-      
+
       Real met_h_xi,met_h_eta;
-      met_h_xi  = Compute_h_xi_AtKFace (i,j,k,dxInv,z_nd);
-      met_h_eta = Compute_h_eta_AtKFace(i,j,k,dxInv,z_nd);
-      
-      Real xfluxbar = 0.25 * ( xflux(i  , j  , k  , prim_index) + xflux(i+1, j  , k  , prim_index)
-                             + xflux(i  , j  , k+1, prim_index) + xflux(i+1, j  , k+1, prim_index) );
-      Real yfluxbar = 0.25 * ( yflux(i  , j  , k  , prim_index) + yflux(i  , j+1, k  , prim_index)
-                             + yflux(i  , j  , k+1, prim_index) + yflux(i  , j+1, k+1, prim_index) );
-      
-      zflux(i,j,k,prim_index) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
+      met_h_xi  = Compute_h_xi_AtKface (i,j,k,dxInv,z_nd);
+      met_h_eta = Compute_h_eta_AtKface(i,j,k,dxInv,z_nd);
+
+      Real xfluxbar = 0.25 * ( xflux(i  , j  , k  , qty_index) + xflux(i+1, j  , k  , qty_index)
+                             + xflux(i  , j  , k-1, qty_index) + xflux(i+1, j  , k-1, qty_index) );
+      Real yfluxbar = 0.25 * ( yflux(i  , j  , k  , qty_index) + yflux(i  , j+1, k  , qty_index)
+                             + yflux(i  , j  , k-1, qty_index) + yflux(i  , j+1, k-1, qty_index) );
+
+      zflux(i,j,k,qty_index) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
     });
     // Multiply h_zeta by x/y-fluxes
     amrex::ParallelFor(xbx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       const int  qty_index = n_start + n;
-      const int prim_index = qty_index - qty_offset;
-      Real met_h_zeta = Compute_h_zeta_AtIFace(i,j,k,dxInv,z_nd);
-      xflux(i,j,k_hi,prim_index) *= met_h_zeta; 
+      Real met_h_zeta      = Compute_h_zeta_AtIface(i,j,k,dxInv,z_nd);
+      xflux(i,j,k,qty_index) *= met_h_zeta;
     });
     amrex::ParallelFor(ybx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       const int  qty_index = n_start + n;
-      const int prim_index = qty_index - qty_offset;
-      Real met_h_zeta = Compute_h_zeta_AtJFace(i,j,k,dxInv,z_nd);
-      yflux(i,j,k_hi,prim_index) *= met_h_zeta; 
-    });  
-      
+      Real met_h_zeta      = Compute_h_zeta_AtJface(i,j,k,dxInv,z_nd);
+      yflux(i,j,k,qty_index) *= met_h_zeta;
+    });
+
 
     // Use fluxes to compute RHS
-    //-----------------------------------------------------------------------------------  
+    //-----------------------------------------------------------------------------------
     for (int qty_index = n_start; qty_index <= n_end; qty_index++)
     {
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            cell_rhs(i,j,k,qty_index) += (xflux(i+1,j  ,k  ,qty_index) - xflux(i, j, k, qty_index)) * dx_inv   // Diffusive flux in x-dir
-                                        +(yflux(i  ,j+1,k  ,qty_index) - yflux(i, j, k, qty_index)) * dy_inv   // Diffusive flux in y-dir
-                                        +(zflux(i  ,j  ,k+1,qty_index) - zflux(i, j, k, qty_index)) * dz_inv;  // Diffusive flux in z-dir
+            Real stateContrib = (xflux(i+1,j  ,k  ,qty_index) - xflux(i, j, k, qty_index)) * dx_inv   // Diffusive flux in x-dir
+                               +(yflux(i  ,j+1,k  ,qty_index) - yflux(i, j, k, qty_index)) * dy_inv   // Diffusive flux in y-dir
+                               +(zflux(i  ,j  ,k+1,qty_index) - zflux(i, j, k, qty_index)) * dz_inv;  // Diffusive flux in z-dir
 
             // Add source terms. TODO: Put this under an if condition when we implement source term
-            cell_rhs(i,j,k,qty_index) += source_fab(i,j,k,qty_index);
+            stateContrib += source_fab(i,j,k,qty_index);
+
+            stateContrib /= detJ(i,j,k);
+
+            cell_rhs(i,j,k,qty_index) += stateContrib;
         });
     }
 
@@ -364,7 +366,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
 
             Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
             dtheta_dz /= met_h_zeta;
-            
+
             Real length;
             if (dtheta_dz <= 0.) {
                 length = l_Delta;
@@ -375,7 +377,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             cell_rhs(i,j,k,qty_index) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
             // Add TKE production
-            cell_rhs(i,j,k,qty_index) += ComputeTKEProduction(i,j,k,u,v,w,K_turb,cellSizeInv,domain,bc_ptr,l_use_terrain);
+            cell_rhs(i,j,k,qty_index) += ComputeTKEProduction(i,j,k,u,v,w,K_turb,dxInv,domain,bc_ptr,l_use_terrain);
 
             // Add dissipation
             if (std::abs(E) > 0.) {
@@ -391,8 +393,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                                  K_turb,cellSizeInv,domain,solverChoice,theta_mean);
+                                                                  K_turb,dxInv,domain,solverChoice,theta_mean);
         });
     }
-
 }

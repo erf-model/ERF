@@ -1,10 +1,14 @@
-CEXE_sources += ComputeTurbulentViscosity.cpp
 CEXE_sources += DiffusionSrcForMom_N.cpp
 CEXE_sources += DiffusionSrcForMom_T.cpp
-CEXE_sources += DiffusionSrcForState.cpp
+
 CEXE_sources += DiffusionSrcForState_N.cpp
+CEXE_sources += DiffusionSrcForState_T.cpp
+    
 CEXE_sources += ComputeStress_N.cpp
 CEXE_sources += ComputeStress_T.cpp
+
+CEXE_sources += ComputeTurbulentViscosity.cpp
+CEXE_sources += DiffusionSrcForState.cpp
 CEXE_sources += PBLModels.cpp
 
 CEXE_headers += DiffusionSrcForMom_N.H
