@@ -32,10 +32,10 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
 
         tau11(i,j,k) -= met_h_zeta*OneThird*er_arr(i,j,k);
         tau11(i,j,k) *= mu_eff;
-        
+
         tau22(i,j,k) -= met_h_zeta*OneThird*er_arr(i,j,k);
         tau22(i,j,k) *= mu_eff;
-        
+
         tau33(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) *= mu_eff;
     });
@@ -113,7 +113,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
             tau23(i,j,k) *= mu_eff;
         });
     }
-    
+
     // Standard operations
     amrex::ParallelFor(tbxxz2,tbxyz2,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -129,7 +129,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real met_h_eta;
         met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
-        
+
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  )
                              + er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
 
@@ -169,10 +169,10 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
 
         tau11(i,j,k) -= met_h_zeta*OneThird*er_arr(i,j,k);
         tau11(i,j,k) *= mu_eff + K_turb(i, j, k, EddyDiff::Mom_h);;
-        
+
         tau22(i,j,k) -= met_h_zeta*OneThird*er_arr(i,j,k);
         tau22(i,j,k) *= mu_eff + K_turb(i, j, k, EddyDiff::Mom_h);;
-        
+
         tau33(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) *= mu_eff + K_turb(i, j, k, EddyDiff::Mom_v);;
     });
@@ -258,7 +258,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
                                           + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
         });
     }
-    
+
     // Standard operations
     amrex::ParallelFor(tbxxz2,tbxyz2,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -275,7 +275,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real met_h_eta;
         met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
-        
+
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  )
                              + er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
 

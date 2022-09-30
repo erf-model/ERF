@@ -130,7 +130,7 @@ namespace EddyDiff {
         Theta_h,
         Scalar_h,
         KE_h,
-        QKE_h,        
+        QKE_h,
         Mom_v,
         Scalar_v,
         Theta_v,

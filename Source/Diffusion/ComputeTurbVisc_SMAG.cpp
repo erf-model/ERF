@@ -31,7 +31,7 @@ void ComputeTurbVisc_SMAG(Box& bxcc,
                          + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
     Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
                 + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
-    
+
     K_turb(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
     K_turb(i, j, k, EddyDiff::Mom_v) = K_turb(i, j, k, EddyDiff::Mom_h);
   });
@@ -41,15 +41,15 @@ void ComputeTurbVisc_SMAG(Box& bxcc,
   Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
   Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k};
   Real* fac_ptr = Factors.data();
-  
+
   bool use_KE  = (solverChoice.les_type == LESType::Deardorff);
   bool use_QKE = (solverChoice.use_QKE && solverChoice.diffuse_QKE_3D);
 
   int offset = EddyDiff::Theta_h;
   int ntot   = 4;
-  
+
   if(use_QKE) {
-    int ncomp  = 4;    
+    int ncomp  = 4;
     ParallelFor(bxcc,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       int indx = n + offset;

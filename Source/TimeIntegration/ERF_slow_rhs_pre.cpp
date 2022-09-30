@@ -358,7 +358,7 @@ void erf_slow_rhs_pre (int level, int nrk,
             tbxxy.growHi(0,1);tbxxy.growHi(1,1);
             tbxxz.growHi(0,1);tbxxz.growHi(1,1);
             tbxyz.growHi(0,1);tbxyz.growHi(1,1);
-            
+
             if (l_use_terrain) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
                                 u, v, w,
@@ -399,7 +399,7 @@ void erf_slow_rhs_pre (int level, int nrk,
             Real mu_eff = 0.;
             if (cons_visc)
                 mu_eff += 2.0 * solverChoice.dynamicViscosity;
-            
+
             if (l_use_terrain) {
                 if (cons_visc) {
                     ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
@@ -515,7 +515,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                      cell_data, solverChoice, dxInv);
             }
         }
-        
+
         {
         BL_PROFILE("slow_rhs_pre_xmom");
         amrex::ParallelFor(tbx,
