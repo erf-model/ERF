@@ -18,7 +18,7 @@ USE_HIP = FALSE
 USE_DPCPP = FALSE
 
 # Debugging
-DEBUG = TRUE
+DEBUG = FALSE
 
 # GNU Make
 Bpack := ./Make.package

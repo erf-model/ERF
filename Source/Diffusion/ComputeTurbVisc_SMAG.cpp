@@ -40,7 +40,9 @@ void ComputeTurbVisc_SMAG(Box& bxcc,
   Real inv_Sc_t    = solverChoice.Sc_t_inv;
   Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
   Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k};
-  Real* fac_ptr = Factors.data();
+  Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
+  Gpu::copy(Gpu::hostToDevice, Factors.begin(), Factors.end(), d_Factors.begin());
+  Real* fac_ptr = d_Factors.data();
 
   bool use_KE  = (solverChoice.les_type == LESType::Deardorff);
   bool use_QKE = (solverChoice.use_QKE && solverChoice.diffuse_QKE_3D);
