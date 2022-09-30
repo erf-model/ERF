@@ -13,16 +13,6 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
                         const Array4<const Real>& z_nd  ,
                         const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
-    //***********************************************************************************
-    // NOTE: The first  block computes (S-D).
-    //       The second block computes 2mu*JT*(S-D) = Tau
-    //       The boxes are copied here for the second block operations
-    //***********************************************************************************
-    Box bxcc2  = bxcc;  Box bxcc3  = bxcc;
-                        Box tbxxy3 = tbxxy;
-    Box tbxxz2 = tbxxz; Box tbxxz3 = tbxxz;
-    Box tbxyz2 = tbxyz; Box tbxyz3 = tbxyz;
-
     Real OneThird   = (1./3.);
 
     // Cell centered strains
@@ -40,24 +30,11 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
         tau33(i,j,k) *= mu_eff;
     });
 
-    // Off-diagonal strains
-    amrex::ParallelFor(tbxxy,tbxxz,tbxyz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        tau12(i,j,k) *= mu_eff;
-        tau21(i,j,k) *= mu_eff;
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        tau31(i,j,k) *= mu_eff;
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        tau32(i,j,k) *= mu_eff;
-    });
-
     // Extrapolate tau13 & tau23 to bottom
     {
-        Box planexz2 = tbxxz2; planexz2.setBig(2, planexz2.smallEnd(2) );
-        tbxxz2.growLo(2,-1);
-        amrex::ParallelFor(planexz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
+        tbxxz.growLo(2,-1);
+        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_xi;
             met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
 
@@ -69,9 +46,9 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
             tau13(i,j,k) *= mu_eff;
         });
 
-        Box planeyz2 = tbxyz2; planeyz2.setBig(2, planeyz2.smallEnd(2) );
-        tbxyz2.growLo(2,-1);
-        amrex::ParallelFor(planeyz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
+        tbxyz.growLo(2,-1);
+        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_eta;
             met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
@@ -85,9 +62,9 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
     }
     // Extrapolate tau13 & tau23 to top
     {
-        Box planexz2 = tbxxz2; planexz2.setSmall(2, planexz2.bigEnd(2) );
-        tbxxz2.growHi(2,-1);
-        amrex::ParallelFor(planexz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
+        tbxxz.growHi(2,-1);
+        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_xi;
             met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
 
@@ -99,9 +76,9 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
             tau13(i,j,k) *= mu_eff;
         });
 
-        Box planeyz2 = tbxyz2; planeyz2.setSmall(2, planeyz2.bigEnd(2) );
-        tbxyz2.growHi(2,-1);
-        amrex::ParallelFor(planeyz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
+        tbxyz.growHi(2,-1);
+        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_eta;
             met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
@@ -115,7 +92,11 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
     }
 
     // Standard operations
-    amrex::ParallelFor(tbxxz2,tbxyz2,
+    amrex::ParallelFor(tbxxy,tbxxz,tbxyz,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        tau12(i,j,k) *= mu_eff;
+        tau21(i,j,k) *= mu_eff;
+    },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real met_h_xi;
         met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
@@ -150,16 +131,6 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
                        const Array4<const Real>& z_nd  ,
                        const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
-    //***********************************************************************************
-    // NOTE: The first  block computes (S-D).
-    //       The second block computes 2mu*JT*(S-D) = Tau
-    //       The boxes are copied here for the second block operations
-    //***********************************************************************************
-    Box bxcc2  = bxcc;  Box bxcc3  = bxcc;
-                        Box tbxxy3 = tbxxy;
-    Box tbxxz2 = tbxxz; Box tbxxz3 = tbxxz;
-    Box tbxyz2 = tbxyz; Box tbxyz3 = tbxyz;
-
     Real OneThird   = (1./3.);
 
     // Cell centered strains
@@ -177,28 +148,11 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
         tau33(i,j,k) *= mu_eff + K_turb(i, j, k, EddyDiff::Mom_v);;
     });
 
-    // Off-diagonal strains
-    amrex::ParallelFor(tbxxy,tbxxz,tbxyz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real mu_turb = 0.25*( K_turb(i-1, j  , k, EddyDiff::Mom_h) + K_turb(i, j  , k, EddyDiff::Mom_h)
-                            + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i, j-1, k, EddyDiff::Mom_h) );
-        tau12(i,j,k) *= mu_eff + mu_turb;
-        tau21(i,j,k) *= mu_eff + mu_turb;
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        tau31(i,j,k) *= mu_eff+ 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                     + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        tau32(i,j,k) *= mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                      + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
-    });
-
     // Extrapolate tau13 & tau23 to bottom
     {
-        Box planexz2 = tbxxz2; planexz2.setBig(2, planexz2.smallEnd(2) );
-        tbxxz2.growLo(2,-1);
-        amrex::ParallelFor(planexz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
+        tbxxz.growLo(2,-1);
+        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_xi;
             met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
 
@@ -206,14 +160,19 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i-1, j  , k+1) );
             Real errbar = 1.5*errlo - 0.5*errhi;
 
+            Real varlo  = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i-1, j  , k  , EddyDiff::Mom_v) );
+            Real varhi  = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i-1, j  , k+1, EddyDiff::Mom_v) );
+            Real varbar = 1.5*varlo - 0.5*varhi;
+
             tau13(i,j,k) += met_h_xi*OneThird*errbar;
-            tau13(i,j,k) *= mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                          + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+            tau13(i,j,k) *= mu_eff + varbar;
+
+            tau31(i,j,k) *= mu_eff + varbar;
         });
 
-        Box planeyz2 = tbxyz2; planeyz2.setBig(2, planeyz2.smallEnd(2) );
-        tbxyz2.growLo(2,-1);
-        amrex::ParallelFor(planeyz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
+        tbxyz.growLo(2,-1);
+        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_eta;
             met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
@@ -221,16 +180,21 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i  , j-1, k+1) );
             Real errbar = 1.5*errlo - 0.5*errhi;
 
+            Real varlo  = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i  , j-1, k  , EddyDiff::Mom_v) );
+            Real varhi  = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i  , j-1, k+1, EddyDiff::Mom_v) );
+            Real varbar = 1.5*varlo - 0.5*varhi;
+
             tau23(i,j,k) += met_h_eta*OneThird*errbar;
-            tau23(i,j,k) *= mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                          + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+            tau23(i,j,k) *= mu_eff + varbar;
+
+            tau32(i,j,k) *= mu_eff + varbar;
         });
     }
     // Extrapolate tau13 & tau23 to top
     {
-        Box planexz2 = tbxxz2; planexz2.setSmall(2, planexz2.bigEnd(2) );
-        tbxxz2.growHi(2,-1);
-        amrex::ParallelFor(planexz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
+        tbxxz.growHi(2,-1);
+        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_xi;
             met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
 
@@ -238,14 +202,19 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
             Real errbar = 1.5*errhi - 0.5*errlo;
 
+            Real varlo  = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i-1, j  , k-2, EddyDiff::Mom_v) );
+            Real varhi  = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) );
+            Real varbar = 1.5*varhi - 0.5*varlo;
+
             tau13(i,j,k) += met_h_xi*OneThird*errbar;
-            tau13(i,j,k) *= mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                          + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+            tau13(i,j,k) *= mu_eff + varbar;
+
+            tau31(i,j,k) *= mu_eff + varbar;
         });
 
-        Box planeyz2 = tbxyz2; planeyz2.setSmall(2, planeyz2.bigEnd(2) );
-        tbxyz2.growHi(2,-1);
-        amrex::ParallelFor(planeyz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
+        tbxyz.growHi(2,-1);
+        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_eta;
             met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
@@ -253,24 +222,38 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
             Real errbar = 1.5*errhi - 0.5*errlo;
 
+            Real varlo  = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i  , j-1, k-2, EddyDiff::Mom_v) );
+            Real varhi  = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) );
+            Real varbar = 1.5*varhi - 0.5*varlo;
+
             tau23(i,j,k) += met_h_eta*OneThird*errbar;
-            tau23(i,j,k) *= mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                          + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+            tau23(i,j,k) *= mu_eff + varbar;
+
+            tau32(i,j,k) *= mu_eff + varbar;
         });
     }
 
     // Standard operations
-    amrex::ParallelFor(tbxxz2,tbxyz2,
+    amrex::ParallelFor(tbxxy, tbxxz,tbxyz,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        Real mu_turb = 0.25*( K_turb(i-1, j  , k, EddyDiff::Mom_h) + K_turb(i, j  , k, EddyDiff::Mom_h)
+                            + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i, j-1, k, EddyDiff::Mom_h) );
+        tau12(i,j,k) *= mu_eff + mu_turb;
+        tau21(i,j,k) *= mu_eff + mu_turb;
+    },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real met_h_xi;
         met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
 
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i-1, j  , k  )
                              + er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
+        Real varbar = 0.25 * ( K_turb(i-1, j  , k  , EddyDiff::Mom_v) + K_turb(i  , j  , k  , EddyDiff::Mom_v)
+                             + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) )
 
         tau13(i,j,k) += met_h_xi*OneThird*errbar;
-        tau13(i,j,k) *= mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                      + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+        tau13(i,j,k) *= mu_eff + varbar;
+
+        tau31(i,j,k) *= mu_eff + varbar;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real met_h_eta;
@@ -278,9 +261,12 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
 
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  )
                              + er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
+        Real varbar = 0.25 * ( K_turb(i  , j-1, k  , EddyDiff::Mom_v) + K_turb(i  , j  , k  , EddyDiff::Mom_v)
+                             + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) )
 
         tau23(i,j,k) += met_h_eta*OneThird*errbar;
-        tau23(i,j,k) *= mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
-                                      + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
+        tau23(i,j,k) *= mu_eff + varbar;
+
+        tau32(i,j,k) *= mu_eff + varbar;
     });
 }
