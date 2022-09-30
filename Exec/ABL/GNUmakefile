@@ -20,8 +20,6 @@ USE_DPCPP = FALSE
 # Debugging
 DEBUG = TRUE
 
-BL_NO_FORT = TRUE
-
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

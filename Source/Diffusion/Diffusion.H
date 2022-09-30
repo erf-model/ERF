@@ -86,6 +86,7 @@ void ComputeStressConsVisc_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tb
                              const amrex::Array4<const amrex::Real>& er_arr,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
+
 void ComputeStressConsVisc_T(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
                              amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
                              amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13,
@@ -101,6 +102,16 @@ void ComputeStressVarVisc_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbx
                             amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13, amrex::Array4<amrex::Real>& tau23,
                             const amrex::Array4<const amrex::Real>& er_arr,
                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+
+void ComputeStressVarVisc_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
+                            const amrex::Array4<const amrex::Real>& K_turb,
+                            const amrex::Array4<const amrex::Real>& u,
+                            const amrex::Array4<const amrex::Real>& v,
+                            const amrex::Array4<const amrex::Real>& w,
+                            amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
+                            amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13, amrex::Array4<amrex::Real>& tau23,
+                            const amrex::Array4<const amrex::Real>& er_arr,
+                            const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
 void ComputeStressVarVisc_T(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
                             const amrex::Array4<const amrex::Real>& K_turb,

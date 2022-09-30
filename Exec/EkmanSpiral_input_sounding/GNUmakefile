@@ -26,8 +26,6 @@ DEBUG = TRUE
 
 USE_NETCDF  = FALSE
 
-BL_NO_FORT = TRUE
-
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

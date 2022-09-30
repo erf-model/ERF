@@ -20,13 +20,8 @@ jobs:
   # https://gitlab.kitware.com/cmake/cmake/-/issues/21968
   # https://github.com/ROCm-Developer-Tools/HIP/issues/2246
   Build-And-Test-HIP:
-    name: HIP ROCm GFortran@9.3 C++17 [tests] with SUNDIALS=${{matrix.sundials_state}}
+    name: HIP ROCm GFortran@9.3 C++17 [tests]
     runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        sundials_state: [OFF]
-        #sundials_state: [ON, OFF]
-
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet
     # Have to have -Wno-gnu-zero-variadic-macro-arguments to avoid
     #    amrex/Src/Base/AMReX_GpuLaunchGlobal.H:15:5: error: must specify at least one argument for '...' parameter of variadic macro [-Werror,-Wgnu-zero-variadic-macro-arguments]
@@ -60,7 +55,7 @@ jobs:
         export LDFLAGS="-lopen-pal"
 
         cmake \
-          -B${{runner.workspace}}/ERF/build-${{matrix.sundials_state}}-${{matrix.os}} \
+          -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_VERBOSE_MAKEFILE=ON                   \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
           -DCMAKE_BUILD_TYPE:STRING=Debug \
@@ -71,7 +66,6 @@ jobs:
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_MASA:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
-          -DERF_ENABLE_SUNDIALS:BOOL=${{matrix.sundials_state}} \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
           -DCODECOV:BOOL=ON \
           -DCMAKE_C_COMPILER=$(which clang)             \
@@ -82,18 +76,18 @@ jobs:
 
         # for some reason this cmake command fails to build the code,
         # and we need to use the make command that follows instead ...
-        # cmake --build ${{runner.workspace}}/ERF/build-${{matrix.sundials_state}}-${{matrix.os}} --parallel ${{env.NPROCS}};
+        # cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}};
 
-        pushd ${{runner.workspace}}/ERF/build-${{matrix.sundials_state}}-${{matrix.os}};
+        pushd ${{runner.workspace}}/ERF/build-${{matrix.os}};
         make -j ${{env.NPROCS}};
 
     # - name: Regression Tests
     #   run: |
     #     ctest -L regression -VV
-    #   working-directory: ${{runner.workspace}}/ERF/build-${{matrix.sundials_state}}-${{matrix.os}}
+    #   working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     # - name: Generate coverage report
-    #   working-directory: ${{runner.workspace}}/ERF/build-${{matrix.sundials_state}}-${{matrix.os}}
+    #   working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
     #   run: |
     #     find . -type f -name '*.gcno' -path "**Source**" -exec gcov -pb {} +
     #     cd ..
