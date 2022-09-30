@@ -130,4 +130,16 @@ void ComputeStrain_T(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amr
                      amrex::Array4<amrex::Real>& tau31, amrex::Array4<amrex::Real>& tau32,
                      const amrex::Array4<const amrex::Real>& z_nd  ,
                      const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+
+void ComputeTurbVisc_SMAG(amrex::Box& bxcc,
+                          const amrex::Array4<amrex::Real>& K_turb,
+                          const amrex::Array4<const amrex::Real>& cell_data,
+                          const amrex::Array4<const amrex::Real>& tau11,
+                          const amrex::Array4<const amrex::Real>& tau22,
+                          const amrex::Array4<const amrex::Real>& tau33,
+                          const amrex::Array4<const amrex::Real>& tau12,
+                          const amrex::Array4<const amrex::Real>& tau13,
+                          const amrex::Array4<const amrex::Real>& tau23,
+                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
+                          const SolverChoice& solverChoice);
 #endif

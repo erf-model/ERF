@@ -65,7 +65,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
             Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i-1, j  , k+1) );
             Real errbar = 1.5*errlo - 0.5*errhi;
 
-            tau13(i,j,k) -= met_h_xi*OneThird*errbar;
+            tau13(i,j,k) += met_h_xi*OneThird*errbar;
             tau13(i,j,k) *= mu_eff;
         });
 
@@ -79,7 +79,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
             Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i  , j-1, k+1) );
             Real errbar = 1.5*errlo - 0.5*errhi;
 
-            tau23(i,j,k) -= met_h_eta*OneThird*errbar;
+            tau23(i,j,k) += met_h_eta*OneThird*errbar;
             tau23(i,j,k) *= mu_eff;
         });
     }
@@ -95,7 +95,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
             Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
             Real errbar = 1.5*errhi - 0.5*errlo;
 
-            tau13(i,j,k) -= met_h_xi*OneThird*errbar;
+            tau13(i,j,k) += met_h_xi*OneThird*errbar;
             tau13(i,j,k) *= mu_eff;
         });
 
@@ -109,7 +109,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
             Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
             Real errbar = 1.5*errhi - 0.5*errlo;
 
-            tau23(i,j,k) -= met_h_eta*OneThird*errbar;
+            tau23(i,j,k) += met_h_eta*OneThird*errbar;
             tau23(i,j,k) *= mu_eff;
         });
     }
@@ -123,7 +123,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i-1, j  , k  )
                              + er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
 
-        tau13(i,j,k) -= met_h_xi*errbar;
+        tau13(i,j,k) += met_h_xi*OneThird*errbar;
         tau13(i,j,k) *= mu_eff;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -133,7 +133,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  )
                              + er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
 
-        tau23(i,j,k) -= met_h_eta*OneThird*errbar;
+        tau23(i,j,k) += met_h_eta*OneThird*errbar;
         tau23(i,j,k) *= mu_eff;
     });
 }
@@ -206,7 +206,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i-1, j  , k+1) );
             Real errbar = 1.5*errlo - 0.5*errhi;
 
-            tau13(i,j,k) -= met_h_xi*OneThird*errbar;
+            tau13(i,j,k) += met_h_xi*OneThird*errbar;
             tau13(i,j,k) *= mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
                                           + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
         });
@@ -221,7 +221,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i  , j-1, k+1) );
             Real errbar = 1.5*errlo - 0.5*errhi;
 
-            tau23(i,j,k) -= met_h_eta*OneThird*errbar;
+            tau23(i,j,k) += met_h_eta*OneThird*errbar;
             tau23(i,j,k) *= mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
                                           + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
         });
@@ -238,7 +238,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
             Real errbar = 1.5*errhi - 0.5*errlo;
 
-            tau13(i,j,k) -= met_h_xi*OneThird*errbar;
+            tau13(i,j,k) += met_h_xi*OneThird*errbar;
             tau13(i,j,k) *= mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
                                           + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
         });
@@ -253,7 +253,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
             Real errbar = 1.5*errhi - 0.5*errlo;
 
-            tau23(i,j,k) -= met_h_eta*OneThird*errbar;
+            tau23(i,j,k) += met_h_eta*OneThird*errbar;
             tau23(i,j,k) *= mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
                                           + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
         });
@@ -268,7 +268,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i-1, j  , k  )
                              + er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
 
-        tau13(i,j,k) -= met_h_xi*errbar;
+        tau13(i,j,k) += met_h_xi*OneThird*errbar;
         tau13(i,j,k) *= mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
                                       + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
     },
@@ -279,7 +279,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  )
                              + er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
 
-        tau23(i,j,k) -= met_h_eta*OneThird*errbar;
+        tau23(i,j,k) += met_h_eta*OneThird*errbar;
         tau23(i,j,k) *= mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
                                       + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
     });

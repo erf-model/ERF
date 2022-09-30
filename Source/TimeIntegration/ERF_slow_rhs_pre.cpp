@@ -47,17 +47,17 @@ void erf_slow_rhs_pre (int level, int nrk,
     int start_comp = 0;
     int   num_comp = 2;
 
-    const int l_spatial_order = solverChoice.spatial_order;
-    const bool l_use_terrain    =  solverChoice.use_terrain;
+    const int  l_spatial_order  = solverChoice.spatial_order;
+    const bool l_use_terrain    = solverChoice.use_terrain;
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
-    bool      l_use_diff      = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                                  (solverChoice.les_type        !=       LESType::None) ||
-                                  (solverChoice.pbl_type        !=       PBLType::None) );
-    bool      cons_visc       = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
-                                  (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
-    bool      turb_visc       = ( (solverChoice.les_type == LESType::Smagorinsky) ||
-                                  (solverChoice.les_type == LESType::Deardorff  ) ||
-                                  (solverChoice.pbl_type == PBLType::MYNN25     )  );
+    bool       l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+                                    (solverChoice.les_type        !=       LESType::None) ||
+                                    (solverChoice.pbl_type        !=       PBLType::None) );
+    bool       cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
+                                    (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
+    bool       turb_visc        = ( (solverChoice.les_type == LESType::Smagorinsky) ||
+                                    (solverChoice.les_type == LESType::Deardorff  ) ||
+                                    (solverChoice.pbl_type == PBLType::MYNN25     )  );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -351,15 +351,13 @@ void erf_slow_rhs_pre (int level, int nrk,
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
 
+            // Fill strain ghost cells for building K_turb
             tbxxy.growLo(0,1);tbxxy.growLo(1,1);
             tbxxz.growLo(0,1);tbxxz.growLo(1,1);
             tbxyz.growLo(0,1);tbxyz.growLo(1,1);
-
-            amrex::Print() << bxcc << "\n";
-            amrex::Print() << tbxxy << "\n";
-            amrex::Print() << tbxxz << "\n";
-            amrex::Print() << tbxyz << "\n";
-            amrex::Print() << "\n";
+            tbxxy.growHi(0,1);tbxxy.growHi(1,1);
+            tbxxz.growHi(0,1);tbxxz.growHi(1,1);
+            tbxyz.growHi(0,1);tbxyz.growHi(1,1);
             
             if (l_use_terrain) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
@@ -383,30 +381,11 @@ void erf_slow_rhs_pre (int level, int nrk,
         BL_PROFILE("slow_rhs_making_eddydiff");
         if (nrk == 0 && (solverChoice.les_type == LESType::Smagorinsky)) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
-            amrex::Print() << bx << ' ' << gbx << ' ' << bxcc << "\n";
-            amrex::Print() << "\n";
-            
-            const Real cellVol = 1.0 / (dxInv[0] * dxInv[1] * dxInv[2]);
-            const Real Delta = std::pow(cellVol,1.0/3.0);
-            Real Cs = solverChoice.Cs;
-            Real CsDeltaSqr = Cs*Cs*Delta*Delta;
-            ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                amrex::Print() << "STRAIN: " << IntVect(i,j,k) << "\n";
-                Real s11bar = tau11(i,j,k);
-                Real s22bar = tau22(i,j,k);
-                Real s33bar = tau33(i,j,k);
-                Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
-                                     + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
-                Real s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
-                                     + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
-                Real s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
-                                     + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
-                Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
-                            + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
-                
-                K_turb(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-            });
+
+            ComputeTurbVisc_SMAG(bxcc, K_turb, cell_data,
+                                 tau11, tau22, tau33,
+                                 tau12, tau13, tau23,
+                                 dxInv, solverChoice);
         }
         } // end profile
 
@@ -417,12 +396,6 @@ void erf_slow_rhs_pre (int level, int nrk,
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
-
-            amrex::Print() << bxcc << "\n";
-            amrex::Print() << tbxxy << "\n";
-            amrex::Print() << tbxxz << "\n";
-            amrex::Print() << tbxyz << "\n";
-            
             Real mu_eff = 0.;
             if (cons_visc)
                 mu_eff += 2.0 * solverChoice.dynamicViscosity;
