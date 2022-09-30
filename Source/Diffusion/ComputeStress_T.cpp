@@ -248,7 +248,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i-1, j  , k  )
                              + er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
         Real varbar = 0.25 * ( K_turb(i-1, j  , k  , EddyDiff::Mom_v) + K_turb(i  , j  , k  , EddyDiff::Mom_v)
-                             + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) )
+                             + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) );
 
         tau13(i,j,k) += met_h_xi*OneThird*errbar;
         tau13(i,j,k) *= mu_eff + varbar;
@@ -262,7 +262,7 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
         Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  )
                              + er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
         Real varbar = 0.25 * ( K_turb(i  , j-1, k  , EddyDiff::Mom_v) + K_turb(i  , j  , k  , EddyDiff::Mom_v)
-                             + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) )
+                             + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) );
 
         tau23(i,j,k) += met_h_eta*OneThird*errbar;
         tau23(i,j,k) *= mu_eff + varbar;
