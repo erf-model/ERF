@@ -9,7 +9,7 @@
 #include "ABLMost.H"
 
 // This is the slow RHS when doing multi-rate, and the only RHS when doing RK3
-void erf_slow_rhs_pre(int level, const int nrk,
+void erf_slow_rhs_pre(int level, int nrk,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
                       amrex::Vector<amrex::MultiFab>& S_data,
                       const amrex::MultiFab& S_prim,
@@ -20,7 +20,7 @@ void erf_slow_rhs_pre(int level, const int nrk,
                       std::unique_ptr<amrex::MultiFab>& z_t,
                             amrex::MultiFab& Omega,
                       const amrex::MultiFab& source,
-                      amrex::MultiFab& eddyDiffs,
+                            amrex::MultiFab& eddyDiffs,
                       const amrex::Geometry geom,
                             amrex::InterpFaceRegister* ifr,
                       const SolverChoice& solverChoice,

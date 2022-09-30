@@ -68,6 +68,23 @@ void ERF::erf_advance(int level,
     } // end profile
 
     // *************************************************************************
+    // Calculate cell-centered eddy viscosity & diffusivities
+    //
+    // Notes -- we fill all the data in ghost cells before calling this so
+    //    that we can fill the eddy viscosity in the ghost regions and
+    //    not have to call a boundary filler on this data itself
+    //
+    // LES - updates both horizontal and vertical eddy viscosity components
+    // PBL - only updates vertical eddy viscosity components so horizontal
+    //       components come from the LES model or are left as zero.
+    // *************************************************************************
+    if ( (solverChoice.les_type        !=       LESType::None) ||
+         (solverChoice.pbl_type        !=       PBLType::None) )
+    {
+        //ComputeTurbulentViscosity(xvel_old, yvel_old, zvel_old, state_old[IntVar::cons],
+        //                          eddyDiffs, fine_geom, solverChoice, m_most, domain_bcs_type_d);
+    }
+    // *************************************************************************
 
     // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
