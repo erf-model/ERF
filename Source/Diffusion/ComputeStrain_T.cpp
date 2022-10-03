@@ -366,9 +366,9 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
 
         tau11(i,j,k) = (u(i+1, j, k) - u(i, j, k))*dxInv[0]
-                         - (met_h_xi/met_h_zeta)*GradUz;
+                     - (met_h_xi/met_h_zeta)*GradUz;
         tau22(i,j,k) = (v(i, j+1, k) - v(i, j, k))*dxInv[1]
-                         - (met_h_eta/met_h_zeta)*GradVz;
+                     - (met_h_eta/met_h_zeta)*GradVz;
         tau33(i,j,k) = (w(i, j, k+1) - w(i, j, k))*dxInv[2]/met_h_zeta;
     });
 
@@ -428,7 +428,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
     // Extrapolate tau13 & tau23 to bottom
     {
         Box planexz2 = tbxxz2; planexz2.setBig(2, planexz2.smallEnd(2) );
-        tbxxz2.growLo(2,-1);
+        tbxxz2.growLo(2,-1);        
         amrex::ParallelFor(planexz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_xi,met_h_eta;
             met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
@@ -446,7 +446,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         });
 
         Box planeyz2 = tbxyz2; planeyz2.setBig(2, planeyz2.smallEnd(2) );
-        tbxyz2.growLo(2,-1);
+        tbxyz2.growLo(2,-1);       
         amrex::ParallelFor(planeyz2,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_xi,met_h_eta;
             met_h_xi  = Compute_h_xi_AtEdgeCenterI (i,j,k,dxInv,z_nd);

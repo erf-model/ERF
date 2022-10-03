@@ -119,9 +119,9 @@ void erf_slow_rhs_pre (int level, int nrk,
 
     if (l_use_diff) {
         expr  = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau33 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+        Tau11 = new MultiFab(ba  , dm, 1, IntVect(2,2,0));
+        Tau22 = new MultiFab(ba  , dm, 1, IntVect(2,2,0));
+        Tau33 = new MultiFab(ba  , dm, 1, IntVect(2,2,0));
         Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
         Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
         Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
@@ -346,7 +346,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         {
         BL_PROFILE("slow_rhs_making_strain");
         if (l_use_diff) {
-            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
+            Box bxcc  = mfi.growntilebox(IntVect(2,2,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
@@ -358,6 +358,15 @@ void erf_slow_rhs_pre (int level, int nrk,
             tbxxy.growHi(0,1);tbxxy.growHi(1,1);
             tbxxz.growHi(0,1);tbxxz.growHi(1,1);
             tbxyz.growHi(0,1);tbxyz.growHi(1,1);
+
+            /*
+            amrex::Print() << "Strain" << "\n";
+            amrex::Print() << bxcc << "\n";
+            amrex::Print() << tbxxy << "\n";
+            amrex::Print() << tbxxz << "\n";
+            amrex::Print() << tbxyz << "\n";
+            amrex::Print() << "\n";
+            */
 
             if (l_use_terrain) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
@@ -382,6 +391,12 @@ void erf_slow_rhs_pre (int level, int nrk,
         if (nrk == 0 && (solverChoice.les_type == LESType::Smagorinsky)) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
 
+            /*
+            amrex::Print() << "Kturb" << "\n";
+            amrex::Print() << bxcc << "\n";
+            amrex::Print() << "\n";
+            */
+            
             ComputeTurbVisc_SMAG(bxcc, K_turb, cell_data,
                                  tau11, tau22, tau33,
                                  tau12, tau13, tau23,
@@ -396,6 +411,16 @@ void erf_slow_rhs_pre (int level, int nrk,
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
+
+            /*
+            amrex::Print() << "Stress" << "\n";
+            amrex::Print() << bxcc << "\n";
+            amrex::Print() << tbxxy << "\n";
+            amrex::Print() << tbxxz << "\n";
+            amrex::Print() << tbxyz << "\n";
+            amrex::Print() << "\n";
+            */
+            
             Real mu_eff = 0.;
             if (cons_visc)
                 mu_eff += 2.0 * solverChoice.dynamicViscosity;
@@ -421,12 +446,12 @@ void erf_slow_rhs_pre (int level, int nrk,
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                             tau11, tau22, tau33,
                                             tau12, tau13, tau23,
-                                            er_arr, dxInv);
+                                            er_arr);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
                                            tau11, tau22, tau33,
                                            tau12, tau13, tau23,
-                                           er_arr, dxInv);
+                                           er_arr);
                 }
             }
         }

@@ -44,6 +44,8 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
 
             tau13(i,j,k) += met_h_xi*OneThird*errbar;
             tau13(i,j,k) *= mu_eff;
+
+            tau31(i,j,k) *= mu_eff;
         });
 
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
@@ -58,6 +60,8 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
 
             tau23(i,j,k) += met_h_eta*OneThird*errbar;
             tau23(i,j,k) *= mu_eff;
+
+            tau32(i,j,k) *= mu_eff;
         });
     }
     // Extrapolate tau13 & tau23 to top
@@ -74,6 +78,8 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
 
             tau13(i,j,k) += met_h_xi*OneThird*errbar;
             tau13(i,j,k) *= mu_eff;
+
+            tau31(i,j,k) *= mu_eff;
         });
 
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
@@ -88,6 +94,8 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
 
             tau23(i,j,k) += met_h_eta*OneThird*errbar;
             tau23(i,j,k) *= mu_eff;
+
+            tau32(i,j,k) *= mu_eff;
         });
     }
 
@@ -106,6 +114,8 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
 
         tau13(i,j,k) += met_h_xi*OneThird*errbar;
         tau13(i,j,k) *= mu_eff;
+
+        tau31(i,j,k) *= mu_eff;
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real met_h_eta;
@@ -116,6 +126,8 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
 
         tau23(i,j,k) += met_h_eta*OneThird*errbar;
         tau23(i,j,k) *= mu_eff;
+
+        tau32(i,j,k) *= mu_eff;
     });
 }
 

@@ -554,8 +554,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
 
-    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
+    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+2;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order)+1;
 
     temp_lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
     temp_lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
@@ -612,8 +612,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
-    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
+    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+2;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order)+1;
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
