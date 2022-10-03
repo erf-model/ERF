@@ -15,10 +15,10 @@ private:
     * \brief rhs is the right-hand-side function the integrator will use.
     */
     std::function<void(T&, const T&,     const amrex::Real, const amrex::Real     )> rhs;
-    std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const amrex::Real)> slow_rhs_pre;
+    std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> slow_rhs_pre;
     std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real     )> slow_rhs_post;
-    std::function<void(int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real,
-                                                      const amrex::Real, const amrex::Real, const amrex::Real)> fast_rhs;
+    std::function<void(int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
+                                                           const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -40,7 +40,7 @@ private:
     * \brief The post_update function is called by the integrator on stage data at the end of the stage
     */
     std::function<void (T&, int)> pre_update;
-    std::function<void (T&, amrex::Real, amrex::Real, int, int)> post_update;
+    std::function<void (T&, amrex::Real, int, int)> post_update;
     std::function<void (T&, T&, T&, amrex::Real, amrex::Real)>   no_substep;
 
 
@@ -87,7 +87,7 @@ public:
         rhs = F;
     }
 
-    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const amrex::Real)> F)
+    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
     {
         slow_rhs_pre = F;
     }
@@ -96,8 +96,9 @@ public:
         slow_rhs_post = F;
     }
 
-    void set_fast_rhs (std::function<void(int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real,
-                                                                         const amrex::Real, const amrex::Real, const amrex::Real)> F)
+    void set_fast_rhs (std::function<void(int, int, T&, const T&, T&, T&, T&,
+                                          const amrex::Real, const amrex::Real,
+                                          const amrex::Real, const amrex::Real)> F)
     {
         fast_rhs = F;
     }
@@ -117,7 +118,7 @@ public:
         pre_update = F;
     }
 
-    void set_post_update (std::function<void (T&, amrex::Real, amrex::Real, int, int)> F)
+    void set_post_update (std::function<void (T&, amrex::Real, int, int)> F)
     {
         post_update = F;
     }
@@ -261,7 +262,7 @@ public:
         }
 
         // This is the final time of the full timestep (also the 3rd RK stage)
-        Real new_time = time + timestep;
+        // Real new_time = time + timestep;
 
         amrex::Real time_stage = time;
         amrex::Real old_time_stage;
@@ -292,7 +293,7 @@ public:
             // if (version == 0) evaluate F_slow(S_stage) only for the fast variables
             // if (version == 1) evaluate F_slow(S_stage) only for all the  variables
             // ****************************************************
-            slow_rhs_pre(*F_slow, S_new, *S_scratch, time, new_time, old_time_stage, time_stage);
+            slow_rhs_pre(*F_slow, S_new, *S_scratch, time, old_time_stage, time_stage);
 
             amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
 
@@ -306,8 +307,9 @@ public:
                 // *******************************************************************************
                 for (int ks = 0; ks < nsubsteps; ++ks)
                 {
-                    fast_rhs(ks, *F_slow, S_old, S_new, *S_sum, *S_scratch, dtau, inv_fac,
-                             time, new_time, time + ks*dtau, time + (ks+1) * dtau);
+                    int ng = 0;
+                    fast_rhs(ks, ng, *F_slow, S_old, S_new, *S_sum, *S_scratch, dtau, inv_fac,
+                             time + ks*dtau, time + (ks+1) * dtau);
 
                 } // ks
 
@@ -326,7 +328,7 @@ public:
 
             // Call the post-update hook for S_new after all the fast steps completed
             // This will update S_prim that is used in the slow RHS
-            post_update(S_new, time + nsubsteps*dtau, dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+            post_update(S_new, time + nsubsteps*dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
         } // nrk
 
         // Return timestep
