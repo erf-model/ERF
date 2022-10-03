@@ -12,12 +12,12 @@
 
 using namespace amrex;
 
-void erf_fast_rhs_MT (int step, int level, const Real time,
+void erf_fast_rhs_MT (int step, int level,
                       Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
                       const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
-                      Vector<MultiFab>& S_stg_data,                // at last RK stg: S^n, S^* or S^**
-                      const MultiFab& S_stg_prim,                  // Primitive version of S_stg_data[IntVar::cons]
-                      const MultiFab& pi_stg,                      // Exner function evaluated at last RK stg
+                      Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
+                      const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVar::cons]
+                      const MultiFab& pi_stg,                        // Exner function evaluated at last RK stg
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                       Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
                       Vector<MultiFab>& S_scratch,                   // S_sum_old at most recent fast timestep for (rho theta)
@@ -51,14 +51,11 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
     Real beta_d = 0.1;
 
     const Box domain(geom.Domain());
-    const GpuArray<Real, AMREX_SPACEDIM> dx    = geom.CellSizeArray();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
     Real dzi = dxInv[2];
-    const auto& ba = S_stg_data[IntVar::cons].boxArray();
-    const auto& dm = S_stg_data[IntVar::cons].DistributionMap();
 
     MultiFab     coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
     MultiFab inv_coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
@@ -199,7 +196,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         Box gbx   = mfi.growntilebox(1);
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
-        Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
         {
         BL_PROFILE("fast_rhs_copies_0");
@@ -322,6 +318,21 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
         });
         } // end profile
 
+        // *********************************************************************
+        // This must be done before we set cur_xmom and cur_ymom, since those
+        //      in fact point to the same array as prev_xmom and prev_ymom
+        // *********************************************************************
+        Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
+        {
+        BL_PROFILE("fast_T_making_omega");
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = (k == 0) ? 0. :
+               (OmegaFromW(i,j,k, prev_zmom(i,j,k), prev_xmom, prev_ymom,z_nd_old,dxInv)
+               -OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
+        });
+        } // end profile
+        // *********************************************************************
+
         amrex::ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -335,18 +346,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
             cur_ymom(i, j, k) /= h_zeta_new;
             avg_ymom(i,j,k) += facinv*(cur_ymom(i,j,k) - stg_ymom(i,j,k));
         });
-
-        // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
-        {
-        BL_PROFILE("fast_T_making_omega");
-        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = (k == 0) ? 0. :
-               (OmegaFromW(i,j,k, prev_zmom(i,j,k), prev_xmom, prev_ymom,z_nd_old,dxInv)
-               -OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
-        });
-        } // end profile
-        // *********************************************************************
 
         Box bx_shrunk_in_k = bx;
         int klo = tbz.smallEnd(2);
@@ -367,8 +366,6 @@ void erf_fast_rhs_MT (int step, int level, const Real time,
             Real     dJ_old_kface = 0.5 * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
             Real     dJ_new_kface = 0.5 * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
             Real     dJ_stg_kface = 0.5 * (detJ_stg(i,j,k) + detJ_stg(i,j,k-1));
-
-            Real inv_dJ_old_kface = 1.0 / dJ_old_kface;
 
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);

@@ -12,7 +12,7 @@
 
 using namespace amrex;
 
-void erf_fast_rhs_T (int step, int level, const Real /*time*/,
+void erf_fast_rhs_T (int step, int level,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**

@@ -11,7 +11,7 @@
 
 using namespace amrex;
 
-void erf_fast_rhs_N (int step, int level, const Real /*time*/,
+void erf_fast_rhs_N (int step, int level,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
@@ -53,9 +53,6 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
     MultiFab Delta_rho_w(    convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,0));
     MultiFab Delta_rho  (            ba                , dm, 1, 1);
     MultiFab Delta_rho_theta(        ba                , dm, 1, 1);
-
-    MultiFab New_rho_u(convert(ba,IntVect(1,0,0)), dm, 1, 1);
-    MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
 
     MultiFab     coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
     MultiFab inv_coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
@@ -163,9 +160,6 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVar::zmom].const_array(mfi);
 
-        const Array4<      Real>& new_drho_u = New_rho_u.array(mfi);
-        const Array4<      Real>& new_drho_v = New_rho_v.array(mfi);
-
         const Array4<Real>& cur_cons       = S_data[IntVar::cons].array(mfi);
         const Array4<Real>& cur_xmom       = S_data[IntVar::xmom].array(mfi);
         const Array4<Real>& cur_ymom       = S_data[IntVar::ymom].array(mfi);
@@ -187,11 +181,6 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
-        // Create old_drho_u/v/w/theta  = U'', V'', W'', Theta'' in the docs
-        // Note that we do the Copy and Subtract including one ghost cell
-        //    so that we don't have to fill ghost cells of the new MultiFabs
-        // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
-        // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
         Box gbx   = mfi.growntilebox(1);
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
@@ -266,12 +255,12 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
 
             Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
 
-            new_drho_u(i, j, k) = prev_xmom(i,j,k) - stage_xmom(i,j,k)
+            Real new_drho_u = prev_xmom(i,j,k) - stage_xmom(i,j,k)
                 + dtau * fast_rhs_rho_u + dtau * slow_rhs_rho_u(i,j,k);
 
-            avg_xmom(i,j,k) += facinv*new_drho_u(i,j,k);
+            avg_xmom(i,j,k) += facinv*new_drho_u;
 
-            cur_xmom(i,j,k) = stage_xmom(i,j,k) + new_drho_u(i,j,k);
+            cur_xmom(i,j,k) = stage_xmom(i,j,k) + new_drho_u;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -287,12 +276,12 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
 
             Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
 
-            new_drho_v(i, j, k) = prev_ymom(i,j,k) - stage_ymom(i,j,k)
+            Real new_drho_v = prev_ymom(i,j,k) - stage_ymom(i,j,k)
                  + dtau * fast_rhs_rho_v + dtau * slow_rhs_rho_v(i,j,k);
 
-            avg_ymom(i,j,k) += facinv*new_drho_v(i,j,k);
+            avg_ymom(i,j,k) += facinv*new_drho_v;
 
-            cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
+            cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
         });
         } // end profile
 
@@ -301,10 +290,10 @@ void erf_fast_rhs_N (int step, int level, const Real /*time*/,
         BL_PROFILE("making_rho_rhs");
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real xflux_lo = new_drho_u(i  ,j,k);
-            Real xflux_hi = new_drho_u(i+1,j,k);
-            Real yflux_lo = new_drho_v(i,j  ,k);
-            Real yflux_hi = new_drho_v(i,j+1,k);
+            Real xflux_lo = cur_xmom(i  ,j,k) - stage_xmom(i  ,j,k);
+            Real xflux_hi = cur_xmom(i+1,j,k) - stage_xmom(i+1,j,k);
+            Real yflux_lo = cur_ymom(i,j  ,k) - stage_ymom(i,j  ,k);
+            Real yflux_hi = cur_ymom(i,j+1,k) - stage_ymom(i,j+1,k);
 
             temp_rhs_arr(i,j,k,Rho_comp     ) =  ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi;
             temp_rhs_arr(i,j,k,RhoTheta_comp) = (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -

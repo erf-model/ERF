@@ -106,7 +106,6 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 
         if (lev == 0)
         {
-            Vector<MultiFab*> smf = {&fdata.get_var(var_idx)};
             ERFPhysBCFunct physbc(lev,geom[lev],
                                   domain_bcs_type,domain_bcs_type_d,
                                   var_idx,solverChoice.terrain_type,
@@ -116,8 +115,11 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                   bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
 #endif
                                   m_r2d);
-            amrex::FillPatchSingleLevel(mf, time, smf, ftime, 0, icomp, ncomp,
-                                        geom[lev], physbc, bccomp);
+
+            IntVect nghost = mf.nGrowVect();
+            mf.FillBoundary(geom[lev].periodicity());
+            physbc(mf,icomp,ncomp,nghost,time,bccomp);
+
         }
         else
         {
@@ -135,6 +137,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                    bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
 #endif
                                    m_r2d);
+
             ERFPhysBCFunct fphysbc(lev,geom[lev],
                                    domain_bcs_type,domain_bcs_type_d,
                                    var_idx,solverChoice.terrain_type,fdata,
@@ -260,7 +263,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
         if (lev == 0)
         {
             // on lev, use the mf data and time passed to FillIntermediatePatch().
-            Vector<MultiFab*> smf { &mf };
             Vector<Real> stime { time };
 
             ERFPhysBCFunct physbc(lev,geom[lev],
@@ -273,8 +275,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
 #endif
                                    m_r2d);
 
-            amrex::FillPatchSingleLevel(mf, ngvect, time, smf, stime, 0, icomp, ncomp,
-                                        geom[lev], physbc, bccomp);
+            mf.FillBoundary(geom[lev].periodicity());
+            physbc(mf,icomp,ncomp,ngvect,time,bccomp);
         }
         else
         {

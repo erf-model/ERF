@@ -56,7 +56,7 @@ void erf_slow_rhs_post(int level, amrex::Real time,
                        std::unique_ptr<amrex::MultiFab>& dJ_old,
                        std::unique_ptr<amrex::MultiFab>& dJ_new);
 
-void erf_fast_rhs_N (int step, int level, const amrex::Real time,
+void erf_fast_rhs_N (int step, int level,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
                      const amrex::Vector<amrex::MultiFab >& S_old,
                      amrex::Vector<amrex::MultiFab >& S_stage_data,
@@ -71,7 +71,7 @@ void erf_fast_rhs_N (int step, int level, const amrex::Real time,
                      const amrex::Real fast_dt, const amrex::Real invfac,
                      bool ingested_bcs);
 
-void erf_fast_rhs_T (int step, int level, const amrex::Real time,
+void erf_fast_rhs_T (int step, int level,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
                      const amrex::Vector<amrex::MultiFab >& S_old,
                      amrex::Vector<amrex::MultiFab >& S_stage_data,
@@ -89,7 +89,7 @@ void erf_fast_rhs_T (int step, int level, const amrex::Real time,
                      const amrex::Real fast_dt, const amrex::Real invfac,
                      bool ingested_bcs);
 
-void erf_fast_rhs_MT (int step, int level, const amrex::Real time,
+void erf_fast_rhs_MT (int step, int level,
                       amrex::Vector<amrex::MultiFab >& S_slow_rhs,
                       const amrex::Vector<amrex::MultiFab >& S_old,
                       amrex::Vector<amrex::MultiFab >& S_stage_data,
