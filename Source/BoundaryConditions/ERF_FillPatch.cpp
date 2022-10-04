@@ -116,7 +116,7 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
 #endif
                                   m_r2d);
             IntVect nghost = mf.nGrowVect();
-            mf.FillBoundary(icomp,ncomp,nhost,geom[lev].periodicity());
+            mf.FillBoundary(icomp,ncomp,nghost,geom[lev].periodicity());
             physbc(mf,icomp,ncomp,nghost,time,bccomp);
         }
         else
