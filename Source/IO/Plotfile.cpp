@@ -164,7 +164,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                       Real z   = 0.125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                                           +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
                       Real fac = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
-                      vel_arr(i,j,k,0) = -Ampl * omega * fac * std::sin(kp * x - omega * t_new[lev]);
+                      vel_arr(i,j,k,0) -= -Ampl * omega * fac * std::sin(kp * x - omega * t_new[lev]);
                     }
                     {
                       Real x   = (i + 0.5) * dx[0];
@@ -172,7 +172,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                           +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
                       Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
 
-                      vel_arr(i,j,k,2) = Ampl * omega * fac * std::cos(kp * x - omega * t_new[lev]);
+                      vel_arr(i,j,k,2) -= Ampl * omega * fac * std::cos(kp * x - omega * t_new[lev]);
                     }
                     */
                 });
@@ -238,6 +238,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 // Moving terrain ANALYTICAL
                 const auto dx = geom[lev].CellSizeArray();
                 const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
+                const Array4<Real const>& r0_arr = r_hse.const_array(mfi);
                 */
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -246,6 +247,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
                     /*
                     // Moving boundary ANALYTICAL
+                    Real rho_hse     = r0_arr(i,j,k);
                     Real H           = 400.;
                     Real Ampl        = 0.16;
                     Real wavelength  = 100.;
@@ -257,7 +259,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                       Real z   = 0.125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                                           +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
                       Real fac = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
-                      derdat(i,j,k,mf_comp) = -(Ampl * omega * omega / kp) * fac *
+                      derdat(i,j,k,mf_comp) -= -rho_hse*(Ampl * omega * omega / kp) * fac *
                                               std::sin(kp * x - omega * t_new[lev]);
                     }
                     */
