@@ -138,11 +138,43 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& bx = mfi.validbox();
                 const Array4<Real> vel_arr = dmf.array(mfi);
                 const Array4<Real> msf_arr = mapfac_m[lev]->array(mfi);
+
+                /*
+                // Moving terrain ANALYTICAL
+                const auto dx = geom[lev].CellSizeArray();
+                const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
+                */
+
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     vel_arr(i,j,k,0) *= msf_arr(i,j,0);
                     vel_arr(i,j,k,1) *= msf_arr(i,j,0);
                     vel_arr(i,j,k,2) *= msf_arr(i,j,0);
+
+                    /*
+                    // Moving terrain ANALYTICAL
+                    Real H           = 400.;
+                    Real Ampl        = 0.16;
+                    Real wavelength  = 100.;
+                    Real kp          = 2. * 3.1415926535 / wavelength;
+                    Real g           = 9.8;
+                    Real omega       = std::sqrt(g * kp);
+                    {
+                      Real x   = (i + 0.5) * dx[0];
+                      Real z   = 0.125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
+                                          +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
+                      Real fac = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
+                      vel_arr(i,j,k,0) = -Ampl * omega * fac * std::sin(kp * x - omega * t_new[lev]);
+                    }
+                    {
+                      Real x   = (i + 0.5) * dx[0];
+                      Real z   = 0.125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
+                                          +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
+                      Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
+
+                      vel_arr(i,j,k,2) = Ampl * omega * fac * std::cos(kp * x - omega * t_new[lev]);
+                    }
+                    */
                 });
             }
             mf_comp += AMREX_SPACEDIM;
@@ -201,9 +233,34 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+
+                /*
+                // Moving terrain ANALYTICAL
+                const auto dx = geom[lev].CellSizeArray();
+                const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
+                */
+
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - p0_arr(i,j,k);
+
+                    /*
+                    // Moving boundary ANALYTICAL
+                    Real H           = 400.;
+                    Real Ampl        = 0.16;
+                    Real wavelength  = 100.;
+                    Real kp          = 2. * 3.1415926535 / wavelength;
+                    Real g           = 9.8;
+                    Real omega       = std::sqrt(g * kp);
+                    {
+                      Real x   = (i + 0.5) * dx[0];
+                      Real z   = 0.125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
+                                          +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
+                      Real fac = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
+                      derdat(i,j,k,mf_comp) = -(Ampl * omega * omega / kp) * fac *
+                                              std::sin(kp * x - omega * t_new[lev]);
+                    }
+                    */
                 });
             }
             mf_comp ++;
