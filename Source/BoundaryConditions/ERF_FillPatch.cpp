@@ -115,11 +115,9 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                   bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
 #endif
                                   m_r2d);
-
             IntVect nghost = mf.nGrowVect();
-            mf.FillBoundary(geom[lev].periodicity());
+            mf.FillBoundary(icomp,ncomp,nhost,geom[lev].periodicity());
             physbc(mf,icomp,ncomp,nghost,time,bccomp);
-
         }
         else
         {
@@ -137,7 +135,6 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
                                    bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
 #endif
                                    m_r2d);
-
             ERFPhysBCFunct fphysbc(lev,geom[lev],
                                    domain_bcs_type,domain_bcs_type_d,
                                    var_idx,solverChoice.terrain_type,fdata,
@@ -275,7 +272,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 #endif
                                    m_r2d);
 
-            mf.FillBoundary(geom[lev].periodicity());
+            mf.FillBoundary(icomp,ncomp,ngvect,geom[lev].periodicity());
             physbc(mf,icomp,ncomp,ngvect,time,bccomp);
         }
         else
