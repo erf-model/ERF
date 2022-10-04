@@ -20,14 +20,14 @@ erf.terrain_type = 1        # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
 # FOR NO SUBSTEPPING
-#erf.no_substepping     = 0
-#erf.fixed_dt           = 0.05
-#erf.fixed_mri_dt_ratio = 10
+erf.no_substepping     = 1
+erf.fixed_dt           = 0.005
+erf.fixed_mri_dt_ratio = 10
 
 # FOR SUBSTEPPING (fac 20)
-erf.no_substepping     = 0
-erf.fixed_mri_dt_ratio = 20
-erf.fixed_dt           = 0.1
+#erf.no_substepping     = 0
+#erf.fixed_mri_dt_ratio = 20
+#erf.fixed_dt           = 0.1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = -1       # timesteps between computing mass
