@@ -359,15 +359,6 @@ void erf_slow_rhs_pre (int level, int nrk,
             tbxxz.growHi(0,1);tbxxz.growHi(1,1);
             tbxyz.growHi(0,1);tbxyz.growHi(1,1);
 
-            /*
-            amrex::Print() << "Strain" << "\n";
-            amrex::Print() << bxcc << "\n";
-            amrex::Print() << tbxxy << "\n";
-            amrex::Print() << tbxxz << "\n";
-            amrex::Print() << tbxyz << "\n";
-            amrex::Print() << "\n";
-            */
-
             if (l_use_terrain) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
                                 u, v, w,
@@ -390,12 +381,6 @@ void erf_slow_rhs_pre (int level, int nrk,
         BL_PROFILE("slow_rhs_making_eddydiff");
         if (nrk == 0 && (solverChoice.les_type == LESType::Smagorinsky)) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
-
-            /*
-            amrex::Print() << "Kturb" << "\n";
-            amrex::Print() << bxcc << "\n";
-            amrex::Print() << "\n";
-            */
             
             ComputeTurbVisc_SMAG(bxcc, K_turb, cell_data,
                                  tau11, tau22, tau33,
@@ -411,15 +396,6 @@ void erf_slow_rhs_pre (int level, int nrk,
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
-
-            /*
-            amrex::Print() << "Stress" << "\n";
-            amrex::Print() << bxcc << "\n";
-            amrex::Print() << tbxxy << "\n";
-            amrex::Print() << tbxxz << "\n";
-            amrex::Print() << tbxyz << "\n";
-            amrex::Print() << "\n";
-            */
             
             Real mu_eff = 0.;
             if (cons_visc)
