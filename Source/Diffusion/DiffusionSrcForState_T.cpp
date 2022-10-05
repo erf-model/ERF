@@ -48,7 +48,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);
-    Box zbx2 = zbx;
+    Box zbx2 = zbx; Box zbx3 = zbx;
 
     const int ncomp      = n_end - n_start + 1;
     const int qty_offset = RhoTheta_comp;
@@ -125,7 +125,38 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
 
             yflux(i,j,k,qty_index) = rhoAlpha * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+
+        // Extrapolate Kturb at top and bottom
+        {
+           Box planexy = zbx; planexy.setBig(2, planexy.smallEnd(2) );
+           int k_lo = zbx.smallEnd(2); int k_hi = zbx.bigEnd(2);
+           zbx2.growLo(2,-1); zbx2.growHi(2,-1);
+           amrex::ParallelFor(planexy, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             const int  qty_index = n_start + n;
+             const int prim_index = qty_index - qty_offset;
+
+             amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+             amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+
+             { // bottom plane
+               Real rhoAlpha_tot = rhoAlpha + ( 1.5*K_turb(i, j, k_lo  , d_eddy_diff_idz[prim_index])
+                                              - 0.5*K_turb(i, j, k_lo+1, d_eddy_diff_idz[prim_index]) );
+               Real met_h_zeta = Compute_h_zeta_AtKface(i,j,k_lo,dxInv,z_nd);
+               Real GradCz = dz_inv * ( cell_prim(i, j, k_lo, prim_index) - cell_prim(i, j, k_lo-1, prim_index) );
+               zflux(i,j,k_lo,qty_index) = rhoAlpha_tot * GradCz / met_h_zeta;
+             }
+             { // top plane
+               Real rhoAlpha_tot = rhoAlpha + ( 1.5*K_turb(i, j, k_hi-1, d_eddy_diff_idz[prim_index])
+                                              - 0.5*K_turb(i, j, k_hi-2, d_eddy_diff_idz[prim_index]) );
+               Real met_h_zeta = Compute_h_zeta_AtKface(i,j,k_hi,dxInv,z_nd);
+               Real GradCz = dz_inv * ( cell_prim(i, j, k_hi, prim_index) - cell_prim(i, j, k_hi-1, prim_index) );
+               zflux(i,j,k_hi,qty_index) = rhoAlpha_tot * GradCz / met_h_zeta;
+             }
+           });
+        }
+        // Fill remaining cells
+        amrex::ParallelFor(zbx2, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
@@ -143,7 +174,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
         });
     // Alpha & Turb model
-    } else if (l_cons && l_turb) {
+    } else if (l_turb) {
         amrex::ParallelFor(xbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = n_start + n;
@@ -182,12 +213,43 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
 
             yflux(i,j,k,qty_index) = Alpha * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+
+        // Extrapolate Kturb at top and bottom
+        {
+           Box planexy = zbx; planexy.setBig(2, planexy.smallEnd(2) );
+           int k_lo = zbx.smallEnd(2); int k_hi = zbx.bigEnd(2);
+           zbx2.growLo(2,-1); zbx2.growHi(2,-1);
+           amrex::ParallelFor(planexy, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+             const int  qty_index = n_start + n;
+             const int prim_index = qty_index - qty_offset;
+
+             amrex::Real Alpha = d_alpha_eff[prim_index];
+
+             { // bottom plane
+               Real Alpha_tot = Alpha + ( 1.5*K_turb(i, j, k_lo  , d_eddy_diff_idz[prim_index])
+                                        - 0.5*K_turb(i, j, k_lo+1, d_eddy_diff_idz[prim_index]) );
+               Real met_h_zeta = Compute_h_zeta_AtKface(i,j,k_lo,dxInv,z_nd);
+               Real GradCz = dz_inv * ( cell_prim(i, j, k_lo, prim_index) - cell_prim(i, j, k_lo-1, prim_index) );
+               zflux(i,j,k_lo,qty_index) = Alpha_tot * GradCz / met_h_zeta;
+             }
+             { // top plane
+               Real Alpha_tot = Alpha + ( 1.5*K_turb(i, j, k_hi-1, d_eddy_diff_idz[prim_index])
+                                        - 0.5*K_turb(i, j, k_hi-2, d_eddy_diff_idz[prim_index]) );
+               Real met_h_zeta = Compute_h_zeta_AtKface(i,j,k_hi,dxInv,z_nd);
+               Real GradCz = dz_inv * ( cell_prim(i, j, k_hi, prim_index) - cell_prim(i, j, k_hi-1, prim_index) );
+               zflux(i,j,k_hi,qty_index) = Alpha_tot * GradCz / met_h_zeta;
+             }
+           });
+        }
+        // Fill remaining cells
+        amrex::ParallelFor(zbx2, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
             amrex::Real Alpha = d_alpha_eff[prim_index];
+
             Alpha += 0.5 * ( K_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                            + K_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
@@ -309,7 +371,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
     {
       Box planexy = zbx; planexy.setBig(2, planexy.smallEnd(2) );
       int k_lo = zbx.smallEnd(2); int k_hi = zbx.bigEnd(2);
-      zbx2.growLo(2,-1); zbx2.growHi(2,-1);
+      zbx3.growLo(2,-1); zbx3.growHi(2,-1);
       amrex::ParallelFor(planexy, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
       {
           const int  qty_index = n_start + n;
@@ -347,7 +409,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
       });
     }
     // Average interior cells
-    amrex::ParallelFor(zbx2, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    amrex::ParallelFor(zbx3, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       const int  qty_index = n_start + n;
 

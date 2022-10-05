@@ -119,9 +119,9 @@ void erf_slow_rhs_pre (int level, int nrk,
 
     if (l_use_diff) {
         expr  = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau11 = new MultiFab(ba  , dm, 1, IntVect(2,2,0));
-        Tau22 = new MultiFab(ba  , dm, 1, IntVect(2,2,0));
-        Tau33 = new MultiFab(ba  , dm, 1, IntVect(2,2,0));
+        Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+        Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+        Tau33 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
         Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
         Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
@@ -346,7 +346,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         {
         BL_PROFILE("slow_rhs_making_strain");
         if (l_use_diff) {
-            Box bxcc  = mfi.growntilebox(IntVect(2,2,0));
+            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
@@ -381,7 +381,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         BL_PROFILE("slow_rhs_making_eddydiff");
         if (nrk == 0 && (solverChoice.les_type == LESType::Smagorinsky)) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
-            
+
             ComputeTurbVisc_SMAG(bxcc, K_turb, cell_data,
                                  tau11, tau22, tau33,
                                  tau12, tau13, tau23,
@@ -396,7 +396,7 @@ void erf_slow_rhs_pre (int level, int nrk,
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
-            
+
             Real mu_eff = 0.;
             if (cons_visc)
                 mu_eff += 2.0 * solverChoice.dynamicViscosity;

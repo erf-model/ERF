@@ -13,121 +13,210 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
                         const Array4<const Real>& z_nd  ,
                         const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
+    //***********************************************************************************
+    // NOTE: The first  block computes (S-D).
+    //       The second block computes 2mu*JT*(S-D)
+    //       Boxes are copied here for extrapolations in the second block operations
+    //***********************************************************************************
+    Box bxcc2  = bxcc;
+
+    // First block: compute S-D
+    //***********************************************************************************
     Real OneThird   = (1./3.);
-
-    // Cell centered strains
     amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real met_h_zeta;
-        met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
-
-        tau11(i,j,k) -= met_h_zeta*OneThird*er_arr(i,j,k);
-        tau11(i,j,k) *= mu_eff;
-
-        tau22(i,j,k) -= met_h_zeta*OneThird*er_arr(i,j,k);
-        tau22(i,j,k) *= mu_eff;
-
+        tau11(i,j,k) -= OneThird*er_arr(i,j,k);
+        tau22(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) -= OneThird*er_arr(i,j,k);
-        tau33(i,j,k) *= mu_eff;
     });
 
+    // Second block: compute 2mu*JT*(S-D)
+    //***********************************************************************************
+    // Must fill tau13, tau23, tau33 first (linear combinations)
+    //-----------------------------------------------------------------------------------
     // Extrapolate tau13 & tau23 to bottom
     {
         Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
         tbxxz.growLo(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real met_h_xi;
-            met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-            Real errlo  = 0.5 * ( er_arr(i  , j  , k  ) + er_arr(i-1, j  , k  ) );
-            Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i-1, j  , k+1) );
-            Real errbar = 1.5*errlo - 0.5*errhi;
+            Real tau11lo  = 0.5 * ( tau11(i  , j  , k  ) + tau11(i-1, j  , k  ) );
+            Real tau11hi  = 0.5 * ( tau11(i  , j  , k+1) + tau11(i-1, j  , k+1) );
+            Real tau11bar = 1.5*tau11lo - 0.5*tau11hi;
 
-            tau13(i,j,k) += met_h_xi*OneThird*errbar;
-            tau13(i,j,k) *= mu_eff;
+            Real tau12lo  = 0.5 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  ) );
+            Real tau12hi  = 0.5 * ( tau12(i  , j  , k+1) + tau12(i  , j+1, k+1) );
+            Real tau12bar = 1.5*tau12lo - 0.5*tau12hi;
 
-            tau31(i,j,k) *= mu_eff;
+            Real mu_tot = mu_eff;
+
+            tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
+            tau13(i,j,k) *= mu_tot;
+
+            tau31(i,j,k) *= mu_tot*met_h_zeta;
         });
 
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
         tbxyz.growLo(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real met_h_eta;
-            met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-            Real errlo  = 0.5 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  ) );
-            Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i  , j-1, k+1) );
-            Real errbar = 1.5*errlo - 0.5*errhi;
+            Real tau21lo  = 0.5 * ( tau21(i  , j  , k  ) + tau21(i+1, j  , k  ) );
+            Real tau21hi  = 0.5 * ( tau21(i  , j  , k+1) + tau21(i+1, j  , k+1) );
+            Real tau21bar = 1.5*tau21lo - 0.5*tau21hi;
 
-            tau23(i,j,k) += met_h_eta*OneThird*errbar;
-            tau23(i,j,k) *= mu_eff;
+            Real tau22lo  = 0.5 * ( tau22(i  , j  , k  ) + tau22(i  , j-1, k  ) );
+            Real tau22hi  = 0.5 * ( tau22(i  , j  , k+1) + tau22(i  , j-1, k+1) );
+            Real tau22bar = 1.5*tau22lo - 0.5*tau22hi;
 
-            tau32(i,j,k) *= mu_eff;
+            Real mu_tot   = mu_eff;
+
+            tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
+            tau23(i,j,k) *= mu_tot;
+
+            tau32(i,j,k) *= mu_tot*met_h_zeta;
         });
     }
     // Extrapolate tau13 & tau23 to top
     {
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real met_h_xi;
-            met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-            Real errlo  = 0.5 * ( er_arr(i  , j  , k-2) + er_arr(i-1, j  , k-2) );
-            Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
-            Real errbar = 1.5*errhi - 0.5*errlo;
+            Real tau11lo  = 0.5 * ( tau11(i  , j  , k-2) + tau11(i-1, j  , k-2) );
+            Real tau11hi  = 0.5 * ( tau11(i  , j  , k-1) + tau11(i-1, j  , k-1) );
+            Real tau11bar = 1.5*tau11hi - 0.5*tau11lo;
 
-            tau13(i,j,k) += met_h_xi*OneThird*errbar;
-            tau13(i,j,k) *= mu_eff;
+            Real tau12lo  = 0.5 * ( tau12(i  , j  , k-2) + tau12(i  , j+1, k-2) );
+            Real tau12hi  = 0.5 * ( tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
+            Real tau12bar = 1.5*tau12hi - 0.5*tau12lo;
 
-            tau31(i,j,k) *= mu_eff;
+            Real mu_tot   = mu_eff;
+
+            tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
+            tau13(i,j,k) *= mu_tot;
+
+            tau31(i,j,k) *= mu_tot*met_h_zeta;
         });
 
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real met_h_eta;
-            met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-            Real errlo  = 0.5 * ( er_arr(i  , j  , k-2) + er_arr(i  , j-1, k-2) );
-            Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
-            Real errbar = 1.5*errhi - 0.5*errlo;
+            Real tau21lo  = 0.5 * ( tau21(i  , j  , k-2) + tau21(i+1, j  , k-2) );
+            Real tau21hi  = 0.5 * ( tau21(i  , j  , k-1) + tau21(i+1, j  , k-1) );
+            Real tau21bar = 1.5*tau21hi - 0.5*tau21lo;
 
-            tau23(i,j,k) += met_h_eta*OneThird*errbar;
-            tau23(i,j,k) *= mu_eff;
+            Real tau22lo  = 0.5 * ( tau22(i  , j  , k-2) + tau22(i  , j-1, k-2) );
+            Real tau22hi  = 0.5 * ( tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
+            Real tau22bar = 1.5*tau22hi - 0.5*tau22lo;
 
-            tau32(i,j,k) *= mu_eff;
+            Real mu_tot   = mu_eff;
+
+            tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
+            tau23(i,j,k) *= mu_tot;
+
+            tau32(i,j,k) *= mu_tot*met_h_zeta;
         });
     }
 
+    // We don't need x/y ghost cells for tau33 (avoids linear comb issues)
+    bxcc2.growLo(0,-1); bxcc2.growLo(1,-1);
+    bxcc2.growHi(0,-1); bxcc2.growHi(1,-1);
+
     // Standard operations
-    amrex::ParallelFor(tbxxy,tbxxz,tbxyz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        tau12(i,j,k) *= mu_eff;
-        tau21(i,j,k) *= mu_eff;
+    amrex::ParallelFor(bxcc2,tbxxz,tbxyz,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_xi,met_h_eta;
+        met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
+        met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
+
+        Real tau31bar = 0.25 * ( tau31(i  , j  , k  ) + tau31(i+1, j  , k  )
+                               + tau31(i  , j  , k+1) + tau31(i+1, j  , k+1) );
+        Real tau32bar = 0.25 * ( tau32(i  , j  , k  ) + tau32(i  , j+1, k  )
+                               + tau32(i  , j  , k+1) + tau32(i  , j+1, k+1) );
+        Real mu_tot   = mu_eff;
+
+        tau33(i,j,k) -= met_h_xi*tau31bar + met_h_eta*tau32bar;
+        tau33(i,j,k) *= mu_tot;
     },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real met_h_xi;
-        met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_xi,met_h_eta,met_h_zeta;
+        met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
+        met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+        met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-        Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i-1, j  , k  )
-                             + er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
+        Real tau11bar = 0.25 * ( tau11(i  , j  , k  ) + tau11(i-1, j  , k  )
+                               + tau11(i  , j  , k-1) + tau11(i-1, j  , k-1) );
+        Real tau12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
+                               + tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
+        Real mu_tot   = mu_eff;
 
-        tau13(i,j,k) += met_h_xi*OneThird*errbar;
-        tau13(i,j,k) *= mu_eff;
+        tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
+        tau13(i,j,k) *= mu_tot;
 
-        tau31(i,j,k) *= mu_eff;
+        tau31(i,j,k) *= mu_tot*met_h_zeta;
     },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real met_h_eta;
-        met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_xi,met_h_eta,met_h_zeta;
+        met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
+        met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
+        met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-        Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  )
-                             + er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
+        Real tau21bar = 0.25 * ( tau21(i  , j  , k  ) + tau21(i+1, j  , k  )
+                               + tau21(i  , j  , k-1) + tau21(i+1, j  , k-1) );
+        Real tau22bar = 0.25 * ( tau22(i  , j  , k  ) + tau22(i  , j-1, k  )
+                               + tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
+        Real mu_tot   = mu_eff;
 
-        tau23(i,j,k) += met_h_eta*OneThird*errbar;
-        tau23(i,j,k) *= mu_eff;
+        tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
+        tau23(i,j,k) *= mu_tot;
 
-        tau32(i,j,k) *= mu_eff;
+        tau32(i,j,k) *= mu_tot*met_h_zeta;
+    });
+
+    // Fill the remaining components: tau11, tau22, tau12/21
+    //-----------------------------------------------------------------------------------
+    amrex::ParallelFor(bxcc,tbxxy,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_zeta;
+        met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+        Real mu_tot = mu_eff;
+
+        tau11(i,j,k) *= mu_tot*met_h_zeta;
+        tau22(i,j,k) *= mu_tot*met_h_zeta;
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_zeta;
+        met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
+
+        Real mu_tot = mu_eff;
+
+        tau12(i,j,k) *= mu_tot*met_h_zeta;
+        tau21(i,j,k) *= mu_tot*met_h_zeta;
     });
 }
 
@@ -143,142 +232,227 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
                        const Array4<const Real>& z_nd  ,
                        const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
+    //***********************************************************************************
+    // NOTE: The first  block computes (S-D).
+    //       The second block computes 2mu*JT*(S-D)
+    //       Boxes are copied here for extrapolations in the second block operations
+    //***********************************************************************************
+    Box bxcc2  = bxcc;
+
+    // First block: compute S-D
+    //***********************************************************************************
     Real OneThird   = (1./3.);
-
-    // Cell centered strains
     amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real met_h_zeta;
-        met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
-
-        tau11(i,j,k) -= met_h_zeta*OneThird*er_arr(i,j,k);
-        tau11(i,j,k) *= mu_eff + K_turb(i, j, k, EddyDiff::Mom_h);;
-
-        tau22(i,j,k) -= met_h_zeta*OneThird*er_arr(i,j,k);
-        tau22(i,j,k) *= mu_eff + K_turb(i, j, k, EddyDiff::Mom_h);;
-
+        tau11(i,j,k) -= OneThird*er_arr(i,j,k);
+        tau22(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) -= OneThird*er_arr(i,j,k);
-        tau33(i,j,k) *= mu_eff + K_turb(i, j, k, EddyDiff::Mom_v);;
     });
 
+    // Second block: compute 2mu*JT*(S-D)
+    //***********************************************************************************
+    // Must fill tau13, tau23, tau33 first (linear combinations)
+    //-----------------------------------------------------------------------------------
     // Extrapolate tau13 & tau23 to bottom
     {
         Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
         tbxxz.growLo(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real met_h_xi;
-            met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-            Real errlo  = 0.5 * ( er_arr(i  , j  , k  ) + er_arr(i-1, j  , k  ) );
-            Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i-1, j  , k+1) );
-            Real errbar = 1.5*errlo - 0.5*errhi;
+            Real tau11lo  = 0.5 * ( tau11(i  , j  , k  ) + tau11(i-1, j  , k  ) );
+            Real tau11hi  = 0.5 * ( tau11(i  , j  , k+1) + tau11(i-1, j  , k+1) );
+            Real tau11bar = 1.5*tau11lo - 0.5*tau11hi;
 
-            Real varlo  = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i-1, j  , k  , EddyDiff::Mom_v) );
-            Real varhi  = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i-1, j  , k+1, EddyDiff::Mom_v) );
-            Real varbar = 1.5*varlo - 0.5*varhi;
+            Real tau12lo  = 0.5 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  ) );
+            Real tau12hi  = 0.5 * ( tau12(i  , j  , k+1) + tau12(i  , j+1, k+1) );
+            Real tau12bar = 1.5*tau12lo - 0.5*tau12hi;
 
-            tau13(i,j,k) += met_h_xi*OneThird*errbar;
-            tau13(i,j,k) *= mu_eff + varbar;
+            Real mulo   = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i-1, j  , k  , EddyDiff::Mom_v) );
+            Real muhi   = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i-1, j  , k+1, EddyDiff::Mom_v) );
+            Real mubar  = 1.5*mulo - 0.5*muhi;
+            Real mu_tot = mu_eff + mubar;
 
-            tau31(i,j,k) *= mu_eff + varbar;
+            tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
+            tau13(i,j,k) *= mu_tot;
+
+            tau31(i,j,k) *= mu_tot*met_h_zeta;
         });
 
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
         tbxyz.growLo(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real met_h_eta;
-            met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-            Real errlo  = 0.5 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  ) );
-            Real errhi  = 0.5 * ( er_arr(i  , j  , k+1) + er_arr(i  , j-1, k+1) );
-            Real errbar = 1.5*errlo - 0.5*errhi;
+            Real tau21lo  = 0.5 * ( tau21(i  , j  , k  ) + tau21(i+1, j  , k  ) );
+            Real tau21hi  = 0.5 * ( tau21(i  , j  , k+1) + tau21(i+1, j  , k+1) );
+            Real tau21bar = 1.5*tau21lo - 0.5*tau21hi;
 
-            Real varlo  = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i  , j-1, k  , EddyDiff::Mom_v) );
-            Real varhi  = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i  , j-1, k+1, EddyDiff::Mom_v) );
-            Real varbar = 1.5*varlo - 0.5*varhi;
+            Real tau22lo  = 0.5 * ( tau22(i  , j  , k  ) + tau22(i  , j-1, k  ) );
+            Real tau22hi  = 0.5 * ( tau22(i  , j  , k+1) + tau22(i  , j-1, k+1) );
+            Real tau22bar = 1.5*tau22lo - 0.5*tau22hi;
 
-            tau23(i,j,k) += met_h_eta*OneThird*errbar;
-            tau23(i,j,k) *= mu_eff + varbar;
+            Real mulo   = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i  , j-1, k  , EddyDiff::Mom_v) );
+            Real muhi   = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i  , j-1, k+1, EddyDiff::Mom_v) );
+            Real mubar  = 1.5*mulo - 0.5*muhi;
+            Real mu_tot = mu_eff + mubar;
 
-            tau32(i,j,k) *= mu_eff + varbar;
+            tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
+            tau23(i,j,k) *= mu_tot;
+
+            tau32(i,j,k) *= mu_tot*met_h_zeta;
         });
     }
     // Extrapolate tau13 & tau23 to top
     {
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real met_h_xi;
-            met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-            Real errlo  = 0.5 * ( er_arr(i  , j  , k-2) + er_arr(i-1, j  , k-2) );
-            Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
-            Real errbar = 1.5*errhi - 0.5*errlo;
+            Real tau11lo  = 0.5 * ( tau11(i  , j  , k-2) + tau11(i-1, j  , k-2) );
+            Real tau11hi  = 0.5 * ( tau11(i  , j  , k-1) + tau11(i-1, j  , k-1) );
+            Real tau11bar = 1.5*tau11hi - 0.5*tau11lo;
 
-            Real varlo  = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i-1, j  , k-2, EddyDiff::Mom_v) );
-            Real varhi  = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) );
-            Real varbar = 1.5*varhi - 0.5*varlo;
+            Real tau12lo  = 0.5 * ( tau12(i  , j  , k-2) + tau12(i  , j+1, k-2) );
+            Real tau12hi  = 0.5 * ( tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
+            Real tau12bar = 1.5*tau12hi - 0.5*tau12lo;
 
-            tau13(i,j,k) += met_h_xi*OneThird*errbar;
-            tau13(i,j,k) *= mu_eff + varbar;
+            Real mulo   = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i-1, j  , k-2, EddyDiff::Mom_v) );
+            Real muhi   = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) );
+            Real mubar  = 1.5*muhi - 0.5*mulo;
+            Real mu_tot = mu_eff + mubar;
 
-            tau31(i,j,k) *= mu_eff + varbar;
+            tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
+            tau13(i,j,k) *= mu_tot;
+
+            tau31(i,j,k) *= mu_tot*met_h_zeta;
         });
 
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real met_h_eta;
-            met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-            Real errlo  = 0.5 * ( er_arr(i  , j  , k-2) + er_arr(i  , j-1, k-2) );
-            Real errhi  = 0.5 * ( er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
-            Real errbar = 1.5*errhi - 0.5*errlo;
+            Real tau21lo  = 0.5 * ( tau21(i  , j  , k-2) + tau21(i+1, j  , k-2) );
+            Real tau21hi  = 0.5 * ( tau21(i  , j  , k-1) + tau21(i+1, j  , k-1) );
+            Real tau21bar = 1.5*tau21hi - 0.5*tau21lo;
 
-            Real varlo  = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i  , j-1, k-2, EddyDiff::Mom_v) );
-            Real varhi  = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) );
-            Real varbar = 1.5*varhi - 0.5*varlo;
+            Real tau22lo  = 0.5 * ( tau22(i  , j  , k-2) + tau22(i  , j-1, k-2) );
+            Real tau22hi  = 0.5 * ( tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
+            Real tau22bar = 1.5*tau22hi - 0.5*tau22lo;
 
-            tau23(i,j,k) += met_h_eta*OneThird*errbar;
-            tau23(i,j,k) *= mu_eff + varbar;
+            Real mulo   = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i  , j-1, k-2, EddyDiff::Mom_v) );
+            Real muhi   = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) );
+            Real mubar  = 1.5*muhi - 0.5*mulo;
+            Real mu_tot = mu_eff + mubar;
 
-            tau32(i,j,k) *= mu_eff + varbar;
+            tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
+            tau23(i,j,k) *= mu_tot;
+
+            tau32(i,j,k) *= mu_tot*met_h_zeta;
         });
     }
 
+    // We don't need x/y ghost cells for tau33 (avoids linear comb issues)
+    bxcc2.growLo(0,-1); bxcc2.growLo(1,-1);
+    bxcc2.growHi(0,-1); bxcc2.growHi(1,-1);
+
     // Standard operations
-    amrex::ParallelFor(tbxxy, tbxxz,tbxyz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real mu_turb = 0.25*( K_turb(i-1, j  , k, EddyDiff::Mom_h) + K_turb(i, j  , k, EddyDiff::Mom_h)
-                            + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i, j-1, k, EddyDiff::Mom_h) );
-        tau12(i,j,k) *= mu_eff + mu_turb;
-        tau21(i,j,k) *= mu_eff + mu_turb;
+    amrex::ParallelFor(bxcc2,tbxxz,tbxyz,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_xi,met_h_eta;
+        met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
+        met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
+
+        Real tau31bar = 0.25 * ( tau31(i  , j  , k  ) + tau31(i+1, j  , k  )
+                               + tau31(i  , j  , k+1) + tau31(i+1, j  , k+1) );
+        Real tau32bar = 0.25 * ( tau32(i  , j  , k  ) + tau32(i  , j+1, k  )
+                               + tau32(i  , j  , k+1) + tau32(i  , j+1, k+1) );
+        Real mu_tot   = mu_eff + K_turb(i, j, k, EddyDiff::Mom_v);
+
+        tau33(i,j,k) -= met_h_xi*tau31bar + met_h_eta*tau32bar;
+        tau33(i,j,k) *= mu_tot;
     },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real met_h_xi;
-        met_h_xi  = Compute_h_xi_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_xi,met_h_eta,met_h_zeta;
+        met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
+        met_h_eta  = Compute_h_eta_AtEdgeCenterJ (i,j,k,dxInv,z_nd);
+        met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
-        Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i-1, j  , k  )
-                             + er_arr(i  , j  , k-1) + er_arr(i-1, j  , k-1) );
-        Real varbar = 0.25 * ( K_turb(i-1, j  , k  , EddyDiff::Mom_v) + K_turb(i  , j  , k  , EddyDiff::Mom_v)
-                             + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) );
+        Real tau11bar = 0.25 * ( tau11(i  , j  , k  ) + tau11(i-1, j  , k  )
+                               + tau11(i  , j  , k-1) + tau11(i-1, j  , k-1) );
+        Real tau12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
+                               + tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
+        Real mubar    = 0.25 * ( K_turb(i-1, j  , k  , EddyDiff::Mom_v) + K_turb(i  , j  , k  , EddyDiff::Mom_v)
+                               + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) );
+        Real mu_tot   = mu_eff + mubar;
 
-        tau13(i,j,k) += met_h_xi*OneThird*errbar;
-        tau13(i,j,k) *= mu_eff + varbar;
+        tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
+        tau13(i,j,k) *= mu_tot;
 
-        tau31(i,j,k) *= mu_eff + varbar;
+        tau31(i,j,k) *= mu_tot*met_h_zeta;
     },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real met_h_eta;
-        met_h_eta = Compute_h_eta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_xi,met_h_eta,met_h_zeta;
+        met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
+        met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
+        met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
-        Real errbar = 0.25 * ( er_arr(i  , j  , k  ) + er_arr(i  , j-1, k  )
-                             + er_arr(i  , j  , k-1) + er_arr(i  , j-1, k-1) );
-        Real varbar = 0.25 * ( K_turb(i  , j-1, k  , EddyDiff::Mom_v) + K_turb(i  , j  , k  , EddyDiff::Mom_v)
-                             + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) );
+        Real tau21bar = 0.25 * ( tau21(i  , j  , k  ) + tau21(i+1, j  , k  )
+                               + tau21(i  , j  , k-1) + tau21(i+1, j  , k-1) );
+        Real tau22bar = 0.25 * ( tau22(i  , j  , k  ) + tau22(i  , j-1, k  )
+                               + tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
+        Real mubar    = 0.25 * ( K_turb(i  , j-1, k  , EddyDiff::Mom_v) + K_turb(i  , j  , k  , EddyDiff::Mom_v)
+                               + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) + K_turb(i  , j  , k-1, EddyDiff::Mom_v) );
+        Real mu_tot   = mu_eff + mubar;
 
-        tau23(i,j,k) += met_h_eta*OneThird*errbar;
-        tau23(i,j,k) *= mu_eff + varbar;
+        tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
+        tau23(i,j,k) *= mu_tot;
 
-        tau32(i,j,k) *= mu_eff + varbar;
+        tau32(i,j,k) *= mu_tot*met_h_zeta;
+    });
+
+    // Fill the remaining components: tau11, tau22, tau12/21
+    //-----------------------------------------------------------------------------------
+    amrex::ParallelFor(bxcc,tbxxy,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_zeta;
+        met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+        Real mu_tot = mu_eff + K_turb(i, j, k, EddyDiff::Mom_h);
+
+        tau11(i,j,k) *= mu_tot*met_h_zeta;
+        tau22(i,j,k) *= mu_tot*met_h_zeta;
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_zeta;
+        met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
+
+        Real mubar  = 0.25*( K_turb(i-1, j  , k, EddyDiff::Mom_h) + K_turb(i, j  , k, EddyDiff::Mom_h)
+                           + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i, j-1, k, EddyDiff::Mom_h) );
+        Real mu_tot = mu_eff + mubar;
+
+        tau12(i,j,k) *= mu_tot*met_h_zeta;
+        tau21(i,j,k) *= mu_tot*met_h_zeta;
     });
 }

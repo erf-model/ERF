@@ -14,6 +14,8 @@ void ComputeTurbVisc_SMAG(Box& bxcc,
                           const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                           const SolverChoice& solverChoice)
 {
+  // Fill Kturb for momentum in horizontal and vertical
+  //***********************************************************************************
   const Real cellVol = 1.0 / (dxInv[0] * dxInv[1] * dxInv[2]);
   const Real Delta = std::pow(cellVol,1.0/3.0);
   Real Cs = solverChoice.Cs;
@@ -36,6 +38,8 @@ void ComputeTurbVisc_SMAG(Box& bxcc,
     K_turb(i, j, k, EddyDiff::Mom_v) = K_turb(i, j, k, EddyDiff::Mom_h);
   });
 
+  // Fill Kturb for theta/scalar/QKE/KE
+  //***********************************************************************************
   Real inv_Pr_t    = solverChoice.Pr_t_inv;
   Real inv_Sc_t    = solverChoice.Sc_t_inv;
   Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
@@ -48,7 +52,7 @@ void ComputeTurbVisc_SMAG(Box& bxcc,
   bool use_QKE = (solverChoice.use_QKE && solverChoice.diffuse_QKE_3D);
 
   int offset = EddyDiff::Theta_h;
-  int ntot   = 4;
+  int ntot   = 5;
 
   if(use_QKE) {
     int ncomp  = 4;
