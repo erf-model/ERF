@@ -15,7 +15,7 @@ private:
     * \brief rhs is the right-hand-side function the integrator will use.
     */
     std::function<void(T&, const T&,     const amrex::Real, const amrex::Real     )> rhs;
-    std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
+    std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
     std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real     )> slow_rhs_post;
     std::function<void(int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
                                                            const amrex::Real, const amrex::Real)> fast_rhs;
@@ -87,11 +87,7 @@ public:
         rhs = F;
     }
 
-<<<<<<< HEAD
-    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
-=======
-    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
->>>>>>> origin/development
+    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
     {
         slow_rhs_pre = F;
     }
@@ -297,11 +293,7 @@ public:
             // if (version == 0) evaluate F_slow(S_stage) only for the fast variables
             // if (version == 1) evaluate F_slow(S_stage) only for all the  variables
             // ****************************************************
-<<<<<<< HEAD
-            slow_rhs_pre(*F_slow, S_new, *S_scratch, time, new_time, old_time_stage, time_stage, nrk);
-=======
-            slow_rhs_pre(*F_slow, S_new, *S_scratch, time, old_time_stage, time_stage);
->>>>>>> origin/development
+            slow_rhs_pre(*F_slow, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
 
             amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
 
