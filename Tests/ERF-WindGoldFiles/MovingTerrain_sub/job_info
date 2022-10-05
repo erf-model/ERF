@@ -5,20 +5,20 @@ inputs file: ../../Tests/test_files/MovingTerrain_sub/MovingTerrain_sub.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.0024148
+CPU time used since start of simulation (CPU-hours): 0.00265751
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Tue Sep 27 13:24:04 2022
+output data / time: Sun Oct  2 19:00:46 2022
 output dir:         /home/almgren/GitCode/ERF/Exec/MovingTerrain
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2022-09-15 09:25:27.958230
-build machine: Linux manda 5.15.0-46-generic #49~20.04.1-Ubuntu SMP Thu Aug 4 19:15:44 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
+build date:    2022-09-29 13:46:50.202826
+build machine: Linux manda 5.15.0-48-generic #54~20.04.1-Ubuntu SMP Thu Sep 1 16:17:26 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
 build dir:     /home/almgren/GitCode/ERF/Exec/MovingTerrain
 AMReX dir:     /home/almgren/GitCode/amrex
 
@@ -26,8 +26,8 @@ COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: last-amrlevel-version-535-ge5671aa0-dirty
-AMReX       git hash: 22.09-13-g17c94cc19
+ERF       git hash: 08607022-dirty
+AMReX       git hash: 22.09-24-gb84d7c069
 
 
 ===============================================================================
