@@ -271,10 +271,8 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real tau12hi  = 0.5 * ( tau12(i  , j  , k+1) + tau12(i  , j+1, k+1) );
             Real tau12bar = 1.5*tau12lo - 0.5*tau12hi;
 
-            Real mulo   = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i-1, j  , k  , EddyDiff::Mom_v) );
-            Real muhi   = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i-1, j  , k+1, EddyDiff::Mom_v) );
-            Real mubar  = 1.5*mulo - 0.5*muhi;
-            Real mu_tot = mu_eff + mubar;
+            Real mu_tot = mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
+                                        + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
 
             tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
             tau13(i,j,k) *= mu_tot;
@@ -299,10 +297,8 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real tau22hi  = 0.5 * ( tau22(i  , j  , k+1) + tau22(i  , j-1, k+1) );
             Real tau22bar = 1.5*tau22lo - 0.5*tau22hi;
 
-            Real mulo   = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i  , j-1, k  , EddyDiff::Mom_v) );
-            Real muhi   = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i  , j-1, k+1, EddyDiff::Mom_v) );
-            Real mubar  = 1.5*mulo - 0.5*muhi;
-            Real mu_tot = mu_eff + mubar;
+            Real mu_tot = mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
+                                        + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
 
             tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
             tau23(i,j,k) *= mu_tot;
@@ -329,10 +325,8 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real tau12hi  = 0.5 * ( tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
             Real tau12bar = 1.5*tau12hi - 0.5*tau12lo;
 
-            Real mulo   = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i-1, j  , k-2, EddyDiff::Mom_v) );
-            Real muhi   = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) );
-            Real mubar  = 1.5*muhi - 0.5*mulo;
-            Real mu_tot = mu_eff + mubar;
+            Real mu_tot = mu_eff + 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
+                                        + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
 
             tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
             tau13(i,j,k) *= mu_tot;
@@ -357,10 +351,8 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
             Real tau22hi  = 0.5 * ( tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
             Real tau22bar = 1.5*tau22hi - 0.5*tau22lo;
 
-            Real mulo   = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i  , j-1, k-2, EddyDiff::Mom_v) );
-            Real muhi   = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) );
-            Real mubar  = 1.5*muhi - 0.5*mulo;
-            Real mu_tot = mu_eff + mubar;
+            Real mu_tot = mu_eff + 0.25*( K_turb(i, j-1, k  , EddyDiff::Mom_v) + K_turb(i, j, k  , EddyDiff::Mom_v)
+                                        + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
 
             tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
             tau23(i,j,k) *= mu_tot;

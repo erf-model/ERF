@@ -52,51 +52,6 @@ ComputeStressVarVisc_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
         tau33(i,j,k) = mu_33 * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
     });
 
-    // Extrapolate K_turb to top and bottom
-    {
-        Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
-        tbxxz.growLo(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real varlo  = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i-1, j  , k  , EddyDiff::Mom_v) );
-            Real varhi  = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i-1, j  , k+1, EddyDiff::Mom_v) );
-            Real varbar = 1.5*varlo - 0.5*varhi;
-
-            tau13(i,j,k) *= varbar;
-        });
-
-        Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
-        tbxyz.growLo(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real varlo  = 0.5 * ( K_turb(i  , j  , k  , EddyDiff::Mom_v) + K_turb(i  , j-1, k  , EddyDiff::Mom_v) );
-            Real varhi  = 0.5 * ( K_turb(i  , j  , k+1, EddyDiff::Mom_v) + K_turb(i  , j-1, k+1, EddyDiff::Mom_v) );
-            Real varbar = 1.5*varlo - 0.5*varhi;
-
-            tau23(i,j,k) *= varbar;
-        });
-    }
-    // Extrapolate tau13 & tau23 to top
-    {
-        Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
-        tbxxz.growHi(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real varlo  = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i-1, j  , k-2, EddyDiff::Mom_v) );
-            Real varhi  = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i-1, j  , k-1, EddyDiff::Mom_v) );
-            Real varbar = 1.5*varhi - 0.5*varlo;
-
-            tau13(i,j,k) *= varbar;
-        });
-
-        Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
-        tbxyz.growHi(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real varlo  = 0.5 * ( K_turb(i  , j  , k-2, EddyDiff::Mom_v) + K_turb(i  , j-1, k-2, EddyDiff::Mom_v) );
-            Real varhi  = 0.5 * ( K_turb(i  , j  , k-1, EddyDiff::Mom_v) + K_turb(i  , j-1, k-1, EddyDiff::Mom_v) );
-            Real varbar = 1.5*varhi - 0.5*varlo;
-
-            tau23(i,j,k) *= varbar;
-        });
-    }
-
     // Off-diagonal strains
     amrex::ParallelFor(tbxxy,tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
