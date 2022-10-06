@@ -15,7 +15,7 @@
 
 using namespace amrex;
 
-void erf_slow_rhs_pre (int level,
+void erf_slow_rhs_pre (int level, int nrk,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_data,
                        const MultiFab& S_prim,
@@ -26,7 +26,7 @@ void erf_slow_rhs_pre (int level,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
-                       const MultiFab& eddyDiffs,
+                       MultiFab& eddyDiffs,
                        const amrex::Geometry geom,
                        amrex::InterpFaceRegister* ifr,
                        const SolverChoice& solverChoice,
@@ -47,17 +47,17 @@ void erf_slow_rhs_pre (int level,
     int start_comp = 0;
     int   num_comp = 2;
 
-    const int l_spatial_order = solverChoice.spatial_order;
-    const bool l_use_terrain    =  solverChoice.use_terrain;
+    const int  l_spatial_order  = solverChoice.spatial_order;
+    const bool l_use_terrain    = solverChoice.use_terrain;
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
-    bool      l_use_diff      = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                                  (solverChoice.les_type        !=       LESType::None) ||
-                                  (solverChoice.pbl_type        !=       PBLType::None) );
-    bool      cons_visc       = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
-                                  (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
-    bool      turb_visc       = ( (solverChoice.les_type == LESType::Smagorinsky) ||
-                                  (solverChoice.les_type == LESType::Deardorff  ) ||
-                                  (solverChoice.pbl_type == PBLType::MYNN25     )  );
+    bool       l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+                                    (solverChoice.les_type        !=       LESType::None) ||
+                                    (solverChoice.pbl_type        !=       PBLType::None) );
+    bool       cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
+                                    (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
+    bool       turb_visc        = ( (solverChoice.les_type == LESType::Smagorinsky) ||
+                                    (solverChoice.les_type == LESType::Deardorff  ) ||
+                                    (solverChoice.pbl_type == PBLType::MYNN25     )  );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -226,7 +226,7 @@ void erf_slow_rhs_pre (int level,
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
 
-        const Array4<const Real>& K_turb = eddyDiffs.const_array(mfi);
+        const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 
         const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
@@ -344,50 +344,93 @@ void erf_slow_rhs_pre (int level,
             tau32 = Array4<Real>{};
         }
         {
-        BL_PROFILE("slow_rhs_making_tau");
+        BL_PROFILE("slow_rhs_making_strain");
         if (l_use_diff) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
+
+            // Fill strain ghost cells for building K_turb
+            tbxxy.growLo(0,1);tbxxy.growLo(1,1);
+            tbxxz.growLo(0,1);tbxxz.growLo(1,1);
+            tbxyz.growLo(0,1);tbxyz.growLo(1,1);
+            tbxxy.growHi(0,1);tbxxy.growHi(1,1);
+            tbxxz.growHi(0,1);tbxxz.growHi(1,1);
+            tbxyz.growHi(0,1);tbxyz.growHi(1,1);
+
+            if (l_use_terrain) {
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
+                                u, v, w,
+                                tau11, tau22, tau33,
+                                tau12, tau13,
+                                tau21, tau23,
+                                tau31, tau32,
+                                z_nd, bc_ptr_h, dxInv);
+            } else {
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
+                                u, v, w,
+                                tau11, tau22, tau33,
+                                tau12, tau13, tau23,
+                                bc_ptr_h, dxInv);
+            }
+        } // l_use_diff
+        } // profile
+
+        {
+        BL_PROFILE("slow_rhs_making_eddydiff");
+        if (nrk == 0 && (solverChoice.les_type == LESType::Smagorinsky)) {
+            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
+
+            ComputeTurbVisc_SMAG(bxcc, K_turb, cell_data,
+                                 tau11, tau22, tau33,
+                                 tau12, tau13, tau23,
+                                 dxInv, solverChoice);
+        }
+        } // end profile
+
+        {
+        BL_PROFILE("slow_rhs_making_stress");
+        if (l_use_diff) {
+            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
+            Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
+            Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
+            Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
+
             Real mu_eff = 0.;
             if (cons_visc)
                 mu_eff += 2.0 * solverChoice.dynamicViscosity;
 
             if (l_use_terrain) {
-                if (turb_visc) {
-                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
-                                           u, v, w,
-                                           tau11, tau22, tau33,
-                                           tau12, tau13,
-                                           tau21, tau23,
-                                           tau31, tau32,
-                                           er_arr, z_nd, bc_ptr_h, dxInv);
-                } else {
+                if (cons_visc) {
                     ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                            u, v, w,
                                             tau11, tau22, tau33,
                                             tau12, tau13,
                                             tau21, tau23,
                                             tau31, tau32,
-                                            er_arr, z_nd, bc_ptr_h, dxInv);
+                                            er_arr, z_nd, dxInv);
+                } else {
+                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                                           tau11, tau22, tau33,
+                                           tau12, tau13,
+                                           tau21, tau23,
+                                           tau31, tau32,
+                                           er_arr, z_nd, dxInv);
                 }
             } else {
-                if (turb_visc) {
-                    ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
-                                           u, v, w,
-                                           tau11, tau22, tau33,
-                                           tau12, tau13, tau23,
-                                           er_arr, bc_ptr_h, dxInv);
-                } else {
+                if (cons_visc) {
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                            u, v, w,
                                             tau11, tau22, tau33,
                                             tau12, tau13, tau23,
-                                            er_arr, bc_ptr_h, dxInv);
+                                            er_arr);
+                } else {
+                    ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                                           tau11, tau22, tau33,
+                                           tau12, tau13, tau23,
+                                           er_arr);
                 }
-            } // l_use_terrain
-        } // l_use_diff
+            }
+        }
         } // profile
 
         // **************************************************************************

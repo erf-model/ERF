@@ -78,8 +78,9 @@ void ERF::erf_advance(int level,
     // PBL - only updates vertical eddy viscosity components so horizontal
     //       components come from the LES model or are left as zero.
     // *************************************************************************
-    if ( (solverChoice.les_type        !=       LESType::None) ||
-         (solverChoice.pbl_type        !=       PBLType::None) )
+    if ( ( (solverChoice.les_type != LESType::None)   ||
+           (solverChoice.pbl_type != PBLType::None) ) &&
+            solverChoice.les_type != LESType::Smagorinsky )
     {
         ComputeTurbulentViscosity(xvel_old, yvel_old, zvel_old, state_old[IntVar::cons],
                                   eddyDiffs, fine_geom, solverChoice, m_most, domain_bcs_type_d);

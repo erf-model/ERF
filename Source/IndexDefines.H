@@ -127,15 +127,15 @@ namespace Prim {
 namespace EddyDiff {
     enum {
         Mom_h = 0,
-        Mom_v,
         Theta_h,
-        Theta_v,
-        KE_h,
-        KE_v,
-        QKE_h,
-        QKE_v,
         Scalar_h,
+        KE_h,
+        QKE_h,
+        Mom_v,
+        Theta_v,
         Scalar_v,
+        KE_v,
+        QKE_v,
         PBL_lengthscale,
         NumDiffs
     };

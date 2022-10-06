@@ -24,6 +24,8 @@ void DiffusionSrcForMom_T (const amrex::Box& bxx, const amrex::Box& bxy, const a
                            const amrex::Array4<const amrex::Real>& cell_data, const amrex::Array4<const amrex::Real>& detJ,
                            const SolverChoice& solverChoice                 , const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
+
+
 void DiffusionSrcForState (const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
                            const amrex::Array4<const amrex::Real>& u,
                            const amrex::Array4<const amrex::Real>& v,
@@ -80,47 +82,72 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr);
 
+
+
 void ComputeStressConsVisc_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
-                             const amrex::Array4<const amrex::Real>& u,
-                             const amrex::Array4<const amrex::Real>& v,
-                             const amrex::Array4<const amrex::Real>& w,
                              amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
                              amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13, amrex::Array4<amrex::Real>& tau23,
-                             const amrex::Array4<const amrex::Real>& er_arr,
-                             const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+                             const amrex::Array4<const amrex::Real>& er_arr);
 
 void ComputeStressConsVisc_T(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
-                             const amrex::Array4<const amrex::Real>& u,
-                             const amrex::Array4<const amrex::Real>& v,
-                             const amrex::Array4<const amrex::Real>& w,
                              amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
                              amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13,
                              amrex::Array4<amrex::Real>& tau21, amrex::Array4<amrex::Real>& tau23,
                              amrex::Array4<amrex::Real>& tau31, amrex::Array4<amrex::Real>& tau32,
                              const amrex::Array4<const amrex::Real>& er_arr,
                              const amrex::Array4<const amrex::Real>& z_nd  ,
-                             const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv);
+
+
 
 void ComputeStressVarVisc_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
                             const amrex::Array4<const amrex::Real>& K_turb,
-                            const amrex::Array4<const amrex::Real>& u,
-                            const amrex::Array4<const amrex::Real>& v,
-                            const amrex::Array4<const amrex::Real>& w,
                             amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
                             amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13, amrex::Array4<amrex::Real>& tau23,
-                            const amrex::Array4<const amrex::Real>& er_arr,
-                            const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+                            const amrex::Array4<const amrex::Real>& er_arr);
 
 void ComputeStressVarVisc_T(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
                             const amrex::Array4<const amrex::Real>& K_turb,
-                            const amrex::Array4<const amrex::Real>& u,
-                            const amrex::Array4<const amrex::Real>& v,
-                            const amrex::Array4<const amrex::Real>& w,
                             amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
                             amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13,
                             amrex::Array4<amrex::Real>& tau21, amrex::Array4<amrex::Real>& tau23,
                             amrex::Array4<amrex::Real>& tau31, amrex::Array4<amrex::Real>& tau32,
                             const amrex::Array4<const amrex::Real>& er_arr,
                             const amrex::Array4<const amrex::Real>& z_nd  ,
-                            const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv);
+
+
+
+void ComputeStrain_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz,
+                     const amrex::Array4<const amrex::Real>& u,
+                     const amrex::Array4<const amrex::Real>& v,
+                     const amrex::Array4<const amrex::Real>& w,
+                     amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
+                     amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13, amrex::Array4<amrex::Real>& tau23,
+                     const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+
+void ComputeStrain_T(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz,
+                     const amrex::Array4<const amrex::Real>& u,
+                     const amrex::Array4<const amrex::Real>& v,
+                     const amrex::Array4<const amrex::Real>& w,
+                     amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
+                     amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13,
+                     amrex::Array4<amrex::Real>& tau21, amrex::Array4<amrex::Real>& tau23,
+                     amrex::Array4<amrex::Real>& tau31, amrex::Array4<amrex::Real>& tau32,
+                     const amrex::Array4<const amrex::Real>& z_nd  ,
+                     const amrex::BCRec* bc_ptr, const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
+
+
+
+void ComputeTurbVisc_SMAG(amrex::Box& bxcc,
+                          const amrex::Array4<amrex::Real>& K_turb,
+                          const amrex::Array4<const amrex::Real>& cell_data,
+                          const amrex::Array4<const amrex::Real>& tau11,
+                          const amrex::Array4<const amrex::Real>& tau22,
+                          const amrex::Array4<const amrex::Real>& tau33,
+                          const amrex::Array4<const amrex::Real>& tau12,
+                          const amrex::Array4<const amrex::Real>& tau13,
+                          const amrex::Array4<const amrex::Real>& tau23,
+                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
+                          const SolverChoice& solverChoice);
 #endif
