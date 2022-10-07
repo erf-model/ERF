@@ -21,18 +21,6 @@
 
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
-struct NullFill
-{
-    AMREX_GPU_DEVICE
-    void operator() (const amrex::IntVect& /*iv*/, amrex::Array4<amrex::Real> const& /*dest*/,
-                     const int /*dcomp*/, const int /*numcomp*/,
-                     amrex::GeometryData const& /*geom*/, const amrex::Real /*time*/,
-                     const amrex::BCRec* /*bcr*/, const int /*bcomp*/,
-                     const int /*orig_comp*/) const
-        {
-        }
-};
-
 class ERFPhysBCFunct
 {
 public:
@@ -42,32 +30,14 @@ public:
                     const int& var_idx, const int& terrain_type, TimeInterpolatedData& data,
                     amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
                     std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                    std::unique_ptr<amrex::MultiFab>& detJ_cc,
-#ifdef ERF_USE_NETCDF
-                    const std::string& init_type,
-                    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                    const amrex::Real bdy_time_interval,
-#endif
-                    std::unique_ptr<ReadBndryPlanes>& r2d)
+                    std::unique_ptr<amrex::MultiFab>& detJ_cc)
         : m_lev(lev),
           m_geom(geom), m_domain_bcs_type(domain_bcs_type),
           m_domain_bcs_type_d(domain_bcs_type_d),
           m_var_idx(var_idx), m_terrain_type(terrain_type), m_data(data),
           m_bc_extdir_vals(bc_extdir_vals),
           m_z_phys_nd(z_phys_nd),
-          m_detJ_cc(detJ_cc),
-#ifdef ERF_USE_NETCDF
-          m_init_type(init_type),
-          m_bdy_data_xlo(bdy_data_xlo),
-          m_bdy_data_xhi(bdy_data_xhi),
-          m_bdy_data_ylo(bdy_data_ylo),
-          m_bdy_data_yhi(bdy_data_yhi),
-          m_bdy_time_interval(bdy_time_interval),
-#endif
-          m_r2d(r2d)
+          m_detJ_cc(detJ_cc)
           {}
 
     ~ERFPhysBCFunct () {}
@@ -112,23 +82,11 @@ public:
                           const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                           int icomp, int ncomp, amrex::Real time, int bccomp);
 
-    void fill_from_bndryregs (const int lev,   const amrex::Box& bx, const amrex::Array4<amrex::Real>& dest_arr,
-                              const int icomp, const int bccomp, const int ncomp,
-                              const amrex::Box& domain, const amrex::BCRec* bc_ptr,
-                              const amrex::Real time);
-
-#ifdef ERF_USE_NETCDF
-    void fill_from_wrfbdy (const int lev,   const amrex::Box& bx, const amrex::Array4<amrex::Real>& dest_arr,
-                           const int icomp, const int bccomp, const int ncomp,
-                           const amrex::Box& domain, const amrex::BCRec* bc_ptr,
-                           const amrex::Real time, const amrex::Real bdy_time_interval);
-#endif
-
     // For backward compatibility
-    void FillBoundary (amrex::MultiFab& mf, int dcomp, int ncomp, amrex::IntVect const& nghost,
-                       amrex::Real time, int bccomp) {
-        this->operator()(mf,dcomp,ncomp,nghost,time,bccomp);
-    }
+    // void FillBoundary (amrex::MultiFab& mf, int dcomp, int ncomp, amrex::IntVect const& nghost,
+    //                    amrex::Real time, int bccomp) {
+    //     this->operator()(mf,dcomp,ncomp,nghost,time,bccomp);
+    // }
 
 private:
     int                  m_lev;
@@ -141,15 +99,6 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
     std::unique_ptr<amrex::MultiFab>& m_z_phys_nd;
     std::unique_ptr<amrex::MultiFab>&   m_detJ_cc;
-#ifdef ERF_USE_NETCDF
-    const std::string m_init_type;
-    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xlo;
-    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_xhi;
-    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_ylo;
-    const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& m_bdy_data_yhi;
-    const amrex::Real m_bdy_time_interval;
-#endif
-    std::unique_ptr<ReadBndryPlanes>& m_r2d;
 };
 
 #endif

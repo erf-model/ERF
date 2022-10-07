@@ -391,6 +391,10 @@ private:
                           amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                           amrex::Vector<amrex::FArrayBox*> T_lateral);
 
+    void fill_from_wrfbdy (amrex::MultiFab& mf,
+                           const int icomp, const int bccomp_in, const int ncomp,
+                           const amrex::Real time);
+
     // *** *** FArrayBox's for holding the SURFACE data
     // Data read from the wrfinput NetCDF file
     amrex::FArrayBox NC_HGT_fab;    // Terrain height (variable HGT in the wrfinput file)
@@ -403,12 +407,7 @@ private:
     // amrex::FArrayBox NC_TSK_fab;    // Surface Skin Temperature; Appears to be same as SST...
 
     amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab;
-#endif // ERF_USE_NETCDF
 
-    // Struct for working with the sounding data we take as an input
-    InputSoundingData input_sounding_data;
-
-#ifdef ERF_USE_NETCDF
     // Vectors (over time) of Vector (over variables) of FArrayBoxs for holding the data read from the wrfbdy NetCDF file
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xlo;
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xhi;
@@ -417,6 +416,13 @@ private:
 
     amrex::Real bdy_time_interval;
 #endif // ERF_USE_NETCDF
+
+    void fill_from_bndryregs (amrex::MultiFab& mf,
+                              const int icomp, const int bccomp_in, const int ncomp,
+                              const amrex::Real time);
+
+    // Struct for working with the sounding data we take as an input
+    InputSoundingData input_sounding_data;
 
     // write checkpoint file to disk
     void WriteCheckpointFile () const;
