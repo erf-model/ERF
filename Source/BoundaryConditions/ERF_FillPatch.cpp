@@ -104,20 +104,25 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
           amrex::Abort("Dont recognize this variable type in ERF_Fillpatch");
         }
 
+        PhysBCFunctNoOp null_bc;
+
         if (lev == 0)
         {
             ERFPhysBCFunct physbc(lev,geom[lev],
                                   domain_bcs_type,domain_bcs_type_d,
                                   var_idx,solverChoice.terrain_type,
-                                  fdata,m_bc_extdir_vals,z_phys_nd[lev], detJ_cc[lev],
-#ifdef ERF_USE_NETCDF
-                                  init_type,bdy_data_xlo,bdy_data_xhi,
-                                  bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
-#endif
-                                  m_r2d);
+                                  fdata,m_bc_extdir_vals,z_phys_nd[lev], detJ_cc[lev]);
             IntVect nghost = mf.nGrowVect();
-            mf.FillBoundary(icomp,ncomp,nghost,geom[lev].periodicity());
-            physbc(mf,icomp,ncomp,nghost,time,bccomp);
+
+            Vector<MultiFab*> fmf = {&fdata.get_var(var_idx)};
+            amrex::FillPatchSingleLevel(mf, time, fmf, ftime, icomp, icomp, ncomp,
+                                        geom[lev], null_bc, bccomp);
+            physbc(mf,icomp,ncomp,mf.nGrowVect(),time,bccomp);
+
+            if (m_r2d) fill_from_bndryregs(mf,icomp,bccomp,ncomp,time);
+#ifdef ERF_USE_NETCDF
+            if (init_type == "real") fill_from_wrfbdy(mf,icomp,bccomp,ncomp,time);
+#endif
         }
         else
         {
@@ -129,21 +134,11 @@ ERF::FillPatch (int lev, Real time, Vector<MultiFab>& mfs)
             ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],
                                    domain_bcs_type,domain_bcs_type_d,
                                    var_idx,solverChoice.terrain_type,cdata,
-                                   m_bc_extdir_vals,z_phys_nd[lev-1],detJ_cc[lev-1],
-#ifdef ERF_USE_NETCDF
-                                   init_type,bdy_data_xlo,bdy_data_xhi,
-                                   bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
-#endif
-                                   m_r2d);
+                                   m_bc_extdir_vals,z_phys_nd[lev-1],detJ_cc[lev-1]);
             ERFPhysBCFunct fphysbc(lev,geom[lev],
                                    domain_bcs_type,domain_bcs_type_d,
                                    var_idx,solverChoice.terrain_type,fdata,
-                                   m_bc_extdir_vals,z_phys_nd[lev], detJ_cc[lev],
-#ifdef ERF_USE_NETCDF
-                                   init_type,bdy_data_xlo,bdy_data_xhi,
-                                   bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
-#endif
-                                   m_r2d);
+                                   m_bc_extdir_vals,z_phys_nd[lev], detJ_cc[lev]);
 
             amrex::FillPatchTwoLevels(mf, time, cmf, ctime, fmf, ftime,
                                       0, icomp, ncomp, geom[lev-1], geom[lev],
@@ -265,15 +260,15 @@ ERF::FillIntermediatePatch (int lev, Real time,
             ERFPhysBCFunct physbc(lev,geom[lev],
                                   domain_bcs_type,domain_bcs_type_d,
                                   var_idx,solverChoice.terrain_type,level_data,
-                                  m_bc_extdir_vals,z_phys_nd[lev],detJ_cc[lev],
-#ifdef ERF_USE_NETCDF
-                                  init_type,bdy_data_xlo,bdy_data_xhi,
-                                  bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
-#endif
-                                   m_r2d);
+                                  m_bc_extdir_vals,z_phys_nd[lev],detJ_cc[lev]);
 
             mf.FillBoundary(icomp,ncomp,ngvect,geom[lev].periodicity());
             physbc(mf,icomp,ncomp,ngvect,time,bccomp);
+
+            if (m_r2d) fill_from_bndryregs(mf,icomp,bccomp,ncomp,time);
+#ifdef ERF_USE_NETCDF
+            if (init_type == "real") fill_from_wrfbdy(mf,icomp,bccomp,ncomp,time);
+#endif
         }
         else
         {
@@ -288,21 +283,11 @@ ERF::FillIntermediatePatch (int lev, Real time,
             ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],
                                    domain_bcs_type,domain_bcs_type_d,
                                    var_idx,solverChoice.terrain_type,cdata,
-                                   m_bc_extdir_vals,z_phys_nd[lev-1],detJ_cc[lev-1],
-#ifdef ERF_USE_NETCDF
-                                   init_type,bdy_data_xlo,bdy_data_xhi,
-                                   bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
-#endif
-                                   m_r2d);
+                                   m_bc_extdir_vals,z_phys_nd[lev-1],detJ_cc[lev-1]);
             ERFPhysBCFunct fphysbc(lev,geom[lev],
                                    domain_bcs_type,domain_bcs_type_d,
                                    var_idx,solverChoice.terrain_type,level_data,
-                                   m_bc_extdir_vals,z_phys_nd[lev],detJ_cc[lev],
-#ifdef ERF_USE_NETCDF
-                                   init_type,bdy_data_xlo,bdy_data_xhi,
-                                   bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
-#endif
-                                   m_r2d);
+                                   m_bc_extdir_vals,z_phys_nd[lev],detJ_cc[lev]);
 
             amrex::FillPatchTwoLevels(mf_temp, ngvect, time, cmf, ctime, fmf, ftime,
                                       0, icomp, ncomp, geom[lev-1], geom[lev],
@@ -398,21 +383,11 @@ ERF::FillCoarsePatch (int lev, Real time,
     ERFPhysBCFunct cphysbc(lev-1,geom[lev-1],
                            domain_bcs_type,domain_bcs_type_d,
                            var_idx,solverChoice.terrain_type,cdata,
-                           m_bc_extdir_vals,z_phys_nd[lev-1],detJ_cc[lev-1],
-#ifdef ERF_USE_NETCDF
-                           init_type,bdy_data_xlo,bdy_data_xhi,
-                           bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
-#endif
-                           m_r2d);
+                           m_bc_extdir_vals,z_phys_nd[lev-1],detJ_cc[lev-1]);
     ERFPhysBCFunct fphysbc(lev,geom[lev],
                            domain_bcs_type,domain_bcs_type_d,
                            var_idx,solverChoice.terrain_type,fdata,
-                           m_bc_extdir_vals,z_phys_nd[lev],detJ_cc[lev],
-#ifdef ERF_USE_NETCDF
-                           init_type,bdy_data_xlo,bdy_data_xhi,
-                           bdy_data_ylo,bdy_data_yhi,bdy_time_interval,
-#endif
-                           m_r2d);
+                           m_bc_extdir_vals,z_phys_nd[lev],detJ_cc[lev]);
 
     amrex::InterpFromCoarseLevel(mf, time, *cmf[0], 0, icomp, ncomp, geom[lev-1], geom[lev],
                                     cphysbc, 0, fphysbc, 0, refRatio(lev-1),

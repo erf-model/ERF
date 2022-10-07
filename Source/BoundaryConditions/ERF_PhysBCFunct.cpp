@@ -69,8 +69,6 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         {
-            Vector<BCRec> bcrs(ncomp);
-
             // Do all BCs except MOST
             for (MFIter mfi(mf); mfi.isValid(); ++mfi)
             {
@@ -130,50 +128,6 @@ void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect con
                         amrex::Abort("Dont know this var_idx in ERF_PhysBC");
                     }
 
-                    // ****************************************************************************
-                    // Based on BCRec for the domain, we need to make BCRec for this Box
-                    // bccomp is used as starting index for m_domain_bcs_type
-                    //      0 is used as starting index for bcrs
-                    // ****************************************************************************
-                    amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
-
-                    // xlo: ori = 0
-                    // ylo: ori = 1
-                    // zlo: ori = 2
-                    // xhi: ori = 3
-                    // yhi: ori = 4
-                    // zhi: ori = 5
-
-                    amrex::Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
-#ifdef AMREX_USE_GPU
-                    Gpu::htod_memcpy_async
-                        (bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
-#else
-                    std::memcpy
-                        (bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
-#endif
-                    const amrex::BCRec* bc_ptr = bcrs_d.data();
-
-                    if (m_r2d) fill_from_bndryregs(m_lev, bx, dest_arr, icomp, bccomp, ncomp, domain, bc_ptr, time);
-
-#ifdef ERF_USE_NETCDF
-                    if (m_init_type == "real") {
-
-                        if (m_var_idx == Vars::cons) {
-                            fill_from_wrfbdy(m_lev, bx, dest_arr, Rho_comp, BCVars::Rho_bc_comp, 1,
-                                             domain, bc_ptr, time, m_bdy_time_interval);
-
-                            fill_from_wrfbdy(m_lev, bx, dest_arr, RhoTheta_comp, BCVars::RhoTheta_bc_comp, 1,
-                                             domain, bc_ptr, time, m_bdy_time_interval);
-
-                        } else if (m_var_idx == Vars::xvel || m_var_idx == Vars::yvel) {
-
-                            fill_from_wrfbdy(m_lev, bx, dest_arr, icomp, bccomp, 1,
-                                             domain, bc_ptr, time, m_bdy_time_interval);
-                        }
-                    }
-#endif
-                        Gpu::streamSynchronize(); // because of bcrs_d
                 } // !gdomain.contains(bx)
             } // MFIter
         } // OpenMP
