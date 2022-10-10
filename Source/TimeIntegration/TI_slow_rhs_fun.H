@@ -87,7 +87,7 @@
     };
 
     // *************************************************************
-    // This called after before RK stage
+    // This called before RK stage
     // *************************************************************
     auto pre_update_fun = [&](Vector<MultiFab>& S_data, int ng_cons)
     {
@@ -98,11 +98,12 @@
     // This called after every RK stage -- from MRI or SRI
     // *************************************************************
     auto post_update_fun = [&](Vector<MultiFab>& S_data,
-                               const Real time_for_fp,
-                               int ng_cons, int ng_vel)
+                               const Real time_for_fp, int ng_cons, int ng_vel)
     {
         bool fast_only = false;
-        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only);
+        bool vel_and_mom_synced = false;
+        apply_bcs(S_data, time_for_fp,
+                  ng_cons, ng_vel, fast_only, vel_and_mom_synced);
     };
 
     // *************************************************************

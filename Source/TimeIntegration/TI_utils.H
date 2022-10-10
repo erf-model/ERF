@@ -34,8 +34,9 @@
     //  before every subsequent stage.  Since we advance the variables in conservative form,
     //  we must convert momentum to velocity before imposing the bcs.
     // ***************************************************************************************
-    auto apply_bcs = [&](Vector<MultiFab>& S_data, const Real time_for_fp,
-                         int ng_cons, int ng_vel, bool fast_only)
+    auto apply_bcs = [&](Vector<MultiFab>& S_data,
+                         const Real time_for_fp, int ng_cons, int ng_vel,
+                         bool fast_only, bool vel_and_mom_synced)
     {
         BL_PROFILE("apply_bcs()");
         amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
@@ -50,48 +51,66 @@
             ifr->interp(fmf,cmf_const,0,1);
         }
 
+        int scomp_cons;
+        int ncomp_cons;
+        bool cons_only;
+
+        if (!vel_and_mom_synced) {
+
+            // **********************************************************************************
+            // Call FillPatch routines for the density only because we need it to convert between
+            //      momentum and velocity
+            // This fills ghost cells/faces from
+            //     1) coarser level if lev > 0
+            //     2) physical boundaries
+            //     3) other grids at the same level
+            // **********************************************************************************
+            scomp_cons = 0;
+            ncomp_cons = 1;
+            cons_only  = true;
+
+            // We must have at least one ghost cell of density to convert from momentum to velocity
+            //    on the valid region
+            AMREX_ALWAYS_ASSERT (ng_cons >= 1);
+
+            FillIntermediatePatch(level, time_for_fp,
+                                  {&S_data[IntVar::cons], &xvel_new, &yvel_new, &zvel_new},
+                                  ng_cons, 0, cons_only, scomp_cons, ncomp_cons);
+
+            // Here we don't use include any of the ghost region because we have only updated
+            //      momentum on valid faces
+            MomentumToVelocity(xvel_new, IntVect::TheZeroVector(),
+                               yvel_new, IntVect::TheZeroVector(),
+                               zvel_new, IntVect::TheZeroVector(),
+                               S_data[IntVar::cons],
+                               S_data[IntVar::xmom],
+                               S_data[IntVar::ymom],
+                               S_data[IntVar::zmom]);
+        }
+
         // ***************************************************************************************
-        // Call FillPatch routines for the density only because we need it to convert between
-        //      momentum and velocity
+        // Call FillPatch routines for all data except rho which was filled above
         // This fills ghost cells/faces from
         //     1) coarser level if lev > 0
         //     2) physical boundaries
         //     3) other grids at the same level
         // ***************************************************************************************
-        int scomp_cons = 0;
-        int ncomp_cons = 1;
-        bool cons_only = true;
-
-        // We must have at least one ghost cell of density to convert from momentum to velocity
-        //    on the valid region
-        AMREX_ALWAYS_ASSERT (ng_cons >= 1);
-
-        FillIntermediatePatch(level, time_for_fp,
-                              {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
-                              ng_cons, 0, cons_only, scomp_cons, ncomp_cons);
-
-        // Here we don't use include any of the ghost region because we have only updated
-        //      momentum on valid faces
-        MomentumToVelocity(xvel_new, IntVect::TheZeroVector(),
-                           yvel_new, IntVect::TheZeroVector(),
-                           zvel_new, IntVect::TheZeroVector(),
-                           S_data[IntVar::cons],
-                           S_data[IntVar::xmom],
-                           S_data[IntVar::ymom],
-                           S_data[IntVar::zmom]);
-
-        // ***************************************************************************************
-        // Call FillPatch routines for all data
-        // This fills ghost cells/faces from
-        //     1) coarser level if lev > 0
-        //     2) physical boundaries
-        //     3) other grids at the same level
-        // ***************************************************************************************
-        scomp_cons = 0;
-        if (fast_only) {
-            ncomp_cons = 2; // rho and (rho theta)
+        if (vel_and_mom_synced) {
+            if (fast_only) {
+                scomp_cons = 0;
+                ncomp_cons = 2; // rho and (rho theta) only
+            } else {
+                scomp_cons = 0;
+                ncomp_cons = S_data[IntVar::cons].nComp();
+            }
         } else {
-            ncomp_cons = S_data[IntVar::cons].nComp();
+            if (fast_only) {
+                scomp_cons = 1;
+                ncomp_cons = 1; // (rho theta) only since we filled rho above
+            } else {
+                scomp_cons = 1;
+                ncomp_cons = S_data[IntVar::cons].nComp()-1; // since we filled rho above
+            }
         }
 
         bool allow_most_bcs = true;
@@ -107,7 +126,7 @@
 
         cons_only = false;
         FillIntermediatePatch(level, time_for_fp,
-                              {S_data[IntVar::cons], xvel_new, yvel_new, zvel_new},
+                              {&S_data[IntVar::cons], &xvel_new, &yvel_new, &zvel_new},
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons,
                               allow_most_bcs);
 

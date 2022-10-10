@@ -40,7 +40,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
     const int l_spatial_order   = solverChoice.spatial_order;
     const bool l_use_terrain    = solverChoice.use_terrain;
-    const bool l_moving_terrain = (solverChoice.terrain_type == 1);
 
     const bool l_use_QKE        = solverChoice.use_QKE && solverChoice.advect_QKE;
     const bool l_use_deardorff  = (solverChoice.les_type == LESType::Deardorff);

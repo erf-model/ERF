@@ -101,9 +101,15 @@ void ERF::erf_advance(int level,
                        state_old[IntVar::ymom],
                        state_old[IntVar::zmom]);
 
-    bool fast_only = false;
+    MultiFab::Copy(xvel_new,xvel_old,0,0,1,xvel_old.nGrowVect());
+    MultiFab::Copy(yvel_new,yvel_old,0,0,1,yvel_old.nGrowVect());
+    MultiFab::Copy(zvel_new,zvel_old,0,0,1,zvel_old.nGrowVect());
+
+    bool fast_only          = false;
+    bool vel_and_mom_synced = true;
     apply_bcs(state_old, old_time,
-              state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only);
+              state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only,
+              vel_and_mom_synced);
     cons_to_prim(state_old[IntVar::cons], state_old[IntVar::cons].nGrow());
     }
 

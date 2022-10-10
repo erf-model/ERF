@@ -205,7 +205,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
         //=====================================================================================
         // Only modify scalars, U, or V
         // Loop over each component
-        for (int n = 0; n < ncomp; n++) {
+        for (int n = icomp; n < icomp+ncomp; n++) {
             // Hit for Neumann condition at kmin
             if( bcrs[n].lo(2) == ERFBCType::foextrap) {
                 // Loop over ghost cells in bottom XY-plane (valid box)

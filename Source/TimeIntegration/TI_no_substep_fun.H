@@ -122,8 +122,9 @@
         }
 
         // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
-        int ng_cons    = 1;
-        int ng_vel     = 1;
-        bool fast_only = true;
-        apply_bcs(S_sum, time_for_fp, ng_cons, ng_vel, fast_only);
+        int ng_cons = S_sum[IntVar::cons].nGrow();
+        int ng_vel  = S_sum[IntVar::xmom].nGrow();
+        bool fast_only          = true;
+        bool vel_and_mom_synced = false;
+        apply_bcs(S_sum, time_for_fp, ng_cons, ng_vel, fast_only, vel_and_mom_synced);
     };

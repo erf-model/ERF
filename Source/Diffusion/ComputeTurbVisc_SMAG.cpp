@@ -43,7 +43,7 @@ void ComputeTurbVisc_SMAG(Box& bxcc,
     Box planecc = bxcc; planecc.setBig(2, planecc.smallEnd(2) );
     int k_lo = bxcc.smallEnd(2); int k_hi = bxcc.bigEnd(2);
     bxcc.growLo(2,1); bxcc.growHi(2,1);
-    amrex::ParallelFor(planecc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    amrex::ParallelFor(planecc, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
       K_turb(i, j, k_lo-1, EddyDiff::Mom_h) = K_turb(i, j, k_lo, EddyDiff::Mom_h);
       K_turb(i, j, k_lo-1, EddyDiff::Mom_v) = K_turb(i, j, k_lo, EddyDiff::Mom_v);

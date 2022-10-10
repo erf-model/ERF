@@ -57,7 +57,7 @@
 
             // We have to call this each step since it depends on the substep time now
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
-                             z_phys_nd_new[level], detJ_cc_new[level], r0, pi0, dtau, ingested_bcs);
+                             detJ_cc_new[level], r0, pi0, dtau, ingested_bcs);
 
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
@@ -79,7 +79,7 @@
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
-                                 z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, ingested_bcs);
+                                 detJ_cc[level], r0, pi0, dtau, ingested_bcs);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_T(fast_step, level, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
@@ -96,7 +96,7 @@
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, ifr, solverChoice,
-                                 z_phys_nd[level], detJ_cc[level], r0, pi0, dtau, ingested_bcs);
+                                 detJ_cc[level], r0, pi0, dtau, ingested_bcs);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_N(fast_step, level, S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
@@ -117,9 +117,11 @@
         }
 
         // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
+        bool fast_only          = true;
+        bool vel_and_mom_synced = false;
         int ng_cons    = 1;
         int ng_vel     = 1;
-        apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, true);
+        apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only, vel_and_mom_synced);
 
         MultiFab::Copy(S_scratch[IntVar::cons], S_data[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1, ng_cons);
     };
