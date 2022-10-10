@@ -120,27 +120,32 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
         {
             Real d_phi_h = d_most.phi_h(z0_arr(i,j,zlo));
             Real velx, vely, rho, theta, eta;
-            int ix, jx, iy, jy, ie, je;
+            int ix, jx, iy, jy, ie, je, ic, jc;
 
-            ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
-            jx = j < lbound(velx_arr).y ? lbound(velx_arr).y : j;
+            ix = i < lbound(velx_arr).x   ? lbound(velx_arr).x   : i;
+            jx = j < lbound(velx_arr).y   ? lbound(velx_arr).y   : j;
             ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
-            jx = jx > ubound(velx_arr).y ? ubound(velx_arr).y : jx;
+            jx = jx > ubound(velx_arr).y   ? ubound(velx_arr).y   : jx;
 
-            iy = i < lbound(vely_arr).x ? lbound(vely_arr).x : i;
-            jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-            iy = iy > ubound(vely_arr).x ? ubound(vely_arr).x : iy;
+            iy = i  < lbound(vely_arr).x   ? lbound(vely_arr).x   : i;
+            jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
+            iy = iy > ubound(vely_arr).x   ? ubound(vely_arr).x   : iy;
             jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
-            ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-            je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
             ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
 
+            ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
+            jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
+            ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
+            jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
+
             velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix+1,jx,zlo));
             vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
-            rho   = cons_arr(ie,je,zlo,Rho_comp);
-            theta = cons_arr(ie,je,zlo,RhoTheta_comp)/rho;
+            rho   = cons_arr(ic,jc,zlo,Rho_comp);
+            theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
             eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v);
 
             Real vmag    = sqrt(velx*velx+vely*vely);
@@ -163,38 +168,43 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
 
         ParallelFor(xb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-                Real velx, vely, rho, eta;
-                int jy, ie, je;
+            Real velx, vely, rho, eta;
+            int jy, ie, je, ic, jc;
 
-                int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
-                int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
+            int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
+            int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
 
-                jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
-                jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
+            jy = j < lbound(vely_arr).y ? lbound(vely_arr).y : j;
+            jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
-                ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-                je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                ie = ie > ubound(eta_arr).x-1 ? ubound(eta_arr).x-1 : ie;
-                je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+            je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+            ie = ie > ubound(eta_arr).x-1 ? ubound(eta_arr).x-1 : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
 
-                velx  = velx_arr(i,j,zlo);
-                vely  = 0.25*( vely_arr(iyhi,jy,zlo)+vely_arr(iyhi,jy+1,zlo)
-                              +vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo));
-                rho   = 0.5*(cons_arr(ie-1,je,zlo,Rho_comp)+
-                             cons_arr(ie  ,je,zlo,Rho_comp));
-                eta   = 0.5*( eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)+
-                              eta_arr(ie  ,je,zlo,EddyDiff::Mom_v));
+            ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
+            jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
+            ic = ic > ubound(cons_arr).x-1 ? ubound(cons_arr).x-1 : ic;
+            jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
 
-                Real vmag  = sqrt(velx*velx+vely*vely);
-                Real stressx = ((velx-d_vxM)*d_vmM + vmag*d_vxM)/
-                               (d_vmM*d_vmM) * d_utau*d_utau;
-                Real deltaz  = d_dz * (zlo - k);
+            velx  = velx_arr(i,j,zlo);
+            vely  = 0.25*( vely_arr(iyhi,jy,zlo)+vely_arr(iyhi,jy+1,zlo)
+                          +vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo));
+            rho   = 0.5*(cons_arr(ic-1,jc,zlo,Rho_comp)+
+                         cons_arr(ic  ,jc,zlo,Rho_comp));
+            eta   = 0.5*( eta_arr(ic-1,jc,zlo,EddyDiff::Mom_v)+
+                          eta_arr(ic  ,jc,zlo,EddyDiff::Mom_v));
 
-                if (!var_is_derived) {
-                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho*rho/eta*deltaz;
-                } else {
-                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
-                }
+            Real vmag  = sqrt(velx*velx+vely*vely);
+            Real stressx = ((velx-d_vxM)*d_vmM + vmag*d_vxM)/
+                           (d_vmM*d_vmM) * d_utau*d_utau;
+            Real deltaz  = d_dz * (zlo - k);
+
+            if (!var_is_derived) {
+                dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho*rho/eta*deltaz;
+            } else {
+                dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
+            }
         });
 
     } else if (idx == Vars::yvel || idx == Vars::ymom) { //for vely
@@ -204,37 +214,42 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
 
         ParallelFor(yb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-                Real velx, vely, rho, eta;
-                int ix, ie, je;
+            Real velx, vely, rho, eta;
+            int ix, ie, je, ic, jc;
 
-                ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
-                ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
+            ix = i < lbound(velx_arr).x ? lbound(velx_arr).x : i;
+            ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
 
-                int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
-                int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
+            int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
+            int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
 
-                ie = i < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-                je = j < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-                ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-                je = je > ubound(eta_arr).y-1 ? ubound(eta_arr).y-1 : je;
+            ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+            je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y-1 ? ubound(eta_arr).y-1 : je;
 
-                velx  = 0.25*( velx_arr(ix,jxhi,zlo)+velx_arr(ix+1,jxhi,zlo)
-                              +velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo));
-                vely  = vely_arr(i,j,zlo);
-                rho   = 0.5*(cons_arr(ie,je-1,zlo,Rho_comp)+
-                             cons_arr(ie,je  ,zlo,Rho_comp));
-                eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)+
-                             eta_arr(ie,je  ,zlo,EddyDiff::Mom_v));
-                Real vmag  = sqrt(velx*velx+vely*vely);
-                Real stressy = ((vely-d_vyM)*d_vmM + vmag*d_vyM) /
-                               (d_vmM*d_vmM)*d_utau*d_utau;
-                Real deltaz  = d_dz * (zlo - k);
+            ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
+            jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
+            ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
+            jc = jc > ubound(cons_arr).y-1 ? ubound(cons_arr).y-1 : jc;
 
-                if (!var_is_derived) {
-                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho*rho/eta*deltaz;
-                } else {
-                    dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
-                }
+            velx  = 0.25*( velx_arr(ix,jxhi,zlo)+velx_arr(ix+1,jxhi,zlo)
+                          +velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo));
+            vely  = vely_arr(i,j,zlo);
+            rho   = 0.5*(cons_arr(ic,jc-1,zlo,Rho_comp)+
+                         cons_arr(ic,jc  ,zlo,Rho_comp));
+            eta   = 0.5*(eta_arr(ic,jc-1,zlo,EddyDiff::Mom_v)+
+                         eta_arr(ic,jc  ,zlo,EddyDiff::Mom_v));
+            Real vmag  = sqrt(velx*velx+vely*vely);
+            Real stressy = ((vely-d_vyM)*d_vmM + vmag*d_vyM) /
+                           (d_vmM*d_vmM)*d_utau*d_utau;
+            Real deltaz  = d_dz * (zlo - k);
+
+            if (!var_is_derived) {
+                dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho*rho/eta*deltaz;
+            } else {
+                dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
+            }
         });
     }
 }
