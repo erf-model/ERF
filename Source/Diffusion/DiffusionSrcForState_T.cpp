@@ -37,7 +37,6 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
     Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
     Real l_C_e           = solverChoice.Ce;
 
-    bool l_cons   = (solverChoice.molec_diff_type == MolecDiffType::Constant);
     bool l_consA  = (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = ( (solverChoice.les_type == LESType::Smagorinsky) ||
                       (solverChoice.les_type == LESType::Deardorff  ) ||
@@ -48,7 +47,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);
-    Box zbx2 = zbx; Box zbx3 = zbx;
+    Box zbx3 = zbx;
 
     const int ncomp      = n_end - n_start + 1;
     const int qty_offset = RhoTheta_comp;
@@ -311,7 +310,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
       Box planexy = zbx; planexy.setBig(2, planexy.smallEnd(2) );
       int k_lo = zbx.smallEnd(2); int k_hi = zbx.bigEnd(2);
       zbx3.growLo(2,-1); zbx3.growHi(2,-1);
-      amrex::ParallelFor(planexy, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+      amrex::ParallelFor(planexy, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int , int n) noexcept
       {
           const int  qty_index = n_start + n;
           Real met_h_xi,met_h_eta;

@@ -141,6 +141,7 @@ ERF::ERF ()
     }
 
     mri_integrator_mem.resize(nlevs_max);
+    physbcs.resize(nlevs_max);
 
     flux_registers.resize(nlevs_max);
 
@@ -486,7 +487,8 @@ ERF::InitData ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        FillPatch(lev, t_new[lev], lev_new);
+        FillPatch(lev, t_new[lev],
+                  {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
 
         // Copy from new into old just in case
         int ngs   = lev_new[Vars::cons].nGrow();
@@ -540,7 +542,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
-    FillCoarsePatchAllVars(lev, time, vars_new[lev]);
+    FillCoarsePatch(lev, time, {&lev_new[Vars::cons],&lev_new[Vars::xvel],
+                                &lev_new[Vars::yvel],&lev_new[Vars::zvel]});
 
     initialize_integrator(lev, lev_new[Vars::cons], lev_new[Vars::xvel]);
 }
@@ -570,8 +573,14 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     temp_lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
     // This will fill the temporary MultiFabs with data from vars_new
-    FillPatch(lev, time, temp_lev_new);
-    FillPatch(lev, time, temp_lev_old);
+    FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
+                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]});
+
+    // Copy from new into old just in case
+    MultiFab::Copy(temp_lev_old[Vars::cons],temp_lev_new[Vars::cons],0,0,NVAR,ngrow_state);
+    MultiFab::Copy(temp_lev_old[Vars::xvel],temp_lev_new[Vars::xvel],0,0,   1,ngrow_vels);
+    MultiFab::Copy(temp_lev_old[Vars::yvel],temp_lev_new[Vars::yvel],0,0,   1,ngrow_vels);
+    MultiFab::Copy(temp_lev_old[Vars::zvel],temp_lev_new[Vars::zvel],0,0,   1,IntVect(ngrow_vels,ngrow_vels,0));
 
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         std::swap(temp_lev_new[var_idx], vars_new[lev][var_idx]);
@@ -596,6 +605,7 @@ ERF::ClearLevel (int lev)
 
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
+    physbcs[lev].reset();
 }
 
 // Make a new level from scratch using provided BoxArray and DistributionMapping.
@@ -727,6 +737,10 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
+
+    physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                     solverChoice.terrain_type, m_bc_extdir_vals,
+                                                     z_phys_nd[lev], detJ_cc[lev]);
 }
 
 void
@@ -1146,6 +1160,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     }
 
     mri_integrator_mem.resize(nlevs_max);
+    physbcs.resize(nlevs_max);
 
     // Multiblock: public domain sizes (need to know which vars are nodal)
     Box nbx;

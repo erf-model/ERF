@@ -35,6 +35,7 @@
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_WriteBndryPlanes.H>
 #include <ERF_MRI.H>
+#include <ERF_PhysBCFunct.H>
 
 #ifdef ERF_USE_NETCDF
 #include "NCWpsFile.H"
@@ -274,6 +275,14 @@ public:
 #endif
     std::string pp_prefix {"erf"};
 
+    void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
+                              const amrex::Real time);
+
+#ifdef ERF_USE_NETCDF
+    void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
+                           const amrex::Real time);
+#endif
+
 private:
 
     ///////////////////////////
@@ -303,8 +312,7 @@ private:
 
     // compute a new multifab by copying in phi from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    void FillPatch (int lev, amrex::Real time,
-                    amrex::Vector<amrex::MultiFab>& mf);
+    void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf);
 
     // compute new multifabs by copying in data from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
@@ -315,22 +323,13 @@ private:
     // NOTE: mfs should always contain {cons, xvel, yvel, zvel} multifab data.
     // if which_var is supplied, then only fill the specified variable in the vector of mfs
     void FillIntermediatePatch (int lev, amrex::Real time,
-                                amrex::Vector<std::reference_wrapper<amrex::MultiFab> > mfs,
+                                const amrex::Vector<amrex::MultiFab*>& mfs,
                                 int ng_cons, int ng_vel, bool cons_only, int scomp_cons, int ncomp_cons,
                                 bool allow_most_bcs = true);
 
-    // fill an entire multifab by interpolating from the coarser level
-    // this comes into play when a new level of refinement appears
-    void FillCoarsePatch (int lev, amrex::Real time,
-                          amrex::MultiFab& mf, int icomp, int ncomp, int var_idx);
-
-    // fill all multifabs (and all components) in a vector of multifabs corresponding to the
+    // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
-    void FillCoarsePatchAllVars (int lev, amrex::Real time,
-                                 amrex::Vector<amrex::MultiFab>& vmf);
-
-    // utility to copy in data from old and/or new state into another multifab
-    TimeInterpolatedData GetDataAtTime (int lev, amrex::Real time);
+    void FillCoarsePatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mfs);
 
     // advance a level by dt
     // includes a recursive call for finer levels
@@ -391,10 +390,6 @@ private:
                           amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                           amrex::Vector<amrex::FArrayBox*> T_lateral);
 
-    void fill_from_wrfbdy (amrex::MultiFab& mf,
-                           const int icomp, const int bccomp_in, const int ncomp,
-                           const amrex::Real time);
-
     // *** *** FArrayBox's for holding the SURFACE data
     // Data read from the wrfinput NetCDF file
     amrex::FArrayBox NC_HGT_fab;    // Terrain height (variable HGT in the wrfinput file)
@@ -416,10 +411,6 @@ private:
 
     amrex::Real bdy_time_interval;
 #endif // ERF_USE_NETCDF
-
-    void fill_from_bndryregs (amrex::MultiFab& mf,
-                              const int icomp, const int bccomp_in, const int ncomp,
-                              const amrex::Real time);
 
     // Struct for working with the sounding data we take as an input
     InputSoundingData input_sounding_data;
@@ -470,6 +461,7 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct>> physbcs;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;

@@ -34,7 +34,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
     Real l_C_e           = solverChoice.Ce;
 
-    bool l_cons   = (solverChoice.molec_diff_type == MolecDiffType::Constant);
     bool l_consA  = (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = ( (solverChoice.les_type == LESType::Smagorinsky) ||
                       (solverChoice.les_type == LESType::Deardorff  ) ||
@@ -45,7 +44,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);
-    Box zbx2 = zbx;
 
     const int ncomp      = n_end - n_start + 1;
     const int qty_offset = RhoTheta_comp;

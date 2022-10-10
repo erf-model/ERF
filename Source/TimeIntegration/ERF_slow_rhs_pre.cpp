@@ -55,9 +55,6 @@ void erf_slow_rhs_pre (int level, int nrk,
                                     (solverChoice.pbl_type        !=       PBLType::None) );
     bool       cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
                                     (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
-    bool       turb_visc        = ( (solverChoice.les_type == LESType::Smagorinsky) ||
-                                    (solverChoice.les_type == LESType::Deardorff  ) ||
-                                    (solverChoice.pbl_type == PBLType::MYNN25     )  );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();

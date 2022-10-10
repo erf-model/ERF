@@ -108,7 +108,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     V_new.setVal(1.e34,V_new.nGrowVect());
     W_new.setVal(1.e34,W_new.nGrowVect());
 
-    FillPatch(lev, time, vars_old[lev]);
+    FillPatch(lev, time, {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
+                          &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]});
 
     MultiFab* S_crse;
     MultiFab rU_crse, rV_crse, rW_crse;

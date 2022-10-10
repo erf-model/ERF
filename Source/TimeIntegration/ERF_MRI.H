@@ -282,7 +282,11 @@ public:
             // step 2 starts with S_stage = S^*  and we always start substepping at the old time
             // step 3 starts with S_stage = S^** and we always start substepping at the old time
 
-            pre_update(S_new, S_new[IntVar::cons].nGrow());
+            // All pre_update does is call cons_to_prim, and we have done this with the old
+            //     data already before starting the RK steps
+            if (nrk > 0) {
+                pre_update(S_new, S_new[IntVar::cons].nGrow());
+            }
 
             // S_scratch also holds the average momenta over the fast iterations --
             //    to be used to update the slow variables -- we will initialize with

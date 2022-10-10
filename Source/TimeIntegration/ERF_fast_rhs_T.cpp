@@ -389,7 +389,6 @@ void erf_fast_rhs_T (int step, int level,
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
-            Real inv_detJ_on_kface = 1.0 / detJ_on_kface;
 
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);

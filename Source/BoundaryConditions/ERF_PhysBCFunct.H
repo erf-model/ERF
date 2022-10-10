@@ -19,22 +19,20 @@
 #include <EddyViscosity.H>
 #include <TerrainMetrics.H>
 
-using PlaneVector = amrex::Vector<amrex::FArrayBox>;
-
 class ERFPhysBCFunct
 {
 public:
     ERFPhysBCFunct (const int lev,
                     const amrex::Geometry& geom, const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                     const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
-                    const int& var_idx, const int& terrain_type, TimeInterpolatedData& data,
+                    const int& terrain_type,
                     amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
                     std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                     std::unique_ptr<amrex::MultiFab>& detJ_cc)
         : m_lev(lev),
           m_geom(geom), m_domain_bcs_type(domain_bcs_type),
           m_domain_bcs_type_d(domain_bcs_type_d),
-          m_var_idx(var_idx), m_terrain_type(terrain_type), m_data(data),
+          m_terrain_type(terrain_type),
           m_bc_extdir_vals(bc_extdir_vals),
           m_z_phys_nd(z_phys_nd),
           m_detJ_cc(detJ_cc)
@@ -43,7 +41,7 @@ public:
     ~ERFPhysBCFunct () {}
 
     //
-    // mf is the multifab to be filled
+    // mfs is the vector of MultiFabs to be filled
     // icomp is the index into the MultiFab -- if cell-centered this can be any value
     //       from 0 to NVAR-1, if face-centered this must be 0
     // ncomp is the number of components -- if cell-centered (var_idx = 0) this can be any value
@@ -54,8 +52,9 @@ public:
     // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
     //     so this follows the BCVars enum
     //
-    void operator() (amrex::MultiFab& mf, int icomp, int ncomp, amrex::IntVect const& nghost,
-                     amrex::Real time, int bccomp);
+    void operator() (const amrex::Vector<amrex::MultiFab*>& mfs, int icomp, int ncomp,
+                     amrex::IntVect const& nghost_cons, amrex::IntVect const& nghost_vels,
+                     amrex::Real time, bool cons_only);
 
     void impose_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr, const amrex::Box& bx, const amrex::Box& domain,
                           const amrex::Array4<amrex::Real const>& z_nd,
@@ -77,25 +76,18 @@ public:
                           const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                           amrex::Real time, int bccomp, int terrain_type);
 
-    void impose_cons_bcs (const amrex::Array4<amrex::Real>& mf, const amrex::Box& bx, const amrex::Box& domain,
+    void impose_cons_bcs (const amrex::Array4<amrex::Real>& mf,
+                          const amrex::Box& bx, const amrex::Box& domain,
                           const amrex::Array4<amrex::Real const>& z_nd,
                           const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                           int icomp, int ncomp, amrex::Real time, int bccomp);
-
-    // For backward compatibility
-    // void FillBoundary (amrex::MultiFab& mf, int dcomp, int ncomp, amrex::IntVect const& nghost,
-    //                    amrex::Real time, int bccomp) {
-    //     this->operator()(mf,dcomp,ncomp,nghost,time,bccomp);
-    // }
 
 private:
     int                  m_lev;
     amrex::Geometry      m_geom;
     amrex::Vector<amrex::BCRec>            m_domain_bcs_type;
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
-    int           m_var_idx;
     int           m_terrain_type;
-    TimeInterpolatedData& m_data;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
     std::unique_ptr<amrex::MultiFab>& m_z_phys_nd;
     std::unique_ptr<amrex::MultiFab>&   m_detJ_cc;

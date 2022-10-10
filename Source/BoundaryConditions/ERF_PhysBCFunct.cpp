@@ -16,119 +16,99 @@ using namespace amrex;
 // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
 //     so this follows the BCVars enum
 //
-void ERFPhysBCFunct::operator() (MultiFab& mf, int icomp, int ncomp, IntVect const& nghost,
-                                 Real time, int bccomp)
+void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, int ncomp_cons,
+                                 IntVect const& nghost_cons, IntVect const& nghost_vels, Real time,
+                                 bool cons_only)
 {
-    if (m_geom.isAllPeriodic()) return;
-
     BL_PROFILE("ERFPhysBCFunct::()");
+
+    if (m_geom.isAllPeriodic()) return;
 
     const auto& domain = m_geom.Domain();
     const auto dx      = m_geom.CellSizeArray();
     const auto dxInv   = m_geom.InvCellSizeArray();
 
     // Create a grown domain box containing valid + periodic cells
-    Box gdomain = amrex::convert(domain, mf.boxArray().ixType());
+    Box gdomain  = domain;
     for (int i = 0; i < AMREX_SPACEDIM; ++i) {
         if (m_geom.isPeriodic(i)) {
-            gdomain.grow(i, nghost[i]);
+            gdomain.grow(i, nghost_cons[i]);
         }
     }
 
-    MultiFab* z_phys_ptr = nullptr;
-    MultiFab* xvel_ptr   = nullptr;
-    MultiFab* yvel_ptr   = nullptr;
-
-    if (m_z_phys_nd) {
-            // We must make copies of these MultiFabs onto mf's boxArray for when this operator is
-            // called for a MultiFab mf that doesn't have the same boxArray
-            BoxArray mf_nodal_grids = mf.boxArray();
-            mf_nodal_grids.convert(IntVect(1,1,1));
-            bool OnSameGrids = ( (mf_nodal_grids       == m_z_phys_nd->boxArray()        ) &&
-                                 (mf.DistributionMap() == m_z_phys_nd->DistributionMap() ) );
-            if (!OnSameGrids) {
-                IntVect ng_z = m_z_phys_nd->nGrowVect();
-                z_phys_ptr = new MultiFab(mf_nodal_grids,mf.DistributionMap(),1,ng_z);
-                z_phys_ptr->ParallelCopy(*m_z_phys_nd,0,0,1,ng_z,ng_z);
-
-                IntVect ng_u = m_data.get_var(Vars::xvel).nGrowVect();
-                BoxArray ba_u(mf.boxArray());
-                ba_u.convert(IntVect(1,0,0));
-                xvel_ptr = new MultiFab(ba_u,mf.DistributionMap(),1,ng_u);
-                xvel_ptr->ParallelCopy(m_data.get_var(Vars::xvel),0,0,1,ng_u,ng_u);
-
-                IntVect ng_v = m_data.get_var(Vars::yvel).nGrowVect();
-                BoxArray ba_v(mf.boxArray());
-                ba_v.convert(IntVect(0,1,0));
-                yvel_ptr = new MultiFab(ba_v,mf.DistributionMap(),1,ng_v);
-                yvel_ptr->ParallelCopy(m_data.get_var(Vars::yvel),0,0,1,ng_v,ng_v);
-            }
+    Box gdomainx = surroundingNodes(domain,0);
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        if (m_geom.isPeriodic(i)) {
+            gdomainx.grow(i, nghost_vels[i]);
+        }
     }
+
+    Box gdomainy = surroundingNodes(domain,1);
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        if (m_geom.isPeriodic(i)) {
+            gdomainy.grow(i, nghost_vels[i]);
+        }
+    }
+
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
+    {
+        for (MFIter mfi(*mfs[Vars::cons]); mfi.isValid(); ++mfi)
         {
-            // Do all BCs except MOST
-            for (MFIter mfi(mf); mfi.isValid(); ++mfi)
+            //
+            // This is the box we pass to the different routines
+            //
+            Box bx  = mfi.validbox();
+
+            //
+            // These are the boxes we use to test on relative to the domain
+            //
+            Box cbx = bx;                     cbx.grow(nghost_cons);
+            Box xbx = surroundingNodes(bx,0); xbx.grow(nghost_vels);
+            Box ybx = surroundingNodes(bx,1); ybx.grow(nghost_vels);
+            Box zbx = surroundingNodes(bx,2); zbx.grow(0,nghost_vels[0]);
+                                              zbx.grow(1,nghost_vels[1]);
+
+            const Array4<      Real> cons_arr = mfs[Vars::cons]->array(mfi);;
+            const Array4<      Real> velx_arr = mfs[Vars::xvel]->array(mfi);;
+            const Array4<      Real> vely_arr = mfs[Vars::yvel]->array(mfi);;
+            const Array4<      Real> velz_arr = mfs[Vars::zvel]->array(mfi);;
+                  Array4<const Real> z_nd_arr;
+
+            if (m_z_phys_nd)
             {
-                const Array4<Real>& dest_arr = mf.array(mfi);
-                Box bx = mfi.validbox(); bx.grow(nghost);
+                z_nd_arr = m_z_phys_nd->const_array(mfi);
+            }
 
-                Array4<const Real> z_nd_arr;
-                Array4<const Real> velx_arr;
-                Array4<const Real> vely_arr;
+            //! If there are cells not in the valid + periodic grown box
+            //! we need to fill them here
+            if (!gdomain.contains(cbx))
+            {
+                int bccomp = BCVars::cons_bc;
+                impose_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,
+                                icomp_cons,ncomp_cons,time,bccomp);
+            }
 
-                if (m_z_phys_nd)
-                {
-                    BoxArray mf_nodal_grids = mf.boxArray();
-                    mf_nodal_grids.convert(IntVect(1,1,1));
-                    bool OnSameGrids = ( (mf_nodal_grids       == m_z_phys_nd->boxArray()        ) &&
-                                         (mf.DistributionMap() == m_z_phys_nd->DistributionMap() ) );
-                    if (OnSameGrids) {
-                        z_nd_arr = m_z_phys_nd->const_array(mfi);
-                        velx_arr = m_data.get_var(Vars::xvel).const_array(mfi);
-                        vely_arr = m_data.get_var(Vars::yvel).const_array(mfi);
-                    } else {
-                        z_nd_arr = z_phys_ptr->const_array(mfi);
-                        velx_arr = xvel_ptr->const_array(mfi);
-                        vely_arr = yvel_ptr->const_array(mfi);
-                    }
-                }
+            if (!gdomainx.contains(xbx) && !cons_only)
+            {
+                impose_xvel_bcs(velx_arr,xbx,domain,z_nd_arr,dxInv,
+                                time,BCVars::xvel_bc);
+            }
 
-                //! if there are cells not in the valid + periodic grown box
-                //! we need to fill them here
-                //!
-                if (!gdomain.contains(bx) || (m_var_idx == Vars::zvel))
-                {
-                    if (m_var_idx == Vars::xvel) {
-                        AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
-                        impose_xvel_bcs(dest_arr,bx,domain,
-                                        z_nd_arr,dxInv,
-                                        time,bccomp);
+            if (!gdomainy.contains(ybx) && !cons_only)
+            {
+                impose_yvel_bcs(vely_arr,ybx,domain,z_nd_arr,dxInv,
+                                time,BCVars::yvel_bc);
+            }
 
-                    } else if (m_var_idx == Vars::yvel) {
-                        AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
-                        impose_yvel_bcs(dest_arr,bx,domain,
-                                        z_nd_arr,dxInv,
-                                        time,bccomp);
+            if (!cons_only) {
+                impose_zvel_bcs(velz_arr,zbx,domain,
+                                velx_arr,vely_arr,z_nd_arr,dx,dxInv,
+                                time, BCVars::zvel_bc, m_terrain_type);
+            }
 
-                    } else if (m_var_idx == Vars::zvel) {
-                        AMREX_ALWAYS_ASSERT(ncomp == 1 && icomp == 0);
-                        impose_zvel_bcs(dest_arr,bx,domain,
-                                        velx_arr,vely_arr,z_nd_arr,dx,dxInv,
-                                        time, bccomp,m_terrain_type);
-
-                    } else if (m_var_idx == Vars::cons) {
-                        AMREX_ALWAYS_ASSERT(icomp == 0 && icomp+ncomp <= NVAR);
-                        impose_cons_bcs(dest_arr,bx,domain,
-                                        z_nd_arr,dxInv,
-                                        icomp,ncomp,time,bccomp);
-                    } else {
-                        amrex::Abort("Dont know this var_idx in ERF_PhysBC");
-                    }
-
-                } // !gdomain.contains(bx)
-            } // MFIter
-        } // OpenMP
-    } // operator()
+        } // MFIter
+    } // OpenMP
+} // operator()

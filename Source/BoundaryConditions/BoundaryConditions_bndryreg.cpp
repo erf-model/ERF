@@ -11,8 +11,7 @@ using namespace amrex;
 //     so this follows the BCVars enum
 //
 void
-ERF::fill_from_bndryregs (MultiFab& mf, const int icomp, const int bccomp, const int ncomp,
-                          const Real time)
+ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
 {
     //
     // We now assume that if we read in on one face, we read in on all faces
@@ -27,23 +26,50 @@ ERF::fill_from_bndryregs (MultiFab& mf, const int icomp, const int bccomp, const
 
     amrex::Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
 
+    // xlo: ori = 0
+    // ylo: ori = 1
+    // zlo: ori = 2
+    // xhi: ori = 3
+    // yhi: ori = 4
+    // zhi: ori = 5
     const auto& bdatxlo = (*bndry_data[0])[lev].const_array();
     const auto& bdatylo = (*bndry_data[1])[lev].const_array();
     const auto& bdatxhi = (*bndry_data[3])[lev].const_array();
     const auto& bdatyhi = (*bndry_data[4])[lev].const_array();
 
-    for (MFIter mfi(mf); mfi.isValid(); ++mfi)
-    {
-        const Array4<Real>& dest_arr = mf.array(mfi);
-        Box bx = mfi.validbox();
+    int bccomp;
 
-        // x-faces
+    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
+    {
+        MultiFab& mf = *mfs[var_idx];
+        const int icomp = 0;
+        const int ncomp = mf.nComp();
+
+        if (var_idx == Vars::xvel) {
+           bccomp = BCVars::xvel_bc;
+        } else if (var_idx == Vars::yvel) {
+           bccomp = BCVars::yvel_bc;
+        } else if (var_idx == Vars::zvel) {
+           bccomp = BCVars::zvel_bc;
+        } else  if (var_idx == Vars::cons) {
+           bccomp = BCVars::cons_bc;
+        }
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(mf); mfi.isValid(); ++mfi)
         {
+            const Array4<Real>& dest_arr = mf.array(mfi);
+            Box bx = mfi.validbox();
+
+            // x-faces
+            {
             Box bx_xlo(bx);
             bx_xlo.setSmall(0,dom_lo.x-1); bx_xlo.setBig(0,dom_lo.x-1);
             bx_xlo.setSmall(1,dom_lo.y); bx_xlo.setBig(1,dom_hi.y);
             bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
-            if (bccomp == BCVars::xvel_bc) {
+            if (var_idx == Vars::xvel) {
                 bx_xlo.setSmall(0,dom_lo.x); bx_xlo.setBig(0,dom_lo.x);
             } else {
                 bx_xlo.setSmall(0,dom_lo.x-1); bx_xlo.setBig(0,dom_lo.x-1);
@@ -66,14 +92,14 @@ ERF::fill_from_bndryregs (MultiFab& mf, const int icomp, const int bccomp, const
                     dest_arr(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bccomp+n);
                 }
             );
-        } // x-faces
+            } // x-faces
 
-        // y-faces
-        {
+            // y-faces
+            {
             Box bx_ylo(bx);
             bx_ylo.setSmall(0,dom_lo.x); bx_ylo.setBig(0,dom_hi.x);
             bx_ylo.setSmall(1,dom_lo.y); bx_ylo.setBig(1,dom_lo.y);
-            if (bccomp == BCVars::yvel_bc) {
+            if (var_idx == Vars::yvel) {
                 bx_ylo.setSmall(1,dom_lo.y); bx_ylo.setBig(1,dom_lo.y);
             } else {
                 bx_ylo.setSmall(1,dom_lo.y-1); bx_ylo.setBig(1,dom_lo.y-1);
@@ -83,7 +109,6 @@ ERF::fill_from_bndryregs (MultiFab& mf, const int icomp, const int bccomp, const
             bx_yhi.setSmall(0,dom_lo.x  ); bx_yhi.setBig(0,dom_hi.x);
             bx_yhi.setSmall(2,dom_lo.z  ); bx_yhi.setBig(2,dom_hi.z);
             bx_yhi.setSmall(1,dom_hi.y+1); bx_yhi.setBig(1,dom_hi.y+1);
-
 
             ParallelFor(
                bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
@@ -97,7 +122,7 @@ ERF::fill_from_bndryregs (MultiFab& mf, const int icomp, const int bccomp, const
                     dest_arr(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bccomp+n);
                 }
             );
-        } // y-faces
-
-    } // mf
+            } // y-faces
+        } // mf
+    } // var_idx
 }

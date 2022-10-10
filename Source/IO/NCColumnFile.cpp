@@ -103,7 +103,8 @@ ERF::writeToNCColumnFile(const int lev,
                               IntVect{iloc+1, jloc+1, kend});
 
   //  Need data in one grow cell for interpolation
-  FillPatch(lev, t_new[lev], vars_new[lev]);
+  FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
+                              &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]});
 
   MultiFab& S_new = vars_new[lev][Vars::cons];
   MultiFab& U_new = vars_new[lev][Vars::xvel];

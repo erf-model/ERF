@@ -9,7 +9,8 @@ using namespace amrex;
 // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals
 //     so this follows the BCVars enum
 //
-void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr,
+                                      const Box& bx, const Box& domain,
                                       const Array4<Real const>& z_nd,
                                       const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                       Real /*time*/, int bccomp)
