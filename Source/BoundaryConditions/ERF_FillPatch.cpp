@@ -97,29 +97,27 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
         MultiFab eddyDiffs(mfs[0]->boxArray(), mfs[0]->DistributionMap(),
                            EddyDiff::NumDiffs,3);
         bool vert_only = true;
-        ComputeTurbulentViscosity(*mfs[0],*mfs[1],*mfs[2],*mfs[3],
+        ComputeTurbulentViscosity(*mfs[Vars::xvel],*mfs[Vars::yvel],*mfs[Vars::zvel],*mfs[Vars::cons],
                                   eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
         eddyDiffs.FillBoundary(geom[lev].periodicity());
 
-        for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
+        const int icomp = 0;
+        for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
         {
-            MultiFab& mf = *mfs[var_idx];
-            const int icomp = 0;
+            const auto cons_arr = (*mfs[Vars::cons])[mfi].array();
+            const auto velx_arr = (*mfs[Vars::xvel])[mfi].array();
+            const auto vely_arr = (*mfs[Vars::yvel])[mfi].array();
+            const auto  eta_arr = eddyDiffs[mfi].array();
 
-            for (MFIter mfi(mf); mfi.isValid(); ++mfi)
+            for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
             {
                 const Box& bx       = (*mfs[var_idx])[mfi].box();
                       auto dest_arr = (*mfs[var_idx])[mfi].array();
 
-                const auto velx_arr = (*mfs[0])[mfi].array();
-                const auto vely_arr = (*mfs[1])[mfi].array();
-                const auto cons_arr = (*mfs[2])[mfi].array();
-                const auto  eta_arr = eddyDiffs[mfi].array();
-
                 int zlo = 0;
                 m_most->impose_most_bcs(lev,bx,dest_arr,cons_arr,velx_arr,vely_arr,eta_arr,var_idx,icomp,zlo);
-            } // mf
-        } // var_idx
+            } // var_idx
+        } // mf
     } // most
 }
 
@@ -230,25 +228,23 @@ ERF::FillIntermediatePatch (int lev, Real time,
                                   eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
         eddyDiffs.FillBoundary(geom[lev].periodicity());
 
-        for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
+        const int icomp = 0;
+        for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
         {
-            MultiFab& mf = *mfs[var_idx];
-            const int icomp = 0;
+            const auto cons_arr = (*mfs[Vars::cons])[mfi].array();
+            const auto velx_arr = (*mfs[Vars::xvel])[mfi].array();
+            const auto vely_arr = (*mfs[Vars::yvel])[mfi].array();
+            const auto  eta_arr = eddyDiffs[mfi].array();
 
-            for (MFIter mfi(mf); mfi.isValid(); ++mfi)
+            for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
             {
-                const Box& bx       = mf[mfi].box();
-                      auto dest_arr = mf[mfi].array();
-
-                const auto velx_arr = (*mfs[Vars::cons])[mfi].array();
-                const auto vely_arr = (*mfs[Vars::xvel])[mfi].array();
-                const auto cons_arr = (*mfs[Vars::yvel])[mfi].array();
-                const auto  eta_arr = eddyDiffs[mfi].array();
+                const Box& bx       = (*mfs[var_idx])[mfi].box();
+                      auto dest_arr = (*mfs[var_idx])[mfi].array();
 
                 int zlo = 0;
                 m_most->impose_most_bcs(lev,bx,dest_arr,cons_arr,velx_arr,vely_arr,eta_arr,var_idx,icomp,zlo);
-            } // mf
-        } // var_idx
+            } // var_idx
+        } // mf
     } // most
 }
 
