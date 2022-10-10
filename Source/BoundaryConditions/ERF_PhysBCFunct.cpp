@@ -86,7 +86,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
             //! we need to fill them here
             if (!gdomain.contains(cbx))
             {
-                int bccomp = BCVars::cons_bc+icomp_cons;
+                int bccomp = BCVars::cons_bc;
                 impose_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,
                                 icomp_cons,ncomp_cons,time,bccomp);
             }

@@ -26,8 +26,8 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
-    Vector<BCRec> bcrs(ncomp);
-    amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    Vector<BCRec> bcrs(icomp+ncomp);
+    amrex::setBC(bx, domain, bccomp, 0, icomp+ncomp, m_domain_bcs_type, bcrs);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -36,17 +36,17 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
     // yhi: ori = 4
     // zhi: ori = 5
 
-    amrex::Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
+    amrex::Gpu::DeviceVector<BCRec> bcrs_d(icomp+ncomp);
 #ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
+    Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*(icomp+ncomp));
 #else
-    std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
+    std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*(icomp+ncomp));
 #endif
     const amrex::BCRec* bc_ptr = bcrs_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
 
-    for (int i = 0; i < ncomp; i++)
+    for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
             l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
 
