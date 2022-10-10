@@ -55,6 +55,8 @@
         int ncomp_cons;
         bool cons_only;
 
+        int ng_cons_to_use;
+
         if (!vel_and_mom_synced) {
 
             // **********************************************************************************
@@ -73,9 +75,13 @@
             //    on the valid region
             AMREX_ALWAYS_ASSERT (ng_cons >= 1);
 
+            // We must have at least one extra ghost cell of density to convert from velocity to momentum
+            //    on the valid region
+            ng_cons_to_use = std::max(ng_cons, ng_vel+1);
+
             FillIntermediatePatch(level, time_for_fp,
                                   {&S_data[IntVar::cons], &xvel_new, &yvel_new, &zvel_new},
-                                  ng_cons, 0, cons_only, scomp_cons, ncomp_cons);
+                                  ng_cons_to_use, 0, cons_only, scomp_cons, ncomp_cons);
 
             // Here we don't use include any of the ghost region because we have only updated
             //      momentum on valid faces
@@ -103,6 +109,10 @@
                 scomp_cons = 0;
                 ncomp_cons = S_data[IntVar::cons].nComp();
             }
+            // We must have at least one extra ghost cell of density to convert from velocity to momentum
+            //    on the valid region
+            ng_cons_to_use = std::max(ng_cons, ng_vel+1);
+
         } else {
             if (fast_only) {
                 scomp_cons = 1;
@@ -111,6 +121,7 @@
                 scomp_cons = 1;
                 ncomp_cons = S_data[IntVar::cons].nComp()-1; // since we filled rho above
             }
+            ng_cons_to_use = ng_cons;
         }
 
         bool allow_most_bcs = true;
@@ -119,10 +130,6 @@
         } else {
             allow_most_bcs = true;
         }
-
-        // We must have at least one extra ghost cell of density to convert from velocity to momentum
-        //    on the valid region
-        int ng_cons_to_use = std::max(ng_cons, ng_vel+1);
 
         cons_only = false;
         FillIntermediatePatch(level, time_for_fp,
