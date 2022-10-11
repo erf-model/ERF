@@ -53,7 +53,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
      int nblocks = grids[lev].size();
 
      // We only do single-level writes when using NetCDF format
-     int flev    = lev;
+     int flev = lev;
 
      Box subdomain;
      if (lev == 0) {
@@ -66,7 +66,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
      int ny = subdomain.length(1);
      int nz = subdomain.length(2);
      n_cells.push_back(nx); n_cells.push_back(ny); n_cells.push_back(nz);
-     int num_pts = nx * ny * nz;
+     int num_pts = nx*ny*nz/nblocks;
 
      int n_data_items = plotMF[lev]->nComp();
 
@@ -213,6 +213,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
             auto xlen = static_cast<long unsigned int>(grids[lev][i].length(0));
             auto ylen = static_cast<long unsigned int>(grids[lev][i].length(1));
             auto zlen = static_cast<long unsigned int>(grids[lev][i].length(2));
+
             auto nc_x_grid = ncf.var("x_grid");
             nc_x_grid.par_access(NC_COLLECTIVE);
             nc_x_grid.put(x_grid.data(), {static_cast<long unsigned int>(i), 0}, {1, xlen});
@@ -229,13 +230,13 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
    const int ncomp = plotMF[lev]->nComp();
 
    for (amrex::MFIter fai(*plotMF[lev]); fai.isValid(); ++fai) {
-       auto box             = fai.validbox();
+       auto box = fai.validbox();
        if (subdomain.contains(box)) {
            long unsigned numpts = box.numPts();
            for (int k(0); k < ncomp; ++k) {
               auto data = plotMF[lev]->get(fai).dataPtr(k);
               auto nc_plot_var = ncf.var(plot_var_names[k]);
-              nc_plot_var.par_access(NC_INDEPENDENT);
+              nc_plot_var.par_access(NC_COLLECTIVE);
               nc_plot_var.put(data, {nfai+iproc, 0}, {1, numpts});
           }
           nfai++;
