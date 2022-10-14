@@ -122,11 +122,6 @@ init_custom_prob(
 
     state(i, j, k, RhoScalar_comp) *= parms.rho_0;
 
-    amrex::Print() << "state: " << state(32,32,0,RhoScalar_comp) << std::endl; //michael
-    //amrex::Print() << "r2d_xy: " << r2d_xy << std::endl; //michael
-    //amrex::Print() << "r2d_xz: " << r2d_xz << std::endl; //michael
-
-
 #ifdef ERF_USE_MOISTURE
     state(i, j, k, RhoQv_comp) = 0.0;
     state(i, j, k, RhoQc_comp) = 0.0;
