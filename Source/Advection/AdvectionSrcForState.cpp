@@ -62,8 +62,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             Real mfsq = mf*mf;
 
             advectionSrc(i,j,k,0) = - invdetJ * (
-                ( xflux_hi - xflux_lo ) * dxInv * mfsq + 
-                ( yflux_hi - yflux_lo ) * dyInv * mfsq + 
+                ( xflux_hi - xflux_lo ) * dxInv * mfsq +
+                ( yflux_hi - yflux_lo ) * dyInv * mfsq +
                 ( zflux_hi - zflux_lo ) * dzInv * mf);
 
             const int prim_index = 0;
@@ -106,8 +106,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             Real mfsq = mf*mf;
 
             advectionSrc(i,j,k,0) = - invdetJ * (
-                ( xflux_hi - xflux_lo ) * dxInv * mfsq + 
-                ( yflux_hi - yflux_lo ) * dyInv * mfsq + 
+                ( xflux_hi - xflux_lo ) * dxInv * mfsq +
+                ( yflux_hi - yflux_lo ) * dyInv * mfsq +
                 ( zflux_hi - zflux_lo ) * dzInv * mf);
 
             const int prim_index = 0;
@@ -143,8 +143,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             Real mfsq = mf*mf;
 
             advectionSrc(i,j,k,0) = -(
-                ( xflux_hi - xflux_lo ) * dxInv * mfsq + 
-                ( yflux_hi - yflux_lo ) * dyInv * mfsq + 
+                ( xflux_hi - xflux_lo ) * dxInv * mfsq +
+                ( yflux_hi - yflux_lo ) * dyInv * mfsq +
                 ( zflux_hi - zflux_lo ) * dzInv * mf);
 
             const int prim_index = 0;
@@ -180,8 +180,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             Real mfsq = mf*mf;
 
             advectionSrc(i,j,k,0) = -(
-                ( xflux_hi - xflux_lo ) * dxInv * mfsq + 
-                ( yflux_hi - yflux_lo ) * dyInv * mfsq + 
+                ( xflux_hi - xflux_lo ) * dxInv * mfsq +
+                ( yflux_hi - yflux_lo ) * dyInv * mfsq +
                 ( zflux_hi - zflux_lo ) * dzInv * mf);
 
             const int prim_index = 0;

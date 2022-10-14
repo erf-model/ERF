@@ -499,7 +499,7 @@ void erf_slow_rhs_pre (int level, int nrk,
             Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
             Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
 
-            //Note : mx/my == 1, so no map factor needed here 
+            //Note : mx/my == 1, so no map factor needed here
             Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
             Real gp_zeta_on_iface;
             if (k==0) {
@@ -600,7 +600,7 @@ void erf_slow_rhs_pre (int level, int nrk,
               Real met_h_eta  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
               Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
 
-              //Note : mx/my == 1, so no map factor needed here 
+              //Note : mx/my == 1, so no map factor needed here
               Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
               Real gp_zeta_on_jface;
               if(k==0) {

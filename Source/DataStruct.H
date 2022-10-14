@@ -69,7 +69,7 @@ struct SolverChoice {
 
         // Do we use map scale factors?
         pp.query("use_mapfactor", use_mapfactor);
-        
+
         // Is the terrain static or moving?
         pp.query("terrain_type", terrain_type);
 

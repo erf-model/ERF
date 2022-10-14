@@ -56,8 +56,8 @@ AdvectionSrcForXMom_N (int i, int j, int k,
         zflux_lo = rho_w_avg * InterpolateInZ(i, j, k  , u, 0, rho_w_avg, spatial_order);
     }
 
-    advectionSrc = (xflux_hi - xflux_lo) * dxInv 
-                 + (yflux_hi - yflux_lo) * dyInv 
+    advectionSrc = (xflux_hi - xflux_lo) * dxInv
+                 + (yflux_hi - yflux_lo) * dyInv
                  + (zflux_hi - zflux_lo) * dzInv;
     advectionSrc *= mf_u(i,j,0);
 

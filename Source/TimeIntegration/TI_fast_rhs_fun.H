@@ -66,7 +66,7 @@
                                 S_data, S_scratch, fine_geom, solverChoice, Omega, z_t_rk[level], z_t_pert,
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
-                                dtau, inv_fac, 
+                                dtau, inv_fac,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
                                 ingested_bcs);
             } else {

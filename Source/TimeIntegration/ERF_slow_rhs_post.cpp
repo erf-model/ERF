@@ -186,7 +186,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
                                    cur_cons, cur_prim, source_fab, cell_rhs,
                                    diffflux_x, diffflux_y, diffflux_z,
-                                   dxInv, mf_m, mf_u, mf_v, 
+                                   dxInv, mf_m, mf_u, mf_v,
                                    K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
         }
 

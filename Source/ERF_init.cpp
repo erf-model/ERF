@@ -439,7 +439,7 @@ ERF::init_custom(int lev)
         Array4<Real const> mf_m     = mapfac_m[lev]->array(mfi);
         Array4<Real const> mf_u     = mapfac_m[lev]->array(mfi);
         Array4<Real const> mf_v     = mapfac_m[lev]->array(mfi);
-        
+
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
