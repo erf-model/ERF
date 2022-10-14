@@ -278,7 +278,10 @@ init_custom_prob(
         Array4<Real      > const& p_hse,
         Array4<Real const> const& z_nd,
         Array4<Real const> const& z_cc,
-        GeometryData const& geomdata)
+        GeometryData const& geomdata,
+        Array4<Real const> const& mf_m,
+        Array4<Real const> const& mf_u,
+        Array4<Real const> const& mf_v)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 

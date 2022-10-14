@@ -85,9 +85,8 @@
 
             // Here we don't use include any of the ghost region because we have only updated
             //      momentum on valid faces
-            MomentumToVelocity(xvel_new, IntVect::TheZeroVector(),
-                               yvel_new, IntVect::TheZeroVector(),
-                               zvel_new, IntVect::TheZeroVector(),
+            MomentumToVelocity(grids_to_evolve[level],
+                               xvel_new, yvel_new, zvel_new,
                                S_data[IntVar::cons],
                                S_data[IntVar::xmom],
                                S_data[IntVar::ymom],

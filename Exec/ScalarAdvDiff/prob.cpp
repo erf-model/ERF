@@ -61,7 +61,10 @@ init_custom_prob(
     Array4<Real      > const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
-    amrex::GeometryData const& geomdata)
+    GeometryData const& geomdata,
+    Array4<Real const> const& mf_m,
+    Array4<Real const> const& mf_u,
+    Array4<Real const> const& mf_v)
 {
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -78,11 +81,15 @@ init_custom_prob(
     const Real yc = parms.yc_frac * (prob_lo[1] + prob_hi[1]);
     const Real zc = parms.zc_frac * (prob_lo[2] + prob_hi[2]);
 
+    // Define ellipse parameters
+    const Real r0   = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
+    const Real r0_x = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
+    const Real r0_y = parms.rad_0 * (prob_hi[1] - prob_lo[1]);
+    const Real r0_z = parms.rad_0 * (prob_hi[2] - prob_lo[2]);
+
     const Real r3d    = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
     const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
     const Real r2d_xz = std::sqrt((x-xc)*(x-xc) + (z-zc)*(z-zc));
-
-    const Real r0 = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
 
     // Set the density
     state(i, j, k, Rho_comp) = parms.rho_0;
@@ -101,6 +108,9 @@ init_custom_prob(
         state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, r0) / r0));
     } else if (parms.prob_type == 12) {
         state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
+    } else if (parms.prob_type == 13) {
+        const Real r2d_xz = std::sqrt((x-xc)*(x-xc)/(r0_x*r0_x) + (z-zc)*(z-zc)/(r0_z*r0_z)); //ellipse for mapfac shear validation
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0_z) / r0_z));
     } else {
         // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
         if (r3d < r0) {
@@ -134,6 +144,7 @@ init_custom_prob(
       x_vel(i, j, k) = parms.u_0 + parms.uRef *
                        std::log((z + parms.z0)/parms.z0)/
                        std::log((parms.zRef +parms.z0)/parms.z0);
+      x_vel(i, j, k) = x_vel(i,j,k) / mf_u(i,j,0);
   });
 
   // Construct a box that is on y-faces
@@ -141,7 +152,7 @@ init_custom_prob(
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = parms.v_0;
+      y_vel(i, j, k) = parms.v_0 / mf_v(i,j,0);
   });
 
   // Construct a box that is on z-faces
@@ -150,32 +161,29 @@ init_custom_prob(
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0;
+      z_vel(i, j, k) = 0.0 / mf_v(i,j,0);
   });
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
+                    const Real& /*time*/)
 {
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
+    auto dx = geom.CellSizeArray();
 
     for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
-
+        const Box& gbx = mfi.growntilebox(1);
         Array4<Real> z_arr = z_phys_nd.array(mfi);
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            Real z = k * dx[2];
 
             // Flat terrain with z = 0 at k = 0
-            z_arr(i,j,0) = 0.;
+            z_arr(i,j,k) = z;
         });
     }
+    z_phys_nd.FillBoundary(geom.periodicity());
 }
 
 void
@@ -201,4 +209,13 @@ amrex_probinit(
     pp.query("zc_frac", parms.zc_frac);
 
    pp.query("prob_type", parms.prob_type);
+}
+
+AMREX_GPU_DEVICE
+Real
+dhdt(int /*i*/, int /*j*/,
+     const GpuArray<Real,AMREX_SPACEDIM> /*dx*/,
+     const Real /*time_mt*/, const Real /*delta_t*/)
+{
+    return 0.;
 }

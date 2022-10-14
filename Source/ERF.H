@@ -233,8 +233,6 @@ public:
                                        amrex::FArrayBox& p_hse_fab,
                                        amrex::FArrayBox& pi_hse_fab,
                                        amrex::FArrayBox& r_hse_fab,
-                                       const amrex::FArrayBox& z_phys_nd_fab,
-                                       const amrex::FArrayBox& z_phys_cc_fab,
                                        const amrex::Vector<amrex::FArrayBox>& NC_ALB_fab,
                                        const amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
 #endif //ERF_USE_NETCDF
@@ -294,6 +292,8 @@ private:
 
     // set covered coarse cells to be the average of overlying fine cells
     void AverageDown ();
+
+    void define_grids_to_evolve (int lev);
 
     void init1DArrays();
 
@@ -462,6 +462,17 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct>> physbcs;
+
+    // BoxArray at each level to define where we actually evolve the solution
+    amrex::Vector<amrex::BoxArray> grids_to_evolve;
+
+    // Scratch space for time integrator
+    amrex::Vector<amrex::MultiFab> rU_old;
+    amrex::Vector<amrex::MultiFab> rU_new;
+    amrex::Vector<amrex::MultiFab> rV_old;
+    amrex::Vector<amrex::MultiFab> rV_new;
+    amrex::Vector<amrex::MultiFab> rW_old;
+    amrex::Vector<amrex::MultiFab> rW_new;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;

@@ -616,8 +616,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
              int lev   = 0;
-             int which = 0;
-             writeNCPlotFile(lev, which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
+             int l_which = 0;
+             writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
 #endif
         } else {
             amrex::Print() << "User specified plot_filetype = " << plotfile_type << std::endl;
@@ -678,8 +678,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
              for (int lev = 0; lev <= finest_level; ++lev) {
-                 for (int which = 0; which < num_boxes_at_level[lev]; which++) {
-                     writeNCPlotFile(lev, which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
+                 for (int which_box = 0; which_box < num_boxes_at_level[lev]; which_box++) {
+                     writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
                  }
              }
 #endif

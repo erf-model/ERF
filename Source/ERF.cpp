@@ -127,6 +127,8 @@ ERF::ERF ()
         nsubsteps[lev] = MaxRefRatio(lev-1);
     }
 
+    grids_to_evolve.resize(nlevs_max);
+
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
     dt.resize(nlevs_max, 1.e100);
@@ -134,6 +136,14 @@ ERF::ERF ()
 
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
+
+    rU_new.resize(nlevs_max);
+    rV_new.resize(nlevs_max);
+    rW_new.resize(nlevs_max);
+
+    rU_old.resize(nlevs_max);
+    rV_old.resize(nlevs_max);
+    rW_old.resize(nlevs_max);
 
     for (int lev = 0; lev < nlevs_max; ++lev) {
         vars_new[lev].resize(Vars::NumTypes);
@@ -527,6 +537,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
 
+    // ********************************************************************************************
+    // These are the persistent containers for the old and new data
+    // ********************************************************************************************
     lev_new[Vars::cons].define(ba, dm, crse_new[Vars::cons].nComp(), crse_new[Vars::cons].nGrowVect());
     lev_old[Vars::cons].define(ba, dm, crse_new[Vars::cons].nComp(), crse_new[Vars::cons].nGrowVect());
 
@@ -539,8 +552,22 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
 
+    // ********************************************************************************************
+    // These are just used for scratch in the time integrator but we might as well define them here
+    // ********************************************************************************************
+    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
+    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
+
+    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
+    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
+
+    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
+    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
+
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
+
+    define_grids_to_evolve(lev);
 
     FillCoarsePatch(lev, time, {&lev_new[Vars::cons],&lev_new[Vars::xvel],
                                 &lev_new[Vars::yvel],&lev_new[Vars::zvel]});
@@ -554,6 +581,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
+    define_grids_to_evolve(lev);
+
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
 
@@ -572,16 +601,35 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     temp_lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     temp_lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
+    // ********************************************************************************************
+    // These are just used for scratch in the time integrator but we might as well define them here
+    // ********************************************************************************************
+    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+
+    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+
+    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+
+    // ********************************************************************************************
     // This will fill the temporary MultiFabs with data from vars_new
+    // ********************************************************************************************
     FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
                           &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]});
 
+    // ********************************************************************************************
     // Copy from new into old just in case
+    // ********************************************************************************************
     MultiFab::Copy(temp_lev_old[Vars::cons],temp_lev_new[Vars::cons],0,0,NVAR,ngrow_state);
     MultiFab::Copy(temp_lev_old[Vars::xvel],temp_lev_new[Vars::xvel],0,0,   1,ngrow_vels);
     MultiFab::Copy(temp_lev_old[Vars::yvel],temp_lev_new[Vars::yvel],0,0,   1,ngrow_vels);
     MultiFab::Copy(temp_lev_old[Vars::zvel],temp_lev_new[Vars::zvel],0,0,   1,IntVect(ngrow_vels,ngrow_vels,0));
 
+    // ********************************************************************************************
+    // Now swap the pointers
+    // ********************************************************************************************
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         std::swap(temp_lev_new[var_idx], vars_new[lev][var_idx]);
         std::swap(temp_lev_old[var_idx], vars_old[lev][var_idx]);
@@ -603,9 +651,18 @@ ERF::ClearLevel (int lev)
         vars_old[lev][var_idx].clear();
     }
 
+    rU_new[lev].clear();
+    rU_old[lev].clear();
+    rV_new[lev].clear();
+    rV_old[lev].clear();
+    rW_new[lev].clear();
+    rW_old[lev].clear();
+
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
     physbcs[lev].reset();
+
+    grids_to_evolve[lev].clear();
 }
 
 // Make a new level from scratch using provided BoxArray and DistributionMapping.
@@ -619,6 +676,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     // Set BoxArray grids and DistributionMapping dmap in AMReX_AmrMesh.H class
     SetBoxArray(lev, ba);
     SetDistributionMap(lev, dm);
+
+    define_grids_to_evolve(lev);
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
@@ -640,6 +699,21 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
+    // ********************************************************************************************
+    // These are just used for scratch in the time integrator but we might as well define them here
+    // ********************************************************************************************
+    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+
+    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+
+    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+
+    // ********************************************************************************************
+    // Metric terms
+    // ********************************************************************************************
     z_phys_nd.resize(lev+1);
     z_phys_cc.resize(lev+1);
     detJ_cc.resize(lev+1);
@@ -654,6 +728,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
     z_t_rk.resize(lev+1);
 
+    // ********************************************************************************************
+    // Map factors
+    // ********************************************************************************************
     BoxList bl2d = ba.boxList();
     for (auto& b : bl2d) {
         b.setRange(2,0);
@@ -663,14 +740,23 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     mapfac_m.resize(lev+1);
     mapfac_u.resize(lev+1);
     mapfac_v.resize(lev+1);
-    mapfac_m[lev].reset(new MultiFab(ba2d,dm,1,0));
-    mapfac_u[lev].reset(new MultiFab(convert(ba2d,IntVect(1,0,0)),dm,1,0));
-    mapfac_v[lev].reset(new MultiFab(convert(ba2d,IntVect(0,1,0)),dm,1,0));
-    mapfac_m[lev]->setVal(1.);
-    mapfac_u[lev]->setVal(1.);
-    mapfac_v[lev]->setVal(1.);
+    mapfac_m[lev].reset(new MultiFab(ba2d,dm,1,3));
+    mapfac_u[lev].reset(new MultiFab(convert(ba2d,IntVect(1,0,0)),dm,1,3));
+    mapfac_v[lev].reset(new MultiFab(convert(ba2d,IntVect(0,1,0)),dm,1,3));
+    if(solverChoice.use_mapfactor) {
+        mapfac_m[lev]->setVal(0.5);
+        mapfac_u[lev]->setVal(0.5);
+        mapfac_v[lev]->setVal(0.5);
+    }
+    else {
+        mapfac_m[lev]->setVal(1.);
+        mapfac_u[lev]->setVal(1.);
+        mapfac_v[lev]->setVal(1.);
+    }
 
+    // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0 (in that order)
+    // ********************************************************************************************
     base_state.resize(lev+1);
     base_state[lev].define(ba,dm,3,1);
     base_state[lev].setVal(0.);
@@ -1078,6 +1164,37 @@ ERF::AverageDownTo (int crse_lev)
             amrex::average_down_faces(vars_new[crse_lev+1][var_idx], vars_new[crse_lev][var_idx],
                                       refRatio(crse_lev),geom[crse_lev]);
     }
+}
+
+void
+ERF::define_grids_to_evolve (int lev)
+{
+   Box domain(geom[lev].Domain());
+   if (lev == 0 && init_type == "real")
+   {
+      Box shrunk_domain(domain);
+      shrunk_domain.grow(0,-1);
+      shrunk_domain.grow(1,-1);
+      grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
+   } else if (lev == 1) {
+      Box shrunk_domain(boxes_at_level[lev][0]);
+      shrunk_domain.grow(0,-1);
+      shrunk_domain.grow(1,-1);
+      grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
+#if 0
+      if (num_boxes_at_level[lev] > 1) {
+          for (int i = 1; i < num_boxes_at_level[lev]; i++) {
+              Box shrunk_domain(boxes_at_level[lev][i]);
+              shrunk_domain.grow(0,-1);
+              shrunk_domain.grow(1,-1);
+              grids_to_evolve[lev] = amrex::intersect(grids_to_evolve[lev],shrunk_domain);
+          }
+      }
+#endif
+   } else {
+      // Just copy grids...
+      grids_to_evolve[lev] = grids[lev];
+   }
 }
 
 void

@@ -15,7 +15,10 @@ DiffusionSrcForMom_T (const Box& bxx, const Box& bxy , const Box& bxz,
                       const Array4<const Real>& tau31, const Array4<const Real>& tau32,
                       const Array4<const Real>& cons , const Array4<const Real>& detJ ,
                       const SolverChoice& solverChoice,
-                      const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
+                      const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
+                      const Array4<const Real>& mf_m,
+                      const Array4<const Real>& mf_u,
+                      const Array4<const Real>& mf_v)
 {
     BL_PROFILE_VAR("DiffusionSrcForMom_T()",DiffusionSrcForMom_T);
 

@@ -65,7 +65,10 @@ init_custom_prob(
   Array4<Real> const&,
   Array4<Real const> const&,
   Array4<Real const> const&,
-  amrex::GeometryData const& geomdata)
+  amrex::GeometryData const& geomdata,
+  Array4<Real const> const& mf_m,
+  Array4<Real const> const& mf_u,
+  Array4<Real const> const& mf_v)
 {
 
   Real xc = parms.xc; Real yc = parms.yc;
@@ -118,6 +121,7 @@ init_custom_prob(
 
       x_vel(i, j, k) = (parms.M_inf * std::cos(parms.alpha)
                      - (y - parms.yc)/parms.R * Omg) * parms.a_inf;
+      x_vel(i, j, k) = x_vel(i,j,k) / mf_u(i,j,0);
   });
 
   // Construct a box that is on y-faces
@@ -135,6 +139,7 @@ init_custom_prob(
 
       y_vel(i, j, k) = (parms.M_inf * std::sin(parms.alpha)
                      + (x - parms.xc)/parms.R * Omg) * parms.a_inf;
+      y_vel(i, j, k) = y_vel(i,j,k) / mf_v(i,j,0);
   });
 
   // Construct a box that is on z-faces
@@ -148,27 +153,24 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
+                    const Real& /*time*/)
 {
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
+    auto dx = geom.CellSizeArray();
 
     for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
-
+        const Box& gbx = mfi.growntilebox(1);
         Array4<Real> z_arr = z_phys_nd.array(mfi);
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
 
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            Real z = k * dx[2];
 
             // Flat terrain with z = 0 at k = 0
-            z_arr(i,j,0) = 0.;
+            z_arr(i,j,k) = z;
         });
     }
+    z_phys_nd.FillBoundary(geom.periodicity());
 }
 
 void
@@ -218,4 +220,13 @@ amrex_probinit(
                  << parms.M_inf * std::sin(parms.alpha)
                  << std::endl;
 
+}
+
+AMREX_GPU_DEVICE
+Real
+dhdt(int /*i*/, int /*j*/,
+     const GpuArray<Real,AMREX_SPACEDIM> /*dx*/,
+     const Real /*time_mt*/, const Real /*delta_t*/)
+{
+    return 0.;
 }

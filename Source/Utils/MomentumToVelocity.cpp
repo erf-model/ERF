@@ -7,17 +7,12 @@
 
 using namespace amrex;
 
-
 /**
  * Convert updated momentum to updated velocity
  */
 void
-MomentumToVelocity( MultiFab& xvel,
-                    const IntVect& xvel_ngrow,
-                    MultiFab& yvel,
-                    const IntVect& yvel_ngrow,
-                    MultiFab& zvel,
-                    const IntVect& zvel_ngrow,
+MomentumToVelocity( BoxArray& grids_to_evolve,
+                    MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                     const MultiFab& cons_in,
                     const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in)
 {
@@ -29,9 +24,14 @@ MomentumToVelocity( MultiFab& xvel,
 #endif
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow);
-        const Box& tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow);
-        const Box& tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow);
+        const Box& valid_bx = grids_to_evolve[mfi.index()];
+
+        // Construct intersection of current tilebox and valid region for updating
+        Box bx = mfi.tilebox() & valid_bx;
+
+        const Box& tbx = surroundingNodes(bx,0);
+        const Box& tby = surroundingNodes(bx,1);
+        const Box& tbz = surroundingNodes(bx,2);
 
         // Conserved variables on cell centers -- we use this for density
         const Array4<const Real>& cons = cons_in.array(mfi);

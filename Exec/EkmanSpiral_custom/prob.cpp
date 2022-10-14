@@ -48,7 +48,10 @@ init_custom_prob(
   Array4<Real> const&,
   Array4<Real const> const&,
   Array4<Real const> const&,
-  GeometryData const& geomdata)
+  GeometryData const& geomdata,
+  Array4<Real const> const& mf_m,
+  Array4<Real const> const& mf_u,
+  Array4<Real const> const& mf_v)
 {
   ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry

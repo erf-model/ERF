@@ -16,6 +16,7 @@
 using namespace amrex;
 
 void erf_slow_rhs_pre (int level, int nrk,
+                       BoxArray& grids_to_evolve,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_data,
                        const MultiFab& S_prim,
@@ -28,13 +29,15 @@ void erf_slow_rhs_pre (int level, int nrk,
                        const MultiFab& source,
                        MultiFab& eddyDiffs,
                        const amrex::Geometry geom,
-                       amrex::InterpFaceRegister* ifr,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
                        const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                        const Vector<amrex::BCRec> domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
                        const MultiFab* r0, const MultiFab* p0,
+                       std::unique_ptr<MultiFab>& mapfac_m,
+                       std::unique_ptr<MultiFab>& mapfac_u,
+                       std::unique_ptr<MultiFab>& mapfac_v,
                        const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                        const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
                        bool ingested_bcs)
@@ -74,17 +77,6 @@ void erf_slow_rhs_pre (int level, int nrk,
        -solverChoice.abl_pressure_grad[0] + solverChoice.abl_geo_forcing[0],
        -solverChoice.abl_pressure_grad[1] + solverChoice.abl_geo_forcing[1],
        -solverChoice.abl_pressure_grad[2] + solverChoice.abl_geo_forcing[2]};
-
-    const iMultiFab *mlo_mf_x, *mhi_mf_x;
-    const iMultiFab *mlo_mf_y, *mhi_mf_y;
-
-    if (level > 0)
-    {
-        mlo_mf_x = &(ifr->mask(Orientation(0,Orientation::low)));
-        mhi_mf_x = &(ifr->mask(Orientation(0,Orientation::high)));
-        mlo_mf_y = &(ifr->mask(Orientation(1,Orientation::low)));
-        mhi_mf_y = &(ifr->mask(Orientation(1,Orientation::high)));
-    }
 
     // *************************************************************************
     // Pre-computed quantities
@@ -141,49 +133,14 @@ void erf_slow_rhs_pre (int level, int nrk,
 #endif
     for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& bx = mfi.tilebox();
-        Box tbx = mfi.nodaltilebox(0);
-        Box tby = mfi.nodaltilebox(1);
-        Box tbz = mfi.nodaltilebox(2);
+        const Box& valid_bx = grids_to_evolve[mfi.index()];
 
-        bool left_edge_dirichlet = false;
-        bool rght_edge_dirichlet = false;
-        bool  bot_edge_dirichlet = false;
-        bool  top_edge_dirichlet = false;
+        // Construct intersection of current tilebox and valid region for updating
+        Box bx = mfi.tilebox() & valid_bx;
 
-        const Box& valid_bx = mfi.validbox();
-
-        if (level == 0 && ingested_bcs) {
-            left_edge_dirichlet = (bx.smallEnd(0) == domain.smallEnd(0));
-            rght_edge_dirichlet = (bx.bigEnd(1)   == domain.bigEnd(0));
-            bot_edge_dirichlet  = (bx.smallEnd(0) == domain.smallEnd(1));
-            top_edge_dirichlet  = (bx.bigEnd(1)   == domain.bigEnd(1));
-        } else if (level > 0) {
-            int vlo_x = valid_bx.smallEnd(0);
-            int vhi_x = valid_bx.bigEnd(0);
-            int vlo_y = valid_bx.smallEnd(1);
-            int vhi_y = valid_bx.bigEnd(1);
-            int vlo_z = valid_bx.smallEnd(2);
-            int vhi_z = valid_bx.bigEnd(2);
-
-            auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
-            auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
-            auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
-            auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
-
-            // ******************************************************************
-            // This assumes that refined regions are always rectangular
-            // ******************************************************************
-            left_edge_dirichlet = mlo_x(vlo_x  ,vlo_y  ,vlo_z);
-            rght_edge_dirichlet = mhi_x(vhi_x+1,vhi_y  ,vhi_z);
-            bot_edge_dirichlet  = mlo_y(vlo_x  ,vlo_y  ,vlo_z);
-            top_edge_dirichlet  = mhi_y(vhi_x  ,vhi_y+1,vhi_z);
-        } // level > 0
-
-        if (left_edge_dirichlet) tbx.growLo(0,-1);
-        if (rght_edge_dirichlet) tbx.growHi(0,-1);
-        if ( bot_edge_dirichlet) tby.growLo(1,-1);
-        if ( top_edge_dirichlet) tby.growHi(1,-1);
+        Box tbx = surroundingNodes(bx,0);
+        Box tby = surroundingNodes(bx,1);
+        Box tbz = surroundingNodes(bx,2);
 
         // We don't compute a source term for z-momentum on the bottom or top boundary
         tbz.growLo(2,-1);
@@ -225,10 +182,18 @@ void erf_slow_rhs_pre (int level, int nrk,
 
         const Array4<Real>& K_turb = eddyDiffs.array(mfi);
 
+        // Terrain metrics
         const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
         const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
+
+        // Base state
         const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
+
+        // Map factors
+        const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
+        const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
+        const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
@@ -439,7 +404,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                    rho_u, rho_v, omega_arr, fac,
                                    avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
                                    cell_prim, z_nd, detJ,
-                                   dxInv, l_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, l_spatial_order, l_use_terrain);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -455,12 +420,14 @@ void erf_slow_rhs_pre (int level, int nrk,
                 DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
                                        cell_data, cell_prim, source_fab, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
-                                       dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+                                       dxInv, mf_m, mf_u, mf_v,
+                                       K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
                                        cell_data, cell_prim, source_fab, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
-                                       dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+                                       dxInv, mf_m, mf_u, mf_v,
+                                       K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
             }
         }
 
@@ -494,7 +461,8 @@ void erf_slow_rhs_pre (int level, int nrk,
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
-                           z_nd, detJ, dxInv, l_spatial_order, l_use_terrain, domhi_z);
+                           z_nd, detJ, dxInv, mf_m, mf_u, mf_v,
+                           l_spatial_order, l_use_terrain, domhi_z);
 
         if (l_use_diff) {
             if (l_use_terrain) {
@@ -504,13 +472,15 @@ void erf_slow_rhs_pre (int level, int nrk,
                                      tau12, tau13,
                                      tau21, tau23,
                                      tau31, tau32,
-                                     cell_data, detJ, solverChoice, dxInv);
+                                     cell_data, detJ, solverChoice, dxInv,
+                                     mf_m, mf_u, mf_v);
             } else {
                 DiffusionSrcForMom_N(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                      tau11, tau22, tau33,
                                      tau12, tau13, tau23,
-                                     cell_data, solverChoice, dxInv);
+                                     cell_data, solverChoice, dxInv,
+                                     mf_m, mf_u, mf_v);
             }
         }
 
@@ -529,9 +499,10 @@ void erf_slow_rhs_pre (int level, int nrk,
             Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
             Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
 
+            //Note : mx/my == 1, so no map factor needed here
             Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
             Real gp_zeta_on_iface;
-            if(k==0) {
+            if (k==0) {
                 gp_zeta_on_iface = 0.5 * dxInv[2] * (
                                                     pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
                                                   - pp_arr(i-1,j,k  ) - pp_arr(i,j,k  ) );
@@ -629,6 +600,7 @@ void erf_slow_rhs_pre (int level, int nrk,
               Real met_h_eta  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
               Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
 
+              //Note : mx/my == 1, so no map factor needed here
               Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
               Real gp_zeta_on_jface;
               if(k==0) {
@@ -735,7 +707,7 @@ void erf_slow_rhs_pre (int level, int nrk,
           [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
                 Real met_h_zeta = Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd);
-                Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / met_h_zeta;
+                Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / (met_h_zeta * mf_m(i,j,0));
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)

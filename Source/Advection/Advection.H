@@ -24,6 +24,7 @@ void AdvectionSrcForRhoAndTheta (const amrex::Box& bx, const amrex::Box& valid_b
                                  const amrex::Array4<const amrex::Real>& z_nd,
                                  const amrex::Array4<const amrex::Real>& detJ,
                                  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
+                                 const amrex::Array4<const amrex::Real>& mf_m,
                                  const int& spatial_order, const int& use_terrain);
 
 void AdvectionSrcForScalars (const amrex::Box& bx,
@@ -35,6 +36,7 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<amrex::Real>& src,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
+                             const amrex::Array4<const amrex::Real>& mf_m,
                              const int& spatial_order, const int& use_terrain);
 
 void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
@@ -46,6 +48,9 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& Omega    ,
                          const amrex::Array4<const amrex::Real>& z_nd     , const amrex::Array4<const amrex::Real>& detJ,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                         const amrex::Array4<const amrex::Real>& mf_m,
+                         const amrex::Array4<const amrex::Real>& mf_u,
+                         const amrex::Array4<const amrex::Real>& mf_v,
                          const int spatial_order, const int use_terrain, const int domhi_z);
 
 #endif

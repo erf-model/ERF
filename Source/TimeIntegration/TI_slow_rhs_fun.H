@@ -61,20 +61,22 @@
                 });
             } // mfi
 
-            erf_slow_rhs_pre(level, nrk, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
                              Omega, source, eddyDiffs,
-                             fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
+                             fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], detJ_cc_src[level], r0, p0,
+                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
                              ingested_bcs);
         } else {
-            erf_slow_rhs_pre(level, nrk, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
                              Omega, source, eddyDiffs,
-                             fine_geom, ifr, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
+                             fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], detJ_cc[level], r0, p0,
+                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
                              ingested_bcs);
@@ -134,12 +136,14 @@
                               xvel_new, yvel_new, zvel_new,
                               source, eddyDiffs,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
-                              detJ_cc[level], detJ_cc_new[level]);
+                              detJ_cc[level], detJ_cc_new[level],
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level]);
         } else {
             erf_slow_rhs_post(level, slow_dt, S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, eddyDiffs,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
-                              detJ_cc[level], detJ_cc[level]);
+                              detJ_cc[level], detJ_cc[level],
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level]);
         }
     };
