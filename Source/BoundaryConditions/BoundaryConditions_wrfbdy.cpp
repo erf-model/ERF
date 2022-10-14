@@ -37,7 +37,6 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
         MultiFab& mf = *mfs[var_idx];
         const int icomp = 0;
         const int ncomp = 1;
-              int nvars = 1;
 
         if (var_idx == Vars::xvel) {
            ivar   = WRFBdyVars::U; // U
@@ -45,7 +44,6 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
            ivar   = WRFBdyVars::V; // V
         } else  if (var_idx == Vars::cons) {
            ivar   = WRFBdyVars::R; // R (we assume that T comes right after R)
-           nvars  = 2;
         }
 
         // We have data at fixed time intervals we will call dT

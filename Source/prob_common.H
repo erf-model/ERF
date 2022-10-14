@@ -25,7 +25,10 @@ init_custom_prob (
   amrex::Array4<amrex::Real      > const& p_hse,
   amrex::Array4<amrex::Real const> const& z_nd,
   amrex::Array4<amrex::Real const> const& z_cc,
-  amrex::GeometryData const& geomdata);
+  amrex::GeometryData const& geomdata,
+  amrex::Array4<amrex::Real const> const& mf_m,
+  amrex::Array4<amrex::Real const> const& mf_u,
+  amrex::Array4<amrex::Real const> const& mf_v);
 
 void
 init_custom_terrain (const amrex::Geometry& geom,

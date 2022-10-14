@@ -7,30 +7,33 @@ using namespace amrex;
 
 void
 DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
-                        const amrex::Array4<const amrex::Real>& u,
-                        const amrex::Array4<const amrex::Real>& v,
-                        const amrex::Array4<const amrex::Real>& w,
-                        const amrex::Array4<const amrex::Real>& cell_data,
-                        const amrex::Array4<const amrex::Real>& cell_prim,
-                        const amrex::Array4<const amrex::Real>& source_fab,
-                        const amrex::Array4<amrex::Real>& cell_rhs,
-                        const amrex::Array4<amrex::Real>& xflux,
-                        const amrex::Array4<amrex::Real>& yflux,
-                        const amrex::Array4<amrex::Real>& zflux,
-                        const amrex::Array4<const amrex::Real>& z_nd,
-                        const amrex::Array4<const amrex::Real>& detJ,
-                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
-                        const amrex::Array4<const amrex::Real>& K_turb,
+                        const Array4<const Real>& u,
+                        const Array4<const Real>& v,
+                        const Array4<const Real>& w,
+                        const Array4<const Real>& cell_data,
+                        const Array4<const Real>& cell_prim,
+                        const Array4<const Real>& source_fab,
+                        const Array4<Real>& cell_rhs,
+                        const Array4<Real>& xflux,
+                        const Array4<Real>& yflux,
+                        const Array4<Real>& zflux,
+                        const Array4<const Real>& z_nd,
+                        const Array4<const Real>& detJ,
+                        const amrex::GpuArray<Real, AMREX_SPACEDIM>& dxInv,
+                        const Array4<const Real>& mf_m,
+                        const Array4<const Real>& mf_u,
+                        const Array4<const Real>& mf_v,
+                        const Array4<const Real>& K_turb,
                         const SolverChoice &solverChoice,
-                        const amrex::Real& theta_mean,
-                        const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
+                        const Real& theta_mean,
+                        const amrex::GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const amrex::BCRec* bc_ptr)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
-    const amrex::Real dx_inv = dxInv[0];
-    const amrex::Real dy_inv = dxInv[1];
-    const amrex::Real dz_inv = dxInv[2];
+    const Real dx_inv = dxInv[0];
+    const Real dy_inv = dxInv[1];
+    const Real dz_inv = dxInv[2];
 
     bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
@@ -89,8 +92,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( K_turb(i  , j, k, d_eddy_diff_idx[prim_index])
                               + K_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
@@ -109,8 +112,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( K_turb(i, j  , k, d_eddy_diff_idy[prim_index])
                               + K_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
@@ -129,8 +132,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
             rhoAlpha += 0.5 * ( K_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + K_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
@@ -148,7 +151,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = d_alpha_eff[prim_index];
+            Real Alpha = d_alpha_eff[prim_index];
             Alpha += 0.5 * ( K_turb(i  , j, k, d_eddy_diff_idx[prim_index])
                            + K_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
@@ -167,7 +170,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = d_alpha_eff[prim_index];
+            Real Alpha = d_alpha_eff[prim_index];
             Alpha += 0.5 * ( K_turb(i, j  , k, d_eddy_diff_idy[prim_index])
                            + K_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
@@ -186,7 +189,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = d_alpha_eff[prim_index];
+            Real Alpha = d_alpha_eff[prim_index];
 
             Alpha += 0.5 * ( K_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                            + K_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
@@ -205,8 +208,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
+            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real met_h_xi,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtIface  (i,j,k,dxInv,z_nd);
@@ -223,8 +226,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real met_h_eta,met_h_zeta;
             met_h_eta  = Compute_h_eta_AtJface (i,j,k,dxInv,z_nd);
@@ -241,8 +244,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-            amrex::Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
+            Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
@@ -258,7 +261,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = d_alpha_eff[prim_index];
+            Real Alpha = d_alpha_eff[prim_index];
 
             Real met_h_xi,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtIface  (i,j,k,dxInv,z_nd);
@@ -275,7 +278,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = d_alpha_eff[prim_index];
+            Real Alpha = d_alpha_eff[prim_index];
 
             Real met_h_eta,met_h_zeta;
             met_h_eta  = Compute_h_eta_AtJface (i,j,k,dxInv,z_nd);
@@ -292,7 +295,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             const int  qty_index = n_start + n;
             const int prim_index = qty_index - qty_offset;
 
-            amrex::Real Alpha = d_alpha_eff[prim_index];
+            Real Alpha = d_alpha_eff[prim_index];
 
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);

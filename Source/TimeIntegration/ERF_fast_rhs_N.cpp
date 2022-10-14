@@ -12,6 +12,7 @@
 using namespace amrex;
 
 void erf_fast_rhs_N (int step, int level,
+                     BoxArray& grids_to_evolve,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
@@ -21,9 +22,11 @@ void erf_fast_rhs_N (int step, int level,
                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
                      Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
                      const amrex::Geometry geom,
-                     amrex::InterpFaceRegister* ifr,
                      const SolverChoice& solverChoice,
                      const amrex::Real dtau, const amrex::Real facinv,
+                     std::unique_ptr<MultiFab>& mapfac_m,
+                     std::unique_ptr<MultiFab>& mapfac_u,
+                     std::unique_ptr<MultiFab>& mapfac_v,
                      bool ingested_bcs)
 {
     BL_PROFILE_REGION("erf_fast_rhs_N()");
@@ -65,17 +68,6 @@ void erf_fast_rhs_N (int step, int level,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
-    const iMultiFab *mlo_mf_x, *mhi_mf_x;
-    const iMultiFab *mlo_mf_y, *mhi_mf_y;
-
-    if (level > 0)
-    {
-        mlo_mf_x = &(ifr->mask(Orientation(0,Orientation::low)));
-        mhi_mf_x = &(ifr->mask(Orientation(0,Orientation::high)));
-        mlo_mf_y = &(ifr->mask(Orientation(1,Orientation::low)));
-        mhi_mf_y = &(ifr->mask(Orientation(1,Orientation::high)));
-    }
-
     MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
 
     // *************************************************************************
@@ -92,54 +84,10 @@ void erf_fast_rhs_N (int step, int level,
 
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = mfi.validbox();
+        const Box& valid_bx = grids_to_evolve[mfi.index()];
 
-        Box bx = mfi.tilebox();
-
-        bool left_edge_dirichlet = false;
-        bool rght_edge_dirichlet = false;
-        bool  bot_edge_dirichlet = false;
-        bool  top_edge_dirichlet = false;
-
-        if (level == 0 && ingested_bcs) {
-            left_edge_dirichlet = (bx.smallEnd(0) == domain.smallEnd(0));
-            rght_edge_dirichlet = (bx.bigEnd(1)   == domain.bigEnd(0));
-            bot_edge_dirichlet  = (bx.smallEnd(0) == domain.smallEnd(1));
-            top_edge_dirichlet  = (bx.bigEnd(1)   == domain.bigEnd(1));
-        } else if (level > 0) {
-            int vlo_x = valid_bx.smallEnd(0);
-            int vhi_x = valid_bx.bigEnd(0);
-            int vlo_y = valid_bx.smallEnd(1);
-            int vhi_y = valid_bx.bigEnd(1);
-            int vlo_z = valid_bx.smallEnd(2);
-            int vhi_z = valid_bx.bigEnd(2);
-
-            auto mlo_x = (level > 0) ? mlo_mf_x->const_array(mfi) : Array4<const int>{};
-            auto mhi_x = (level > 0) ? mhi_mf_x->const_array(mfi) : Array4<const int>{};
-            auto mlo_y = (level > 0) ? mlo_mf_y->const_array(mfi) : Array4<const int>{};
-            auto mhi_y = (level > 0) ? mhi_mf_y->const_array(mfi) : Array4<const int>{};
-
-            // ******************************************************************
-            // This assumes that refined regions are always rectangular
-            // ******************************************************************
-            left_edge_dirichlet = mlo_x(vlo_x  ,vlo_y  ,vlo_z);
-            rght_edge_dirichlet = mhi_x(vhi_x+1,vhi_y  ,vhi_z);
-            bot_edge_dirichlet  = mlo_y(vlo_x  ,vlo_y  ,vlo_z);
-            top_edge_dirichlet  = mhi_y(vhi_x  ,vhi_y+1,vhi_z);
-        } // level > 0
-
-        if (left_edge_dirichlet) {
-            bx.growLo(0,-1);
-        }
-        if (rght_edge_dirichlet) {
-            bx.growHi(0,-1);
-        }
-        if (bot_edge_dirichlet) {
-            bx.growLo(1,-1);
-        }
-        if (top_edge_dirichlet) {
-            bx.growHi(1,-1);
-        }
+        // Construct intersection of current tilebox and valid region for updating
+        Box bx = mfi.tilebox() & valid_bx;
 
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
@@ -180,6 +128,11 @@ void erf_fast_rhs_N (int step, int level,
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
+
+        // Map factors
+        const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
+        const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
+        const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
         Box gbx   = mfi.growntilebox(1);
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);

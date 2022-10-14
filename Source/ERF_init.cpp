@@ -129,11 +129,9 @@ ERF::init_from_wrfinput(int lev)
             FArrayBox&  p_hse_fab = p_hse[mfi];
             FArrayBox& pi_hse_fab = pi_hse[mfi];
             FArrayBox&  r_hse_fab = r_hse[mfi];
-            FArrayBox& z_phys_nd_fab = (*z_phys_nd[lev])[mfi];
-            FArrayBox& z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
 
             const Box& bx = mfi.validbox();
-            init_base_state_from_wrfinput(lev, bx, p_hse_fab, pi_hse_fab, r_hse_fab, z_phys_nd_fab, z_phys_cc_fab,
+            init_base_state_from_wrfinput(lev, bx, p_hse_fab, pi_hse_fab, r_hse_fab,
                                          NC_ALB_fab, NC_PB_fab);
         }
     }
@@ -230,8 +228,7 @@ ERF::init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
 
 void
 ERF::init_base_state_from_wrfinput(int lev, const Box& bx, FArrayBox& p_hse, FArrayBox& pi_hse,
-                                   FArrayBox& r_hse, const FArrayBox& z_phys_nd_fab,
-                                   const FArrayBox& z_phys_cc_fab,
+                                   FArrayBox& r_hse,
                                    const Vector<FArrayBox>& NC_ALB_fab,
                                    const Vector<FArrayBox>& NC_PB_fab)
 {
@@ -241,15 +238,11 @@ ERF::init_base_state_from_wrfinput(int lev, const Box& bx, FArrayBox& p_hse, FAr
         // FArrayBox to FArrayBox copy does "copy on intersection"
         // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
         //
-
-        // This copies from NC_zphys on z-faces to z_phys_nd on nodes
         const Array4<Real      >&  p_hse_arr =  p_hse.array();
         const Array4<Real      >& pi_hse_arr = pi_hse.array();
         const Array4<Real      >&  r_hse_arr =  r_hse.array();
         const Array4<Real const>& alpha_arr = NC_ALB_fab[idx].const_array();
         const Array4<Real const>& nc_pb_arr = NC_PB_fab[idx].const_array();
-        const Array4<Real const>&   z_nd_arr = z_phys_nd_fab.array();
-        const Array4<Real const>&   z_cc_arr = z_phys_cc_fab.array();
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             p_hse_arr(i,j,k)  = nc_pb_arr(i,j,k);
@@ -443,11 +436,15 @@ ERF::init_custom(int lev)
         Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
+        Array4<Real const> mf_m     = mapfac_m[lev]->array(mfi);
+        Array4<Real const> mf_u     = mapfac_m[lev]->array(mfi);
+        Array4<Real const> mf_v     = mapfac_m[lev]->array(mfi);
+        
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
         init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr, geom[lev].data());
+                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr, geom[lev].data(), mf_m, mf_u, mf_v);
 
     } //mfi
 }

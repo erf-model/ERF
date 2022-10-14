@@ -60,7 +60,10 @@ init_custom_prob(
         Array4<Real      > const&,
         Array4<Real const> const&,
         Array4<Real const> const&,
-        GeometryData const&)
+        GeometryData const&,
+        Array4<Real const> const&,
+        Array4<Real const> const&,
+        Array4<Real const> const&)
 {
     amrex::Error("We don't belong in init_custom_prob!");
 }

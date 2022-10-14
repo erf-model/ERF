@@ -31,7 +31,10 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         std::unique_ptr<ABLMost>& most,
                         const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                         std::unique_ptr<MultiFab>& dJ,
-                        std::unique_ptr<MultiFab>& dJ_new)
+                        std::unique_ptr<MultiFab>& dJ_new,
+                        std::unique_ptr<MultiFab>& mapfac_m,
+                        std::unique_ptr<MultiFab>& mapfac_u,
+                        std::unique_ptr<MultiFab>& mapfac_v)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -122,8 +125,14 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
         const Array4<Real const>& K_turb = eddyDiffs.const_array(mfi);
 
+        // Metric terms
         const Array4<const Real>& detJ     = l_use_terrain ? dJ->const_array(mfi)     : Array4<const Real>{};
         const Array4<const Real>& detJ_new = l_use_terrain ? dJ_new->const_array(mfi) : Array4<const Real>{};
+
+        // Map factors
+        const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
+        const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
+        const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
@@ -150,20 +159,20 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             int   num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ,
-                                   dxInv, l_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, l_spatial_order, l_use_terrain);
         }
         if (l_use_QKE) {
             int start_comp = RhoQKE_comp;
             int   num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ,
-                                   dxInv, l_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, l_spatial_order, l_use_terrain);
         }
         int start_comp = RhoScalar_comp;
         int   num_comp = S_data[IntVar::cons].nComp() - start_comp;
         AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ,
-                               dxInv, l_spatial_order, l_use_terrain);
+                               dxInv, mf_m, l_spatial_order, l_use_terrain);
 
         if (l_use_diff && !l_use_terrain) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -177,7 +186,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
                                    cur_cons, cur_prim, source_fab, cell_rhs,
                                    diffflux_x, diffflux_y, diffflux_z,
-                                   dxInv, K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+                                   dxInv, mf_m, mf_u, mf_v, 
+                                   K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
         }
 
         // This updates just the "slow" conserved variables
