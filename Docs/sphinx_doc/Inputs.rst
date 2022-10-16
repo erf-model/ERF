@@ -650,10 +650,24 @@ If **erf.init_type = real**”, the problem is initialized with mesoscale data c
 
 If **erf.init_type = custom**” or **erf.init_type = input_sounding**”, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
 
-Terrain Smoothing
+Map Scale Factors
 =================
 
-Currently, ERF has 3 methods of controlling the terrain-fitted coordinates:
+Map scale factors are always present in the evolution equations, but the values default to one
+unless specified in the initialization when **erf.init_type = real**”.
+
+There is an option to test the map scale factors by setting  **erf.test_mapfactor = true**”; this
+arbitrarily sets the map factors to 0.5 in order to test the implementation.
+
+Terrain
+=======
+
+ERF allows the use to specify whether terrain-fitted coordinates should be used by
+setting **erf.use_terrain**” (default false).
+If terrain-fitted coordinates are chosen, they are defined to be static (default)
+or moving by setting **erf.terrain_type.**”
+If using terrain, the user also has the option to specify one of three
+methods for defining how the terrain-fitted coordinates given the topography:
 
 - Basic Terain Following (BTF):
     The influence of the terrain decreases linearly with height.
@@ -665,14 +679,19 @@ Currently, ERF has 3 methods of controlling the terrain-fitted coordinates:
 List of Parameters
 ------------------
 
-+-----------------------------+-------------------+--------------------+------------+
-| Parameter                   | Definition        | Acceptable         | Default    |
-|                             |                   | Values             |            |
-+=============================+===================+====================+============+
-| **erf.terrain_smoothing**   | specify terrain   | 0,                 | 0          |
-|                             | following         | 1,                 |            |
-|                             |                   | 2                  |            |
-+-----------------------------+-------------------+--------------------+------------+
++-----------------------------+--------------------+--------------------+------------+
+| Parameter                   | Definition         | Acceptable         | Default    |
+|                             |                    | Values             |            |
++=============================+====================+====================+============+
+| **erf.use_terrain**         | use terrain-fitted |  true / fasle      | false      |
+|                             | coordinates?       |                    |            |
++-----------------------------+--------------------+--------------------+------------+
+| **erf.terrain_type**        | static or moving?  |  0 / 1             | 0          |
++-----------------------------+--------------------+--------------------+------------+
+| **erf.terrain_smoothing**   | specify terrain    | 0,                 | 0          |
+|                             | following          | 1,                 |            |
+|                             |                    | 2                  |            |
++-----------------------------+--------------------+--------------------+------------+
 
 
 Examples of Usage

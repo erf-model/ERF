@@ -56,6 +56,7 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    :hidden:
 
    ArakawaCGrid.rst
+   MapFactors.rst
    TimeAdvance.rst
    Discretizations.rst
    MeshRefinement.rst

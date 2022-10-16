@@ -68,7 +68,7 @@ struct SolverChoice {
         pp.query("use_terrain", use_terrain);
 
         // Do we use map scale factors?
-        pp.query("use_mapfactor", use_mapfactor);
+        pp.query("test_mapfactor", test_mapfactor);
 
         // Is the terrain static or moving?
         pp.query("terrain_type", terrain_type);
@@ -329,7 +329,7 @@ struct SolverChoice {
     std::string pp_prefix {"erf"};
 
     bool        use_terrain            = false;
-    bool        use_mapfactor          = false;
+    bool        test_mapfactor         = false;
     int         terrain_type           = 0;
 
     // Specify what additional physics/forcing modules we use

@@ -743,7 +743,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     mapfac_m[lev].reset(new MultiFab(ba2d,dm,1,3));
     mapfac_u[lev].reset(new MultiFab(convert(ba2d,IntVect(1,0,0)),dm,1,3));
     mapfac_v[lev].reset(new MultiFab(convert(ba2d,IntVect(0,1,0)),dm,1,3));
-    if(solverChoice.use_mapfactor) {
+    if(solverChoice.test_mapfactor) {
         mapfac_m[lev]->setVal(0.5);
         mapfac_u[lev]->setVal(0.5);
         mapfac_v[lev]->setVal(0.5);
