@@ -37,11 +37,11 @@ With map factors, the dry governing equations have the following form
                                            + \rho^\prime \mathbf{g}
                                            + \nabla \cdot \tau + F_z,
 
-  \frac{\partial (\rho \theta)}{\partial t} &= - m^2 \nabla \cdot (\rho \mathbf{u_H} \theta m^{-1})
+  \frac{\partial (\rho \theta)}{\partial t} &= - m^2 \nabla_H \cdot (\rho \mathbf{u_H} \theta m^{-1})
                                                - m   \frac{\partial (\rho w \theta m^{-1})}{\partial z}
                                                + \nabla \cdot ( \rho \alpha_{T}\ \nabla \theta) + F_{\rho \theta},
 
-  \frac{\partial (\rho C)}{\partial t} &= - m^2 \nabla \cdot (\rho \mathbf{u_H} C m^{-1})
+  \frac{\partial (\rho C)}{\partial t} &= - m^2 \nabla_H \cdot (\rho \mathbf{u_H} C m^{-1})
                                           - m   \frac{\partial (\rho w C m^{-1})}{\partial z}
                                           + \nabla \cdot (\rho \alpha_{C}\ \nabla C)
 
