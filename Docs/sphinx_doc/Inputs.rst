@@ -644,28 +644,28 @@ List of Parameters
 Notes
 -----------------
 
-If **erf.init_type = ideal**”, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in vertical direction.
+If **erf.init_type = ideal**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in vertical direction.
 
-If **erf.init_type = real**”, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.  In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**”
+If **erf.init_type = real**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.  In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**”
 
-If **erf.init_type = custom**” or **erf.init_type = input_sounding**”, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
+If **erf.init_type = custom** or **erf.init_type = input_sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
 
 Map Scale Factors
 =================
 
 Map scale factors are always present in the evolution equations, but the values default to one
-unless specified in the initialization when **erf.init_type = real**”.
+unless specified in the initialization when **erf.init_type = real**.
 
-There is an option to test the map scale factors by setting  **erf.test_mapfactor = true**”; this
+There is an option to test the map scale factors by setting  **erf.test_mapfactor = true**; this
 arbitrarily sets the map factors to 0.5 in order to test the implementation.
 
 Terrain
 =======
 
 ERF allows the use to specify whether terrain-fitted coordinates should be used by
-setting **erf.use_terrain**” (default false).
+setting **erf.use_terrain** (default false).
 If terrain-fitted coordinates are chosen, they are defined to be static (default)
-or moving by setting **erf.terrain_type.**”
+or moving by setting **erf.terrain_type.**
 If using terrain, the user also has the option to specify one of three
 methods for defining how the terrain-fitted coordinates given the topography:
 
