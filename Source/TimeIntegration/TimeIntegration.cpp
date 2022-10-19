@@ -185,8 +185,10 @@ void ERF::erf_advance(int level,
     // *************************************************************************
     if (l_use_kturb)
     {
-        ComputeTurbulentViscosity(xvel_old, yvel_old, zvel_old, state_old[IntVar::cons],
-                                  *Tau11, *Tau22, *Tau33, *Tau12, *Tau13, *Tau23,
+        ComputeTurbulentViscosity(xvel_old, yvel_old, zvel_old,
+                                  *Tau11, *Tau22, *Tau33,
+                                  *Tau12, *Tau13, *Tau23,
+                                  state_old[IntVar::cons],
                                   *eddyDiffs, fine_geom, solverChoice, m_most);
     }
     // *************************************************************************

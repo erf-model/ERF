@@ -76,6 +76,10 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
           K_turb(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
           K_turb(i, j, k, EddyDiff::Mom_v) = K_turb(i, j, k, EddyDiff::Mom_h);
+
+          if (i==1 && j==1 && k==0) amrex::Print() << "Kt check: " << K_turb(i, j, k, EddyDiff::Mom_h) << ' '
+                                                   << CsDeltaSqr << ' ' << cell_data(i, j, k, Rho_comp) << ' '
+                                                   <<std::sqrt(2.0*SmnSmn) << ' ' << SmnSmn << "\n";
         });
       }     
     }

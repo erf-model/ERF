@@ -242,10 +242,21 @@ ERF::FillIntermediatePatch (int lev, Real time,
             const auto vely_arr = (*mfs[Vars::yvel])[mfi].array();
             const auto  eta_arr = (*eddyDiffs)[mfi].array();
 
+            /*
+            amrex::Print() << "MOST CHECK: "
+                           << eta_arr(1,1,1) << ' '
+                           << eta_arr(1,1,0) << ' '
+                           << eta_arr(1,1,-1) << ' '
+                           << eta_arr(1,1,-2) << ' '
+                           << eta_arr(1,1,-3) << "\n";
+            */
+
             for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
             {
                 const Box& bx       = (*mfs[var_idx])[mfi].box();
                       auto dest_arr = (*mfs[var_idx])[mfi].array();
+
+                      //amrex::Print() << "BOX: " << var_idx << ' ' << bx << "\n";
 
                 int zlo = 0;
                 m_most->impose_most_bcs(lev,bx,dest_arr,cons_arr,velx_arr,vely_arr,eta_arr,var_idx,icomp,zlo);
