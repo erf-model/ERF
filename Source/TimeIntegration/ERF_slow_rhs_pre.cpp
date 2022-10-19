@@ -307,7 +307,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         }
         {
         BL_PROFILE("slow_rhs_making_strain");
-        if (l_use_diff) {
+        if (nrk > 0 && l_use_diff) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
@@ -339,6 +339,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         } // l_use_diff
         } // profile
 
+        /*
         {
         BL_PROFILE("slow_rhs_making_eddydiff");
         if (nrk == 0 && (solverChoice.les_type == LESType::Smagorinsky)) {
@@ -350,6 +351,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                  dxInv, solverChoice);
         }
         } // end profile
+        */
 
         {
         BL_PROFILE("slow_rhs_making_stress");

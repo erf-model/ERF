@@ -84,6 +84,8 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 #ifdef ERF_USE_NETCDF
     if (init_type == "real") fill_from_wrfbdy(mfs,time);
 #endif
+
+    /*
     // ***************************************************************************
 
     //
@@ -119,6 +121,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
             } // var_idx
         } // mf
     } // most
+    */
 }
 
 //
