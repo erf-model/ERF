@@ -135,6 +135,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
                             const Vector<MultiFab*>& mfs,
                             int ng_cons, int ng_vel, bool cons_only,
                             int icomp_cons, int ncomp_cons,
+                            MultiFab* eddyDiffs,
                             bool allow_most_bcs)
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
@@ -222,6 +223,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     //
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
     {
+        /*
         MultiFab eddyDiffs(mfs[Vars::cons]->boxArray(),
                            mfs[Vars::cons]->DistributionMap(),
                            EddyDiff::NumDiffs,3);
@@ -230,6 +232,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
                                   *mfs[Vars::zvel], *mfs[Vars::cons],
                                   eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
         eddyDiffs.FillBoundary(geom[lev].periodicity());
+        */
 
         const int icomp = 0;
         for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
@@ -237,7 +240,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
             const auto cons_arr = (*mfs[Vars::cons])[mfi].array();
             const auto velx_arr = (*mfs[Vars::xvel])[mfi].array();
             const auto vely_arr = (*mfs[Vars::yvel])[mfi].array();
-            const auto  eta_arr = eddyDiffs[mfi].array();
+            const auto  eta_arr = (*eddyDiffs)[mfi].array();
 
             for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
             {
