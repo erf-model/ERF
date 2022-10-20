@@ -76,9 +76,9 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
      int nx = subdomain.length(0);
      int ny = subdomain.length(1);
      int nz = subdomain.length(2);
-     
-     n_cells.push_back(nx); 
-     n_cells.push_back(ny); 
+
+     n_cells.push_back(nx);
+     n_cells.push_back(ny);
      n_cells.push_back(nz);
 
      int num_pts = nx*ny*nz;
@@ -235,7 +235,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
            int diff = nfai*numpts;
            for(auto ip = 1; ip <= iproc; ++ip) diff += offset[ip-1];
            numpts = box.numPts();
-          
+
            for (int k(0); k < ncomp; ++k) {
               auto data = plotMF[lev]->get(fai).dataPtr(k);
               auto nc_plot_var = ncf.var(plot_var_names[k]);
