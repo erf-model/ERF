@@ -76,10 +76,19 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
           K_turb(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
           K_turb(i, j, k, EddyDiff::Mom_v) = K_turb(i, j, k, EddyDiff::Mom_h);
-
+          
+          /*
           if (i==1 && j==1 && k==0) amrex::Print() << "Kt check: " << K_turb(i, j, k, EddyDiff::Mom_h) << ' '
                                                    << CsDeltaSqr << ' ' << cell_data(i, j, k, Rho_comp) << ' '
                                                    <<std::sqrt(2.0*SmnSmn) << ' ' << SmnSmn << "\n";
+          */
+
+          //if (i==1 && j==1 && k==0) amrex::Print() << "Kt check: " << K_turb(i, j, k, EddyDiff::Mom_h) <<  "\n";
+
+          if (i<2 && j<2 && k==0) {
+              amrex::Print() << "Smn chk ctv: " << IntVect(i,j,k) << ' ' << SmnSmn << "\n";
+            }
+          
         });
       }     
     }
@@ -108,9 +117,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         });
       }
     }
-
     
-    // Extrapolate Kturb at top and bottom, extrap x/y, fill remaining elements
+    // Extrapolate Kturb in extrap x/y, fill remaining elements
     //***********************************************************************************
     int ngc(1);
     if (most) ngc = 3;
@@ -125,39 +133,23 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     
     bool use_KE  = (solverChoice.les_type == LESType::Deardorff);
     bool use_QKE = (solverChoice.use_QKE && solverChoice.diffuse_QKE_3D);
-    
-    int offset = EddyDiff::Theta_h;
-    int ntot   = 5;
-
+   
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {       
         Box bxcc   = mfi.tilebox(); //mfi.growntilebox(IntVect(1,1,0));
-        Box planez = bxcc; planez.setSmall(2, 1); planez.setBig(2, ngc);
-        int k_lo   = bxcc.smallEnd(2); int k_hi = bxcc.bigEnd(2);
-        bxcc.growLo(2,ngc); bxcc.growHi(2,ngc);
-
-        const Array4<Real>& K_turb = eddyViscosity.array(mfi);
-
-        // Extrapolate top and bottom
-        amrex::ParallelFor(planez, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            K_turb(i, j, k_lo-k, EddyDiff::Mom_h) = K_turb(i, j, k_lo, EddyDiff::Mom_h);
-            K_turb(i, j, k_lo-k, EddyDiff::Mom_v) = K_turb(i, j, k_lo, EddyDiff::Mom_v);
-          
-            K_turb(i, j, k_hi+k, EddyDiff::Mom_h) = K_turb(i, j, k_hi, EddyDiff::Mom_h);
-            K_turb(i, j, k_hi+k, EddyDiff::Mom_v) = K_turb(i, j, k_hi, EddyDiff::Mom_v);
-        });
-
-        // TODO: Extrap only if outside i/j_dom_hi/lo
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc);
         int i_lo   = bxcc.smallEnd(0); int i_hi = bxcc.bigEnd(0);
         int j_lo   = bxcc.smallEnd(1); int j_hi = bxcc.bigEnd(1);
         bxcc.growLo(0,ngc); bxcc.growHi(0,ngc);
         bxcc.growLo(1,ngc); bxcc.growHi(1,ngc);
+
+        //amrex::Print() << "PLANE1: " << planex << ' ' << planey << ' '<< ngc << "\n";
+
+        const Array4<Real>& K_turb = eddyViscosity.array(mfi);
 
         // Extrapolate x & y (over-written on interior ghost cells by FillBoundary)
         amrex::ParallelFor(planex, planey,
@@ -178,12 +170,15 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             K_turb(i, j_hi+j, k, EddyDiff::Mom_v) = K_turb(i, j_hi, k, EddyDiff::Mom_v);
         });
 
-        // Populate all other elements on the whole grid (bxcc grown each extrapolation)
+
+        int ntot   = 5;
+        int offset = EddyDiff::Theta_h;        
+        // Populate element other than mom_h/v on the whole grid
         if(use_QKE) {
           int ncomp  = 4;
           ParallelFor(bxcc,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
-            int indx = n + offset;
+            int indx   = n + offset;
             int indx_v = indx + ntot;
             K_turb(i,j,k,indx)   = 0.5 * K_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
             K_turb(i,j,k,indx_v) = K_turb(i,j,k,indx);
@@ -207,11 +202,87 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             K_turb(i,j,k,indx_v) = K_turb(i,j,k,indx);
           });
         }
+
+        //amrex::Print() << "TEST1: " << K_turb(0,32,0, EddyDiff::Mom_v) << "\n";
     }
 
     // Fill interior ghost cells and any ghost cells outside a periodic domain
     //***********************************************************************************
     eddyViscosity.FillBoundary(geom.periodicity());
+    
+    
+    // Extrapolate top & bottom
+    //***********************************************************************************
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+
+        // DEBUG
+        ngc = 1;
+        
+        Box bxcc   = mfi.tilebox(); //mfi.growntilebox(IntVect(1,1,0));
+        Box planez = bxcc; planez.setSmall(2, 1); planez.setBig(2, ngc);
+        int k_lo   = bxcc.smallEnd(2); int k_hi = bxcc.bigEnd(2);
+        planez.growLo(0,ngc); planez.growHi(0,ngc);
+        planez.growLo(1,ngc); planez.growHi(1,ngc);
+
+        //amrex::Print() << "PLANE2: " << planez << ' '<< ngc << "\n";
+
+        const Array4<Real>& K_turb = eddyViscosity.array(mfi);
+
+        int ntot   = 5;
+        int offset = EddyDiff::Mom_h;
+        // Extrap all components at top & bottom
+        if(use_QKE) {
+          int ncomp  = 4;
+          ParallelFor(planez,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            int indx = n + offset;
+            int indx_v = indx + ntot;           
+            K_turb(i, j, k_lo-k, indx  ) = K_turb(i, j, k_lo, indx  );
+            K_turb(i, j, k_hi+k, indx  ) = K_turb(i, j, k_hi, indx  );
+            K_turb(i, j, k_lo-k, indx_v) = K_turb(i, j, k_lo, indx_v);
+            K_turb(i, j, k_hi+k, indx_v) = K_turb(i, j, k_hi, indx_v);
+          });
+        } else if (use_KE) {
+          int ncomp  = 3;
+          ParallelFor(planez,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            int indx   = n + offset;
+            int indx_v = indx + ntot;
+            K_turb(i, j, k_lo-k, indx  ) = K_turb(i, j, k_lo, indx  );
+            K_turb(i, j, k_hi+k, indx  ) = K_turb(i, j, k_hi, indx  );
+            K_turb(i, j, k_lo-k, indx_v) = K_turb(i, j, k_lo, indx_v);
+            K_turb(i, j, k_hi+k, indx_v) = K_turb(i, j, k_hi, indx_v);
+          });
+        } else {
+          int ncomp  = 2;
+          ParallelFor(planez,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            int indx   = n + offset;
+            int indx_v = indx + ntot;
+            K_turb(i, j, k_lo-k, indx  ) = K_turb(i, j, k_lo, indx  );
+            K_turb(i, j, k_hi+k, indx  ) = K_turb(i, j, k_hi, indx  );
+            K_turb(i, j, k_lo-k, indx_v) = K_turb(i, j, k_lo, indx_v);
+            K_turb(i, j, k_hi+k, indx_v) = K_turb(i, j, k_hi, indx_v);
+          });
+        }   
+    }
+
+    
+    for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Array4<amrex::Real> &K_turb = eddyViscosity.array(mfi);
+        amrex::Print() << "Kt check10: " << K_turb(1, 1, 0, EddyDiff::Mom_h) << ' ' << K_turb(1, 1, -1, EddyDiff::Mom_h) << "\n";
+        amrex::Print() << "Kt check11: " << K_turb(0, 0, 0, EddyDiff::Mom_h) << ' ' << K_turb(0, 0, -1, EddyDiff::Mom_h) << "\n";
+        amrex::Print() << "Kt check12: " << K_turb(-1, 0, 0, EddyDiff::Mom_h) << ' ' << K_turb(0, -1, 0, EddyDiff::Mom_h) << "\n";
+        amrex::Print() << "Kt checkG: "
+                       << K_turb(1, 1, -1, EddyDiff::Mom_h) << ' '
+                       << K_turb(1, 1, -2, EddyDiff::Mom_h) << ' '
+                       << K_turb(1, 1, -3, EddyDiff::Mom_h) << "\n";
+    }
+    
     
 }
 

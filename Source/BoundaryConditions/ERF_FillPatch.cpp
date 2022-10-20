@@ -242,14 +242,14 @@ ERF::FillIntermediatePatch (int lev, Real time,
             const auto vely_arr = (*mfs[Vars::yvel])[mfi].array();
             const auto  eta_arr = (*eddyDiffs)[mfi].array();
 
-            /*
-            amrex::Print() << "MOST CHECK: "
+            
+            amrex::Print() << "MOST FIP CHECK: "
                            << eta_arr(1,1,1) << ' '
                            << eta_arr(1,1,0) << ' '
                            << eta_arr(1,1,-1) << ' '
                            << eta_arr(1,1,-2) << ' '
                            << eta_arr(1,1,-3) << "\n";
-            */
+            
 
             for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
             {

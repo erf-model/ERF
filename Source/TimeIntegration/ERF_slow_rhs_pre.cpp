@@ -325,6 +325,35 @@ void erf_slow_rhs_pre (int level, int nrk,
         } // l_use_diff
         } // profile
 
+        // DEBUG MOST
+        {
+            if (nrk == 0 && (solverChoice.les_type == LESType::Smagorinsky)) {
+                Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
+                const Real cellVol = 1.0 / (dxInv[0] * dxInv[1] * dxInv[2]);
+                const Real Delta = std::pow(cellVol,1.0/3.0);
+                Real Cs = solverChoice.Cs;
+                Real CsDeltaSqr = Cs*Cs*Delta*Delta;
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real s11bar = tau11(i,j,k);
+                    Real s22bar = tau22(i,j,k);
+                    Real s33bar = tau33(i,j,k);
+                    Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
+                                           + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
+                    Real s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
+                                           + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
+                    Real s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
+                                           + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
+                    Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
+                        + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
+                    
+                    if (i<2 && j<2 && k==0) {
+                        amrex::Print() << "Smn chk slow_rhs: " << IntVect(i,j,k) << ' ' << SmnSmn << "\n";
+                    }
+                });
+            }
+        }
+
         {
         BL_PROFILE("slow_rhs_making_stress");
         if (l_use_diff) {

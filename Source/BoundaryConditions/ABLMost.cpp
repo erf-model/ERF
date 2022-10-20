@@ -205,6 +205,16 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
             } else {
                 dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
             }
+
+            if (i<2 && j<2) {
+                amrex::Print() << "MOST bc xvel: " << IntVect(i,j,k) << ' ' << dest_arr(i,j,k,icomp) << ' ' << dest_arr(i,j,zlo,icomp) << "\n";
+                amrex::Print() << stressx << ' ' 
+                               << velx << ' '
+                               << vmag << ' '
+                               << d_vxM << ' '
+                               << d_vmM << ' '
+                               << d_utau << "\n";
+            }
         });
 
     } else if (idx == Vars::yvel || idx == Vars::ymom) { //for vely
