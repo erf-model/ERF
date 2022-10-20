@@ -3,6 +3,7 @@
 #include "AMReX_Interp_3D_C.H"
 #include "AMReX_PlotFileUtil.H"
 #include "TerrainMetrics.H"
+#include "ERF_Constants.H"
 
 using namespace amrex;
 
@@ -157,7 +158,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     Real H           = 400.;
                     Real Ampl        = 0.16;
                     Real wavelength  = 100.;
-                    Real kp          = 2. * 3.1415926535 / wavelength;
+                    Real kp          = 2. * PI / wavelength;
                     Real g           = 9.8;
                     Real omega       = std::sqrt(g * kp);
                     {
@@ -252,7 +253,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     Real H           = 400.;
                     Real Ampl        = 0.16;
                     Real wavelength  = 100.;
-                    Real kp          = 2. * 3.1415926535 / wavelength;
+                    Real kp          = 2. * PI / wavelength;
                     Real g           = 9.8;
                     Real omega       = std::sqrt(g * kp);
                     {
