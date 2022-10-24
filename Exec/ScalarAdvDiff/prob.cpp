@@ -106,7 +106,7 @@ init_custom_prob(
     } else if (parms.prob_type == 12) {
         state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
     } else if (parms.prob_type == 13) {
-    	const Real r0_z = parms.rad_0 * (prob_hi[2] - prob_lo[2]);
+        const Real r0_z = parms.rad_0 * (prob_hi[2] - prob_lo[2]);
         const Real r2d_xz = std::sqrt((x-xc)*(x-xc)/(r0*r0) + (z-zc)*(z-zc)/(r0_z*r0_z)); //ellipse for mapfac shear validation
         state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0_z) / r0_z));
     } else {
