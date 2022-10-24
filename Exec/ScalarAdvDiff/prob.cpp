@@ -142,7 +142,7 @@ init_custom_prob(
       x_vel(i, j, k) = parms.u_0 + parms.uRef *
                        std::log((z + parms.z0)/parms.z0)/
                        std::log((parms.zRef +parms.z0)/parms.z0);
-      //x_vel(i, j, k) = x_vel(i,j,k) / mf_u(i,j,0); //michael
+      x_vel(i, j, k) = x_vel(i,j,k) / mf_u(i,j,0); //michael
   });
 
   // Construct a box that is on y-faces
@@ -150,7 +150,7 @@ init_custom_prob(
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = parms.v_0;// / mf_v(i,j,0); //michael
+      y_vel(i, j, k) = parms.v_0 / mf_v(i,j,0); //michael
   });
 
   // Construct a box that is on z-faces
@@ -159,7 +159,7 @@ init_custom_prob(
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0; // / mf_v(i,j,0); //michael
+      z_vel(i, j, k) = 0.0 / mf_v(i,j,0); //michael
   });
 }
 
