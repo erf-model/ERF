@@ -208,7 +208,7 @@ ABLMost::impose_most_bcs(const int lev, const Box& bx,
 
             if (i<2 && j<2) {
                 amrex::Print() << "MOST bc xvel: " << IntVect(i,j,k) << ' ' << dest_arr(i,j,k,icomp) << ' ' << dest_arr(i,j,zlo,icomp) << "\n";
-                amrex::Print() << stressx << ' ' 
+                amrex::Print() << stressx << ' '
                                << velx << ' '
                                << vmag << ' '
                                << d_vxM << ' '

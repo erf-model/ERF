@@ -50,11 +50,7 @@ void ERF::erf_advance(int level,
     // AML OPTIM
     MultiFab* eddyDiffs;
     if (l_use_kturb) {
-      if (m_most) {
-        eddyDiffs = new MultiFab(ba , dm, EddyDiff::NumDiffs, 3);
-      } else {
-        eddyDiffs = new MultiFab(ba , dm, EddyDiff::NumDiffs, 1);
-      }
+      eddyDiffs = new MultiFab(ba , dm, EddyDiff::NumDiffs, 1);
     } else {
       eddyDiffs = nullptr;
     }
@@ -74,9 +70,9 @@ void ERF::erf_advance(int level,
     MultiFab* Tau23 = nullptr;
     MultiFab* Tau21 = nullptr;
     MultiFab* Tau31 = nullptr;
-    MultiFab* Tau32 = nullptr;   
+    MultiFab* Tau32 = nullptr;
     {
-    BL_PROFILE("erf_advance_strain");     
+    BL_PROFILE("erf_advance_strain");
     if (l_use_diff) {
         Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
@@ -92,7 +88,7 @@ void ERF::erf_advance(int level,
 
         const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
-        
+
         for ( MFIter mfi(cons_new,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box bx    = mfi.tilebox();
@@ -112,19 +108,19 @@ void ERF::erf_advance(int level,
             const Array4<const Real> & u = xvel_old.array(mfi);
             const Array4<const Real> & v = yvel_old.array(mfi);
             const Array4<const Real> & w = zvel_old.array(mfi);
-            
+
             Array4<Real> tau11 = Tau11->array(mfi);
             Array4<Real> tau22 = Tau22->array(mfi);
             Array4<Real> tau33 = Tau33->array(mfi);
             Array4<Real> tau12 = Tau12->array(mfi);
             Array4<Real> tau13 = Tau13->array(mfi);
             Array4<Real> tau23 = Tau23->array(mfi);
-          
+
             Array4<Real> tau21  = l_use_terrain ? Tau21->array(mfi) : Array4<Real>{};
             Array4<Real> tau31  = l_use_terrain ? Tau31->array(mfi) : Array4<Real>{};
             Array4<Real> tau32  = l_use_terrain ? Tau32->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = l_use_terrain ? z_phys_nd[level]->const_array(mfi) : Array4<const Real>{};
-            
+
             if (l_use_terrain) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
                                 u, v, w,
@@ -245,7 +241,7 @@ void ERF::erf_advance(int level,
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
     if (l_use_kturb) delete eddyDiffs;
-    
+
     if (l_use_diff) {
       delete Tau11;
       delete Tau22;

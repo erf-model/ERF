@@ -96,7 +96,7 @@ void erf_slow_rhs_pre (int level, int nrk,
     int nvars                     = S_data[IntVar::cons].nComp();
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
-    
+
     MultiFab pprime(ba, dm, 1, 1);
 
     MultiFab* expr    = nullptr;
@@ -346,7 +346,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                            + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
                     Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
                         + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
-                    
+
                     if (i<2 && j<2 && k==0) {
                         amrex::Print() << "Smn chk slow_rhs: " << IntVect(i,j,k) << ' ' << SmnSmn << "\n";
                     }

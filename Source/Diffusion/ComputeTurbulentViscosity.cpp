@@ -40,7 +40,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     //***********************************************************************************
     if (solverChoice.les_type == LESType::Smagorinsky)
     {
-      Real Cs = solverChoice.Cs;         
+      Real Cs = solverChoice.Cs;
       Real CsDeltaSqr = Cs*Cs*Delta*Delta;
 
 #ifdef _OPENMP
@@ -52,14 +52,14 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
         const Array4<Real>& K_turb = eddyViscosity.array(mfi);
         const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
-        
+
         Array4<Real const> tau11 = Tau11.array(mfi);
         Array4<Real const> tau22 = Tau22.array(mfi);
         Array4<Real const> tau33 = Tau33.array(mfi);
         Array4<Real const> tau12 = Tau12.array(mfi);
         Array4<Real const> tau13 = Tau13.array(mfi);
         Array4<Real const> tau23 = Tau23.array(mfi);
-        
+
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
           Real s11bar = tau11(i,j,k);
@@ -76,7 +76,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
           K_turb(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
           K_turb(i, j, k, EddyDiff::Mom_v) = K_turb(i, j, k, EddyDiff::Mom_h);
-          
+
           /*
           if (i==1 && j==1 && k==0) amrex::Print() << "Kt check: " << K_turb(i, j, k, EddyDiff::Mom_h) << ' '
                                                    << CsDeltaSqr << ' ' << cell_data(i, j, k, Rho_comp) << ' '
@@ -88,9 +88,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           if (i<2 && j<2 && k==0) {
               amrex::Print() << "Smn chk ctv: " << IntVect(i,j,k) << ' ' << SmnSmn << "\n";
             }
-          
+
         });
-      }     
+      }
     }
     // DEARDORFF: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
@@ -107,7 +107,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
         const Array4<Real>& K_turb = eddyViscosity.array(mfi);
         const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
-                
+
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
           // K = rho * C_k * Delta * KE^(1/2) = C_k * Delta * (rho * RhoKE)^1/2
@@ -117,11 +117,10 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         });
       }
     }
-    
+
     // Extrapolate Kturb in extrap x/y, fill remaining elements
     //***********************************************************************************
     int ngc(1);
-    if (most) ngc = 3;
 
     Real inv_Pr_t    = solverChoice.Pr_t_inv;
     Real inv_Sc_t    = solverChoice.Sc_t_inv;
@@ -130,15 +129,15 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
     Gpu::copy(Gpu::hostToDevice, Factors.begin(), Factors.end(), d_Factors.begin());
     Real* fac_ptr = d_Factors.data();
-    
+
     bool use_KE  = (solverChoice.les_type == LESType::Deardorff);
     bool use_QKE = (solverChoice.use_QKE && solverChoice.diffuse_QKE_3D);
-   
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {       
+    {
         Box bxcc   = mfi.tilebox(); //mfi.growntilebox(IntVect(1,1,0));
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc);
@@ -157,22 +156,22 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         {
             K_turb(i_lo-i, j, k, EddyDiff::Mom_h) = K_turb(i_lo, j, k, EddyDiff::Mom_h);
             K_turb(i_lo-i, j, k, EddyDiff::Mom_v) = K_turb(i_lo, j, k, EddyDiff::Mom_v);
-          
+
             K_turb(i_hi+i, j, k, EddyDiff::Mom_h) = K_turb(i_hi, j, k, EddyDiff::Mom_h);
             K_turb(i_hi+i, j, k, EddyDiff::Mom_v) = K_turb(i_hi, j, k, EddyDiff::Mom_v);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {                 
+        {
             K_turb(i, j_lo-j, k, EddyDiff::Mom_h) = K_turb(i, j_lo, k, EddyDiff::Mom_h);
             K_turb(i, j_lo-j, k, EddyDiff::Mom_v) = K_turb(i, j_lo, k, EddyDiff::Mom_v);
-          
+
             K_turb(i, j_hi+j, k, EddyDiff::Mom_h) = K_turb(i, j_hi, k, EddyDiff::Mom_h);
             K_turb(i, j_hi+j, k, EddyDiff::Mom_v) = K_turb(i, j_hi, k, EddyDiff::Mom_v);
         });
 
 
         int ntot   = 5;
-        int offset = EddyDiff::Theta_h;        
+        int offset = EddyDiff::Theta_h;
         // Populate element other than mom_h/v on the whole grid
         if(use_QKE) {
           int ncomp  = 4;
@@ -209,8 +208,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     // Fill interior ghost cells and any ghost cells outside a periodic domain
     //***********************************************************************************
     eddyViscosity.FillBoundary(geom.periodicity());
-    
-    
+
+
     // Extrapolate top & bottom
     //***********************************************************************************
 #ifdef _OPENMP
@@ -221,7 +220,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
         // DEBUG
         ngc = 1;
-        
+
         Box bxcc   = mfi.tilebox(); //mfi.growntilebox(IntVect(1,1,0));
         Box planez = bxcc; planez.setSmall(2, 1); planez.setBig(2, ngc);
         int k_lo   = bxcc.smallEnd(2); int k_hi = bxcc.bigEnd(2);
@@ -240,7 +239,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           ParallelFor(planez,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
           {
             int indx = n + offset;
-            int indx_v = indx + ntot;           
+            int indx_v = indx + ntot;
             K_turb(i, j, k_lo-k, indx  ) = K_turb(i, j, k_lo, indx  );
             K_turb(i, j, k_hi+k, indx  ) = K_turb(i, j, k_hi, indx  );
             K_turb(i, j, k_lo-k, indx_v) = K_turb(i, j, k_lo, indx_v);
@@ -268,10 +267,10 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             K_turb(i, j, k_lo-k, indx_v) = K_turb(i, j, k_lo, indx_v);
             K_turb(i, j, k_hi+k, indx_v) = K_turb(i, j, k_hi, indx_v);
           });
-        }   
+        }
     }
 
-    
+
     for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const amrex::Array4<amrex::Real> &K_turb = eddyViscosity.array(mfi);
         amrex::Print() << "Kt check10: " << K_turb(1, 1, 0, EddyDiff::Mom_h) << ' ' << K_turb(1, 1, -1, EddyDiff::Mom_h) << "\n";
@@ -282,8 +281,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                        << K_turb(1, 1, -2, EddyDiff::Mom_h) << ' '
                        << K_turb(1, 1, -3, EddyDiff::Mom_h) << "\n";
     }
-    
-    
+
+
 }
 
 void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel , const amrex::MultiFab& zvel ,
