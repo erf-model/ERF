@@ -83,9 +83,6 @@ init_custom_prob(
 
     // Define ellipse parameters
     const Real r0   = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
-    const Real r0_x = parms.rad_0 * (prob_hi[0] - prob_lo[0]);
-    const Real r0_y = parms.rad_0 * (prob_hi[1] - prob_lo[1]);
-    const Real r0_z = parms.rad_0 * (prob_hi[2] - prob_lo[2]);
 
     const Real r3d    = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
     const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
@@ -109,7 +106,8 @@ init_custom_prob(
     } else if (parms.prob_type == 12) {
         state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
     } else if (parms.prob_type == 13) {
-        const Real r2d_xz = std::sqrt((x-xc)*(x-xc)/(r0_x*r0_x) + (z-zc)*(z-zc)/(r0_z*r0_z)); //ellipse for mapfac shear validation
+        const Real r0_z = parms.rad_0 * (prob_hi[2] - prob_lo[2]);
+        const Real r2d_xz = std::sqrt((x-xc)*(x-xc)/(r0*r0) + (z-zc)*(z-zc)/(r0_z*r0_z)); //ellipse for mapfac shear validation
         state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0_z) / r0_z));
     } else {
         // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
@@ -144,7 +142,7 @@ init_custom_prob(
       x_vel(i, j, k) = parms.u_0 + parms.uRef *
                        std::log((z + parms.z0)/parms.z0)/
                        std::log((parms.zRef +parms.z0)/parms.z0);
-      x_vel(i, j, k) = x_vel(i,j,k) / mf_u(i,j,0);
+      x_vel(i, j, k) = x_vel(i,j,k) / mf_u(i,j,0); //michael
   });
 
   // Construct a box that is on y-faces
@@ -152,7 +150,7 @@ init_custom_prob(
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = parms.v_0 / mf_v(i,j,0);
+      y_vel(i, j, k) = parms.v_0 / mf_v(i,j,0); //michael
   });
 
   // Construct a box that is on z-faces
@@ -161,7 +159,7 @@ init_custom_prob(
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0 / mf_v(i,j,0);
+      z_vel(i, j, k) = 0.0;
   });
 }
 
