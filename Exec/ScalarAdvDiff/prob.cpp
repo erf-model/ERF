@@ -159,7 +159,7 @@ init_custom_prob(
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0 / mf_v(i,j,0); //michael
+      z_vel(i, j, k) = 0.0;
   });
 }
 
