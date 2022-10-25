@@ -5,19 +5,19 @@ inputs file: ../../Tests/test_files/MovingTerrain_sub/MovingTerrain_sub.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.00265751
+CPU time used since start of simulation (CPU-hours): 0.00175644
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Sun Oct  2 19:00:46 2022
+output data / time: Tue Oct 25 14:35:08 2022
 output dir:         /home/almgren/GitCode/ERF/Exec/MovingTerrain
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2022-09-29 13:46:50.202826
+build date:    2022-10-18 15:34:14.626102
 build machine: Linux manda 5.15.0-48-generic #54~20.04.1-Ubuntu SMP Thu Sep 1 16:17:26 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
 build dir:     /home/almgren/GitCode/ERF/Exec/MovingTerrain
 AMReX dir:     /home/almgren/GitCode/amrex
@@ -26,15 +26,15 @@ COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: 08607022-dirty
-AMReX       git hash: 22.09-24-gb84d7c069
+ERF       git hash: b062d6e3-dirty
+AMReX       git hash: 22.10-17-g56b6402d2
 
 
 ===============================================================================
  Grid Information
 ===============================================================================
  level: 0
-   number of boxes = 5
+   number of boxes = 4
    maximum zones   = 40 8 79 
 
  Boundary conditions
