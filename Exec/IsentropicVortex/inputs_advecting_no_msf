@@ -52,8 +52,7 @@ erf.spatial_order = 2
 # PROBLEM PARAMETERS
 prob.p_inf = 1e5  # reference pressure [Pa]
 prob.T_inf = 300. # reference temperature [K]
-prob.M_inf = 1.1952286093343936  # freestream Mach number [-]
-#prob.M_inf = 2.3904572186687872  # freestream Mach number [-]
+prob.M_inf = 2.3904572186687872  # freestream Mach number [-]
 prob.alpha = 0.7853981633974483  # inflow angle, 0 --> x-aligned [rad]
 prob.beta  = 1.1088514254079065 # non-dimensional max perturbation strength [-]
 prob.R     = 2.0  # characteristic length scale for grid [m]

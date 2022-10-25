@@ -30,9 +30,13 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
 {
      // get the processor number
      int iproc = amrex::ParallelContext::MyProcAll();
+     int nproc = amrex::ParallelDescriptor::NProcs();
 
-     // number of cells in this "domain" at this level
+     // total number of cells in this "domain" at this level
      std::vector<int> n_cells;
+
+     // number of points in each blocks at this level
+     std::vector<int> offset;
 
      // set the full IO path for NetCDF output
      std::string FullPath = dir;
@@ -51,6 +55,13 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
                                             amrex::ParallelContext::CommunicatorSub(), MPI_INFO_NULL);
 
      int nblocks = grids[lev].size();
+     auto dm = plotMF[lev]->DistributionMap();
+     offset.reserve(nproc);
+     offset[0] = 0;
+     for(auto ib=0; ib<nblocks; ib++) {
+        auto npts_per_block = grids[lev][ib].length(0)*grids[lev][ib].length(1)*grids[lev][ib].length(2);
+        offset[dm[ib]] = offset[dm[ib]] + npts_per_block;
+     }
 
      // We only do single-level writes when using NetCDF format
      int flev = lev;
@@ -65,8 +76,12 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
      int nx = subdomain.length(0);
      int ny = subdomain.length(1);
      int nz = subdomain.length(2);
-     n_cells.push_back(nx); n_cells.push_back(ny); n_cells.push_back(nz);
-     int num_pts = nx*ny*nz/nblocks;
+
+     n_cells.push_back(nx);
+     n_cells.push_back(ny);
+     n_cells.push_back(nz);
+
+     int num_pts = nx*ny*nz;
 
      int n_data_items = plotMF[lev]->nComp();
 
@@ -93,19 +108,17 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
 
      ncf.def_var("probLo"  ,   NC_FLOAT,  {ndim_name});
      ncf.def_var("probHi"  ,   NC_FLOAT,  {ndim_name});
-     ncf.def_var("refRatio",   NC_INT,    {flev_name});
-     ncf.def_var("levelSteps", NC_INT,    {flev_name});
 
      ncf.def_var("Geom.smallend", NC_INT, {flev_name, ndim_name});
      ncf.def_var("Geom.bigend"  , NC_INT, {flev_name, ndim_name});
      ncf.def_var("CellSize"     , NC_FLOAT, {flev_name, ndim_name});
 
-     ncf.def_var("x_grid", NC_FLOAT, {nb_name, nx_name});
-     ncf.def_var("y_grid", NC_FLOAT, {nb_name, ny_name});
-     ncf.def_var("z_grid", NC_FLOAT, {nb_name, nz_name});
+     ncf.def_var("x_grid", NC_FLOAT, {np_name});
+     ncf.def_var("y_grid", NC_FLOAT, {np_name});
+     ncf.def_var("z_grid", NC_FLOAT, {np_name});
 
      for (int i = 0; i < plot_var_names.size(); i++) {
-         ncf.def_var(plot_var_names[i], NC_FLOAT, {nb_name, np_name});
+         ncf.def_var(plot_var_names[i], NC_FLOAT, {np_name});
      }
 
      ncf.exit_def_mode();
@@ -121,8 +134,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
       ncf.put_attr("number_variables", std::vector<int>{n_data_items});
       ncf.put_attr("space_dimension", std::vector<int>{AMREX_SPACEDIM});
       ncf.put_attr("current_time", std::vector<double>{time});
-      ncf.put_attr("FinestLevel", std::vector<int>{finest_level});
-      ncf.put_attr("CurrentLevel", std::vector<int>{lev});
+      ncf.put_attr("CurrentLevel", std::vector<int>{flev});
 
       Real dx[AMREX_SPACEDIM];
       for (int i = 0; i < AMREX_SPACEDIM; i++)
@@ -145,24 +157,9 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
       nc_probHi.par_access(NC_COLLECTIVE);
       nc_probHi.put(probHi.data(), {0}, {AMREX_SPACEDIM});
 
-      amrex::Vector<int> refRatio;
-      if (lev < finest_level)
-      refRatio.push_back(ref_ratio[lev][0]);
-      auto nc_refRatio = ncf.var("refRatio");
-      nc_refRatio.par_access(NC_COLLECTIVE);
-      nc_refRatio.put(refRatio.data(), {0}, {static_cast<long unsigned int>(flev-lev)});
-
-      amrex::Vector<int> levelSteps;
-      for (int i = lev; i <= flev; i++)
-        levelSteps.push_back(level_steps[i]);
-      auto nc_levelSteps = ncf.var("levelSteps");
-      nc_levelSteps.par_access(NC_COLLECTIVE);
-      nc_levelSteps.put(levelSteps.data(), {0}, {static_cast<long unsigned int>(flev-lev)});
-
       amrex::Vector<int> smallend;
       amrex::Vector<int> bigend;
-      for (int i = lev; i <= flev; i++)
-      {
+      for (int i = lev; i <= flev; i++) {
         smallend.clear(); bigend.clear();
         for (int j = 0; j < AMREX_SPACEDIM; j++) {
            smallend.push_back(subdomain.smallEnd(j));
@@ -194,6 +191,8 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
     std::vector<Real> x_grid;
     std::vector<Real> y_grid;
     std::vector<Real> z_grid;
+    int goffset = 0;
+    int glen    = 0;
     for (int i = 0; i < grids[lev].size(); ++i) {
         auto box = grids[lev][i];
         if (subdomain.contains(box)) {
@@ -201,43 +200,47 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
 
             x_grid.clear(); y_grid.clear(); z_grid.clear();
             for (auto k1 = 0; k1 < grids[lev][i].length(0); ++k1) {
-              x_grid.push_back(gridloc.lo(0)+geom[lev].CellSize(0)*static_cast<Real>(k1));
-            }
-            for (auto k2 = 0; k2 < grids[lev][i].length(1); ++k2) {
-              y_grid.push_back(gridloc.lo(1)+geom[lev].CellSize(1)*static_cast<Real>(k2));
-            }
-            for (auto k3 = 0; k3 < grids[lev][i].length(2); ++k3) {
-              z_grid.push_back(gridloc.lo(2)+geom[lev].CellSize(2)*static_cast<Real>(k3));
+              for (auto k2 = 0; k2 < grids[lev][i].length(1); ++k2) {
+                 for (auto k3 = 0; k3 < grids[lev][i].length(2); ++k3) {
+                    x_grid.push_back(gridloc.lo(0)+geom[lev].CellSize(0)*static_cast<Real>(k1));
+                    y_grid.push_back(gridloc.lo(1)+geom[lev].CellSize(1)*static_cast<Real>(k2));
+                    z_grid.push_back(gridloc.lo(2)+geom[lev].CellSize(2)*static_cast<Real>(k3));
+                 }
+              }
             }
 
-            auto xlen = static_cast<long unsigned int>(grids[lev][i].length(0));
-            auto ylen = static_cast<long unsigned int>(grids[lev][i].length(1));
-            auto zlen = static_cast<long unsigned int>(grids[lev][i].length(2));
+            goffset += glen;
+            glen = grids[lev][i].length(0)*grids[lev][i].length(1)*grids[lev][i].length(2);
 
             auto nc_x_grid = ncf.var("x_grid");
-            nc_x_grid.par_access(NC_COLLECTIVE);
-            nc_x_grid.put(x_grid.data(), {static_cast<long unsigned int>(i), 0}, {1, xlen});
             auto nc_y_grid = ncf.var("y_grid");
-            nc_y_grid.par_access(NC_COLLECTIVE);
-            nc_y_grid.put(y_grid.data(), {static_cast<long unsigned int>(i), 0}, {1, ylen});
             auto nc_z_grid = ncf.var("z_grid");
-            nc_z_grid.par_access(NC_COLLECTIVE);
-            nc_z_grid.put(z_grid.data(), {static_cast<long unsigned int>(i), 0}, {1, zlen});
+
+            nc_x_grid.par_access(NC_INDEPENDENT);
+            nc_y_grid.par_access(NC_INDEPENDENT);
+            nc_z_grid.par_access(NC_INDEPENDENT);
+
+            nc_x_grid.put(x_grid.data(), {goffset}, {glen});
+            nc_y_grid.put(y_grid.data(), {goffset}, {glen});
+            nc_z_grid.put(z_grid.data(), {goffset}, {glen});
        }
    }
 
    size_t nfai = 0;
+   long unsigned numpts = 0;
    const int ncomp = plotMF[lev]->nComp();
-
    for (amrex::MFIter fai(*plotMF[lev]); fai.isValid(); ++fai) {
        auto box = fai.validbox();
        if (subdomain.contains(box)) {
-           long unsigned numpts = box.numPts();
+           int diff = nfai*numpts;
+           for(auto ip = 1; ip <= iproc; ++ip) diff += offset[ip-1];
+           numpts = box.numPts();
+
            for (int k(0); k < ncomp; ++k) {
               auto data = plotMF[lev]->get(fai).dataPtr(k);
               auto nc_plot_var = ncf.var(plot_var_names[k]);
-              nc_plot_var.par_access(NC_COLLECTIVE);
-              nc_plot_var.put(data, {nfai+iproc, 0}, {1, numpts});
+              nc_plot_var.par_access(NC_INDEPENDENT);
+              nc_plot_var.put(data, {diff}, {numpts});
           }
           nfai++;
        }

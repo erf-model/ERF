@@ -5,6 +5,7 @@
 #include "AMReX_ParmParse.H"
 #include "AMReX_MultiFab.H"
 #include "IndexDefines.H"
+#include "ERF_Constants.H"
 #include "TerrainMetrics.H"
 
 using namespace amrex;
@@ -108,7 +109,6 @@ erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>& z_phys_cc,
                   Geometry const& geom)
 {
-  //const Real prob_lo_z = geom.ProbLo()[2];
   const int khi        = geom.Domain().bigEnd()[2];
 
   const Real T_sfc    = parms.T_0;
@@ -191,32 +191,35 @@ init_custom_prob(
   Real H           = geomdata.ProbHi()[2];
   Real Ampl        = parms.Ampl;
   Real wavelength  = 100.;
-  Real kp          = 2. * 3.1415926535 / wavelength;
+  Real kp          = 2.0 * PI / wavelength;
   Real g           = 9.8;
   Real omega       = std::sqrt(g * kp);
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-    const auto prob_lo  = geomdata.ProbLo();
-    const auto dx       = geomdata.CellSize();
-    const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real z = z_cc(i,j,k);
+      const auto prob_lo  = geomdata.ProbLo();
+      const auto dx       = geomdata.CellSize();
+      const Real x = prob_lo[0] + (i + 0.5) * dx[0];
 
-    state(i, j, k, Rho_comp) = r_hse(i,j,k);
+      Real z = z_cc(i,j,k);
+      Real z_base = Ampl * std::sin(kp * x);
+      z -= z_base;
 
-    Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
-    Real p_prime = -(Ampl * omega * omega / kp) * fac * std::sin(kp * x);
-    Real p_total = p_hse(i,j,k) + p_prime;
+      state(i, j, k, Rho_comp) = r_hse(i,j,k);
 
-    // Define (rho theta) given pprime
-    state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total);
+      Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
+      Real p_prime = -(Ampl * omega * omega / kp) * fac * std::sin(kp * x) * r_hse(i,j,k);
+      Real p_total = p_hse(i,j,k) + p_prime;
 
-    // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = 0.0;
+      // Define (rho theta) given pprime
+      state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total);
+
+      // Set scalar = 0 everywhere
+      state(i, j, k, RhoScalar_comp) = state(i,j,k,Rho_comp);
 
 #ifdef ERF_USE_MOISTURE
-    state(i, j, k, RhoQv_comp) = 0.0;
-    state(i, j, k, RhoQc_comp) = 0.0;
+      state(i, j, k, RhoQv_comp) = 0.0;
+      state(i, j, k, RhoQc_comp) = 0.0;
 #endif
   });
 
@@ -229,7 +232,10 @@ init_custom_prob(
       const auto dx       = geomdata.CellSize();
 
       const Real x = prob_lo[0] + i * dx[0];
-      const Real z = 0.5 * (z_nd(i,j,k) + z_nd(i,j,k+1));
+      Real z = 0.5 * (z_nd(i,j,k) + z_nd(i,j,k+1));
+      Real z_base = Ampl * std::sin(kp * x);
+
+      z -= z_base;
       Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
 
       x_vel(i, j, k) = -Ampl * omega * fac * std::sin(kp * x);
@@ -253,6 +259,9 @@ init_custom_prob(
 
       Real x   = (i + 0.5) * dx[0];
       Real z   = 0.25 * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k) );
+      Real z_base = Ampl * std::sin(kp * x);
+
+      z -= z_base;
       Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
 
       z_vel(i, j, k) = Ampl * omega * fac * std::cos(kp * x);
@@ -263,13 +272,31 @@ init_custom_prob(
 }
 
 void
-erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
-                  amrex::Vector<Real>& /*ubar*/,
-                  amrex::Vector<Real>& /*vbar*/,
-                  amrex::Vector<Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
+erf_init_rayleigh(amrex::Vector<Real>& tau,
+                  amrex::Vector<Real>& ubar,
+                  amrex::Vector<Real>& vbar,
+                  amrex::Vector<Real>& thetabar,
+                  amrex::Geometry      const& geom)
 {
-   amrex::Error("Should never get here for MovingTerrain problem");
+   // amrex::Error("Should never get here for MovingTerrain problem");
+   const int khi = geom.Domain().bigEnd()[2];
+
+   for (int k = 0; k <= khi; k++)
+   {
+       tau[k]  = 0.0;
+       ubar[k] = 0.0;
+       vbar[k] = 0.0;
+       thetabar[k] = 300.0;
+   }
+
+   // Damping above k = 60
+   for (int k = 60; k <= khi; k++)
+   {
+       tau[k]  = 10.; // Remember that this gets multiplied by dt
+       ubar[k] = 0.0;
+       vbar[k] = 0.0;
+       thetabar[k] = 300.0;
+   }
 }
 
 void
@@ -304,7 +331,7 @@ init_custom_terrain (const Geometry& geom,
 
     Real Ampl        = parms.Ampl;
     Real wavelength  = 100.;
-    Real kp          = 2. * 3.1415926535 / wavelength;
+    Real kp          = 2.0 * 3.14159265358979323846 / wavelength;
     Real g           = 9.8;
     Real omega       = std::sqrt(g * kp);
 
