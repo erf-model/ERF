@@ -46,8 +46,6 @@ void ERF::erf_advance(int level,
     MultiFab    S_prim  (ba  , dm, NUM_PRIM,          cons_old.nGrowVect());
     MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
-
-    // AML OPTIM
     MultiFab* eddyDiffs;
     if (l_use_kturb) {
       eddyDiffs = new MultiFab(ba , dm, EddyDiff::NumDiffs, 1);
@@ -55,7 +53,6 @@ void ERF::erf_advance(int level,
       eddyDiffs = nullptr;
     }
 
-    // AML OPTIM
     // **************************************************************************************
     // Compute strain for use in slow RHS, Smagorinsky model, and MOST
     // **************************************************************************************
@@ -150,11 +147,11 @@ void ERF::erf_advance(int level,
     amrex::Vector<amrex::MultiFab> state_old;
     amrex::Vector<amrex::MultiFab> state_new;
 
-    {
-    BL_PROFILE("erf_advance_part_1");
     // **************************************************************************************
     // Here we define state_old and state_new which are to be advanced
     // **************************************************************************************
+    {
+    BL_PROFILE("erf_advance_part_1");
     // Initial solution
     state_old.push_back(MultiFab(cons_old, amrex::make_alias, 0, nvars)); // cons
     state_old.push_back(MultiFab(xmom_old, amrex::make_alias, 0,     1)); // xmom
@@ -166,7 +163,7 @@ void ERF::erf_advance(int level,
     state_new.push_back(MultiFab(xmom_new, amrex::make_alias, 0,     1)); // xmom
     state_new.push_back(MultiFab(ymom_new, amrex::make_alias, 0,     1)); // ymom
     state_new.push_back(MultiFab(zmom_new, amrex::make_alias, 0,     1)); // zmom
-    } // end profile
+    } // profile
 
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
@@ -187,12 +184,10 @@ void ERF::erf_advance(int level,
                                   state_old[IntVar::cons],
                                   *eddyDiffs, fine_geom, solverChoice, m_most);
     }
-    // *************************************************************************
 
     // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // ***********************************************************************************************
-
     {
     BL_PROFILE("pre_set_up_mri");
     VelocityToMomentum(xvel_old, xvel_old.nGrowVect(),
@@ -213,7 +208,7 @@ void ERF::erf_advance(int level,
               state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only,
               vel_and_mom_synced);
     cons_to_prim(state_old[IntVar::cons], state_old[IntVar::cons].nGrow());
-    }
+    } // profile
 
 #include "TI_no_substep_fun.H"
 #include "TI_slow_rhs_fun.H"
@@ -236,7 +231,7 @@ void ERF::erf_advance(int level,
     mri_integrator.set_fast_rhs(fast_rhs_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
     mri_integrator.set_no_substep(no_substep_fun);
-    }
+    } // profile
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 

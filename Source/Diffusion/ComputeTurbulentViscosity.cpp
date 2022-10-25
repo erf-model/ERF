@@ -21,8 +21,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                    const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
                                    const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
                                    const amrex::Geometry& geom,
-                                   const SolverChoice& solverChoice,
-                                   std::unique_ptr<ABLMost>& most)
+                                   const SolverChoice& solverChoice)
 {
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real cellVol = 1.0 / (dxInv[0] * dxInv[1] * dxInv[2]);
@@ -48,7 +47,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 #endif
       for (amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
-          Box bxcc  = mfi.tilebox(); //mfi.growntilebox(IntVect(1,1,0));
+          Box bxcc  = mfi.tilebox();
 
         const Array4<Real>& K_turb = eddyViscosity.array(mfi);
         const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
@@ -76,19 +75,6 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
           K_turb(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
           K_turb(i, j, k, EddyDiff::Mom_v) = K_turb(i, j, k, EddyDiff::Mom_h);
-
-          /*
-          if (i==1 && j==1 && k==0) amrex::Print() << "Kt check: " << K_turb(i, j, k, EddyDiff::Mom_h) << ' '
-                                                   << CsDeltaSqr << ' ' << cell_data(i, j, k, Rho_comp) << ' '
-                                                   <<std::sqrt(2.0*SmnSmn) << ' ' << SmnSmn << "\n";
-          */
-
-          //if (i==1 && j==1 && k==0) amrex::Print() << "Kt check: " << K_turb(i, j, k, EddyDiff::Mom_h) <<  "\n";
-
-          if (i<2 && j<2 && k==0) {
-              amrex::Print() << "Smn chk ctv: " << IntVect(i,j,k) << ' ' << SmnSmn << "\n";
-            }
-
         });
       }
     }
@@ -103,7 +89,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 #endif
       for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
-          Box bxcc  = mfi.tilebox(); //mfi.growntilebox(IntVect(1,1,0));
+          Box bxcc  = mfi.tilebox();
 
         const Array4<Real>& K_turb = eddyViscosity.array(mfi);
         const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
@@ -121,7 +107,6 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     // Extrapolate Kturb in extrap x/y, fill remaining elements
     //***********************************************************************************
     int ngc(1);
-
     Real inv_Pr_t    = solverChoice.Pr_t_inv;
     Real inv_Sc_t    = solverChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
@@ -138,15 +123,13 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 #endif
     for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        Box bxcc   = mfi.tilebox(); //mfi.growntilebox(IntVect(1,1,0));
+        Box bxcc   = mfi.tilebox();
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc);
         int i_lo   = bxcc.smallEnd(0); int i_hi = bxcc.bigEnd(0);
         int j_lo   = bxcc.smallEnd(1); int j_hi = bxcc.bigEnd(1);
         bxcc.growLo(0,ngc); bxcc.growHi(0,ngc);
         bxcc.growLo(1,ngc); bxcc.growHi(1,ngc);
-
-        //amrex::Print() << "PLANE1: " << planex << ' ' << planey << ' '<< ngc << "\n";
 
         const Array4<Real>& K_turb = eddyViscosity.array(mfi);
 
@@ -201,8 +184,6 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             K_turb(i,j,k,indx_v) = K_turb(i,j,k,indx);
           });
         }
-
-        //amrex::Print() << "TEST1: " << K_turb(0,32,0, EddyDiff::Mom_v) << "\n";
     }
 
     // Fill interior ghost cells and any ghost cells outside a periodic domain
@@ -217,17 +198,11 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 #endif
     for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-
-        // DEBUG
-        ngc = 1;
-
-        Box bxcc   = mfi.tilebox(); //mfi.growntilebox(IntVect(1,1,0));
+        Box bxcc   = mfi.tilebox();
         Box planez = bxcc; planez.setSmall(2, 1); planez.setBig(2, ngc);
         int k_lo   = bxcc.smallEnd(2); int k_hi = bxcc.bigEnd(2);
         planez.growLo(0,ngc); planez.growHi(0,ngc);
         planez.growLo(1,ngc); planez.growHi(1,ngc);
-
-        //amrex::Print() << "PLANE2: " << planez << ' '<< ngc << "\n";
 
         const Array4<Real>& K_turb = eddyViscosity.array(mfi);
 
@@ -269,20 +244,6 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           });
         }
     }
-
-
-    for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const amrex::Array4<amrex::Real> &K_turb = eddyViscosity.array(mfi);
-        amrex::Print() << "Kt check10: " << K_turb(1, 1, 0, EddyDiff::Mom_h) << ' ' << K_turb(1, 1, -1, EddyDiff::Mom_h) << "\n";
-        amrex::Print() << "Kt check11: " << K_turb(0, 0, 0, EddyDiff::Mom_h) << ' ' << K_turb(0, 0, -1, EddyDiff::Mom_h) << "\n";
-        amrex::Print() << "Kt check12: " << K_turb(-1, 0, 0, EddyDiff::Mom_h) << ' ' << K_turb(0, -1, 0, EddyDiff::Mom_h) << "\n";
-        amrex::Print() << "Kt checkG: "
-                       << K_turb(1, 1, -1, EddyDiff::Mom_h) << ' '
-                       << K_turb(1, 1, -2, EddyDiff::Mom_h) << ' '
-                       << K_turb(1, 1, -3, EddyDiff::Mom_h) << "\n";
-    }
-
-
 }
 
 void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel , const amrex::MultiFab& zvel ,
@@ -324,7 +285,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
         ComputeTurbulentViscosityLES(Tau11, Tau22, Tau33,
                                      Tau12, Tau13, Tau23,
                                      cons_in, eddyViscosity,
-                                     geom, solverChoice, most);
+                                     geom, solverChoice);
     }
 
     if (solverChoice.pbl_type != PBLType::None) {

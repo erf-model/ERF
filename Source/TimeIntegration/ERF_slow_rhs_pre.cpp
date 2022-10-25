@@ -325,35 +325,6 @@ void erf_slow_rhs_pre (int level, int nrk,
         } // l_use_diff
         } // profile
 
-        // DEBUG MOST
-        {
-            if (nrk == 0 && (solverChoice.les_type == LESType::Smagorinsky)) {
-                Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
-                const Real cellVol = 1.0 / (dxInv[0] * dxInv[1] * dxInv[2]);
-                const Real Delta = std::pow(cellVol,1.0/3.0);
-                Real Cs = solverChoice.Cs;
-                Real CsDeltaSqr = Cs*Cs*Delta*Delta;
-                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real s11bar = tau11(i,j,k);
-                    Real s22bar = tau22(i,j,k);
-                    Real s33bar = tau33(i,j,k);
-                    Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
-                                           + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
-                    Real s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
-                                           + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
-                    Real s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
-                                           + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
-                    Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
-                        + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
-
-                    if (i<2 && j<2 && k==0) {
-                        amrex::Print() << "Smn chk slow_rhs: " << IntVect(i,j,k) << ' ' << SmnSmn << "\n";
-                    }
-                });
-            }
-        }
-
         {
         BL_PROFILE("slow_rhs_making_stress");
         if (l_use_diff) {
@@ -401,7 +372,6 @@ void erf_slow_rhs_pre (int level, int nrk,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-
         Real fac = 1.0;
         AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs,       // these are being used to build the fluxes
                                    rho_u, rho_v, omega_arr, fac,
@@ -434,14 +404,12 @@ void erf_slow_rhs_pre (int level, int nrk,
             }
         }
 
-
         // Add Rayleigh damping
         if (solverChoice.use_rayleigh_damping) {
             int n  = RhoTheta_comp;
             int nr = Rho_comp;
             int np = PrimTheta_comp;
-            amrex::ParallelFor(bx,
-                               [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real theta = cell_prim(i,j,k,np);
                 cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,nr);
@@ -460,7 +428,6 @@ void erf_slow_rhs_pre (int level, int nrk,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
-
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,

@@ -84,44 +84,6 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 #ifdef ERF_USE_NETCDF
     if (init_type == "real") fill_from_wrfbdy(mfs,time);
 #endif
-
-    /*
-    // ***************************************************************************
-
-    //
-    // It is important that we apply the MOST bcs after we have imposed all the others
-    //    so that we have enough information in the ghost cells to calculate the viscosity
-    // Note that we don't test on the BCRec's for these variables because those have been set
-    //      to match those of no-slip-wall in order to fill values before computing viscosity
-    //
-    if (m_most)
-    {
-        MultiFab eddyDiffs(mfs[0]->boxArray(), mfs[0]->DistributionMap(),
-                           EddyDiff::NumDiffs,3);
-        bool vert_only = true;
-        ComputeTurbulentViscosity(*mfs[Vars::xvel],*mfs[Vars::yvel],*mfs[Vars::zvel],*mfs[Vars::cons],
-                                  eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
-        eddyDiffs.FillBoundary(geom[lev].periodicity());
-
-        const int icomp = 0;
-        for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
-        {
-            const auto cons_arr = (*mfs[Vars::cons])[mfi].array();
-            const auto velx_arr = (*mfs[Vars::xvel])[mfi].array();
-            const auto vely_arr = (*mfs[Vars::yvel])[mfi].array();
-            const auto  eta_arr = eddyDiffs[mfi].array();
-
-            for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
-            {
-                const Box& bx       = (*mfs[var_idx])[mfi].box();
-                      auto dest_arr = (*mfs[var_idx])[mfi].array();
-
-                int zlo = 0;
-                m_most->impose_most_bcs(lev,bx,dest_arr,cons_arr,velx_arr,vely_arr,eta_arr,var_idx,icomp,zlo);
-            } // var_idx
-        } // mf
-    } // most
-    */
 }
 
 //
@@ -223,17 +185,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
     //
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
     {
-        /*
-        MultiFab eddyDiffs(mfs[Vars::cons]->boxArray(),
-                           mfs[Vars::cons]->DistributionMap(),
-                           EddyDiff::NumDiffs,3);
-        bool vert_only = true;
-        ComputeTurbulentViscosity(*mfs[Vars::xvel], *mfs[Vars::yvel],
-                                  *mfs[Vars::zvel], *mfs[Vars::cons],
-                                  eddyDiffs, geom[lev], solverChoice, m_most, domain_bcs_type_d, vert_only);
-        eddyDiffs.FillBoundary(geom[lev].periodicity());
-        */
-
         const int icomp = 0;
         for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
         {
@@ -242,22 +193,10 @@ ERF::FillIntermediatePatch (int lev, Real time,
             const auto vely_arr = (*mfs[Vars::yvel])[mfi].array();
             const auto  eta_arr = (*eddyDiffs)[mfi].array();
 
-
-            amrex::Print() << "MOST FIP CHECK: "
-                           << eta_arr(1,1,1) << ' '
-                           << eta_arr(1,1,0) << ' '
-                           << eta_arr(1,1,-1) << ' '
-                           << eta_arr(1,1,-2) << ' '
-                           << eta_arr(1,1,-3) << "\n";
-
-
             for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
             {
-                const Box& bx       = (*mfs[var_idx])[mfi].box();
-                      auto dest_arr = (*mfs[var_idx])[mfi].array();
-
-                      //amrex::Print() << "BOX: " << var_idx << ' ' << bx << "\n";
-
+                const Box& bx = (*mfs[var_idx])[mfi].box();
+                auto dest_arr = (*mfs[var_idx])[mfi].array();
                 int zlo = 0;
                 m_most->impose_most_bcs(lev,bx,dest_arr,cons_arr,velx_arr,vely_arr,eta_arr,var_idx,icomp,zlo);
             } // var_idx
