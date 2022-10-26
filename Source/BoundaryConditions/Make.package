@@ -9,9 +9,11 @@ CEXE_headers += ABLMost.H
 CEXE_sources += ABLMost.cpp
 
 CEXE_sources += ERF_FillPatch.cpp
+CEXE_sources += ERF_FillPatcher.cpp
 
 CEXE_sources += ERF_PhysBCFunct.cpp
 CEXE_headers += ERF_PhysBCFunct.H
+CEXE_headers += ERF_FillPatcher.H
 
 CEXE_headers += TimeInterpolatedData.H
 

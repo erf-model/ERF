@@ -16,10 +16,6 @@
 #include "NCPlotFile.H"
 #include "IndexDefines.H"
 
-namespace {
- std::string nc_state_filename = "Plot_State_MF.nc";
-} // namespace
-
 using namespace amrex;
 
 void
@@ -191,8 +187,8 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
     std::vector<Real> x_grid;
     std::vector<Real> y_grid;
     std::vector<Real> z_grid;
-    int goffset = 0;
-    int glen    = 0;
+    long unsigned goffset = 0;
+    long unsigned glen    = 0;
     for (int i = 0; i < grids[lev].size(); ++i) {
         auto box = grids[lev][i];
         if (subdomain.contains(box)) {
@@ -232,7 +228,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
    for (amrex::MFIter fai(*plotMF[lev]); fai.isValid(); ++fai) {
        auto box = fai.validbox();
        if (subdomain.contains(box)) {
-           int diff = nfai*numpts;
+           long unsigned diff = nfai*numpts;
            for(auto ip = 1; ip <= iproc; ++ip) diff += offset[ip-1];
            numpts = box.numPts();
 
