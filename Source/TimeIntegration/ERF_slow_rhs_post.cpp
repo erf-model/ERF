@@ -25,7 +25,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
                         const MultiFab& zvel,
-                        const MultiFab& source, const MultiFab& eddyDiffs,
+                        const MultiFab& source,
+                        const MultiFab* eddyDiffs,
                         const amrex::Geometry geom,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
@@ -49,6 +50,9 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
     const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
                                     (solverChoice.les_type        !=       LESType::None) ||
                                     (solverChoice.pbl_type        !=       PBLType::None) );
+    bool       l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
+                                    solverChoice.les_type == LESType::Deardorff   ||
+                                    solverChoice.pbl_type == PBLType::MYNN25 );
 
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
@@ -123,7 +127,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         const Array4<const Real> & v = yvel.array(mfi);
         const Array4<const Real> & w = zvel.array(mfi);
 
-        const Array4<Real const>& K_turb = eddyDiffs.const_array(mfi);
+        const Array4<Real const>& K_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Metric terms
         const Array4<const Real>& detJ     = l_use_terrain ? dJ->const_array(mfi)     : Array4<const Real>{};

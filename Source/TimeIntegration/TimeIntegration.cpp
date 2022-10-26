@@ -4,6 +4,7 @@
 #include <EddyViscosity.H>
 #include <TerrainMetrics.H>
 #include <TimeIntegration.H>
+#include <Diffusion.H>
 #include <ERF.H>
 #include <EOS.H>
 
@@ -31,6 +32,13 @@ void ERF::erf_advance(int level,
 
     int nvars = cons_old.nComp();
 
+    bool l_use_terrain = solverChoice.use_terrain;
+    bool l_use_diff    = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+                           (solverChoice.les_type        !=       LESType::None) ||
+                           (solverChoice.pbl_type        !=       PBLType::None) );
+    bool l_use_kturb   = ( (solverChoice.les_type != LESType::None)   ||
+                           (solverChoice.pbl_type != PBLType::None) );
+
     const BoxArray& ba            = cons_old.boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();
@@ -38,7 +46,97 @@ void ERF::erf_advance(int level,
     MultiFab    S_prim  (ba  , dm, NUM_PRIM,          cons_old.nGrowVect());
     MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
-    MultiFab eddyDiffs  (ba  , dm, EddyDiff::NumDiffs,1);
+    MultiFab* eddyDiffs;
+    if (l_use_kturb) {
+      eddyDiffs = new MultiFab(ba , dm, EddyDiff::NumDiffs, 1);
+    } else {
+      eddyDiffs = nullptr;
+    }
+
+    // **************************************************************************************
+    // Compute strain for use in slow RHS, Smagorinsky model, and MOST
+    // **************************************************************************************
+    BoxArray ba12 = convert(ba, IntVect(1,1,0));
+    BoxArray ba13 = convert(ba, IntVect(1,0,1));
+    BoxArray ba23 = convert(ba, IntVect(0,1,1));
+    MultiFab* Tau11 = nullptr;
+    MultiFab* Tau22 = nullptr;
+    MultiFab* Tau33 = nullptr;
+    MultiFab* Tau12 = nullptr;
+    MultiFab* Tau13 = nullptr;
+    MultiFab* Tau23 = nullptr;
+    MultiFab* Tau21 = nullptr;
+    MultiFab* Tau31 = nullptr;
+    MultiFab* Tau32 = nullptr;
+    {
+    BL_PROFILE("erf_advance_strain");
+    if (l_use_diff) {
+        Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+        Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+        Tau33 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
+        Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
+        Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
+        Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
+        if (l_use_terrain) {
+            Tau21 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
+            Tau31 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
+            Tau32 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
+        }
+
+        const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
+
+        for ( MFIter mfi(cons_new,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box bx    = mfi.tilebox();
+            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
+            Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
+            Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
+            Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
+
+            // Fill strain ghost cells for building K_turb
+            tbxxy.growLo(0,1);tbxxy.growLo(1,1);
+            tbxxz.growLo(0,1);tbxxz.growLo(1,1);
+            tbxyz.growLo(0,1);tbxyz.growLo(1,1);
+            tbxxy.growHi(0,1);tbxxy.growHi(1,1);
+            tbxxz.growHi(0,1);tbxxz.growHi(1,1);
+            tbxyz.growHi(0,1);tbxyz.growHi(1,1);
+
+            const Array4<const Real> & u = xvel_old.array(mfi);
+            const Array4<const Real> & v = yvel_old.array(mfi);
+            const Array4<const Real> & w = zvel_old.array(mfi);
+
+            Array4<Real> tau11 = Tau11->array(mfi);
+            Array4<Real> tau22 = Tau22->array(mfi);
+            Array4<Real> tau33 = Tau33->array(mfi);
+            Array4<Real> tau12 = Tau12->array(mfi);
+            Array4<Real> tau13 = Tau13->array(mfi);
+            Array4<Real> tau23 = Tau23->array(mfi);
+
+            Array4<Real> tau21  = l_use_terrain ? Tau21->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31  = l_use_terrain ? Tau31->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32  = l_use_terrain ? Tau32->array(mfi) : Array4<Real>{};
+            const Array4<const Real>& z_nd = l_use_terrain ? z_phys_nd[level]->const_array(mfi) : Array4<const Real>{};
+
+            if (l_use_terrain) {
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
+                                u, v, w,
+                                tau11, tau22, tau33,
+                                tau12, tau13,
+                                tau21, tau23,
+                                tau31, tau32,
+                                z_nd, bc_ptr_h, dxInv);
+            } else {
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
+                                u, v, w,
+                                tau11, tau22, tau33,
+                                tau12, tau13, tau23,
+                                bc_ptr_h, dxInv);
+            }
+        } // mfi
+    } // l_use_diff
+    } // profile
+
 
     MultiFab Omega (zmom_old.boxArray(),dm,1,1);
 
@@ -49,11 +147,11 @@ void ERF::erf_advance(int level,
     amrex::Vector<amrex::MultiFab> state_old;
     amrex::Vector<amrex::MultiFab> state_new;
 
-    {
-    BL_PROFILE("erf_advance_part_1");
     // **************************************************************************************
     // Here we define state_old and state_new which are to be advanced
     // **************************************************************************************
+    {
+    BL_PROFILE("erf_advance_part_1");
     // Initial solution
     state_old.push_back(MultiFab(cons_old, amrex::make_alias, 0, nvars)); // cons
     state_old.push_back(MultiFab(xmom_old, amrex::make_alias, 0,     1)); // xmom
@@ -65,7 +163,7 @@ void ERF::erf_advance(int level,
     state_new.push_back(MultiFab(xmom_new, amrex::make_alias, 0,     1)); // xmom
     state_new.push_back(MultiFab(ymom_new, amrex::make_alias, 0,     1)); // ymom
     state_new.push_back(MultiFab(zmom_new, amrex::make_alias, 0,     1)); // zmom
-    } // end profile
+    } // profile
 
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
@@ -78,19 +176,18 @@ void ERF::erf_advance(int level,
     // PBL - only updates vertical eddy viscosity components so horizontal
     //       components come from the LES model or are left as zero.
     // *************************************************************************
-    if ( ( (solverChoice.les_type != LESType::None)   ||
-           (solverChoice.pbl_type != PBLType::None) ) &&
-            solverChoice.les_type != LESType::Smagorinsky )
+    if (l_use_kturb)
     {
-        ComputeTurbulentViscosity(xvel_old, yvel_old, zvel_old, state_old[IntVar::cons],
-                                  eddyDiffs, fine_geom, solverChoice, m_most, domain_bcs_type_d);
+        ComputeTurbulentViscosity(xvel_old, yvel_old, zvel_old,
+                                  *Tau11, *Tau22, *Tau33,
+                                  *Tau12, *Tau13, *Tau23,
+                                  state_old[IntVar::cons],
+                                  *eddyDiffs, fine_geom, solverChoice, m_most);
     }
-    // *************************************************************************
 
     // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // ***********************************************************************************************
-
     {
     BL_PROFILE("pre_set_up_mri");
     VelocityToMomentum(xvel_old, xvel_old.nGrowVect(),
@@ -111,7 +208,7 @@ void ERF::erf_advance(int level,
               state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only,
               vel_and_mom_synced);
     cons_to_prim(state_old[IntVar::cons], state_old[IntVar::cons].nGrow());
-    }
+    } // profile
 
 #include "TI_no_substep_fun.H"
 #include "TI_slow_rhs_fun.H"
@@ -134,9 +231,25 @@ void ERF::erf_advance(int level,
     mri_integrator.set_fast_rhs(fast_rhs_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
     mri_integrator.set_no_substep(no_substep_fun);
-    }
+    } // profile
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
+
+    if (l_use_kturb) delete eddyDiffs;
+
+    if (l_use_diff) {
+      delete Tau11;
+      delete Tau22;
+      delete Tau33;
+      delete Tau12;
+      delete Tau13;
+      delete Tau23;
+      if (l_use_terrain) {
+        delete Tau21;
+        delete Tau31;
+        delete Tau32;
+      }
+    }
 
     if (verbose) Print() << "Done with advance at level " << level << std::endl;
 }

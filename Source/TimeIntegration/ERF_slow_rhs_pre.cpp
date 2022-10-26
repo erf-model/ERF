@@ -27,7 +27,16 @@ void erf_slow_rhs_pre (int level, int nrk,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
-                       MultiFab& eddyDiffs,
+                       MultiFab* Tau11,
+                       MultiFab* Tau22,
+                       MultiFab* Tau33,
+                       MultiFab* Tau12,
+                       MultiFab* Tau13,
+                       MultiFab* Tau21,
+                       MultiFab* Tau23,
+                       MultiFab* Tau31,
+                       MultiFab* Tau32,
+                       MultiFab* eddyDiffs,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
@@ -58,6 +67,9 @@ void erf_slow_rhs_pre (int level, int nrk,
                                     (solverChoice.pbl_type        !=       PBLType::None) );
     bool       cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
                                     (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
+    bool       l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
+                                    solverChoice.les_type == LESType::Deardorff   ||
+                                    solverChoice.pbl_type == PBLType::MYNN25 );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -85,41 +97,15 @@ void erf_slow_rhs_pre (int level, int nrk,
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
 
-    BoxArray ba12 = convert(ba, IntVect(1,1,0));
-    BoxArray ba13 = convert(ba, IntVect(1,0,1));
-    BoxArray ba23 = convert(ba, IntVect(0,1,1));
-
     MultiFab pprime(ba, dm, 1, 1);
 
-    MultiFab*  expr = nullptr;
-    MultiFab* Tau11 = nullptr;
-    MultiFab* Tau22 = nullptr;
-    MultiFab* Tau33 = nullptr;
-    MultiFab* Tau12 = nullptr;
-    MultiFab* Tau13 = nullptr;
-    MultiFab* Tau23 = nullptr;
-    MultiFab* Tau21 = nullptr;
-    MultiFab* Tau31 = nullptr;
-    MultiFab* Tau32 = nullptr;
-
+    MultiFab* expr    = nullptr;
     MultiFab* dflux_x = nullptr;
     MultiFab* dflux_y = nullptr;
     MultiFab* dflux_z = nullptr;
 
     if (l_use_diff) {
-        expr  = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau33 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
-        Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
-        Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
-        if (l_use_terrain) {
-            Tau21 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
-            Tau31 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
-            Tau32 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
-        }
-
+        expr    = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
         dflux_x = new MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
         dflux_y = new MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
         dflux_z = new MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
@@ -180,7 +166,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
 
-        const Array4<Real>& K_turb = eddyDiffs.array(mfi);
+        const Array4<Real const>& K_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Terrain metrics
         const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
@@ -307,7 +293,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         }
         {
         BL_PROFILE("slow_rhs_making_strain");
-        if (l_use_diff) {
+        if (nrk > 0 && l_use_diff) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
@@ -338,18 +324,6 @@ void erf_slow_rhs_pre (int level, int nrk,
             }
         } // l_use_diff
         } // profile
-
-        {
-        BL_PROFILE("slow_rhs_making_eddydiff");
-        if (nrk == 0 && (solverChoice.les_type == LESType::Smagorinsky)) {
-            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
-
-            ComputeTurbVisc_SMAG(bxcc, K_turb, cell_data,
-                                 tau11, tau22, tau33,
-                                 tau12, tau13, tau23,
-                                 dxInv, solverChoice);
-        }
-        } // end profile
 
         {
         BL_PROFILE("slow_rhs_making_stress");
@@ -398,7 +372,6 @@ void erf_slow_rhs_pre (int level, int nrk,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-
         Real fac = 1.0;
         AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs,       // these are being used to build the fluxes
                                    rho_u, rho_v, omega_arr, fac,
@@ -431,14 +404,12 @@ void erf_slow_rhs_pre (int level, int nrk,
             }
         }
 
-
         // Add Rayleigh damping
         if (solverChoice.use_rayleigh_damping) {
             int n  = RhoTheta_comp;
             int nr = Rho_comp;
             int np = PrimTheta_comp;
-            amrex::ParallelFor(bx,
-                               [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real theta = cell_prim(i,j,k,np);
                 cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,nr);
@@ -457,7 +428,6 @@ void erf_slow_rhs_pre (int level, int nrk,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
-
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
@@ -785,18 +755,6 @@ void erf_slow_rhs_pre (int level, int nrk,
 
     if (l_use_diff) {
         delete expr;
-        delete Tau11;
-        delete Tau22;
-        delete Tau33;
-        delete Tau12;
-        delete Tau13;
-        delete Tau23;
-        if (l_use_terrain) {
-            delete Tau21;
-            delete Tau31;
-            delete Tau32;
-        }
-
         delete dflux_x;
         delete dflux_y;
         delete dflux_z;
