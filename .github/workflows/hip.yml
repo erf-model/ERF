@@ -79,7 +79,8 @@ jobs:
         # cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}};
 
         pushd ${{runner.workspace}}/ERF/build-${{matrix.os}};
-        make -j ${{env.NPROCS}};
+        # make -j ${{env.NPROCS}};
+        make -j 2;
 
     # - name: Regression Tests
     #   run: |
