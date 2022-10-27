@@ -1,4 +1,5 @@
 #include <ABLMost.H>
+#include <MOSTAverage.H>
 #include <PlaneAverage.H>
 #include <VelPlaneAverage.H>
 
@@ -23,6 +24,13 @@ void ABLMost::update_fluxes(int lev,
     vel_mean[1] = vyave.line_average_interpolated(zref, 0);
     vel_mean[2] = vzave.line_average_interpolated(zref, 0);
     theta_mean  = Thave.line_average_interpolated(zref, 0);
+
+    /*
+    MOSTAverage ma({&U_new, &V_new, &W_new, &Theta_new}, nullptr, m_geom[lev], 2);
+    ma.compute_averages(ZDir());
+    ma.write_most_averages();
+    exit(0);
+    */
 
     // Construct horizontal averages of magnitude of horiz. velocity
     VelPlaneAverage vmagave(m_geom[lev]);
