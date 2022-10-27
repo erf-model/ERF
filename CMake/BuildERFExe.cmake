@@ -67,8 +67,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.H
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
-       ${SRC_DIR}/BoundaryConditions/MOSTAverages.H
-       ${SRC_DIR}/BoundaryConditions/MOSTAverages.cpp
+       ${SRC_DIR}/BoundaryConditions/MOSTAverage.H
+       ${SRC_DIR}/BoundaryConditions/MOSTAverage.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_cons.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_xvel.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_yvel.cpp
