@@ -13,7 +13,7 @@ public:
                          int axis);
      MOSTAverage() = default;
     ~MOSTAverage() = default;
-  
+
     // Evaluate line average at specific location for any average component
     amrex::Real line_average_interpolated(amrex::Real x, int icomp, int imf) const;
 
@@ -33,19 +33,19 @@ public:
     amrex::Real dx()  const { return m_dx; }
     amrex::Real xlo() const { return m_xlo; }
     int axis()        const { return m_axis; }
-    int level()       const { return m_level; }    
+    int level()       const { return m_level; }
     int ncell_plane() const { return m_ncell_plane; }
     int ncell_line()  const { return m_ncell_line; }
 
     int ncomp()      const  { return m_ncomps[0]; }
     int ncomp(int i) const  { return m_ncomps[i]; }
-    
+
     const amrex::MultiFab& field()      const { return *(m_fields[0]); }
     const amrex::MultiFab& field(int i) const { return *(m_fields[i]); }
-    
+
     const amrex::Vector<amrex::Real>& line_average()      const { return m_line_average[0]; }
     const amrex::Vector<amrex::Real>& line_average(int i) const { return m_line_average[i]; }
-    
+
     const amrex::Vector<amrex::Real>& line_centroids() const { return m_line_xcentroid;  }
 
 protected:
@@ -57,10 +57,10 @@ protected:
 
     int m_precision   = 4; // precision for line plot text file
     const int m_level = 0; // level for plane averaging for now fixed at level=0
-    
+
     amrex::Vector<int> m_ncomps; // number of components
 
-    amrex::Vector<amrex::Real> m_line_xcentroid; 
+    amrex::Vector<amrex::Real> m_line_xcentroid;
     amrex::Vector<amrex::Vector<amrex::Real>> m_line_average;
 
     amrex::Vector<const amrex::MultiFab*> m_fields;
@@ -76,7 +76,7 @@ MOSTAverage::line_average_interpolated(amrex::Real x, int icomp, int imf) const
 {
     int ncomp = m_ncomps[imf];
     AMREX_ALWAYS_ASSERT(icomp >= 0 && icomp < ncomp);
-    
+
     amrex::Real c = 0.0;
     int ind = 0;
 
@@ -118,10 +118,10 @@ MOSTAverage::compute_averages(const IndexSelector& idxOp)
 
     for (int imf(0); imf<m_fields.size(); ++imf) {
         const int ncomp = m_ncomps[imf];
-        
+
         amrex::AsyncArray<amrex::Real> lavg(m_line_average[imf].data(), m_line_average[imf].size());
         amrex::Real* line_avg = lavg.data();
-       
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -130,14 +130,14 @@ MOSTAverage::compute_averages(const IndexSelector& idxOp)
             amrex::Box pbx = PerpendicularBox<IndexSelector>(bx, amrex::IntVect{0, 0, 0});
 
             auto mf_arr = m_fields[imf]->const_array(mfi);
-            
+
             ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
             AMREX_GPU_DEVICE(int p_i, int p_j, int p_k, amrex::Gpu::Handler const& handler) noexcept
             {
                 // Loop over the direction perpendicular to the plane.
                 // This reduces the atomic pressure on the destination arrays.
                 amrex::Box lbx = ParallelBox<IndexSelector>(bx, amrex::IntVect{p_i, p_j, p_k});
-                
+
                 for (int k = lbx.smallEnd(2); k <= lbx.bigEnd(2); ++k) {
                     for (int j = lbx.smallEnd(1); j <= lbx.bigEnd(1); ++j) {
                         for (int i = lbx.smallEnd(0); i <= lbx.bigEnd(0); ++i) {

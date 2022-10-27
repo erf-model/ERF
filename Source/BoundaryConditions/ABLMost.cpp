@@ -31,7 +31,7 @@ void ABLMost::update_fluxes(int lev,
     ma.write_most_averages();
     exit(0);
     */
-     
+
     // Construct horizontal averages of magnitude of horiz. velocity
     VelPlaneAverage vmagave(m_geom[lev]);
     vmagave.compute_hvelmag_averages(U_new,V_new);

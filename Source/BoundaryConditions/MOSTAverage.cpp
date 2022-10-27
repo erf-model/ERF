@@ -11,7 +11,7 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
 
     m_xlo   = m_geom.ProbLo  (m_axis);
     m_dx    = m_geom.CellSize(m_axis);
-    
+
     amrex::Box domain = m_geom.Domain();
     amrex::IntVect dom_lo(domain.loVect());
     amrex::IntVect dom_hi(domain.hiVect());
@@ -33,14 +33,14 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
     for (int i(0); i<fsize; ++i) {
         m_ncomps[i] = m_fields[i]->nComp();
         m_line_average[i].resize(static_cast<size_t>(m_ncell_line) * m_ncomps[i], 0.0);
-    }  
+    }
 }
 
 // Write data
 void
 MOSTAverage::write_most_averages()
 {
-    int nmf = m_fields.size();    
+    int nmf = m_fields.size();
     std::ofstream ofile;
     ofile.open ("MOSTAverages.txt");
     ofile << "Averages compute via the MOSTAverages class:\n";
