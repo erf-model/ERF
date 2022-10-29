@@ -54,7 +54,7 @@ ERF::initHSE()
         MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
         MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
         erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
-        erf_enforce_hse  (lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
+        erf_enforce_hse  (lev, r_hse, p_hse, pi_hse, z_phys_cc[lev], z_phys_nd[lev]);
     }
 }
 
@@ -62,7 +62,8 @@ ERF::initHSE()
 void
 ERF::erf_enforce_hse(int lev,
                      MultiFab& dens, MultiFab& pres, MultiFab& pi,
-                     std::unique_ptr<MultiFab>& z_cc)
+                     std::unique_ptr<MultiFab>& z_cc,
+                     std::unique_ptr<MultiFab>& z_nd)
 {
     amrex::Real l_gravity = solverChoice.gravity;
     bool l_use_terrain = solverChoice.use_terrain;
@@ -94,18 +95,23 @@ ERF::erf_enforce_hse(int lev,
         Array4<Real> pres_arr = pres.array(mfi);
         Array4<Real>   pi_arr =   pi.array(mfi);
         Array4<Real> zcc_arr;
-        if (l_use_terrain)
+        Array4<Real> znd_arr;
+        if (l_use_terrain) {
            zcc_arr = z_cc->array(mfi);
+           znd_arr = z_nd->array(mfi);
+        }
 
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             int k0  = 0;
             // Physical height of the terrain at cell center
             Real hz;
-            if (l_use_terrain)
-                hz = zcc_arr(i,j,k0);
-            else
+            if (l_use_terrain) {
+                hz = .125 * ( znd_arr(i,j,0) + znd_arr(i+1,j,0) + znd_arr(i,j+1,0) + znd_arr(i+1,j+1,0)
+                             +znd_arr(i,j,1) + znd_arr(i+1,j,1) + znd_arr(i,j+1,1) + znd_arr(i+1,j+1,1) );
+            } else {
                 hz = 0.5*dz;
+            }
 
             // Set value at surface from Newton iteration for rho
             pres_arr(i,j,k0  ) = p_0 - hz * rho_arr(i,j,k0) * l_gravity;
@@ -116,16 +122,35 @@ ERF::erf_enforce_hse(int lev,
               pi_arr(i,j,k0-1) = getExnergivenP(pres_arr(i,j,k0-1));
 
             Real dens_interp;
-            for (int k = 1; k <= nz; k++) {
-                Real dz_loc;
-                if (l_use_terrain)
-                    dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
-                else
-                    dz_loc = dz;
-                dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
-                pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
+            if (l_use_terrain) {
+                for (int k = 1; k <= nz; k++) {
+#if 0
+                    Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
+                    dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                    pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
+#else
+                    Real z_face_lo  = 0.25  * (znd_arr(i,j,k-1) + znd_arr(i+1,j,k-1) + znd_arr(i,j+1,k-1) + znd_arr(i+1,j+1,k-1));
+                    Real z_face_md  = 0.25  * (znd_arr(i,j,k  ) + znd_arr(i+1,j,k  ) + znd_arr(i,j+1,k  ) + znd_arr(i+1,j+1,k  ));
+                    Real z_face_hi  = 0.25  * (znd_arr(i,j,k+1) + znd_arr(i+1,j,k+1) + znd_arr(i,j+1,k+1) + znd_arr(i+1,j+1,k+1));
+                    Real z_cc_hi = 0.5 * (z_face_md + z_face_hi);
+                    Real z_cc_lo = 0.5 * (z_face_md + z_face_lo);
 
-                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k));
+                    // Real dz_lo = z_face_md - z_cc_lo;
+                    // Real dz_hi = z_cc_hi - z_face_md;
+                    Real dz_lo = 0.5 * (z_cc_hi - z_cc_lo);
+                    Real dz_hi = 0.5 * (z_cc_hi - z_cc_lo);
+                    pres_arr(i,j,k) = pres_arr(i,j,k-1) - (dz_lo * rho_arr(i,j,k-1)) * l_gravity
+                                                        - (dz_hi * rho_arr(i,j,k  )) * l_gravity;
+#endif
+
+                    pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k));
+                }
+            } else {
+                for (int k = 1; k <= nz; k++) {
+                    dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                    pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
+                    pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k));
+                }
             }
         });
 

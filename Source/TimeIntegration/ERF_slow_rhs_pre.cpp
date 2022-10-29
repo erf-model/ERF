@@ -43,7 +43,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                        const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                        const Vector<amrex::BCRec> domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
-                       const MultiFab* r0, const MultiFab* p0,
+                       MultiFab* r0, MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
@@ -173,8 +173,8 @@ void erf_slow_rhs_pre (int level, int nrk,
         const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
 
         // Base state
-        const Array4<const Real>& r0_arr = r0->const_array(mfi);
-        const Array4<const Real>& p0_arr = p0->const_array(mfi);
+        const Array4<      Real>& r0_arr = r0->array(mfi);
+        const Array4<      Real>& p0_arr = p0->array(mfi);
 
         // Map factors
         const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);

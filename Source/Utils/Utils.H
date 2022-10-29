@@ -9,10 +9,13 @@
 #include <IndexDefines.H>
 #include <ABLMost.H>
 
-void make_metrics (const amrex::Geometry& geom,
-                   amrex::MultiFab& z_phys_nd,
-                   amrex::MultiFab& z_phys_cc,
-                   amrex::MultiFab& detJ_cc);
+void make_J   (const amrex::Geometry& geom,
+                     amrex::MultiFab& z_phys_nd,
+                     amrex::MultiFab& detJ_cc);
+
+void make_zcc (const amrex::Geometry& geom,
+                     amrex::MultiFab& z_phys_nd,
+                     amrex::MultiFab& z_phys_cc);
 
 void MomentumToVelocity (amrex::BoxArray& grids_to_evolve,
                          amrex::MultiFab& xvel_out,
