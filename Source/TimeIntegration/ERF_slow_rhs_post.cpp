@@ -44,6 +44,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
     const int l_spatial_order   = solverChoice.spatial_order;
     const bool l_use_terrain    = solverChoice.use_terrain;
+    const bool l_moving_terrain = (solverChoice.terrain_type == 1);
+    if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_QKE        = solverChoice.use_QKE && solverChoice.advect_QKE;
     const bool l_use_deardorff  = (solverChoice.les_type == LESType::Deardorff);
@@ -130,8 +132,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         const Array4<Real const>& K_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Metric terms
-        const Array4<const Real>& detJ     = l_use_terrain ? dJ->const_array(mfi)     : Array4<const Real>{};
-        const Array4<const Real>& detJ_new = l_use_terrain ? dJ_new->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ     = l_use_terrain    ? dJ->const_array(mfi)     : Array4<const Real>{};
+        const Array4<const Real>& detJ_new = l_moving_terrain ? dJ_new->const_array(mfi) : Array4<const Real>{};
 
         // Map factors
         const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
@@ -198,13 +200,13 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         {
         BL_PROFILE("rhs_post_8");
 
-        if ( solverChoice.use_terrain && solverChoice.terrain_type == 1 )
+        if (l_moving_terrain)
         {
             ParallelFor(bx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
-                cur_cons(i,j,k,n) =  old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-                cur_cons(i,j,k,n) *= detJ(i,j,k) / detJ_new(i,j,k);
+                Real temp_val = detJ(i,j,k) * old_cons(i,j,k,n) + dt * detJ(i,j,k) * cell_rhs(i,j,k,n);
+                cur_cons(i,j,k,n) = temp_val / detJ_new(i,j,k);
             });
         } else {
             ParallelFor(bx, num_comp,
