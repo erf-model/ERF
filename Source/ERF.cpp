@@ -319,8 +319,9 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
       {
         // Copy z_phs_nd and detJ_cc at end of timestep
         MultiFab::Copy(*z_phys_nd[lev], *z_phys_nd_new[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
-        MultiFab::Copy(*z_phys_cc[lev], *z_phys_cc_new[lev], 0, 0, 1, z_phys_cc[lev]->nGrowVect());
         MultiFab::Copy(  *detJ_cc[lev],   *detJ_cc_new[lev], 0, 0, 1,   detJ_cc[lev]->nGrowVect());
+
+        make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
     }
 }
@@ -380,12 +381,13 @@ ERF::InitData ()
                 {
                     init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
                     init_terrain_grid(geom[lev],*z_phys_nd[lev]);
-                    make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
+                    make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
+                    make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
                 }
             }
         }
 
-        // Note that make_metrics is now called inside init_from_wrfinput
+        // Note that make_J and make_zcc area now called inside init_from_wrfinput
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
 
@@ -395,11 +397,13 @@ ERF::InitData ()
 
         restart();
 
-        if(solverChoice.use_terrain) {
+        if (solverChoice.use_terrain) {
             // This must come after the call to restart because that
             //      is where we read in the mesh data
-            for (int lev = finest_level; lev >= 0; --lev)
-                make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
+            for (int lev = finest_level; lev >= 0; --lev) {
+                make_J  (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
+                make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+            }
         }
     }
 
@@ -719,11 +723,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     detJ_cc.resize(lev+1);
 
     z_phys_nd_new.resize(lev+1);
-    z_phys_cc_new.resize(lev+1);
     detJ_cc_new.resize(lev+1);
 
     z_phys_nd_src.resize(lev+1);
-    z_phys_cc_src.resize(lev+1);
     detJ_cc_src.resize(lev+1);
 
     z_t_rk.resize(lev+1);
@@ -766,11 +768,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
           detJ_cc[lev].reset(new MultiFab(ba,dm,1,1));
 
         if (solverChoice.terrain_type > 0) {
-            z_phys_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
-              detJ_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
-            z_phys_cc_src[lev].reset(new MultiFab(ba,dm,1,1));
-              detJ_cc_src[lev].reset(new MultiFab(ba,dm,1,1));
-              z_t_rk[lev].reset(new MultiFab( convert(ba, IntVect(0,0,1)), dm, 1, 1 ));
+            detJ_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
+            detJ_cc_src[lev].reset(new MultiFab(ba,dm,1,1));
+            z_t_rk[lev].reset(new MultiFab( convert(ba, IntVect(0,0,1)), dm, 1, 1 ));
         }
 
         BoxArray ba_nd(ba);
@@ -789,11 +789,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
               detJ_cc[lev] = nullptr;
 
         z_phys_nd_new[lev] = nullptr;
-        z_phys_cc_new[lev] = nullptr;
           detJ_cc_new[lev] = nullptr;
 
         z_phys_nd_src[lev] = nullptr;
-        z_phys_cc_src[lev] = nullptr;
           detJ_cc_src[lev] = nullptr;
 
                z_t_rk[lev] = nullptr;

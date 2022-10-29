@@ -192,7 +192,7 @@ init_custom_prob(
   Real Ampl        = parms.Ampl;
   Real wavelength  = 100.;
   Real kp          = 2.0 * PI / wavelength;
-  Real g           = 9.8;
+  Real g           = CONST_GRAV;
   Real omega       = std::sqrt(g * kp);
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -232,7 +232,7 @@ init_custom_prob(
       const auto dx       = geomdata.CellSize();
 
       const Real x = prob_lo[0] + i * dx[0];
-      Real z = 0.5 * (z_nd(i,j,k) + z_nd(i,j,k+1));
+      Real z = 0.25 * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
       Real z_base = Ampl * std::sin(kp * x);
 
       z -= z_base;
@@ -331,8 +331,8 @@ init_custom_terrain (const Geometry& geom,
 
     Real Ampl        = parms.Ampl;
     Real wavelength  = 100.;
-    Real kp          = 2.0 * 3.14159265358979323846 / wavelength;
-    Real g           = 9.8;
+    Real kp          = 2.0 * PI / wavelength;
+    Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);
 
     for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )

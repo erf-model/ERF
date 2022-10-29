@@ -115,7 +115,8 @@ ERF::init_from_wrfinput(int lev)
             init_terrain_from_wrfinput(lev, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
         } // mf
 
-        make_metrics(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev],*detJ_cc[lev]);
+        make_J   (geom[lev],*z_phys_nd[lev],*  detJ_cc[lev]);
+        make_z_cc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
 
     } // use_terrain
 

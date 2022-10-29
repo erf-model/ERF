@@ -159,7 +159,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     Real Ampl        = 0.16;
                     Real wavelength  = 100.;
                     Real kp          = 2. * PI / wavelength;
-                    Real g           = 9.8;
+                    Real g           = CONST_GRAV;
                     Real omega       = std::sqrt(g * kp);
                     {
                       Real x   = (i + 0.5) * dx[0];
@@ -254,7 +254,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     Real Ampl        = 0.16;
                     Real wavelength  = 100.;
                     Real kp          = 2. * PI / wavelength;
-                    Real g           = 9.8;
+                    Real g           = CONST_GRAV;
                     Real omega       = std::sqrt(g * kp);
                     {
                       Real x   = (i + 0.5) * dx[0];

@@ -293,10 +293,6 @@ public:
             //    the momenta used in the first call to the slow_rhs, then update
             //    inside fast_rhs, then use these values in the later call to slow_rhs
 
-            // ****************************************************
-            // if (version == 0) evaluate F_slow(S_stage) only for the fast variables
-            // if (version == 1) evaluate F_slow(S_stage) only for all the  variables
-            // ****************************************************
             slow_rhs_pre(*F_slow, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
 
             amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
