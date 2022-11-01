@@ -92,6 +92,13 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     MultiFab& V_new = vars_new[lev][Vars::yvel];
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
+    
+    // configure ABLMost params if used MostWall boundary condition
+    // NOTE: This must be done before var_new setVal
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
+        if (m_most) setupABLMost(lev);
+    }
+
     // We need to set these because otherwise in the first call to erf_advance we may
     //    read uninitialized data on ghost values in setting the bc's on the velocities
     U_new.setVal(1.e34,U_new.nGrowVect());
@@ -120,11 +127,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                            V_crse, V_crse.nGrowVect(),
                            W_crse, W_crse.nGrowVect(),
                           *S_crse,rU_crse,rV_crse,rW_crse);
-    }
-
-    // configure ABLMost params if used MostWall boundary condition
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) {
-        if (m_most) setupABLMost(lev);
     }
 
     // Do an error check

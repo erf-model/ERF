@@ -185,6 +185,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     //
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
     {
+        /*
         const int icomp = 0;
         for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
         {
@@ -201,6 +202,9 @@ ERF::FillIntermediatePatch (int lev, Real time,
                 m_most->impose_most_bcs(lev,bx,dest_arr,cons_arr,velx_arr,vely_arr,eta_arr,var_idx,icomp,zlo);
             } // var_idx
         } // mf
+        */
+
+        m_most->impose_most_bcs(lev,mfs,eddyDiffs);
     } // most
 }
 
