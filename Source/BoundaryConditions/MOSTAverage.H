@@ -40,7 +40,7 @@ public:
 
     // Get plane averages long dir()
     const amrex::Vector<amrex::Real>& get_line_average()      const { return m_line_average[0]; }
-    const amrex::Vector<amrex::Real>& get_line_average(int i) const { return m_line_average[i]; } 
+    const amrex::Vector<amrex::Real>& get_line_average(int i) const { return m_line_average[i]; }
 
     // Set precision of text file output
     void set_precision(int p) { m_precision = p; }
@@ -55,7 +55,7 @@ public:
     int level()       const { return m_level; }
     int ncell_plane() const { return m_ncell_plane; }
     int ncell_line()  const { return m_ncell_line; }
-   
+
 protected:
     int m_ncell_plane; // Number of cells in plane
     int m_ncell_line;  // Number of cells along line
@@ -67,7 +67,7 @@ protected:
     const int m_level = 0; // Level for plane averaging for now fixed at level=0
 
     amrex::Vector<int> m_ncomps; // Number of components
- 
+
     amrex::Vector<amrex::Vector<amrex::Real>> m_line_average; // Planar average along dir()
 
     amrex::Vector<const amrex::MultiFab*> m_fields;  // Ptr to fields to be averaged
@@ -188,7 +188,7 @@ MOSTAverage::compute_plane_averages(const IndexSelector& idxOp)
 
         auto u_mf_arr = m_fields[imf]->const_array(mfi);
         auto v_mf_arr = m_fields[imf+1]->const_array(mfi);
-        
+
         ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
         AMREX_GPU_DEVICE(int p_i, int p_j, int p_k, amrex::Gpu::Handler const& handler) noexcept
         {
@@ -212,7 +212,7 @@ MOSTAverage::compute_plane_averages(const IndexSelector& idxOp)
             }
         });
     }
-    
+
     lavg.copyToHost(m_line_average[iavg].data(), m_line_average[iavg].size());
     amrex::ParallelDescriptor::ReduceRealSum(m_line_average[iavg].data(), m_line_average[iavg].size());
 }

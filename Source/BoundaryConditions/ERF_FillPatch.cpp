@@ -184,28 +184,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     //    so that we have enough information in the ghost cells to calculate the viscosity
     //
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
-    {
-        /*
-        const int icomp = 0;
-        for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
-        {
-            const auto cons_arr = (*mfs[Vars::cons])[mfi].array();
-            const auto velx_arr = (*mfs[Vars::xvel])[mfi].array();
-            const auto vely_arr = (*mfs[Vars::yvel])[mfi].array();
-            const auto  eta_arr = (*eddyDiffs)[mfi].array();
-
-            for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
-            {
-                const Box& bx = (*mfs[var_idx])[mfi].box();
-                auto dest_arr = (*mfs[var_idx])[mfi].array();
-                int zlo = 0;
-                m_most->impose_most_bcs(lev,bx,dest_arr,cons_arr,velx_arr,vely_arr,eta_arr,var_idx,icomp,zlo);
-            } // var_idx
-        } // mf
-        */
-
         m_most->impose_most_bcs(lev,mfs,eddyDiffs);
-    } // most
 }
 
 // Fill an entire multifab by interpolating from the coarser level -- this is used

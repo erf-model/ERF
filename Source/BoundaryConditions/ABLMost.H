@@ -37,14 +37,14 @@ public:
     amrex::Real vmag_mean;                ///< Mean wind speed (at zref)
     amrex::Real theta_mean;               ///< Mean potential temperature
     // END REDUNDANT CODE
-    
+
     // FOR MOSTAverage class
-    amrex::Vector<amrex::MultiFab*> u_mean;              
+    amrex::Vector<amrex::MultiFab*> u_mean;
     amrex::Vector<amrex::MultiFab*> v_mean;
     amrex::Vector<amrex::MultiFab*> w_mean;
     amrex::Vector<amrex::MultiFab*> t_mean;
     amrex::Vector<amrex::MultiFab*> u_mag_mean;
-    
+
     amrex::Real surf_temp_flux{0.0}; ///< Heat flux
     amrex::Real surf_temp;           ///< Instantaneous surface temperature
     amrex::Real ref_temp;            ///< Reference temperature
@@ -117,7 +117,7 @@ public:
         pp.query("most.z0"       , z0_const);
 
         int nlevs = m_geom.size();
-        
+
         z_0.resize(nlevs);
         u_mean.resize(nlevs);
         v_mean.resize(nlevs);
@@ -206,7 +206,6 @@ public:
                 t_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ngrow);
                 t_mean[lev]->setVal(1.E34);
             }
-            
             {
                 auto& mf = vars_new[lev][Vars::cons];
                 // Create a 2D ba
@@ -224,7 +223,7 @@ public:
                 u_mag_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ngrow);
                 u_mag_mean[lev]->setVal(1.E34);
             }
-            
+
         }
     }
 

@@ -31,15 +31,15 @@ void ABLMost::update_fluxes(int lev,
     vmag_mean   = vmagave.line_hvelmag_average_interpolated(zref);
     // END REDUNDANT CODE
 
-    
+
     // New MOSTAverage class
     MOSTAverage ma({&U_new     , &V_new     , &W_new     , &Theta_new },
                    {u_mean[lev], v_mean[lev], w_mean[lev], t_mean[lev], u_mag_mean[lev]},
                    nullptr, m_geom[lev], 2);
-        
+
     // Compute plane averages for all vars
     ma.compute_plane_averages(ZDir());
-        
+
     // Write text file of averages
     //ma.write_most_averages();
 
@@ -93,7 +93,7 @@ void ABLMost::update_fluxes(int lev,
                               (std::log(zref / z0_const) - psi_h);
             break;
         }
-        
+
         if (std::abs(surf_temp_flux) > eps) {
             // Stable and unstable ABL conditions
             obukhov_len = -utau * utau * utau * theta_mean /
@@ -109,7 +109,7 @@ void ABLMost::update_fluxes(int lev,
         utau = kappa * vmag_mean / (std::log(zref / z0_const) - psi_m);
         ++iter;
     } while ((std::abs(utau_iter - utau) > 1e-5) && iter <= max_iters);
-    
+
     if (iter >= max_iters) {
         amrex::Print()
             << "MOData::update_fluxes: Convergence criteria not met after "
@@ -146,7 +146,7 @@ ABLMost::impose_most_bcs(const int lev,
         // Define temporaries so we can access these on GPU
         Real d_kappa = kappa;
         Real d_utau  = utau;
-        Real d_sfcT  = surf_temp;      
+        Real d_sfcT  = surf_temp;
         Real d_dz    = m_geom[lev].CellSize(2);
 
         // Get height array
@@ -154,7 +154,7 @@ ABLMost::impose_most_bcs(const int lev,
 
         // Get class pointer for member function
         ABLMostData d_most = get_most_data();
-        
+
         for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
         {
             const Box& bx = (*mfs[var_idx])[mfi].box();
@@ -175,27 +175,27 @@ ABLMost::impose_most_bcs(const int lev,
                     Real d_phi_h = d_most.phi_h(z0_arr(i,j,zlo));
                     Real velx, vely, rho, theta, eta;
                     int ix, jx, iy, jy, ie, je, ic, jc;
-                    
+
                     ix = i < lbound(velx_arr).x    ? lbound(velx_arr).x   : i;
                     jx = j < lbound(velx_arr).y    ? lbound(velx_arr).y   : j;
                     ix = ix > ubound(velx_arr).x-1 ? ubound(velx_arr).x-1 : ix;
                     jx = jx > ubound(velx_arr).y   ? ubound(velx_arr).y   : jx;
-                    
+
                     iy = i  < lbound(vely_arr).x   ? lbound(vely_arr).x   : i;
                     jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
                     iy = iy > ubound(vely_arr).x   ? ubound(vely_arr).x   : iy;
                     jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
-                    
+
                     ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
                     je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
                     ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
                     je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-                    
+
                     ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
                     jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
                     ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
                     jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
-                    
+
                     velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix+1,jx,zlo));
                     vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
                     rho   = cons_arr(ic,jc,zlo,Rho_comp);
@@ -218,31 +218,31 @@ ABLMost::impose_most_bcs(const int lev,
                 });
 
             } else if (var_idx == Vars::xvel || var_idx == Vars::xmom) { //for velx
-                
+
                 amrex::Box xb2d = surroundingNodes(bx,0); // Copy constructor
                 xb2d.setBig(2,zlo-1);
-                
+
                 ParallelFor(xb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real velx, vely, rho, eta;
                     int jy, ie, je, ic, jc;
-                    
+
                     int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
                     int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
-                    
+
                     jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
                     jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
-                    
+
                     ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
                     je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
                     ie = ie > ubound(eta_arr).x-1 ? ubound(eta_arr).x-1 : ie;
                     je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
-                    
+
                     ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
                     jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
                     ic = ic > ubound(cons_arr).x-1 ? ubound(cons_arr).x-1 : ic;
                     jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
-                    
+
                     velx  = velx_arr(i,j,zlo);
                     vely  = 0.25*( vely_arr(iyhi,jy,zlo)+vely_arr(iyhi,jy+1,zlo)
                                   +vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo));
@@ -252,12 +252,12 @@ ABLMost::impose_most_bcs(const int lev,
                                    eta_arr(ic  ,jc,zlo,EddyDiff::Mom_v));
                     Real d_vxM = um_arr(i,j,zlo);
                     Real d_vmM = 0.5 *( umm_arr(ic-1,jc,zlo) + umm_arr(ic,jc,zlo) );
-                    
+
                     Real vmag    = sqrt(velx*velx+vely*vely);
                     Real stressx = ( (velx-d_vxM)*d_vmM + vmag*d_vxM )/
                                    (d_vmM*d_vmM) * d_utau*d_utau;
                     Real deltaz  = d_dz * (zlo - k);
-                    
+
                     if (!var_is_derived) {
                         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho*rho/eta*deltaz;
                     } else {
@@ -269,28 +269,28 @@ ABLMost::impose_most_bcs(const int lev,
 
                 amrex::Box yb2d = surroundingNodes(bx,1); // Copy constructor
                 yb2d.setBig(2,zlo-1);
-                
+
                 ParallelFor(yb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real velx, vely, rho, eta;
                     int ix, ie, je, ic, jc;
-                    
+
                     ix = i  < lbound(velx_arr).x ? lbound(velx_arr).x : i;
                     ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
-                    
+
                     int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
                     int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
-                    
+
                     ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
                     je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
                     ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
                     je = je > ubound(eta_arr).y-1 ? ubound(eta_arr).y-1 : je;
-                    
+
                     ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
                     jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
                     ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
                     jc = jc > ubound(cons_arr).y-1 ? ubound(cons_arr).y-1 : jc;
-                    
+
                     velx  = 0.25*( velx_arr(ix,jxhi,zlo)+velx_arr(ix+1,jxhi,zlo)
                                    +velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo));
                     vely  = vely_arr(i,j,zlo);
@@ -300,7 +300,7 @@ ABLMost::impose_most_bcs(const int lev,
                                  eta_arr(ic,jc  ,zlo,EddyDiff::Mom_v));
                     Real d_vyM = vm_arr(i,j,zlo);
                     Real d_vmM = 0.5 *( umm_arr(ic,jc-1,zlo) + umm_arr(ic,jc,zlo) );
-                    
+
                     Real vmag    = sqrt(velx*velx+vely*vely);
                     Real stressy = ( (vely-d_vyM)*d_vmM + vmag*d_vyM ) /
                                     (d_vmM*d_vmM)*d_utau*d_utau;

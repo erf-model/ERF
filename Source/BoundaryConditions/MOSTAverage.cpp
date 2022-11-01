@@ -10,7 +10,7 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
 {
     AMREX_ALWAYS_ASSERT(m_axis >= 0 && m_axis < AMREX_SPACEDIM);
     AMREX_ALWAYS_ASSERT(fields.size() >= 2);
-    
+
     // Domain bottom and cell-size
     m_xlo   = m_geom.ProbLo  (m_axis);
     m_dx    = m_geom.CellSize(m_axis);
