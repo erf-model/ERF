@@ -196,8 +196,8 @@ ABLMost::impose_most_bcs(const int lev,
                     ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
                     jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
-                    velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix+1,jx,zlo));
-                    vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy,jy+1,zlo));
+                    velx  = 0.5*(velx_arr(ix,jx,zlo)+velx_arr(ix+1,jx  ,zlo));
+                    vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy  ,jy+1,zlo));
                     rho   = cons_arr(ic,jc,zlo,Rho_comp);
                     theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
                     eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v);
@@ -233,14 +233,14 @@ ABLMost::impose_most_bcs(const int lev,
                     jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
                     jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
-                    ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+                    ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
                     je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
-                    ie = ie > ubound(eta_arr).x-1 ? ubound(eta_arr).x-1 : ie;
+                    ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
                     je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
 
-                    ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
+                    ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
                     jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
-                    ic = ic > ubound(cons_arr).x-1 ? ubound(cons_arr).x-1 : ic;
+                    ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
                     jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
 
                     velx  = velx_arr(i,j,zlo);
@@ -282,17 +282,17 @@ ABLMost::impose_most_bcs(const int lev,
                     int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
 
                     ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
-                    je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+                    je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
                     ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-                    je = je > ubound(eta_arr).y-1 ? ubound(eta_arr).y-1 : je;
+                    je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
 
                     ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
-                    jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
+                    jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
                     ic = ic > ubound(cons_arr).x   ? ubound(cons_arr).x   : ic;
-                    jc = jc > ubound(cons_arr).y-1 ? ubound(cons_arr).y-1 : jc;
+                    jc = jc > ubound(cons_arr).y   ? ubound(cons_arr).y   : jc;
 
                     velx  = 0.25*( velx_arr(ix,jxhi,zlo)+velx_arr(ix+1,jxhi,zlo)
-                                   +velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo));
+                                  +velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo));
                     vely  = vely_arr(i,j,zlo);
                     rho   = 0.5*(cons_arr(ic,jc-1,zlo,Rho_comp)+
                                  cons_arr(ic,jc  ,zlo,Rho_comp));
