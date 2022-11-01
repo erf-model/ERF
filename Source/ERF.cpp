@@ -438,7 +438,7 @@ ERF::InitData ()
     //       WritePlotFile calls FillPatch in order to compute gradients
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-        m_most = std::make_unique<ABLMost>(geom);
+        m_most = std::make_unique<ABLMost>(geom,vars_new);
         for (int lev = 0; lev <= finest_level; lev++)
             setupABLMost(lev);
     }
