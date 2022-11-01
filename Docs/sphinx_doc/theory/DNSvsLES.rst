@@ -14,7 +14,13 @@ DNS
 ---
 
 When running in Direct Numerical Simulation (DNS) mode, it is assumed that the mesh is fine enough to resolve the Kolmogorov scales of turbulence.
-Therefore, in DNS mode the equations above are solved directly with no additional models being required.
+Therefore, in DNS mode the :ref:`previously described equations <Equations>` are solved directly with no additional models being required.
+The transport coefficients correspond to the molecular transport coefficients,
+with one of these assumptions:
+    - constant transport coefficients :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T`, or
+    - constant :math:`\nu = \mu / \rho`, :math:`\alpha_T` and constant :math:`\alpha_C`,
+      each of which is then multiplied by :math:`\rho` in the construction of the diffusive terms.
+Note that scaling arguments from simple kinetic theory indicate that the quantities :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T` are all independent of density and pressure but weakly dependent on temperature (:math:`T^{1/2}` scaling), justifying use of constant parameters over the range of conditions of interest.
 
 LES
 ---
@@ -57,16 +63,22 @@ in that quantities are transported down their resolved gradients:
 
 The model coefficients :math:`C_s, C_I, Pr_t, Sc_t` have nominal values of 0.16, 0.09, 0.7, and 0.7,
 respectively (Martin et al., Theoret. Comput. Fluid Dynamics (2000)).
-Note that the gradient transport LES models take exactly the same form as the molecular transport terms, but with the
-constant molecular transport coefficients replaced by turbulent equivalents (e.g. :math:`\mu` becomes the turbulent viscosity,
-:math:`\mu_{t}`). Molecular transport is omitted by default in the present implementation because the molecular
-transport coefficients are insignificant compared to turbulent transport for most LES grids. However, for fine LES grids, molecular transport and LES models may both be activated.
 
 .. note:: Presently, we assume :math:`C_I =0`. This term is similar to the bulk viscosity term for molecular transport and
       should be added if the bulk viscosity term is added. It is believed to be small for low-Mach number flows, but there
       is some discussion in the literature about this topic. See Moin et al., "A dynamic subgrid-scale model for
       compressible turbulence and scalar transport", PoF (1991); Martin et al., Subgrid-scale models for compressible
       large-eddy simulations", Theoret. Comput. Fluid Dynamics (2000).
+
+When substituted back into the filtered equtions, the gradient transport LES models take exactly the same form as the
+molecular transport terms, but with the
+constant molecular transport coefficients replaced by turbulent equivalents (e.g. :math:`\mu` becomes the turbulent viscosity,
+:math:`\mu_{t}`). Therefore, when the code is run in LES mode, the :ref:`equation set<Equations>` remains the same,
+but all variables are interpereted as the appropriate filtered version and the turbulent transport coefficients are used.
+Molecular transport is omitted by default in the present LES implementation because the molecular
+transport coefficients are insignificant compared to turbulent transport for most LES grids. However, for fine LES grids,
+molecular transport and LES models may both be activated, with the effective transport coefficient being the sum of the molecular
+and turbulent coefficients.
 
 It should also be noted that filtering affects the computation of pressure from density and potential temperature, but the nonlinearity
 in the equation of state is weak for :math:`\gamma = 1.4`, so the subfilter contribution is neglected:
