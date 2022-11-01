@@ -69,7 +69,7 @@ The assumptions involved in deriving these equations from first principles are:
 - Depending on the simulation mode, the transport coefficients :math:`\mu`, :math:`\rho\alpha_C`, and
   :math:`\rho\alpha_T` may correspond to the molecular transport coefficients, turbulent transport
   coefficients computed from an LES or PBL model, or a combination. See the sections on :ref:`DNS vs. LES modes <DNSvsLES>`
-  and :ref:`PBL schemes <PBLschemes>` for more details. 
+  and :ref:`PBL schemes <PBLschemes>` for more details.
 
 Diagnostic Relationships
 ------------------------
