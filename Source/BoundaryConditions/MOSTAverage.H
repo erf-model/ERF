@@ -57,7 +57,7 @@ public:
     int ncell_line()  const { return m_ncell_line; }
 
 protected:
-    
+
     int m_ncell_line;  // Number of cells along line
 
     amrex::Real m_dx;  // Mesh spacing in axis direction
@@ -133,7 +133,7 @@ MOSTAverage::compute_plane_averages(const IndexSelector& idxOp)
     for (int imf(0); imf<m_fields.size(); ++imf) {
         const int ncomp = m_ncomps[imf];
         const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane[imf];
-        
+
         amrex::AsyncArray<amrex::Real> lavg(m_line_average[imf].data(), m_line_average[imf].size());
         amrex::Real* line_avg = lavg.data();
 

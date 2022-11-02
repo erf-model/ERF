@@ -22,14 +22,14 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
     m_ncell_line = dom_hi[m_axis] - dom_lo[m_axis] + 1;
 
     // Num components, line avg, cells per plane
-    int asize = m_averages.size();   
+    int asize = m_averages.size();
     m_ncomps.resize( asize );
     m_line_average.resize( asize );
     m_ncell_plane.resize( asize );
     for (int i(0); i<asize; ++i) {
         m_ncomps[i] = m_averages[i]->nComp();
         m_line_average[i].resize(static_cast<size_t>(m_ncell_line) * m_ncomps[i], 0.0);
-        
+
         m_ncell_plane[i] = 1;
         amrex::IndexType ixt = m_averages[i]->boxArray().ixType();
         for (int j = 0; j < AMREX_SPACEDIM; ++j) {
