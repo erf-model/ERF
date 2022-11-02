@@ -46,6 +46,7 @@ void ABLMost::update_fluxes(int lev,
     // Interpolate between planar averages and populate the 2D mf
     for (int i(0); i<5; ++i) ma.line_average_interpolated(zref,0,i);
 
+    /*
     // Verify the mf has the same value as computed via PlaneAverage class
     amrex::Print() << "\n";
     amrex::Print() << "CHECKING MOSTAverage class: \n";
@@ -68,6 +69,7 @@ void ABLMost::update_fluxes(int lev,
         amrex::Print() << "S CHECK: " << vmag_mean   << ' ' << smf_arr(0,0,0)  << "\n";
      }
      amrex::Print() << "\n";
+    */
 
      // TODO: utau is now a 2D MF! Figure out the purpose of this iteration...
 
@@ -248,8 +250,8 @@ ABLMost::impose_most_bcs(const int lev,
                                   +vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo));
                     rho   = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)+
                                    cons_arr(ic  ,jc,zlo,Rho_comp));
-                    eta   = 0.5 *( eta_arr(ic-1,jc,zlo,EddyDiff::Mom_v)+
-                                   eta_arr(ic  ,jc,zlo,EddyDiff::Mom_v));
+                    eta   = 0.5 *( eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)+
+                                   eta_arr(ie  ,je,zlo,EddyDiff::Mom_v));
                     Real d_vxM = um_arr(i,j,zlo);
                     Real d_vmM = 0.5 *( umm_arr(ic-1,jc,zlo) + umm_arr(ic,jc,zlo) );
 
@@ -296,8 +298,8 @@ ABLMost::impose_most_bcs(const int lev,
                     vely  = vely_arr(i,j,zlo);
                     rho   = 0.5*(cons_arr(ic,jc-1,zlo,Rho_comp)+
                                  cons_arr(ic,jc  ,zlo,Rho_comp));
-                    eta   = 0.5*(eta_arr(ic,jc-1,zlo,EddyDiff::Mom_v)+
-                                 eta_arr(ic,jc  ,zlo,EddyDiff::Mom_v));
+                    eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)+
+                                 eta_arr(ie,je  ,zlo,EddyDiff::Mom_v));
                     Real d_vyM = vm_arr(i,j,zlo);
                     Real d_vmM = 0.5 *( umm_arr(ic,jc-1,zlo) + umm_arr(ic,jc,zlo) );
 
