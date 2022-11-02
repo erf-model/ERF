@@ -53,11 +53,11 @@ public:
     amrex::Real xlo() const { return m_xlo; }
     int axis()        const { return m_axis; }
     int level()       const { return m_level; }
-    int ncell_plane() const { return m_ncell_plane; }
+    int ncell_plane(int i) const { return m_ncell_plane[i]; }
     int ncell_line()  const { return m_ncell_line; }
 
 protected:
-    int m_ncell_plane; // Number of cells in plane
+
     int m_ncell_line;  // Number of cells along line
 
     amrex::Real m_dx;  // Mesh spacing in axis direction
@@ -65,6 +65,8 @@ protected:
 
     int m_precision   = 4; // Precision for line plot text file
     const int m_level = 0; // Level for plane averaging for now fixed at level=0
+
+    amrex::Vector<int> m_ncell_plane; // Number of cells in plane
 
     amrex::Vector<int> m_ncomps; // Number of components
 
@@ -126,12 +128,11 @@ template <typename IndexSelector>
 void
 MOSTAverage::compute_plane_averages(const IndexSelector& idxOp)
 {
-    const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane;
-
     // Averages over all the fields
     //----------------------------------------------------------
     for (int imf(0); imf<m_fields.size(); ++imf) {
         const int ncomp = m_ncomps[imf];
+        const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane[imf];
 
         amrex::AsyncArray<amrex::Real> lavg(m_line_average[imf].data(), m_line_average[imf].size());
         amrex::Real* line_avg = lavg.data();
@@ -174,7 +175,8 @@ MOSTAverage::compute_plane_averages(const IndexSelector& idxOp)
     //----------------------------------------------------------
     int imf  = 0;
     int iavg = m_fields.size();
-    const int ncomp = 1;
+    const int ncomp = m_ncomps[iavg];
+    const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane[iavg];
 
     amrex::AsyncArray<amrex::Real> lavg(m_line_average[iavg].data(), m_line_average[iavg].size());
     amrex::Real* line_avg = lavg.data();
