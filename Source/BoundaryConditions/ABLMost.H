@@ -38,13 +38,6 @@ public:
     amrex::Real theta_mean;               ///< Mean potential temperature
     // END REDUNDANT CODE
 
-    // FOR MOSTAverage class
-    amrex::Vector<amrex::MultiFab*> u_mean;
-    amrex::Vector<amrex::MultiFab*> v_mean;
-    amrex::Vector<amrex::MultiFab*> w_mean;
-    amrex::Vector<amrex::MultiFab*> t_mean;
-    amrex::Vector<amrex::MultiFab*> u_mag_mean;
-
     amrex::Real surf_temp_flux{0.0}; ///< Heat flux
     amrex::Real surf_temp;           ///< Instantaneous surface temperature
     amrex::Real ref_temp;            ///< Reference temperature
@@ -290,6 +283,11 @@ public:
 
         amrex::Vector<amrex::Geometry> m_geom;
         amrex::Vector<amrex::FArrayBox> z_0;
+        amrex::Vector<amrex::MultiFab*> u_mean;
+        amrex::Vector<amrex::MultiFab*> v_mean;
+        amrex::Vector<amrex::MultiFab*> w_mean;
+        amrex::Vector<amrex::MultiFab*> t_mean;
+        amrex::Vector<amrex::MultiFab*> u_mag_mean;
 };
 
 #endif /* ABLMOST_H */
