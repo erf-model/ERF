@@ -6,15 +6,15 @@
 using namespace amrex;
 
 void ABLMost::update_fluxes(int lev,
-                            amrex::MultiFab& Theta_new, amrex::MultiFab& U_new,
-                            amrex::MultiFab& V_new, amrex::MultiFab& W_new,
+                            amrex::MultiFab& Theta_old, amrex::MultiFab& U_old,
+                            amrex::MultiFab& V_old    , amrex::MultiFab& W_old,
                             int max_iters)
 {
     // THIS BECOMES REDUNDANT WITH THE NEW 2D MFs
-    PlaneAverage Thave(&Theta_new, m_geom[lev], 2);
-    PlaneAverage vxave(&U_new, m_geom[lev], 2);
-    PlaneAverage vyave(&V_new, m_geom[lev], 2);
-    PlaneAverage vzave(&W_new, m_geom[lev], 2);
+    PlaneAverage Thave(&Theta_old, m_geom[lev], 2);
+    PlaneAverage vxave(&U_old, m_geom[lev], 2);
+    PlaneAverage vyave(&V_old, m_geom[lev], 2);
+    PlaneAverage vzave(&W_old, m_geom[lev], 2);
 
     Thave.compute_averages(ZDir(), Thave.field());
     vxave.compute_averages(ZDir(), vxave.field());
@@ -27,13 +27,13 @@ void ABLMost::update_fluxes(int lev,
     theta_mean  = Thave.line_average_interpolated(zref, 0);
 
     VelPlaneAverage vmagave(m_geom[lev]);
-    vmagave.compute_hvelmag_averages(U_new,V_new);
+    vmagave.compute_hvelmag_averages(U_old,V_old);
     vmag_mean   = vmagave.line_hvelmag_average_interpolated(zref);
     // END REDUNDANT CODE
 
 
     // New MOSTAverage class
-    MOSTAverage ma({&U_new     , &V_new     , &W_new     , &Theta_new },
+    MOSTAverage ma({&U_old     , &V_old     , &W_old     , &Theta_old },
                    {u_mean[lev], v_mean[lev], w_mean[lev], t_mean[lev], u_mag_mean[lev]},
                    nullptr, m_geom[lev], 2);
 

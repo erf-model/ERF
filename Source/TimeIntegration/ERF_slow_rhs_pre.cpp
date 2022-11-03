@@ -293,7 +293,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         }
         {
         BL_PROFILE("slow_rhs_making_strain");
-        if (nrk > 0 && l_use_diff) {
+        if (l_use_diff) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
@@ -306,6 +306,15 @@ void erf_slow_rhs_pre (int level, int nrk,
             tbxxy.growHi(0,1);tbxxy.growHi(1,1);
             tbxxz.growHi(0,1);tbxxz.growHi(1,1);
             tbxyz.growHi(0,1);tbxyz.growHi(1,1);
+
+            // Recompute modified bottom layer for MOST
+            if (nrk==0) {
+                 bxcc.setBig(2,0);
+                tbxxy.setBig(2,0);
+                tbxxz.setBig(2,0);
+                tbxyz.setBig(2,0);
+
+            }
 
             if (l_use_terrain) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,

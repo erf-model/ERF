@@ -73,7 +73,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
                       + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
 
-          K_turb(i, j, k, EddyDiff::Mom_h) = 2.0 * CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+          K_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
           K_turb(i, j, k, EddyDiff::Mom_v) = K_turb(i, j, k, EddyDiff::Mom_h);
         });
       }
@@ -110,7 +110,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     Real inv_Pr_t    = solverChoice.Pr_t_inv;
     Real inv_Sc_t    = solverChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
-    Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k};
+    Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k}; // alpha = mu/Pr
     Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
     Gpu::copy(Gpu::hostToDevice, Factors.begin(), Factors.end(), d_Factors.begin());
     Real* fac_ptr = d_Factors.data();
@@ -162,7 +162,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           {
             int indx   = n + offset;
             int indx_v = indx + ntot;
-            K_turb(i,j,k,indx)   = 0.5 * K_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
+            K_turb(i,j,k,indx)   = K_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
             K_turb(i,j,k,indx_v) = K_turb(i,j,k,indx);
           });
         } else if (use_KE) {
@@ -171,7 +171,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           {
             int indx   = n + offset;
             int indx_v = indx + ntot;
-            K_turb(i,j,k,indx)   = 0.5 * K_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
+            K_turb(i,j,k,indx)   = K_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
             K_turb(i,j,k,indx_v) = K_turb(i,j,k,indx);
           });
         } else {
@@ -180,7 +180,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           {
             int indx   = n + offset;
             int indx_v = indx + ntot;
-            K_turb(i,j,k,indx)   = 0.5 * K_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
+            K_turb(i,j,k,indx)   = K_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
             K_turb(i,j,k,indx_v) = K_turb(i,j,k,indx);
           });
         }
