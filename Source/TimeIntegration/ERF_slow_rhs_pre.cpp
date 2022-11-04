@@ -293,7 +293,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         }
         {
         BL_PROFILE("slow_rhs_making_strain");
-        if (l_use_diff) {
+        if (nrk>0 && l_use_diff) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
@@ -306,15 +306,6 @@ void erf_slow_rhs_pre (int level, int nrk,
             tbxxy.growHi(0,1);tbxxy.growHi(1,1);
             tbxxz.growHi(0,1);tbxxz.growHi(1,1);
             tbxyz.growHi(0,1);tbxyz.growHi(1,1);
-
-            // Recompute modified bottom layer for MOST
-            if (nrk==0) {
-                 bxcc.setBig(2,0);
-                tbxxy.setBig(2,0);
-                tbxxz.setBig(2,0);
-                tbxyz.setBig(2,0);
-
-            }
 
             if (l_use_terrain) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
@@ -332,6 +323,57 @@ void erf_slow_rhs_pre (int level, int nrk,
                                 bc_ptr_h, dxInv);
             }
         } // l_use_diff
+        } // profile
+
+        {
+        BL_PROFILE("slow_rhs_making_strain_most");
+        // Need to recompute strain at bottom with MOST
+        if (nrk==0 && l_use_diff && most) {
+            Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
+            Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
+
+            // Only operate on bottom layer
+            tbxxz.setBig(2,0);
+            tbxyz.setBig(2,0);
+           
+            if (l_use_terrain) {
+                amrex::ParallelFor(tbxxz,tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
+                                                    - w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
+                    
+                    Real met_h_xi,met_h_zeta;
+                    met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
+                    met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
+
+                    tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta
+                                         + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
+                                         - (met_h_xi/met_h_zeta)*GradWz );
+                    tau31(i,j,k) = tau13(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
+                                                    - w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
+                    
+                    Real met_h_eta,met_h_zeta;
+                    met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
+                    met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+                    
+                    tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta
+                                         + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
+                                         - (met_h_eta/met_h_zeta)*GradWz );
+                    tau32(i,j,k) = tau23(i,j,k);
+                });
+            } else {
+                amrex::ParallelFor(tbxxz,tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2] + (w(i, j, k) - w(i-1, j, k))*dxInv[0] );
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2] + (w(i, j, k) - w(i, j-1, k))*dxInv[1] );
+                });  
+            }
+        } // nrk==0 && l_use_diff && m_most
         } // profile
 
         {
