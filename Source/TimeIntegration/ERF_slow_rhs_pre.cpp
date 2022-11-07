@@ -166,7 +166,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
 
-        const Array4<Real const>& K_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
+        const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Terrain metrics
         const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
@@ -293,13 +293,13 @@ void erf_slow_rhs_pre (int level, int nrk,
         }
         {
         BL_PROFILE("slow_rhs_making_strain");
-        if (nrk > 0 && l_use_diff) {
+        if (nrk>0 && l_use_diff) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
 
-            // Fill strain ghost cells for building K_turb
+            // Fill strain ghost cells for building mu_turb
             tbxxy.growLo(0,1);tbxxy.growLo(1,1);
             tbxxz.growLo(0,1);tbxxz.growLo(1,1);
             tbxyz.growLo(0,1);tbxyz.growLo(1,1);
@@ -326,6 +326,57 @@ void erf_slow_rhs_pre (int level, int nrk,
         } // profile
 
         {
+        BL_PROFILE("slow_rhs_making_strain_most");
+        // Need to recompute strain at bottom with MOST
+        if (nrk==0 && l_use_diff && most) {
+            Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
+            Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
+
+            // Only operate on bottom layer
+            tbxxz.setBig(2,0);
+            tbxyz.setBig(2,0);
+
+            if (l_use_terrain) {
+                amrex::ParallelFor(tbxxz,tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
+                                                    - w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
+
+                    Real met_h_xi,met_h_zeta;
+                    met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
+                    met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
+
+                    tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta
+                                         + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
+                                         - (met_h_xi/met_h_zeta)*GradWz );
+                    tau31(i,j,k) = tau13(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
+                                                    - w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
+
+                    Real met_h_eta,met_h_zeta;
+                    met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
+                    met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+
+                    tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta
+                                         + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
+                                         - (met_h_eta/met_h_zeta)*GradWz );
+                    tau32(i,j,k) = tau23(i,j,k);
+                });
+            } else {
+                amrex::ParallelFor(tbxxz,tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2] + (w(i, j, k) - w(i-1, j, k))*dxInv[0] );
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2] + (w(i, j, k) - w(i, j-1, k))*dxInv[1] );
+                });
+            }
+        } // nrk==0 && l_use_diff && m_most
+        } // profile
+
+        {
         BL_PROFILE("slow_rhs_making_stress");
         if (l_use_diff) {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
@@ -346,7 +397,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                             tau31, tau32,
                                             er_arr, z_nd, dxInv);
                 } else {
-                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            tau11, tau22, tau33,
                                            tau12, tau13,
                                            tau21, tau23,
@@ -360,7 +411,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                             tau12, tau13, tau23,
                                             er_arr);
                 } else {
-                    ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                    ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            tau11, tau22, tau33,
                                            tau12, tau13, tau23,
                                            er_arr);
@@ -394,13 +445,13 @@ void erf_slow_rhs_pre (int level, int nrk,
                                        cell_data, cell_prim, source_fab, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                        dxInv, mf_m, mf_u, mf_v,
-                                       K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+                                       mu_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
                                        cell_data, cell_prim, source_fab, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, mf_m, mf_u, mf_v,
-                                       K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+                                       mu_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
             }
         }
 

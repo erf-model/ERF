@@ -439,8 +439,6 @@ ERF::InitData ()
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
         m_most = std::make_unique<ABLMost>(geom,vars_new);
-        for (int lev = 0; lev <= finest_level; lev++)
-            setupABLMost(lev);
     }
 
     if (restart_chkfile == "" && check_int > 0)
@@ -1198,17 +1196,17 @@ ERF::define_grids_to_evolve (int lev)
 void
 ERF::setupABLMost (int lev)
 {
-    MultiFab& S_new = vars_new[lev][Vars::cons];
-    MultiFab& U_new = vars_new[lev][Vars::xvel];
-    MultiFab& V_new = vars_new[lev][Vars::yvel];
-    MultiFab& W_new = vars_new[lev][Vars::zvel];
+    MultiFab& S_old = vars_old[lev][Vars::cons];
+    MultiFab& U_old = vars_old[lev][Vars::xvel];
+    MultiFab& V_old = vars_old[lev][Vars::yvel];
+    MultiFab& W_old = vars_old[lev][Vars::zvel];
 
     // Multifab to store primitive Theta, which is what we want to average
-    MultiFab Theta_prim(S_new.boxArray(), S_new.DistributionMap(), 1, 0);
-    MultiFab::Copy(Theta_prim, S_new, Cons::RhoTheta, 0, 1, 0);
-    MultiFab::Divide(Theta_prim, S_new, Cons::Rho, 0, 1, 0);
+    MultiFab Theta_prim(S_old.boxArray(), S_old.DistributionMap(), 1, 0);
+    MultiFab::Copy(  Theta_prim, S_old, Cons::RhoTheta, 0, 1, 0);
+    MultiFab::Divide(Theta_prim, S_old, Cons::Rho, 0, 1, 0);
 
-    m_most->update_fluxes(lev,Theta_prim,U_new,V_new,W_new);
+    m_most->update_fluxes(lev,Theta_prim,U_old,V_old,W_old);
 }
 
 #ifdef ERF_USE_MULTIBLOCK
