@@ -166,7 +166,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
         const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
 
-        const Array4<Real const>& K_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
+        const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Terrain metrics
         const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
@@ -299,7 +299,7 @@ void erf_slow_rhs_pre (int level, int nrk,
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
 
-            // Fill strain ghost cells for building K_turb
+            // Fill strain ghost cells for building mu_turb
             tbxxy.growLo(0,1);tbxxy.growLo(1,1);
             tbxxz.growLo(0,1);tbxxz.growLo(1,1);
             tbxyz.growLo(0,1);tbxyz.growLo(1,1);
@@ -397,7 +397,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                             tau31, tau32,
                                             er_arr, z_nd, dxInv);
                 } else {
-                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            tau11, tau22, tau33,
                                            tau12, tau13,
                                            tau21, tau23,
@@ -411,7 +411,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                             tau12, tau13, tau23,
                                             er_arr);
                 } else {
-                    ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, K_turb,
+                    ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            tau11, tau22, tau33,
                                            tau12, tau13, tau23,
                                            er_arr);
@@ -445,13 +445,13 @@ void erf_slow_rhs_pre (int level, int nrk,
                                        cell_data, cell_prim, source_fab, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                        dxInv, mf_m, mf_u, mf_v,
-                                       K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+                                       mu_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
                                        cell_data, cell_prim, source_fab, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, mf_m, mf_u, mf_v,
-                                       K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+                                       mu_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
             }
         }
 

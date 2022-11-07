@@ -129,7 +129,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         const Array4<const Real> & v = yvel.array(mfi);
         const Array4<const Real> & w = zvel.array(mfi);
 
-        const Array4<Real const>& K_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
+        const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Metric terms
         const Array4<const Real>& detJ     = l_use_terrain    ? dJ->const_array(mfi)     : Array4<const Real>{};
@@ -193,7 +193,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                                    cur_cons, cur_prim, source_fab, cell_rhs,
                                    diffflux_x, diffflux_y, diffflux_z,
                                    dxInv, mf_m, mf_u, mf_v,
-                                   K_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+                                   mu_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
         }
 
         // This updates just the "slow" conserved variables

@@ -59,7 +59,7 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int
                              const amrex::Array4<const amrex::Real>& mf_m,
                              const amrex::Array4<const amrex::Real>& mf_u,
                              const amrex::Array4<const amrex::Real>& mf_v ,
-                             const amrex::Array4<const amrex::Real>& K_turb,
+                             const amrex::Array4<const amrex::Real>& mu_turb,
                              const SolverChoice &solverChoice,
                              const amrex::Real& theta_mean,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
@@ -82,7 +82,7 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int
                              const amrex::Array4<const amrex::Real>& mf_m,
                              const amrex::Array4<const amrex::Real>& mf_u,
                              const amrex::Array4<const amrex::Real>& mf_v ,
-                             const amrex::Array4<const amrex::Real>& K_turb,
+                             const amrex::Array4<const amrex::Real>& mu_turb,
                              const SolverChoice &solverChoice,
                              const amrex::Real& theta_mean,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
@@ -107,13 +107,13 @@ void ComputeStressConsVisc_T(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tb
 
 
 void ComputeStressVarVisc_N(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
-                            const amrex::Array4<const amrex::Real>& K_turb,
+                            const amrex::Array4<const amrex::Real>& mu_turb,
                             amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
                             amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13, amrex::Array4<amrex::Real>& tau23,
                             const amrex::Array4<const amrex::Real>& er_arr);
 
 void ComputeStressVarVisc_T(amrex::Box& bxcc, amrex::Box& tbxxy, amrex::Box& tbxxz, amrex::Box& tbxyz, amrex::Real mu_eff,
-                            const amrex::Array4<const amrex::Real>& K_turb,
+                            const amrex::Array4<const amrex::Real>& mu_turb,
                             amrex::Array4<amrex::Real>& tau11, amrex::Array4<amrex::Real>& tau22, amrex::Array4<amrex::Real>& tau33,
                             amrex::Array4<amrex::Real>& tau12, amrex::Array4<amrex::Real>& tau13,
                             amrex::Array4<amrex::Real>& tau21, amrex::Array4<amrex::Real>& tau23,
