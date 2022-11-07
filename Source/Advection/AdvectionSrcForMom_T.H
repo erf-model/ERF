@@ -228,12 +228,12 @@ AdvectionSrcForZMom_T (int i, int j, int k,
 
     // If k == domhi_z   and spatial_order >= 3 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,2)
     // If k == domhi_z-1 and spatial_order >= 5 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,4)
-    int l_spatial_order_hi = std::min(std::min(spatial_order, 2*(domhi_z+1-k)), 2*(k+1));    
+    int l_spatial_order_hi = std::min(std::min(spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
     centFluxZZNext *= (k == domhi_z+1) ? w(i,j,k) :
         InterpolateInZ(i, j, k+1, w, 0, Omega_avg, l_spatial_order_hi);
-    
+
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-    
+
     Omega_avg = (k == 0) ? Omega(i,j,k) : 0.5 * (Omega(i,j,k) + Omega(i,j,k-1));
     amrex::Real centFluxZZPrev = Omega_avg * mf_m_inv;
 
