@@ -18,6 +18,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                             const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
                             const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                             const Array4<const Real>& mf_m,
+                            const Array4<const Real>& mf_u,
+                            const Array4<const Real>& mf_v,
                             const int &spatial_order, const int& use_terrain)
 {
     BL_PROFILE_VAR("AdvectionSrcForRhoAndTheta", AdvectionSrcForRhoAndTheta);
@@ -31,12 +33,12 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
         {
             Real invdetJ = 1./ detJ(i,j,k);
 
-            Real xflux_lo = rho_u(i  ,j,k);
-            Real xflux_hi = rho_u(i+1,j,k);
-            Real yflux_lo = rho_v(i,j  ,k);
-            Real yflux_hi = rho_v(i,j+1,k);
-            Real zflux_lo = Omega(i,j,k  );
-            Real zflux_hi = Omega(i,j,k+1);
+            Real xflux_lo = rho_u(i  ,j,k) * 1./mf_u(i  ,j  ,0);
+            Real xflux_hi = rho_u(i+1,j,k) * 1./mf_u(i+1,j  ,0);
+            Real yflux_lo = rho_v(i,j  ,k) * 1./mf_v(i  ,j  ,0);
+            Real yflux_hi = rho_v(i,j+1,k) * 1./mf_v(i  ,j+1,0);
+            Real zflux_lo = Omega(i,j,k  ) * 1./mf_m(i  ,j  ,0);
+            Real zflux_hi = Omega(i,j,k+1) * 1./mf_m(i  ,j  ,0);
 
             Real met_h_zeta_xlo = Compute_h_zeta_AtIface(i  ,j  ,k,cellSizeInv,z_nd);
             xflux_lo *= met_h_zeta_xlo;
@@ -80,17 +82,17 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
         {
             Real invdetJ = 1./ detJ(i,j,k);
 
-            Real zflux_lo = Omega(i,j,k  );
-            Real zflux_hi = Omega(i,j,k+1);
+            Real zflux_lo = Omega(i,j,k  ) * 1./mf_m(i  ,j  ,0);
+            Real zflux_hi = Omega(i,j,k+1) * 1./mf_m(i  ,j  ,0);
 
             Real met_h_zeta_xhi = Compute_h_zeta_AtIface(i+1,j  ,k,cellSizeInv,z_nd);
-            Real xflux_hi = rho_u(i+1,j  ,k) * met_h_zeta_xhi;
+            Real xflux_hi = rho_u(i+1,j  ,k) * met_h_zeta_xhi * 1./mf_u(i  ,j  ,0);
             Real met_h_zeta_xlo = Compute_h_zeta_AtIface(i  ,j  ,k,cellSizeInv,z_nd);
-            Real xflux_lo = rho_u(i  ,j  ,k) * met_h_zeta_xlo;
+            Real xflux_lo = rho_u(i  ,j  ,k) * met_h_zeta_xlo * 1./mf_u(i+1,j  ,0);
             Real met_h_zeta_yhi = Compute_h_zeta_AtJface(i  ,j+1,k,cellSizeInv,z_nd);
-            Real yflux_hi = rho_v(i  ,j+1,k) * met_h_zeta_yhi;
+            Real yflux_hi = rho_v(i  ,j+1,k) * met_h_zeta_yhi * 1./mf_v(i  ,j  ,0);
             Real met_h_zeta_ylo = Compute_h_zeta_AtJface(i  ,j  ,k,cellSizeInv,z_nd);
-            Real yflux_lo = rho_v(i  ,j  ,k) * met_h_zeta_ylo;
+            Real yflux_lo = rho_v(i  ,j  ,k) * met_h_zeta_ylo * 1./mf_v(i  ,j+1,0);
 
             avg_xmom(i  ,j,k) += fac*xflux_lo;
             if (i == vbx_hi.x)
@@ -117,17 +119,17 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                 ( yflux_hi * InterpolateInY(i  ,j+1, k  , cell_prim, prim_index, rho_v(i,j+1,k), spatial_order) -
                   yflux_lo * InterpolateInY(i  ,j  , k  , cell_prim, prim_index, rho_v(i  ,j,k), spatial_order) ) * dyInv * mfsq +
                 ( zflux_hi * InterpolateInZ(i  ,j  , k+1, cell_prim, prim_index, Omega(i,j,k+1), spatial_order) -
-                  zflux_lo * InterpolateInZ(i  ,j  , k  , cell_prim, prim_index, Omega(i  ,j,k), spatial_order) ) * dzInv *mf);
+                  zflux_lo * InterpolateInZ(i  ,j  , k  , cell_prim, prim_index, Omega(i  ,j,k), spatial_order) ) * dzInv * mf);
     });
     } else if ( !use_terrain && (spatial_order == 2) ) {
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real xflux_lo = rho_u(i  ,j,k);
-            Real xflux_hi = rho_u(i+1,j,k);
-            Real yflux_lo = rho_v(i,j  ,k);
-            Real yflux_hi = rho_v(i,j+1,k);
-            Real zflux_lo = Omega(i,j,k  );
-            Real zflux_hi = Omega(i,j,k+1);
+            Real xflux_lo = rho_u(i  ,j,k) * (1./mf_u(i  ,j  ,0));
+            Real xflux_hi = rho_u(i+1,j,k) * (1./mf_u(i+1,j  ,0));
+            Real yflux_lo = rho_v(i,j  ,k) * (1./mf_v(i  ,j  ,0));
+            Real yflux_hi = rho_v(i,j+1,k) * (1./mf_v(i  ,j+1,0));
+            Real zflux_lo = Omega(i,j,k  ) * (1./mf_m(i  ,j  ,0));
+            Real zflux_hi = Omega(i,j,k+1) * (1./mf_m(i  ,j  ,0));
 
             avg_xmom(i  ,j,k) += fac*xflux_lo;
             if (i == vbx_hi.x)
@@ -152,19 +154,19 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
               ( xflux_hi * (cell_prim(i+1,j,k,prim_index) + cell_prim(i,j,k,prim_index)) -
                 xflux_lo * (cell_prim(i-1,j,k,prim_index) + cell_prim(i,j,k,prim_index)) ) * dxInv * mfsq +
               ( yflux_hi * (cell_prim(i,j+1,k,prim_index) + cell_prim(i,j,k,prim_index)) -
-                yflux_lo * (cell_prim(i,j-1,k,prim_index) + cell_prim(i,j,k,prim_index)) ) * dyInv *mfsq +
+                yflux_lo * (cell_prim(i,j-1,k,prim_index) + cell_prim(i,j,k,prim_index)) ) * dyInv * mfsq +
               ( zflux_hi * (cell_prim(i,j,k+1,prim_index) + cell_prim(i,j,k,prim_index)) -
                 zflux_lo * (cell_prim(i,j,k-1,prim_index) + cell_prim(i,j,k,prim_index)) ) * dzInv * mf);
         });
     } else { // order > 2
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real xflux_lo = rho_u(i  ,j,k);
-            Real xflux_hi = rho_u(i+1,j,k);
-            Real yflux_lo = rho_v(i,j  ,k);
-            Real yflux_hi = rho_v(i,j+1,k);
-            Real zflux_lo = Omega(i,j,k  );
-            Real zflux_hi = Omega(i,j,k+1);
+            Real xflux_lo = rho_u(i  ,j,k) * 1./mf_u(i  ,j  ,0);
+            Real xflux_hi = rho_u(i+1,j,k) * 1./mf_u(i+1,j  ,0);
+            Real yflux_lo = rho_v(i,j  ,k) * 1./mf_v(i  ,j  ,0);
+            Real yflux_hi = rho_v(i,j+1,k) * 1./mf_v(i  ,j+1,0);
+            Real zflux_lo = Omega(i,j,k  ) * 1./mf_m(i  ,j  ,0);
+            Real zflux_hi = Omega(i,j,k+1) * 1./mf_m(i  ,j  ,0);
 
             avg_xmom(i  ,j,k) += fac*xflux_lo;
             if (i == vbx_hi.x)
@@ -247,21 +249,20 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
             const int prim_index = cons_index - 1;
 
             Real mf   = mf_m(i,j,0);
-            Real mfsq = mf*mf;
 
             advectionSrc(i,j,k,cons_index) = - invdetJ * (
             ( avg_xmom(i+1,j,k) *
                 InterpolateInX(i+1,j,k,cell_prim, prim_index, avg_xmom(i+1,j,k), spatial_order) -
               avg_xmom(i  ,j,k) *
-                InterpolateInX(i  ,j,k,cell_prim, prim_index, avg_xmom(i  ,j,k), spatial_order) ) * dxInv * mfsq +
+                InterpolateInX(i  ,j,k,cell_prim, prim_index, avg_xmom(i  ,j,k), spatial_order) ) * dxInv * mf +
             ( avg_ymom(i,j+1,k) *
                 InterpolateInY(i,j+1,k,cell_prim, prim_index, avg_ymom(i,j+1,k), spatial_order) -
               avg_ymom(i,j  ,k) *
-                InterpolateInY(i,j  ,k,cell_prim, prim_index, avg_ymom(i  ,j,k), spatial_order) ) * dyInv * mfsq +
+                InterpolateInY(i,j  ,k,cell_prim, prim_index, avg_ymom(i  ,j,k), spatial_order) ) * dyInv * mf +
             ( avg_zmom(i,j,k+1) *
                 InterpolateInZ(i,j,k+1,cell_prim, prim_index, avg_zmom(i,j,k+1), spatial_order) -
                 avg_zmom(i,j,k  ) *
-                InterpolateInZ(i,j,k  ,cell_prim, prim_index, avg_zmom(i  ,j,k), spatial_order) ) * dzInv * mf);
+                InterpolateInZ(i,j,k  ,cell_prim, prim_index, avg_zmom(i  ,j,k), spatial_order) ) * dzInv);
         });
     }
 }

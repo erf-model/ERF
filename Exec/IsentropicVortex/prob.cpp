@@ -121,7 +121,6 @@ init_custom_prob(
 
       x_vel(i, j, k) = (parms.M_inf * std::cos(parms.alpha)
                      - (y - parms.yc)/parms.R * Omg) * parms.a_inf;
-      x_vel(i, j, k) = x_vel(i,j,k) / mf_u(i,j,0);
   });
 
   // Construct a box that is on y-faces
@@ -139,7 +138,6 @@ init_custom_prob(
 
       y_vel(i, j, k) = (parms.M_inf * std::sin(parms.alpha)
                      + (x - parms.xc)/parms.R * Omg) * parms.a_inf;
-      y_vel(i, j, k) = y_vel(i,j,k) / mf_v(i,j,0);
   });
 
   // Construct a box that is on z-faces
