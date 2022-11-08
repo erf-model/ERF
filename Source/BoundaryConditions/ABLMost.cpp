@@ -35,26 +35,25 @@ void ABLMost::update_fluxes(int lev,
     // New MOSTAverage class
     MOSTAverage ma({&U_old     , &V_old     , &W_old     , &Theta_old },
                    {u_mean[lev], v_mean[lev], w_mean[lev], t_mean[lev], u_mag_mean[lev]},
-                   nullptr, m_geom[lev], 2);
+                   {x_nd_k[lev], y_nd_k[lev], z_nd_k[lev], cc_k[lev]  , cc_k[lev]      },
+                   {zref       , zref       , zref       , zref       , zref           },
+                   nullptr, m_geom[lev], 0, true);
 
     // Compute plane averages for all vars
-    ma.compute_plane_averages(ZDir());
+    ma.compute_averages();
 
     // Write text file of averages
-    //ma.write_most_averages();
-
-    // Interpolate between planar averages and populate the 2D mf
-    for (int i(0); i<5; ++i) ma.line_average_interpolated(zref,0,i);
-
-    /*
+    //ma.write_k_indices();
+    //ma.write_averages();
+    
     // Verify the mf has the same value as computed via PlaneAverage class
     amrex::Print() << "\n";
     amrex::Print() << "CHECKING MOSTAverage class: \n";
-    const auto umf_ptr = ma.get_policy_average(0);
-    const auto vmf_ptr = ma.get_policy_average(1);
-    const auto wmf_ptr = ma.get_policy_average(2);
-    const auto tmf_ptr = ma.get_policy_average(3);
-    const auto smf_ptr = ma.get_policy_average(4);
+    const auto umf_ptr = ma.get_average(0);
+    const auto vmf_ptr = ma.get_average(1);
+    const auto wmf_ptr = ma.get_average(2);
+    const auto tmf_ptr = ma.get_average(3);
+    const auto smf_ptr = ma.get_average(4);
     for (MFIter mfi(*umf_ptr); mfi.isValid(); ++mfi)
     {
         const auto umf_arr = (*umf_ptr)[mfi].array();
@@ -69,7 +68,7 @@ void ABLMost::update_fluxes(int lev,
         amrex::Print() << "S CHECK: " << vmag_mean   << ' ' << smf_arr(0,0,0)  << "\n";
      }
      amrex::Print() << "\n";
-    */
+     //exit(0);
 
      // TODO: utau is now a 2D MF! Figure out the purpose of this iteration...
 

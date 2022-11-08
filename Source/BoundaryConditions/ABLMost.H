@@ -5,6 +5,7 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_iMultiFab.H>
 
 #include <IndexDefines.H>
 #include <ERF_Constants.H>
@@ -27,12 +28,12 @@ public:
 
     amrex::Real zref{0.2};           ///< Reference height (m)
     amrex::Real z0_const{0.1};       ///< Roughness height -- default constant value(m)
-    amrex::Real utau;                ///< Friction velocity (m/s)
     amrex::Real kappa{KAPPA};        ///< von Karman constant
     amrex::Real gravity{CONST_GRAV}; ///< Acceleration due to gravity (m/s^2)
     amrex::Real obukhov_len{1.0e16}; ///< Non-dimensional Obukhov length
 
     // THIS BECOMES REDUNDANT WITH THE NEW 2D MFs
+    amrex::Real utau;                     ///< Friction velocity (m/s)
     amrex::Real vel_mean[AMREX_SPACEDIM]; ///< Mean velocity (at zref)
     amrex::Real vmag_mean;                ///< Mean wind speed (at zref)
     amrex::Real theta_mean;               ///< Mean potential temperature
@@ -112,11 +113,18 @@ public:
         int nlevs = m_geom.size();
 
         z_0.resize(nlevs);
+        
         u_mean.resize(nlevs);
         v_mean.resize(nlevs);
         w_mean.resize(nlevs);
         t_mean.resize(nlevs);
         u_mag_mean.resize(nlevs);
+        u_tau.resize(nlevs);
+
+        x_nd_k.resize(nlevs);
+        y_nd_k.resize(nlevs);
+        z_nd_k.resize(nlevs);
+        cc_k.resize(nlevs);
 
         for (int lev = 0; lev < nlevs; lev++)
         {
@@ -131,90 +139,84 @@ public:
 
             // 2D MFs for averages
             //--------------------------------------------------------
-            {
+            { // Nodal in x
                 auto& mf = vars_new[lev][Vars::xvel];
-                // Create a 2D ba
+                // Create a 2D ba, dm, & ghost cells
                 amrex::BoxArray ba  = mf.boxArray();
                 amrex::BoxList bl2d = ba.boxList();
                 for (auto& b : bl2d) {
                     b.setRange(2,0);
                 }
                 amrex::BoxArray ba2d(std::move(bl2d));
-                // Distribution map
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
-                // Components and ghost cells
-                const int ncomp = mf.nComp();
+                const int ncomp  = 1;
+                const int incomp = 2;
                 const amrex::IntVect& ngrow = mf.nGrowVect();
+                
                 u_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ngrow);
                 u_mean[lev]->setVal(1.E34);
+                x_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ngrow);
             }
-            {
+            { // Nodal in y
                 auto& mf = vars_new[lev][Vars::yvel];
-                // Create a 2D ba
+                // Create a 2D ba, dm, & ghost cells
                 amrex::BoxArray ba  = mf.boxArray();
                 amrex::BoxList bl2d = ba.boxList();
                 for (auto& b : bl2d) {
                     b.setRange(2,0);
                 }
                 amrex::BoxArray ba2d(std::move(bl2d));
-                // Distribution map
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
-                // Components and ghost cells
-                const int ncomp = mf.nComp();
+                const int ncomp  = 1;
+                const int incomp = 2;
                 const amrex::IntVect& ngrow = mf.nGrowVect();
+                
                 v_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ngrow);
                 v_mean[lev]->setVal(1.E34);
+                y_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ngrow);
             }
-            {
+            { // Nodal in z
                 auto& mf = vars_new[lev][Vars::zvel];
-                // Create a 2D ba
+                // Create a 2D ba, dm, & ghost cells
                 amrex::BoxArray ba  = mf.boxArray();
                 amrex::BoxList bl2d = ba.boxList();
                 for (auto& b : bl2d) {
                     b.setRange(2,0);
                 }
                 amrex::BoxArray ba2d(std::move(bl2d));
-                // Distribution map
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
-                // Components and ghost cells
-                const int ncomp = mf.nComp();
+                const int ncomp  = 1;
+                const int incomp = 2;
                 const amrex::IntVect& ngrow = mf.nGrowVect();
+                
                 w_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ngrow);
                 w_mean[lev]->setVal(1.E34);
+                z_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ngrow);
             }
-            {
+            { // CC vars
                 auto& mf = vars_new[lev][Vars::cons];
-                // Create a 2D ba
+                // Create a 2D ba, dm, & ghost cells
                 amrex::BoxArray ba  = mf.boxArray();
                 amrex::BoxList bl2d = ba.boxList();
                 for (auto& b : bl2d) {
                     b.setRange(2,0);
                 }
                 amrex::BoxArray ba2d(std::move(bl2d));
-                // Distribution map
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
-                // Components and ghost cells
-                const int ncomp = 1;
+                const int ncomp  = 1;
+                const int incomp = 2;
                 const amrex::IntVect& ngrow = mf.nGrowVect();
+                
                 t_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ngrow);
                 t_mean[lev]->setVal(1.E34);
-            }
-            {
-                auto& mf = vars_new[lev][Vars::cons];
-                // Create a 2D ba
-                amrex::BoxArray ba  = mf.boxArray();
-                amrex::BoxList bl2d = ba.boxList();
-                for (auto& b : bl2d) {
-                    b.setRange(2,0);
-                }
-                amrex::BoxArray ba2d(std::move(bl2d));
-                // Distribution map
-                const amrex::DistributionMapping& dm = mf.DistributionMap();
-                // Components and ghost cells
-                const int ncomp = 1;
-                const amrex::IntVect& ngrow = mf.nGrowVect();
+
                 u_mag_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ngrow);
                 u_mag_mean[lev]->setVal(1.E34);
+
+                u_tau[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ngrow);
+                u_tau[lev]->setVal(1.E34);
+
+                cc_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ngrow);
             }
 
         }
@@ -230,6 +232,12 @@ public:
             delete w_mean[lev];
             delete t_mean[lev];
             delete u_mag_mean[lev];
+            delete u_tau[lev];
+
+            delete x_nd_k[lev];
+            delete y_nd_k[lev];
+            delete z_nd_k[lev];
+            delete cc_k[lev];
         }
     };
 
@@ -288,6 +296,12 @@ public:
         amrex::Vector<amrex::MultiFab*> w_mean;
         amrex::Vector<amrex::MultiFab*> t_mean;
         amrex::Vector<amrex::MultiFab*> u_mag_mean;
+        amrex::Vector<amrex::MultiFab*> u_tau;
+
+        amrex::Vector<amrex::iMultiFab*> x_nd_k;
+        amrex::Vector<amrex::iMultiFab*> y_nd_k;
+        amrex::Vector<amrex::iMultiFab*> z_nd_k;
+        amrex::Vector<amrex::iMultiFab*> cc_k;
 };
 
 #endif /* ABLMOST_H */
