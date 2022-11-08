@@ -25,6 +25,8 @@ void AdvectionSrcForRhoAndTheta (const amrex::Box& bx, const amrex::Box& valid_b
                                  const amrex::Array4<const amrex::Real>& detJ,
                                  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                                  const amrex::Array4<const amrex::Real>& mf_m,
+                                 const amrex::Array4<const amrex::Real>& mf_u,
+                                 const amrex::Array4<const amrex::Real>& mf_v,
                                  const int& spatial_order, const int& use_terrain);
 
 void AdvectionSrcForScalars (const amrex::Box& bx,
