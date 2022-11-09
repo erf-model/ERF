@@ -154,6 +154,11 @@ void erf_slow_rhs_pre (int level, int nrk,
         const Array4<const Real>& rho_v = S_data[IntVar::ymom].array(mfi);
         const Array4<const Real>& rho_w = S_data[IntVar::zmom].array(mfi);
 
+        // Map factors
+        const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
+        const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
+        const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
+
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
         Array4<const Real> z_t;
@@ -175,11 +180,6 @@ void erf_slow_rhs_pre (int level, int nrk,
         // Base state
         const Array4<      Real>& r0_arr = r0->array(mfi);
         const Array4<      Real>& p0_arr = p0->array(mfi);
-
-        // Map factors
-        const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
-        const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
-        const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
         const Box& gbx = mfi.growntilebox(1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
@@ -428,7 +428,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                    rho_u, rho_v, omega_arr, fac,
                                    avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
                                    cell_prim, z_nd, detJ,
-                                   dxInv, mf_m, l_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, mf_u, mf_v, l_spatial_order, l_use_terrain);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -771,7 +771,7 @@ void erf_slow_rhs_pre (int level, int nrk,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // z-momentum equation
 
-                Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
+                Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / mf_m(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)

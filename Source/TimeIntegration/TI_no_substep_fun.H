@@ -45,6 +45,8 @@
                 Array4<Real>*  ssum =  ssum_d.dataPtr();
                 Array4<Real>* fslow = fslow_d.dataPtr();
 
+                Array4<Real> mf_m = mapfac_m[level]->array(mfi);
+
                 // Moving terrain
                 if ( solverChoice.use_terrain && solverChoice.terrain_type == 1 )
                 {
@@ -103,19 +105,18 @@
                         ssum[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n) + slow_dt *
                            ( fslow[IntVar::cons](i,j,k,n) );
                     });
-
                     ParallelFor(tbx, tby, tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         ssum[IntVar::xmom](i,j,k) = sold[IntVar::xmom](i,j,k) + slow_dt *
-                           ( fslow[IntVar::xmom](i,j,k) );
+                            ( fslow[IntVar::xmom](i,j,k)*mf_m(i,j,0) );
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         ssum[IntVar::ymom](i,j,k) = sold[IntVar::ymom](i,j,k) + slow_dt *
-                           ( fslow[IntVar::ymom](i,j,k) );
+                            ( fslow[IntVar::ymom](i,j,k)*mf_m(i,j,0) );
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         ssum[IntVar::zmom](i,j,k) = sold[IntVar::zmom](i,j,k) + slow_dt *
-                           ( fslow[IntVar::zmom](i,j,k) );
+                            ( fslow[IntVar::zmom](i,j,k)*mf_m(i,j,0) );
                     });
                 }
             }

@@ -131,15 +131,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
             average_face_to_cellcenter(mf[lev],mf_comp,
                 Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
-            //
-            // Convert the map-factor-scaled-velocities back to velocities
-            //
+
             MultiFab dmf(mf[lev], make_alias, mf_comp, AMREX_SPACEDIM);
             for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.validbox();
-                const Array4<Real> vel_arr = dmf.array(mfi);
-                const Array4<Real> msf_arr = mapfac_m[lev]->array(mfi);
 
                 /*
                 // Moving terrain ANALYTICAL
@@ -147,13 +143,10 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
                 */
 
+                /*
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    vel_arr(i,j,k,0) *= msf_arr(i,j,0);
-                    vel_arr(i,j,k,1) *= msf_arr(i,j,0);
-                    vel_arr(i,j,k,2) *= msf_arr(i,j,0);
 
-                    /*
                     // Moving terrain ANALYTICAL
                     Real H           = 400.;
                     Real Ampl        = 0.16;
@@ -176,8 +169,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
                       vel_arr(i,j,k,2) -= Ampl * omega * fac * std::cos(kp * x - omega * t_new[lev]);
                     }
-                    */
+
                 });
+                */
             }
             mf_comp += AMREX_SPACEDIM;
         }
