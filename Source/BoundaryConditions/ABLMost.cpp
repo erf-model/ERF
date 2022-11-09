@@ -90,14 +90,15 @@ void ABLMost::update_fluxes(int lev,
                    {u_mean[lev], v_mean[lev], w_mean[lev], t_mean[lev], u_mag_mean[lev]},
                    {x_nd_k[lev], y_nd_k[lev], z_nd_k[lev], cc_k[lev]  , cc_k[lev]      },
                    {zref       , zref       , zref       , zref       , zref           },
-                   nullptr, m_geom[lev], 0, true);
+                   nullptr, m_geom[lev], 1, true);
 
     // Compute plane averages for all vars
     ma.compute_averages();
 
     // Write text file of averages
-    //ma.write_k_indices();
-    //ma.write_averages();
+    ma.write_k_indices();
+    ma.write_averages();
+    exit(0);
 
     /*
     // Verify the mf has the same value as computed via PlaneAverage class
