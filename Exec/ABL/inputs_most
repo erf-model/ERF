@@ -16,8 +16,8 @@ zhi.type = "SlipWall"
 
 erf.most.z0 = 100.0
 erf.most.zref = 200.0
-erf.most.surf_temp = 301.1
-
+#erf.most.surf_temp = 301.0
+#erf.most.surf_temp_flux = 8.14165
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.2  # fixed time step depending on grid resolution
 

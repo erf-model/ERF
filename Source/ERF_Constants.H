@@ -4,6 +4,7 @@
 #include <AMReX_REAL.H>
 
 constexpr amrex::Real PI = 3.14159265358979323846264338327950288;
+constexpr amrex::Real PIoTwo = PI/2.0;
 
 //TODO: Change these types of macros to 'const'
 #define R_d      287.0   // gas constant for dry air [J/(kg-K)]

@@ -74,20 +74,20 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
 void
 MOSTAverage::compute_plane_k_indices()
 {
-    for (int i(0); i<m_averages.size(); ++i) {
-        int z = m_z_ref[i];
+    for (int iavg(0); iavg<m_averages.size(); ++iavg) {
+        int z = m_z_ref[iavg];
         AMREX_ALWAYS_ASSERT(z >= m_zlo + 0.5 * m_dz);
         
         int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
         int k_hi = k_lo + 1;        
         const amrex::Real z_lo = m_zlo + (k_lo + 0.5) * m_dz;
-        c_interp[i] = (z - z_lo) / m_dz;
+        c_interp[iavg] = (z - z_lo) / m_dz;
 
-        const amrex::IntVect& ng = m_k_indx[i]->nGrowVect();
+        const amrex::IntVect& ng = m_k_indx[iavg]->nGrowVect();
         
-        for (amrex::MFIter mfi(*m_k_indx[i], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (amrex::MFIter mfi(*m_k_indx[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             amrex::Box gbx = mfi.growntilebox({ng[0], ng[1], 0});
-            auto k_arr     = m_k_indx[i]->array(mfi);
+            auto k_arr     = m_k_indx[iavg]->array(mfi);
 
             ParallelFor(gbx,gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
