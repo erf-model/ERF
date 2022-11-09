@@ -10,6 +10,7 @@ void ABLMost::update_fluxes(int lev,
                             amrex::MultiFab& V_old    , amrex::MultiFab& W_old,
                             int max_iters)
 {
+    /*
     // THIS BECOMES REDUNDANT WITH THE NEW 2D MFs
     {
     PlaneAverage Thave(&Theta_old, m_geom[lev], 2);
@@ -81,6 +82,7 @@ void ABLMost::update_fluxes(int lev,
     }
     }
     // END REDUNDANT CODE
+    */
 
     //====================================================================================
     // New MOSTAverage class
@@ -121,26 +123,22 @@ void ABLMost::update_fluxes(int lev,
      }
      amrex::Print() << "\n";
     */
-    
-     
+
+
      // Pointers to the computed averages
-     const auto um_ptr  = ma.get_average(0);
-     const auto vm_ptr  = ma.get_average(1);
-     const auto wm_ptr  = ma.get_average(2);
      const auto tm_ptr  = ma.get_average(3);
      const auto umm_ptr = ma.get_average(4);
+
+     const amrex::IntVect& ng = u_star[lev]->nGrowVect();
 
      // Initialize to the adiabatic q=0 case
      for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
      {
-         amrex::Box bx = mfi.tilebox();
-
-         amrex::Print() << "BX CHK: " << bx << "\n";
+         amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
 
          auto t_star_arr = t_star[lev]->array(mfi);
          auto u_star_arr = u_star[lev]->array(mfi);
-                
-         const auto tm_arr  = tm_ptr->array(mfi);
+
          const auto umm_arr = umm_ptr->array(mfi);
          const auto z0_arr  = z_0[lev].array();
 
@@ -151,75 +149,69 @@ void ABLMost::update_fluxes(int lev,
          });
      }
 
-     
+
      // Specified finite heat flux
-     if ((alg_type == HEAT_FLUX) && (std::abs(surf_temp_flux) > 1.0e-16)) {
+     if ( (alg_type == HEAT_FLUX) && (std::abs(surf_temp_flux) > 1.0e-16) ) {
          for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
          {
-             amrex::Box bx = mfi.tilebox();
+             amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
 
              auto t_surf_arr = t_surf[lev]->array(mfi);
              auto t_star_arr = t_star[lev]->array(mfi);
              auto u_star_arr = u_star[lev]->array(mfi);
-             
+
              const auto tm_arr  = tm_ptr->array(mfi);
              const auto umm_arr = umm_ptr->array(mfi);
              const auto z0_arr  = z_0[lev].array();
-             
+
              ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
              {
                  int iter = 0;
                  amrex::Real ustar = 0.0;
-                 amrex::Real tflux = 0.0;
-                 amrex::Real tsurf = 0.0;
                  amrex::Real zeta  = 0.0;
                  amrex::Real psi_m = 0.0;
                  amrex::Real psi_h = 0.0;
                  do {
                      ustar = u_star_arr(i,j,k);
-                     tsurf = surf_temp_flux * (std::log(zref / z0_const) - psi_h) /
-                             (ustar * kappa) + tm_arr(i,j,k);
                      obukhov_len = -ustar * ustar * ustar * tm_arr(i,j,k) /
                                    (kappa * gravity * surf_temp_flux);
                      zeta  = zref / obukhov_len;
                      psi_m = calc_psi_m(zeta);
                      psi_h = calc_psi_h(zeta);
-                     u_star_arr(i,j,k) = kappa * umm_arr(i,j,k) / (std::log(zref / z0_const) - psi_m);
+                     u_star_arr(i,j,k) = kappa * umm_arr(i,j,k) / (std::log(zref / z0_arr(i,j,k)) - psi_m);
                      ++iter;
                  } while ((std::abs(u_star_arr(i,j,k) - ustar) > 1e-5) && iter <= max_iters);
 
-                 t_surf_arr(i,j,k) = surf_temp_flux * (std::log(zref / z0_const) - psi_h) /
+                 t_surf_arr(i,j,k) = surf_temp_flux * (std::log(zref / z0_arr(i,j,k)) - psi_h) /
                                      (u_star_arr(i,j,k) * kappa) + tm_arr(i,j,k);
                  t_star_arr(i,j,k) = -surf_temp_flux / u_star_arr(i,j,k);
              });
          }
      // Specified surface temperature
-     } else if (alg_type == SURFACE_TEMPERATURE) {
+     } else if ( alg_type == SURFACE_TEMPERATURE ) {
          for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
          {
-             amrex::Box bx = mfi.tilebox();
+             amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
 
              auto t_surf_arr = t_surf[lev]->array(mfi);
              auto t_star_arr = t_star[lev]->array(mfi);
              auto u_star_arr = u_star[lev]->array(mfi);
-             
+
              const auto tm_arr  = tm_ptr->array(mfi);
              const auto umm_arr = umm_ptr->array(mfi);
              const auto z0_arr  = z_0[lev].array();
-             
+
              ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
              {
                  // Nothing to do unless the flux != 0
                  if (std::abs(t_surf_arr(i,j,k)-tm_arr(i,j,k)) > 1.0e-16) {
-                 
-                 int iter = 0;
-                 amrex::Real ustar = 0.0;
-                 amrex::Real tflux = 0.0;
-                 amrex::Real tsurf = 0.0;
-                 amrex::Real zeta  = 0.0;
-                 amrex::Real psi_m = 0.0;
-                 amrex::Real psi_h = 0.0;
-                 do {
+                   int iter = 0;
+                   amrex::Real ustar = 0.0;
+                   amrex::Real tflux = 0.0;
+                   amrex::Real zeta  = 0.0;
+                   amrex::Real psi_m = 0.0;
+                   amrex::Real psi_h = 0.0;
+                   do {
                      ustar = u_star_arr(i,j,k);
                      tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * kappa /
                               (std::log(zref / z0_const) - psi_h);
@@ -228,18 +220,17 @@ void ABLMost::update_fluxes(int lev,
                      zeta  = zref / obukhov_len;
                      psi_m = calc_psi_m(zeta);
                      psi_h = calc_psi_h(zeta);
-                     u_star_arr(i,j,k) = kappa * umm_arr(i,j,k) / (std::log(zref / z0_const) - psi_m);
+                     u_star_arr(i,j,k) = kappa * umm_arr(i,j,k) / (std::log(zref / z0_arr(i,j,k)) - psi_m);
                      ++iter;
                  } while ((std::abs(u_star_arr(i,j,k) - ustar) > 1e-5) && iter <= max_iters);
 
                  t_star_arr(i,j,k) = kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
-                                     (std::log(zref / z0_const) - psi_h);
+                                     (std::log(zref / z0_arr(i,j,k)) - psi_h);
                  }
              });
          }
      }
-     amrex::Print() << "CLEARED!" << "\n";
-     //==================================================================================== 
+     //====================================================================================
 }
 
 
@@ -271,12 +262,6 @@ ABLMost::impose_most_bcs(const int lev,
         Real d_kappa = kappa;
         Real d_dz    = m_geom[lev].CellSize(2);
 
-        // Get height array
-        const Array4<Real> z0_arr = z_0[lev].array();
-
-        // Get class pointer for member function
-        ABLMostData d_most = get_most_data();
-
         for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
         {
             const Box& bx = (*mfs[var_idx])[mfi].box();
@@ -292,6 +277,7 @@ ABLMost::impose_most_bcs(const int lev,
                 amrex::Box b2d = bx; // Copy constructor
                 b2d.setBig(2,zlo-1);
                 int n = Cons::RhoTheta;
+
                 ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real velx, vely, rho, theta, eta;
@@ -322,13 +308,13 @@ ABLMost::impose_most_bcs(const int lev,
                     rho   = cons_arr(ic,jc,zlo,Rho_comp);
                     theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
                     eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v);
-                    
+
                     Real d_thM  =  tm_arr(ic,jc,zlo);
                     Real d_vmM  = umm_arr(ic,jc,zlo);
                     Real d_utau = u_star_arr(ic,jc,zlo);
                     Real d_ttau = t_star_arr(ic,jc,zlo);
                     Real d_sfcT = t_surf_arr(ic,jc,zlo);
-                    
+
                     Real vmag    = sqrt(velx*velx+vely*vely);
                     Real num1    = (theta-d_thM)*d_vmM;
                     Real num2    = (d_thM-d_sfcT)*vmag;
@@ -376,8 +362,6 @@ ABLMost::impose_most_bcs(const int lev,
                     eta   = 0.5 *( eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)+
                                    eta_arr(ie  ,je,zlo,EddyDiff::Mom_v));
 
-                    
-                    amrex::Print() << "LP: " << amrex::IntVect(ic,jc,zlo) << "\n";
                     Real d_vxM  = um_arr(i,j,zlo);
                     Real d_vmM  = 0.5 * ( umm_arr(ic-1,jc,zlo) + umm_arr(ic,jc,zlo) );
                     Real d_utau = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
@@ -427,7 +411,7 @@ ABLMost::impose_most_bcs(const int lev,
                                  cons_arr(ic,jc  ,zlo,Rho_comp));
                     eta   = 0.5*(eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)+
                                  eta_arr(ie,je  ,zlo,EddyDiff::Mom_v));
-                    
+
                     Real d_vyM  = vm_arr(i,j,zlo);
                     Real d_vmM  = 0.5 * ( umm_arr(ic,jc-1,zlo) + umm_arr(ic,jc,zlo) );
                     Real d_utau = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );

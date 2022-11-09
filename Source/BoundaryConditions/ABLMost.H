@@ -116,11 +116,11 @@ public:
             pp.query("most.surf_temp_flux", surf_temp_flux);
             alg_type = HEAT_FLUX;
         }
-        
+
         int nlevs = m_geom.size();
 
         z_0.resize(nlevs);
-        
+
         u_mean.resize(nlevs);
         v_mean.resize(nlevs);
         w_mean.resize(nlevs);
@@ -161,7 +161,7 @@ public:
                 const int ncomp  = 1;
                 const int incomp = 2;
                 const amrex::IntVect& ng = mf.nGrowVect();
-                
+
                 u_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
                 u_mean[lev]->setVal(1.E34);
                 x_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,{ng[0], ng[1], 0});
@@ -179,7 +179,7 @@ public:
                 const int ncomp  = 1;
                 const int incomp = 2;
                 const amrex::IntVect& ng = mf.nGrowVect();
-                
+
                 v_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
                 v_mean[lev]->setVal(1.E34);
                 y_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,{ng[0], ng[1], 0});
@@ -197,7 +197,7 @@ public:
                 const int ncomp  = 1;
                 const int incomp = 2;
                 const amrex::IntVect& ng = mf.nGrowVect();
-                
+
                 w_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
                 w_mean[lev]->setVal(1.E34);
                 z_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,{ng[0], ng[1], 0});
@@ -215,7 +215,7 @@ public:
                 const int ncomp  = 1;
                 const int incomp = 2;
                 const amrex::IntVect& ng = mf.nGrowVect();
-                
+
                 t_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
                 t_mean[lev]->setVal(1.E34);
 
@@ -234,7 +234,7 @@ public:
                 } else {
                     t_surf[lev]->setVal(0.0);
                 }
-                
+
                 cc_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,{ng[0], ng[1], 0});
             }
 
@@ -311,7 +311,7 @@ public:
 
         amrex::Vector<amrex::Geometry> m_geom;
         amrex::Vector<amrex::FArrayBox> z_0;
-    
+
         amrex::Vector<amrex::MultiFab*> u_mean;
         amrex::Vector<amrex::MultiFab*> v_mean;
         amrex::Vector<amrex::MultiFab*> w_mean;

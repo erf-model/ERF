@@ -11,7 +11,7 @@ public:
     explicit MOSTAverage(amrex::Vector<const amrex::MultiFab*> fields,
                          amrex::Vector<amrex::MultiFab*> averages,
                          amrex::Vector<amrex::iMultiFab*> k_indx,
-                         amrex::Vector<amrex::Real> z_ref, 
+                         amrex::Vector<amrex::Real> z_ref,
                          const amrex::MultiFab* z_nd,
                          const amrex::Geometry geom,
                          int policy,
@@ -46,10 +46,10 @@ public:
 
     // Write k indices for each average
     void write_k_indices();
-    
+
     // Write averages on 2D mf
     void write_averages();
-        
+
 protected:
     amrex::Real m_dz;  // Mesh spacing in axis direction
     amrex::Real m_zlo; // Bottom of domain in axis direction

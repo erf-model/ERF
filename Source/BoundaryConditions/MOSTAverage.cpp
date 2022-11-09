@@ -18,7 +18,7 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
     m_zlo = m_geom.ProbLo  (2);
     m_dz  = m_geom.CellSize(2);
 
-    // Num components, line avg, cells per plane
+    // Num components, plane avg, cells per plane, interp coeff
     amrex::Box domain = m_geom.Domain();
     amrex::IntVect dom_lo(domain.loVect());
     amrex::IntVect dom_hi(domain.hiVect());
@@ -44,7 +44,7 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
         }
     }
 
-    // Compute the k values for averaging (better policy implementation)
+    // Select a policy for k-index
     switch(m_policy) {
     case 0: // Standard plane average
         if (m_update_k) {
@@ -52,19 +52,19 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
         } else {
             for (int i(0); i<m_averages.size(); ++i) {
                 int z = m_z_ref[i];
-                int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));        
+                int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
                 const amrex::Real z_lo = m_zlo + (k_lo + 0.5) * m_dz;
                 c_interp[i] = (z - z_lo) / m_dz;
             }
         }
         break;
-        
+
     case 1: // Fixed height above the terrain surface
         break;
-        
+
     case 2: // Along a normal vector
         break;
-        
+
     default:
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
@@ -77,14 +77,14 @@ MOSTAverage::compute_plane_k_indices()
     for (int iavg(0); iavg<m_averages.size(); ++iavg) {
         int z = m_z_ref[iavg];
         AMREX_ALWAYS_ASSERT(z >= m_zlo + 0.5 * m_dz);
-        
+
         int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
-        int k_hi = k_lo + 1;        
+        int k_hi = k_lo + 1;
         const amrex::Real z_lo = m_zlo + (k_lo + 0.5) * m_dz;
         c_interp[iavg] = (z - z_lo) / m_dz;
 
         const amrex::IntVect& ng = m_k_indx[iavg]->nGrowVect();
-        
+
         for (amrex::MFIter mfi(*m_k_indx[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             amrex::Box gbx = mfi.growntilebox({ng[0], ng[1], 0});
             auto k_arr     = m_k_indx[iavg]->array(mfi);
@@ -93,7 +93,7 @@ MOSTAverage::compute_plane_k_indices()
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 k_arr(i,j,k,0) = k_lo;
             },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {           
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 k_arr(i,j,k,1) = k_hi;
             });
        }
@@ -108,13 +108,13 @@ MOSTAverage::compute_averages()
     case 0: // Standard plane average
         compute_plane_averages();
         break;
-        
+
     case 1: // Fixed height above the terrain surface
         break;
-        
+
     case 2: // Along a normal vector
         break;
-        
+
     default:
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
@@ -142,7 +142,7 @@ MOSTAverage::compute_plane_averages()
 
             auto mf_arr = m_fields[imf]->const_array(mfi);
             auto k_arr  = m_k_indx[imf]->const_array(mfi);
-            
+
             ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
             AMREX_GPU_DEVICE(int i, int j, int n, amrex::Gpu::Handler const& handler) noexcept
             {
@@ -156,7 +156,7 @@ MOSTAverage::compute_plane_averages()
 
         // No spatial variation with plane averages
         amrex::Real c_val = c_interp[imf];
-        amrex::Real a_val = m_plane_average[imf][0]*(1.0 - c_val) + m_plane_average[imf][1]*c_val; 
+        amrex::Real a_val = m_plane_average[imf][0]*(1.0 - c_val) + m_plane_average[imf][1]*c_val;
         m_averages[imf]->setVal(a_val);
     }
 
@@ -182,13 +182,13 @@ MOSTAverage::compute_plane_averages()
 
         auto k_u_arr  = m_k_indx[imf]->const_array(mfi);
         auto k_v_arr  = m_k_indx[imf+1]->const_array(mfi);
-        
+
         ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
         AMREX_GPU_DEVICE(int i, int j, int n, amrex::Gpu::Handler const& handler) noexcept
         {
             int k_u = k_u_arr(i,j,0,n);
             int k_v = k_v_arr(i,j,0,n);
-            
+
             const amrex::Real u_val = 0.5 * (u_mf_arr(i,j,k_u) + u_mf_arr(i+1,j  ,k_u));
             const amrex::Real v_val = 0.5 * (v_mf_arr(i,j,k_v) + v_mf_arr(i  ,j+1,k_v));
             const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
@@ -201,7 +201,7 @@ MOSTAverage::compute_plane_averages()
 
     // No spatial variation with plane averages
     amrex::Real c_val = c_interp[iavg];
-    amrex::Real a_val = m_plane_average[iavg][0]*(1.0 - c_val) + m_plane_average[iavg][1]*c_val; 
+    amrex::Real a_val = m_plane_average[iavg][0]*(1.0 - c_val) + m_plane_average[iavg][1]*c_val;
     m_averages[iavg]->setVal(a_val);
 }
 
@@ -211,7 +211,7 @@ MOSTAverage::write_k_indices()
 {
     // Last component u_mag_mean is cc
     int navg = m_averages.size() - 1;
-    
+
     std::ofstream ofile;
     ofile.open ("MOST_K_indices.txt");
     ofile << "K indices used to compute averages via MOSTAverages class:\n";
@@ -220,7 +220,7 @@ MOSTAverage::write_k_indices()
         amrex::Box bx  = mfi.tilebox(); bx.setBig(2,0);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
-        
+
         for (int j(jl); j<=ju; ++j) {
             for (int i(il); i<=iu; ++i) {
                 ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
@@ -229,7 +229,7 @@ MOSTAverage::write_k_indices()
                     auto k_arr = m_k_indx[iavg]->array(mfi);
                     ofile << "iavg K_lo K_hi c_interp: "
                           << iavg << ' '
-                          << k_arr(i,j,k,0) << ' ' 
+                          << k_arr(i,j,k,0) << ' '
                           << k_arr(i,j,k,1) << ' '
                           << c_interp[iavg] << "\n";
                 }
@@ -246,7 +246,7 @@ MOSTAverage::write_averages()
 {
     // Last component u_mag_mean is cc
     int navg = m_averages.size() - 1;
-    
+
     std::ofstream ofile;
     ofile.open ("MOST_averages.txt");
     ofile << "Averages computed via MOSTAverages class:\n";
@@ -255,7 +255,7 @@ MOSTAverage::write_averages()
         amrex::Box bx  = mfi.tilebox(); bx.setBig(2,0);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
-        
+
         for (int j(jl); j<=ju; ++j) {
             for (int i(il); i<=iu; ++i) {
                 ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
