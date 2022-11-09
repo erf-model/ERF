@@ -129,6 +129,12 @@ void ABLMost::update_fluxes(int lev,
      const auto tm_ptr  = ma.get_average(3);
      const auto umm_ptr = ma.get_average(4);
 
+     amrex::Real d_kappa = kappa;
+     amrex::Real d_zref  = zref;
+     amrex::Real d_gravity = gravity;
+     amrex::Real d_surf_temp_flux = surf_temp_flux;
+     ABLMostData d_most = get_most_data();
+
      const amrex::IntVect& ng = u_star[lev]->nGrowVect();
 
      // Initialize to the adiabatic q=0 case
@@ -145,7 +151,7 @@ void ABLMost::update_fluxes(int lev,
          ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
          {
              t_star_arr(i,j,k) = 0.0;
-             u_star_arr(i,j,k) = kappa * umm_arr(i,j,k) / std::log(zref / z0_arr(i,j,k));
+             u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / std::log(d_zref / z0_arr(i,j,k));
          });
      }
 
@@ -171,20 +177,21 @@ void ABLMost::update_fluxes(int lev,
                  amrex::Real zeta  = 0.0;
                  amrex::Real psi_m = 0.0;
                  amrex::Real psi_h = 0.0;
+                 amrex::Real Olen  = 0.0;
                  do {
                      ustar = u_star_arr(i,j,k);
-                     obukhov_len = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                                   (kappa * gravity * surf_temp_flux);
-                     zeta  = zref / obukhov_len;
-                     psi_m = calc_psi_m(zeta);
-                     psi_h = calc_psi_h(zeta);
-                     u_star_arr(i,j,k) = kappa * umm_arr(i,j,k) / (std::log(zref / z0_arr(i,j,k)) - psi_m);
+                     Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
+                             (d_kappa * d_gravity * d_surf_temp_flux);
+                     zeta  = d_zref / Olen;
+                     psi_m = d_most.calc_psi_m(zeta);
+                     psi_h = d_most.calc_psi_h(zeta);
+                     u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / (std::log(d_zref / z0_arr(i,j,k)) - psi_m);
                      ++iter;
                  } while ((std::abs(u_star_arr(i,j,k) - ustar) > 1e-5) && iter <= max_iters);
 
-                 t_surf_arr(i,j,k) = surf_temp_flux * (std::log(zref / z0_arr(i,j,k)) - psi_h) /
-                                     (u_star_arr(i,j,k) * kappa) + tm_arr(i,j,k);
-                 t_star_arr(i,j,k) = -surf_temp_flux / u_star_arr(i,j,k);
+                 t_surf_arr(i,j,k) = d_surf_temp_flux * (std::log(d_zref / z0_arr(i,j,k)) - psi_h) /
+                                     (u_star_arr(i,j,k) * d_kappa) + tm_arr(i,j,k);
+                 t_star_arr(i,j,k) = -d_surf_temp_flux / u_star_arr(i,j,k);
              });
          }
      // Specified surface temperature
@@ -211,21 +218,22 @@ void ABLMost::update_fluxes(int lev,
                    amrex::Real zeta  = 0.0;
                    amrex::Real psi_m = 0.0;
                    amrex::Real psi_h = 0.0;
+                   amrex::Real Olen  = 0.0;
                    do {
                      ustar = u_star_arr(i,j,k);
-                     tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * kappa /
-                              (std::log(zref / z0_const) - psi_h);
-                     obukhov_len = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                                   (kappa * gravity * tflux);
-                     zeta  = zref / obukhov_len;
-                     psi_m = calc_psi_m(zeta);
-                     psi_h = calc_psi_h(zeta);
-                     u_star_arr(i,j,k) = kappa * umm_arr(i,j,k) / (std::log(zref / z0_arr(i,j,k)) - psi_m);
+                     tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * d_kappa /
+                              (std::log(d_zref / z0_arr(i,j,k)) - psi_h);
+                     Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
+                            (d_kappa * d_gravity * tflux);
+                     zeta  = d_zref / Olen;
+                     psi_m = d_most.calc_psi_m(zeta);
+                     psi_h = d_most.calc_psi_h(zeta);
+                     u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / (std::log(d_zref / z0_arr(i,j,k)) - psi_m);
                      ++iter;
                  } while ((std::abs(u_star_arr(i,j,k) - ustar) > 1e-5) && iter <= max_iters);
 
-                 t_star_arr(i,j,k) = kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
-                                     (std::log(zref / z0_arr(i,j,k)) - psi_h);
+                 t_star_arr(i,j,k) = d_kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
+                                     (std::log(d_zref / z0_arr(i,j,k)) - psi_h);
                  }
              });
          }
@@ -259,7 +267,6 @@ ABLMost::impose_most_bcs(const int lev,
         const auto t_surf_arr = t_surf[lev]->array(mfi);
 
         // Define temporaries so we can access these on GPU
-        Real d_kappa = kappa;
         Real d_dz    = m_geom[lev].CellSize(2);
 
         for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
