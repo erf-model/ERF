@@ -11,12 +11,14 @@ amr.n_cell           =    64       64      64
 
 geometry.is_periodic = 1 1 0
 
-zlo.type = "Most"
 zhi.type = "SlipWall"
 
-erf.most.z0 = 100.0
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+zlo.type      = "Most"
+erf.most.z0   = 100.0
 erf.most.zref = 200.0
-erf.most.surf_temp = 301.1
+#erf.most.surf_temp      = 301.0   # SPECIFIED SURFACE TEMP
+#erf.most.surf_temp_flux = 8.14165 # SPECIFIED SURFACE FLUX
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.2  # fixed time step depending on grid resolution
