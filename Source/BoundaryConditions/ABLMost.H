@@ -33,10 +33,14 @@ public:
     amrex::Real surf_temp_flux{0.0}; ///< Heat flux
     amrex::Real surf_temp;           ///< Surface temperature
 
-    // These are linked to the PBL scheme
+    // Linked to the PBL scheme & Redundant
     //========================================================
     amrex::Real obukhov_len{1.0e16}; ///< Non-dimensional Obukhov length
     amrex::Real theta_mean;          ///< Mean potential temperature
+
+    amrex::Real vel_mean[AMREX_SPACEDIM]; ///< Mean velocity (at zref)
+    amrex::Real vmag_mean;                ///< Mean wind speed (at zref)
+    amrex::Real utau;                     ///< Friction velocity (m/s)
     //========================================================
 
     amrex::Real beta_m{5.0}; // Constants from Dyer, BLM, 1974
