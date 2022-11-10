@@ -28,7 +28,7 @@ void ABLMost::update_fluxes(int lev,
     VelPlaneAverage vmagave(m_geom[lev]);
     vmagave.compute_hvelmag_averages(U_old,V_old);
     vmag_mean   = vmagave.line_hvelmag_average_interpolated(zref);
-    
+
     constexpr amrex::Real eps = 1.0e-16;
     amrex::Real zeta = 0.0;
     amrex::Real utau_iter = 0.0;
@@ -85,7 +85,7 @@ void ABLMost::update_fluxes(int lev,
 
     // Compute plane averages for all vars
     ma.compute_averages();
-    
+
     /*
     // Write text file of averages
     ma.write_k_indices();

@@ -58,11 +58,11 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
             }
         }
         break;
-        
+
     case 1: // Local region/point
         if (m_update_k) compute_point_k_indices();
         break;
-        
+
     case 2: // Fixed height above the terrain surface
         break;
 
@@ -86,7 +86,7 @@ MOSTAverage::compute_plane_k_indices()
         int k_hi = k_lo + 1;
         const amrex::Real z_lo = m_zlo + (k_lo + 0.5) * m_dz;
         c_interp[iavg] = (z - z_lo) / m_dz;
-        
+
         amrex::IntVect ng = m_k_indx[iavg]->nGrowVect(); ng[2]=0;
 
         for (amrex::MFIter mfi(*m_k_indx[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -150,7 +150,7 @@ MOSTAverage::compute_averages()
     case 0: // Standard plane average
         compute_plane_averages();
         break;
-        
+
     case 1: // Local region/point
         compute_point_averages();
         break;
