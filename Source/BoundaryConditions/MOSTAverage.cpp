@@ -51,7 +51,7 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
             compute_plane_k_indices();
         } else {
             for (int i(0); i<m_averages.size(); ++i) {
-                int z = m_z_ref[i];
+                amrex::Real z = m_z_ref[i];
                 int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
                 const amrex::Real z_lo = m_zlo + (k_lo + 0.5) * m_dz;
                 c_interp[i] = (z - z_lo) / m_dz;
@@ -77,7 +77,7 @@ void
 MOSTAverage::compute_plane_k_indices()
 {
     for (int iavg(0); iavg<m_averages.size(); ++iavg) {
-        int z = m_z_ref[iavg];
+        amrex::Real z = m_z_ref[iavg];
         AMREX_ALWAYS_ASSERT(z >= m_zlo + 0.5 * m_dz);
 
         int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
@@ -85,10 +85,10 @@ MOSTAverage::compute_plane_k_indices()
         const amrex::Real z_lo = m_zlo + (k_lo + 0.5) * m_dz;
         c_interp[iavg] = (z - z_lo) / m_dz;
 
-        const amrex::IntVect& ng = m_k_indx[iavg]->nGrowVect();
+        amrex::IntVect ng = m_k_indx[iavg]->nGrowVect(); ng[2]=0;
 
         for (amrex::MFIter mfi(*m_k_indx[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            amrex::Box gbx = mfi.growntilebox({ng[0], ng[1], 0});
+            amrex::Box gbx = mfi.growntilebox(ng);
             auto k_arr     = m_k_indx[iavg]->array(mfi);
 
             ParallelFor(gbx,gbx,
@@ -108,38 +108,33 @@ MOSTAverage::compute_point_k_indices()
 {
     amrex::ParmParse pp("erf");
     auto read_k = pp.query("most.k_indx", m_k_ind);
-    auto read_r = pp.query("most.radius", m_radius);
+    pp.query("most.radius", m_radius);
 
     // Specified k index
     if (read_k) {
-      // NOTE: The central point of the local-region cannot
-      //       be closer to the boundary than m_radius.
-      m_k_ind = std::max(m_radius,m_k_ind);
-      for (int iavg(0); iavg<m_averages.size(); ++iavg) m_k_indx[iavg]->setVal(m_k_ind);
-
+        m_k_ind = std::max(m_radius,m_k_ind);
+        for (int iavg(0); iavg<m_averages.size(); ++iavg) m_k_indx[iavg]->setVal(m_k_ind);
     // Set k from zref
     } else {
-      for (int iavg(0); iavg<m_averages.size(); ++iavg) {
-        int z = m_z_ref[iavg];
-        AMREX_ALWAYS_ASSERT(z >= m_zlo + 0.5 * m_dz);
+        for (int iavg(0); iavg<m_averages.size(); ++iavg) {
+            amrex::Real z = m_z_ref[iavg];
+            AMREX_ALWAYS_ASSERT(z >= m_zlo + 0.5 * m_dz);
 
-        int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
+            int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
+            k_lo = std::max(m_radius,k_lo);
 
-        // NOTE: The central point of the local-region cannot
-        //       be closer to the boundary than m_radius.
-        k_lo = std::max(m_radius,k_lo);
+            amrex::IntVect ng = m_k_indx[iavg]->nGrowVect(); ng[2]=0;
 
-        const amrex::IntVect& ng = m_k_indx[iavg]->nGrowVect();
+            for (amrex::MFIter mfi(*m_k_indx[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                amrex::Box gbx = mfi.growntilebox(ng);
+                auto k_arr     = m_k_indx[iavg]->array(mfi);
 
-        for (amrex::MFIter mfi(*m_k_indx[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            amrex::Box gbx = mfi.growntilebox({ng[0], ng[1], 0});
-            auto k_arr     = m_k_indx[iavg]->array(mfi);
-
-            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                k_arr(i,j,k,0) = k_lo;
-            });
-        } // MFiter
-      } // iavg
+                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    k_arr(i,j,k,0) = k_lo;
+                });
+            } // MFiter
+        } // iavg
     } // read_k
 }
 
@@ -278,14 +273,18 @@ MOSTAverage::compute_point_averages()
 
                 int k = k_arr(i,j,0,0);
                 for (int lk(k-m_radius); lk<=(k+m_radius); ++lk) {
-                  for (int lj(j-m_radius); lj<=(j+m_radius); ++lj) {
-                    for (int li(i-m_radius); li<=(i+m_radius); ++li) {
-                      ma_arr(i,j,0) += mf_arr(li, lj, lk) * denom;
+                    for (int lj(j-m_radius); lj<=(j+m_radius); ++lj) {
+                        for (int li(i-m_radius); li<=(i+m_radius); ++li) {
+                            ma_arr(i,j,0) += mf_arr(li, lj, lk) * denom;
+                        }
                     }
-                  }
                 }
             });
         }
+
+        // Fill interior ghost cells and any ghost cells outside a periodic domain
+        //***********************************************************************************
+        m_averages[imf]->FillBoundary(m_geom.periodicity());
     }
 
     // Averages for the tangential velocity magnitude
@@ -296,8 +295,8 @@ MOSTAverage::compute_point_averages()
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (amrex::MFIter mfi(*m_fields[imf], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        amrex::Box bx  = amrex::enclosedCells(mfi.tilebox());
+    for (amrex::MFIter mfi(*m_averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        amrex::Box bx  = mfi.tilebox();
         amrex::Box pbx = bx; pbx.setSmall(2,0); pbx.setBig(2,0);
 
         auto u_mf_arr = m_fields[imf]->const_array(mfi);
@@ -311,20 +310,58 @@ MOSTAverage::compute_point_averages()
 
             int k = k_arr(i,j,0,0);
             for (int lk(k-m_radius); lk<=(k+m_radius); ++lk) {
-              for (int lj(j-m_radius); lj<=(j+m_radius); ++lj) {
-                for (int li(i-m_radius); li<=(i+m_radius); ++li) {
-                  const amrex::Real u_val = 0.5 * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
-                  const amrex::Real v_val = 0.5 * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
-                  const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
-                  ma_arr(i,j,0) += mag * denom;
+                for (int lj(j-m_radius); lj<=(j+m_radius); ++lj) {
+                    for (int li(i-m_radius); li<=(i+m_radius); ++li) {
+                        const amrex::Real u_val = 0.5 * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
+                        const amrex::Real v_val = 0.5 * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
+                        const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
+                        ma_arr(i,j,0) += mag * denom;
+                    }
                 }
-              }
             }
         });
+
+        // Fill interior ghost cells and any ghost cells outside a periodic domain
+        //***********************************************************************************
+        m_averages[iavg]->FillBoundary(m_geom.periodicity());
     }
 
 
-    // TODO: NEED TO FILL GHOST CELLS APPROPRIATELY! DOMAIN BOUNDARIES ARE ISSUE...
+    // Need to fill ghost cells outside the domain if not periodic
+    bool not_per_x = !(m_geom.periodicity().isPeriodic(0));
+    bool not_per_y = !(m_geom.periodicity().isPeriodic(1));
+    if (not_per_x || not_per_y) {
+        amrex::Box domain = m_geom.Domain();
+        for (int ima(0); ima<m_averages.size(); ++ima) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            amrex::IndexType ixt     = m_averages[ima]->boxArray().ixType();
+            amrex::Box ldomain       = domain; ldomain.convert(ixt);
+            amrex::IntVect ng = m_averages[ima]->nGrowVect(); ng[2]=0;
+            for (amrex::MFIter mfi(*m_averages[ima], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                amrex::Box gbx = mfi.growntilebox(ng);
+                gbx.setSmall(2,0); gbx.setBig(2,0);
+
+                if (ldomain.contains(gbx)) continue;
+
+                auto ma_arr = m_averages[ima]->array(mfi);
+
+                int i_lo = ldomain.smallEnd(0); int i_hi = ldomain.bigEnd(0);
+                int j_lo = ldomain.smallEnd(1); int j_hi = ldomain.bigEnd(1);
+                ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+                {
+                    int li, lj;
+                    li = i  < i_lo ? i_lo : i;
+                    li = li > i_hi ? i_hi : li;
+                    lj = j  < j_lo ? j_lo : j;
+                    lj = lj > j_hi ? j_hi : lj;
+
+                    ma_arr(i,j,0) = ma_arr(li,lj,0);
+                });
+            } // MFiter
+        } // ima
+    } // Not periodic
 }
 
 // Write k indices
@@ -335,7 +372,7 @@ MOSTAverage::write_k_indices()
     int navg = m_averages.size() - 1;
 
     std::ofstream ofile;
-    ofile.open ("MOST_K_indices.txt");
+    ofile.open ("MOST_k_indices.txt");
     ofile << "K indices used to compute averages via MOSTAverages class:\n";
 
     for (amrex::MFIter mfi(*m_averages[navg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {

@@ -30,46 +30,19 @@ public:
     amrex::Real z0_const{0.1};       ///< Roughness height -- default constant value(m)
     amrex::Real kappa{KAPPA};        ///< von Karman constant
     amrex::Real gravity{CONST_GRAV}; ///< Acceleration due to gravity (m/s^2)
-    amrex::Real obukhov_len{1.0e16}; ///< Non-dimensional Obukhov length
     amrex::Real surf_temp_flux{0.0}; ///< Heat flux
+    amrex::Real surf_temp;           ///< Surface temperature
 
-    // THIS BECOMES REDUNDANT WITH THE NEW 2D MFs
-    amrex::Real vel_mean[AMREX_SPACEDIM]; ///< Mean velocity (at zref)
-    amrex::Real vmag_mean;                ///< Mean wind speed (at zref)
-    amrex::Real theta_mean;               ///< Mean potential temperature
-
-    amrex::Real surf_temp;                ///< Instantaneous surface temperature
-    amrex::Real utau;                     ///< Friction velocity (m/s)
-    // END REDUNDANT CODE
+    // These are linked to the PBL scheme
+    //========================================================
+    amrex::Real obukhov_len{1.0e16}; ///< Non-dimensional Obukhov length
+    amrex::Real theta_mean;          ///< Mean potential temperature
+    //========================================================
 
     amrex::Real beta_m{5.0}; // Constants from Dyer, BLM, 1974
     amrex::Real beta_h{5.0}; // https://doi.org/10.1007/BF00240838
     amrex::Real gamma_m{16.0};
     amrex::Real gamma_h{16.0};
-
-    //AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-    //amrex::Real phi_m() const
-    //{
-    //    return std::log(zref / z0_const) - calc_psi_m(zref / obukhov_len);
-    //}
-
-    //AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-    //amrex::Real phi_m(amrex::Real z) const
-    //{
-    //    return std::log(z / z0_const) - calc_psi_m(z / obukhov_len);
-    //}
-
-    AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-    amrex::Real phi_h(amrex::Real z0_in) const
-    {
-        return std::log(zref / z0_in) - calc_psi_h(zref / obukhov_len);
-    }
-
-    AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-    amrex::Real phi_h(amrex::Real z, amrex::Real z0_in) const
-    {
-        return std::log(z / z0_in) - calc_psi_h(z / obukhov_len);
-    }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real calc_psi_m(amrex::Real zeta) const
@@ -284,21 +257,14 @@ public:
         SURFACE_TEMPERATURE ///< Surface temperature specified
     };
 
-    ThetaCalcType alg_type; //{HEAT_FLUX};
+    ThetaCalcType alg_type;
 
     void print() const
     {
         amrex::Print() << "ABLMost:\n";
         amrex::Print() << "  zref: "          << zref           << "\n";
-        amrex::Print() << "  utau: "          << utau           << "\n";
         amrex::Print() << " kappa: "          << kappa          << "\n";
         amrex::Print() << " gravity: "        << gravity        << "\n";
-        amrex::Print() << " obukhov_len: "    << obukhov_len    << "\n";
-        amrex::Print() << " vel_mean: "       << vel_mean[0]    << " "
-                                              << vel_mean[1]    << " "
-                                              << vel_mean[2]    << "\n";
-        amrex::Print() << " vmag_mean: "      << vmag_mean      << "\n";
-        amrex::Print() << " theta_mean: "     << theta_mean     << "\n";
         amrex::Print() << " surf_temp_flux: " << surf_temp_flux << "\n";
         amrex::Print() << " surf_temp: "      << surf_temp      << "\n";
         amrex::Print() << " beta_m: "         << beta_m         << "\n";
