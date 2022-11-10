@@ -74,7 +74,7 @@ void ABLMost::update_fluxes(int lev,
     }
     }
     // END REDUNDANT CODE
-    
+
     // New MOSTAverage class
     MOSTAverage ma({&U_old     , &V_old     , &W_old     , &Theta_old },
                    {u_mean[lev], v_mean[lev], w_mean[lev], t_mean[lev], u_mag_mean[lev]},
