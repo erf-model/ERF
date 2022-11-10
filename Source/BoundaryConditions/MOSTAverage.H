@@ -50,7 +50,7 @@ public:
     // Get plane averages long dir()
     const amrex::Vector<amrex::Real>& get_plane_average()      const { return m_plane_average[0]; }
     const amrex::Vector<amrex::Real>& get_plane_average(int i) const { return m_plane_average[i]; }
-
+    
     // Write k indices for each average
     void write_k_indices();
 
