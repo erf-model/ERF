@@ -257,6 +257,9 @@ MOSTAverage::compute_point_averages()
     int ncell_avg = (2 * m_radius + 1) * (2 * m_radius + 1) * (2 * m_radius + 1);
     const amrex::Real denom = 1.0 / (amrex::Real) ncell_avg;
 
+    // Capture radius for device
+    int d_radius = m_radius;
+
     // Averages over all the fields
     //----------------------------------------------------------
     for (int imf(0); imf<m_fields.size(); ++imf) {
@@ -276,9 +279,9 @@ MOSTAverage::compute_point_averages()
                 ma_arr(i,j,0) = 0.0;
 
                 int k = k_arr(i,j,0,0);
-                for (int lk(k-m_radius); lk<=(k+m_radius); ++lk) {
-                    for (int lj(j-m_radius); lj<=(j+m_radius); ++lj) {
-                        for (int li(i-m_radius); li<=(i+m_radius); ++li) {
+                for (int lk(k-d_radius); lk<=(k+d_radius); ++lk) {
+                    for (int lj(j-d_radius); lj<=(j+d_radius); ++lj) {
+                        for (int li(i-d_radius); li<=(i+d_radius); ++li) {
                             ma_arr(i,j,0) += mf_arr(li, lj, lk) * denom;
                         }
                     }
@@ -313,9 +316,9 @@ MOSTAverage::compute_point_averages()
             ma_arr(i,j,0) = 0.0;
 
             int k = k_arr(i,j,0,0);
-            for (int lk(k-m_radius); lk<=(k+m_radius); ++lk) {
-                for (int lj(j-m_radius); lj<=(j+m_radius); ++lj) {
-                    for (int li(i-m_radius); li<=(i+m_radius); ++li) {
+            for (int lk(k-d_radius); lk<=(k+d_radius); ++lk) {
+                for (int lj(j-d_radius); lj<=(j+d_radius); ++lj) {
+                    for (int li(i-d_radius); li<=(i+d_radius); ++li) {
                         const amrex::Real u_val = 0.5 * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
                         const amrex::Real v_val = 0.5 * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
                         const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
