@@ -10,24 +10,21 @@ void ABLMost::update_fluxes(int lev,
                             amrex::MultiFab& V_old    , amrex::MultiFab& W_old,
                             int max_iters)
 {
-    /*
+    // TODO: REMOVE ALL OF THIS AFTER PBL STUFF ADDRESSED
     // THIS BECOMES REDUNDANT WITH THE NEW 2D MFs
     {
     PlaneAverage Thave(&Theta_old, m_geom[lev], 2);
     PlaneAverage vxave(&U_old, m_geom[lev], 2);
     PlaneAverage vyave(&V_old, m_geom[lev], 2);
     PlaneAverage vzave(&W_old, m_geom[lev], 2);
-
     Thave.compute_averages(ZDir(), Thave.field());
     vxave.compute_averages(ZDir(), vxave.field());
     vyave.compute_averages(ZDir(), vyave.field());
     vzave.compute_averages(ZDir(), vzave.field());
-
     vel_mean[0] = vxave.line_average_interpolated(zref, 0);
     vel_mean[1] = vyave.line_average_interpolated(zref, 0);
     vel_mean[2] = vzave.line_average_interpolated(zref, 0);
     theta_mean  = Thave.line_average_interpolated(zref, 0);
-
     VelPlaneAverage vmagave(m_geom[lev]);
     vmagave.compute_hvelmag_averages(U_old,V_old);
     vmag_mean   = vmagave.line_hvelmag_average_interpolated(zref);
@@ -35,12 +32,10 @@ void ABLMost::update_fluxes(int lev,
     constexpr amrex::Real eps = 1.0e-16;
     amrex::Real zeta = 0.0;
     amrex::Real utau_iter = 0.0;
-
     // Initialize variables
     amrex::Real psi_m = 0.0;
     amrex::Real psi_h = 0.0;
     utau = kappa * vmag_mean / (std::log(zref / z0_const));
-
     int iter = 0;
     do {
         utau_iter = utau;
@@ -54,7 +49,6 @@ void ABLMost::update_fluxes(int lev,
                               (std::log(zref / z0_const) - psi_h);
             break;
         }
-
         if (std::abs(surf_temp_flux) > eps) {
             // Stable and unstable ABL conditions
             obukhov_len = -utau * utau * utau * theta_mean /
@@ -70,8 +64,7 @@ void ABLMost::update_fluxes(int lev,
         utau = kappa * vmag_mean / (std::log(zref / z0_const) - psi_m);
         ++iter;
     } while ((std::abs(utau_iter - utau) > 1e-5) && iter <= max_iters);
-
-    if (true) { //iter >= max_iters) {
+    if (iter >= max_iters) {
         amrex::Print()
             << "MOData::update_fluxes: Convergence criteria not met after "
             << max_iters << " iterations"
@@ -82,9 +75,7 @@ void ABLMost::update_fluxes(int lev,
     }
     }
     // END REDUNDANT CODE
-    */
 
-    //====================================================================================
     // New MOSTAverage class
     MOSTAverage ma({&U_old     , &V_old     , &W_old     , &Theta_old },
                    {u_mean[lev], v_mean[lev], w_mean[lev], t_mean[lev], u_mag_mean[lev]},
@@ -95,150 +86,131 @@ void ABLMost::update_fluxes(int lev,
     // Compute plane averages for all vars
     ma.compute_averages();
 
-    // Write text file of averages
-    //ma.write_k_indices();
-    //ma.write_averages();
-
     /*
-    // Verify the mf has the same value as computed via PlaneAverage class
-    amrex::Print() << "\n";
-    amrex::Print() << "CHECKING MOSTAverage class: \n";
-    const auto um_ptr = ma.get_average(0);
-    const auto vm_ptr = ma.get_average(1);
-    const auto wm_ptr = ma.get_average(2);
-    const auto tm_ptr = ma.get_average(3);
-    const auto sm_ptr = ma.get_average(4);
-    for (MFIter mfi(*um_ptr); mfi.isValid(); ++mfi)
-    {
-        const auto um_arr = (*um_ptr)[mfi].array();
-        const auto vm_arr = (*vm_ptr)[mfi].array();
-        const auto wm_arr = (*wm_ptr)[mfi].array();
-        const auto tm_arr = (*tm_ptr)[mfi].array();
-        const auto sm_arr = (*sm_ptr)[mfi].array();
-        amrex::Print() << "U CHECK: " << vel_mean[0] << ' ' << um_arr(0,0,0)  << "\n";
-        amrex::Print() << "V CHECK: " << vel_mean[1] << ' ' << vm_arr(0,0,0)  << "\n";
-        amrex::Print() << "W CHECK: " << vel_mean[2] << ' ' << wm_arr(0,0,0)  << "\n";
-        amrex::Print() << "T CHECK: " << theta_mean  << ' ' << tm_arr(0,0,0)  << "\n";
-        amrex::Print() << "S CHECK: " << vmag_mean   << ' ' << sm_arr(0,0,0)  << "\n";
-     }
-     amrex::Print() << "\n";
+    // Write text file of averages
+    ma.write_k_indices();
+    ma.write_averages();
+    exit(0);
     */
 
+    // Pointers to the computed averages
+    const auto tm_ptr  = ma.get_average(3);
+    const auto umm_ptr = ma.get_average(4);
 
-     // Pointers to the computed averages
-     const auto tm_ptr  = ma.get_average(3);
-     const auto umm_ptr = ma.get_average(4);
+    // GPU device captures
+    amrex::Real d_kappa = kappa;
+    amrex::Real d_zref  = zref;
+    amrex::Real d_gravity = gravity;
+    amrex::Real d_surf_temp_flux = surf_temp_flux;
+    ABLMostData d_most = get_most_data();
 
-     amrex::Real d_kappa = kappa;
-     amrex::Real d_zref  = zref;
-     amrex::Real d_gravity = gravity;
-     amrex::Real d_surf_temp_flux = surf_temp_flux;
-     ABLMostData d_most = get_most_data();
+    // Tolerances
+    constexpr amrex::Real eps = 1.0e-16;
+    constexpr amrex::Real tol = 1.0e-5;
 
-     const amrex::IntVect& ng = u_star[lev]->nGrowVect();
+    // Ghost cells of CC var
+    const amrex::IntVect& ng = u_star[lev]->nGrowVect();
 
-     // Initialize to the adiabatic q=0 case
-     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
-     {
-         amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
+    // Initialize to the adiabatic q=0 case
+    for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+    {
+        amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
 
-         auto t_star_arr = t_star[lev]->array(mfi);
-         auto u_star_arr = u_star[lev]->array(mfi);
+        auto t_star_arr = t_star[lev]->array(mfi);
+        auto u_star_arr = u_star[lev]->array(mfi);
 
-         const auto umm_arr = umm_ptr->array(mfi);
-         const auto z0_arr  = z_0[lev].array();
+        const auto umm_arr = umm_ptr->array(mfi);
+        const auto z0_arr  = z_0[lev].array();
 
-         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-         {
-             t_star_arr(i,j,k) = 0.0;
-             u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / std::log(d_zref / z0_arr(i,j,k));
-         });
-     }
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            t_star_arr(i,j,k) = 0.0;
+            u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / std::log(d_zref / z0_arr(i,j,k));
+        });
+    }
 
+    // Specified finite heat flux
+    if ( (alg_type == HEAT_FLUX) && (std::abs(surf_temp_flux) > eps) ) {
+        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+        {
+            amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
 
-     // Specified finite heat flux
-     if ( (alg_type == HEAT_FLUX) && (std::abs(surf_temp_flux) > 1.0e-16) ) {
-         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
-         {
-             amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
+            auto t_surf_arr = t_surf[lev]->array(mfi);
+            auto t_star_arr = t_star[lev]->array(mfi);
+            auto u_star_arr = u_star[lev]->array(mfi);
 
-             auto t_surf_arr = t_surf[lev]->array(mfi);
-             auto t_star_arr = t_star[lev]->array(mfi);
-             auto u_star_arr = u_star[lev]->array(mfi);
+            const auto tm_arr  = tm_ptr->array(mfi);
+            const auto umm_arr = umm_ptr->array(mfi);
+            const auto z0_arr  = z_0[lev].array();
 
-             const auto tm_arr  = tm_ptr->array(mfi);
-             const auto umm_arr = umm_ptr->array(mfi);
-             const auto z0_arr  = z_0[lev].array();
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                int iter = 0;
+                amrex::Real ustar = 0.0;
+                amrex::Real zeta  = 0.0;
+                amrex::Real psi_m = 0.0;
+                amrex::Real psi_h = 0.0;
+                amrex::Real Olen  = 0.0;
+                do {
+                    ustar = u_star_arr(i,j,k);
+                    Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
+                           (d_kappa * d_gravity * d_surf_temp_flux);
+                    zeta  = d_zref / Olen;
+                    psi_m = d_most.calc_psi_m(zeta);
+                    psi_h = d_most.calc_psi_h(zeta);
+                    u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / (std::log(d_zref / z0_arr(i,j,k)) - psi_m);
+                    ++iter;
+                } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
 
-             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-             {
-                 int iter = 0;
-                 amrex::Real ustar = 0.0;
-                 amrex::Real zeta  = 0.0;
-                 amrex::Real psi_m = 0.0;
-                 amrex::Real psi_h = 0.0;
-                 amrex::Real Olen  = 0.0;
-                 do {
-                     ustar = u_star_arr(i,j,k);
-                     Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                             (d_kappa * d_gravity * d_surf_temp_flux);
-                     zeta  = d_zref / Olen;
-                     psi_m = d_most.calc_psi_m(zeta);
-                     psi_h = d_most.calc_psi_h(zeta);
-                     u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / (std::log(d_zref / z0_arr(i,j,k)) - psi_m);
-                     ++iter;
-                 } while ((std::abs(u_star_arr(i,j,k) - ustar) > 1e-5) && iter <= max_iters);
+                t_surf_arr(i,j,k) = d_surf_temp_flux * (std::log(d_zref / z0_arr(i,j,k)) - psi_h) /
+                                    (u_star_arr(i,j,k) * d_kappa) + tm_arr(i,j,k);
+                t_star_arr(i,j,k) = -d_surf_temp_flux / u_star_arr(i,j,k);
+            });
+        }
+    // Specified surface temperature
+    } else if ( alg_type == SURFACE_TEMPERATURE ) {
+        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+        {
+            amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
 
-                 t_surf_arr(i,j,k) = d_surf_temp_flux * (std::log(d_zref / z0_arr(i,j,k)) - psi_h) /
-                                     (u_star_arr(i,j,k) * d_kappa) + tm_arr(i,j,k);
-                 t_star_arr(i,j,k) = -d_surf_temp_flux / u_star_arr(i,j,k);
-             });
-         }
-     // Specified surface temperature
-     } else if ( alg_type == SURFACE_TEMPERATURE ) {
-         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
-         {
-             amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
+            auto t_surf_arr = t_surf[lev]->array(mfi);
+            auto t_star_arr = t_star[lev]->array(mfi);
+            auto u_star_arr = u_star[lev]->array(mfi);
 
-             auto t_surf_arr = t_surf[lev]->array(mfi);
-             auto t_star_arr = t_star[lev]->array(mfi);
-             auto u_star_arr = u_star[lev]->array(mfi);
+            const auto tm_arr  = tm_ptr->array(mfi);
+            const auto umm_arr = umm_ptr->array(mfi);
+            const auto z0_arr  = z_0[lev].array();
 
-             const auto tm_arr  = tm_ptr->array(mfi);
-             const auto umm_arr = umm_ptr->array(mfi);
-             const auto z0_arr  = z_0[lev].array();
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                // Nothing to do unless the flux != 0
+                if (std::abs(t_surf_arr(i,j,k)-tm_arr(i,j,k)) > eps) {
+                    int iter = 0;
+                    amrex::Real ustar = 0.0;
+                    amrex::Real tflux = 0.0;
+                    amrex::Real zeta  = 0.0;
+                    amrex::Real psi_m = 0.0;
+                    amrex::Real psi_h = 0.0;
+                    amrex::Real Olen  = 0.0;
+                    do {
+                        ustar = u_star_arr(i,j,k);
+                        tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * d_kappa /
+                                 (std::log(d_zref / z0_arr(i,j,k)) - psi_h);
+                        Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
+                               (d_kappa * d_gravity * tflux);
+                        zeta  = d_zref / Olen;
+                        psi_m = d_most.calc_psi_m(zeta);
+                        psi_h = d_most.calc_psi_h(zeta);
+                        u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / (std::log(d_zref / z0_arr(i,j,k)) - psi_m);
+                        ++iter;
+                    } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
 
-             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-             {
-                 // Nothing to do unless the flux != 0
-                 if (std::abs(t_surf_arr(i,j,k)-tm_arr(i,j,k)) > 1.0e-16) {
-                   int iter = 0;
-                   amrex::Real ustar = 0.0;
-                   amrex::Real tflux = 0.0;
-                   amrex::Real zeta  = 0.0;
-                   amrex::Real psi_m = 0.0;
-                   amrex::Real psi_h = 0.0;
-                   amrex::Real Olen  = 0.0;
-                   do {
-                     ustar = u_star_arr(i,j,k);
-                     tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * d_kappa /
-                              (std::log(d_zref / z0_arr(i,j,k)) - psi_h);
-                     Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
-                            (d_kappa * d_gravity * tflux);
-                     zeta  = d_zref / Olen;
-                     psi_m = d_most.calc_psi_m(zeta);
-                     psi_h = d_most.calc_psi_h(zeta);
-                     u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / (std::log(d_zref / z0_arr(i,j,k)) - psi_m);
-                     ++iter;
-                 } while ((std::abs(u_star_arr(i,j,k) - ustar) > 1e-5) && iter <= max_iters);
-
-                 t_star_arr(i,j,k) = d_kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
-                                     (std::log(d_zref / z0_arr(i,j,k)) - psi_h);
-                 }
-             });
-         }
-     }
-     //====================================================================================
+                    t_star_arr(i,j,k) = d_kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
+                                        (std::log(d_zref / z0_arr(i,j,k)) - psi_h);
+                }
+            });
+        }
+    }
 }
 
 

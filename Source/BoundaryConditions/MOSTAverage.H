@@ -5,6 +5,7 @@
 #include <AMReX_FArrayBox.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_iMultiFab.H>
+#include <AMReX_ParmParse.H>
 
 class MOSTAverage {
 public:
@@ -19,14 +20,20 @@ public:
      MOSTAverage() = default;
     ~MOSTAverage() = default;
 
-    // Populate a 2D iMF with the k indices for averaging
+    // Populate a 2D iMF with the k indices for policy::plane
     void compute_plane_k_indices();
+
+    // Populate a 2D iMF with the k indices for policy::point
+    void compute_point_k_indices();
 
     // Driver for the different average policies
     void compute_averages();
 
-    // Fill plane storage with averages
+    // Fill averages for policy::plane
     void compute_plane_averages();
+
+    // Fill averages for policy::point
+    void compute_point_averages();
 
     // Get number of components for a mf in m_fields
     int ncomp()      const  { return m_ncomps[0]; }
@@ -53,6 +60,9 @@ public:
 protected:
     amrex::Real m_dz;  // Mesh spacing in axis direction
     amrex::Real m_zlo; // Bottom of domain in axis direction
+
+    int m_k_ind  = -1; // Specified k_index for local-point/region average
+    int m_radius =  0; // Specified radius around k_index
 
     amrex::Vector<int> m_ncomps;      // Number of components (mf)
     amrex::Vector<int> m_ncell_plane; // Number of cells in plane (mf)

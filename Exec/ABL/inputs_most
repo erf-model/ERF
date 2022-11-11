@@ -19,6 +19,9 @@ erf.most.z0   = 100.0
 erf.most.zref = 200.0
 #erf.most.surf_temp      = 301.0   # SPECIFIED SURFACE TEMP
 #erf.most.surf_temp_flux = 8.14165 # SPECIFIED SURFACE FLUX
+#erf.most.k_indx = 3 # SPECIFIED K INDEX
+#erf.most.radius = 1 # SPECIFIED REGION RADIUS
+
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.2  # fixed time step depending on grid resolution

@@ -1201,10 +1201,12 @@ ERF::setupABLMost (int lev)
     MultiFab& V_old = vars_old[lev][Vars::yvel];
     MultiFab& W_old = vars_old[lev][Vars::zvel];
 
+    amrex::IntVect ng = S_old.nGrowVect(); ng[2]=0;
+
     // Multifab to store primitive Theta, which is what we want to average
-    MultiFab Theta_prim(S_old.boxArray(), S_old.DistributionMap(), 1, 0);
-    MultiFab::Copy(  Theta_prim, S_old, Cons::RhoTheta, 0, 1, 0);
-    MultiFab::Divide(Theta_prim, S_old, Cons::Rho, 0, 1, 0);
+    MultiFab Theta_prim(S_old.boxArray(), S_old.DistributionMap(), 1, ng);
+    MultiFab::Copy(  Theta_prim, S_old, Cons::RhoTheta, 0, 1, ng);
+    MultiFab::Divide(Theta_prim, S_old, Cons::Rho, 0, 1, ng);
 
     m_most->update_fluxes(lev,Theta_prim,U_old,V_old,W_old);
 }
