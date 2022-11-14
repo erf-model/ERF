@@ -197,6 +197,7 @@ void erf_fast_rhs_N (int step, int level,
         {
             // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
             Real gpx = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k))*dxi;
+            gpx *= mf_u(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
             Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
@@ -218,6 +219,7 @@ void erf_fast_rhs_N (int step, int level,
         {
             // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
             Real gpy = (theta_extrap(i,j,k) - theta_extrap(i,j-1,k))*dyi;
+            gpy *= mf_v(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
             Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)

@@ -206,6 +206,7 @@ void erf_fast_rhs_MT (int step, int level,
                    0.25 * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
                                  -theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
                 Real gpx = h_zeta_old * gp_xi - h_xi_old * gp_zeta_on_iface;
+                gpx *= mf_u(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
@@ -231,6 +232,7 @@ void erf_fast_rhs_MT (int step, int level,
                     0.25 * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
                                   -theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
                 Real gpy = h_zeta_old * gp_eta - h_eta_old  * gp_zeta_on_jface;
+                gpy *= mf_v(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)

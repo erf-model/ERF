@@ -123,8 +123,10 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
 
-            Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_mid = 1. / mf_u(i  ,j  ,0); Real mf_u_inv_lo = 1. / mf_u(i-1,j  ,0);
-            Real mf_v_inv_1  = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_2   = 1. / mf_v(i-1,j+1,0); Real mf_v_inv_3  = 1. / mf_v(i  ,j  ,0); Real mf_v_inv_4 = 1. / mf_v(i-1,j  ,0);
+            Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_mid = 1. / mf_u(i  ,j  ,0);
+            Real mf_u_inv_lo = 1. / mf_u(i-1,j  ,0);
+            Real mf_v_inv_1  = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_2   = 1. / mf_v(i-1,j+1,0);
+            Real mf_v_inv_3  = 1. / mf_v(i  ,j  ,0); Real mf_v_inv_4 = 1. / mf_v(i-1,j  ,0);
 
             Real xflux_hi = 0.25 * (rho_u(i, j  , k) * mf_u_inv_mid + rho_u(i+1, j  , k) * mf_u_inv_hi) * (u(i+1,j,k) + u(i,j,k));
             Real xflux_lo = 0.25 * (rho_u(i, j  , k) * mf_u_inv_mid + rho_u(i-1, j  , k) * mf_u_inv_lo) * (u(i-1,j,k) + u(i,j,k));
@@ -145,8 +147,10 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
 
-            Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_mid = 1. / mf_v(i  ,j  ,0); Real mf_v_inv_lo = 1. / mf_v(i  ,j-1,0);
-            Real mf_u_inv_1  = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_2   = 1. / mf_u(i+1,j-1,0); Real mf_u_inv_3  = 1. / mf_u(i  ,j  ,0); Real mf_u_inv_4 = 1. / mf_u(i  ,j-1,0);
+            Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_mid = 1. / mf_v(i  ,j  ,0);
+            Real mf_v_inv_lo = 1. / mf_v(i  ,j-1,0);
+            Real mf_u_inv_1  = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_2   = 1. / mf_u(i+1,j-1,0);
+            Real mf_u_inv_3  = 1. / mf_u(i  ,j  ,0); Real mf_u_inv_4 = 1. / mf_u(i  ,j-1,0);
 
             Real xflux_hi = 0.25 * (rho_u(i+1, j, k) * mf_u_inv_1 + rho_u(i+1, j-1, k) * mf_u_inv_2) * (v(i+1,j,k) + v(i,j,k));
             Real xflux_lo = 0.25 * (rho_u(i  , j, k) * mf_u_inv_3 + rho_u(i  , j-1, k) * mf_u_inv_4) * (v(i-1,j,k) + v(i,j,k));
