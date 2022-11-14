@@ -46,7 +46,7 @@ erf.use_gravity = false
 erf.les_type         = "None"
 erf.molec_diff_type  = "Constant"
 erf.rho0_trans       = 1.0
-erf.dynamicViscosity = 0.0
+erf.dynamicViscosity = 1.0
 
 erf.spatial_order = 2
 
@@ -54,7 +54,7 @@ erf.spatial_order = 2
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
 prob.B_0 = 0.0
-prob.u_0 = 5.0
-prob.v_0 = 0.0
+prob.u_0 = 10.0
+prob.v_0 = 5.0
 prob.rad_0 = 0.5
 prob.prob_type = 13
