@@ -189,6 +189,9 @@ init_custom_prob(
   Real g           = CONST_GRAV;
   Real omega       = std::sqrt(g * kp);
 
+  // HACK HACK HACK
+  // Ampl = 0.;
+
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const auto prob_lo  = geomdata.ProbLo();
@@ -207,7 +210,7 @@ init_custom_prob(
 
       // Define (rho theta) given pprime
       state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total);
-   
+
       // Set scalar = 0 everywhere
       state(i, j, k, RhoScalar_comp) = state(i,j,k,Rho_comp);
 
