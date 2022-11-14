@@ -86,12 +86,12 @@ void ABLMost::update_fluxes(int lev,
     // Compute plane averages for all vars
     ma.compute_averages();
 
-
+    /*
     // Write text file of averages
     ma.write_k_indices();
     ma.write_averages();
     exit(0);
-
+    */
 
     // Pointers to the computed averages
     const auto tm_ptr  = ma.get_average(3);
@@ -108,13 +108,13 @@ void ABLMost::update_fluxes(int lev,
     constexpr amrex::Real eps = 1.0e-16;
     constexpr amrex::Real tol = 1.0e-5;
 
-    // Ghost cells of CC var
-    const amrex::IntVect& ng = u_star[lev]->nGrowVect();
+    // Ghost cells for CC var
+    amrex::IntVect ng = u_star[lev]->nGrowVect(); ng[2]=0;
 
     // Initialize to the adiabatic q=0 case
     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
     {
-        amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
+        amrex::Box bx = mfi.growntilebox(ng);
 
         auto t_star_arr = t_star[lev]->array(mfi);
         auto u_star_arr = u_star[lev]->array(mfi);
@@ -133,7 +133,7 @@ void ABLMost::update_fluxes(int lev,
     if ( (alg_type == HEAT_FLUX) && (std::abs(surf_temp_flux) > eps) ) {
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
-            amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
+            amrex::Box bx = mfi.growntilebox(ng);
 
             auto t_surf_arr = t_surf[lev]->array(mfi);
             auto t_star_arr = t_star[lev]->array(mfi);
@@ -171,7 +171,7 @@ void ABLMost::update_fluxes(int lev,
     } else if ( alg_type == SURFACE_TEMPERATURE ) {
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
-            amrex::Box bx = mfi.growntilebox({ng[0], ng[1], 0});
+            amrex::Box bx = mfi.growntilebox(ng);
 
             auto t_surf_arr = t_surf[lev]->array(mfi);
             auto t_star_arr = t_star[lev]->array(mfi);

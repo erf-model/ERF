@@ -135,13 +135,13 @@ public:
                 }
                 amrex::BoxArray ba2d(std::move(bl2d));
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
-                const int ncomp  = 1;
-                const int incomp = 1;
-                const amrex::IntVect& ng = mf.nGrowVect();
+                const int ncomp   = 1;
+                const int incomp  = 1;
+                amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-                u_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
+                u_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 u_mean[lev]->setVal(1.E34);
-                x_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,{ng[0], ng[1], 0});
+                x_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
             }
             { // Nodal in y
                 auto& mf = vars_new[lev][Vars::yvel];
@@ -153,13 +153,13 @@ public:
                 }
                 amrex::BoxArray ba2d(std::move(bl2d));
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
-                const int ncomp  = 1;
-                const int incomp = 1;
-                const amrex::IntVect& ng = mf.nGrowVect();
+                const int ncomp   = 1;
+                const int incomp  = 1;
+                amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-                v_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
+                v_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 v_mean[lev]->setVal(1.E34);
-                y_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,{ng[0], ng[1], 0});
+                y_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
             }
             { // Nodal in z
                 auto& mf = vars_new[lev][Vars::zvel];
@@ -171,13 +171,13 @@ public:
                 }
                 amrex::BoxArray ba2d(std::move(bl2d));
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
-                const int ncomp  = 1;
-                const int incomp = 1;
-                const amrex::IntVect& ng = mf.nGrowVect();
+                const int ncomp   = 1;
+                const int incomp  = 1;
+                amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-                w_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
+                w_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 w_mean[lev]->setVal(1.E34);
-                z_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,{ng[0], ng[1], 0});
+                z_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
             }
             { // CC vars
                 auto& mf = vars_new[lev][Vars::cons];
@@ -189,30 +189,30 @@ public:
                 }
                 amrex::BoxArray ba2d(std::move(bl2d));
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
-                const int ncomp  = 1;
-                const int incomp = 1;
-                const amrex::IntVect& ng = mf.nGrowVect();
+                const int ncomp   = 1;
+                const int incomp  = 1;
+                amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-                t_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
+                t_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 t_mean[lev]->setVal(1.E34);
 
-                u_mag_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
+                u_mag_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 u_mag_mean[lev]->setVal(1.E34);
 
-                u_star[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
+                u_star[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 u_star[lev]->setVal(1.E34);
 
-                t_star[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
+                t_star[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 t_star[lev]->setVal(1.E34);
 
-                t_surf[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
+                t_surf[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 if (erf_st) {
                    t_surf[lev]->setVal(surf_temp);
                 } else {
                     t_surf[lev]->setVal(0.0);
                 }
 
-                cc_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,{ng[0], ng[1], 0});
+                cc_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
             }
 
         }
