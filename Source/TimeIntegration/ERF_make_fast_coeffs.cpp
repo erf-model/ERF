@@ -17,7 +17,7 @@ void make_fast_coeffs (int level,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
-                       amrex::Real dtau,bool ingested_bcs)
+                       amrex::Real dtau)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
 

@@ -36,8 +36,7 @@ void erf_fast_rhs_MT (int step, int level,
                       const amrex::Real dtau, const amrex::Real facinv,
                       std::unique_ptr<MultiFab>& mapfac_m,
                       std::unique_ptr<MultiFab>& mapfac_u,
-                      std::unique_ptr<MultiFab>& mapfac_v,
-                      bool ingested_bcs)
+                      std::unique_ptr<MultiFab>& mapfac_v)
 {
     BL_PROFILE_REGION("erf_fast_rhs_MT()");
 

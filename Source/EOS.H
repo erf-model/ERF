@@ -39,14 +39,6 @@ amrex::Real getdPdRgivenConstantTheta(const amrex::Real rho, const amrex::Real t
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getPprimegivenRTh(const amrex::Real rhotheta, const amrex::Real pres_hse_at_k)
-{
-    // diagnostic relation for the full pressure
-    // see https://erf.readthedocs.io/en/latest/theory/NavierStokesEquations.html
-    return p_0 * std::pow(R_d * rhotheta * ip_0, Gamma) - pres_hse_at_k;
-}
-
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getExnergivenP(const amrex::Real P)
 {
     // Exner function pi in terms of P

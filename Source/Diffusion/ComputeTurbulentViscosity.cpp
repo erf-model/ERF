@@ -27,14 +27,6 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     const Real cellVol = 1.0 / (dxInv[0] * dxInv[1] * dxInv[2]);
     const Real Delta   = std::pow(cellVol,1.0/3.0);
 
-    const auto& domain = geom.Domain();
-    const auto& dom_lo = amrex::lbound(domain);
-    const auto& dom_hi = amrex::ubound(domain);
-
-    const int i_dom_lo = dom_lo.x; const int i_dom_hi = dom_hi.x;
-    const int j_dom_lo = dom_lo.y; const int j_dom_hi = dom_hi.y;
-    const int k_dom_lo = dom_lo.z; const int k_dom_hi = dom_hi.z;
-
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
     if (solverChoice.les_type == LESType::Smagorinsky)
@@ -246,7 +238,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     }
 }
 
-void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel , const amrex::MultiFab& zvel ,
+void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel ,
                                 const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
                                 const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
                                 const amrex::MultiFab& cons_in,

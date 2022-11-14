@@ -8,7 +8,7 @@
 #include <StrainRate.H>
 
 void
-ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel , const amrex::MultiFab& zvel ,
+ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel ,
                            const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
                            const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
                            const amrex::MultiFab& cons_in,

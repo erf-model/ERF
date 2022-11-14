@@ -147,12 +147,7 @@ public:
                       amrex::MultiFab& source,
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
-                      amrex::InterpFaceRegister* ifr,
-                      amrex::MultiFab* r0, amrex::MultiFab* p0, amrex::MultiFab* pi0,
-                      const amrex::Real* dptr_rayleigh_tau,
-                      const amrex::Real* dptr_rayleigh_ubar,
-                      const amrex::Real* dptr_rayleigh_vbar,
-                      const amrex::Real* dptr_rayleigh_thetabar);
+                      amrex::InterpFaceRegister* ifr);
 
     amrex::MultiFab& build_fine_mask(int lev);
 
@@ -494,6 +489,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sst;
 
     amrex::Vector<amrex::MultiFab> base_state;
+    amrex::Vector<amrex::MultiFab> base_state_new;
 
     // array of flux registers
     amrex::Vector<amrex::FluxRegister*> flux_registers;
@@ -559,17 +555,19 @@ private:
     amrex::Vector<std::string> plot_var_names_1;
     amrex::Vector<std::string> plot_var_names_2;
     const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
-    const amrex::Vector<std::string> cons_names { "density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
+    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
 #ifdef ERF_USE_MOISTURE
-                                                 ,"rhoQv", "rhoQc"};
-#else
-                                                 };
+                                                     ,"rhoQv", "rhoQc"
 #endif
+                                                     };
 
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar", "pres_hse",
                                                     "dens_hse", "pert_pres", "pert_dens", "dpdx", "dpdy",
                                                     "pres_hse_x", "pres_hse_y", "z_phys", "detJ"
+#ifdef ERF_COMPUTE_ERROR
+                                                    ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
+#endif
                                                    };
 
     // algorithm choices
