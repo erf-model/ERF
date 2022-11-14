@@ -9,7 +9,7 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
                           amrex::Geometry geom,
                           int policy,
                           bool update_k)
-    : m_fields(fields), m_averages(averages), m_k_indx(k_indx), m_z_ref(z_ref)  ,
+    : m_fields(fields), m_averages(averages), m_k_indx(k_indx), m_z_ref(z_ref)      ,
       m_z_nd(z_nd)    , m_geom(geom)        , m_policy(policy), m_update_k(update_k)
 {
     AMREX_ALWAYS_ASSERT(fields.size() >= 2);
@@ -18,7 +18,7 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
     m_zlo = m_geom.ProbLo  (2);
     m_dz  = m_geom.CellSize(2);
 
-    // Num components, plane avg, cells per plane, interp coeff
+    // Num components, plane avg, cells per plane
     amrex::Box domain = m_geom.Domain();
     amrex::IntVect dom_lo(domain.loVect());
     amrex::IntVect dom_hi(domain.hiVect());
@@ -26,88 +26,49 @@ MOSTAverage::MOSTAverage (amrex::Vector<const amrex::MultiFab*> fields,
     m_ncomps.resize( asize );
     m_plane_average.resize( asize );
     m_ncell_plane.resize( asize );
-    c_interp.resize( asize );
-    for (int i(0); i<asize; ++i) {
-        m_ncomps[i] = m_averages[i]->nComp();
-        m_plane_average[i].resize(2,0.0);
+    for (int iavg(0); iavg<asize; ++iavg) {
+        m_ncomps[iavg]        = m_averages[iavg]->nComp();
+        m_plane_average[iavg] = 0.0;
 
-        m_ncell_plane[i] = 1;
-        amrex::IndexType ixt = m_averages[i]->boxArray().ixType();
-        for (int j = 0; j < AMREX_SPACEDIM; ++j) {
-            if (j != 2) {
-                if (ixt.nodeCentered(j)) {
-                    m_ncell_plane[i] *= (dom_hi[j] - dom_lo[j] + 2);
+        m_ncell_plane[iavg] = 1;
+        amrex::IndexType ixt = m_averages[iavg]->boxArray().ixType();
+        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+            if (idim != 2) {
+                if (ixt.nodeCentered(idim)) {
+                    m_ncell_plane[iavg] *= (dom_hi[idim] - dom_lo[idim] + 2);
                 } else {
-                    m_ncell_plane[i] *= (dom_hi[j] - dom_lo[j] + 1);
+                    m_ncell_plane[iavg] *= (dom_hi[idim] - dom_lo[idim] + 1);
                 }
             }
         }
     }
 
     // Select a policy for k-index
-    switch(m_policy) {
-    case 0: // Standard plane average
-        if (m_update_k) {
-            compute_plane_k_indices();
-        } else {
-            for (int i(0); i<m_averages.size(); ++i) {
-                amrex::Real z = m_z_ref[i];
-                int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
-                const amrex::Real z_lo = m_zlo + (k_lo + 0.5) * m_dz;
-                c_interp[i] = (z - z_lo) / m_dz;
-            }
+    if (m_update_k) {
+        switch(m_policy) {
+        case 0: // Standard plane average
+            set_uniform_k_indices();
+            break;
+
+        case 1: // Local region/point
+            set_uniform_k_indices();
+            break;
+
+        case 2: // Fixed height above the terrain surface
+            break;
+
+        case 3: // Along a normal vector
+            break;
+
+        default:
+            AMREX_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
         }
-        break;
-
-    case 1: // Local region/point
-        if (m_update_k) compute_point_k_indices();
-        break;
-
-    case 2: // Fixed height above the terrain surface
-        break;
-
-    case 3: // Along a normal vector
-        break;
-
-    default:
-        AMREX_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
 }
 
 // Populate a 2D iMF with the k indices for averaging
 void
-MOSTAverage::compute_plane_k_indices()
-{
-    for (int iavg(0); iavg<m_averages.size(); ++iavg) {
-        amrex::Real z = m_z_ref[iavg];
-        AMREX_ALWAYS_ASSERT(z >= m_zlo + 0.5 * m_dz);
-
-        int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
-        int k_hi = k_lo + 1;
-        const amrex::Real z_lo = m_zlo + (k_lo + 0.5) * m_dz;
-        c_interp[iavg] = (z - z_lo) / m_dz;
-
-        amrex::IntVect ng = m_k_indx[iavg]->nGrowVect(); ng[2]=0;
-
-        for (amrex::MFIter mfi(*m_k_indx[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            amrex::Box gbx = mfi.growntilebox(ng);
-
-            auto k_arr     = m_k_indx[iavg]->array(mfi);
-
-            ParallelFor(gbx,gbx,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                k_arr(i,j,k,0) = k_lo;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                k_arr(i,j,k,1) = k_hi;
-            });
-       }
-    }
-}
-
-// Populate a 2D iMF with the k indices for averaging
-void
-MOSTAverage::compute_point_k_indices()
+MOSTAverage::set_uniform_k_indices()
 {
     amrex::ParmParse pp("erf");
     auto read_k = pp.query("most.k_indx", m_k_ind);
@@ -121,20 +82,19 @@ MOSTAverage::compute_point_k_indices()
     } else {
         for (int iavg(0); iavg<m_averages.size(); ++iavg) {
             amrex::Real z = m_z_ref[iavg];
+
             AMREX_ALWAYS_ASSERT(z >= m_zlo + 0.5 * m_dz);
 
-            int k_lo = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
-            k_lo = std::max(m_radius,k_lo);
-
+            int lk = static_cast<int>(floor((z - m_zlo) / m_dz - 0.5));
+            lk = std::max(m_radius,lk);
             amrex::IntVect ng = m_k_indx[iavg]->nGrowVect(); ng[2]=0;
 
             for (amrex::MFIter mfi(*m_k_indx[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                amrex::Box gbx = mfi.growntilebox(ng);
-                auto k_arr     = m_k_indx[iavg]->array(mfi);
-
-                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                amrex::Box gpbx = mfi.growntilebox(ng);
+                auto k_arr      = m_k_indx[iavg]->array(mfi);
+                ParallelFor(gpbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    k_arr(i,j,k,0) = k_lo;
+                    k_arr(i,j,k) = lk;
                 });
             } // MFiter
         } // iavg
@@ -170,83 +130,72 @@ MOSTAverage::compute_averages()
 void
 MOSTAverage::compute_plane_averages()
 {
+    // GPU array to accumulate averages into
+    amrex::AsyncArray<amrex::Real> pavg(m_plane_average.data(), m_plane_average.size());
+    amrex::Real* plane_avg = pavg.data();
+
     // Averages over all the fields
     //----------------------------------------------------------
     for (int imf(0); imf<m_fields.size(); ++imf) {
         const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane[imf];
 
-        amrex::AsyncArray<amrex::Real> pavg(m_plane_average[imf].data(), m_plane_average[imf].size());
-        amrex::Real* plane_avg = pavg.data();
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         for (amrex::MFIter mfi(*m_fields[imf], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            amrex::Box bx  = mfi.tilebox();
-            amrex::Box pbx = bx; pbx.setSmall(2,0); pbx.setBig(2,1);
+            amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
             auto mf_arr = m_fields[imf]->const_array(mfi);
             auto k_arr  = m_k_indx[imf]->const_array(mfi);
 
             ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
-            AMREX_GPU_DEVICE(int i, int j, int n, amrex::Gpu::Handler const& handler) noexcept
+            AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
             {
-                int k = k_arr(i,j,0,n);
-                amrex::Gpu::deviceReduceSum(&plane_avg[n],mf_arr(i, j, k) * denom, handler);
+                int mk = k_arr(i,j,k);
+                amrex::Gpu::deviceReduceSum(&plane_avg[imf],mf_arr(i, j, mk) * denom, handler);
             });
         }
-
-        pavg.copyToHost(m_plane_average[imf].data(), m_plane_average[imf].size());
-        amrex::ParallelDescriptor::ReduceRealSum(m_plane_average[imf].data(), m_plane_average[imf].size());
-
-        // No spatial variation with plane averages
-        amrex::Real c_val = c_interp[imf];
-        amrex::Real a_val = m_plane_average[imf][0]*(1.0 - c_val) + m_plane_average[imf][1]*c_val;
-        m_averages[imf]->setVal(a_val);
     }
 
     // Averages for the tangential velocity magnitude
     //----------------------------------------------------------
-    int imf  = 0;
-    int iavg = m_fields.size();
-    const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane[iavg];
-
-    amrex::AsyncArray<amrex::Real> pavg(m_plane_average[iavg].data(), m_plane_average[iavg].size());
-    amrex::Real* plane_avg = pavg.data();
+    {
+        int imf  = 0;
+        int iavg = m_fields.size();
+        const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane[iavg];
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (amrex::MFIter mfi(*m_fields[imf], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        amrex::Box bx  = amrex::enclosedCells(mfi.tilebox());
-        amrex::Box pbx = bx; pbx.setSmall(2,0); pbx.setBig(2,1);
+        for (amrex::MFIter mfi(*m_averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
-        auto u_mf_arr = m_fields[imf]->const_array(mfi);
-        auto v_mf_arr = m_fields[imf+1]->const_array(mfi);
+            auto u_mf_arr = m_fields[imf]->const_array(mfi);
+            auto v_mf_arr = m_fields[imf+1]->const_array(mfi);
 
-        auto k_u_arr  = m_k_indx[imf]->const_array(mfi);
-        auto k_v_arr  = m_k_indx[imf+1]->const_array(mfi);
+            auto k_u_arr  = m_k_indx[imf]->const_array(mfi);
+            auto k_v_arr  = m_k_indx[imf+1]->const_array(mfi);
 
-        ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
-        AMREX_GPU_DEVICE(int i, int j, int n, amrex::Gpu::Handler const& handler) noexcept
-        {
-            int k_u = k_u_arr(i,j,0,n);
-            int k_v = k_v_arr(i,j,0,n);
+            ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
+            AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
+            {
+                int mk_u = k_u_arr(i,j,k);
+                int mk_v = k_v_arr(i,j,k);
 
-            const amrex::Real u_val = 0.5 * (u_mf_arr(i,j,k_u) + u_mf_arr(i+1,j  ,k_u));
-            const amrex::Real v_val = 0.5 * (v_mf_arr(i,j,k_v) + v_mf_arr(i  ,j+1,k_v));
-            const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
-            amrex::Gpu::deviceReduceSum(&plane_avg[n],mag * denom, handler);
-        });
+                const amrex::Real u_val = 0.5 * (u_mf_arr(i,j,mk_u) + u_mf_arr(i+1,j  ,mk_u));
+                const amrex::Real v_val = 0.5 * (v_mf_arr(i,j,mk_v) + v_mf_arr(i  ,j+1,mk_v));
+                const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
+                amrex::Gpu::deviceReduceSum(&plane_avg[iavg],mag * denom, handler);
+            });
+        }
     }
 
-    pavg.copyToHost(m_plane_average[iavg].data(), m_plane_average[iavg].size());
-    amrex::ParallelDescriptor::ReduceRealSum(m_plane_average[iavg].data(), m_plane_average[iavg].size());
+    // Copy to host and sum across procs
+    pavg.copyToHost(m_plane_average.data(), m_plane_average.size());
+    amrex::ParallelDescriptor::ReduceRealSum(m_plane_average.data(), m_plane_average.size());
 
     // No spatial variation with plane averages
-    amrex::Real c_val = c_interp[iavg];
-    amrex::Real a_val = m_plane_average[iavg][0]*(1.0 - c_val) + m_plane_average[iavg][1]*c_val;
-    m_averages[iavg]->setVal(a_val);
+    for (int iavg(0); iavg<m_averages.size(); ++iavg) m_averages[iavg]->setVal(m_plane_average[iavg]);
 }
 
 // Fill 2D MF with local averages
@@ -267,22 +216,21 @@ MOSTAverage::compute_point_averages()
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         for (amrex::MFIter mfi(*m_fields[imf], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            amrex::Box bx  = mfi.tilebox();
-            amrex::Box pbx = bx; pbx.setSmall(2,0); pbx.setBig(2,0);
+            amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
             auto mf_arr = m_fields[imf]->const_array(mfi);
             auto k_arr  = m_k_indx[imf]->const_array(mfi);
             auto ma_arr = m_averages[imf]->array(mfi);
 
-            ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                ma_arr(i,j,0) = 0.0;
+                ma_arr(i,j,k) = 0.0;
 
-                int k = k_arr(i,j,0,0);
-                for (int lk(k-d_radius); lk<=(k+d_radius); ++lk) {
+                int mk = k_arr(i,j,k);
+                for (int lk(mk-d_radius); lk<=(mk+d_radius); ++lk) {
                     for (int lj(j-d_radius); lj<=(j+d_radius); ++lj) {
                         for (int li(i-d_radius); li<=(i+d_radius); ++li) {
-                            ma_arr(i,j,0) += mf_arr(li, lj, lk) * denom;
+                            ma_arr(i,j,k) += mf_arr(li, lj, lk) * denom;
                         }
                     }
                 }
@@ -296,41 +244,42 @@ MOSTAverage::compute_point_averages()
 
     // Averages for the tangential velocity magnitude
     //----------------------------------------------------------
-    int imf  = 0;
-    int iavg = m_fields.size();
+    {
+        int imf  = 0;
+        int iavg = m_fields.size();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (amrex::MFIter mfi(*m_averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        amrex::Box bx  = mfi.tilebox();
-        amrex::Box pbx = bx; pbx.setSmall(2,0); pbx.setBig(2,0);
+        for (amrex::MFIter mfi(*m_averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
-        auto u_mf_arr = m_fields[imf]->const_array(mfi);
-        auto v_mf_arr = m_fields[imf+1]->const_array(mfi);
-        auto k_arr    = m_k_indx[imf]->const_array(mfi);
-        auto ma_arr   = m_averages[iavg]->array(mfi);
+            auto u_mf_arr = m_fields[imf]->const_array(mfi);
+            auto v_mf_arr = m_fields[imf+1]->const_array(mfi);
+            auto k_arr    = m_k_indx[imf]->const_array(mfi);
+            auto ma_arr   = m_averages[iavg]->array(mfi);
 
-        ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
-        {
-            ma_arr(i,j,0) = 0.0;
+            ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                ma_arr(i,j,k) = 0.0;
 
-            int k = k_arr(i,j,0,0);
-            for (int lk(k-d_radius); lk<=(k+d_radius); ++lk) {
-                for (int lj(j-d_radius); lj<=(j+d_radius); ++lj) {
-                    for (int li(i-d_radius); li<=(i+d_radius); ++li) {
-                        const amrex::Real u_val = 0.5 * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
-                        const amrex::Real v_val = 0.5 * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
-                        const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
-                        ma_arr(i,j,0) += mag * denom;
+                int mk = k_arr(i,j,k);
+                for (int lk(mk-d_radius); lk<=(mk+d_radius); ++lk) {
+                    for (int lj(j-d_radius); lj<=(j+d_radius); ++lj) {
+                        for (int li(i-d_radius); li<=(i+d_radius); ++li) {
+                            const amrex::Real u_val = 0.5 * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
+                            const amrex::Real v_val = 0.5 * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
+                            const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
+                            ma_arr(i,j,k) += mag * denom;
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        // Fill interior ghost cells and any ghost cells outside a periodic domain
-        //***********************************************************************************
-        m_averages[iavg]->FillBoundary(m_geom.periodicity());
+            // Fill interior ghost cells and any ghost cells outside a periodic domain
+            //***********************************************************************************
+            m_averages[iavg]->FillBoundary(m_geom.periodicity());
+        }
     }
 
 
@@ -339,24 +288,23 @@ MOSTAverage::compute_point_averages()
     bool not_per_y = !(m_geom.periodicity().isPeriodic(1));
     if (not_per_x || not_per_y) {
         amrex::Box domain = m_geom.Domain();
-        for (int ima(0); ima<m_averages.size(); ++ima) {
+        for (int iavg(0); iavg<m_averages.size(); ++iavg) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            amrex::IndexType ixt     = m_averages[ima]->boxArray().ixType();
-            amrex::Box ldomain       = domain; ldomain.convert(ixt);
-            amrex::IntVect ng = m_averages[ima]->nGrowVect(); ng[2]=0;
-            for (amrex::MFIter mfi(*m_averages[ima], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                amrex::Box gbx = mfi.growntilebox(ng);
-                gbx.setSmall(2,0); gbx.setBig(2,0);
+            amrex::IndexType ixt = m_averages[iavg]->boxArray().ixType();
+            amrex::Box ldomain   = domain; ldomain.convert(ixt);
+            amrex::IntVect ng    = m_averages[iavg]->nGrowVect(); ng[2]=0;
+            for (amrex::MFIter mfi(*m_averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                amrex::Box gpbx = mfi.growntilebox(ng); gpbx.setSmall(2,0); gpbx.setBig(2,0);
 
-                if (ldomain.contains(gbx)) continue;
+                if (ldomain.contains(gpbx)) continue;
 
-                auto ma_arr = m_averages[ima]->array(mfi);
+                auto ma_arr = m_averages[iavg]->array(mfi);
 
                 int i_lo = ldomain.smallEnd(0); int i_hi = ldomain.bigEnd(0);
                 int j_lo = ldomain.smallEnd(1); int j_hi = ldomain.bigEnd(1);
-                ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+                ParallelFor(gpbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     int li, lj;
                     li = i  < i_lo ? i_lo : i;
@@ -364,7 +312,7 @@ MOSTAverage::compute_point_averages()
                     lj = j  < j_lo ? j_lo : j;
                     lj = lj > j_hi ? j_hi : lj;
 
-                    ma_arr(i,j,0) = ma_arr(li,lj,0);
+                    ma_arr(i,j,k) = ma_arr(li,lj,k);
                 });
             } // MFiter
         } // ima
@@ -393,11 +341,9 @@ MOSTAverage::write_k_indices()
                 int k = 0;
                 for (int iavg(0); iavg<=navg; ++iavg) {
                     auto k_arr = m_k_indx[iavg]->array(mfi);
-                    ofile << "iavg K_lo K_hi c_interp: "
+                    ofile << "iavg K_ind: "
                           << iavg << ' '
-                          << k_arr(i,j,k,0) << ' '
-                          << k_arr(i,j,k,1) << ' '
-                          << c_interp[iavg] << "\n";
+                          << k_arr(i,j,k) << "\n";
                 }
                 ofile << "\n";
             }

@@ -136,7 +136,7 @@ public:
                 amrex::BoxArray ba2d(std::move(bl2d));
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
                 const int ncomp  = 1;
-                const int incomp = 2;
+                const int incomp = 1;
                 const amrex::IntVect& ng = mf.nGrowVect();
 
                 u_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
@@ -154,7 +154,7 @@ public:
                 amrex::BoxArray ba2d(std::move(bl2d));
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
                 const int ncomp  = 1;
-                const int incomp = 2;
+                const int incomp = 1;
                 const amrex::IntVect& ng = mf.nGrowVect();
 
                 v_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
@@ -172,7 +172,7 @@ public:
                 amrex::BoxArray ba2d(std::move(bl2d));
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
                 const int ncomp  = 1;
-                const int incomp = 2;
+                const int incomp = 1;
                 const amrex::IntVect& ng = mf.nGrowVect();
 
                 w_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});
@@ -190,7 +190,7 @@ public:
                 amrex::BoxArray ba2d(std::move(bl2d));
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
                 const int ncomp  = 1;
-                const int incomp = 2;
+                const int incomp = 1;
                 const amrex::IntVect& ng = mf.nGrowVect();
 
                 t_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,{ng[0], ng[1], 0});

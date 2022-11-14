@@ -86,12 +86,12 @@ void ABLMost::update_fluxes(int lev,
     // Compute plane averages for all vars
     ma.compute_averages();
 
-    /*
+
     // Write text file of averages
     ma.write_k_indices();
     ma.write_averages();
     exit(0);
-    */
+
 
     // Pointers to the computed averages
     const auto tm_ptr  = ma.get_average(3);
