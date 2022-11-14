@@ -1,9 +1,7 @@
-
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
 #include <ERF_Constants.H>
-//#include <ABLMost.H>
 #include <Advection.H>
 #include <Diffusion.H>
 #include <TimeIntegration.H>
@@ -27,15 +25,9 @@ void erf_slow_rhs_pre (int level, int nrk,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
-                       MultiFab* Tau11,
-                       MultiFab* Tau22,
-                       MultiFab* Tau33,
-                       MultiFab* Tau12,
-                       MultiFab* Tau13,
-                       MultiFab* Tau21,
-                       MultiFab* Tau23,
-                       MultiFab* Tau31,
-                       MultiFab* Tau32,
+                       MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
+                       MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
+                       MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                        MultiFab* eddyDiffs,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
@@ -43,13 +35,12 @@ void erf_slow_rhs_pre (int level, int nrk,
                        const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                        const Vector<amrex::BCRec> domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
-                       MultiFab* r0, MultiFab* p0,
+                       const MultiFab* r0, const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
                        const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-                       const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar,
-                       bool ingested_bcs)
+                       const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -62,6 +53,8 @@ void erf_slow_rhs_pre (int level, int nrk,
     const int  l_spatial_order  = solverChoice.spatial_order;
     const bool l_use_terrain    = solverChoice.use_terrain;
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
+    if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
+
     bool       l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
                                     (solverChoice.les_type        !=       LESType::None) ||
                                     (solverChoice.pbl_type        !=       PBLType::None) );
@@ -178,10 +171,10 @@ void erf_slow_rhs_pre (int level, int nrk,
         const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
 
         // Base state
-        const Array4<      Real>& r0_arr = r0->array(mfi);
-        const Array4<      Real>& p0_arr = p0->array(mfi);
+        const Array4<const Real>& r0_arr = r0->const_array(mfi);
+        const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
-        const Box& gbx = mfi.growntilebox(1);
+        const Box& gbx = mfi.growntilebox({1,1,0});
         const Array4<Real> & pp_arr  = pprime.array(mfi);
         {
         BL_PROFILE("slow_rhs_pre_pprime");
@@ -189,7 +182,7 @@ void erf_slow_rhs_pre (int level, int nrk,
             //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
             //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
             AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-            pp_arr(i,j,k) = getPprimegivenRTh(cell_data(i,j,k,RhoTheta_comp),p0_arr(i,j,k));
+            pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp)) - p0_arr(i,j,k);
         });
         } // end profile
 
@@ -537,6 +530,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                                    - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
             }
             gpx = gp_xi - (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
+            gpx *= mf_u(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
             Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
@@ -578,6 +572,7 @@ void erf_slow_rhs_pre (int level, int nrk,
           { // x-momentum equation
 
               Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
+              gpx *= mf_u(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
               Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
@@ -639,6 +634,7 @@ void erf_slow_rhs_pre (int level, int nrk,
               }
 
               Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+              gpy *= mf_v(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
               Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
@@ -677,6 +673,7 @@ void erf_slow_rhs_pre (int level, int nrk,
           { // y-momentum equation
 
               Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
+              gpy *= mf_v(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
               Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
@@ -728,7 +725,7 @@ void erf_slow_rhs_pre (int level, int nrk,
           [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
                 Real met_h_zeta = Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd);
-                Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / (met_h_zeta * mf_m(i,j,0));
+                Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
@@ -739,8 +736,8 @@ void erf_slow_rhs_pre (int level, int nrk,
 #endif
 
                 // Add buoyancy term
-                Real rho_prime = 0.5 * (cell_data(i,j,k) + cell_data(i,j,k-1) - r0_arr(i,j,k) - r0_arr(i,j,k-1));
-                rho_w_rhs(i, j, k) += grav_gpu[2] * rho_prime;
+                rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
+                                                             - r0_arr(i,j,k) -    r0_arr(i,j,k-1) );
 
                 // Add external drivers
                 rho_w_rhs(i, j, k) += ext_forcing[2];
@@ -771,7 +768,7 @@ void erf_slow_rhs_pre (int level, int nrk,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // z-momentum equation
 
-                Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1)) / mf_m(i,j,0);
+                Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) );
 
 #ifdef ERF_USE_MOISTURE
                 Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
@@ -780,9 +777,9 @@ void erf_slow_rhs_pre (int level, int nrk,
 #else
                 rho_w_rhs(i, j, k) -= gpz;
 #endif
-                // Add buoyancy term
-                Real rho_prime = 0.5 * (cell_data(i,j,k) + cell_data(i,j,k-1) - r0_arr(i,j,k) - r0_arr(i,j,k-1));
-                rho_w_rhs(i, j, k) += grav_gpu[2] * rho_prime;
+                // Add buoyancy term (no longer in perturbational form)
+                rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
+                                                             - r0_arr(i,j,k) -    r0_arr(i,j,k-1) );
 
                 // Add external drivers
                 rho_w_rhs(i, j, k) += ext_forcing[2];

@@ -58,9 +58,6 @@ init_isentropic_hse(int i, int j,
               break;
           }
       }
-
-      //if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
-      //if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
   }
 
   // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
@@ -97,9 +94,6 @@ init_isentropic_hse(int i, int j,
               break;
           }
       }
-
-      //if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
-      //if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
   }
 }
 
@@ -195,6 +189,9 @@ init_custom_prob(
   Real g           = CONST_GRAV;
   Real omega       = std::sqrt(g * kp);
 
+  // HACK HACK HACK
+  // Ampl = 0.;
+
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const auto prob_lo  = geomdata.ProbLo();
@@ -233,9 +230,10 @@ init_custom_prob(
 
       const Real x = prob_lo[0] + i * dx[0];
       Real z = 0.25 * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
-      Real z_base = Ampl * std::sin(kp * x);
 
+      Real z_base = Ampl * std::sin(kp * x);
       z -= z_base;
+
       Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
 
       x_vel(i, j, k) = -Ampl * omega * fac * std::sin(kp * x);

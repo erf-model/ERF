@@ -42,6 +42,9 @@
 
             Real inv_dt  = 1./ (new_stage_time - old_step_time);
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box gbx = mfi.growntilebox(IntVect(1,1,0));
@@ -59,19 +62,100 @@
                                                      +z_nd_new_arr(i+1,j  ,k) - z_nd_old_arr(i+1,j  ,k)
                                                      +z_nd_new_arr(i  ,j  ,k) - z_nd_old_arr(i  ,j  ,k));
                 });
+
             } // mfi
+
+            MultiFab r_hse_new (base_state_new[level], make_alias, 0, 1); // r_0  is first  component
+            MultiFab p_hse_new (base_state_new[level], make_alias, 1, 1); // p_0  is second component
+            MultiFab pi_hse_new(base_state_new[level], make_alias, 2, 1); // pi_0 is second component
+
+            MultiFab* r0_new = &r_hse_new;
+            MultiFab* p0_new = &p_hse_new;
+            MultiFab* pi0_new = &pi_hse_new;
 
             erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
                              Omega, source, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd_src[level], detJ_cc_src[level], r0, p0,
+                             z_phys_nd_src[level], detJ_cc_src[level], r0_new, p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
-                             ingested_bcs);
-        } else {
+                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+
+            // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
+            //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
+            //    we no longer discretize the vertical pressure gradient in perturbational form.
+            MultiFab rt0(p0->boxArray(),p0->DistributionMap(),1,1);
+            MultiFab rt0_new(p0->boxArray(),p0->DistributionMap(),1,1);
+            MultiFab r0_temp(p0->boxArray(),p0->DistributionMap(),1,1);
+
+            // Remember this does NOT maintain dp_0 / dz = -rho_0 g, so we can no longer
+            //    discretize the vertical pressure gradient in perturbational form.
+            AMREX_ALWAYS_ASSERT(solverChoice.spatial_order == 2);
+
+            Real dt_base  = (new_stage_time - old_step_time);
+
+            const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+           for ( MFIter mfi(*p0,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+           {
+
+               const Array4<Real      > rt0_arr     = rt0.array(mfi);
+               const Array4<Real      > rt0_tmp_arr = rt0_new.array(mfi);
+
+               const Array4<Real const>  r0_arr     = r0->const_array(mfi);
+               const Array4<Real      >  r0_new_arr = r0_new->array(mfi);
+               const Array4<Real      >  r0_tmp_arr = r0_temp.array(mfi);
+
+               const Array4<Real const>  p0_arr     = p0->const_array(mfi);
+               const Array4<Real      >  p0_new_arr = p0_new->array(mfi);
+
+               const Array4<Real      >& z_t_arr      =  z_t_rk[level]->array(mfi);
+
+               const Array4<Real const>& dJ_old_arr = detJ_cc[level]->const_array(mfi);
+               const Array4<Real const>& dJ_new_arr = detJ_cc_new[level]->const_array(mfi);
+               const Array4<Real const>& dJ_src_arr = detJ_cc_src[level]->const_array(mfi);
+
+               Box gbx = mfi.growntilebox({1,1,1});
+               amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+               {
+                   rt0_arr(i,j,k)     = getRhoThetagivenP(p0_arr(i,j,k));
+                   rt0_tmp_arr(i,j,k) = getRhoThetagivenP(p0_new_arr(i,j,k));
+                   r0_tmp_arr(i,j,k)  = r0_new_arr(i,j,k);
+               });
+
+               Box gbx2 = mfi.growntilebox({1,1,0});
+               amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+               {
+                   Real zflux_r_lo = -z_t_arr(i,j,k  ) * 0.5 * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k-1));
+                   Real zflux_r_hi = -z_t_arr(i,j,k+1) * 0.5 * (r0_tmp_arr(i,j,k) + r0_tmp_arr(i,j,k+1));
+
+                   Real zflux_rt_lo = zflux_r_lo * 0.5 * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k-1)/r0_tmp_arr(i,j,k-1));
+                   Real zflux_rt_hi = zflux_r_hi * 0.5 * (rt0_tmp_arr(i,j,k)/r0_tmp_arr(i,j,k) + rt0_tmp_arr(i,j,k+1)/r0_tmp_arr(i,j,k+1));
+
+                   Real invdetJ = 1.0 / dJ_src_arr(i,j,k);
+
+                   Real src_r  = - invdetJ * ( zflux_r_hi  - zflux_r_lo  ) * dxInv[2];
+                   Real src_rt = - invdetJ * ( zflux_rt_hi - zflux_rt_lo ) * dxInv[2];
+
+                   Real rho0_new     = dJ_old_arr(i,j,k) *  r0_arr(i,j,k) + dt_base * dJ_src_arr(i,j,k) * src_r;
+                   Real rt0_tmp_new  = dJ_old_arr(i,j,k) * rt0_arr(i,j,k) + dt_base * dJ_src_arr(i,j,k) * src_rt;
+
+                   r0_new_arr(i,j,k) = rho0_new / dJ_new_arr(i,j,k);
+                   rt0_tmp_new      /=            dJ_new_arr(i,j,k);
+
+                   p0_new_arr(i,j,k) = getPgivenRTh(rt0_tmp_new);
+               });
+            } // MFIter
+            r0_new->FillBoundary(fine_geom.periodicity());
+            p0_new->FillBoundary(fine_geom.periodicity());
+
+        } else { // if moving_terrain
+
             erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
                              Omega, source, Tau11, Tau22, Tau33, Tau12,
@@ -80,15 +164,14 @@
                              z_phys_nd[level], detJ_cc[level], r0, p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar,
-                             ingested_bcs);
-        }
+                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+        } // if not moving_terrain
 
         // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
         // S_rhs[IntVar::xmom].FillBoundary(fine_geom.periodicity());
         // S_rhs[IntVar::ymom].FillBoundary(fine_geom.periodicity());
         // S_rhs[IntVar::zmom].FillBoundary(fine_geom.periodicity());
-    };
+    }; // end slow_rhs_fun_pre
 
     // *************************************************************
     // This called before RK stage
@@ -132,8 +215,7 @@
         Real slow_dt = new_stage_time - old_step_time;
 
         // Moving terrain
-        if ( solverChoice.use_terrain && (solverChoice.terrain_type == 1) )
-        {
+        if ( solverChoice.use_terrain && (solverChoice.terrain_type == 1) ) {
             erf_slow_rhs_post(level, slow_dt, S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, eddyDiffs,
@@ -148,4 +230,4 @@
                               detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level]);
         }
-    };
+    }; // end slow_rhs_fun_post

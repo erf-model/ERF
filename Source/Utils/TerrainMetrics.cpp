@@ -266,36 +266,77 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
 
     case 2: // Sullivan TF Method
     {
-      int k0    = 0;
-      Real ztop = ProbHiArr[2];
+        int k0    = 0;
+        Real ztop = ProbHiArr[2];
 
-      for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-      {
-          // Grown box with corrected ghost cells at top
-          Box gbx = mfi.growntilebox(ngrow);
-          gbx.setRange(2,domlo_z,domhi_z+1);
+        for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            // Grown box with corrected ghost cells at top
+            Box gbx = mfi.growntilebox(ngrow);
+            gbx.setRange(2,domlo_z,domhi_z+1);
 
-          Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-          auto const&         z_lev = z_levels_d.data();
+            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+            auto const&         z_lev = z_levels_d.data();
 
-          ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          {
-              // Vertical grid stretching
-              Real z =  z_lev[k];
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // Vertical grid stretching
+                Real z =  z_lev[k];
 
-              int ii = amrex::max(amrex::min(i,imax),imin);
-              int jj = amrex::max(amrex::min(j,jmax),jmin);
+                int ii = amrex::max(amrex::min(i,imax),imin);
+                int jj = amrex::max(amrex::min(j,jmax),jmin);
 
-              // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
-              if (k == k0) {
-                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
-                  z_arr(i,j,k0-1) = z_arr(ii,jj,k0) - dx[2];
-              }
+                // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
+                if (k == k0) {
+                    z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
+                    z_arr(i,j,k0-1) = z_arr(ii,jj,k0) - dx[2];
+                }
 
-              // Fill levels using model from Sullivan et. al. 2014
-              int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-              z_arr(i,j,k) = z + (std::pow((1. - (z/ztop)),omega) * z_arr(ii,jj,k0));
-          });
+                // Fill levels using model from Sullivan et. al. 2014
+                int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
+                z_arr(i,j,k) = z + (std::pow((1. - (z/ztop)),omega) * z_arr(ii,jj,k0));
+            });
+        }
+
+        break;
+    }
+    case 3: // Debugging Test Method -- applies Sullivan TF starting at k = 1 so that domain does not change size
+    {
+        int k0    = 0;
+        Real ztop = ProbHiArr[2];
+
+        for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            // Grown box with corrected ghost cells at top
+            Box gbx = mfi.growntilebox(ngrow);
+            gbx.setRange(2,domlo_z,domhi_z+1);
+
+            Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+            auto const&         z_lev = z_levels_d.data();
+
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // Vertical grid stretching
+                Real z =  z_lev[k];
+
+                int ii = amrex::max(amrex::min(i,imax),imin);
+                int jj = amrex::max(amrex::min(j,jmax),jmin);
+
+                // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
+                if (k == k0+1) {
+                    z_arr(i,j,k) = z + z_arr(ii,jj,k0);
+                } else {
+                    // Fill levels using model from Sullivan et. al. 2014
+                    int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
+                    z_arr(i,j,k) = z + (std::pow((1. - (z/ztop)),omega) * z_arr(ii,jj,k0));
+                }
+            });
+            gbx.setBig(2,0);
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                z_arr(i,j,k  ) = 0.0;
+                z_arr(i,j,k-1) = 0.0 - dx[2];
+            });
         }
 
         break;
@@ -390,9 +431,6 @@ make_zcc(const amrex::Geometry& geom,
          amrex::MultiFab& z_phys_nd,
          amrex::MultiFab& z_phys_cc)
 {
-    auto dx = geom.CellSize();
-    amrex::Real dzInv = 1.0/dx[2];
-
     // Domain valid box (z_nd is nodal)
     const amrex::Box& domain = geom.Domain();
     int domlo_z = domain.smallEnd(2);

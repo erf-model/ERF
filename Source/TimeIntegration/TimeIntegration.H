@@ -38,16 +38,15 @@ void erf_slow_rhs_pre(int level, int nrk,
                       const amrex::Vector<amrex::BCRec> domain_bcs_type,
                       std::unique_ptr<amrex::MultiFab>& z0,
                       std::unique_ptr<amrex::MultiFab>& dJ,
-                      amrex::MultiFab* r0,
-                      amrex::MultiFab* p0,
+                      const amrex::MultiFab* r0,
+                      const amrex::MultiFab* p0,
                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
                       const amrex::Real* dptr_rayleigh_tau,
                       const amrex::Real* dptr_rayleigh_ubar,
                       const amrex::Real* dptr_rayleigh_vbar,
-                      const amrex::Real* dptr_rayleigh_thetabar,
-                      bool ingested_bcs);
+                      const amrex::Real* dptr_rayleigh_thetabar);
 
 void erf_slow_rhs_post(int level, amrex::Real time,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
@@ -86,8 +85,7 @@ void erf_fast_rhs_N (int step, int level,
                      const amrex::Real fast_dt, const amrex::Real invfac,
                      std::unique_ptr<amrex::MultiFab>& mapfac_m,
                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                     std::unique_ptr<amrex::MultiFab>& mapfac_v,
-                     bool ingested_bcs);
+                     std::unique_ptr<amrex::MultiFab>& mapfac_v);
 
 void erf_fast_rhs_T (int step, int level,
                      amrex::BoxArray& grids_to_evolve,
@@ -107,8 +105,7 @@ void erf_fast_rhs_T (int step, int level,
                      const amrex::Real fast_dt, const amrex::Real invfac,
                      std::unique_ptr<amrex::MultiFab>& mapfac_m,
                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                     std::unique_ptr<amrex::MultiFab>& mapfac_v,
-                     bool ingested_bcs);
+                     std::unique_ptr<amrex::MultiFab>& mapfac_v);
 
 void erf_fast_rhs_MT (int step, int level,
                       amrex::BoxArray& grids_to_evolve,
@@ -134,8 +131,7 @@ void erf_fast_rhs_MT (int step, int level,
                       const amrex::Real fast_dt, const amrex::Real invfac,
                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
-                      bool ingested_bcs);
+                      std::unique_ptr<amrex::MultiFab>& mapfac_v);
 
 void make_fast_coeffs (int level,
                        amrex::BoxArray& grids_to_evolve,
@@ -148,6 +144,5 @@ void make_fast_coeffs (int level,
                        std::unique_ptr<amrex::MultiFab>& dJ,
                        const amrex::MultiFab* r0,
                        const amrex::MultiFab* pi0,
-                       const amrex::Real fast_dt,
-                       bool ingested_bcs);
+                       const amrex::Real fast_dt);
 #endif

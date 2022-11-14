@@ -72,7 +72,6 @@ public:
                           const amrex::Array4<amrex::Real const>& velx_arr,
                           const amrex::Array4<amrex::Real const>& vely_arr,
                           const amrex::Array4<amrex::Real const>& z_nd,
-                          const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dx,
                           const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                           amrex::Real time, int bccomp, int terrain_type);
 

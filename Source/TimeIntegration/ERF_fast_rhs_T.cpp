@@ -30,8 +30,7 @@ void erf_fast_rhs_T (int step, int level,
                      const amrex::Real dtau, const amrex::Real facinv,
                      std::unique_ptr<MultiFab>& mapfac_m,
                      std::unique_ptr<MultiFab>& mapfac_u,
-                     std::unique_ptr<MultiFab>& mapfac_v,
-                     bool ingested_bcs)
+                     std::unique_ptr<MultiFab>& mapfac_v)
 {
     BL_PROFILE_REGION("erf_fast_rhs_T()");
 
@@ -301,17 +300,20 @@ void erf_fast_rhs_T (int step, int level,
               (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
                 -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
 
-            Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo;
-            Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi;
-            Real yflux_lo = new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo;
-            Real yflux_hi = new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi;
+            Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo / mf_u(i  ,j,0);;
+            Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi / mf_u(i+1,j,0);;
+            Real yflux_lo = new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo / mf_v(i,j  ,0);;
+            Real yflux_hi = new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi / mf_v(i,j+1,0);;
+
+            Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
             // NOTE: we are saving the (1/J) weighting for later when we add this to rho and theta
-            temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi + ( yflux_hi - yflux_lo ) * dyi;
+            temp_rhs_arr(i,j,k,0) =  ( xflux_hi - xflux_lo ) * dxi * mfsq +
+                                     ( yflux_hi - yflux_lo ) * dyi * mfsq;
             temp_rhs_arr(i,j,k,1) = (( xflux_hi * (prim(i,j,k,0) + prim(i+1,j,k,0)) -
-                                       xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi +
+                                       xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi * mfsq+
                                      ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
-                                       yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi) * 0.5;
+                                       yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * 0.5;
         });
         } // end profile
 

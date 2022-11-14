@@ -155,19 +155,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
     MultiFab::Copy(cons_mf,S_old,0,0,S_old.nComp(),S_old.nGrowVect());
 
-    MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0 is first  component
-    MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0 is second component
-    MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is second component
-
-    MultiFab* r0  = &r_hse;
-    MultiFab* p0  = &p_hse;
-    MultiFab* pi0 = &pi_hse;
-
-    amrex::Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[lev].data() : nullptr;
-    amrex::Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[lev].data() : nullptr;
-    amrex::Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[lev].data() : nullptr;
-    amrex::Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[lev].data() : nullptr;
-
     // *****************************************************************
     // Update the cell-centered state and face-based velocity using
     // a time integrator.
@@ -191,8 +178,5 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 rU_old[lev], rV_old[lev], rW_old[lev],
                 rU_new[lev], rV_new[lev], rW_new[lev],
                 rU_crse, rV_crse, rW_crse,
-                source, Geom(lev), dt_lev, time, &ifr,
-                r0, p0, pi0,
-                dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+                source, Geom(lev), dt_lev, time, &ifr);
 }

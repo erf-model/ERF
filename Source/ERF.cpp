@@ -320,6 +320,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         // Copy z_phs_nd and detJ_cc at end of timestep
         MultiFab::Copy(*z_phys_nd[lev], *z_phys_nd_new[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
         MultiFab::Copy(  *detJ_cc[lev],   *detJ_cc_new[lev], 0, 0, 1,   detJ_cc[lev]->nGrowVect());
+        MultiFab::Copy(base_state[lev],base_state_new[lev],0,0,3,1);
 
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
@@ -490,7 +491,6 @@ ERF::InitData ()
         }
     }
 
-    // Moving terrain
     ComputeDt();
 
     // Fill ghost cells/faces
@@ -509,6 +509,12 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
         MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
         MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
+
+        // For moving terrain only
+        if (solverChoice.terrain_type > 0) {
+            MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
+            base_state_new[lev].FillBoundary(geom[lev].periodicity());
+        }
     }
 }
 
@@ -760,6 +766,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     base_state.resize(lev+1);
     base_state[lev].define(ba,dm,3,1);
     base_state[lev].setVal(0.);
+
+    if (solverChoice.use_terrain && solverChoice.terrain_type > 0) {
+        base_state_new.resize(lev+1);
+        base_state_new[lev].define(ba,dm,3,1);
+        base_state_new[lev].setVal(0.);
+    }
 
     if (solverChoice.use_terrain) {
         z_phys_cc[lev].reset(new MultiFab(ba,dm,1,1));

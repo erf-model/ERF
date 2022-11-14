@@ -9,7 +9,6 @@ AdvectionSrcForXMom_N (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& rho_u, const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& u,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                       const amrex::Array4<const amrex::Real>& mf_m,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
                        int spatial_order)
@@ -26,7 +25,6 @@ AdvectionSrcForXMom_N (int i, int j, int k,
 
     amrex::Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_mid = 1. / mf_u(i  ,j  ,0); amrex::Real mf_u_inv_lo = 1. / mf_u(i-1,j  ,0);
     amrex::Real mf_v_inv_1  = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_2   = 1. / mf_v(i-1,j+1,0); amrex::Real mf_v_inv_3  = 1. / mf_v(i  ,j  ,0); amrex::Real mf_v_inv_4 = 1. / mf_v(i-1,j  ,0);
-    amrex::Real mf_m_inv_hi = 1. / mf_m(i  ,j  ,0); amrex::Real mf_m_inv_lo  = 1. / mf_m(i-1,j  ,0);
 
     rho_u_avg = 0.5 * (rho_u(i+1, j, k) * mf_u_inv_hi + rho_u(i, j, k) * mf_u_inv_mid);
     xflux_hi = rho_u_avg * InterpolateInX(i+1, j, k, u, 0, rho_u_avg, spatial_order);
@@ -40,14 +38,16 @@ AdvectionSrcForXMom_N (int i, int j, int k,
     rho_v_avg = 0.5 * (rho_v(i, j  , k) * mf_v_inv_3 + rho_v(i-1, j  , k) * mf_v_inv_4);
     yflux_lo = rho_v_avg * InterpolateInY(i, j  , k, u, 0, rho_v_avg, spatial_order);
 
-    rho_w_avg = 0.5 * (rho_w(i, j, k+1) * mf_m_inv_hi + rho_w(i-1, j, k+1) * mf_m_inv_lo);
+    rho_w_avg = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
     zflux_hi = rho_w_avg * InterpolateInZ(i, j, k+1, u, 0, rho_w_avg, spatial_order);
 
-    rho_w_avg = 0.5 * (rho_w(i, j, k) * mf_m_inv_hi + rho_w(i-1, j, k) * mf_m_inv_lo);
+    rho_w_avg = 0.5 * (rho_w(i, j, k) + rho_w(i-1, j, k));
     zflux_lo = rho_w_avg * InterpolateInZ(i, j, k  , u, 0, rho_w_avg, spatial_order);
 
-    advectionSrc = (xflux_hi - xflux_lo) * dxInv * mf_u(i,j,0)
-                 + (yflux_hi - yflux_lo) * dyInv * mf_u(i,j,0)
+    amrex::Real mfsq = mf_u(i,j,0) * mf_u(i,j,0);
+
+    advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
+                 + (yflux_hi - yflux_lo) * dyInv * mfsq
                  + (zflux_hi - zflux_lo) * dzInv;
 
     return advectionSrc;
@@ -60,7 +60,6 @@ AdvectionSrcForYMom_N (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& rho_u, const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& rho_w, const amrex::Array4<const amrex::Real>& v,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                       const amrex::Array4<const amrex::Real>& mf_m,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
                        int spatial_order)
@@ -75,7 +74,6 @@ AdvectionSrcForYMom_N (int i, int j, int k,
 
     amrex::Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_mid = 1. / mf_v(i  ,j  ,0); amrex::Real mf_v_inv_lo = 1. / mf_v(i  ,j-1,0);
     amrex::Real mf_u_inv_1  = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_2   = 1. / mf_u(i+1,j-1,0); amrex::Real mf_u_inv_3  = 1. / mf_u(i  ,j  ,0); amrex::Real mf_u_inv_4 = 1. / mf_u(i  ,j-1,0);
-    amrex::Real mf_m_inv_hi = 1. / mf_m(i  ,j  ,0); amrex::Real mf_m_inv_lo  = 1. / mf_m(i  ,j-1,0);
 
     //used when spatial order > 2
 
@@ -91,14 +89,16 @@ AdvectionSrcForYMom_N (int i, int j, int k,
     rho_v_avg = 0.5*(rho_v(i, j, k) * mf_v_inv_mid + rho_v(i, j-1, k) * mf_v_inv_lo);
     yflux_lo = rho_v_avg * InterpolateInY(i, j  , k, v, 0, rho_v_avg, spatial_order);
 
-    rho_w_avg = 0.5*(rho_w(i, j, k+1) * mf_m_inv_hi + rho_w(i, j-1, k+1) * mf_m_inv_lo);
+    rho_w_avg = 0.5*(rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
     zflux_hi = rho_w_avg * InterpolateInZ(i, j, k+1, v, 0, rho_w_avg, spatial_order);
 
-    rho_w_avg = 0.5*(rho_w(i, j, k) * mf_m_inv_hi + rho_w(i, j-1, k) * mf_m_inv_lo);
+    rho_w_avg = 0.5*(rho_w(i, j, k) + rho_w(i, j-1, k));
     zflux_lo = rho_w_avg * InterpolateInZ(i, j, k  , v, 0, rho_w_avg, spatial_order);
 
-    advectionSrc = (xflux_hi - xflux_lo) * dxInv * mf_v(i,j,0)
-                 + (yflux_hi - yflux_lo) * dyInv * mf_v(i,j,0)
+    amrex::Real mfsq = mf_v(i,j,0) * mf_v(i,j,0);
+
+    advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
+                 + (yflux_hi - yflux_lo) * dyInv * mfsq
                  + (zflux_hi - zflux_lo) * dzInv;
 
    return advectionSrc;
@@ -127,7 +127,6 @@ AdvectionSrcForZMom_N (int i, int j, int k,
 
     amrex::Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_lo = 1. / mf_u(i  ,j  ,0);
     amrex::Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_lo = 1. / mf_v(i  ,j  ,0);
-    amrex::Real mf_m_inv    = 1. / mf_m(i  ,j  ,0);
 
     //used when spatial order > 2
 
@@ -148,9 +147,9 @@ AdvectionSrcForZMom_N (int i, int j, int k,
     int l_spatial_order_lo = std::min(std::min(spatial_order, 2*(domhi_z+2-k)), 2*k);
 
     if (k == 0) {
-        zflux_lo = rho_w(i,j,k) * mf_m_inv * w(i,j,k);
+        zflux_lo = rho_w(i,j,k) * w(i,j,k);
     } else {
-        rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1)) * mf_m_inv;
+        rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
         zflux_lo = rho_w_avg * InterpolateInZ(i, j, k  , w, 0, rho_w_avg, l_spatial_order_lo);
     }
 
@@ -159,14 +158,16 @@ AdvectionSrcForZMom_N (int i, int j, int k,
     int l_spatial_order_hi = std::min(std::min(spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
 
     if (k == domhi_z+1) {
-        zflux_hi =  rho_w(i,j,k) * mf_m_inv * w(i,j,k);
+        zflux_hi =  rho_w(i,j,k) * w(i,j,k);
     } else {
-        rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1)) * mf_m_inv;
+        rho_w_avg = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
         zflux_hi = rho_w_avg * InterpolateInZ(i, j, k+1, w, 0, rho_w_avg, l_spatial_order_hi);
     }
 
-    advectionSrc = (xflux_hi - xflux_lo) * dxInv * mf_m(i,j,0)
-                 + (yflux_hi - yflux_lo) * dyInv * mf_m(i,j,0)
+    amrex::Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+
+    advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
+                 + (yflux_hi - yflux_lo) * dyInv * mfsq
                  + (zflux_hi - zflux_lo) * dzInv;
 
    return advectionSrc;
