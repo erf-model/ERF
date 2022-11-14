@@ -20,11 +20,8 @@ public:
      MOSTAverage() = default;
     ~MOSTAverage() = default;
 
-    // Populate a 2D iMF with the k indices for policy::plane
-    void compute_plane_k_indices();
-
-    // Populate a 2D iMF with the k indices for policy::point
-    void compute_point_k_indices();
+    // Populate a 2D iMF with a uniform k value
+    void set_uniform_k_indices();
 
     // Driver for the different average policies
     void compute_averages();
@@ -48,8 +45,8 @@ public:
     const amrex::MultiFab* get_average(int i) const { return m_averages[i]; };
 
     // Get plane averages long dir()
-    const amrex::Vector<amrex::Real>& get_plane_average()      const { return m_plane_average[0]; }
-    const amrex::Vector<amrex::Real>& get_plane_average(int i) const { return m_plane_average[i]; }
+    const amrex::Real& get_plane_average()      const { return m_plane_average[0]; }
+    const amrex::Real& get_plane_average(int i) const { return m_plane_average[i]; }
 
     // Write k indices for each average
     void write_k_indices();
@@ -67,13 +64,11 @@ protected:
     amrex::Vector<int> m_ncomps;      // Number of components (mf)
     amrex::Vector<int> m_ncell_plane; // Number of cells in plane (mf)
 
-    amrex::Vector<amrex::Vector<amrex::Real>> m_plane_average; // Plane avgs (mf,2)
-
     amrex::Vector<const amrex::MultiFab*> m_fields;  // Ptr to fields to be averaged
     amrex::Vector<amrex::MultiFab*> m_averages;      // Ptr to 2D mf to hold averages
     amrex::Vector<amrex::iMultiFab*> m_k_indx;       // Ptr to 2D imf to hold k indices
+    amrex::Vector<amrex::Real> m_plane_average;      // Plane avgs (mf,1)
     amrex::Vector<amrex::Real> m_z_ref;              // Vector of reals for height above MOST BC
-    amrex::Vector<amrex::Real> c_interp;             // Interpolation factors
     const amrex::MultiFab* m_z_nd;                   // Ptr to terrain heigh coords
     amrex::Geometry m_geom;                          // Geometry
     const int m_policy;                              // Policy for averaging
