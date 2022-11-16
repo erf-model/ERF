@@ -6,72 +6,41 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_iMultiFab.H>
 #include <AMReX_ParmParse.H>
+#include <IndexDefines.H>
 
 class MOSTAverage {
 public:
-    explicit MOSTAverage(amrex::Vector<const amrex::MultiFab*> fields,
-                         amrex::Vector<amrex::MultiFab*> averages,
-                         amrex::Vector<amrex::iMultiFab*> k_indx,
-                         amrex::Vector<amrex::Real> z_ref,
-                         const amrex::MultiFab* z_nd,
-                         const amrex::Geometry geom,
-                         int policy,
-                         bool update_k);
+    explicit MOSTAverage(amrex::Real& zref,
+                         const amrex::Vector<amrex::Geometry>& geom,
+                         const amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
      MOSTAverage() = default;
-    ~MOSTAverage() = default;
+    ~MOSTAverage()
+     {
+       for (int lev(0); lev<m_geom.size(); ++lev)
+       {
+         for (int iavg(0); iavg<navg; ++iavg) delete m_averages[lev][iavg];
+         delete m_k_indx[lev];
+       }
+     };
 
-    // Populate a 2D iMF with a uniform k value
-    void set_uniform_k_indices();
+     // Driver for the different average policies
+     void compute_averages();
 
-    // Driver for the different average policies
-    void compute_averages();
-
-    // Fill averages for policy::plane
-    void compute_plane_averages();
-
-    // Fill averages for policy::point
-    void compute_point_averages();
-
-    // Get number of components for a mf in m_fields
-    int ncomp()      const  { return m_ncomps[0]; }
-    int ncomp(int i) const  { return m_ncomps[i]; }
-
-    // Get pointer to mf in m_fields
-    const amrex::MultiFab* get_field()      const { return m_fields[0]; }
-    const amrex::MultiFab* get_field(int i) const { return m_fields[i]; }
-
-    // Get pointer to the 2D mf of averages
-    const amrex::MultiFab* get_average()      const { return m_averages[0]; };
-    const amrex::MultiFab* get_average(int i) const { return m_averages[i]; };
-
-    // Get plane averages long dir()
-    const amrex::Real& get_plane_average()      const { return m_plane_average[0]; }
-    const amrex::Real& get_plane_average(int i) const { return m_plane_average[i]; }
-
-    // Write k indices for each average
-    void write_k_indices();
-
-    // Write averages on 2D mf
-    void write_averages();
+     // Get pointer to the 2D mf of averages
+     const amrex::MultiFab* get_average(int lev, int comp) const { return m_averages[lev][comp]; };
 
 protected:
-    amrex::Real m_dz;  // Mesh spacing in axis direction
-    amrex::Real m_zlo; // Bottom of domain in axis direction
 
-    int m_k_ind  = -1; // Specified k_index for local-point/region average
-    int m_radius =  0; // Specified radius around k_index
+    int nvar{3};                                                // 3 field for U/V/T
+    int navg{4};                                                // 4 averages for U/V/T/Umag
+    amrex::Real m_zref;                                         // Vector of reals for height above MOST BC
+    const amrex::Vector<amrex::Geometry> m_geom;                      // Geometry at each level
+    amrex::Vector<amrex::Vector<const amrex::MultiFab*>>  m_fields;   // Ptr to fields to be averaged
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_averages; // Ptr to 2D mf to hold averages
+    amrex::Vector<amrex::MultiFab*> m_z_phys_nd;// Ptr to terrain heigh coords
+    amrex::Vector<amrex::iMultiFab*> m_k_indx;                  // Ptr to 2D imf to hold k indices
 
-    amrex::Vector<int> m_ncomps;      // Number of components (mf)
-    amrex::Vector<int> m_ncell_plane; // Number of cells in plane (mf)
-
-    amrex::Vector<const amrex::MultiFab*> m_fields;  // Ptr to fields to be averaged
-    amrex::Vector<amrex::MultiFab*> m_averages;      // Ptr to 2D mf to hold averages
-    amrex::Vector<amrex::iMultiFab*> m_k_indx;       // Ptr to 2D imf to hold k indices
-    amrex::Vector<amrex::Real> m_plane_average;      // Plane avgs (mf,1)
-    amrex::Vector<amrex::Real> m_z_ref;              // Vector of reals for height above MOST BC
-    const amrex::MultiFab* m_z_nd;                   // Ptr to terrain heigh coords
-    amrex::Geometry m_geom;                          // Geometry
-    const int m_policy;                              // Policy for averaging
-    bool m_update_k;                                 // Flag to update 2D imf with k indices
 };
 #endif

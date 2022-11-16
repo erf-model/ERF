@@ -5,97 +5,17 @@
 
 using namespace amrex;
 
-void ABLMost::update_fluxes(int lev,
-                            amrex::MultiFab& Theta_old, amrex::MultiFab& U_old,
-                            amrex::MultiFab& V_old    , amrex::MultiFab& W_old,
-                            int max_iters)
+void ABLMost::update_fluxes(int lev, int max_iters)
 {
-    // TODO: REMOVE ALL OF THIS AFTER PBL STUFF ADDRESSED
-    // THIS BECOMES REDUNDANT WITH THE NEW 2D MFs
-    {
-    PlaneAverage Thave(&Theta_old, m_geom[lev], 2);
-    PlaneAverage vxave(&U_old, m_geom[lev], 2);
-    PlaneAverage vyave(&V_old, m_geom[lev], 2);
-    PlaneAverage vzave(&W_old, m_geom[lev], 2);
-    Thave.compute_averages(ZDir(), Thave.field());
-    vxave.compute_averages(ZDir(), vxave.field());
-    vyave.compute_averages(ZDir(), vyave.field());
-    vzave.compute_averages(ZDir(), vzave.field());
-    vel_mean[0] = vxave.line_average_interpolated(zref, 0);
-    vel_mean[1] = vyave.line_average_interpolated(zref, 0);
-    vel_mean[2] = vzave.line_average_interpolated(zref, 0);
-    theta_mean  = Thave.line_average_interpolated(zref, 0);
-    VelPlaneAverage vmagave(m_geom[lev]);
-    vmagave.compute_hvelmag_averages(U_old,V_old);
-    vmag_mean   = vmagave.line_hvelmag_average_interpolated(zref);
-
-    constexpr amrex::Real eps = 1.0e-16;
-    amrex::Real zeta = 0.0;
-    amrex::Real utau_iter = 0.0;
-    // Initialize variables
-    amrex::Real psi_m = 0.0;
-    amrex::Real psi_h = 0.0;
-    utau = kappa * vmag_mean / (std::log(zref / z0_const));
-    int iter = 0;
-    do {
-        utau_iter = utau;
-        switch (alg_type) {
-        case HEAT_FLUX:
-            surf_temp = surf_temp_flux * (std::log(zref / z0_const) - psi_h) /
-                        (utau * kappa) + theta_mean;
-            break;
-        case SURFACE_TEMPERATURE:
-            surf_temp_flux = -(theta_mean - surf_temp) * utau * kappa /
-                              (std::log(zref / z0_const) - psi_h);
-            break;
-        }
-        if (std::abs(surf_temp_flux) > eps) {
-            // Stable and unstable ABL conditions
-            obukhov_len = -utau * utau * utau * theta_mean /
-                           (kappa * gravity * surf_temp_flux);
-            zeta = zref / obukhov_len;
-        } else {
-            // Neutral conditions
-            obukhov_len = std::numeric_limits<amrex::Real>::max();
-            zeta = 0.0;
-        }
-        psi_m = calc_psi_m(zeta);
-        psi_h = calc_psi_h(zeta);
-        utau = kappa * vmag_mean / (std::log(zref / z0_const) - psi_m);
-        ++iter;
-    } while ((std::abs(utau_iter - utau) > 1e-5) && iter <= max_iters);
-    if (iter >= max_iters) {
-        amrex::Print()
-            << "MOData::update_fluxes: Convergence criteria not met after "
-            << max_iters << " iterations"
-            << "\nObuhov length = " << obukhov_len << " zeta = " << zeta
-            << "\npsi_m = " << psi_m << " psi_h = " << psi_h
-            << "\nutau = " << utau << " Tsurf = " << surf_temp
-            << " q = " << surf_temp_flux << std::endl;
-    }
-    }
-    // END REDUNDANT CODE
-
-    // New MOSTAverage class
-    MOSTAverage ma({&U_old     , &V_old     , &W_old     , &Theta_old },
-                   {u_mean[lev], v_mean[lev], w_mean[lev], t_mean[lev], u_mag_mean[lev]},
-                   {x_nd_k[lev], y_nd_k[lev], z_nd_k[lev], cc_k[lev]  , cc_k[lev]      },
-                   {zref       , zref       , zref       , zref       , zref           },
-                   nullptr, m_geom[lev], 0, true);
-
     // Compute plane averages for all vars
-    ma.compute_averages();
-
-    /*
-    // Write text file of averages
-    ma.write_k_indices();
-    ma.write_averages();
-    exit(0);
-    */
+    m_ma.compute_averages();
 
     // Pointers to the computed averages
-    const auto tm_ptr  = ma.get_average(3);
-    const auto umm_ptr = ma.get_average(4);
+    const auto tm_ptr  = m_ma.get_average(lev,2);
+    const auto umm_ptr = m_ma.get_average(lev,3);
+
+    amrex::Print() << "CLEARED!!\n";
+    exit(0);
 
     // GPU device captures
     amrex::Real d_kappa = kappa;
@@ -223,17 +143,24 @@ ABLMost::impose_most_bcs(const int lev,
     const int icomp = 0;
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
-        // Get data arrays
+        // Get field arrays
         const auto cons_arr = mfs[Vars::cons]->array(mfi);
         const auto velx_arr = mfs[Vars::xvel]->array(mfi);
         const auto vely_arr = mfs[Vars::yvel]->array(mfi);
         const auto  eta_arr = eddyDiffs->array(mfi);
 
         // Get average arrays
-        const auto um_arr  = u_mean[lev]->array(mfi);
-        const auto vm_arr  = v_mean[lev]->array(mfi);
-        const auto tm_arr  = t_mean[lev]->array(mfi);
-        const auto umm_arr = u_mag_mean[lev]->array(mfi);
+        const auto u_mean     = m_ma.get_average(lev,0);
+        const auto v_mean     = m_ma.get_average(lev,1);
+        const auto t_mean     = m_ma.get_average(lev,2);
+        const auto u_mag_mean = m_ma.get_average(lev,3);
+
+        const auto um_arr  = u_mean->array(mfi);
+        const auto vm_arr  = v_mean->array(mfi);
+        const auto tm_arr  = t_mean->array(mfi);
+        const auto umm_arr = u_mag_mean->array(mfi);
+
+        // Get derived arrays
         const auto u_star_arr = u_star[lev]->array(mfi);
         const auto t_star_arr = t_star[lev]->array(mfi);
         const auto t_surf_arr = t_surf[lev]->array(mfi);

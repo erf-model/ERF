@@ -95,7 +95,12 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     // configure ABLMost params if used MostWall boundary condition
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
-        if (m_most) setupABLMost(lev);
+      if (m_most) {
+        amrex::IntVect ng = S_old.nGrowVect(); ng[2]=0;
+        MultiFab::Copy(  *Theta_prim[lev], S_old, Cons::RhoTheta, 0, 1, ng);
+        MultiFab::Divide(*Theta_prim[lev], S_old, Cons::Rho     , 0, 1, ng);
+        m_most->update_fluxes(lev);
+      }
     }
 
     // We need to set these because otherwise in the first call to erf_advance we may

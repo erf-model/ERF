@@ -432,8 +432,6 @@ private:
     void post_update (amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
     void fill_rhs (amrex::MultiFab& rhs_mf, const amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
 
-    void setupABLMost(int lev);
-
     ////////////////
     // private data members
 
@@ -461,6 +459,9 @@ private:
 
     // BoxArray at each level to define where we actually evolve the solution
     amrex::Vector<amrex::BoxArray> grids_to_evolve;
+
+    // Store Theta variable for MOST BC
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
 
     // Scratch space for time integrator
     amrex::Vector<amrex::MultiFab> rU_old;
