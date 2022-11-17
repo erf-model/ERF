@@ -293,6 +293,7 @@ init_custom_prob(
   const Real prob_lo_z = geomdata.ProbLo()[2];
 
   const Real l_x_r = parms.x_r;
+  //const Real l_x_r = parms.x_r * mf_u(0,0,0); //used to validate constant msf
   const Real l_z_r = parms.z_r;
   const Real l_x_c = parms.x_c;
   const Real l_z_c = parms.z_c;

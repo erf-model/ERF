@@ -96,10 +96,9 @@ init_custom_prob(
 
     if (parms.prob_type == 10)
     {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0*sin(x);
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
         //            + B_0*sin(x)
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0 * sin(x);
+        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0*sin(x);
 
     } else if (parms.prob_type == 11) {
         state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, r0) / r0));
