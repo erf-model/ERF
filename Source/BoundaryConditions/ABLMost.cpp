@@ -8,14 +8,11 @@ using namespace amrex;
 void ABLMost::update_fluxes(int lev, int max_iters)
 {
     // Compute plane averages for all vars
-    m_ma.compute_averages();
+    m_ma.compute_averages(lev);
 
     // Pointers to the computed averages
     const auto tm_ptr  = m_ma.get_average(lev,2);
     const auto umm_ptr = m_ma.get_average(lev,3);
-
-    amrex::Print() << "CLEARED!!\n";
-    exit(0);
 
     // GPU device captures
     amrex::Real d_kappa = kappa;

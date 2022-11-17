@@ -83,7 +83,7 @@ public:
                      const amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                      const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                      const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
-      : m_geom(geom), m_ma(zref,geom,vars_old,Theta_prim,z_phys_nd)
+      : m_geom(geom), m_ma(geom,vars_old,Theta_prim,z_phys_nd)
     {
         amrex::ParmParse pp("erf");
         pp.query("most.zref"     , zref);
@@ -171,6 +171,15 @@ public:
     void
     update_fluxes(int lev, int max_iters = 25);
 
+    const amrex::MultiFab*
+    get_u_star(int lev) { return u_star[lev]; };
+
+    const amrex::MultiFab*
+    get_t_star(int lev) { return t_star[lev]; };
+
+    const amrex::MultiFab*
+    get_mac_avg(int lev, int comp) { return m_ma.get_average(lev,comp); };
+
     enum ThetaCalcType {
         HEAT_FLUX = 0,      ///< Heat-flux specified
         SURFACE_TEMPERATURE ///< Surface temperature specified
@@ -193,8 +202,6 @@ public:
     }
 
     private:
-
-
         amrex::Vector<amrex::Geometry>  m_geom;
         amrex::Vector<amrex::FArrayBox> z_0;
 
