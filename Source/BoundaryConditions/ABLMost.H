@@ -9,6 +9,7 @@
 
 #include <IndexDefines.H>
 #include <ERF_Constants.H>
+#include <MOSTAverage.H>
 
 /** Monin-Obukhov surface layer profile
  *
@@ -32,19 +33,8 @@ public:
     amrex::Real gravity{CONST_GRAV}; ///< Acceleration due to gravity (m/s^2)
     amrex::Real surf_temp_flux{0.0}; ///< Heat flux
     amrex::Real surf_temp;           ///< Surface temperature
-
-    // Linked to the PBL scheme & Redundant
-    //========================================================
-    amrex::Real obukhov_len{1.0e16}; ///< Non-dimensional Obukhov length
-    amrex::Real theta_mean;          ///< Mean potential temperature
-
-    amrex::Real vel_mean[AMREX_SPACEDIM]; ///< Mean velocity (at zref)
-    amrex::Real vmag_mean;                ///< Mean wind speed (at zref)
-    amrex::Real utau;                     ///< Friction velocity (m/s)
-    //========================================================
-
-    amrex::Real beta_m{5.0}; // Constants from Dyer, BLM, 1974
-    amrex::Real beta_h{5.0}; // https://doi.org/10.1007/BF00240838
+    amrex::Real beta_m{5.0};         ///< Constants from Dyer, BLM, 1974
+    amrex::Real beta_h{5.0};         ///< https://doi.org/10.1007/BF00240838
     amrex::Real gamma_m{16.0};
     amrex::Real gamma_h{16.0};
 
@@ -79,7 +69,10 @@ public:
 
     // Constructor
     explicit ABLMost(const amrex::Vector<amrex::Geometry>& geom,
-                     const amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new) : m_geom(geom)
+                     const amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
+      : m_geom(geom), m_ma(geom,vars_old,Theta_prim,z_phys_nd)
     {
         amrex::ParmParse pp("erf");
         pp.query("most.zref"     , zref);
@@ -95,22 +88,10 @@ public:
         }
 
         int nlevs = m_geom.size();
-
         z_0.resize(nlevs);
-
-        u_mean.resize(nlevs);
-        v_mean.resize(nlevs);
-        w_mean.resize(nlevs);
-        t_mean.resize(nlevs);
-        u_mag_mean.resize(nlevs);
         u_star.resize(nlevs);
         t_star.resize(nlevs);
         t_surf.resize(nlevs);
-
-        x_nd_k.resize(nlevs);
-        y_nd_k.resize(nlevs);
-        z_nd_k.resize(nlevs);
-        cc_k.resize(nlevs);
 
         for (int lev = 0; lev < nlevs; lev++)
         {
@@ -123,64 +104,10 @@ public:
             z_0[lev].resize(bx,1);
             z_0[lev].setVal<amrex::RunOn::Device>(z0_const);
 
-            // 2D MFs for averages
+            // 2D MFs for U*, T*, T_surf
             //--------------------------------------------------------
-            { // Nodal in x
-                auto& mf = vars_new[lev][Vars::xvel];
-                // Create a 2D ba, dm, & ghost cells
-                amrex::BoxArray ba  = mf.boxArray();
-                amrex::BoxList bl2d = ba.boxList();
-                for (auto& b : bl2d) {
-                    b.setRange(2,0);
-                }
-                amrex::BoxArray ba2d(std::move(bl2d));
-                const amrex::DistributionMapping& dm = mf.DistributionMap();
-                const int ncomp   = 1;
-                const int incomp  = 1;
-                amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
-
-                u_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
-                u_mean[lev]->setVal(1.E34);
-                x_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
-            }
-            { // Nodal in y
-                auto& mf = vars_new[lev][Vars::yvel];
-                // Create a 2D ba, dm, & ghost cells
-                amrex::BoxArray ba  = mf.boxArray();
-                amrex::BoxList bl2d = ba.boxList();
-                for (auto& b : bl2d) {
-                    b.setRange(2,0);
-                }
-                amrex::BoxArray ba2d(std::move(bl2d));
-                const amrex::DistributionMapping& dm = mf.DistributionMap();
-                const int ncomp   = 1;
-                const int incomp  = 1;
-                amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
-
-                v_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
-                v_mean[lev]->setVal(1.E34);
-                y_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
-            }
-            { // Nodal in z
-                auto& mf = vars_new[lev][Vars::zvel];
-                // Create a 2D ba, dm, & ghost cells
-                amrex::BoxArray ba  = mf.boxArray();
-                amrex::BoxList bl2d = ba.boxList();
-                for (auto& b : bl2d) {
-                    b.setRange(2,0);
-                }
-                amrex::BoxArray ba2d(std::move(bl2d));
-                const amrex::DistributionMapping& dm = mf.DistributionMap();
-                const int ncomp   = 1;
-                const int incomp  = 1;
-                amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
-
-                w_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
-                w_mean[lev]->setVal(1.E34);
-                z_nd_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
-            }
             { // CC vars
-                auto& mf = vars_new[lev][Vars::cons];
+                auto& mf = vars_old[lev][Vars::cons];
                 // Create a 2D ba, dm, & ghost cells
                 amrex::BoxArray ba  = mf.boxArray();
                 amrex::BoxList bl2d = ba.boxList();
@@ -190,14 +117,7 @@ public:
                 amrex::BoxArray ba2d(std::move(bl2d));
                 const amrex::DistributionMapping& dm = mf.DistributionMap();
                 const int ncomp   = 1;
-                const int incomp  = 1;
                 amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
-
-                t_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
-                t_mean[lev]->setVal(1.E34);
-
-                u_mag_mean[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
-                u_mag_mean[lev]->setVal(1.E34);
 
                 u_star[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 u_star[lev]->setVal(1.E34);
@@ -211,11 +131,8 @@ public:
                 } else {
                     t_surf[lev]->setVal(0.0);
                 }
-
-                cc_k[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
             }
-
-        }
+        }// lev
     }
 
     // Destructor
@@ -223,19 +140,9 @@ public:
     {
         for (int lev(0); lev<m_geom.size(); ++lev)
         {
-            delete u_mean[lev];
-            delete v_mean[lev];
-            delete w_mean[lev];
-            delete t_mean[lev];
-            delete u_mag_mean[lev];
-            delete u_star[lev];
-            delete t_star[lev];
-            delete t_surf[lev];
-
-            delete x_nd_k[lev];
-            delete y_nd_k[lev];
-            delete z_nd_k[lev];
-            delete cc_k[lev];
+          delete u_star[lev];
+          delete t_star[lev];
+          delete t_surf[lev];
         }
     };
 
@@ -251,10 +158,16 @@ public:
                     amrex::MultiFab* eddyDiffs);
 
     void
-    update_fluxes(int lev,
-                  amrex::MultiFab& S_new, amrex::MultiFab& U_new,
-                  amrex::MultiFab& V_new, amrex::MultiFab& W_new,
-                  int max_iters = 25);
+    update_fluxes(int lev, int max_iters = 25);
+
+    const amrex::MultiFab*
+    get_u_star(int lev) { return u_star[lev]; };
+
+    const amrex::MultiFab*
+    get_t_star(int lev) { return t_star[lev]; };
+
+    const amrex::MultiFab*
+    get_mac_avg(int lev, int comp) { return m_ma.get_average(lev,comp); };
 
     enum ThetaCalcType {
         HEAT_FLUX = 0,      ///< Heat-flux specified
@@ -278,23 +191,13 @@ public:
     }
 
     private:
-
-        amrex::Vector<amrex::Geometry> m_geom;
+        amrex::Vector<amrex::Geometry>  m_geom;
         amrex::Vector<amrex::FArrayBox> z_0;
 
-        amrex::Vector<amrex::MultiFab*> u_mean;
-        amrex::Vector<amrex::MultiFab*> v_mean;
-        amrex::Vector<amrex::MultiFab*> w_mean;
-        amrex::Vector<amrex::MultiFab*> t_mean;
-        amrex::Vector<amrex::MultiFab*> u_mag_mean;
+        MOSTAverage m_ma;
         amrex::Vector<amrex::MultiFab*> u_star;
         amrex::Vector<amrex::MultiFab*> t_star;
         amrex::Vector<amrex::MultiFab*> t_surf;
-
-        amrex::Vector<amrex::iMultiFab*> x_nd_k;
-        amrex::Vector<amrex::iMultiFab*> y_nd_k;
-        amrex::Vector<amrex::iMultiFab*> z_nd_k;
-        amrex::Vector<amrex::iMultiFab*> cc_k;
 };
 
 #endif /* ABLMOST_H */

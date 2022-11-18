@@ -439,7 +439,7 @@ ERF::InitData ()
     //       WritePlotFile calls FillPatch in order to compute gradients
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-        m_most = std::make_unique<ABLMost>(geom,vars_new);
+      m_most = std::make_unique<ABLMost>(geom,vars_old,Theta_prim,z_phys_nd);
     }
 
     if (restart_chkfile == "" && check_int > 0)
@@ -807,6 +807,19 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
                z_t_rk[lev] = nullptr;
     }
 
+    // ********************************************************************************************
+    // Define Theta_prim storage if using MOST BC
+    // ********************************************************************************************
+    Theta_prim.resize(lev+1);
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
+      Theta_prim[lev].reset(new MultiFab(ba,dm,1,{ngrow_state,ngrow_state,0}));
+    } else {
+      Theta_prim[lev] = nullptr;
+    }
+
+    // ********************************************************************************************
+    // Initialize the integrator class
+    // ********************************************************************************************
     initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
 }
 
@@ -1203,24 +1216,6 @@ ERF::define_grids_to_evolve (int lev)
       // Just copy grids...
       grids_to_evolve[lev] = grids[lev];
    }
-}
-
-void
-ERF::setupABLMost (int lev)
-{
-    MultiFab& S_old = vars_old[lev][Vars::cons];
-    MultiFab& U_old = vars_old[lev][Vars::xvel];
-    MultiFab& V_old = vars_old[lev][Vars::yvel];
-    MultiFab& W_old = vars_old[lev][Vars::zvel];
-
-    amrex::IntVect ng = S_old.nGrowVect(); ng[2]=0;
-
-    // Multifab to store primitive Theta, which is what we want to average
-    MultiFab Theta_prim(S_old.boxArray(), S_old.DistributionMap(), 1, ng);
-    MultiFab::Copy(  Theta_prim, S_old, Cons::RhoTheta, 0, 1, ng);
-    MultiFab::Divide(Theta_prim, S_old, Cons::Rho, 0, 1, ng);
-
-    m_most->update_fluxes(lev,Theta_prim,U_old,V_old,W_old);
 }
 
 #ifdef ERF_USE_MULTIBLOCK

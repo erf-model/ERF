@@ -22,7 +22,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                         const Array4<const Real>& mf_v,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
-                        const Real& theta_mean,
+                        const Array4<const Real>& tm_arr,
                         const amrex::GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const amrex::BCRec* bc_ptr)
 {
@@ -265,7 +265,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                                  mu_turb,cellSizeInv,domain,solverChoice,theta_mean);
+                                                                  mu_turb,cellSizeInv,domain,solverChoice,tm_arr(i,j,0));
         });
     }
 
