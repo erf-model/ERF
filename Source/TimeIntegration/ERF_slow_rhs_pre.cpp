@@ -433,6 +433,8 @@ void erf_slow_rhs_pre (int level, int nrk,
             int n_start = amrex::max(start_comp,RhoTheta_comp);
             int n_end   = start_comp + num_comp - 1;
 
+            amrex::Print() << "RHS PRE: " << n_start << ' ' << n_end << "\n";
+
             if (l_use_terrain) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
                                        cell_data, cell_prim, source_fab, cell_rhs,
