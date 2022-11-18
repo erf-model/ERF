@@ -426,9 +426,9 @@ void erf_slow_rhs_pre (int level, int nrk,
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
             Array4<Real> diffflux_y = dflux_y->array(mfi);
-            Array4<Real> diffflux_z = dflux_z->array(mfi);
+            Array4<Real> diffflux_z = dflux_z->array(mfi);;
 
-            const Array4<const Real> tm_arr = t_mean_mf->const_array(mfi);
+            const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
             // NOTE: No diffusion for continuity, so n starts at 1.
             //       KE calls moved inside DiffSrcForState.
