@@ -69,9 +69,9 @@ public:
 
     // Constructor
     explicit ABLMost(const amrex::Vector<amrex::Geometry>& geom,
-                     const amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
-                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
-                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
+                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
       : m_geom(geom), m_ma(geom,vars_old,Theta_prim,z_phys_nd)
     {
         amrex::ParmParse pp("erf");
@@ -159,6 +159,12 @@ public:
 
     void
     update_fluxes(int lev, int max_iters = 25);
+
+    void
+    update_mac_ptrs(int lev,
+                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                    amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim)
+    { m_ma.update_field_ptrs(lev,vars_old,Theta_prim); };
 
     const amrex::MultiFab*
     get_u_star(int lev) { return u_star[lev]; };

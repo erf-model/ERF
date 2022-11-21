@@ -2,9 +2,9 @@
 
 // Constructor
 MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
-                          const amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
-                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
-                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
+                          amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
   : m_geom(geom)
 {
     // Get the policy (defaults to planar avg)
@@ -20,12 +20,13 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
     m_k_indx.resize(m_maxlev);
     m_averages.resize(m_maxlev);
     m_z_phys_nd.resize(m_maxlev);
-    for (int lev = 0; lev < m_maxlev; lev++) {
+    for (int lev(0); lev < m_maxlev; lev++) {
       m_fields[lev].resize(m_nvar);
       m_averages[lev].resize(m_navg);
       m_z_phys_nd[lev] = z_phys_nd[lev].get();
       { // Nodal in x
-        auto& mf = vars_old[lev][Vars::xvel];
+        auto& mf  = vars_old[lev][Vars::xvel];
+        amrex::MultiFab* mfp = &vars_old[lev][Vars::xvel];
         // Create a 2D ba, dm, & ghost cells
         amrex::BoxArray ba  = mf.boxArray();
         amrex::BoxList bl2d = ba.boxList();
@@ -35,12 +36,13 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         const int ncomp   = 1;
         amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-          m_fields[lev][0] = &mf;
+          m_fields[lev][0] = mfp;
         m_averages[lev][0] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
         m_averages[lev][0]->setVal(1.E34);
       }
       { // Nodal in y
-        auto& mf = vars_old[lev][Vars::yvel];
+        auto& mf  = vars_old[lev][Vars::yvel];
+        amrex::MultiFab* mfp = &vars_old[lev][Vars::yvel];
         // Create a 2D ba, dm, & ghost cells
         amrex::BoxArray ba  = mf.boxArray();
         amrex::BoxList bl2d = ba.boxList();
@@ -50,12 +52,13 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         const int ncomp   = 1;
         amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-          m_fields[lev][1] = &mf;
+          m_fields[lev][1] = mfp;
         m_averages[lev][1] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
         m_averages[lev][1]->setVal(1.E34);
       }
       { // CC vars
-        auto& mf = *Theta_prim[lev];
+        auto& mf  = *Theta_prim[lev];
+        amrex::MultiFab* mfp = Theta_prim[lev].get();
         // Create a 2D ba, dm, & ghost cells
         amrex::BoxArray ba  = mf.boxArray();
         amrex::BoxList bl2d = ba.boxList();
@@ -66,7 +69,7 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         const int incomp  = 1;
         amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-          m_fields[lev][2] = &mf;
+          m_fields[lev][2] = mfp;
         m_averages[lev][2] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
         m_averages[lev][2]->setVal(1.E34);
 
@@ -118,6 +121,17 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
 }
 
 
+// Reset the pointers to field MFs
+void
+MOSTAverage::update_field_ptrs(int lev,
+                               amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim)
+{
+    m_fields[lev][0] = &vars_old[lev][Vars::xvel];
+    m_fields[lev][1] = &vars_old[lev][Vars::yvel];
+    m_fields[lev][2] = Theta_prim[lev].get();
+}
+
 // Compute ncells per plane
 void
 MOSTAverage::set_plane_normalization()
@@ -126,19 +140,19 @@ MOSTAverage::set_plane_normalization()
     m_ncell_plane.resize(m_maxlev);
     m_plane_average.resize(m_maxlev);
 
-    for (int lev = 0; lev < m_maxlev; lev++) {
+    for (int lev(0); lev < m_maxlev; lev++) {
         // Num components, plane avg, cells per plane
         amrex::Box domain = m_geom[lev].Domain();
         amrex::IntVect dom_lo(domain.loVect());
         amrex::IntVect dom_hi(domain.hiVect());
         m_ncell_plane[lev].resize(m_navg);
         m_plane_average[lev].resize(m_navg);
-        for (int iavg(0); iavg<m_navg; ++iavg) {
+        for (int iavg(0); iavg < m_navg; ++iavg) {
             m_plane_average[lev][iavg] = 0.0;
 
             m_ncell_plane[lev][iavg] = 1;
             amrex::IndexType ixt = m_averages[lev][iavg]->boxArray().ixType();
-            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+            for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
                 if (idim != 2) {
                     if (ixt.nodeCentered(idim)) {
                         m_ncell_plane[lev][iavg] *= (dom_hi[idim] - dom_lo[idim] + 2);
@@ -163,10 +177,10 @@ MOSTAverage::set_uniform_k_indices()
     // Specified k index
     if (read_k) {
         m_k_ind = std::max(m_radius,m_k_ind);
-        for (int lev = 0; lev < m_maxlev; lev++) m_k_indx[lev]->setVal(m_k_ind);
+        for (int lev(0); lev < m_maxlev; lev++) m_k_indx[lev]->setVal(m_k_ind);
     // Set k from zref
     } else {
-        for (int lev = 0; lev < m_maxlev; lev++) {
+        for (int lev(0); lev < m_maxlev; lev++) {
             amrex::Real m_zlo = m_geom[lev].ProbLo(2);
             amrex::Real m_dz  = m_geom[lev].CellSize(2);
 
@@ -244,7 +258,7 @@ MOSTAverage::compute_plane_averages(int lev)
 
     // Averages over all the fields
     //----------------------------------------------------------
-    for (int imf(0); imf<m_nvar; ++imf) {
+    for (int imf(0); imf < m_nvar; ++imf) {
         const amrex::Real denom = 1.0 / (amrex::Real)ncell_plane[imf];
 
 #ifdef _OPENMP
@@ -306,7 +320,7 @@ MOSTAverage::compute_plane_averages(int lev)
     amrex::ParallelDescriptor::ReduceRealSum(plane_average.data(), plane_average.size());
 
     // No spatial variation with plane averages
-    for (int iavg(0); iavg<m_navg; ++iavg) averages[iavg]->setVal(plane_average[iavg]);
+    for (int iavg(0); iavg < m_navg; ++iavg) averages[iavg]->setVal(plane_average[iavg]);
 }
 
 
@@ -339,7 +353,7 @@ MOSTAverage::compute_point_averages(int lev)
 
     // Averages over all the fields
     //----------------------------------------------------------
-    for (int imf(0); imf<m_nvar; ++imf) {
+    for (int imf(0); imf < m_nvar; ++imf) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -355,9 +369,9 @@ MOSTAverage::compute_point_averages(int lev)
                 ma_arr(i,j,k) *= d_fact_old;
 
                 int mk = k_arr(i,j,k);
-                for (int lk(mk-d_radius); lk<=(mk+d_radius); ++lk) {
-                    for (int lj(j-d_radius); lj<=(j+d_radius); ++lj) {
-                        for (int li(i-d_radius); li<=(i+d_radius); ++li) {
+                for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
+                    for (int lj(j-d_radius); lj <= (j+d_radius); ++lj) {
+                        for (int li(i-d_radius); li <= (i+d_radius); ++li) {
                             amrex::Real val = denom * mf_arr(li, lj, lk) * d_fact_new;
                             ma_arr(i,j,k) += val;
                         }
@@ -393,9 +407,9 @@ MOSTAverage::compute_point_averages(int lev)
                 ma_arr(i,j,k) *= d_fact_old;
 
                 int mk = k_arr(i,j,k);
-                for (int lk(mk-d_radius); lk<=(mk+d_radius); ++lk) {
-                    for (int lj(j-d_radius); lj<=(j+d_radius); ++lj) {
-                        for (int li(i-d_radius); li<=(i+d_radius); ++li) {
+                for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
+                    for (int lj(j-d_radius); lj <= (j+d_radius); ++lj) {
+                        for (int li(i-d_radius); li <= (i+d_radius); ++li) {
                             const amrex::Real u_val = 0.5 * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
                             const amrex::Real v_val = 0.5 * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
                             const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
@@ -418,7 +432,7 @@ MOSTAverage::compute_point_averages(int lev)
     bool not_per_y = !(geom.periodicity().isPeriodic(1));
     if (not_per_x || not_per_y) {
         amrex::Box domain = geom.Domain();
-        for (int iavg(0); iavg<m_navg; ++iavg) {
+        for (int iavg(0); iavg < m_navg; ++iavg) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -471,8 +485,8 @@ MOSTAverage::write_k_indices(int lev)
 
         auto k_arr = k_indx->array(mfi);
 
-        for (int j(jl); j<=ju; ++j) {
-            for (int i(il); i<=iu; ++i) {
+        for (int j(jl); j <= ju; ++j) {
+            for (int i(il); i <= iu; ++i) {
                 ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
                 int k = 0;
                 ofile << "K_ind: "
@@ -502,11 +516,11 @@ MOSTAverage::write_averages(int lev)
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
 
-        for (int j(jl); j<=ju; ++j) {
-            for (int i(il); i<=iu; ++i) {
+        for (int j(jl); j <= ju; ++j) {
+            for (int i(il); i <= iu; ++i) {
                 ofile << "(I,J): " << "(" << i << "," << j << ")" << "\n";
                 int k = 0;
-                for (int iavg(0); iavg<=navg; ++iavg) {
+                for (int iavg(0); iavg <= navg; ++iavg) {
                     auto mf_arr = averages[iavg]->array(mfi);
                     ofile << "iavg val: "
                           << iavg << ' '
