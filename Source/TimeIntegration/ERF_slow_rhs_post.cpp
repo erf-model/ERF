@@ -21,7 +21,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         Vector<MultiFab>& S_new,
                         Vector<MultiFab>& S_data,
                         const MultiFab& S_prim,
-                              Vector<MultiFab>& S_scratch,
+                        Vector<MultiFab>& S_scratch,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
                         const MultiFab& zvel,
@@ -31,6 +31,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
                         const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+                        std::unique_ptr<MultiFab>& z_phys_nd,
                         std::unique_ptr<MultiFab>& dJ,
                         std::unique_ptr<MultiFab>& dJ_new,
                         std::unique_ptr<MultiFab>& mapfac_m,
@@ -39,10 +40,10 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
-    amrex::Real theta_mean;
-    if (most) theta_mean = most->theta_mean;
+    const MultiFab* t_mean_mf = nullptr;
+    if (most) t_mean_mf = most->get_mac_avg(0,2);
 
-    const int l_spatial_order   = solverChoice.spatial_order;
+    const int  l_spatial_order  = solverChoice.spatial_order;
     const bool l_use_terrain    = solverChoice.use_terrain;
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
@@ -132,8 +133,9 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Metric terms
-        const Array4<const Real>& detJ     = l_use_terrain    ? dJ->const_array(mfi)     : Array4<const Real>{};
-        const Array4<const Real>& detJ_new = l_moving_terrain ? dJ_new->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& z_nd     = l_use_terrain    ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ     = l_use_terrain    ? dJ->const_array(mfi)        : Array4<const Real>{};
+        const Array4<const Real>& detJ_new = l_moving_terrain ? dJ_new->const_array(mfi)    : Array4<const Real>{};
 
         // Map factors
         const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
@@ -180,20 +182,31 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                                cur_prim, cell_rhs, detJ,
                                dxInv, mf_m, l_spatial_order, l_use_terrain);
 
-        if (l_use_diff && !l_use_terrain) {
+        if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
             Array4<Real> diffflux_y = dflux_y->array(mfi);
             Array4<Real> diffflux_z = dflux_z->array(mfi);
+
+            const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
             // NOTE: No diffusion for continuity, so n starts at 1.
             //       KE calls moved inside DiffSrcForState.
             int n_start = amrex::max(start_comp,RhoTheta_comp);
             int n_end   = start_comp + num_comp - 1;
-            DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
-                                   cur_cons, cur_prim, source_fab, cell_rhs,
-                                   diffflux_x, diffflux_y, diffflux_z,
-                                   dxInv, mf_m, mf_u, mf_v,
-                                   mu_turb, solverChoice, theta_mean, grav_gpu, bc_ptr);
+
+            if (l_use_terrain) {
+                DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
+                                       cur_cons, cur_prim, source_fab, cell_rhs,
+                                       diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
+                                       dxInv, mf_m, mf_u, mf_v,
+                                       mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+            } else {
+                DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
+                                       cur_cons, cur_prim, source_fab, cell_rhs,
+                                       diffflux_x, diffflux_y, diffflux_z,
+                                       dxInv, mf_m, mf_u, mf_v,
+                                       mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+            }
         }
 
         // This updates just the "slow" conserved variables

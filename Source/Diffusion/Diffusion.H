@@ -61,7 +61,7 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int
                              const amrex::Array4<const amrex::Real>& mf_v ,
                              const amrex::Array4<const amrex::Real>& mu_turb,
                              const SolverChoice &solverChoice,
-                             const amrex::Real& theta_mean,
+                             const amrex::Array4<const amrex::Real>& tm_arr,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr);
 
@@ -84,7 +84,7 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int
                              const amrex::Array4<const amrex::Real>& mf_v ,
                              const amrex::Array4<const amrex::Real>& mu_turb,
                              const SolverChoice &solverChoice,
-                             const amrex::Real& theta_mean,
+                             const amrex::Array4<const amrex::Real>& tm_arr,
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr);
 
