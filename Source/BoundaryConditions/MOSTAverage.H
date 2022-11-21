@@ -11,9 +11,9 @@
 class MOSTAverage {
 public:
     explicit MOSTAverage(const amrex::Vector<amrex::Geometry>& geom,
-                         const amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
-                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
-                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
+                         amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
     MOSTAverage() = default;
     ~MOSTAverage()
     {
@@ -22,6 +22,11 @@ public:
             delete m_k_indx[lev];
         }
     };
+
+    // Reset the pointers to field MFs
+    void update_field_ptrs(int lev,
+                           amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim);
 
     // Compute ncells per plane
     void set_plane_normalization();
@@ -52,7 +57,7 @@ protected:
     // Passed through constructor
     //--------------------------------------------
     const amrex::Vector<amrex::Geometry> m_geom;                     // Geometry at each level
-    amrex::Vector<amrex::Vector<const amrex::MultiFab*>>  m_fields;  // Ptr to fields to be averaged
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_fields;        // Ptr to fields to be averaged
     amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain heigh coords
 
     // General vars for multiple or all policies
