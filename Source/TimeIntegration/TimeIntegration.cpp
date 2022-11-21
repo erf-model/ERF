@@ -126,6 +126,10 @@ void ERF::erf_advance(int level,
             Array4<Real> tau32  = l_use_terrain ? Tau32->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = l_use_terrain ? z_phys_nd[level]->const_array(mfi) : Array4<const Real>{};
 
+            const Array4<const Real> mf_m = mapfac_m[level]->array(mfi);
+            const Array4<const Real> mf_u = mapfac_u[level]->array(mfi);
+            const Array4<const Real> mf_v = mapfac_v[level]->array(mfi);
+
             if (l_use_terrain) {
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
                                 u, v, w,
@@ -133,13 +137,15 @@ void ERF::erf_advance(int level,
                                 tau12, tau13,
                                 tau21, tau23,
                                 tau31, tau32,
-                                z_nd, bc_ptr_h, dxInv);
+                                z_nd, bc_ptr_h, dxInv,
+                                mf_m, mf_u, mf_v);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau13, tau23,
-                                bc_ptr_h, dxInv);
+                                bc_ptr_h, dxInv,
+                                mf_m, mf_u, mf_v);
             }
         } // mfi
     } // l_use_diff

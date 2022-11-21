@@ -215,8 +215,10 @@ void erf_slow_rhs_pre (int level, int nrk,
                     Real Omega_hi = omega_arr(i,j,k+1);
                     Real Omega_lo = omega_arr(i,j,k  );
 
-                    Real expansionRate = (u(i+1,j  ,k)*met_u_h_zeta_hi - u(i,j,k)*met_u_h_zeta_lo)*dxInv[0] +
-                                         (v(i  ,j+1,k)*met_v_h_zeta_hi - v(i,j,k)*met_v_h_zeta_lo)*dxInv[1] +
+                    Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
+
+                    Real expansionRate = (u(i+1,j  ,k)*met_u_h_zeta_hi - u(i,j,k)*met_u_h_zeta_lo)*dxInv[0]*mfsq +
+                                         (v(i  ,j+1,k)*met_v_h_zeta_hi - v(i,j,k)*met_v_h_zeta_lo)*dxInv[1]*mfsq +
                                          (Omega_hi - Omega_lo)*dxInv[2];
 
                     er_arr(i,j,k) = expansionRate / detJ(i,j,k);
@@ -224,8 +226,9 @@ void erf_slow_rhs_pre (int level, int nrk,
 
             } else {
                 amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    er_arr(i,j,k) = (u(i+1, j  , k  ) - u(i, j, k))*dxInv[0] +
-                                    (v(i  , j+1, k  ) - v(i, j, k))*dxInv[1] +
+                    Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
+                    er_arr(i,j,k) = (u(i+1, j  , k  )/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]*mfsq +
+                                    (v(i  , j+1, k  )/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]*mfsq +
                                     (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
                 });
             }
@@ -307,13 +310,15 @@ void erf_slow_rhs_pre (int level, int nrk,
                                 tau12, tau13,
                                 tau21, tau23,
                                 tau31, tau32,
-                                z_nd, bc_ptr_h, dxInv);
+                                z_nd, bc_ptr_h, dxInv,
+                                mf_m, mf_u, mf_v);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau13, tau23,
-                                bc_ptr_h, dxInv);
+                                bc_ptr_h, dxInv,
+                                mf_m, mf_u, mf_v);
             }
         } // l_use_diff
         } // profile
@@ -417,6 +422,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
         Real fac = 1.0;
+
         AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs,       // these are being used to build the fluxes
                                    rho_u, rho_v, omega_arr, fac,
                                    avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
@@ -474,6 +480,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
+
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
