@@ -181,7 +181,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             Real yflux_hi = 0.25*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * mf_v_inv_hi * (w(i,j+1,k) + w(i,j,k));
             Real yflux_lo = 0.25*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * mf_v_inv_lo * (w(i,j-1,k) + w(i,j,k));
 
-            Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * mf_m_inv * (w(i,j,k) + w(i,j,k-1));
+            Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
             Real zflux_hi = (k == domhi_z+1) ? Omega(i,j,k) * w(i,j,k) :
                                                0.25 * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1));
