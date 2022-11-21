@@ -422,7 +422,7 @@ void erf_slow_rhs_pre (int level, int nrk,
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
         Real fac = 1.0;
-        
+
         AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs,       // these are being used to build the fluxes
                                    rho_u, rho_v, omega_arr, fac,
                                    avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes

@@ -29,7 +29,7 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
         {
             Real mf   = mf_m(i,j,0);
             Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
-            
+
             Real diffContrib  = ( (tau11(i  , j  , k  ) - tau11(i-1, j  ,k  )) * dxinv * mf   // Contribution to x-mom eqn from diffusive flux in x-dir
                                 + (tau12(i  , j+1, k  ) - tau12(i  , j  ,k  )) * dyinv * mf   // Contribution to x-mom eqn from diffusive flux in y-dir
                                 + (tau13(i  , j  , k+1) - tau13(i  , j  ,k  )) * dzinv );     // Contribution to x-mom eqn from diffusive flux in z-dir;
@@ -65,7 +65,7 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
         {
             Real mf   = mf_m(i,j,0);
             Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
-            
+
             rho_u_rhs(i,j,k) += ( (tau11(i  , j  , k  ) - tau11(i-1, j  ,k  )) * dxinv * mf   // Contribution to x-mom eqn from diffusive flux in x-dir
                                 + (tau12(i  , j+1, k  ) - tau12(i  , j  ,k  )) * dyinv * mf   // Contribution to x-mom eqn from diffusive flux in y-dir
                                 + (tau13(i  , j  , k+1) - tau13(i  , j  ,k  )) * dzinv );     // Contribution to x-mom eqn from diffusive flux in z-dir;
