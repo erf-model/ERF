@@ -217,8 +217,8 @@ void erf_slow_rhs_pre (int level, int nrk,
 
                     Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
 
-                    Real expansionRate = (u(i+1,j  ,k)*met_u_h_zeta_hi - u(i,j,k)*met_u_h_zeta_lo)*dxInv[0]*mfsq +
-                                         (v(i  ,j+1,k)*met_v_h_zeta_hi - v(i,j,k)*met_v_h_zeta_lo)*dxInv[1]*mfsq +
+                    Real expansionRate = (u(i+1,j  ,k)/mf_u(i+1,j,0)*met_u_h_zeta_hi - u(i,j,k)/mf_u(i,j,0)*met_u_h_zeta_lo)*dxInv[0]*mfsq +
+                                         (v(i  ,j+1,k)/mf_v(i,j+1,0)*met_v_h_zeta_hi - v(i,j,k)/mf_v(i,j,0)*met_v_h_zeta_lo)*dxInv[1]*mfsq +
                                          (Omega_hi - Omega_lo)*dxInv[2];
 
                     er_arr(i,j,k) = expansionRate / detJ(i,j,k);
@@ -534,7 +534,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                                                     pp_arr(i-1,j,k  ) + pp_arr(i,j,k  )
                                                   - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
             } else {
-                    gp_zeta_on_iface = 0.25 * dxInv[2] * (
+                gp_zeta_on_iface = 0.25 * dxInv[2] * (
                                                      pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
                                                    - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
             }

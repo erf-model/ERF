@@ -54,20 +54,20 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         Box planexy = tbxxy; planexy.setBig(0, planexy.smallEnd(0) );
         tbxxy.growLo(0,-1);
         amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                             -u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                             -v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
+            Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
+                                             -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );
+            Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i-1,j  ,k+1)/mf_v(i-1,j,0)
+                                             -v(i  ,j  ,k-1)/mf_v(i,j,0) - v(i-1,j  ,k-1)/mf_v(i-1,j,0) );
 
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
-            tau12(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
-                                 + (-(8./3.) * v(i-1,j,k) + 3. * v(i,j,k) - (1./3.) * v(i+1,j,k))*dxInv[0]
+            tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i, j-1, k)/mf_u(i,j-1,0))*dxInv[1]
+                               + (-(8./3.) * v(i-1,j,k)/mf_v(i-1,j,0) + 3. * v(i,j,k)/mf_v(i,j,0) - (1./3.) * v(i+1,j,k)/mf_v(i+1,j,0))*dxInv[0]
                                  - (met_h_eta/met_h_zeta)*GradUz
-                                 - (met_h_xi /met_h_zeta)*GradVz );
+                                 - (met_h_xi /met_h_zeta)*GradVz ) * mf_u(i,j,0)*mf_u(i,j,0);
             tau21(i,j,k) = tau12(i,j,k);
         });
     }
@@ -75,20 +75,20 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         Box planexy = tbxxy; planexy.setSmall(0, planexy.bigEnd(0) );
         tbxxy.growHi(0,-1);
         amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                             -u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                             -v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
+            Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
+                                             -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );
+            Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i-1,j  ,k+1)/mf_v(i-1,j,0)
+                                             -v(i  ,j  ,k-1)/mf_v(i,j,0) - v(i-1,j  ,k-1)/mf_v(i-1,j,0) );
 
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
-            tau12(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j-1, k))*dxInv[1]
-                                 - (-(8./3.) * v(i,j,k) + 3. * v(i-1,j,k) - (1./3.) * v(i-2,j,k))*dxInv[0]
-                                 - (met_h_eta/met_h_zeta)*GradUz
-                                 - (met_h_xi /met_h_zeta)*GradVz );
+            tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i, j-1, k)/mf_u(i,j-1,0))*dxInv[1]
+                               - (-(8./3.) * v(i,j,k)/mf_v(i,j,0) + 3. * v(i-1,j,k)/mf_v(i-1,j,0) - (1./3.) * v(i-2,j,k)/mf_v(i-2,j,0))*dxInv[0] 
+                               - (met_h_eta/met_h_zeta)*GradUz
+                               - (met_h_xi /met_h_zeta)*GradVz ) * mf_u(i,j,0)*mf_u(i,j,0);
             tau21(i,j,k) = tau12(i,j,k);
         });
     }
@@ -106,8 +106,8 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
             tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2]/met_h_zeta
-                                 + (-(8./3.) * w(i-1,j,k) + 3. * w(i,j,k) - (1./3.) * w(i+1,j,k))*dxInv[0]
-                                 - (met_h_xi/met_h_zeta)*GradWz );
+                                 + ( (-(8./3.) * w(i-1,j,k) + 3. * w(i,j,k) - (1./3.) * w(i+1,j,k))*dxInv[0]
+                                   - (met_h_xi/met_h_zeta)*GradWz ) * mf_u(i,j,0) );
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
@@ -124,8 +124,8 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
             tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2]/met_h_zeta
-                                 - (-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dxInv[0]
-                                 - (met_h_xi/met_h_zeta)*GradWz );
+                                 - ( (-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dxInv[0]
+                                     - (met_h_xi/met_h_zeta)*GradWz ) * mf_u(i,j,0) );
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
@@ -136,20 +136,20 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         Box planexy = tbxxy; planexy.setBig(1, planexy.smallEnd(1) );
         tbxxy.growLo(1,-1);
         amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                             -u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                             -v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
+            Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
+                                             -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );
+            Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i-1,j  ,k+1)/mf_v(i-1,j,0)
+                                             -v(i  ,j  ,k-1)/mf_v(i,j,0) - v(i-1,j  ,k-1)/mf_v(i-1,j,0) );
 
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
-            tau12(i,j,k) = 0.5 * ( (-(8./3.) * u(i,j-1,k) + 3. * u(i,j,k) - (1./3.) * u(i,j+1,k))*dxInv[1]
-                                 + (v(i, j, k) - v(i-1, j, k))*dxInv[0]
-                                 - (met_h_eta/met_h_zeta)*GradUz
-                                 - (met_h_xi /met_h_zeta)*GradVz );
+            tau12(i,j,k) = 0.5 * ( (-(8./3.) * u(i,j-1,k)/mf_u(i,j-1,0) + 3. * u(i,j,k)/mf_u(i,j,0) - (1./3.) * u(i,j+1,k)/mf_u(i,j+1,0))*dxInv[1]
+                               + (v(i, j, k)/mf_v(i,j,0) - v(i-1, j, k)/mf_v(i,j,0))*dxInv[0]
+                               - (met_h_eta/met_h_zeta)*GradUz
+                               - (met_h_xi /met_h_zeta)*GradVz ) * mf_u(i,j,0)*mf_u(i,j,0);
             tau21(i,j,k) = tau12(i,j,k);
         });
     }
@@ -157,20 +157,20 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         Box planexy = tbxxy; planexy.setSmall(1, planexy.bigEnd(1) );
         tbxxy.growHi(1,-1);
         amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                             -u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-            Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                             -v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
+            Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
+                                             -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );
+            Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i-1,j  ,k+1)/mf_v(i-1,j,0)
+                                             -v(i  ,j  ,k-1)/mf_v(i,j,0) - v(i-1,j  ,k-1)/mf_v(i-1,j,0) );
 
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
             met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
-            tau12(i,j,k) = 0.5 * ( -(-(8./3.) * u(i,j,k) + 3. * u(i,j-1,k) - (1./3.) * u(i,j-2,k))*dxInv[1] +
-                                 + (v(i, j, k) - v(i-1, j, k))*dxInv[0]
-                                 - (met_h_eta/met_h_zeta)*GradUz
-                                 - (met_h_xi /met_h_zeta)*GradVz );
+            tau12(i,j,k) = 0.5 * ( -(-(8./3.) * u(i,j,k)/mf_u(i,j,0) + 3. * u(i,j-1,k)/mf_u(i,j-1,0) - (1./3.) * u(i,j-2,k)/mf_u(i,j-2,0))*dxInv[1] +
+                               + (v(i, j, k)/mf_v(i,j,0) - v(i-1, j, k)/mf_v(i-1,j,0))*dxInv[0]
+                               - (met_h_eta/met_h_zeta)*GradUz
+                               - (met_h_xi /met_h_zeta)*GradVz ) * mf_u(i,j,0)*mf_u(i,j,0);
             tau21(i,j,k) = tau12(i,j,k);
         });
     }
@@ -188,8 +188,8 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
              met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
             tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2]/met_h_zeta
-                                 + (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dxInv[1]
-                                 - (met_h_eta/met_h_zeta)*GradWz);
+                                 + ( (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dxInv[1]*mf_v(i,j,0)
+                                   - (met_h_eta/met_h_zeta)*GradWz ) * mf_v(i,j,0) );
             tau32(i,j,k) = tau23(i,j,k);
         });
     }
@@ -206,8 +206,8 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
              met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
             tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2]/met_h_zeta
-                                 - (-(8./3.) * w(i,j  ,k) + 3. * w(i,j-1,k) - (1./3.) * w(i,j-2,k))*dxInv[1]
-                                 - (met_h_eta/met_h_zeta)*GradWz );
+                                 - ( (-(8./3.) * w(i,j  ,k) + 3. * w(i,j-1,k) - (1./3.) * w(i,j-2,k))*dxInv[1]
+                                     - (met_h_eta/met_h_zeta)*GradWz ) * mf_v(i,j,0) );
             tau32(i,j,k) = tau23(i,j,k);
         });
     }
@@ -226,12 +226,12 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
             tau13(i,j,k) = 0.5 * ( (-(8./3.) * u(i,j,k-1) + 3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dxInv[2]/met_h_zeta
-                                 + (w(i, j, k) - w(i-1, j, k))*dxInv[0]
-                                 - (met_h_xi/met_h_zeta)*GradWz );
+                                 + ( (w(i, j, k) - w(i-1, j, k))*dxInv[0]
+                                   - (met_h_xi/met_h_zeta)*GradWz ) * mf_u(i,j,0) );
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
-    if (zh_u_dir) {
+    if (zh_u_dir) { 
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
         amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -239,7 +239,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
             tau13(i,j,k) = 0.5 * ( -(-(8./3.) * u(i,j,k) + 3. * u(i,j,k-1) - (1./3.) * u(i,j,k-2))*dxInv[2]/met_h_zeta
-                                  + (w(i, j, k) - w(i-1, j, k))*dxInv[0] );
+                               + (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mf_u(i,j,0) );
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
@@ -256,8 +256,8 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
             tau23(i,j,k) = 0.5 * ( (-(8./3.) * v(i,j,k-1) + 3. * v(i,j,k  ) - (1./3.) * v(i,j,k+1))*dxInv[2]/met_h_zeta
-                                 + (w(i, j, k) - w(i, j-1, k))*dxInv[1]
-                                 - (met_h_eta/met_h_zeta)*GradWz );
+                                 + ( (w(i, j, k) - w(i, j-1, k))*dxInv[1]
+                                   - (met_h_eta/met_h_zeta)*GradWz ) * mf_v(i,j,0) );
             tau32(i,j,k) = tau23(i,j,k);
         });
     }
@@ -269,7 +269,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
             tau23(i,j,k) = 0.5 * ( -(-(8./3.) * v(i,j,k  ) + 3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dxInv[2]/met_h_zeta
-                                  + (w(i, j, k) - w(i, j-1, k))*dxInv[1] );
+                                 + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mf_v(i,j,0) );
             tau32(i,j,k) = tau23(i,j,k);
         });
     }
@@ -288,8 +288,8 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
             tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta
-                                 + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
-                                 - (met_h_xi/met_h_zeta)*GradWz );
+                                 + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
+                                   - (met_h_xi/met_h_zeta)*GradWz ) * mf_u(i,j,0) );
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
@@ -305,8 +305,8 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
             tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta
-                                 + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
-                                 - (met_h_eta/met_h_zeta)*GradWz );
+                                 + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
+                                   - (met_h_eta/met_h_zeta)*GradWz ) * mf_v(i,j,0) );
             tau32(i,j,k) = tau23(i,j,k);
         });
     }
@@ -321,7 +321,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
             tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta
-                                 + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0] );
+                                 + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]*mf_u(i,j,0) );
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
@@ -333,7 +333,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
             tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta
-                                 + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1] );
+                                 + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]*mf_v(i,j,0) );
             tau32(i,j,k) = tau23(i,j,k);
         });
     }
@@ -342,40 +342,40 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
     //***********************************************************************************
     // Cell centered strains
     amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
-                                         -u(i  ,j  ,k-1) - u(i-1,j  ,k-1) );
-        Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
-                                         -v(i  ,j  ,k-1) - v(i  ,j-1,k-1) );
+        Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i-1,j  ,k+1)/mf_u(i-1,j,0)
+                                         -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i-1,j  ,k-1)/mf_u(i-1,j,0) );
+        Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i  ,j-1,k+1)/mf_v(i,j-1,0)
+                                         -v(i  ,j  ,k-1)/mf_v(i,j,0) - v(i  ,j-1,k-1)/mf_v(i,j-1,0) );
 
         Real met_h_xi,met_h_eta,met_h_zeta;
         met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
         met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
         met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
 
-        tau11(i,j,k) = (u(i+1, j, k) - u(i, j, k))*dxInv[0]
-                     - (met_h_xi/met_h_zeta)*GradUz;
-        tau22(i,j,k) = (v(i, j+1, k) - v(i, j, k))*dxInv[1]
-                     - (met_h_eta/met_h_zeta)*GradVz;
+        tau11(i,j,k) = ( (u(i+1, j, k)/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]
+                       - (met_h_xi/met_h_zeta)*GradUz ) * mf_u(i,j,0)*mf_u(i,j,0);
+        tau22(i,j,k) = ( (v(i, j+1, k)/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]
+                       - (met_h_eta/met_h_zeta)*GradVz ) * mf_v(i,j,0)*mf_v(i,j,0);
         tau33(i,j,k) = (w(i, j, k+1) - w(i, j, k))*dxInv[2]/met_h_zeta;
     });
 
     // Off-diagonal strains
     amrex::ParallelFor(tbxxy,tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1) + u(i  ,j-1,k+1)
-                                         -u(i  ,j  ,k-1) - u(i  ,j-1,k-1) );
-        Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1) + v(i-1,j  ,k+1)
-                                         -v(i  ,j  ,k-1) - v(i-1,j  ,k-1) );
+        Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
+                                         -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );
+        Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i-1,j  ,k+1)/mf_v(i-1,j,0)
+                                         -v(i  ,j  ,k-1)/mf_v(i,j,0) - v(i-1,j  ,k-1)/mf_v(i-1,j,0) );
 
         Real met_h_xi,met_h_eta,met_h_zeta;
         met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
         met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
         met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
-        tau12(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j-1, k))*dxInv[1]
-                             + (v(i, j, k) - v(i-1, j  , k))*dxInv[0]
+        tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i  , j-1, k)/mf_u(i,j-1,0))*dxInv[1]
+                             + (v(i, j, k)/mf_v(i,j,0) - v(i-1, j  , k)/mf_v(i-1,j,0))*dxInv[0]
                              - (met_h_eta/met_h_zeta)*GradUz
-                             - (met_h_xi /met_h_zeta)*GradVz );
+                             - (met_h_xi /met_h_zeta)*GradVz ) * mf_u(i,j,0)*mf_u(i,j,0);
         tau21(i,j,k) = tau12(i,j,k);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -387,8 +387,8 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
         tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta
-                             + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
-                             - (met_h_xi/met_h_zeta)*GradWz );
+                             + ( (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
+                               - (met_h_xi/met_h_zeta)*GradWz ) * mf_u(i,j,0) );
         tau31(i,j,k) = tau13(i,j,k);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -400,8 +400,8 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
         tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta
-                             + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
-                             - (met_h_eta/met_h_zeta)*GradWz );
+                             + ( (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
+                               - (met_h_eta/met_h_zeta)*GradWz ) * mf_v(i,j,0) );
         tau32(i,j,k) = tau23(i,j,k);
     });
 }

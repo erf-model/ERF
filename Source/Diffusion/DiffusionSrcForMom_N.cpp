@@ -28,7 +28,6 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real mf   = mf_m(i,j,0);
-            Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
 
             Real diffContrib  = ( (tau11(i  , j  , k  ) - tau11(i-1, j  ,k  )) * dxinv * mf   // Contribution to x-mom eqn from diffusive flux in x-dir
                                 + (tau12(i  , j+1, k  ) - tau12(i  , j  ,k  )) * dyinv * mf   // Contribution to x-mom eqn from diffusive flux in y-dir
@@ -39,7 +38,6 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real mf   = mf_m(i,j,0);
-            Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
 
             Real diffContrib  = ( (tau12(i+1, j  , k  ) - tau12(i  , j  , k  )) * dxinv * mf   // Contribution to y-mom eqn from diffusive flux in x-dir
                                 + (tau22(i  , j  , k  ) - tau22(i  , j-1, k  )) * dyinv * mf   // Contribution to y-mom eqn from diffusive flux in y-dir
@@ -50,7 +48,6 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real mf   = mf_m(i,j,0);
-            Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
 
             Real diffContrib  = ( (tau13(i+1, j  , k  ) - tau13(i  , j  , k  )) * dxinv * mf   // Contribution to z-mom eqn from diffusive flux in x-dir
                                 + (tau23(i  , j+1, k  ) - tau23(i  , j  , k  )) * dyinv * mf   // Contribution to z-mom eqn from diffusive flux in y-dir
@@ -64,8 +61,7 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real mf   = mf_m(i,j,0);
-            Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
-
+            
             rho_u_rhs(i,j,k) += ( (tau11(i  , j  , k  ) - tau11(i-1, j  ,k  )) * dxinv * mf   // Contribution to x-mom eqn from diffusive flux in x-dir
                                 + (tau12(i  , j+1, k  ) - tau12(i  , j  ,k  )) * dyinv * mf   // Contribution to x-mom eqn from diffusive flux in y-dir
                                 + (tau13(i  , j  , k+1) - tau13(i  , j  ,k  )) * dzinv );     // Contribution to x-mom eqn from diffusive flux in z-dir;
@@ -73,7 +69,6 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real mf   = mf_m(i,j,0);
-            Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
 
             rho_v_rhs(i,j,k) += ( (tau12(i+1, j  , k  ) - tau12(i  , j  , k  )) * dxinv * mf   // Contribution to y-mom eqn from diffusive flux in x-dir
                                 + (tau22(i  , j  , k  ) - tau22(i  , j-1, k  )) * dyinv * mf   // Contribution to y-mom eqn from diffusive flux in y-dir
@@ -82,7 +77,6 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real mf   = mf_m(i,j,0);
-            Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
 
             rho_w_rhs(i,j,k) += ( (tau13(i+1, j  , k  ) - tau13(i  , j  , k  )) * dxinv * mf   // Contribution to z-mom eqn from diffusive flux in x-dir
                                 + (tau23(i  , j+1, k  ) - tau23(i  , j  , k  )) * dyinv * mf   // Contribution to z-mom eqn from diffusive flux in y-dir
