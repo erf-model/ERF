@@ -86,7 +86,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
             tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i, j-1, k)/mf_u(i,j-1,0))*dxInv[1]
-                               - (-(8./3.) * v(i,j,k)/mf_v(i,j,0) + 3. * v(i-1,j,k)/mf_v(i-1,j,0) - (1./3.) * v(i-2,j,k)/mf_v(i-2,j,0))*dxInv[0] 
+                               - (-(8./3.) * v(i,j,k)/mf_v(i,j,0) + 3. * v(i-1,j,k)/mf_v(i-1,j,0) - (1./3.) * v(i-2,j,k)/mf_v(i-2,j,0))*dxInv[0]
                                - (met_h_eta/met_h_zeta)*GradUz
                                - (met_h_xi /met_h_zeta)*GradVz ) * mf_u(i,j,0)*mf_u(i,j,0);
             tau21(i,j,k) = tau12(i,j,k);
@@ -231,7 +231,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
-    if (zh_u_dir) { 
+    if (zh_u_dir) {
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
         amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
