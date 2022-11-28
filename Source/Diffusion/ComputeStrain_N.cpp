@@ -58,7 +58,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         tbxxy.growHi(0,-1);
         amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i, j-1, k)/mf_u(i,j-1,0))*dxInv[1] +
-                                   -(-(8./3.) * v(i,j,k)/mf_v(i,j,0) + 3. * v(i-1,j,k)/mf_v(i-1,j,0) - (1./3.) * v(i-2,j,k)/mf_v(i-2,j,0))*dxInv[0] ) * mf_u(i,j,0)*mf_u(i,j,0);
+                                  -(-(8./3.) * v(i,j,k)/mf_v(i,j,0) + 3. * v(i-1,j,k)/mf_v(i-1,j,0) - (1./3.) * v(i-2,j,k)/mf_v(i-2,j,0))*dxInv[0] ) * mf_u(i,j,0)*mf_u(i,j,0);
         });
     }
 
@@ -75,7 +75,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         tbxxz.growHi(0,-1);
         amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2] +
-                                   -(-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dxInv[0]*mf_u(i,j,0) );
+                                  -(-(8./3.) * w(i,j,k) + 3. * w(i-1,j,k) - (1./3.) * w(i-2,j,k))*dxInv[0]*mf_u(i,j,0) );
         });
     }
 
@@ -139,7 +139,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         tbxyz.growLo(2,-1);
         amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             tau23(i,j,k) = 0.5 * ( (-(8./3.) * v(i,j,k-1) + 3. * v(i,j,k  ) - (1./3.) * v(i,j,k+1))*dxInv[2] +
-                                   (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mf_v(i,j,0)*mf_v(i,j,0) );
+                                   (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mf_v(i,j,0) );
         });
     }
     if (zh_v_dir) {
@@ -147,7 +147,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         tbxyz.growHi(2,-1);
         amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             tau23(i,j,k) = 0.5 * ( -(-(8./3.) * v(i,j,k  ) + 3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dxInv[2] +
-                                   (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mf_v(i,j,0)*mf_v(i,j,0) );
+                                   (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mf_v(i,j,0) );
         });
     }
 
