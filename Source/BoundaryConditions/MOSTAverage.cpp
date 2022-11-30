@@ -19,15 +19,15 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
     //--------------------------------------------------------
     m_maxlev = m_geom.size();
     m_fields.resize(m_maxlev);
-    
+
     m_k_in.resize(m_maxlev);
-    
+
     m_k_indx.resize(m_maxlev);
     m_j_indx.resize(m_maxlev);
     m_i_indx.resize(m_maxlev);
-    
+
     m_averages.resize(m_maxlev);
-    
+
     m_z_phys_nd.resize(m_maxlev);
     for (int lev(0); lev < m_maxlev; lev++) {
       m_fields[lev].resize(m_nvar);
@@ -86,7 +86,7 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         m_averages[lev][3]->setVal(1.E34);
 
         m_k_indx[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
-        
+
         if (m_norm_vec) {
             m_j_indx[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
             m_i_indx[lev] = new amrex::iMultiFab(ba2d,dm,incomp,ng);
@@ -97,27 +97,25 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
       }
     } // lev
 
-    // Setup 2d iMF for spatial configuration
+    // Setup 2d iMF(s) for spatial configuration
     //--------------------------------------------------------
-    if (m_norm_vec && m_z_phys_nd[0]) {
+    if (m_norm_vec && m_z_phys_nd[0]) { // Use norm vector with terrain
         set_ijk_indices_T();
-    } else if (m_z_phys_nd[0]) {
+    } else if (m_z_phys_nd[0]) {        // No norm vector with terrain
         set_k_indices_T();
-    } else {
+    } else {                            // No norm vector and no terrain
         set_k_indices_N();
     }
 
     // Setup auxiliary data for the chosen policy
     //--------------------------------------------------------
     switch(m_policy) {
-    case 0: // Standard plane average
+    case 0: // Plane average
         set_plane_normalization();
         break;
-
     case 1: // Local region/point
         set_region_normalization();
         break;
-
     default:
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
@@ -137,6 +135,12 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         // None of the averages are initialized
         m_t_init.resize(m_maxlev,0);
     }
+
+    // DEBUG: DELTE WHEN FINISHED
+    //=============================
+    write_ijk_indices(0);
+    write_XZ_planar_positions(0,0);
+    exit(0);
 }
 
 
@@ -150,6 +154,7 @@ MOSTAverage::update_field_ptrs(int lev,
     m_fields[lev][1] = &vars_old[lev][Vars::yvel];
     m_fields[lev][2] = Theta_prim[lev].get();
 }
+
 
 // Compute ncells per plane
 void
@@ -185,7 +190,7 @@ MOSTAverage::set_plane_normalization()
 }
 
 
-// Populate a 2D iMF with the k indices for averaging
+// Populate a 2D iMF with the k indices for averaging (w/o terrain)
 void
 MOSTAverage::set_k_indices_N()
 {
@@ -198,14 +203,15 @@ MOSTAverage::set_k_indices_N()
         for (int lev(0); lev < m_maxlev; lev++) {
             amrex::Real m_zlo = m_geom[lev].ProbLo(2);
             amrex::Real m_dz  = m_geom[lev].CellSize(2);
-            
+
             AMREX_ALWAYS_ASSERT(m_zref >= m_zlo + 0.5 * m_dz);
-            
+
             int lk = static_cast<int>(floor((m_zref - m_zlo) / m_dz - 0.5));
             lk = std::max(m_radius,lk);
-            
+            amrex::IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
+
             for (amrex::MFIter mfi(*m_k_indx[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                amrex::Box gpbx = mfi.tilebox();
+                amrex::Box gpbx = mfi.growntilebox(ng);
                 auto k_arr      = m_k_indx[lev]->array(mfi);
                 ParallelFor(gpbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
@@ -219,7 +225,7 @@ MOSTAverage::set_k_indices_N()
             m_k_in[lev] = std::max(m_radius,m_k_in[lev]);
             m_k_indx[lev]->setVal(m_k_in[lev]);
         }
-        
+
         // TODO: check that z_ref is constant across levels
         amrex::Real m_zlo = m_geom[0].ProbLo(2);
         amrex::Real m_dz  = m_geom[0].CellSize(2);
@@ -228,7 +234,7 @@ MOSTAverage::set_k_indices_N()
 }
 
 
-// Populate a 2D iMF with the k indices for averaging
+// Populate a 2D iMF with the k indices for averaging (w/ terrain)
 void
 MOSTAverage::set_k_indices_T()
 {
@@ -240,23 +246,27 @@ MOSTAverage::set_k_indices_T()
     if (read_z) {
         for (int lev(0); lev < m_maxlev; lev++) {
             int kmax = m_geom[lev].Domain().bigEnd(2);
+            amrex::IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
             for (amrex::MFIter mfi(*m_k_indx[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                amrex::Box gpbx = mfi.tilebox();
-                auto z_arr      = m_z_phys_nd[lev]->array(mfi);
-                auto k_arr      = m_k_indx[lev]->array(mfi);
+                amrex::Box gpbx  = mfi.growntilebox(ng);
+                const auto z_arr = m_z_phys_nd[lev]->const_array(mfi);
+                auto k_arr       = m_k_indx[lev]->array(mfi);
                 ParallelFor(gpbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    k_arr(i,j,k) = 0;
-                    
+                    amrex::Real z_target = m_zref + z_arr(i,j,k);
                     for (int lk(0); lk<=kmax; ++lk) {
-                        if (m_zref > z_arr(i,j,lk) && m_zref < z_arr(i,j,lk+1)){
+                        amrex::Real z_lo = 0.25 * ( z_arr(i,j  ,lk  ) + z_arr(i+1,j  ,lk  )
+                                                  + z_arr(i,j+1,lk  ) + z_arr(i+1,j+1,lk  ) );
+                        amrex::Real z_hi = 0.25 * ( z_arr(i,j  ,lk+1) + z_arr(i+1,j  ,lk+1)
+                                                  + z_arr(i,j+1,lk+1) + z_arr(i+1,j+1,lk+1) );
+                        if (z_target > z_lo && z_target < z_hi){
                             k_arr(i,j,k) = lk;
                             break;
                         }
                     }
                 });
             }
-        }   
+        }
     // Specified k_indx & compute z_ref
     } else if (read_k) {
         AMREX_ASSERT_WITH_MESSAGE(false, "Specified k-indx with terrain not implemented!");
@@ -264,11 +274,58 @@ MOSTAverage::set_k_indices_T()
 }
 
 
-// Populate all 2D iMFs for averaging
+// Populate all 2D iMFs for averaging (w/ terrain & norm vector)
 void
 MOSTAverage::set_ijk_indices_T()
 {
+    amrex::ParmParse pp(m_pp_prefix);
+    pp.query("most.zref",m_zref);
 
+    for (int lev(0); lev < m_maxlev; lev++) {
+        int kmax = m_geom[lev].Domain().bigEnd(2);
+        amrex::IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
+        const auto dxInv  = m_geom[lev].InvCellSizeArray();
+        for (amrex::MFIter mfi(*m_k_indx[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            amrex::Box gpbx = mfi.growntilebox(ng);
+            const auto z_arr = m_z_phys_nd[lev]->const_array(mfi);
+            auto k_arr       = m_k_indx[lev]->array(mfi);
+            auto j_arr       = m_j_indx[lev]->array(mfi);
+            auto i_arr       = m_i_indx[lev]->array(mfi);
+            ParallelFor(gpbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                // Elements of normal vector
+                amrex::Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_arr);
+                amrex::Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_arr);
+                amrex::Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
+
+                // Unit-normal vector scaled by z_ref
+                amrex::Real delta_x = -met_h_xi/mag  * m_zref;
+                amrex::Real delta_y = -met_h_eta/mag * m_zref;
+                amrex::Real delta_z = 1.0/mag * m_zref;
+
+                // Compute i & j as displacements (no grid stretching)
+                int delta_i  = static_cast<int>(std::round(delta_x*dxInv[0]));
+                int delta_j  = static_cast<int>(std::round(delta_y*dxInv[1]));
+                int i_new    = i + delta_i;
+                int j_new    = j + delta_j;
+                i_arr(i,j,k) = i_new;
+                j_arr(i,j,k) = j_new;
+
+                // Search for k (grid is stretched in z)
+                amrex::Real z_target = delta_z + z_arr(i,j,k);
+                for (int lk(0); lk<=kmax; ++lk) {
+                    amrex::Real z_lo = 0.25 * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
+                                              + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
+                    amrex::Real z_hi = 0.25 * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
+                                              + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
+                    if (z_target > z_lo && z_target < z_hi){
+                        k_arr(i,j,k) = lk;
+                        break;
+                    }
+                }
+            });
+        }
+    }
 }
 
 
@@ -280,11 +337,9 @@ MOSTAverage::compute_averages(int lev)
     case 0: // Standard plane average
         compute_plane_averages(lev);
         break;
-
     case 1: // Local region/point
         compute_region_averages(lev);
         break;
-
     default:
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown policy for MOSTAverage!");
     }
@@ -336,7 +391,7 @@ MOSTAverage::compute_plane_averages(int lev)
             auto k_arr  = k_indx->const_array(mfi);
             auto j_arr  = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
             auto i_arr  = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
-            
+
             amrex::Real d_val_old = plane_average[imf]*d_fact_old;
 
             ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
@@ -378,7 +433,7 @@ MOSTAverage::compute_plane_averages(int lev)
                 int mk = k_arr(i,j,k);
                 int mj = j_arr ? j_arr(i,j,k) : j;
                 int mi = i_arr ? i_arr(i,j,k) : i;
-                
+
                 const amrex::Real u_val = 0.5 * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
                 const amrex::Real v_val = 0.5 * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
                 const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
@@ -481,7 +536,7 @@ MOSTAverage::compute_region_averages(int lev)
             auto k_arr    = k_indx->const_array(mfi);
             auto j_arr    = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
             auto i_arr    = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
-            
+
             ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 ma_arr(i,j,k) *= d_fact_old;
@@ -579,6 +634,99 @@ MOSTAverage::write_k_indices(int lev)
     }
     ofile.close();
 }
+
+
+// Write ijk indices
+void
+MOSTAverage::write_ijk_indices(int lev)
+{
+    // Peel back the level
+    auto& averages = m_averages[lev];
+    auto& k_indx   = m_k_indx[lev];
+    auto& j_indx   = m_j_indx[lev];
+    auto& i_indx   = m_i_indx[lev];
+
+    int navg = m_navg - 1;
+
+    std::ofstream ofile;
+    ofile.open ("MOST_ijk_indices.txt");
+    ofile << "IJK indices used to compute averages via MOSTAverages class:\n";
+
+    for (amrex::MFIter mfi(*averages[navg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        amrex::Box bx  = mfi.tilebox(); bx.setBig(2,0);
+        int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
+        int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
+
+        auto k_arr = k_indx->array(mfi);
+        auto j_arr = j_indx ? j_indx->array(mfi) : amrex::Array4<int> {};
+        auto i_arr = i_indx ? i_indx->array(mfi) : amrex::Array4<int> {};
+
+        for (int j(jl); j <= ju; ++j) {
+            for (int i(il); i <= iu; ++i) {
+                ofile << "(I1,J1,K1): " << "(" << i << "," << j << "," << 0 << ")" << "\n";
+
+                int k = 0;
+                int km = k_arr(i,j,k);
+                int jm = j_arr ? j_arr(i,j,k) : j;
+                int im = i_arr ? i_arr(i,j,k) : i;
+
+                ofile << "(I2,J2,K2): "
+                      << "(" << im << "," << jm << "," << km << ")" << "\n";
+                ofile << "\n";
+            }
+        }
+    }
+    ofile.close();
+}
+
+
+// Write position of XZ plane
+void
+MOSTAverage::write_XZ_planar_positions(int lev, int lj)
+{
+    // Peel back the level
+    auto& averages = m_averages[lev];
+    auto& z_mf     = m_z_phys_nd[lev];
+    auto& k_indx   = m_k_indx[lev];
+    auto& j_indx   = m_j_indx[lev];
+    auto& i_indx   = m_i_indx[lev];
+
+    int navg = m_navg - 1;
+
+    amrex::Real m_xlo = m_geom[lev].ProbLo(0);
+    amrex::Real m_dx  = m_geom[lev].CellSize(0);
+
+    std::ofstream ofile;
+    ofile.open ("MOST_XZ_positions.txt");
+
+    for (amrex::MFIter mfi(*averages[navg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        amrex::Box bx  = mfi.tilebox(); bx.setBig(2,0);
+        int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
+
+        const auto z_arr = z_mf->const_array(mfi);
+        auto k_arr = k_indx->array(mfi);
+        auto j_arr = j_indx ? j_indx->array(mfi) : amrex::Array4<int> {};
+        auto i_arr = i_indx ? i_indx->array(mfi) : amrex::Array4<int> {};
+
+        for (int i(il); i <= iu; ++i) {
+
+            int k  = 0;
+            int km = k_arr(i,lj,k);
+            int jm = j_arr ? j_arr(i,lj,k) : lj;
+            int im = i_arr ? i_arr(i,lj,k) :  i;
+
+            amrex::Real xpos = ((amrex::Real)im + 0.5) * m_dx + m_xlo;
+            amrex::Real zpos = 0.125 * ( z_arr(im,jm  ,km  ) + z_arr(im+1,jm  ,km  )
+                                       + z_arr(im,jm+1,km  ) + z_arr(im+1,jm+1,km  )
+                                       + z_arr(im,jm  ,km+1) + z_arr(im+1,jm  ,km+1)
+                                       + z_arr(im,jm+1,km+1) + z_arr(im+1,jm+1,km+1) );
+
+            ofile << xpos << ' ' << zpos << "\n";
+        }
+    }
+    ofile.close();
+}
+
 
 // Write averages
 void

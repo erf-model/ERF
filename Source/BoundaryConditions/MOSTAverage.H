@@ -7,6 +7,7 @@
 #include <AMReX_iMultiFab.H>
 #include <AMReX_ParmParse.H>
 #include <IndexDefines.H>
+#include <TerrainMetrics.H>
 
 class MOSTAverage {
 public:
@@ -55,14 +56,23 @@ public:
     // Fill averages for policy::point
     void compute_region_averages(int lev);
 
-    // Write k indices for each average
+    // Write k indices
     void write_k_indices(int lev);
+
+    // Write ijk indices
+    void write_ijk_indices(int lev);
+
+    // Write XZ planar positions
+    void write_XZ_planar_positions(int lev, int lj);
 
     // Write averages on 2D mf
     void write_averages(int lev);
 
     // Get pointer to the 2D mf of averages
     const amrex::MultiFab* get_average(int lev, int comp) const { return m_averages[lev][comp]; };
+
+    // Get z_ref (may be computed from specified k_indx)
+    amrex::Real get_zref() { return m_zref; };
 
 protected:
 
@@ -99,7 +109,7 @@ protected:
     // Vars for normal vector policy
     //--------------------------------------------
     bool m_norm_vec{false};                                          // Use normal vector to find IJK?
-    
+
     // Time average w/ exponential filter fun
     //--------------------------------------------
     bool m_t_avg{false};                                             // Flag to do moving average in time

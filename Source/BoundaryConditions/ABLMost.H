@@ -27,7 +27,6 @@ class ABLMostData
 {
 public:
 
-    amrex::Real zref{0.2};           ///< Reference height (m)
     amrex::Real z0_const{0.1};       ///< Roughness height -- default constant value(m)
     amrex::Real kappa{KAPPA};        ///< von Karman constant
     amrex::Real gravity{CONST_GRAV}; ///< Acceleration due to gravity (m/s^2)
@@ -75,7 +74,6 @@ public:
       : m_geom(geom), m_ma(geom,vars_old,Theta_prim,z_phys_nd)
     {
         amrex::ParmParse pp("erf");
-        pp.query("most.zref"     , zref);
         pp.query("most.z0"       , z0_const);
 
         // Specify surface temperature or surface flux
@@ -185,7 +183,6 @@ public:
     void print() const
     {
         amrex::Print() << "ABLMost:\n";
-        amrex::Print() << "  zref: "          << zref           << "\n";
         amrex::Print() << " kappa: "          << kappa          << "\n";
         amrex::Print() << " gravity: "        << gravity        << "\n";
         amrex::Print() << " surf_temp_flux: " << surf_temp_flux << "\n";
