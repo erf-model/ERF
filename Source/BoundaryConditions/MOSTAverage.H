@@ -20,6 +20,8 @@ public:
         for (int lev(0); lev<m_maxlev; ++lev){
             for (int iavg(0); iavg<m_navg; ++iavg) delete m_averages[lev][iavg];
             delete m_k_indx[lev];
+            delete m_j_indx[lev];
+            delete m_i_indx[lev];
         }
     };
 
@@ -31,8 +33,18 @@ public:
     // Compute ncells per plane
     void set_plane_normalization();
 
-    // Populate a 2D iMF with a uniform k value
-    void set_uniform_k_indices();
+    // Compute ncells per plane
+    void set_region_normalization()
+    {m_ncell_region = (2 * m_radius + 1) * (2 * m_radius + 1) * (2 * m_radius + 1);};
+
+    // Populate a 2D iMF w/o terrain (k_indx)
+    void set_k_indices_N();
+
+    // Populate a 2D iMF with terrain (k_indx)
+    void set_k_indices_T();
+
+    // Populate all 2D iMFs with terrain (ijk_indx)
+    void set_ijk_indices_T();
 
     // Driver for the different average policies
     void compute_averages(int lev);
@@ -41,7 +53,7 @@ public:
     void compute_plane_averages(int lev);
 
     // Fill averages for policy::point
-    void compute_point_averages(int lev);
+    void compute_region_averages(int lev);
 
     // Write k indices for each average
     void write_k_indices(int lev);
@@ -57,19 +69,21 @@ protected:
     // Passed through constructor
     //--------------------------------------------
     const amrex::Vector<amrex::Geometry> m_geom;                     // Geometry at each level
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_fields;        // Ptr to fields to be averaged
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_fields;         // Ptr to fields to be averaged
     amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain heigh coords
 
     // General vars for multiple or all policies
     //--------------------------------------------
-    int m_nvar{3};                                                   // 3 field for U/V/T
+    int m_nvar{3};                                                   // 3 fields for U/V/T
     int m_navg{4};                                                   // 4 averages for U/V/T/Umag
     int m_maxlev{0};                                                 // Total number of levels
     int m_policy{0};                                                 // Policy for type of averaging
-    amrex::Real m_zref;                                              // Height for MOST BC
+    amrex::Real m_zref{-1.0};                                        // Height above surface for MOST BC
     std::string m_pp_prefix {"erf"};                                 // ParmParse prefix
     amrex::Vector<amrex::iMultiFab*> m_k_indx;                       // Ptr to 2D imf to hold k indices (maxlev)
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_averages;      // Ptr to 2D mf to hold averages (maxlev,navg)
+    amrex::Vector<amrex::iMultiFab*> m_j_indx;                       // Ptr to 2D imf to hold j indices (maxlev)
+    amrex::Vector<amrex::iMultiFab*> m_i_indx;                       // Ptr to 2D imf to hold i indices (maxlev)
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_averages;       // Ptr to 2D mf to hold averages (maxlev,navg)
 
     // Vars for planar average policy
     //--------------------------------------------
@@ -78,9 +92,14 @@ protected:
 
     // Vars for point/region average policy
     //--------------------------------------------
-    int m_k_ind{-1};                                                 // k_index for point/region average
     int m_radius{0};                                                 // Radius around k_index
+    int m_ncell_region{1};                                           // Number of cells in local region
+    amrex::Vector<int> m_k_in;                                       // Specified k_index for region avg (maxlev)
 
+    // Vars for normal vector policy
+    //--------------------------------------------
+    bool m_norm_vec{false};                                          // Use normal vector to find IJK?
+    
     // Time average w/ exponential filter fun
     //--------------------------------------------
     bool m_t_avg{false};                                             // Flag to do moving average in time
