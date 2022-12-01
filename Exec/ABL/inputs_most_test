@@ -13,18 +13,23 @@ geometry.is_periodic = 1 1 0
 
 zhi.type = "SlipWall"
 
-# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
-zlo.type                 = "Most"
-erf.most.average_policy  = 0       # POLICY FOR AVERAGING
-erf.most.z0              = 4.0
-erf.most.zref            = 8.0
-#erf.most.surf_temp       = 301.0   # SPECIFIED SURFACE TEMP
-#erf.most.surf_temp_flux  = 8.14165 # SPECIFIED SURFACE FLUX
-#erf.most.k_indx          = 0       # SPECIFIED K INDEX
-#erf.most.radius          = 0       # SPECIFIED REGION RADIUS
-#erf.most.time_average    = true    # USE TIME AVERAGING
-#erf.most.time_window     = 50.0    # WINDOW FOR TIME AVG
-
+# MOST BOUNDARY
+#=================================================================
+zlo.type                   = "Most"
+erf.most.average_policy    = 0       # POLICY FOR AVERAGING
+#erf.most.use_normal_vector = true    # USE NORMAL VECTOR W/ TERRAIN   
+#erf.most.time_average      = true    # USE TIME AVERAGING
+#-----------------------------------------------------------------        
+erf.most.z0                = 4.0     # SURFACE ROUGHNESS
+erf.most.zref              = 8.0     # QUERY DISTANCE (HEIGHT OR NORM LENGTH)
+#----------------------------------------------------------------- 
+#erf.most.surf_temp         = 301.0   # SPECIFIED SURFACE TEMP
+#erf.most.surf_temp_flux    = 8.14165 # SPECIFIED SURFACE FLUX
+#----------------------------------------------------------------- 
+#erf.most.k_arr_in          = 0       # SPECIFIED K INDEX ARRAY (MAXLEV)
+#erf.most.radius            = 0       # SPECIFIED REGION RADIUS
+#-----------------------------------------------------------------
+#erf.most.time_window       = 50.0    # WINDOW FOR TIME AVG
 
 
 # TIME STEP CONTROL

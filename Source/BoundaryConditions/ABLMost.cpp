@@ -16,7 +16,7 @@ void ABLMost::update_fluxes(int lev, int max_iters)
 
     // GPU device captures
     amrex::Real d_kappa = kappa;
-    amrex::Real d_zref  = zref;
+    amrex::Real d_zref  = m_ma.get_zref();
     amrex::Real d_gravity = gravity;
     amrex::Real d_surf_temp_flux = surf_temp_flux;
     ABLMostData d_most = get_most_data();
