@@ -298,7 +298,7 @@ MOST Inputs
 When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified vertical distance :math:`z_{ref}` from the bottom surface, specified :math:`k_{index}`, or (when employing terrain-fit coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
 
 ::
-   
+
    erf.most.average_policy    = INT    #POLICY FOR AVERAGING
    erf.most.use_normal_vector = BOOL   #USE NORMAL VECTOR W/ TERRAIN?
    erf.most.time_average      = BOOL   #USE TIME AVERAGING?
@@ -313,7 +313,7 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
 We now consider two concrete examples. To obtain an adiabatic boundary for for :math:`\theta` while utilizing ``planar averaging`` without ``time averaging`` and a specified vertical height above the bottom surface, one would specify:
 
 ::
-   
+
    erf.most.average_policy    = 0
    erf.most.use_normal_vector = false
    erf.most.time_average      = false
@@ -324,7 +324,7 @@ We now consider two concrete examples. To obtain an adiabatic boundary for for :
 By contrast, to utilize ``local region averaging`` with ``time averaging`` and a specified normal length, one would specify:
 
 ::
-   
+
    erf.most.average_policy    = 1
    erf.most.use_normal_vector = true
    erf.most.time_average      = true
@@ -337,9 +337,9 @@ By contrast, to utilize ``local region averaging`` with ``time averaging`` and a
 In the above case, ``use_normal_vector`` identifies the cells at the end of a normal vector with length :math:`z_{ref}` and then averages over surrounding cells that are within ``erf.most.radius`` from the query cell; for a radius of 1, 27 cells are averaged. The ``time average`` is completed by way of an exponential filter function whose peak coincides with the current time step and tail extends backwards in time
 
 .. math::
-   
-   \frac{1}{\tau} \int_{-\infty}^{0} \exp{\left(t/\tau\right)} \, f(t) \; \rm{d}t. 
 
-Due to the form of the above integral, it is advantageous to specify :math:`\tau` as a multiple of the simulation time step :math:`\Delta t`, which is specified by ``erf.most.time_window``. As ``erf.most.time_window`` is reduced to 0, the exponential filter function tends to a Dirac delta function (prior averages are irrelevant). Increasing ``erf.most.time_window`` extends the tail of the exponential and more heavily weights prior averages.  
-   
-   
+   \frac{1}{\tau} \int_{-\infty}^{0} \exp{\left(t/\tau\right)} \, f(t) \; \rm{d}t.
+
+Due to the form of the above integral, it is advantageous to specify :math:`\tau` as a multiple of the simulation time step :math:`\Delta t`, which is specified by ``erf.most.time_window``. As ``erf.most.time_window`` is reduced to 0, the exponential filter function tends to a Dirac delta function (prior averages are irrelevant). Increasing ``erf.most.time_window`` extends the tail of the exponential and more heavily weights prior averages.
+
+
