@@ -244,6 +244,9 @@ MOSTAverage::set_k_indices_T()
     auto read_z = pp.query("most.zref",m_zref);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
+    // Capture for device
+    amrex::Real d_zref = m_zref;
+
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
         for (int lev(0); lev < m_maxlev; lev++) {
@@ -255,7 +258,7 @@ MOSTAverage::set_k_indices_T()
                 auto k_arr       = m_k_indx[lev]->array(mfi);
                 ParallelFor(gpbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    amrex::Real z_target = m_zref + z_arr(i,j,k);
+                    amrex::Real z_target = d_zref + z_arr(i,j,k);
                     for (int lk(0); lk<=kmax; ++lk) {
                         amrex::Real z_lo = 0.25 * ( z_arr(i,j  ,lk  ) + z_arr(i+1,j  ,lk  )
                                                   + z_arr(i,j+1,lk  ) + z_arr(i+1,j+1,lk  ) );
@@ -283,6 +286,9 @@ MOSTAverage::set_ijk_indices_T()
     amrex::ParmParse pp(m_pp_prefix);
     pp.query("most.zref",m_zref);
 
+    // Capture for device
+    amrex::Real d_zref = m_zref;
+
     for (int lev(0); lev < m_maxlev; lev++) {
         int kmax = m_geom[lev].Domain().bigEnd(2);
         amrex::IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
@@ -301,9 +307,9 @@ MOSTAverage::set_ijk_indices_T()
                 amrex::Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
 
                 // Unit-normal vector scaled by z_ref
-                amrex::Real delta_x = -met_h_xi/mag  * m_zref;
-                amrex::Real delta_y = -met_h_eta/mag * m_zref;
-                amrex::Real delta_z = 1.0/mag * m_zref;
+                amrex::Real delta_x = -met_h_xi/mag  * d_zref;
+                amrex::Real delta_y = -met_h_eta/mag * d_zref;
+                amrex::Real delta_z = 1.0/mag * d_zref;
 
                 // Compute i & j as displacements (no grid stretching)
                 int delta_i  = static_cast<int>(std::round(delta_x*dxInv[0]));
