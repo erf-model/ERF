@@ -136,11 +136,13 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         m_t_init.resize(m_maxlev,0);
     }
 
-    // DEBUG: DELTE WHEN FINISHED
+    /*
+    // DEBUG: DELETE WHEN FINISHED
     //=============================
     write_ijk_indices(0);
     write_XZ_planar_positions(0,0);
     exit(0);
+    */
 }
 
 
