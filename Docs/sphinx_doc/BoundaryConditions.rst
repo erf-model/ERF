@@ -310,7 +310,7 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.radius            = INT    #SPECIFIED REGION RADIUS
    erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG
 
-We now consider two concrete examples. To obtain an adiabatic boundary for for :math:`\theta` while utilizing ``planar averaging`` without ``time averaging`` and a specified vertical height above the bottom surface, one would specify:
+We now consider two concrete examples. To employ an instantaneous ``planar average`` at a specified vertical height above the bottom surface, one would specify:
 
 ::
 
@@ -319,9 +319,8 @@ We now consider two concrete examples. To obtain an adiabatic boundary for for :
    erf.most.time_average      = false
    erf.most.z0                = 0.1
    erf.most.zref              = 1.0
-   erf.most.surf_temp_flux    = 0.0
 
-By contrast, to utilize ``local region averaging`` with ``time averaging`` and a specified normal length, one would specify:
+By contrast, ``local region averaging`` would be employed in conjunction with ``time averaging`` for the following inputs:
 
 ::
 
@@ -340,6 +339,6 @@ In the above case, ``use_normal_vector`` identifies the cells at the end of a no
 
    \frac{1}{\tau} \int_{-\infty}^{0} \exp{\left(t/\tau\right)} \, f(t) \; \rm{d}t.
 
-Due to the form of the above integral, it is advantageous to specify :math:`\tau` as a multiple of the simulation time step :math:`\Delta t`, which is specified by ``erf.most.time_window``. As ``erf.most.time_window`` is reduced to 0, the exponential filter function tends to a Dirac delta function (prior averages are irrelevant). Increasing ``erf.most.time_window`` extends the tail of the exponential and more heavily weights prior averages.
+Due to the form of the above integral, it is advantageous to consider :math:`\tau` as a multiple of the simulation time step :math:`\Delta t`, which is specified by ``erf.most.time_window``. As ``erf.most.time_window`` is reduced to 0, the exponential filter function tends to a Dirac delta function (prior averages are irrelevant). Increasing ``erf.most.time_window`` extends the tail of the exponential and more heavily weights prior averages.
 
 
