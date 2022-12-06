@@ -430,7 +430,7 @@ public:
             // Read the first line
             std::getline(input_sounding_reader, line);
             std::istringstream iss(line);
-            iss >> press_ref_inp_sound >> theta_ref_inp_sound >> dummy;
+            iss >> press_ref_inp_sound >> theta_ref_inp_sound >> qv_ref_inp_sound;
 
             // Read the vertical profile at each given height
             while(std::getline(input_sounding_reader, line)) {
@@ -487,6 +487,6 @@ public:
     // Members
     amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
     amrex::Gpu::DeviceVector<amrex::Real> z_inp_sound_d, theta_inp_sound_d, moisture_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
-    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
+    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, qv_ref_inp_sound;
 };
 #endif
