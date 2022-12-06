@@ -91,15 +91,34 @@ and are defined on faces.
 :math:`R_d` and :math:`c_p` are the gas constant and specific heat capacity for dry air respectively,
 and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for pressure.
 
+
 Prognostic Equations (Moist)
 ===============================
+1): Equation of States
+We consider a mixture of dry air :math:`\rho_d`, nonprecipitating water vapor :math:`\rho_T`, and assumed to be perfect idea gas with constant heat capacities :math:`C_vd, C_vv, C_pd, C_pv`, and condensates liquid water :math:`\rho_p`, such as cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l, C_i`.
 
-When solving for moist atmospheric flow, we evolve two additional variables: :math:`q_v` and :math:`q_c`,
-the mixing ratios of water vapor and cloud water, respectively.
+If we ignore the precipitation, and the volume occupied by the condensated water, we will have
+.. math::
+p = p_d + p_v = \rho_d R_d T + \rho_T R_T T
+
+here :math:`\p_d` and :math:`\p_T` are the partial pressures of dry air and nonprecipitating water vapor. :math:`\rho_d` and :math:`\rho_T` are dry air density and nonprecipitating water vapor density, respectively.
+
+In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the others are sparse components :math:`\rho_s` with :math:'s = 1, ...., N'. The mixing ratios :math:`m_s` are defined as the mass density of species :math:`s` relative to dry air density :math:`\rho_d`, :math:`m_s=\frac{\rho_s}{\rho_d}`, therefore we can define:
+
+.. math::
+\rho = \frac{\rho_d}{1-\sum_s q_s} = \rho_d (1-\sum_s m_s) \sum_s \rho_s
+
+q_{s} = \frac{\rho_s}{\rho} = \frac{m_s}{1+\sum_s m_s}
+
+q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
+
+
+2): The Multispecies Compressible Governing Equations
+The set of nonlinear governing equations for multispecies moisture are:
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
-
+  
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
   \frac{\rho_d}{\rho_m} \nabla p^\prime +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
 
@@ -109,16 +128,10 @@ the mixing ratios of water vapor and cloud water, respectively.
 
   \frac{\partial (\rho_d q_T)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_T +F_{q_{T}}) - Q
 
-  \frac{\partial (\rho_d q_r)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_r + F_{q_{r}}) + Q
+  \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
 
 where :math:`q_T` is total nonprecipitating water (water vapor :math:`q_v` + cloud water :math:`q_c` + cloud ice :math:`q_i`), and :math:`q_p` is the total precipitating water (rain :math:`q_r` + snow :math:`q_s` + graupel :math:`q_g`). :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_r)` is the total mass density, :math:`F_{\theta_{m}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes.
 and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
-
-.. math::
-
-  \theta_m = c_p T - gz - L_c (q_c + q_r) - L_s (q_i + q_s + q_g)
-
-is the ice/water static energy.
 
 
 Single Moment Microphysics Model
