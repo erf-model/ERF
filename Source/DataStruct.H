@@ -412,6 +412,8 @@ public:
     {
         z_inp_sound.resize(0);
         theta_inp_sound.resize(0);
+        thetam_inp_sound.resize(0);
+        rho_inp_sound.resize(0);
         qv_inp_sound.resize(0);
         U_inp_sound.resize(0);
         V_inp_sound.resize(0);
@@ -450,6 +452,35 @@ public:
         host_to_device();
     }
 
+    void calc_rho_thm()
+    {
+        /* Calculate density and moist potential temperature, following the
+         * procedure in WRF dyn_em/module_initialize_ideal.F */
+        thetam_inp_sound.resize(size());
+        rho_inp_sound.resize(size());
+
+        // evaluate surface quantities
+        amrex::Real p_surf = 100. * press_ref_inp_sound;
+        amrex::Real th_surf = theta_ref_inp_sound; // _dry_ potential temperature
+        amrex::Real qvf = 1. + R_v/R_d * qv_ref_inp_sound*0.001;
+        amrex::Real rho_surf = 1. /
+            ((R_d/p_0) * th_surf * qvf * std::pow(p_surf/p_0, -1/Gamma));
+        amrex::Print() << "surface density, pi = " << rho_surf
+            << " " << std::pow(p_surf / p_0, R_d/c_p)
+            << std::endl;
+
+        // integrate moist sounding hydrostatically from surface
+        for (int i=0; i < size(); ++i)
+        {
+            // dummy values for now
+            thetam_inp_sound[i] = theta_inp_sound[i];
+            rho_inp_sound[i] = 1.0;
+        }
+
+        // update
+        host_to_device();
+    }
+
     void host_to_device()
     {
         z_inp_sound_d.resize(size());
@@ -473,6 +504,19 @@ public:
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                          V_inp_sound.begin(), V_inp_sound.end(),
                          V_inp_sound_d.begin());
+
+        if (rho_inp_sound.size() > 0)
+        {
+            amrex::Print() << "Copying rho, theta_m to device" << std::endl;
+            rho_inp_sound_d.resize(size());
+            thetam_inp_sound_d.resize(size());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             rho_inp_sound.begin(), rho_inp_sound.end(),
+                             rho_inp_sound_d.begin());
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
+                             thetam_inp_sound.begin(), thetam_inp_sound.end(),
+                             thetam_inp_sound_d.begin());
+        }
     }
 
     int size() const
@@ -486,7 +530,9 @@ public:
 
     // Members
     amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, qv_inp_sound, U_inp_sound, V_inp_sound;
+    amrex::Vector<amrex::Real> thetam_inp_sound, rho_inp_sound;
     amrex::Gpu::DeviceVector<amrex::Real> z_inp_sound_d, theta_inp_sound_d, qv_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
+    amrex::Gpu::DeviceVector<amrex::Real> thetam_inp_sound_d, rho_inp_sound_d;
     amrex::Real press_ref_inp_sound, theta_ref_inp_sound, qv_ref_inp_sound;
 };
 #endif
