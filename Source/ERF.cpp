@@ -65,7 +65,7 @@ std::string ERF::nc_bdy_file = ""; // Must provide via input
 std::string ERF::input_sounding_file = "input_sounding";
 
 // Flag to trigger ideal initialization like WRF
-bool ERF::init_ideal = false;
+bool ERF::init_sounding_ideal = false;
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
@@ -1020,7 +1020,7 @@ ERF::ReadParameters ()
         pp.query("input_sounding_file", input_sounding_file);
 
         // Flag to trigger ideal initialization like WRF
-        pp.query("init_ideal", init_ideal);
+        pp.query("init_sounding_ideal", init_sounding_ideal);
 
         // Output format
         pp.query("plotfile_type", plotfile_type);
