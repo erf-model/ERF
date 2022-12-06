@@ -113,7 +113,7 @@ In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the 
 
   q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
 
-Assuming the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, where :math:`q_v` is water vapor, :math:`q_c` is cloud water and :math:`q_i` is cloud ice respectively, and the total precipitating water :math:`q_p = q_rain + q_snow + q_graupel`, where :math:`q_rain` is rain, :math:`q_snow` is snow, :math:`q_graupel` is graupel, respectively. and :math:`\rho_d` is the density of the dry air.
+Assuming the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, where :math:`q_v` is water vapor, :math:`q_c` is cloud water and :math:`q_i` is cloud ice respectively, and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`, where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively. and :math:`\rho_d` is the density of the dry air.
 
 The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, and :math:`\theta_s` are:
 
