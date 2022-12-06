@@ -104,7 +104,7 @@ If we ignore the precipitation, and the volume occupied by the condensated water
 
 here :math:`\p_d` and :math:`\p_T` are the partial pressures of dry air and nonprecipitating water vapor, respectively. :math:`\rho_d` and :math:`\rho_T` are dry air density and nonprecipitating water vapor density, respectively.
 
-In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the others are sparse components :math:`\rho_s` with :math:'s = 1, ...., N'. The mixing ratios :math:`m_s` are defined as the mass density of species :math:`s` relative to dry air density :math:`\rho_d`, :math:`m_s=\frac{\rho_s}{\rho_d}`, therefore we can define:
+In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the others are sparse components :math:`\rho_s` with :math:`s = 1, ...., N`. The mixing ratios :math:`m_s` are defined as the mass density of species :math:`s` relative to dry air density :math:`\rho_d`, :math:`m_s=\frac{\rho_s}{\rho_d}`, therefore we can define:
 
 .. math::
   \rho = \frac{\rho_d}{1-\sum_s q_s} = \rho_d (1-\sum_s m_s) \sum_s \rho_s
