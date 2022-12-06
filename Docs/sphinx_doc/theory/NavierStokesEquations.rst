@@ -113,6 +113,42 @@ In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the 
 
   q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
 
+Same as other popular code, ERF chooses the most commomly used function of entropy, potential energy, as prognostic variable, which is defined as a function of temperature and specific entropy, that is
+
+.. math::
+  \theta (\eta) = T_r exp(\frac{\eta - \eta_0}{C_p})
+
+where :math:`\eta` is the specific entropy.
+The Exner pressure :math:`\Pi` can be written as,
+
+.. math::
+  \Pi = C_p \frac{p}{\alpha P_r}^\frac{R}{C_p}
+  
+and :math:`theta` can be expressed as
+
+.. math::
+   \theta = T \frac{p_r}{p}^{R}{C_p}
+   
+and :math:`p_r` is the reference pressure.
+The specific entropy of the mixture :math:`\theta` is defined as:
+
+.. math::
+   \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_l \eta_l
+   
+where :math:`q_l` is condensates, for examples cloud ice, cloud water, and graupel. :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`, and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates.
+
+.. math::
+  \eta_d = C_{pd} ln \frac{T}{T_r} - R_d ln \frac{p_d}{p_rd} + \eta_{rd}
+  
+  \eta_v = C_{pv} ln \frac{T}{T_r} - R_v ln \frac{p_v}{p_rv} + \eta_{rv}
+  
+  \eta_i = C_i ln \frac{T}{T_r} + \eta_{ri}
+  
+  \eta_c = C_c ln \frac{T}{T_r} + \eta_{rc}
+  
+  \eta_l = C_l ln \frac{T}{T_l} + \eta_{rl}
+
+
 Assuming the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, where :math:`q_v` is water vapor, :math:`q_c` is cloud water, and :math:`q_i` is cloud ice, respectively, and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`, where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively. and :math:`\rho_d` is the density of the dry air.
 
 The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta_s` are:
