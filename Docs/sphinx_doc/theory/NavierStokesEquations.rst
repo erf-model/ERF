@@ -115,7 +115,7 @@ In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the 
 
 Assuming the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, where :math:`q_v` is water vapor, :math:`q_c` is cloud water, and :math:`q_i` is cloud ice, respectively, and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`, where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively. and :math:`\rho_d` is the density of the dry air.
 
-The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, and :math:`\theta_s` are:
+The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta_s` are:
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
@@ -133,7 +133,7 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
 
 where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
 
-Assuming the energy transport for different components are the same, we can further simplify these set of equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_p`, :math:`\mathbf{u}`, :math:`\Theta`
+Assuming the energy transport for different components are the same, we can further simplify these set of equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_p`, :math:`\mathbf{u}`, :math:`C`, and :math:`\Theta`
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
