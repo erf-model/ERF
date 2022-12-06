@@ -94,14 +94,15 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 
 Prognostic Equations (Moist)
 ===============================
-1): Equation of States
-We consider a mixture of dry air :math:`\rho_d`, nonprecipitating water vapor :math:`\rho_T`, and assumed to be perfect idea gas with constant heat capacities :math:`C_vd, C_vv, C_pd, C_pv`, and condensates liquid water :math:`\rho_p`, such as cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l, C_i`.
 
-If we ignore the precipitation, and the volume occupied by the condensated water, we will have
+We consider a mixture of dry air :math:`\rho_d`, nonprecipitating water vapor :math:`\rho_T`, and assumed to be perfect idea gas with constant heat capacities :math:`C_vd`, :math:`C_vv`, :math:`C_pd`, :math:`C_pv`, and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l`, :math:`C_i`.
+
+If we ignore the precipitation, and the volume occupied by the condensated water, then we will have
+
 .. math::
 p = p_d + p_v = \rho_d R_d T + \rho_T R_T T
 
-here :math:`\p_d` and :math:`\p_T` are the partial pressures of dry air and nonprecipitating water vapor. :math:`\rho_d` and :math:`\rho_T` are dry air density and nonprecipitating water vapor density, respectively.
+here :math:`\p_d` and :math:`\p_T` are the partial pressures of dry air and nonprecipitating water vapor, respectively. :math:`\rho_d` and :math:`\rho_T` are dry air density and nonprecipitating water vapor density, respectively.
 
 In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the others are sparse components :math:`\rho_s` with :math:'s = 1, ...., N'. The mixing ratios :math:`m_s` are defined as the mass density of species :math:`s` relative to dry air density :math:`\rho_d`, :math:`m_s=\frac{\rho_s}{\rho_d}`, therefore we can define:
 
@@ -113,7 +114,6 @@ q_{s} = \frac{\rho_s}{\rho} = \frac{m_s}{1+\sum_s m_s}
 q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
 
 
-2): The Multispecies Compressible Governing Equations
 The set of nonlinear governing equations for multispecies moisture are:
 
 .. math::
