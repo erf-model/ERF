@@ -127,7 +127,7 @@ The Exner pressure :math:`\Pi` can be written as,
 and :math:`theta` can be expressed as
 
 .. math::
-   \theta = T \frac{p_r}{p}^{R}{C_p}
+   \theta = T (\frac{p_r}{p})^\frac{R}{C_p}
    
 and :math:`p_r` is the reference pressure.
 The specific entropy of the mixture :math:`\theta` is defined as:
@@ -138,15 +138,15 @@ The specific entropy of the mixture :math:`\theta` is defined as:
 where :math:`q_l` is condensates, for examples cloud ice, cloud water, and graupel. :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`, and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates.
 
 .. math::
-  \eta_d = C_{pd} ln \frac{T}{T_r} - R_d ln \frac{p_d}{p_rd} + \eta_{rd}
+  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_rd}) + \eta_{rd}
   
-  \eta_v = C_{pv} ln \frac{T}{T_r} - R_v ln \frac{p_v}{p_rv} + \eta_{rv}
+  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_rv}) + \eta_{rv}
   
-  \eta_i = C_i ln \frac{T}{T_r} + \eta_{ri}
+  \eta_i = C_i ln (\frac{T}{T_r}) + \eta_{ri}
   
-  \eta_c = C_c ln \frac{T}{T_r} + \eta_{rc}
+  \eta_c = C_c ln (\frac{T}{T_r}) + \eta_{rc}
   
-  \eta_l = C_l ln \frac{T}{T_l} + \eta_{rl}
+  \eta_l = C_l ln (\frac{T}{T_l}) + \eta_{rl}
 
 
 Assuming the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, where :math:`q_v` is water vapor, :math:`q_c` is cloud water, and :math:`q_i` is cloud ice, respectively, and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`, where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively. and :math:`\rho_d` is the density of the dry air.
