@@ -131,7 +131,7 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
 
   \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
 
-where :math:`\rho_m = \rho_d (1 + q_T + q_r)` is the total mass density, :math:`F_{\theta_{m}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
+where :math:`F_{\theta_{m}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
 
 
 Single Moment Microphysics Model
