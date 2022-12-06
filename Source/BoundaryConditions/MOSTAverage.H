@@ -20,9 +20,15 @@ public:
     {
         for (int lev(0); lev<m_maxlev; ++lev){
             for (int iavg(0); iavg<m_navg; ++iavg) delete m_averages[lev][iavg];
-            delete m_k_indx[lev];
-            delete m_j_indx[lev];
+            
             delete m_i_indx[lev];
+            delete m_j_indx[lev];
+            delete m_k_indx[lev];
+            
+            delete m_x_pos[lev];
+            delete m_y_pos[lev];
+            delete m_z_pos[lev];
+            
         }
     };
 
@@ -45,7 +51,13 @@ public:
     void set_k_indices_T();
 
     // Populate all 2D iMFs with terrain (ijk_indx)
-    void set_ijk_indices_T();
+    void set_norm_indices_T();
+
+    // Populate positions (w/ terrain & norm vector & interpolation)
+    void set_z_positions_T();
+    
+    // Populate positions (w/ terrain & norm vector & interpolation)
+    void set_norm_positions_T();
 
     // Driver for the different average policies
     void compute_averages(int lev);
@@ -60,10 +72,10 @@ public:
     void write_k_indices(int lev);
 
     // Write ijk indices
-    void write_ijk_indices(int lev);
+    void write_norm_indices(int lev);
 
     // Write XZ planar positions
-    void write_XZ_planar_positions(int lev, int lj);
+    void write_xz_positions(int lev, int j);
 
     // Write averages on 2D mf
     void write_averages(int lev);
@@ -73,6 +85,87 @@ public:
 
     // Get z_ref (may be computed from specified k_indx)
     amrex::Real get_zref() { return m_zref; };
+
+    // Interpolate fields to a specified position
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
+    void trilinear_interp_N (const amrex::RealVect& pos,
+                             amrex::Real* interp_vals,
+                             amrex::Array4<amrex::Real const> const& interp_array,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
+                             const int interp_comp)
+    {
+        const amrex::RealVect lx((pos[0] - plo[0])*dxi[0] + 0.5,
+                                 (pos[1] - plo[1])*dxi[1] + 0.5,
+                                 (pos[2] - plo[2])*dxi[2] + 0.5);
+
+        const amrex::IntVect ijk = lx.floor();
+        
+        int i = ijk[0]; int j = ijk[1]; int k = ijk[2];
+        
+        // Weights
+        const amrex::RealVect sx_hi = lx - ijk;
+        const amrex::RealVect sx_lo = 1 - sx_hi;
+        
+        for (int n = 0; n < interp_comp; n++)
+            interp_vals[n] = sx_lo[0]*sx_lo[1]*sx_lo[2]*interp_array(i-1, j-1, k-1,n) +
+                             sx_lo[0]*sx_lo[1]*sx_hi[2]*interp_array(i-1, j-1, k  ,n) +
+                             sx_lo[0]*sx_hi[1]*sx_lo[2]*interp_array(i-1, j  , k-1,n) +
+                             sx_lo[0]*sx_hi[1]*sx_hi[2]*interp_array(i-1, j  , k  ,n) +
+                             sx_hi[0]*sx_lo[1]*sx_lo[2]*interp_array(i  , j-1, k-1,n) +
+                             sx_hi[0]*sx_lo[1]*sx_hi[2]*interp_array(i  , j-1, k  ,n) +
+                             sx_hi[0]*sx_hi[1]*sx_lo[2]*interp_array(i  , j  , k-1,n) +
+                             sx_hi[0]*sx_hi[1]*sx_hi[2]*interp_array(i  , j  , k  ,n);
+    }
+
+    // Interpolate fields to a specified position
+    AMREX_GPU_HOST_DEVICE AMREX_INLINE
+    void trilinear_interp_T (int& li, int& lj,
+                             const amrex::RealVect& pos,
+                             amrex::Real* interp_vals,
+                             amrex::Array4<amrex::Real const> const& interp_array,
+                             amrex::Array4<amrex::Real const> const& z_arr,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
+                             const int interp_comp)
+    {
+        // Z must be found from bisection
+        amrex::Real zval;
+        int kmax = ubound(z_arr).z;
+        amrex::Real z_target = pos[2] + z_arr(li,lj,0);
+        for (int lk(0); lk<=kmax; ++lk) {
+            amrex::Real z_lo = 0.25 * ( z_arr(li,lj  ,lk  ) + z_arr(li+1,lj  ,lk  )
+                                      + z_arr(li,lj+1,lk  ) + z_arr(li+1,lj+1,lk  ) );
+            amrex::Real z_hi = 0.25 * ( z_arr(li,lj  ,lk+1) + z_arr(li+1,lj  ,lk+1)
+                                      + z_arr(li,lj+1,lk+1) + z_arr(li+1,lj+1,lk+1) );
+            if (z_target > z_lo && z_target < z_hi){
+                zval = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + 0.5;
+                break;
+            }
+        }
+        
+        const amrex::RealVect lx((pos[0] - plo[0])*dxi[0] + 0.5,
+                                 (pos[1] - plo[1])*dxi[1] + 0.5,
+                                  zval);
+        
+        const amrex::IntVect ijk = lx.floor();
+        
+        int i = ijk[0]; int j = ijk[1]; int k = ijk[2];
+        
+        // Weights
+        const amrex::RealVect sx_hi = lx - ijk;
+        const amrex::RealVect sx_lo = 1 - sx_hi;
+        
+        for (int n = 0; n < interp_comp; n++)
+            interp_vals[n] = sx_lo[0]*sx_lo[1]*sx_lo[2]*interp_array(i-1, j-1, k-1,n) +
+                             sx_lo[0]*sx_lo[1]*sx_hi[2]*interp_array(i-1, j-1, k  ,n) +
+                             sx_lo[0]*sx_hi[1]*sx_lo[2]*interp_array(i-1, j  , k-1,n) +
+                             sx_lo[0]*sx_hi[1]*sx_hi[2]*interp_array(i-1, j  , k  ,n) +
+                             sx_hi[0]*sx_lo[1]*sx_lo[2]*interp_array(i  , j-1, k-1,n) +
+                             sx_hi[0]*sx_lo[1]*sx_hi[2]*interp_array(i  , j-1, k  ,n) +
+                             sx_hi[0]*sx_hi[1]*sx_lo[2]*interp_array(i  , j  , k-1,n) +
+                             sx_hi[0]*sx_hi[1]*sx_hi[2]*interp_array(i  , j  , k  ,n);
+    }
 
 protected:
 
@@ -90,9 +183,12 @@ protected:
     int m_policy{0};                                                 // Policy for type of averaging
     amrex::Real m_zref{-1.0};                                        // Height above surface for MOST BC
     std::string m_pp_prefix {"erf"};                                 // ParmParse prefix
-    amrex::Vector<amrex::iMultiFab*> m_k_indx;                       // Ptr to 2D imf to hold k indices (maxlev)
-    amrex::Vector<amrex::iMultiFab*> m_j_indx;                       // Ptr to 2D imf to hold j indices (maxlev)
+    amrex::Vector<amrex::MultiFab*> m_x_pos;                         // Ptr to 2D mf to hold x position (maxlev)
+    amrex::Vector<amrex::MultiFab*> m_y_pos;                         // Ptr to 2D mf to hold y position (maxlev)
+    amrex::Vector<amrex::MultiFab*> m_z_pos;                         // Ptr to 2D mf to hold z position (maxlev)
     amrex::Vector<amrex::iMultiFab*> m_i_indx;                       // Ptr to 2D imf to hold i indices (maxlev)
+    amrex::Vector<amrex::iMultiFab*> m_j_indx;                       // Ptr to 2D imf to hold j indices (maxlev)
+    amrex::Vector<amrex::iMultiFab*> m_k_indx;                       // Ptr to 2D imf to hold k indices (maxlev)   
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_averages;       // Ptr to 2D mf to hold averages (maxlev,navg)
 
     // Vars for planar average policy
@@ -108,6 +204,7 @@ protected:
 
     // Vars for normal vector policy
     //--------------------------------------------
+    bool m_interp{false};                                            // Do interpolation on destination?
     bool m_norm_vec{false};                                          // Use normal vector to find IJK?
 
     // Time average w/ exponential filter fun

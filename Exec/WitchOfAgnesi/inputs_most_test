@@ -26,11 +26,12 @@ zhi.type = "SlipWall"
 #=================================================================
 zlo.type                   = "Most"
 erf.most.average_policy    = 0       # POLICY FOR AVERAGING
-erf.most.use_normal_vector = true    # USE NORMAL VECTOR W/ TERRAIN   
+erf.most.use_normal_vector = true    # USE NORMAL VECTOR W/ TERRAIN
+erf.most.use_interpolation = true    # USE INTERPOLATION ON DESTINATION   
 #erf.most.time_average      = true    # USE TIME AVERAGING
 #-----------------------------------------------------------------        
 erf.most.z0                = 0.01    # SURFACE ROUGHNESS
-erf.most.zref              = 0.20    # QUERY DISTANCE (HEIGHT OR NORM LENGTH)
+erf.most.zref              = 0.05    # QUERY DISTANCE (HEIGHT OR NORM LENGTH)
 #----------------------------------------------------------------- 
 #erf.most.surf_temp         = 301.0   # SPECIFIED SURFACE TEMP
 #erf.most.surf_temp_flux    = 8.14165 # SPECIFIED SURFACE FLUX
