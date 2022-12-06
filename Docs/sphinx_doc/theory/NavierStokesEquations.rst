@@ -122,15 +122,17 @@ where :math:`\eta` is the specific entropy.
 The Exner pressure :math:`\Pi` can be written as,
 
 .. math::
-  \Pi = C_p \frac{p}{\alpha P_r}^\frac{R}{C_p}
+  \Pi = C_p (\frac{p}{\alpha P_r})^\frac{R}{C_p}
   
 and :math:`theta` can be expressed as
 
 .. math::
    \theta = T (\frac{p_r}{p})^\frac{R}{C_p}
    
+   p = p_r (\frac{\Pi}{C_p})^{\frac{C_p}{R}}
+   
 and :math:`p_r` is the reference pressure.
-The specific entropy of the mixture :math:`\theta` is defined as:
+The specific entropy of the mixture :math:`s` is defined as:
 
 .. math::
    \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_l \eta_l
