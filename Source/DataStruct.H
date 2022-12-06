@@ -412,7 +412,7 @@ public:
     {
         z_inp_sound.resize(0);
         theta_inp_sound.resize(0);
-        moisture_inp_sound.resize(0);
+        qv_inp_sound.resize(0);
         U_inp_sound.resize(0);
         V_inp_sound.resize(0);
 
@@ -435,11 +435,11 @@ public:
             // Read the vertical profile at each given height
             while(std::getline(input_sounding_reader, line)) {
                 std::istringstream iss_z(line);
-                amrex::Real z, theta, moisture, U, V;
-                iss_z >> z >> theta >> moisture >> U >> V;
+                amrex::Real z, theta, qv, U, V;
+                iss_z >> z >> theta >> qv >> U >> V;
                 z_inp_sound.push_back(z);
                 theta_inp_sound.push_back(theta);
-                moisture_inp_sound.push_back(moisture);
+                qv_inp_sound.push_back(qv);
                 U_inp_sound.push_back(U);
                 V_inp_sound.push_back(V);
             }
@@ -454,7 +454,7 @@ public:
     {
         z_inp_sound_d.resize(size());
         theta_inp_sound_d.resize(size());
-        moisture_inp_sound_d.resize(size());
+        qv_inp_sound_d.resize(size());
         U_inp_sound_d.resize(size());
         V_inp_sound_d.resize(size());
 
@@ -465,8 +465,8 @@ public:
                          theta_inp_sound.begin(), theta_inp_sound.end(),
                          theta_inp_sound_d.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         moisture_inp_sound.begin(), moisture_inp_sound.end(),
-                         moisture_inp_sound_d.begin());
+                         qv_inp_sound.begin(), qv_inp_sound.end(),
+                         qv_inp_sound_d.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                          U_inp_sound.begin(), U_inp_sound.end(),
                          U_inp_sound_d.begin());
@@ -478,15 +478,15 @@ public:
     int size() const
     {
         AMREX_ALWAYS_ASSERT(z_inp_sound.size() == theta_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == moisture_inp_sound.size());
+        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == qv_inp_sound.size());
         AMREX_ALWAYS_ASSERT(z_inp_sound.size() == U_inp_sound.size());
         AMREX_ALWAYS_ASSERT(z_inp_sound.size() == V_inp_sound.size());
         return z_inp_sound.size();
     }
 
     // Members
-    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
-    amrex::Gpu::DeviceVector<amrex::Real> z_inp_sound_d, theta_inp_sound_d, moisture_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
+    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, qv_inp_sound, U_inp_sound, V_inp_sound;
+    amrex::Gpu::DeviceVector<amrex::Real> z_inp_sound_d, theta_inp_sound_d, qv_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
     amrex::Real press_ref_inp_sound, theta_ref_inp_sound, qv_ref_inp_sound;
 };
 #endif
