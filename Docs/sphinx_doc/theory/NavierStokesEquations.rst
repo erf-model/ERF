@@ -114,15 +114,15 @@ In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the 
   q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
 
 
-The set of nonlinear governing equations for multispecies moisture are:
+The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, and :math:`\theta_s` are:
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
   
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-  \frac{\rho_d}{\rho_m} \nabla p^\prime +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
+  \rho_d} \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
 
-  \frac{\partial (\rho_d \theta_m)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_m + F_{\theta_{m}}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_m) + F_Q
+  \frac{\partial (\rho_d \theta_s)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_s + F_{\theta_s}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_s) + F_Q
 
   \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
 
