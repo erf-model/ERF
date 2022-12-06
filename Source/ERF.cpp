@@ -150,6 +150,12 @@ ERF::ERF ()
         vars_old[lev].resize(Vars::NumTypes);
     }
 
+#ifdef ERF_USE_MOISTURE
+    qn.resize(nlevs_max);
+    qc.resize(nlevs_max);
+    qv.resize(nlevs_max);
+#endif
+
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);
 
@@ -719,6 +725,18 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
+    // ******************************************************************************************
+    // Microphysics MultiFab data defined here
+    // ******************************************************************************************
+#ifdef ERF_USE_MOISTURE
+    qn[lev].define(ba, dm, 1, ngrow_state);
+    qc[lev].define(ba, dm, 1, ngrow_state);
+    qv[lev].define(ba, dm, 1, ngrow_state);
+
+    qn[lev].setVal(0.0);
+    qc[lev].setVal(0.0);
+    qv[lev].setVal(0.0);
+#endif
     // ********************************************************************************************
     // Metric terms
     // ********************************************************************************************
@@ -1106,8 +1124,8 @@ ERF::MakeHorizontalAverages ()
             arr_reduce(i, j, k, 1) = arr_cons(i, j, k, Cons::RhoTheta) / dens;
             arr_reduce(i, j, k, 2) = getPgivenRTh(arr_cons(i, j, k, Cons::RhoTheta));
 #ifdef ERF_USE_MOISTURE
-            arr_reduce(i, j, k, 3) = arr_cons(i, j, k, Cons::RhoQv) / dens;
-            arr_reduce(i, j, k, 4) = arr_cons(i, j, k, Cons::RhoQc) / dens;
+            arr_reduce(i, j, k, 3) = arr_cons(i, j, k, Cons::RhoQt) / dens;
+            arr_reduce(i, j, k, 4) = arr_cons(i, j, k, Cons::RhoQp) / dens;
 #endif
         });
 
@@ -1117,8 +1135,8 @@ ERF::MakeHorizontalAverages ()
             h_havg_temperature [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,1);
             h_havg_pressure    [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,2);
 #ifdef ERF_USE_MOISTURE
-            h_havg_qv          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,3);
-            h_havg_qc          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,4);
+            h_havg_qt          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,3);
+            h_havg_qp          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,4);
 #endif
         }
     }
@@ -1128,8 +1146,8 @@ ERF::MakeHorizontalAverages ()
     ParallelDescriptor::ReduceRealSum(h_havg_temperature.dataPtr(), h_havg_temperature.size());
     ParallelDescriptor::ReduceRealSum(h_havg_pressure.dataPtr(), h_havg_pressure.size());
 #ifdef ERF_USE_MOISTURE
-    ParallelDescriptor::ReduceRealSum(h_havg_qv.dataPtr(), h_havg_qv.size());
-    ParallelDescriptor::ReduceRealSum(h_havg_qc.dataPtr(), h_havg_qc.size());
+    ParallelDescriptor::ReduceRealSum(h_havg_qt.dataPtr(), h_havg_qt.size());
+    ParallelDescriptor::ReduceRealSum(h_havg_qp.dataPtr(), h_havg_qp.size());
 #endif
 
     // divide by the total number of cells we are averaging over
@@ -1138,8 +1156,8 @@ ERF::MakeHorizontalAverages ()
         h_havg_temperature[k] /= area_z;
         h_havg_pressure[k]    /= area_z;
 #ifdef ERF_USE_MOISTURE
-        h_havg_qv[k]          /= area_z;
-        h_havg_qc[k]          /= area_z;
+        h_havg_qt[k]          /= area_z;
+        h_havg_qp[k]          /= area_z;
 #endif
     }
 
@@ -1148,8 +1166,8 @@ ERF::MakeHorizontalAverages ()
     d_havg_temperature.resize(size_z, 0.0_rt);
     d_havg_pressure.resize(size_z, 0.0_rt);
 #ifdef ERF_USE_MOISTURE
-    d_havg_qv.resize(size_z, 0.0_rt);
-    d_havg_qc.resize(size_z, 0.0_rt);
+    d_havg_qt.resize(size_z, 0.0_rt);
+    d_havg_qp.resize(size_z, 0.0_rt);
 #endif
 
     // copy host vectors to device vectors
@@ -1157,8 +1175,8 @@ ERF::MakeHorizontalAverages ()
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_temperature.begin(), h_havg_temperature.end(), d_havg_temperature.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_pressure.begin(), h_havg_pressure.end(), d_havg_pressure.begin());
 #ifdef ERF_USE_MOISTURE
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qt.begin(), h_havg_qt.end(), d_havg_qt.begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qp.begin(), h_havg_qp.end(), d_havg_qp.begin());
 #endif
 }
 

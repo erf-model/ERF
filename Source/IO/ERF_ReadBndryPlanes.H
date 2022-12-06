@@ -39,8 +39,8 @@ public:
     int ingested_density()  const {return is_density_read;}
     int ingested_scalar()   const {return is_scalar_read;}
 #ifdef ERF_USE_MOISTURE
-    int ingested_qv()       const {return is_qv_read;}
     int ingested_qc()       const {return is_qc_read;}
+    int ingested_qv()       const {return is_qv_read;}
 #endif
     int ingested_KE()       const {return is_KE_read;}
     int ingested_QKE()      const {return is_QKE_read;}
@@ -94,8 +94,8 @@ private:
     int is_theta_read;
     int is_scalar_read;
 #ifdef ERF_USE_MOISTURE
-    int is_qv_read;
     int is_qc_read;
+    int is_qv_read;
 #endif
     int is_KE_read;
     int is_QKE_read;

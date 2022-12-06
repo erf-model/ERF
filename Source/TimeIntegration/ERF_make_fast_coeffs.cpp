@@ -127,13 +127,6 @@ void make_fast_coeffs (int level,
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
-                coeff_P /= (1.0 + q);
-                coeff_Q /= (1.0 + q);
-#endif
-
                 Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
                 Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
                 Real theta_t_hi  = 0.5 * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
@@ -170,13 +163,6 @@ void make_fast_coeffs (int level,
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
-
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
-                coeff_P /= (1.0 + q);
-                coeff_Q /= (1.0 + q);
-#endif
 
                 Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
                 Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );

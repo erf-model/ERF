@@ -492,6 +492,13 @@ private:
     amrex::Vector<amrex::MultiFab> base_state;
     amrex::Vector<amrex::MultiFab> base_state_new;
 
+    // auxiliary variables to store qn that is not the solution of moisture species
+#ifdef ERF_USE_MOISTURE
+    amrex::Vector<amrex::MultiFab> qn;
+    amrex::Vector<amrex::MultiFab> qc;
+    amrex::Vector<amrex::MultiFab> qv;
+#endif
+
     // array of flux registers
     amrex::Vector<amrex::FluxRegister*> flux_registers;
 
@@ -558,7 +565,7 @@ private:
     const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
     const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
 #ifdef ERF_USE_MOISTURE
-                                                     ,"rhoQv", "rhoQc"
+                                                     ,"rhoQt", "rhoQp"
 #endif
                                                      };
 
@@ -568,6 +575,9 @@ private:
                                                     "pres_hse_x", "pres_hse_y", "z_phys", "detJ"
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
+#endif
+#ifdef ERF_USE_MOISTURE
+                                                    ,"qt", "qp", "qn", "qc", "qv"
 #endif
                                                    };
 
@@ -636,15 +646,15 @@ private:
     amrex::Vector<amrex::Real> h_havg_temperature;
     amrex::Vector<amrex::Real> h_havg_pressure;
 #ifdef ERF_USE_MOISTURE
-    amrex::Vector<amrex::Real> h_havg_qv;
-    amrex::Vector<amrex::Real> h_havg_qc;
+    amrex::Vector<amrex::Real> h_havg_qt;
+    amrex::Vector<amrex::Real> h_havg_qp;
 #endif
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_density;
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_temperature;
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_pressure;
 #ifdef ERF_USE_MOISTURE
-    amrex::Gpu::DeviceVector<amrex::Real> d_havg_qv;
-    amrex::Gpu::DeviceVector<amrex::Real> d_havg_qc;
+    amrex::Gpu::DeviceVector<amrex::Real> d_havg_qt;
+    amrex::Gpu::DeviceVector<amrex::Real> d_havg_qp;
 #endif
 
     void refinement_criteria_setup();

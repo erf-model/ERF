@@ -541,13 +541,8 @@ void erf_slow_rhs_pre (int level, int nrk,
             gpx = gp_xi - (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
             gpx *= mf_u(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
-                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
-            rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
-#else
             rho_u_rhs(i, j, k) -= gpx;
-#endif
+
             // Add external drivers
             rho_u_rhs(i, j, k) += ext_forcing[0];
 
@@ -583,13 +578,8 @@ void erf_slow_rhs_pre (int level, int nrk,
               Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
               gpx *= mf_u(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
-                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
-              rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
-#else
               rho_u_rhs(i, j, k) -= gpx;
-#endif
+
               // Add external drivers
               rho_u_rhs(i, j, k) += ext_forcing[0];
 
@@ -645,13 +635,8 @@ void erf_slow_rhs_pre (int level, int nrk,
               Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
               gpy *= mf_v(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
-                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
-              rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
-#else
               rho_v_rhs(i, j, k) -= gpy;
-#endif
+
               // Add external drivers
               rho_v_rhs(i, j, k) += ext_forcing[1];
 
@@ -684,13 +669,8 @@ void erf_slow_rhs_pre (int level, int nrk,
               Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
               gpy *= mf_v(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
-                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
-              rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
-#else
               rho_v_rhs(i, j, k) -= gpy;
-#endif
+
 
               // Add external drivers
               rho_v_rhs(i, j, k) += ext_forcing[1];
@@ -736,13 +716,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                 Real met_h_zeta = Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd);
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
-                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
-                rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
-#else
                 rho_w_rhs(i, j, k) -= gpz;
-#endif
 
                 // Add buoyancy term
                 rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
@@ -779,13 +753,8 @@ void erf_slow_rhs_pre (int level, int nrk,
 
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) );
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
-                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
-                rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
-#else
                 rho_w_rhs(i, j, k) -= gpz;
-#endif
+
                 // Add buoyancy term (no longer in perturbational form)
                 rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
                                                              - r0_arr(i,j,k) -    r0_arr(i,j,k-1) );

@@ -208,11 +208,6 @@ void erf_fast_rhs_MT (int step, int level,
                 Real gpx = h_zeta_old * gp_xi - h_xi_old * gp_zeta_on_iface;
                 gpx *= mf_u(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
-                gpx /= (1.0 + q);
-#endif
                 Real pi_c =  0.5 * (pi_stg_ca(i-1,j,k,0) + pi_stg_ca(i  ,j,k,0));
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
 
@@ -234,11 +229,6 @@ void erf_fast_rhs_MT (int step, int level,
                 Real gpy = h_zeta_old * gp_eta - h_eta_old  * gp_zeta_on_jface;
                 gpy *= mf_v(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
-                gpy /= (1.0 + q);
-#endif
                 Real pi_c =  0.5 * (pi_stg_ca(i,j-1,k,0) + pi_stg_ca(i,j  ,k,0));
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
 
@@ -323,13 +313,6 @@ void erf_fast_rhs_MT (int step, int level,
 
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);
-
-#ifdef ERF_USE_MOISTURE
-            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
-                            +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
-            coeff_P /= (1.0 + q);
-            coeff_Q /= (1.0 + q);
-#endif
 
             Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
             Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );
