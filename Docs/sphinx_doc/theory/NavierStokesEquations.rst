@@ -95,7 +95,7 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Prognostic Equations (Moist)
 ===============================
 
-We consider a mixture of dry air :math:`\rho_d`, nonprecipitating water vapor :math:`\rho_T`, and assumed to be perfect idea gas with constant heat capacities :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`, and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l`, :math:`C_i`.
+We consider a mixture of dry air :math:`\rho_d`, nonprecipitating water vapor :math:`\rho_v`, and assumed to be perfect idea gas with constant heat capacities :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`, and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l`, :math:`C_i`.
 
 If we ignore the precipitation, and the volume occupied by the condensated water, then we will have
 
@@ -113,6 +113,7 @@ In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the 
 
   q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
 
+Assuming the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, where :math:`q_v` is water vapor, :math:`q_c` is cloud water and :math:`q_i` is cloud ice respectively, and the total precipitating water :math:`q_p = q_rain + q_snow + q_graupel`, where :math:`q_rain` is rain, :math:`q_snow` is snow, :math:`q_graupel` is graupel, respectively. and :math:`\rho_d` is the density of the dry air.
 
 The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, and :math:`\theta_s` are:
 
@@ -130,8 +131,7 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
 
   \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
 
-where :math:`q_T` is total nonprecipitating water (water vapor :math:`q_v` + cloud water :math:`q_c` + cloud ice :math:`q_i`), and :math:`q_p` is the total precipitating water (rain :math:`q_r` + snow :math:`q_s` + graupel :math:`q_g`). :math:`\rho_d` is the density of the dry air only, :math:`\rho_m = \rho_d (1 + q_T + q_r)` is the total mass density, :math:`F_{\theta_{m}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes.
-and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
+where :math:`\rho_m = \rho_d (1 + q_T + q_r)` is the total mass density, :math:`F_{\theta_{m}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
 
 
 Single Moment Microphysics Model
