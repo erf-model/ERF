@@ -124,9 +124,11 @@ The Exner pressure :math:`\Pi` can be written as,
 .. math::
   \Pi = C_p (\frac{p}{\alpha P_r})^\frac{R}{C_p}
   
-and :math:`\theta` can be expressed as
+and :math:`\alpha`, :math:`\theta`, :math:`p` can be expressed as
 
 .. math::
+  \alpha = (\frac{R}{C_p}) \frac{\Pi \theta}{p}
+
    \theta = T (\frac{p_r}{p})^\frac{R}{C_p}
    
    p = p_r (\frac{\Pi}{C_p})^{\frac{C_p}{R}}
