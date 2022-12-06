@@ -133,6 +133,22 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
 
 where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
 
+Assuming the energy transport for different components are the same, we can further simplify these set of equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_p`, :math:`\mathbf{u}`, :math:`\Theta`
+
+.. math::
+  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
+  
+  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
+  \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
+
+  \frac{\partial (\rho \Theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \Theta + F_{\Theta}) + \nabla \cdot ( \rho_s \alpha_{T}\ \nabla \Theta) + F_Q
+
+  \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
+
+  \frac{\partial (\rho_d q_T)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_T +F_{q_{T}}) - Q
+
+  \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
+  
 
 Single Moment Microphysics Model
 ===================================
