@@ -59,7 +59,6 @@ constexpr amrex::Real boltz  = 1.38065e-23;
 constexpr amrex::Real avogad = 6.02214e26;
 constexpr amrex::Real mwdair = 28.966;
 constexpr amrex::Real mwwv   = 18.016;
-constexpr amrex::Real ggr    = 9.80616;
 constexpr amrex::Real lcond  = 2.501e6;
 constexpr amrex::Real lfus   = 2.11727e3;
 constexpr amrex::Real lsub   = lcond+lfus;

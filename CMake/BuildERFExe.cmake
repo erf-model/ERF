@@ -104,6 +104,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ComputeStrain_T.cpp
        ${SRC_DIR}/Utils/ERF_Math.H
+       ${SRC_DIR}/Utils/Microphysics_Utils.H
        ${SRC_DIR}/Utils/Interpolation.H
        ${SRC_DIR}/Diffusion/Diffusion.H
        ${SRC_DIR}/Diffusion/StrainRate.H
