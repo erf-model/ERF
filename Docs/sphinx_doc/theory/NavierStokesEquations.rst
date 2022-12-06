@@ -120,7 +120,7 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
   
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-  \rho_d} \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
+  \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
 
   \frac{\partial (\rho_d \theta_s)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_s + F_{\theta_s}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_s) + F_Q
 
