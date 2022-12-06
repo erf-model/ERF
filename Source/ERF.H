@@ -602,6 +602,9 @@ private:
     // Text input_sounding file
     static std::string input_sounding_file;
 
+    // Flag to trigger ideal initialization like WRF
+    static bool init_ideal;
+
     // 1D CDF output (for ingestion in AMR-Wind)
     static int         output_1d_column;
     static int         column_interval;
