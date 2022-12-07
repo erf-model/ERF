@@ -542,8 +542,8 @@ void erf_slow_rhs_pre (int level, int nrk,
             gpx *= mf_u(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
-            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
-                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
+                            +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
             rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
 #else
             rho_u_rhs(i, j, k) -= gpx;
@@ -584,8 +584,8 @@ void erf_slow_rhs_pre (int level, int nrk,
               gpx *= mf_u(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
-                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
+              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
+                              +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
               rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
 #else
               rho_u_rhs(i, j, k) -= gpx;
@@ -646,8 +646,8 @@ void erf_slow_rhs_pre (int level, int nrk,
               gpy *= mf_v(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
-                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
+              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
+                              +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
               rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
 #else
               rho_v_rhs(i, j, k) -= gpy;
@@ -685,8 +685,8 @@ void erf_slow_rhs_pre (int level, int nrk,
               gpy *= mf_v(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
-                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
+              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
+                              +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
               rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
 #else
               rho_v_rhs(i, j, k) -= gpy;
@@ -737,8 +737,8 @@ void erf_slow_rhs_pre (int level, int nrk,
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
 #ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
-                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
+                Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
+                                +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
                 rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
 #else
                 rho_w_rhs(i, j, k) -= gpz;
@@ -780,8 +780,8 @@ void erf_slow_rhs_pre (int level, int nrk,
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) );
 
 #ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
-                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
+                Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
+                                +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
                 rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
 #else
                 rho_w_rhs(i, j, k) -= gpz;
