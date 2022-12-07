@@ -12,8 +12,8 @@
 #define RhoScalar_comp 4
 
 #ifdef ERF_USE_MOISTURE
-#define RhoQv_comp     5
-#define RhoQc_comp     6
+#define RhoQt_comp     5
+#define RhoQp_comp     6
 #define NVAR           7
 #else
 #define NVAR           5
@@ -26,8 +26,8 @@
 #define PrimScalar_comp  RhoScalar_comp-1
 
 #ifdef ERF_USE_MOISTURE
-#define PrimQv_comp      RhoQv_comp-1
-#define PrimQc_comp      RhoQc_comp-1
+#define PrimQt_comp      RhoQt_comp-1
+#define PrimQp_comp      RhoQp_comp-1
 #endif
 
 #define NUM_PRIM         NVAR-1
@@ -41,8 +41,8 @@ namespace BCVars {
         RhoQKE_bc_comp,
         RhoScalar_bc_comp,
 #ifdef ERF_USE_MOISTURE
-        RhoQv_bc_comp,
-        RhoQc_bc_comp,
+        RhoQt_bc_comp,
+        RhoQp_bc_comp,
 #endif
         xvel_bc = NVAR,
         yvel_bc,
@@ -101,8 +101,8 @@ namespace Cons {
         RhoQKE,
         RhoScalar,
 #ifdef ERF_USE_MOISTURE
-        RhoQv,
-        RhoQc,
+        RhoQt,
+        RhoQp,
 #endif
         NumVars
     };
@@ -115,8 +115,8 @@ namespace Prim {
         QKE,
         Scalar,
 #ifdef ERF_USE_MOISTURE
-        Qv,
-        Qc,
+        Qt,
+        Qp,
 #endif
         NumVars
     };
@@ -129,11 +129,19 @@ namespace EddyDiff {
         Mom_h = 0,
         Theta_h,
         Scalar_h,
+#ifdef ERF_USE_MOISTURE
+        Qt_h,
+        Qp_h,
+#endif
         KE_h,
         QKE_h,
         Mom_v,
         Theta_v,
         Scalar_v,
+#ifdef ERF_USE_MOISTURE
+        Qt_v,
+        Qp_v,
+#endif
         KE_v,
         QKE_v,
         PBL_lengthscale,

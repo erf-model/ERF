@@ -719,6 +719,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
+    //********************************************************************************************
+    // Microphysics
+    // *******************************************************************************************
+#ifdef ERF_USE_MOISTURE
+    qc[lev].define(ba, dm, 1, ngrow_state);
+    qv[lev].define(ba, dm, 1, ngrow_state);
+    qi[lev].define(ba, dm, 1, ngrow_state);
+#endif
+
     // ********************************************************************************************
     // Metric terms
     // ********************************************************************************************
@@ -863,6 +872,12 @@ ERF::init_only(int lev, Real time)
     lev_new[Vars::xvel].setVal(0.0);
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
+
+#ifdef ERF_USE_MOISTURE
+    qc[lev].setVal(0.0);
+    qv[lev].setVal(0.0);
+    qi[lev].setVal(0.0);
+#endif
 
     if (init_type == "input_sounding") {
         init_from_input_sounding(lev);
@@ -1106,8 +1121,8 @@ ERF::MakeHorizontalAverages ()
             arr_reduce(i, j, k, 1) = arr_cons(i, j, k, Cons::RhoTheta) / dens;
             arr_reduce(i, j, k, 2) = getPgivenRTh(arr_cons(i, j, k, Cons::RhoTheta));
 #ifdef ERF_USE_MOISTURE
-            arr_reduce(i, j, k, 3) = arr_cons(i, j, k, Cons::RhoQv) / dens;
-            arr_reduce(i, j, k, 4) = arr_cons(i, j, k, Cons::RhoQc) / dens;
+            arr_reduce(i, j, k, 3) = arr_cons(i, j, k, Cons::RhoQt) / dens;
+            arr_reduce(i, j, k, 4) = arr_cons(i, j, k, Cons::RhoQp) / dens;
 #endif
         });
 
@@ -1280,6 +1295,12 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
         vars_new[lev].resize(Vars::NumTypes);
         vars_old[lev].resize(Vars::NumTypes);
     }
+
+#ifdef ERF_USE_MOISTURE
+    qi.resize(nlevs_max);
+    qc.resize(nlevs_max);
+    qv.resize(nlevs_max);
+#endif
 
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);
