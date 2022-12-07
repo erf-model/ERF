@@ -718,7 +718,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
     rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-    
+
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -727,7 +727,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     qv[lev].define(ba, dm, 1, ngrow_state);
     qi[lev].define(ba, dm, 1, ngrow_state);
 #endif
-    
+
     // ********************************************************************************************
     // Metric terms
     // ********************************************************************************************
@@ -873,7 +873,7 @@ ERF::init_only(int lev, Real time)
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
 
-#ifdef ERF_USE_MOISTURE     
+#ifdef ERF_USE_MOISTURE
     qc[lev].setVal(0.0);
     qv[lev].setVal(0.0);
     qi[lev].setVal(0.0);
