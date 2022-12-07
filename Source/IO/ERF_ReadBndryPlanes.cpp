@@ -365,8 +365,8 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
         if (var_name == "QKE")         n_offset = BCVars::RhoQKE_bc_comp;
         if (var_name == "scalar")      n_offset = BCVars::RhoScalar_bc_comp;
 #ifdef ERF_USE_MOISTURE
-        if (var_name == "qv")          n_offset = BCVars::RhoQv_bc_comp;
-        if (var_name == "qc")          n_offset = BCVars::RhoQc_bc_comp;
+        if (var_name == "qv")          n_offset = BCVars::RhoQt_bc_comp;
+        if (var_name == "qc")          n_offset = BCVars::RhoQp_bc_comp;
 #endif
         if (var_name == "velocity")    n_offset = BCVars::xvel_bc;
 

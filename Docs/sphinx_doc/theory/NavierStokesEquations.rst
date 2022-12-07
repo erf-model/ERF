@@ -123,31 +123,31 @@ The Exner pressure :math:`\Pi` can be written as,
 
 .. math::
   \Pi = C_p (\frac{p}{\alpha P_r})^\frac{R}{C_p}
-  
+
 and :math:`\theta`, :math:`p` can be expressed as
 
 .. math::
    \theta = T (\frac{p_r}{p})^\frac{R}{C_p}
-   
+
    p = p_r (\frac{\Pi}{C_p})^{\frac{C_p}{R}}
-   
+
 and :math:`p_r` is the reference pressure.
 The specific entropy of the mixture :math:`s` is defined as:
 
 .. math::
    \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_l \eta_l
-   
+
 where :math:`q_l` is condensates, for examples cloud ice, cloud water, and graupel. :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`, and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates.
 
 .. math::
-  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_{rd}}) + \eta_{rd}
-  
-  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_{rv}}) + \eta_{rv}
-  
+  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_rd}) + \eta_{rd}
+
+  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_rv}) + \eta_{rv}
+
   \eta_i = C_i ln (\frac{T}{T_r}) + \eta_{ri}
-  
+
   \eta_c = C_c ln (\frac{T}{T_r}) + \eta_{rc}
-  
+
   \eta_l = C_l ln (\frac{T}{T_l}) + \eta_{rl}
 
 
@@ -157,7 +157,7 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
-  
+
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
   \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
@@ -178,7 +178,7 @@ Assuming the energy transport for different components are the same, we can furt
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
-  
+
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
   \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
@@ -189,7 +189,7 @@ Assuming the energy transport for different components are the same, we can furt
   \frac{\partial (\rho_d q_T)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_T +F_{q_{T}}) - Q
 
   \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
-  
+
 
 Single Moment Microphysics Model
 ===================================
@@ -249,7 +249,7 @@ The evaporation rate of rain is
 Implementation of Moisture Model
 ===================================
 
-The microphysics model takes potention temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\rho_d` as input, and users can control the microphysics process by using 
+The microphysics model takes potention temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\rho_d` as input, and users can control the microphysics process by using
 
 ::
 
