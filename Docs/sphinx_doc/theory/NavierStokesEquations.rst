@@ -140,9 +140,9 @@ The specific entropy of the mixture :math:`s` is defined as:
 where :math:`q_l` is condensates, for examples cloud ice, cloud water, and graupel. :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`, and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates.
 
 .. math::
-  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_rd}) + \eta_{rd}
+  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_{rd}}) + \eta_{rd}
   
-  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_rv}) + \eta_{rv}
+  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_{rv}}) + \eta_{rv}
   
   \eta_i = C_i ln (\frac{T}{T_r}) + \eta_{ri}
   
