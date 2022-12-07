@@ -246,3 +246,12 @@ The evaporation rate of rain is
 Implementation of Moisture Model
 ===================================
 
+The microphysics model takes potention temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\tho_d` as input, and users can control the microphysics process by using 
+
+::
+
+   erf.do_cloud = true (to turn cloud on)
+   erf.do_smoke = true (to turn smoke physics on)
+   erf.do_precip = true (to turn precipitation on)
+
+
