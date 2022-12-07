@@ -246,7 +246,7 @@ The evaporation rate of rain is
 Implementation of Moisture Model
 ===================================
 
-The microphysics model takes potention temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\tho_d` as input, and users can control the microphysics process by using 
+The microphysics model takes potention temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\rho_d` as input, and users can control the microphysics process by using 
 
 ::
 
