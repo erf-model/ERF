@@ -17,11 +17,15 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
     pp.query("most.use_normal_vector",m_norm_vec);
 
     AMREX_ASSERT_WITH_MESSAGE(m_radius<=2, "Radius must be less than nGhost=3!");
+    if (m_interp) AMREX_ASSERT_WITH_MESSAGE((z_phys_nd[0].get()), "Interpolation only implemented with terrain!");
 
     // Set up fields and 2D MF/iMFs for averages
     //--------------------------------------------------------
     m_maxlev = m_geom.size();
+
     m_fields.resize(m_maxlev);
+    m_averages.resize(m_maxlev);
+    m_z_phys_nd.resize(m_maxlev);
 
     m_k_in.resize(m_maxlev);
 
@@ -33,9 +37,7 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
     m_j_indx.resize(m_maxlev);
     m_k_indx.resize(m_maxlev);
 
-    m_averages.resize(m_maxlev);
 
-    m_z_phys_nd.resize(m_maxlev);
     for (int lev(0); lev < m_maxlev; lev++) {
       m_fields[lev].resize(m_nvar);
       m_averages[lev].resize(m_navg);
@@ -152,14 +154,6 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         // None of the averages are initialized
         m_t_init.resize(m_maxlev,0);
     }
-
-    
-    // DEBUG: DELETE WHEN FINISHED
-    //=============================
-    //write_norm_indices(0);
-    write_xz_positions(0,0);
-    exit(0);
-    
 }
 
 
@@ -229,7 +223,7 @@ MOSTAverage::set_k_indices_N()
             int lk = static_cast<int>(floor((m_zref - m_zlo) / m_dz - 0.5));
 
             AMREX_ALWAYS_ASSERT(lk >= m_radius);
-            
+
             m_k_indx[lev]->setVal(lk);
         }
     // Specified k_indx & compute z_ref
@@ -259,23 +253,23 @@ MOSTAverage::set_k_indices_T()
     // Capture for device
     amrex::Real d_zref   = m_zref;
     amrex::Real d_radius = m_radius;
-    
+
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
         for (int lev(0); lev < m_maxlev; lev++) {
             int kmax = m_geom[lev].Domain().bigEnd(2);
             for (amrex::MFIter mfi(*m_k_indx[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 amrex::Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
-                const auto z_arr = m_z_phys_nd[lev]->const_array(mfi);
-                auto k_arr       = m_k_indx[lev]->array(mfi);
+                const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
+                auto k_arr = m_k_indx[lev]->array(mfi);
                 ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    amrex::Real z_target = d_zref + z_arr(i,j,k);
+                    amrex::Real z_target = d_zref + z_phys_arr(i,j,k);
                     for (int lk(0); lk<=kmax; ++lk) {
-                        amrex::Real z_lo = 0.25 * ( z_arr(i,j  ,lk  ) + z_arr(i+1,j  ,lk  )
-                                                  + z_arr(i,j+1,lk  ) + z_arr(i+1,j+1,lk  ) );
-                        amrex::Real z_hi = 0.25 * ( z_arr(i,j  ,lk+1) + z_arr(i+1,j  ,lk+1)
-                                                  + z_arr(i,j+1,lk+1) + z_arr(i+1,j+1,lk+1) );
+                        amrex::Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
+                                                  + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
+                        amrex::Real z_hi = 0.25 * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
+                                                  + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
                         if (z_target > z_lo && z_target < z_hi){
                             AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                       "K index must be larger than averaging radius!");
@@ -311,15 +305,15 @@ MOSTAverage::set_norm_indices_T()
         for (amrex::MFIter mfi(*m_k_indx[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             amrex::Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
             amrex::Box gpbx  = mfi.growntilebox(ng);
-            const auto z_arr = m_z_phys_nd[lev]->const_array(mfi);
-            auto i_arr       = m_i_indx[lev]->array(mfi);
-            auto j_arr       = m_j_indx[lev]->array(mfi);
-            auto k_arr       = m_k_indx[lev]->array(mfi);           
+            const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
+            auto i_arr = m_i_indx[lev]->array(mfi);
+            auto j_arr = m_j_indx[lev]->array(mfi);
+            auto k_arr = m_k_indx[lev]->array(mfi);
             ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Elements of normal vector
-                amrex::Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_arr);
-                amrex::Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_arr);
+                amrex::Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
+                amrex::Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
                 amrex::Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
 
                 // Unit-normal vector scaled by z_ref
@@ -336,12 +330,12 @@ MOSTAverage::set_norm_indices_T()
                 j_arr(i,j,k) = j_new;
 
                 // Search for k (grid is stretched in z)
-                amrex::Real z_target = delta_z + z_arr(i,j,k);
+                amrex::Real z_target = delta_z + z_phys_arr(i,j,k);
                 for (int lk(0); lk<=kmax; ++lk) {
-                    amrex::Real z_lo = 0.25 * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
-                                              + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
-                    amrex::Real z_hi = 0.25 * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
-                                              + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
+                    amrex::Real z_lo = 0.25 * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
+                                              + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
+                    amrex::Real z_hi = 0.25 * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
+                                              + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
                     if (z_target > z_lo && z_target < z_hi){
                         AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                   "K index must be larger than averaging radius!");
@@ -367,7 +361,7 @@ MOSTAverage::set_z_positions_T()
     pp.query("most.zref",m_zref);
 
     // Capture for device
-    amrex::Real d_zref   = m_zref;
+    amrex::Real d_zref = m_zref;
 
     for (int lev(0); lev < m_maxlev; lev++) {
         amrex::RealVect base;
@@ -377,7 +371,8 @@ MOSTAverage::set_z_positions_T()
             amrex::Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
             amrex::Box gpbx  = mfi.growntilebox(ng);
             amrex::RealBox grb{gpbx,dx.data(),base.dataPtr()};
-            
+
+            const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
             auto x_pos_arr   = m_x_pos[lev]->array(mfi);
             auto y_pos_arr   = m_y_pos[lev]->array(mfi);
             auto z_pos_arr   = m_z_pos[lev]->array(mfi);
@@ -386,7 +381,7 @@ MOSTAverage::set_z_positions_T()
                 // Final position at end of vector
                 x_pos_arr(i,j,k) = ((amrex::Real) i + 0.5) * dx[0];
                 y_pos_arr(i,j,k) = ((amrex::Real) j + 0.5) * dx[1];
-                z_pos_arr(i,j,k) = d_zref;
+                z_pos_arr(i,j,k) = z_phys_arr(i,j,k) + d_zref;
 
                 // Destination position must be contained on the current process!
                 amrex::Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
@@ -417,16 +412,16 @@ MOSTAverage::set_norm_positions_T()
             amrex::Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
             amrex::Box gpbx  = mfi.growntilebox(ng);
             amrex::RealBox grb{gpbx,dx.data(),base.dataPtr()};
-            
-            const auto z_arr = m_z_phys_nd[lev]->const_array(mfi);
+
+            const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
             auto x_pos_arr   = m_x_pos[lev]->array(mfi);
             auto y_pos_arr   = m_y_pos[lev]->array(mfi);
             auto z_pos_arr   = m_z_pos[lev]->array(mfi);
             ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Elements of normal vector
-                amrex::Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_arr);
-                amrex::Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_arr);
+                amrex::Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
+                amrex::Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
                 amrex::Real mag = std::sqrt(met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1.0);
 
                 // Unit-normal vector scaled by z_ref
@@ -441,7 +436,7 @@ MOSTAverage::set_norm_positions_T()
                 // Final position at end of vector
                 x_pos_arr(i,j,k) = x0 + delta_x;
                 y_pos_arr(i,j,k) = y0 + delta_y;
-                z_pos_arr(i,j,k) = delta_z;
+                z_pos_arr(i,j,k) = z_phys_arr(i,j,k) + delta_z;
 
                 // Destination position must be contained on the current process!
                 amrex::Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
@@ -478,11 +473,19 @@ void
 MOSTAverage::compute_plane_averages(int lev)
 {
     // Peel back the level
-    auto& fields        = m_fields[lev];
-    auto& averages      = m_averages[lev];
-    auto& k_indx        = m_k_indx[lev];
-    auto& j_indx        = m_j_indx[lev];
-    auto& i_indx        = m_i_indx[lev];
+    auto& fields   = m_fields[lev];
+    auto& averages = m_averages[lev];
+    auto& geom     = m_geom[lev];
+
+    auto& z_phys   = m_z_phys_nd[lev];
+    auto& x_pos    = m_x_pos[lev];
+    auto& y_pos    = m_y_pos[lev];
+    auto& z_pos    = m_z_pos[lev];
+
+    auto& i_indx   = m_i_indx[lev];
+    auto& j_indx   = m_j_indx[lev];
+    auto& k_indx   = m_k_indx[lev];
+
     auto& ncell_plane   = m_ncell_plane[lev];
     auto& plane_average = m_plane_average[lev];
 
@@ -512,21 +515,40 @@ MOSTAverage::compute_plane_averages(int lev)
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
             auto mf_arr = fields[imf]->const_array(mfi);
-            auto k_arr  = k_indx->const_array(mfi);
-            auto j_arr  = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
-            auto i_arr  = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
 
             amrex::Real d_val_old = plane_average[imf]*d_fact_old;
 
-            ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
-            AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
-            {
-                int mk = k_arr(i,j,k);
-                int mj = j_arr ? j_arr(i,j,k) : j;
-                int mi = i_arr ? i_arr(i,j,k) : i;
-                amrex::Real val = denom * ( mf_arr(mi,mj,mk)*d_fact_new + d_val_old );
-                amrex::Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
-            });
+            if (m_interp) {
+                const auto mac   = this;
+                const auto plo   = geom.ProbLoArray();
+                const auto dxInv = geom.InvCellSizeArray();
+                const auto z_phys_arr = z_phys->const_array(mfi);
+                auto x_pos_arr = x_pos->array(mfi);
+                auto y_pos_arr = y_pos->array(mfi);
+                auto z_pos_arr = z_pos->array(mfi);
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
+                {
+                    amrex::Real interp{0};
+                    mac->trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                                            &interp, mf_arr, z_phys_arr, plo, dxInv, 1);
+                    amrex::Real val = denom * ( interp*d_fact_new + d_val_old );
+                    amrex::Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                });
+            } else {
+                auto k_arr  = k_indx->const_array(mfi);
+                auto j_arr  = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
+                auto i_arr  = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
+                {
+                    int mk = k_arr(i,j,k);
+                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    int mi = i_arr ? i_arr(i,j,k) : i;
+                    amrex::Real val = denom * ( mf_arr(mi,mj,mk)*d_fact_new + d_val_old );
+                    amrex::Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                });
+            }
         }
     }
 
@@ -545,25 +567,47 @@ MOSTAverage::compute_plane_averages(int lev)
 
             auto u_mf_arr = fields[imf  ]->const_array(mfi);
             auto v_mf_arr = fields[imf+1]->const_array(mfi);
-            auto k_arr    = k_indx->const_array(mfi);
-            auto j_arr    = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
-            auto i_arr    = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
 
             amrex::Real d_val_old = plane_average[iavg]*d_fact_old;
 
-            ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
-            AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
-            {
-                int mk = k_arr(i,j,k);
-                int mj = j_arr ? j_arr(i,j,k) : j;
-                int mi = i_arr ? i_arr(i,j,k) : i;
-
-                const amrex::Real u_val = 0.5 * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
-                const amrex::Real v_val = 0.5 * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
-                const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
-                amrex::Real val = denom * ( mag*d_fact_new + d_val_old);
-                amrex::Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
-            });
+            if (m_interp) {
+                const auto mac   = this;
+                const auto plo   = m_geom[lev].ProbLoArray();
+                const auto dxInv = m_geom[lev].InvCellSizeArray();
+                const auto z_phys_arr = z_phys->const_array(mfi);
+                auto x_pos_arr = x_pos->array(mfi);
+                auto y_pos_arr = y_pos->array(mfi);
+                auto z_pos_arr = z_pos->array(mfi);
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
+                {
+                    amrex::Real u_interp{0};
+                    amrex::Real v_interp{0};
+                    mac->trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                                            &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
+                    mac->trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
+                                            &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
+                    const amrex::Real mag   = std::sqrt(u_interp*u_interp + v_interp*v_interp);
+                    amrex::Real val = denom * ( mag*d_fact_new + d_val_old);
+                    amrex::Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+                });
+            } else {
+                auto k_arr = k_indx->const_array(mfi);
+                auto j_arr = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
+                auto i_arr = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
+                {
+                    int mk = k_arr(i,j,k);
+                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    int mi = i_arr ? i_arr(i,j,k) : i;
+                    const amrex::Real u_val = 0.5 * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
+                    const amrex::Real v_val = 0.5 * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
+                    const amrex::Real mag   = std::sqrt(u_val*u_val + v_val*v_val);
+                    amrex::Real val = denom * ( mag*d_fact_new + d_val_old);
+                    amrex::Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+                });
+            }
         }
     }
 
@@ -583,10 +627,16 @@ MOSTAverage::compute_region_averages(int lev)
     // Peel back the level
     auto& fields   = m_fields[lev];
     auto& averages = m_averages[lev];
-    auto& k_indx   = m_k_indx[lev];
-    auto& j_indx   = m_j_indx[lev];
-    auto& i_indx   = m_i_indx[lev];
     auto& geom     = m_geom[lev];
+
+    auto& z_phys   = m_z_phys_nd[lev];
+    auto& x_pos    = m_x_pos[lev];
+    auto& y_pos    = m_y_pos[lev];
+    auto& z_pos    = m_z_pos[lev];
+
+    auto& i_indx   = m_i_indx[lev];
+    auto& j_indx   = m_j_indx[lev];
+    auto& k_indx   = m_k_indx[lev];
 
     // Set factors for time averaging
     amrex::Real d_fact_new, d_fact_old;
@@ -615,26 +665,56 @@ MOSTAverage::compute_region_averages(int lev)
 
             auto mf_arr = fields[imf]->const_array(mfi);
             auto ma_arr = averages[imf]->array(mfi);
-            auto k_arr  = k_indx->const_array(mfi);
-            auto j_arr  = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
-            auto i_arr  = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
 
-            ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                ma_arr(i,j,k) *= d_fact_old;
+            if (m_interp) {
+                const auto mac   = this;
+                const auto plo   = geom.ProbLoArray();
+                const auto dx    = geom.CellSizeArray();
+                const auto dxInv = geom.InvCellSizeArray();
+                const auto z_phys_arr = z_phys->const_array(mfi);
+                auto x_pos_arr = x_pos->array(mfi);
+                auto y_pos_arr = y_pos->array(mfi);
+                auto z_pos_arr = z_pos->array(mfi);
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    ma_arr(i,j,k) *= d_fact_old;
 
-                int mk = k_arr(i,j,k);
-                int mj = j_arr ? j_arr(i,j,k) : j;
-                int mi = i_arr ? i_arr(i,j,k) : i;
-                for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
-                    for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
+                    amrex::Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
+                    for (int lk(-d_radius); lk <= (d_radius); ++lk) {
+                      for (int lj(-d_radius); lj <= (d_radius); ++lj) {
+                        for (int li(-d_radius); li <= (d_radius); ++li) {
+                            amrex::Real interp{0};
+                            amrex::Real xp = x_pos_arr(i,j,k) + li*dx[0];
+                            amrex::Real yp = y_pos_arr(i,j,k) + lj*dx[1];
+                            amrex::Real zp = z_pos_arr(i,j,k) + met_h_zeta*lk*dx[2];
+                            mac->trilinear_interp_T(xp, yp, zp, &interp, mf_arr, z_phys_arr, plo, dxInv, 1);
+                            amrex::Real val = denom * interp * d_fact_new;
+                            ma_arr(i,j,k) += val;
+                        }
+                      }
+                    }
+                });
+            } else {
+                auto k_arr = k_indx->const_array(mfi);
+                auto j_arr = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
+                auto i_arr = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    ma_arr(i,j,k) *= d_fact_old;
+
+                    int mk = k_arr(i,j,k);
+                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    int mi = i_arr ? i_arr(i,j,k) : i;
+                    for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
+                      for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
                         for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
                             amrex::Real val = denom * mf_arr(li, lj, lk) * d_fact_new;
                             ma_arr(i,j,k) += val;
                         }
+                      }
                     }
-                }
-            });
+                });
+            }
         }
 
         // Fill interior ghost cells and any ghost cells outside a periodic domain
@@ -657,19 +737,51 @@ MOSTAverage::compute_region_averages(int lev)
             auto u_mf_arr = fields[imf]->const_array(mfi);
             auto v_mf_arr = fields[imf+1]->const_array(mfi);
             auto ma_arr   = averages[iavg]->array(mfi);
-            auto k_arr    = k_indx->const_array(mfi);
-            auto j_arr    = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
-            auto i_arr    = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
 
-            ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                ma_arr(i,j,k) *= d_fact_old;
+            if (m_interp) {
+                const auto mac   = this;
+                const auto plo   = geom.ProbLoArray();
+                const auto dx    = geom.CellSizeArray();
+                const auto dxInv = geom.InvCellSizeArray();
+                const auto z_phys_arr = z_phys->const_array(mfi);
+                auto x_pos_arr = x_pos->array(mfi);
+                auto y_pos_arr = y_pos->array(mfi);
+                auto z_pos_arr = z_pos->array(mfi);
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    ma_arr(i,j,k) *= d_fact_old;
 
-                int mk = k_arr(i,j,k);
-                int mj = j_arr ? j_arr(i,j,k) : j;
-                int mi = i_arr ? i_arr(i,j,k) : i;
-                for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
-                    for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
+                    amrex::Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
+                    for (int lk(-d_radius); lk <= (d_radius); ++lk) {
+                      for (int lj(-d_radius); lj <= (d_radius); ++lj) {
+                        for (int li(-d_radius); li <= (d_radius); ++li) {
+                            amrex::Real u_interp{0};
+                            amrex::Real v_interp{0};
+                            amrex::Real xp = x_pos_arr(i,j,k) + li*dx[0];
+                            amrex::Real yp = y_pos_arr(i,j,k) + lj*dx[1];
+                            amrex::Real zp = z_pos_arr(i,j,k) + met_h_zeta*lk*dx[2];
+                            mac->trilinear_interp_T(xp, yp, zp, &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
+                            mac->trilinear_interp_T(xp, yp, zp, &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
+                            amrex::Real mag = std::sqrt(u_interp*u_interp + v_interp*v_interp);
+                            amrex::Real val = denom * mag * d_fact_new;
+                            ma_arr(i,j,k) += val;
+                        }
+                      }
+                    }
+                });
+            } else {
+                auto k_arr = k_indx->const_array(mfi);
+                auto j_arr = j_indx ? j_indx->const_array(mfi) : amrex::Array4<const int> {};
+                auto i_arr = i_indx ? i_indx->const_array(mfi) : amrex::Array4<const int> {};
+                ParallelFor(pbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    ma_arr(i,j,k) *= d_fact_old;
+
+                    int mk = k_arr(i,j,k);
+                    int mj = j_arr ? j_arr(i,j,k) : j;
+                    int mi = i_arr ? i_arr(i,j,k) : i;
+                    for (int lk(mk-d_radius); lk <= (mk+d_radius); ++lk) {
+                      for (int lj(mj-d_radius); lj <= (mj+d_radius); ++lj) {
                         for (int li(mi-d_radius); li <= (mi+d_radius); ++li) {
                             const amrex::Real u_val = 0.5 * (u_mf_arr(li,lj,lk) + u_mf_arr(li+1,lj  ,lk));
                             const amrex::Real v_val = 0.5 * (v_mf_arr(li,lj,lk) + v_mf_arr(li  ,lj+1,lk));
@@ -677,9 +789,10 @@ MOSTAverage::compute_region_averages(int lev)
                             amrex::Real val = denom * mag * d_fact_new;
                             ma_arr(i,j,k) += val;
                         }
+                      }
                     }
-                }
-            });
+                });
+            }
 
             // Fill interior ghost cells and any ghost cells outside a periodic domain
             //***********************************************************************************
@@ -809,26 +922,22 @@ void
 MOSTAverage::write_xz_positions(int lev, int j)
 {
     // Peel back the level
-    auto& z_phys_mf = m_z_phys_nd[lev];
     auto& x_pos_mf  = m_x_pos[lev];
     auto& z_pos_mf  = m_z_pos[lev];
 
-    int navg = m_navg - 1;
-
     std::ofstream ofile;
-    ofile.open ("MOST_XZ_positions.txt");
+    ofile.open ("MOST_xz_positions.txt");
 
     for (amrex::MFIter mfi(*x_pos_mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         amrex::Box bx  = mfi.tilebox(); bx.setBig(2,0);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
 
-        auto z_phys_arr = z_phys_mf->array(mfi);
         auto x_pos_arr  = x_pos_mf->array(mfi);
         auto z_pos_arr  = z_pos_mf->array(mfi);
 
         int k  = 0;
         for (int i(il); i <= iu; ++i)
-            ofile << x_pos_arr(i,j,k) << ' ' << z_pos_arr(i,j,k) + z_phys_arr(i,j,k) << "\n";
+            ofile << x_pos_arr(i,j,k) << ' ' << z_pos_arr(i,j,k) << "\n";
     }
     ofile.close();
 }
