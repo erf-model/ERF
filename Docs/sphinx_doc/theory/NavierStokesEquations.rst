@@ -159,7 +159,7 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-  \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
+  \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
   \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u} \theta_s + F_{\theta_s}) + \nabla \cdot ( \rho_s \alpha_{T}\ \nabla \theta_s) + F_Q
 
@@ -169,7 +169,10 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
 
   \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
 
-where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes.
+where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes. :math:`\mathbf{B}` is the force of buoyancy,
+
+.. math::
+   \mathbf{B} = \mathbf{g}(\frac{T^\prime}{\bar{T}}+0.61 \bar{q_v}-q_c-q_i-q_p)
 
 Assuming the energy transport for different components are the same, we can further simplify these set of equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_p`, :math:`\mathbf{u}`, :math:`C`, and :math:`\Theta`
 
@@ -177,7 +180,7 @@ Assuming the energy transport for different components are the same, we can furt
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-  \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F}
+  \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
   \frac{\partial (\rho_d \theta)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta + F_{\theta}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
 
@@ -245,4 +248,13 @@ The evaporation rate of rain is
 
 Implementation of Moisture Model
 ===================================
+
+The microphysics model takes potention temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\rho_d` as input, and users can control the microphysics process by using 
+
+::
+
+   erf.do_cloud = true (to turn cloud on)
+   erf.do_smoke = true (to turn smoke physics on)
+   erf.do_precip = true (to turn precipitation on)
+
 
