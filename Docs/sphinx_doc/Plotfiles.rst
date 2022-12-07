@@ -91,3 +91,158 @@ Examples of Usage
 
    In addition, while the amrex plotfiles will contain data at all of the refinement
    levels,  NetCDF files are separated by level.
+
+PlotFile Outputs
+================
+
+Plotfiles can include the quantities of several simulation parameters as output.
+They are summarized in the list below.
+
+Output Options
+--------------
+
++-----------------------------+------------------+
+| Parameter                   | Definition       |
+|                             |                  |
++=============================+==================+
+| **x_velocity**              | Velocity in x    |
+|                             | direction        |
+|                             |                  |
++-----------------------------+------------------+
+| **y_velocity**              | Velocity in y    |
+|                             | direction        |
+|                             |                  |
++-----------------------------+------------------+
+| **z_velocity**              | Velocity in z    |
+|                             | direction        |
+|                             |                  |
++-----------------------------+------------------+
+| **density**                 | Total density    |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **dens_hse**                | Hydrostatic      |
+|                             | density          |
+|                             |                  |
++-----------------------------+------------------+
+| **pert_dens**               | Perturbational   |
+|                             | density          |
+|                             |                  |
++-----------------------------+------------------+
+| **pressure**                | Total pressure   |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **pres_hse**                | Hydrostatic      |
+|                             | pressure         |
+|                             |                  |
++-----------------------------+------------------+
+| **pert_pres**               | Perturbational   |
+|                             | pressure         |
+|                             |                  |
++-----------------------------+------------------+
+| **pres_hse_x**              | Derivative of    |
+|                             | hydrostatic      |
+|                             | pressure in x    |
++-----------------------------+------------------+
+| **pres_hse_y**              | Derivative of    |
+|                             | hydrostatic      |
+|                             | pressure in y    |
++-----------------------------+------------------+
+| **dpdx**                    | Pressure gradient|
+|                             | in x direction   |
+|                             |                  |
++-----------------------------+------------------+
+| **dpdy**                    | Pressure gradient|
+|                             | in y direction   |
+|                             |                  |
++-----------------------------+------------------+
+| **temp**                    | Temperature      |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **theta**                   | Potential        |
+|                             | temperature      |
+|                             |                  |
++-----------------------------+------------------+
+| **rhotheta**                | Density * theta  |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **KE**                      | Kinetic energy   |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **QKE**                     | Turbulent        |
+|                             | kinetic energy   |
+|                             | * 2              |
++-----------------------------+------------------+
+| **rhoKE**                   | Density * KE     |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **rhoQKE**                  | Density * QKE    |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **scalar**                  | Scalar magnitude |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **rhoadv_0**                | Conserved scalar |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **soundspeed**              | Sound speed      |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **z_phys**                  | Terrain height   |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **detJ**                    | Jacobian         |
+|                             | determinant      |
+|                             |                  |
++-----------------------------+------------------+
+| **mapfac**                  | Map scale factor |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **qt**                      | Nonprecipitating |
+|                             | water (qv + qc + |
+|                             | qi)              |
++-----------------------------+------------------+
+| **qp**                      | Precipitating    |
+|                             | water (rain +    |
+|                             | snow + graupel)  |
++-----------------------------+------------------+
+| **qc**                      | Cloud water      |
+|                             | mixing ratio     |
+|                             |                  |
++-----------------------------+------------------+
+| **qi**                      | Cloud ice        |
+|                             | mixing ratio     |
+|                             |                  |
++-----------------------------+------------------+
+| **qv**                      | Water vapor      |
+|                             | mixing ratio     |
+|                             |                  |
++-----------------------------+------------------+
+| **rhoQT**                   | Density * qt     |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+| **rhoQP**                   | Density * qp     |
+|                             |                  |
+|                             |                  |
++-----------------------------+------------------+
+
+Examples of Usage
+-----------------
+
+In an input file, the user can select parameters to plot by supplying a space-delimited
+list to **erf.plot_vars_1** or **erf.plot_vars_2**.
+
+-  **erf.plot_vars_1** = *option1* *option2* *option3*
+
