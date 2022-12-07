@@ -82,8 +82,8 @@ init_custom_prob(
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
 #ifdef ERF_USE_MOISTURE
-    state(i, j, k, RhoQv_comp) = 0.0;
-    state(i, j, k, RhoQc_comp) = 0.0;
+    state(i, j, k, RhoQt_comp) = 0.0;
+    state(i, j, k, RhoQp_comp) = 0.0;
 #endif
   });
 
