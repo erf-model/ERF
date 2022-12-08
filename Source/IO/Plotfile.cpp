@@ -498,6 +498,19 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
         } // use_terrain
 
+        if (containerHasElement(plot_var_names, "mapfac")) {
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat = mf[lev].array(mfi);
+                const Array4<Real>& mf_m   = mapfac_m[lev]->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
+                });
+            }
+            mf_comp ++;
+        }
+
 #ifdef ERF_COMPUTE_ERROR
         // Next, check for error in velocities and if desired, output them -- note we output none or all, not just some
         if (containerHasElement(plot_var_names, "xvel_err") ||

@@ -471,6 +471,12 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
+#ifdef ERF_USE_MOISTURE
+    amrex::Vector<amrex::MultiFab> qv;
+    amrex::Vector<amrex::MultiFab> qc;
+    amrex::Vector<amrex::MultiFab> qi;
+#endif
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
@@ -558,14 +564,17 @@ private:
     const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
     const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
 #ifdef ERF_USE_MOISTURE
-                                                     ,"rhoQv", "rhoQc"
+                                                     ,"rhoQt", "rhoQp"
 #endif
                                                      };
 
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar", "pres_hse",
                                                     "dens_hse", "pert_pres", "pert_dens", "dpdx", "dpdy",
-                                                    "pres_hse_x", "pres_hse_y", "z_phys", "detJ"
+                                                    "pres_hse_x", "pres_hse_y", "z_phys", "detJ" , "mapfac"
+#ifdef ERF_USE_MOISTURE
+                                                     ,"qt", "qp", "qc", "qi", "qv"
+#endif
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif

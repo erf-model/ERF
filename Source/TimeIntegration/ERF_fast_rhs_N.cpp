@@ -200,8 +200,8 @@ void erf_fast_rhs_N (int step, int level,
             gpx *= mf_u(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
-            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
-                            +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
+            Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i-1,j,k,PrimQt_comp)
+                            +prim(i,j,k,PrimQp_comp) + prim(i-1,j,k,PrimQp_comp) );
             gpx /= (1.0 + q);
 #endif
             Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i,j,k,0));
@@ -222,8 +222,8 @@ void erf_fast_rhs_N (int step, int level,
             gpy *= mf_v(i,j,0);
 
 #ifdef ERF_USE_MOISTURE
-            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
-                            +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
+            Real q = 0.5 * ( prim(i,j,k,PrimQp_comp) + prim(i,j-1,k,PrimQt_comp)
+                            +prim(i,j,k,PrimQp_comp) + prim(i,j-1,k,PrimQp_comp) );
             gpy /= (1.0 + q);
 #endif
             Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j,k,0));
@@ -284,8 +284,8 @@ void erf_fast_rhs_N (int step, int level,
              Real coeff_Q = coeffQ_a(i,j,k);
 
 #ifdef ERF_USE_MOISTURE
-            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
-                            +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
+            Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp)
+                            +prim(i,j,k,PrimQp_comp) + prim(i,j,k-1,PrimQp_comp) );
             coeff_P /= (1.0 + q);
             coeff_Q /= (1.0 + q);
 #endif
