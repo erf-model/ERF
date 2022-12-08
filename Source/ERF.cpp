@@ -433,7 +433,7 @@ ERF::InitData ()
     }
 
     // If we are reading initial data from wrfinput, the base state is defined there.
-    if (init_type != "real") {
+    if ((init_type != "real") && (!init_sounding_ideal)) {
         initHSE();
     }
 
@@ -869,7 +869,6 @@ ERF::init_only(int lev, Real time)
 
     if (init_type == "input_sounding") {
         init_from_input_sounding(lev);
-        if (init_sounding_ideal) input_sounding_data.calc_rho_thm();
     } else if (init_type == "custom") {
         init_custom(lev);
 #ifdef ERF_USE_NETCDF

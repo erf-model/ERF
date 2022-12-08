@@ -327,6 +327,8 @@ ERF::init_from_input_sounding(int lev)
         if (input_sounding_file.empty())
             amrex::Error("input_sounding file name must be provided via input");
         input_sounding_data.read_from_file(input_sounding_file);
+
+        if (init_sounding_ideal) input_sounding_data.calc_rho_thm();
     }
 
     auto& lev_new = vars_new[lev];
@@ -357,7 +359,9 @@ ERF::init_bx_from_input_sounding(
         InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
+    const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
+    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
     const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d.dataPtr();
     const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d.dataPtr();
     const int   inp_sound_size  = inputSoundingData.size();
@@ -369,8 +373,16 @@ ERF::init_bx_from_input_sounding(
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         // TODO: Read this from file, the way we do for custom problems
-        // Or provide rho = rho (z) as applicable or computer rho = rho(z) as WRF does
-        Real rho_0 = 1.0;
+        // Or provide rho = rho (z) as applicable
+        Real rho_0;
+        if (init_sounding_ideal)
+        {
+            rho_0 = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
+        }
+        else
+        {
+            rho_0 = 1.0;
+        }
 
         // Set the density
         state(i, j, k, Rho_comp) = rho_0;
@@ -380,6 +392,10 @@ ERF::init_bx_from_input_sounding(
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state(i, j, k, RhoScalar_comp) = 0;
+
+#ifdef ERF_USE_MOISTURE
+        state(i, j, k, RhoQv_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+#endif
     });
 
     // Construct a box that is on x-faces

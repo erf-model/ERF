@@ -472,7 +472,7 @@ public:
         amrex::Real qvf_surf = 1 + (R_v/R_d-1) * qv_ref_inp_sound;
         amrex::Real rho_surf = 1 / (
             R_d/p_0 * th_surf * qvf_surf * std::pow(p_surf/p_0, -1/Gamma));
-        amrex::Print() << "surface density, pi = " << rho_surf
+        amrex::Print() << "ideal sounding init: surface density, pi = " << rho_surf
             << " " << std::pow(p_surf / p_0, R_d/c_p)
             << std::endl;
 
@@ -488,7 +488,6 @@ public:
                 - 0.5*dz*(rho_surf + rho_inp_sound[0])*CONST_GRAV*qvf1;   
             rho_inp_sound[0] = 1 / (
                 R_d/p_0 * theta_inp_sound[0] * std::pow(p_inp_sound[0]/p_0, -1/Gamma));
-            amrex::Print() << "iter " << p_inp_sound[0] << " " << rho_inp_sound[0] << std::endl;
         }
         amrex::Print() << "0.0 " << p_inp_sound[0] << " " << rho_inp_sound[0] << " " << theta_inp_sound[0] << std::endl; // DEBUG
 
@@ -541,7 +540,7 @@ public:
 
         if (p_inp_sound.size() > 0)
         {
-            amrex::Print() << "Copying rho, theta_m to device" << std::endl;
+            //amrex::Print() << "Copying rho, theta_m to device" << std::endl;
             p_inp_sound_d.resize(size());
             rho_inp_sound_d.resize(size());
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
