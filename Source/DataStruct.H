@@ -303,7 +303,6 @@ struct SolverChoice {
 
         amrex::Real latitude = 90.0;
         pp.query("latitude", latitude);
-        AMREX_ALWAYS_ASSERT(amrex::Math::abs(latitude - 90.0) < 1.e-12);
 
         // Convert to radians
         latitude *= (PI/180.);
