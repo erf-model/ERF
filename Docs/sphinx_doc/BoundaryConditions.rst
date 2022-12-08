@@ -301,6 +301,7 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
 
    erf.most.average_policy    = INT    #POLICY FOR AVERAGING
    erf.most.use_normal_vector = BOOL   #USE NORMAL VECTOR W/ TERRAIN?
+   erf.most.use_interpolation = BOOL   #INTERPOLATE QUERY POINT W/ TERRAIN?
    erf.most.time_average      = BOOL   #USE TIME AVERAGING?
    erf.most.z0                = FLOAT  #SURFACE ROUGHNESS
    erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH)
@@ -326,6 +327,7 @@ By contrast, ``local region averaging`` would be employed in conjunction with ``
 
    erf.most.average_policy    = 1
    erf.most.use_normal_vector = true
+   erf.most.use_interpolation = true
    erf.most.time_average      = true
    erf.most.z0                = 0.1
    erf.most.zref              = 1.0
@@ -333,7 +335,7 @@ By contrast, ``local region averaging`` would be employed in conjunction with ``
    erf.most.radius            = 1
    erf.most.time_window       = 10.0
 
-In the above case, ``use_normal_vector`` identifies the cells at the end of a normal vector with length :math:`z_{ref}` and then averages over surrounding cells that are within ``erf.most.radius`` from the query cell; for a radius of 1, 27 cells are averaged. The ``time average`` is completed by way of an exponential filter function whose peak coincides with the current time step and tail extends backwards in time
+In the above case, ``use_normal_vector`` utilizes the a local surface-normal vector with length :math:`z_{ref}` to construct the positions of the query points. Each query point, and surrounding points that are within ``erf.most.radius`` from the query point, are interpolated to and averaged; for a radius of 1, 27 points are averaged. The ``time average`` is completed by way of an exponential filter function whose peak coincides with the current time step and tail extends backwards in time
 
 .. math::
 
