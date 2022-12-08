@@ -337,8 +337,8 @@ void erf_slow_rhs_pre (int level, int nrk,
             if (l_use_terrain) {
                 amrex::ParallelFor(tbxxz,tbxyz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
-                                                    - w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
+                    Real GradWz = 0.5 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
+                                                   - w(i  ,j  ,k  ) - w(i-1,j  ,k  ) );
 
                     Real met_h_xi,met_h_zeta;
                     met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
@@ -350,8 +350,8 @@ void erf_slow_rhs_pre (int level, int nrk,
                     tau31(i,j,k) = tau13(i,j,k);
                 },
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
-                                                    - w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
+                    Real GradWz = 0.5 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
+                                                   - w(i  ,j  ,k  ) - w(i  ,j-1,k  ) );
 
                     Real met_h_eta,met_h_zeta;
                     met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
