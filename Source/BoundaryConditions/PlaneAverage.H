@@ -7,15 +7,18 @@
 
 class PlaneAverage {
 public:
+    AMREX_FORCE_INLINE
     explicit PlaneAverage(const amrex::MultiFab* field_in,
                           const amrex::Geometry geom_in,
                           int axis_int);
     PlaneAverage() = default;
     ~PlaneAverage() = default;
 
+    AMREX_FORCE_INLINE
     void operator()();
 
     /** evaluate line average at specific location for any average component */
+    AMREX_FORCE_INLINE
     amrex::Real line_average_interpolated(amrex::Real x, int comp) const;
 
     /** change precision of text file output */
@@ -34,7 +37,9 @@ public:
     {
         return m_line_average;
     }
+    AMREX_FORCE_INLINE
     void line_average(int comp, amrex::Vector<amrex::Real>& l_vec);
+
     const amrex::Vector<amrex::Real>& line_centroids() const
     {
         return m_line_xcentroid;
@@ -66,6 +71,7 @@ protected:
 public:
     /** fill line storage with averages */
     template <typename IndexSelector>
+    AMREX_FORCE_INLINE
     void compute_averages(const IndexSelector& idxOp, const amrex::MultiFab& mfab);
 };
 
