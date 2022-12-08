@@ -394,7 +394,7 @@ ERF::init_bx_from_input_sounding(
         state(i, j, k, RhoScalar_comp) = 0;
 
 #ifdef ERF_USE_MOISTURE
-        state(i, j, k, RhoQv_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+        state(i, j, k, RhoQt_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
 #endif
     });
 
