@@ -240,6 +240,9 @@ public:
             amrex::Array4<amrex::Real> const &x_vel,
             amrex::Array4<amrex::Real> const &y_vel,
             amrex::Array4<amrex::Real> const &z_vel,
+            amrex::Array4<amrex::Real> const &r_hse,
+            amrex::Array4<amrex::Real> const &p_hse,
+            amrex::Array4<amrex::Real> const &pi_hse,
             amrex::GeometryData const &geomdata,
             InputSoundingData const &inputSoundingData);
 

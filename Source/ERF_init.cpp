@@ -333,6 +333,11 @@ ERF::init_from_input_sounding(int lev)
 
     auto& lev_new = vars_new[lev];
 
+    // update if init_sounding_ideal == true
+    MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
+    MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
+    MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -342,8 +347,12 @@ ERF::init_from_input_sounding(int lev)
         const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
         const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
         const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
+        Array4<Real> r_hse_arr = r_hse.array(mfi);
+        Array4<Real> p_hse_arr = p_hse.array(mfi);
+        Array4<Real> pi_hse_arr = pi_hse.array(mfi);
 
         init_bx_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+                                    r_hse_arr, p_hse_arr, pi_hse_arr,
                                     geom[lev].data(), input_sounding_data);
     } //mfi
 }
@@ -355,6 +364,9 @@ ERF::init_bx_from_input_sounding(
         amrex::Array4<amrex::Real> const &x_vel,
         amrex::Array4<amrex::Real> const &y_vel,
         amrex::Array4<amrex::Real> const &z_vel,
+        amrex::Array4<amrex::Real> const &r_hse,
+        amrex::Array4<amrex::Real> const &p_hse,
+        amrex::Array4<amrex::Real> const &pi_hse,
         amrex::GeometryData const &geomdata,
         InputSoundingData const &inputSoundingData)
 {
@@ -374,7 +386,7 @@ ERF::init_bx_from_input_sounding(
 
         // TODO: Read this from file, the way we do for custom problems
         // Or provide rho = rho (z) as applicable
-        Real rho_0;
+        Real rho_0, rhoTh_0;
         if (init_sounding_ideal)
         {
             rho_0 = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
@@ -388,10 +400,18 @@ ERF::init_bx_from_input_sounding(
         state(i, j, k, Rho_comp) = rho_0;
 
         // Initial Rho0*Theta0
-        state(i, j, k, RhoTheta_comp) = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+        rhoTh_0 = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+        state(i, j, k, RhoTheta_comp) = rhoTh_0;
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state(i, j, k, RhoScalar_comp) = 0;
+
+        if (init_sounding_ideal)
+        {
+            r_hse(i, j, k) = rho_0;
+            p_hse(i, j, k) = getPgivenRTh(rhoTh_0);
+            pi_hse(i, j, k) = getExnergivenRTh(rhoTh_0);
+        }
 
 #ifdef ERF_USE_MOISTURE
         state(i, j, k, RhoQt_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
