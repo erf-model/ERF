@@ -12,7 +12,7 @@
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_gammafff(amrex::Real x){
-  return exp(lgamma(x));
+  return std::exp(lgamma(x));
 }
 
 
@@ -34,7 +34,7 @@ amrex::Real erf_esati(amrex::Real t) {
     esati = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
   }
   else {
-    esati = 0.01*exp(9.550426 - 5723.265/t + 3.53068*log(t) - 0.00728332*t);
+    esati = 0.01*std::exp(9.550426 - 5723.265/t + 3.53068*std::log(t) - 0.00728332*t);
   }
   return esati;
 }
@@ -58,7 +58,7 @@ amrex::Real erf_esatw(amrex::Real t) {
     esatw = a0 + dtt*(a1+dtt*(a2+dtt*(a3+dtt*(a4+dtt*(a5+dtt*(a6+dtt*(a7+a8*dtt)))))));
   }
   else {
-    esatw = 2.0*0.01*exp(9.550426 - 5723.265/t + 3.53068*log(t) - 0.00728332*t);
+    esatw = 2.0*0.01*std::exp(9.550426 - 5723.265/t + 3.53068*std::log(t) - 0.00728332*t);
   }
   return esatw;
 }
@@ -114,14 +114,14 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsati(amrex::Real t, amrex::Real p, amrex::Real &qsati) {
   amrex::Real esati;
   esati = erf_esati(t);
-  qsati = 0.622*esati/max(esati,p-esati);
+  qsati = 0.622*esati/std::max(esati,p-esati);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsatw(amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
   amrex::Real esatw;
   esatw = erf_esatw(t);
-  qsatw = 0.622*esatw/max(esatw,p-esatw);
+  qsatw = 0.622*esatw/std::max(esatw,p-esatw);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -142,18 +142,18 @@ void z0_est(amrex::Real z, amrex::Real bflx, amrex::Real wnd, amrex::Real ustar,
   amrex::Real bm = 19.3;
   amrex::Real c1 = 3.14159/2.0 - 3.0*log(2.0);
   amrex::Real rlmo = -bflx*vonk/(ustar*ustar*ustar+eps);
-  amrex::Real zeta = min(1.0,z*rlmo);
+  amrex::Real zeta = std::min(1.0,z*rlmo);
   amrex::Real x;
   amrex::Real psi1;
   if(zeta >= 0.0) {
     psi1 = -am*zeta;
   }
   else {
-    x = sqrt(sqrt(1.0-bm*zeta));
-    psi1 = 2.0*log(1.0+x) + log(1.0+x*x) -2.0*atan(x) + c1;
+    x = std::sqrt(sqrt(1.0-bm*zeta));
+    psi1 = 2.0*std::log(1.0+x) + std::log(1.0+x*x) -2.0*std::atan(x) + c1;
   }
-  amrex::Real lnz = max(0.0, vonk*wnd/(ustar+eps) +psi1);
-  z0 = z*exp(-lnz);
+  amrex::Real lnz = std::max(0.0, vonk*wnd/(ustar+eps) +psi1);
+  z0 = z*std::exp(-lnz);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -162,23 +162,23 @@ amrex::Real term_vel_qp(int i, int j, int k, amrex::Real qploc, amrex::Real vrai
                  amrex::Real tabs, amrex::Real a_pr, amrex::Real a_gr) {
   amrex::Real term_vel = 0.0;
   if(qploc > qp_threshold) {
-    amrex::Real omp = max(0.0,min(1.0,(tabs-tprmin)*a_pr));
+    amrex::Real omp = std::max(0.0,std::min(1.0,(tabs-tprmin)*a_pr));
     if(omp == 1.0) {
-      term_vel = vrain*pow(rho*qploc,crain);
+      term_vel = vrain*std::pow(rho*qploc,crain);
     }
     else if(omp == 0.0) {
-      amrex::Real omg = max(0.0,min(1.0,(tabs-tgrmin)*a_gr));
-      amrex::Real qgg=omg*qploc;
-      amrex::Real qss=qploc-qgg;
-      term_vel = (omg*vgrau*pow(rho*qgg,cgrau) + (1.0-omg)*vsnow*pow(rho*qss,csnow));
+      amrex::Real omg = std::max(0.0,std::min(1.0,(tabs-tgrmin)*a_gr));
+      amrex::Real qgg = omg*qploc;
+      amrex::Real qss = qploc-qgg;
+      term_vel = (omg*vgrau*std::pow(rho*qgg,cgrau) + (1.0-omg)*vsnow*std::pow(rho*qss,csnow));
     }
     else {
-      amrex::Real omg = max(0.0,min(1.0,(tabs-tgrmin)*a_gr));
-      amrex::Real qrr=omp*qploc;
-      amrex::Real qss=qploc-qrr;
-      amrex::Real qgg=omg*qss;
+      amrex::Real omg = std::max(0.0,std::min(1.0,(tabs-tgrmin)*a_gr));
+      amrex::Real qrr = omp*qploc;
+      amrex::Real qss = qploc-qrr;
+      amrex::Real qgg = omg*qss;
       qss = qss-qgg;
-      term_vel = (omp*vrain*pow(rho*qrr,crain) + (1.0-omp)*(omg*vgrau*pow(rho*qgg,cgrau) + (1.0-omg)*vsnow*pow(rho*qss,csnow)));
+      term_vel = (omp*vrain*std::pow(rho*qrr,crain) + (1.0-omp)*(omg*vgrau*std::pow(rho*qgg,cgrau) + (1.0-omg)*vsnow*std::pow(rho*qss,csnow)));
     }
   }
   return term_vel;
@@ -186,12 +186,12 @@ amrex::Real term_vel_qp(int i, int j, int k, amrex::Real qploc, amrex::Real vrai
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real pp(amrex::Real y) {
-  return max(0.0,y);
+  return std::max(0.0,y);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real pn(amrex::Real y) {
-  return -min(0.0,y);
+  return -std::min(0.0,y);
 }
 
 #endif
