@@ -87,7 +87,7 @@ public:
 
     // Interpolate fields to a specified position (w/ terrain)
     AMREX_GPU_HOST_DEVICE AMREX_INLINE
-    void trilinear_interp_T (const amrex::Real& xp,
+    static void trilinear_interp_T (const amrex::Real& xp,
                              const amrex::Real& yp,
                              const amrex::Real& zp,
                              amrex::Real* interp_vals,
