@@ -14,7 +14,7 @@ public:
     PlaneAverage() = default;
     ~PlaneAverage() = default;
 
-    AMREX_FORCE_INLINE    
+    AMREX_FORCE_INLINE
     void operator()();
 
     /** evaluate line average at specific location for any average component */

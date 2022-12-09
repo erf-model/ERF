@@ -12,11 +12,11 @@ void Microphysics::Init(const amrex::MultiFab& cons_in,
                         const amrex::Real& dt_advance)
  {
 
-  m_geom = geom; 
+  m_geom = geom;
   const auto& box3d = m_geom.Domain();
   const auto& lo    = amrex::lbound(box3d);
   const auto& hi    = amrex::ubound(box3d);
- 
+
 std::cout << "box3d: lo " << lo.x << "; " << lo.y << "; " << lo.z << std::endl;
 std::cout << "box3d: hi " << hi.x << "; " << hi.y << "; " << hi.z << std::endl;
 
@@ -38,7 +38,7 @@ std::cout << "box3d: probhi " << m_geom.ProbHi(0) << "; " << m_geom.ProbHi(1) <<
   dt = dt_advance;
 
   // initialize microphysics variables
-  for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar) 
+  for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar)
      mic_fab_vars[ivar] = std::make_shared<amrex::MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(), 1, cons_in.nGrowVect());
 
   // parameters
@@ -65,7 +65,7 @@ std::cout << "box3d: probhi " << m_geom.ProbHi(0) << "; " << m_geom.ProbHi(1) <<
   // output
   qifall.resize({zlo}, {zhi});
   tlatqi.resize({zlo}, {zhi});
-  
+
   qpsrc.resize({zlo}, {zhi});
   qpevp.resize({zlo}, {zhi});
 
@@ -121,7 +121,7 @@ std::cout << "box3d: probhi " << m_geom.ProbHi(0) << "; " << m_geom.ProbHi(1) <<
   // calculate the plane average variables
   PlaneAverage cons_ave(&cons_in, m_geom, 2);
   cons_ave.compute_averages(ZDir(), cons_ave.field());
-  
+
   amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
     amrex::Real zlev     = lowz + (k+0.5)*dz;
     amrex::Real density  = cons_ave.line_average_interpolated(zlev, Rho_comp);
@@ -129,8 +129,8 @@ std::cout << "box3d: probhi " << m_geom.ProbHi(0) << "; " << m_geom.ProbHi(1) <<
     amrex::Real pressure = getPgivenRTh(rhotheta);
 
     rho1d_t(k)  = density;
-    pres1d_t(k) = pressure/100.; 
-    tabs1d_t(k) = getTgivenRandRTh(density,rhotheta); 
+    pres1d_t(k) = pressure/100.;
+    tabs1d_t(k) = getTgivenRandRTh(density,rhotheta);
     zmid_t(k)   = lowz + (k+0.5)*dz;
     gamaz_t(k)  = CONST_GRAV/c_p*zmid_t(k);
 printf("k= %2d, zmid= %13.6f, pres= %13.6f, tabs= %13.6f\n",k,zmid_t(k),pres1d_t(k),tabs1d_t(k));
@@ -168,7 +168,7 @@ printf("k= %2d, zmid= %13.6f, pres= %13.6f, tabs= %13.6f\n",k,zmid_t(k),pres1d_t
     mkdiff(l,k) = 0.0;
   });
 #endif
-  
+
   amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
     qpsrc_t(k) = 0.0;
     qpevp_t(k) = 0.0;
@@ -189,7 +189,7 @@ printf("k= %2d, zmid= %13.6f, pres= %13.6f, tabs= %13.6f\n",k,zmid_t(k),pres1d_t
     amrex::Real rrr2=std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
     amrex::Real estw = 100.0*erf_esatw(tabs1d_t(k));
     amrex::Real esti = 100.0*erf_esati(tabs1d_t(k));
-    
+
     // accretion by snow:
     amrex::Real coef1 = 0.25 * PI * nzeros * a_snow * gams1 * pratio/pow((PI * rhos * nzeros/rho1d_t(k) ) , ((3.0+b_snow)/4.0));
     amrex::Real coef2 = exp(0.025*(tabs1d_t(k) - 273.15));
@@ -201,9 +201,9 @@ printf("k= %2d, zmid= %13.6f, pres= %13.6f, tabs= %13.6f\n",k,zmid_t(k),pres1d_t
     coef1  =(lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
     coef2  = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
     evaps1_t(k)  =  0.65*4.0*nzeros/sqrt(PI*rhos*nzeros)/(coef1+coef2)/sqrt(rho1d_t(k));
-    evaps2_t(k)  =  0.49*4.0*nzeros*gams2*sqrt(a_snow/(muelq*rrr1))/pow((PI*rhos*nzeros) , ((5.0+b_snow)/8.0)) / 
+    evaps2_t(k)  =  0.49*4.0*nzeros*gams2*sqrt(a_snow/(muelq*rrr1))/pow((PI*rhos*nzeros) , ((5.0+b_snow)/8.0)) /
                     (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_snow)/8.0))*sqrt(pratio);
-      
+
     // accretion by graupel:
     coef1 = 0.25*PI*nzerog*a_grau*gamg1*pratio/pow((PI*rhog*nzerog/rho1d_t(k)) , ((3.0+b_grau)/4.0));
     coef2 = exp(0.025*(tabs1d_t(k) - 273.15));
@@ -214,7 +214,7 @@ printf("k= %2d, zmid= %13.6f, pres= %13.6f, tabs= %13.6f\n",k,zmid_t(k),pres1d_t
     coef1  =(lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
     coef2  = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
     evapg1_t(k)  = 0.65*4.0*nzerog/sqrt(PI*rhog*nzerog)/(coef1+coef2)/sqrt(rho1d_t(k));
-    evapg2_t(k)  = 0.49*4.0*nzerog*gamg2*sqrt(a_grau/(muelq*rrr1))/pow((PI * rhog * nzerog) , ((5.0+b_grau)/8.0)) / 
+    evapg2_t(k)  = 0.49*4.0*nzerog*gamg2*sqrt(a_grau/(muelq*rrr1))/pow((PI * rhog * nzerog) , ((5.0+b_grau)/8.0)) /
                    (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_grau)/8.0))*sqrt(pratio);
 
     // accretion by rain:
@@ -223,10 +223,10 @@ printf("k= %2d, zmid= %13.6f, pres= %13.6f, tabs= %13.6f\n",k,zmid_t(k),pres1d_t
     // evaporation of rain:
     coef1  =(lcond/(tabs1d_t(k)*rv)-1.0)*lcond/(therco*rrr1*tabs1d_t(k));
     coef2  = rv*tabs1d_t(k)/(diffelq * rrr2 * estw);
-    evapr1_t(k)  =  0.78 * 2.0 * PI * nzeror / 
+    evapr1_t(k)  =  0.78 * 2.0 * PI * nzeror /
                   sqrt(PI * rhor * nzeror) / (coef1+coef2) / sqrt(rho1d_t(k));
     evapr2_t(k)  =  0.31 * 2.0 * PI  * nzeror * gamr2 * 0.89 * sqrt(a_rain/(muelq*rrr1))/
-                  pow((PI * rhor * nzeror) , ((5.0+b_rain)/8.0)) / 
+                  pow((PI * rhor * nzeror) , ((5.0+b_rain)/8.0)) /
                   (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_rain)/8.0))*sqrt(pratio);
   });
 }

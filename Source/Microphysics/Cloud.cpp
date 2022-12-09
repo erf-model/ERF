@@ -132,7 +132,7 @@ if(i==2 && j==2)
       }
       tabs_array(i,j,k) = tabs1;
       qp_array(i,j,k)   = std::max(0.0, qp_array(i,j,k)); // just in case
-//if(i==2 && j==2) 
+//if(i==2 && j==2)
 //    printf("%d, %d, %d, %13.6f, %13.6f, %13.6f\n",k,j,i,tabs1,qp_array(i,j,k),qn_array(i,j,k));
     });
   }

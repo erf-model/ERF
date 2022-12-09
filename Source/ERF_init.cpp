@@ -438,7 +438,7 @@ ERF::init_custom(int lev)
         const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
         const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
         const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
-        
+
         Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
@@ -455,11 +455,11 @@ ERF::init_custom(int lev)
         Array4<Real> qi_arr = qi_new.array(mfi);
 #endif
         init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr, 
+                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
 #ifdef ERF_USE_MOISTURE
                          qv_arr, qc_arr, qi_arr,
 #endif
                          geom[lev].data(), mf_m, mf_u, mf_v);
-        
+
     } //mfi
 }

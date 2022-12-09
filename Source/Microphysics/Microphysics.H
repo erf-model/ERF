@@ -1,7 +1,7 @@
 /*
  * Implementation 1-moment microphysics model
  * NOTE: this model is based on the SAM code, and the Klemp's paper
- * 1): Joseph, Klemp, the simulation of three-dimensional convective storm dynamics, 
+ * 1): Joseph, Klemp, the simulation of three-dimensional convective storm dynamics,
  * Journal of the atmospheric sciences, vol35, p1070
  * 2): Marat Khairoutdinov and David Randall, cloud resolving modeling of the ARM summer 1997 IOP:
  * model formulation, results, unvertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
@@ -22,7 +22,7 @@
 #include "Microphysics_Utils.H"
 #include "IndexDefines.H"
 
-// 
+//
 // use MultiFab for 3D data, but table for 1D data
 //
 class Microphysics {
@@ -31,10 +31,10 @@ class Microphysics {
 
  public:
   // constructor
-  Microphysics(bool do_cloud, bool do_smoke, bool do_precip) : 
+  Microphysics(bool do_cloud, bool do_smoke, bool do_precip) :
                docloud(do_cloud), dosmoke(do_smoke), doprecip(do_precip) {}
 
-  // destructor 
+  // destructor
   ~Microphysics() = default;
 
   // cloud physics
@@ -59,13 +59,13 @@ class Microphysics {
             const amrex::MultiFab& qi_in,
             const amrex::Geometry& geom,
             const amrex::Real& dt_advance);
- 
+
   // update erf variables
   void Update(amrex::MultiFab& cons_in,
               amrex::MultiFab& qv_in,
               amrex::MultiFab& qc_in,
               amrex::MultiFab& qi_in);
-   
+
   // diagnose
   void Diagnose();
 
@@ -105,7 +105,7 @@ class Microphysics {
   amrex::TableData<amrex::Real, 1> evapg2;
   amrex::TableData<amrex::Real, 1> evapr1;
   amrex::TableData<amrex::Real, 1> evapr2;
-  
+
   // vertical plane average data
   amrex::TableData<amrex::Real, 1> rho1d;
   amrex::TableData<amrex::Real, 1> pres1d;

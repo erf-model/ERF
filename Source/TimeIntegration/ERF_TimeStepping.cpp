@@ -190,7 +190,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 rU_old[lev], rV_old[lev], rW_old[lev],
                 rU_new[lev], rV_new[lev], rW_new[lev],
                 rU_crse, rV_crse, rW_crse,
-                source, 
+                source,
 #ifdef ERF_USE_MOISTURE
                 qv[lev], qc[lev], qi[lev],
 #endif

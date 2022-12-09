@@ -145,7 +145,7 @@ void Microphysics::Precip() {
           qt_array(i,j,k) = qt_array(i,j,k) - dq;
           amrex::Gpu::Atomic::Add(&qpevp_t(k), dq);
 
-        } else { 
+        } else {
           qt_array(i,j,k) = qt_array(i,j,k) + qp_array(i,j,k);
           amrex::Gpu::Atomic::Add(&qpevp_t(k), -qp_array(i,j,k));
           qp_array(i,j,k) = 0.0;

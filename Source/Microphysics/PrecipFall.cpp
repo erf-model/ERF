@@ -21,7 +21,7 @@ void Microphysics::PrecipFall(int hydro_type) {
   const auto nx = hi.x - lo.x + 1;
   const auto ny = hi.y - lo.y + 1;
   const auto nz = hi.z - lo.z + 1;
-  
+
   auto qt    = mic_fab_vars[MicVar::qt];
   auto omega = mic_fab_vars[MicVar::omega];
   auto tabs  = mic_fab_vars[MicVar::tabs];
@@ -117,7 +117,7 @@ void Microphysics::PrecipFall(int hydro_type) {
        else if (hydro_type == 3) {
          lfac_array(i,j,k) = 0.0;
        }
-       Real tmp = term_vel_qp(i,j,k,qt_array(i,j,k), 
+       Real tmp = term_vel_qp(i,j,k,qt_array(i,j,k),
                   vrain, vsnow, vgrau, crain, csnow, cgrau, rho1d_t(k),
                   tabs_array(i,j,k), a_pr, a_gr);
        wp_array(i,j,k)=rhofac_t(k)*tmp;
@@ -165,7 +165,7 @@ void Microphysics::PrecipFall(int hydro_type) {
 //#ifdef MMF_FIXED_SUBCYCLE
     nprec = 4;
 //#endif
-  
+
   for(int iprec = 1; iprec<=nprec; iprec++) {
     //parallel_for( SimpleBounds<4>(nzm,ny,nx,ncrms) , YAKL_LAMBDA (int k, int j, int i, int icrm) {
     for ( MFIter mfi(tmp_qp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -213,7 +213,7 @@ void Microphysics::PrecipFall(int hydro_type) {
         // precipitation mass fraction.  Therefore, a reformulated
         // anti-diffusive flux is used here which accounts for
         // this and results in reduced numerical diffusion.
-        www_array(i,j,k) = 0.5*(1.0+wp_array(i,j,k)*irhoadz_t(k))*(tmp_qp_array(i,j,kb)*wp_array(i,j,kb) - 
+        www_array(i,j,k) = 0.5*(1.0+wp_array(i,j,k)*irhoadz_t(k))*(tmp_qp_array(i,j,kb)*wp_array(i,j,kb) -
                            tmp_qp_array(i,j,k)*wp_array(i,j,k)); // works for wp(k)<0
       });
 
@@ -225,9 +225,9 @@ void Microphysics::PrecipFall(int hydro_type) {
           mx_array(i,j,k) = max(tmp_qp_array(i,j,kb),max(tmp_qp_array(i,j,kc), max(tmp_qp_array(i,j,k), mx_array(i,j,k))));
           mn_array(i,j,k) = min(tmp_qp_array(i,j,kb),min(tmp_qp_array(i,j,kc), min(tmp_qp_array(i,j,k), mn_array(i,j,k))));
           kc = min(nz-1,k+1);
-          mx_array(i,j,k) = rho1d_t(k)*adz_t(k)*(mx_array(i,j,k)-tmp_qp_array(i,j,k))/(pn(www_array(i,j,kc)) + 
+          mx_array(i,j,k) = rho1d_t(k)*adz_t(k)*(mx_array(i,j,k)-tmp_qp_array(i,j,k))/(pn(www_array(i,j,kc)) +
                                                                                        pp(www_array(i,j,k))+eps);
-          mn_array(i,j,k) = rho1d_t(k)*adz_t(k)*(tmp_qp_array(i,j,k)-mn_array(i,j,k))/(pp(www_array(i,j,kc)) + 
+          mn_array(i,j,k) = rho1d_t(k)*adz_t(k)*(tmp_qp_array(i,j,k)-mn_array(i,j,k))/(pp(www_array(i,j,kc)) +
                                                                                        pn(www_array(i,j,k))+eps);
         });
 
@@ -251,24 +251,24 @@ void Microphysics::PrecipFall(int hydro_type) {
         qt_array(i,j,k) = qt_array(i,j,k)-(fz_array(i,j,kc) - fz_array(i,j,k))*irhoadz_t(k);
         Real tmp  = -(fz_array(i,j,kc)-fz_array(i,j,k))*irhoadz_t(k)*flagstat;  // For qp budget
 //
-// NOTE qpfall, tlat, and precflux,...are output diagnostic variables, not sure whether we need to calculate these variables here? 
+// NOTE qpfall, tlat, and precflux,...are output diagnostic variables, not sure whether we need to calculate these variables here?
 // Please correct me!!! by xyuan@anl.gov
 //
 //      amrex::Gpu::Atomic::Add(&qpfall_t(k), tmp);
         Real lat_heat = -(lfac_array(i,j,kc)*fz_array(i,j,kc)-lfac_array(i,j,k)*fz_array(i,j,k))*irhoadz_t(k);
         theta_array(i,j,k) = theta_array(i,j,k)-lat_heat*inv_cp;
-//      amrex::Gpu::Atomic::Add(&tlat_t(k), -lat_heat);      
+//      amrex::Gpu::Atomic::Add(&tlat_t(k), -lat_heat);
 //      tmp = fz_t(k,j,i)*flagstat;
 //      amrex::Gpu::Atomic::Add(&precflux_t(k), -tmp);
 
 //if(qt_t(k,j,i) < 0.08) {
-//std::cout << "precipfall: " << i << "; " << j << "; " << k << "; lat " << lat_heat << "; theta " << t_t(k,j,i) << "; qt " << qt_t(k,j,i) 
+//std::cout << "precipfall: " << i << "; " << j << "; " << k << "; lat " << lat_heat << "; theta " << t_t(k,j,i) << "; qt " << qt_t(k,j,i)
 //          << "; fz " << fz_t(k,j,i) << "; fz-1 " << fz_t(kc,j,i) << "; irhoadz " << irhoadz_t(k) << std::endl;
 //}
 
 //      yakl::atomicAdd(precflux(k,icrm),-tmp);
         if (k == 0) {
-//        precsfc_t(j,i)  = precsfc_t(j,i)  - fz_t(0,j,i)*flagstat; 
+//        precsfc_t(j,i)  = precsfc_t(j,i)  - fz_t(0,j,i)*flagstat;
 //        precssfc_t(j,i) = precssfc_t(j,i) - fz_t(0,j,i)*(1.0-omega_t(0,j,i))*flagstat;
 //        prec_xy_t(j,i)  = prec_xy_t(j,i)  - fz_t(0,j,i)*flagstat;
         }
@@ -278,7 +278,7 @@ void Microphysics::PrecipFall(int hydro_type) {
         // Re-compute precipitation velocity using new value of qp.
         //parallel_for( SimpleBounds<4>(nzm,ny,nx,ncrms) , YAKL_LAMBDA (int k, int j, int i, int icrm) {
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-          Real tmp = term_vel_qp(i,j,k,qt_array(i,j,k), 
+          Real tmp = term_vel_qp(i,j,k,qt_array(i,j,k),
                      vrain, vsnow, vgrau, crain, csnow, cgrau, rho1d_t(k),
                      tabs_array(i,j,k), a_pr, a_gr);
           wp_array(i,j,k) = rhofac_t(k)*tmp;
@@ -294,7 +294,7 @@ void Microphysics::PrecipFall(int hydro_type) {
             lfac_array(i,j,nz-1) = 0.0;
           }
         });
-      }  
+      }
     }
   } // iprec loop
 }

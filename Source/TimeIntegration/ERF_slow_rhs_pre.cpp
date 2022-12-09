@@ -11,7 +11,7 @@
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
 #include <PlaneAverage.H>
- 
+
 using namespace amrex;
 
 void erf_slow_rhs_pre (int level, int nrk,
@@ -817,7 +817,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                  // Add buoyancy term (no longer in perturbational form)
 #ifdef ERF_USE_MOISTURE
                  Real zp = min(loz + (k+0.5)*dz, hiz);
-                 Real zm = max(loz + (k-0.5)*dz, loz); 
+                 Real zm = max(loz + (k-0.5)*dz, loz);
 
                  Real rhop1d   = state_ave.line_average_interpolated(zp, Rho_comp);
                  Real thetap1d = prim_ave.line_average_interpolated(zp, PrimTheta_comp);
@@ -849,7 +849,7 @@ void erf_slow_rhs_pre (int level, int nrk,
 //if(i==2 && j==2) printf("rho_w_rhs: %d, %d, %d, %13.6f, %13.6f\n",i,j,k,qplus,qminus);
 
                 rho_w_rhs(i, j, k) -= 0.25*grav_gpu[2]*(qplus+qminus)*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp));
-#else                
+#else
                 rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
                                                              - r0_arr(i,j,k) -    r0_arr(i,j,k-1) );
 #endif

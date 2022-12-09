@@ -14,7 +14,7 @@ void Microphysics::IceFall() {
 
   Box box2d{box3d};
   box2d.setSmall(2, 0);
-  box2d.setBig(2, 0); 
+  box2d.setBig(2, 0);
 
   int kmax, kmin;
   auto qcl   = mic_fab_vars[MicVar::qcl];
@@ -77,7 +77,7 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
      auto tabs_array  = tabs->array(mfi);
      auto theta_array = theta->array(mfi);
      auto fz_array    = fz.array(mfi);
-    
+
      amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        if (k >= std::max(0,kmin-1) && k <= kmax ) {
          // Set up indices for x-y planes above and below current plane.

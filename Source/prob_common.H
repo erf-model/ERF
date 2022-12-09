@@ -26,10 +26,10 @@ init_custom_prob (
   amrex::Array4<amrex::Real const> const& z_nd,
   amrex::Array4<amrex::Real const> const& z_cc,
 #ifdef ERF_USE_MOISTURE
-  amrex::Array4<amrex::Real      > const& qv, 
-  amrex::Array4<amrex::Real      > const& qc, 
+  amrex::Array4<amrex::Real      > const& qv,
+  amrex::Array4<amrex::Real      > const& qc,
   amrex::Array4<amrex::Real      > const& qi,
-#endif                
+#endif
   amrex::GeometryData const& geomdata,
   amrex::Array4<amrex::Real const> const& mf_m,
   amrex::Array4<amrex::Real const> const& mf_u,

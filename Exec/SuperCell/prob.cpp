@@ -56,34 +56,34 @@ init_isentropic_hse_no_terrain(const Real& r_sfc, const Real& theta,
 
   // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
   for (int k = 1; k <= khi; k++)
-  {   
+  {
       // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
       // to discretely satisfy HSE -- here we assume spatial_order = 2 -- we can generalize this later if needed
       bool converged_hse = false;
-      
+
       r[k] = r[k-1];
-      
+
       Real p_eos = getPgivenRTh(r[k]*theta);
       Real p_hse;
-      
+
       for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
-      {   
+      {
           Real r_avg = 0.5 * (r[k-1]+r[k]);
           p_hse = p[k-1] -  dz * r_avg * CONST_GRAV;
           p_eos = getPgivenRTh(r[k]*theta);
-          
+
           Real A = p_hse - p_eos;
-          
+
           Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
           // Gamma * p_0 * std::pow( (R_d * theta / p_0), Gamma) * std::pow(r[k], Gamma-1.0) ;
-          
+
           Real drho = A / (dpdr + dz * CONST_GRAV);
-          
+
           r[k] = r[k] + drho;
           p[k] = getPgivenRTh(r[k]*theta);
-          
+
           if (std::abs(drho) < TOL * r[k-1])
-          {   
+          {
               converged_hse = true;
               //amrex::Print() << " converged " << std::endl;
               break;
@@ -256,9 +256,9 @@ erf_init_dens_hse(MultiFab& rho_hse,
     } // no terrain
 }
 
-amrex::Real 
+amrex::Real
 init_supercell_temperature(amrex::Real z, amrex::Real z_0, amrex::Real z_trop, amrex::Real z_top,
-                           amrex::Real T_0, amrex::Real T_trop, amrex::Real T_top) 
+                           amrex::Real T_0, amrex::Real T_trop, amrex::Real T_top)
 {
     if (z <= z_trop) {
       amrex::Real lapse = - (T_trop - T_0) / (z_trop - z_0);
@@ -269,8 +269,8 @@ init_supercell_temperature(amrex::Real z, amrex::Real z_0, amrex::Real z_trop, a
     }
 }
 
-amrex::Real 
-init_supercell_pressure(amrex::Real z, amrex::Real z_0, 
+amrex::Real
+init_supercell_pressure(amrex::Real z, amrex::Real z_0,
                         amrex::Real z_trop, amrex::Real z_top,
                         amrex::Real T_0, amrex::Real T_trop, amrex::Real T_top)
 {
@@ -282,12 +282,12 @@ init_supercell_pressure(amrex::Real z, amrex::Real z_0,
       // Get pressure at the tropopause
       amrex::Real lapse = - (T_trop - T_0) / (z_trop - z_0);
       amrex::Real p_trop = p_0 * std::pow( T_trop / T_0 , CONST_GRAV/(R_d*lapse) );
-      // Get pressure at requested height 
+      // Get pressure at requested height
       lapse = - (T_top - T_trop) / (z_top - z_trop);
       if (lapse != 0) {
         amrex::Real T = init_supercell_temperature(z, z_0, z_trop, z_top, T_0, T_trop, T_top);
         return p_trop * std::pow( T / T_trop , CONST_GRAV/(R_d*lapse) );
-      } else { 
+      } else {
         return p_trop * std::exp(-CONST_GRAV*(z-z_trop)/(R_d*T_trop));
       }
     }
@@ -298,8 +298,8 @@ init_supercell_sat_mix(amrex::Real press, amrex::Real T ) {
     return 380./(press) * std::exp(17.27*(T-273.)/(T-36.));
 }
 
-amrex::Real 
-init_supercell_relhum(amrex::Real z, amrex::Real z_trop) 
+amrex::Real
+init_supercell_relhum(amrex::Real z, amrex::Real z_trop)
 {
   if (z <= z_trop) {
       return 1. - 0.75 * pow(z / z_trop , 1.25);
@@ -320,8 +320,8 @@ init_custom_prob(
         Array4<Real const> const& z_nd,
         Array4<Real const> const& z_cc,
 #ifdef ERF_USE_MOISTURE
-        Array4<Real      > const& qv, 
-        Array4<Real      > const& qc, 
+        Array4<Real      > const& qv,
+        Array4<Real      > const& qc,
         Array4<Real      > const& qi,
 #endif
         GeometryData const& geomdata,
@@ -348,7 +348,7 @@ init_custom_prob(
   const amrex::Real us      = 30.;
   const amrex::Real uc      = 15.;
 
-  amrex::ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept 
+  amrex::ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
     const auto prob_lo         = geomdata.ProbLo();
