@@ -456,14 +456,18 @@ public:
         host_to_device();
     }
 
-    void calc_rho_thm()
+    void calc_rho_p()
     {
-        /* Calculate density and moist potential temperature, following the
-         * procedure in WRF dyn_em/module_initialize_ideal.F that integrates
-         * hydrostatically from the surface up through the moist air column.
+        /* Calculate density and pressure, roughly following the procedure in
+         * WRF dyn_em/module_initialize_ideal.F. We integrate hydrostatically
+         * from the surface up through the air column to get the total (moist)
+         * density and pressure, then back down to get the dry density and
+         * pressure.
          *
          * This deviates from that code slightly because we calculate the
-         * correct moist theta, equal to virtual potential temperature.
+         * correct moist theta, equal to virtual potential temperature, and
+         * also remove the factor (1+qv) for consistency with the the surface
+         * density.
          */
         const int maxiter = 10;
         const int Ninp = size();
@@ -495,7 +499,7 @@ public:
             //   p_tot = rho_m R_d T_v 
             //         = rho_d(1 + q_v) R_d T_v
             pm_integ[0] = pm_surf
-                - 0.5*dz*(rhom_surf + rhom_integ[0])*CONST_GRAV;   
+                - 0.5*dz*(rhom_surf + rhom_integ[0])*CONST_GRAV;
             rhom_integ[0] = 1 / (
                 R_d/p_0 * theta_inp_sound[0]*qvf * std::pow(pm_integ[0]/p_0, -1/Gamma));
         }

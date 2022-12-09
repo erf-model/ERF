@@ -328,7 +328,7 @@ ERF::init_from_input_sounding(int lev)
             amrex::Error("input_sounding file name must be provided via input");
         input_sounding_data.read_from_file(input_sounding_file);
 
-        if (init_sounding_ideal) input_sounding_data.calc_rho_thm();
+        if (init_sounding_ideal) input_sounding_data.calc_rho_p();
     }
 
     auto& lev_new = vars_new[lev];
@@ -386,35 +386,37 @@ ERF::init_bx_from_input_sounding(
 
         // TODO: Read this from file, the way we do for custom problems
         // Or provide rho = rho (z) as applicable
-        Real rho_0, rhoTh_0;
+        Real rho_k, rhoTh_k;
         if (init_sounding_ideal)
         {
-            rho_0 = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
+            rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
         }
         else
         {
-            rho_0 = 1.0;
+            rho_k = 1.0;
         }
 
         // Set the density
-        state(i, j, k, Rho_comp) = rho_0;
+        state(i, j, k, Rho_comp) = rho_k;
 
         // Initial Rho0*Theta0
-        rhoTh_0 = rho_0 * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
-        state(i, j, k, RhoTheta_comp) = rhoTh_0;
+        rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+        state(i, j, k, RhoTheta_comp) = rhoTh_k;
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state(i, j, k, RhoScalar_comp) = 0;
 
         if (init_sounding_ideal)
         {
-            r_hse(i, j, k) = rho_0;
-            p_hse(i, j, k) = getPgivenRTh(rhoTh_0);
-            pi_hse(i, j, k) = getExnergivenRTh(rhoTh_0);
+            r_hse(i, j, k) = rho_k;
+            p_hse(i, j, k) = getPgivenRTh(rhoTh_k);
+            pi_hse(i, j, k) = getExnergivenRTh(rhoTh_k);
         }
 
 #ifdef ERF_USE_MOISTURE
-        state(i, j, k, RhoQt_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+        // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there
+        // is no cloud water or cloud ice
+        state(i, j, k, RhoQt_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
 #endif
     });
 
