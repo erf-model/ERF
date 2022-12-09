@@ -110,7 +110,7 @@ std::cout << "box3d: probhi " << m_geom.ProbHi(0) << "; " << m_geom.ProbHi(1) <<
        theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
        qt_array(i,j,k)    = states_array(i,j,k,RhoQt_comp)/states_array(i,j,k,Rho_comp);
        qp_array(i,j,k)    = states_array(i,j,k,RhoQp_comp)/states_array(i,j,k,Rho_comp);
-       qn_array(i,j,k)    = qc_in_array(i,j,k) + qv_in_array(i,j,k) + qi_in_array(i,j,k);
+       qn_array(i,j,k)    = qc_in_array(i,j,k) + qi_in_array(i,j,k);
        temp_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
        pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/100.;
 //if(i==10 && j==2) printf("%d, %d, %d, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f\n",i,j,k,rho_array(i,j,k),pres_array(i,j,k),

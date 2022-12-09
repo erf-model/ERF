@@ -10,7 +10,8 @@
 
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
-
+#include <PlaneAverage.H>
+ 
 using namespace amrex;
 
 void erf_slow_rhs_pre (int level, int nrk,
@@ -29,6 +30,11 @@ void erf_slow_rhs_pre (int level, int nrk,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                        MultiFab* eddyDiffs,
+#ifdef ERF_USE_MOISTURE
+                       const MultiFab& qvapor,
+                       const MultiFab& qcloud,
+                       const MultiFab& qice,
+#endif
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
@@ -71,6 +77,23 @@ void erf_slow_rhs_pre (int level, int nrk,
     const int domhi_z = domain.bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+
+    const Real dz  = geom.CellSize(2);
+    const Real loz = geom.ProbLo(2);
+    const Real hiz = geom.ProbHi(2);
+
+#ifdef ERF_USE_MOISTURE
+    PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, 2);
+    PlaneAverage prim_ave(&S_prim, geom, 2);
+    PlaneAverage qv_ave(&qvapor, geom, 2);
+    PlaneAverage qc_ave(&qcloud, geom, 2);
+    PlaneAverage qi_ave(&qice, geom, 2);
+    state_ave.compute_averages(ZDir(), state_ave.field());
+    prim_ave.compute_averages(ZDir(), prim_ave.field());
+    qv_ave.compute_averages(ZDir(), qv_ave.field());
+    qc_ave.compute_averages(ZDir(), qc_ave.field());
+    qi_ave.compute_averages(ZDir(), qi_ave.field());
+#endif
 
     // *************************************************************************
     // Combine external forcing terms
@@ -129,6 +152,11 @@ void erf_slow_rhs_pre (int level, int nrk,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real> &       cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & source_fab = source.const_array(mfi);
+#ifdef ERF_USE_MOISTURE
+        const Array4<const Real> & qv_data = qvapor.array(mfi);
+        const Array4<const Real> & qc_data = qcloud.array(mfi);
+        const Array4<const Real> & qi_data = qice.array(mfi);
+#endif
 
         // We must initialize these to zero each RK step
         S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.);
@@ -786,10 +814,45 @@ void erf_slow_rhs_pre (int level, int nrk,
 #else
                 rho_w_rhs(i, j, k) -= gpz;
 #endif
-                // Add buoyancy term (no longer in perturbational form)
+                 // Add buoyancy term (no longer in perturbational form)
+#ifdef ERF_USE_MOISTURE
+                 Real zp = min(loz + (k+0.5)*dz, hiz);
+                 Real zm = max(loz + (k-0.5)*dz, loz); 
+
+                 Real rhop1d   = state_ave.line_average_interpolated(zp, Rho_comp);
+                 Real thetap1d = prim_ave.line_average_interpolated(zp, PrimTheta_comp);
+                 Real qpp1d    = prim_ave.line_average_interpolated(zp, PrimQp_comp);
+                 Real tempp1d  = getTgivenRandRTh(rhop1d, rhop1d*thetap1d);
+                 Real qvp1d    = qv_ave.line_average_interpolated(zp, 0);
+                 Real qip1d    = qi_ave.line_average_interpolated(zp, 0);
+                 Real qcp1d    = qc_ave.line_average_interpolated(zp, 0);
+
+                 Real rhom1d   = state_ave.line_average_interpolated(zm, Rho_comp);
+                 Real thetam1d = prim_ave.line_average_interpolated(zm, PrimTheta_comp);
+                 Real qpm1d    = prim_ave.line_average_interpolated(zm, PrimQp_comp);
+                 Real tempm1d  = getTgivenRandRTh(rhom1d, rhom1d*thetam1d);
+                 Real qvm1d    = qv_ave.line_average_interpolated(zm, 0);
+                 Real qim1d    = qi_ave.line_average_interpolated(zm, 0);
+                 Real qcm1d    = qc_ave.line_average_interpolated(zm, 0);
+
+                 Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k,Rho_comp),
+                                                  cell_data(i,j,k,RhoTheta_comp));
+                 Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
+                                                  cell_data(i,j,k-1,RhoTheta_comp));
+
+                 Real qplus = (tempp1d*(0.61*(qv_data(i,j,k)-qvp1d)-(qc_data(i,j,k)-qcp1d+qi_data(i,j,k)-qip1d+cell_prim(i,j,k,PrimQp_comp)-qpp1d))
+                            +(tempp3d-tempp1d)*(1.+0.61*qvp1d-qcp1d-qip1d-qpp1d))/tempp1d;
+
+                 Real qminus = (tempm1d*(0.61*(qv_data(i,j,k-1)-qvm1d)-(qc_data(i,j,k-1)-qcm1d+qi_data(i,j,k-1)-qim1d+cell_prim(i,j,k-1,PrimQp_comp)-qpm1d))
+                              +(tempm3d-tempm1d)*(1.+0.61*qvm1d-qim1d-qcm1d-qpm1d))/tempm1d;
+
+//if(i==2 && j==2) printf("rho_w_rhs: %d, %d, %d, %13.6f, %13.6f\n",i,j,k,qplus,qminus);
+
+                rho_w_rhs(i, j, k) -= 0.25*grav_gpu[2]*(qplus+qminus)*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp));
+#else                
                 rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
                                                              - r0_arr(i,j,k) -    r0_arr(i,j,k-1) );
-
+#endif
                 // Add external drivers
                 rho_w_rhs(i, j, k) += ext_forcing[2];
 

@@ -145,6 +145,9 @@ public:
                       amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
                       amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
                       amrex::MultiFab& source,
+#ifdef ERF_USE_MOISTURE
+                      amrex::MultiFab& qvapor, amrex::MultiFab& qcloud, amrex::MultiFab& qice,
+#endif
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr);

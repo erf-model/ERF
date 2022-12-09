@@ -31,6 +31,11 @@ void erf_slow_rhs_pre(int level, int nrk,
                             amrex::MultiFab* Tau31,
                             amrex::MultiFab* Tau32,
                             amrex::MultiFab* eddyDiffs,
+#ifdef ERF_USE_MOISTURE
+                      const amrex::MultiFab& qvapor,
+                      const amrex::MultiFab& qcloud,
+                      const amrex::MultiFab& qice,
+#endif
                       const amrex::Geometry geom,
                       const SolverChoice& solverChoice,
                       std::unique_ptr<ABLMost>& most,

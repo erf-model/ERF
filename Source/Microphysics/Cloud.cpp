@@ -67,7 +67,7 @@ void Microphysics::Cloud() {
           qsatt = om*qsatt1 + (1.-om)*qsatt2;
        }
 if(i==2 && j==2)
-    printf("%d, %d, %d, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f\n",i,j,k,tabs1,pres1d_t(k),qt_array(i,j,k),qsatt,qn_array(i,j,k));
+    printf("cloud: %d, %d, %d, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f\n",i,j,k,tabs1,pres1d_t(k),qt_array(i,j,k),qsatt,qn_array(i,j,k));
 
        int niter;
        amrex::Real dtabs, lstarn, dlstarn, omp, lstarp, dlstarp, fff, dfff, dqsat;
