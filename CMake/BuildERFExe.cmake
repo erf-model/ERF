@@ -47,6 +47,19 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
 
+  if(ERF_ENABLE_MOISTURE)
+    target_sources(${erf_lib_name} PRIVATE
+       ${SRC_DIR}/Microphysics/Microphysics.H
+       ${SRC_DIR}/Microphysics/Init.cpp
+       ${SRC_DIR}/Microphysics/Cloud.cpp
+       ${SRC_DIR}/Microphysics/IceFall.cpp
+       ${SRC_DIR}/Microphysics/Precip.cpp
+       ${SRC_DIR}/Microphysics/PrecipFall.cpp
+       ${SRC_DIR}/Microphysics/Diagnose.cpp
+       ${SRC_DIR}/Microphysics/Update.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
+  endif()
+
   if(ERF_ENABLE_HDF5)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_HDF5)
   endif()
@@ -151,6 +164,10 @@ function(build_erf_lib erf_lib_name)
       target_link_libraries(${erf_lib_name} PUBLIC ${NETCDF_LINK_LIBRARIES})
       target_include_directories(${erf_lib_name} PUBLIC ${NETCDF_INCLUDE_DIRS})
     endif()
+  endif()
+
+  if(ERF_ENABLE_MOISTURE)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics)
   endif()
 
   if(ERF_ENABLE_MPI)

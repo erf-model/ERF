@@ -1,0 +1,8 @@
+CEXE_sources += Init.cpp
+CEXE_sources += Diagnose.cpp
+CEXE_sources += Update.cpp
+CEXE_sources += IceFall.cpp
+CEXE_source  += Precip.cpp
+CEXE_source  += PrecipFall.cpp
+CEXE_headers += Microphysics.H
+

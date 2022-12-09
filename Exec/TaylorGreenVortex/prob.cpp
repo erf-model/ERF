@@ -53,6 +53,11 @@ init_custom_prob(
         Array4<Real      > const&,
         Array4<Real const> const&,
         Array4<Real const> const&,
+#ifdef ERF_USE_MOISTURE
+        Array4<Real      > const&,
+        Array4<Real      > const&,
+        Array4<Real      > const&,
+#endif
         GeometryData const& geomdata,
         Array4<Real const> const& mf_m,
         Array4<Real const> const& mf_u,

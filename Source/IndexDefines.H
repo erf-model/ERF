@@ -189,4 +189,27 @@ namespace IntVar {
         NumVars
     };
 }
+
+namespace MicVar {
+   enum {
+      // independent variables
+      qt = 0,
+      qp,
+      theta, // liquid/ice water potential temperature
+      tabs,  // temperature
+      rho,   // density
+      pres,  // pressure
+      // derived variables
+      qr,   // rain water
+      qv,   // water vapor
+      qn,   // cloud condensate (liquid+ice), initial to zero
+      qci,  // cloud ice
+      qcl,  // cloud water
+      qpl,  // precip rain
+      qpi,  // precip ice
+      // temporary variable
+      omega,
+      NumVars
+  };
+}
 #endif

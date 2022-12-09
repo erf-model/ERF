@@ -1,5 +1,6 @@
 #include <ERF.H>
 #include <Utils.H>
+#include <Microphysics.H>
 
 using namespace amrex;
 
@@ -187,4 +188,27 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 rU_new[lev], rV_new[lev], rW_new[lev],
                 rU_crse, rV_crse, rW_crse,
                 source, Geom(lev), dt_lev, time, &ifr);
+
+    // Microphysics applied after the timestep
+#ifdef ERF_USE_MOISTURE
+std::cout << "do_cloud= " << do_cloud << " ;do_smoke= " << do_smoke << " ;do_precip= " << do_precip << std::endl;
+    Microphysics micro(do_cloud, do_smoke, do_precip);
+
+    micro.Init(S_new,
+               qc[lev],
+               qv[lev],
+               qi[lev],
+               Geom(lev),
+               dt_lev);
+    micro.Cloud();
+    micro.Diagnose();
+    micro.IceFall();
+    micro.Precip();
+//    micro.MicroPrecipFall();
+    micro.Update(S_new,
+                 qv[lev],
+                 qc[lev],
+                 qi[lev]);
+#endif
+
 }

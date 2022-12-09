@@ -420,6 +420,11 @@ void
 ERF::init_custom(int lev)
 {
     auto& lev_new = vars_new[lev];
+#ifdef ERF_USE_MOISTURE
+    auto& qv_new  = qv[lev];
+    auto& qc_new  = qc[lev];
+    auto& qi_new  = qi[lev];
+#endif
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
 
@@ -433,7 +438,7 @@ ERF::init_custom(int lev)
         const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
         const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
         const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
-
+        
         Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
@@ -444,8 +449,17 @@ ERF::init_custom(int lev)
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
+#ifdef ERF_USE_MOISTURE
+        Array4<Real> qv_arr = qv_new.array(mfi);
+        Array4<Real> qc_arr = qc_new.array(mfi);
+        Array4<Real> qi_arr = qi_new.array(mfi);
+#endif
         init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr, geom[lev].data(), mf_m, mf_u, mf_v);
-
+                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr, 
+#ifdef ERF_USE_MOISTURE
+                         qv_arr, qc_arr, qi_arr,
+#endif
+                         geom[lev].data(), mf_m, mf_u, mf_v);
+        
     } //mfi
 }
