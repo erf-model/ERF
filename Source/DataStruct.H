@@ -407,7 +407,8 @@ struct InputSoundingData {
 public:
     InputSoundingData() {}
 
-    void read_from_file(const std::string input_sounding_file)
+    void read_from_file(const std::string input_sounding_file,
+                        const amrex::Real ztop)
     {
         z_inp_sound.resize(0);
         theta_inp_sound.resize(0);
@@ -438,16 +439,66 @@ public:
             iss >> press_ref_inp_sound >> theta_ref_inp_sound >> qv_ref_inp_sound;
             qv_ref_inp_sound *= 0.001;
 
+            // Add surface
+            z_inp_sound.push_back(0);
+            theta_inp_sound.push_back(theta_ref_inp_sound);
+            qv_inp_sound.push_back(qv_ref_inp_sound);
+            U_inp_sound.push_back(0);
+            V_inp_sound.push_back(0);
+
             // Read the vertical profile at each given height
+            amrex::Real z, theta, qv, U, V;
             while(std::getline(input_sounding_reader, line)) {
                 std::istringstream iss_z(line);
-                amrex::Real z, theta, qv, U, V;
                 iss_z >> z >> theta >> qv >> U >> V;
                 z_inp_sound.push_back(z);
                 theta_inp_sound.push_back(theta);
                 qv_inp_sound.push_back(qv*0.001);
                 U_inp_sound.push_back(U);
                 V_inp_sound.push_back(V);
+                if (z >= ztop) break;
+            }
+
+            // At this point, we have an input_sounding with
+            // z_inp_sound[N-1] <= ztop
+            if (z != ztop)
+            {
+                int N = size();
+                amrex::Real z1  =     z_inp_sound[N-2];
+                amrex::Real th1 = theta_inp_sound[N-2];
+                amrex::Real qv1 =    qv_inp_sound[N-2];
+                amrex::Real U1  =     U_inp_sound[N-2];
+                amrex::Real V1  =     V_inp_sound[N-2];
+                amrex::Real z2  =     z_inp_sound[N-1];
+                amrex::Real th2 = theta_inp_sound[N-1];
+                amrex::Real qv2 =    qv_inp_sound[N-1];
+                amrex::Real U2  =     U_inp_sound[N-1];
+                amrex::Real V2  =     V_inp_sound[N-1];
+
+                amrex::Real zfrac = (ztop - z1) / (z2 - z1);
+                amrex::Real th_top = th1 + zfrac*(th2 - th1);
+                amrex::Real qv_top = qv1 + zfrac*(qv2 - qv1);
+                amrex::Real  U_top =  U1 + zfrac*( U2 -  U1);
+                amrex::Real  V_top =  V1 + zfrac*( V2 -  V1);
+
+                if (z < ztop)
+                {
+                    // Add domain top with extrapolated values
+                    z_inp_sound.push_back(ztop);
+                    theta_inp_sound.push_back(th_top);
+                    qv_inp_sound.push_back(qv_top);
+                    U_inp_sound.push_back(U_top);
+                    V_inp_sound.push_back(V_top);
+                }
+                else // z > ztop
+                {
+                    // Overwrite top value with interpolated values
+                    z_inp_sound[N-1] = ztop;
+                    theta_inp_sound[N-1] = th_top;
+                    qv_inp_sound[N-1] = qv_top;
+                    U_inp_sound[N-1] = U_top;
+                    V_inp_sound[N-1] = V_top;
+                }
             }
         }
         amrex::Print() << "Successfully read the input_sounding file..." << std::endl;
@@ -456,7 +507,7 @@ public:
         host_to_device();
     }
 
-    void calc_rho_p()
+    void calc_rho_p(const amrex::Real ztop)
     {
         /* Calculate density and pressure, roughly following the procedure in
          * WRF dyn_em/module_initialize_ideal.F. We integrate hydrostatically
@@ -476,35 +527,26 @@ public:
         rhom_integ.resize(Ninp);
         rhod_integ.resize(Ninp);
 
-        // evaluate surface quantities
-        pm_surf = 100. * press_ref_inp_sound; // _total_ pressure (incl moisture)
-        thm_surf = theta_ref_inp_sound *
+        // evaluate surface quantities (k=0)
+        amrex::Real thm_surf = theta_ref_inp_sound *
             (1 + (R_v/R_d-1) * qv_ref_inp_sound); // _moist_ theta == virtual potential temperature
-        rhom_surf = 1 / (
-            R_d/p_0 * thm_surf * std::pow(pm_surf/p_0, -1/Gamma)); // density of _moist_ air
-        amrex::Print() << "ideal sounding init: surface density, pi = "
-            << rhom_surf << " "
-            << std::pow(pm_surf / p_0, R_d/c_p)
-            << std::endl;
+        pm_integ[0] = 100. * press_ref_inp_sound; // _total_ pressure (incl moisture)
+        rhom_integ[0] = 1 / (
+            R_d/p_0 * thm_surf * std::pow(pm_integ[0]/p_0, -1/Gamma)); // density of _moist_ air
 
-        // integrate from surface to first point in sounding
-        amrex::Real qvf = 1 + (R_v/R_d-1) * qv_inp_sound[0];
-        amrex::Real dz = z_inp_sound[0];
-        rhom_integ[0] = rhom_surf; // guess
-        for (int it=0; it < maxiter; ++it)
-        {
-            // iterate to get total pressure
-            // note:
-            //   p_dry = rho_d R_d T
-            //   p_tot = rho_m R_d T_v 
-            //         = rho_d(1 + q_v) R_d T_v
-            pm_integ[0] = pm_surf
-                - 0.5*dz*(rhom_surf + rhom_integ[0])*CONST_GRAV;
-            rhom_integ[0] = 1 / (
-                R_d/p_0 * theta_inp_sound[0]*qvf * std::pow(pm_integ[0]/p_0, -1/Gamma));
-        }
+        amrex::Print() << "ideal sounding init: surface density of moist air = "
+            << rhom_integ[0] << std::endl;
+        amrex::Print() << "ideal sounding init: surface exner = "
+            << std::pow(pm_integ[0] / p_0, R_d/c_p) << std::endl;
+        amrex::Print() << "integrating moist air column up to " << ztop << std::endl;
 
-        // integrate from first point to top of sounding
+        // Note:
+        //   p_dry = rho_d R_d T
+        //   p_tot = rho_m R_d T_v 
+        //         = rho_d(1 + q_v) R_d T_v
+
+        // integrate from surface to domain top
+        amrex::Real qvf, dz;
         for (int k=1; k < size(); ++k)
         {
             qvf = 1 + (R_v/R_d-1) * qv_inp_sound[k];
@@ -525,6 +567,8 @@ public:
         pd_integ[Ninp-1] = pm_integ[Ninp-1];
         rhod_integ[Ninp-1] = 1 / (
                     R_d/p_0 * theta_inp_sound[Ninp-1] * std::pow(pd_integ[Ninp-1]/p_0, -1/Gamma));
+        amrex::Print() << "z  p_d  rho_d  theta" << std::endl;
+        amrex::Print() << z_inp_sound[Ninp-1] << " " << pd_integ[Ninp-1] << " " << rhod_integ[Ninp-1] << " " << theta_inp_sound[Ninp-1] << std::endl; // DEBUG
         for (int k=Ninp-2; k >= 0; --k)
         {
             dz = z_inp_sound[k+1] - z_inp_sound[k];
@@ -570,9 +614,9 @@ public:
 
         if (rhod_integ.size() > 0)
         {
-            //amrex::Print() << "Copying rho, theta_m to device" << std::endl;
-            rho_inp_sound_d.resize(size());
-            p_inp_sound_d.resize(size());
+            //amrex::Print() << "Copying rho_d, p_d to device" << std::endl;
+            rho_inp_sound_d.resize(size()+2);
+            p_inp_sound_d.resize(size()+2);
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                              rhod_integ.begin(), rhod_integ.end(),
                              rho_inp_sound_d.begin());
@@ -597,7 +641,6 @@ public:
     amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, qv_inp_sound, U_inp_sound, V_inp_sound;
     amrex::Gpu::DeviceVector<amrex::Real> z_inp_sound_d, theta_inp_sound_d, qv_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
     // - moist profiles
-    amrex::Real pm_surf, thm_surf, rhom_surf; // derived
     amrex::Vector<amrex::Real> pm_integ, rhom_integ; // from integrating up air column
     // - dry profiles
     amrex::Vector<amrex::Real> pd_integ, rhod_integ; // from integrating down air column
