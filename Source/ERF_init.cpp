@@ -326,9 +326,10 @@ ERF::init_from_input_sounding(int lev)
     if (lev == 0) {
         if (input_sounding_file.empty())
             amrex::Error("input_sounding file name must be provided via input");
-        input_sounding_data.read_from_file(input_sounding_file);
+        Real ztop = geom[0].ProbHi(AMREX_SPACEDIM-1);
+        input_sounding_data.read_from_file(input_sounding_file, ztop);
 
-        if (init_sounding_ideal) input_sounding_data.calc_rho_p();
+        if (init_sounding_ideal) input_sounding_data.calc_rho_p(ztop);
     }
 
     auto& lev_new = vars_new[lev];
@@ -378,14 +379,19 @@ ERF::init_bx_from_input_sounding(
     const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d.dataPtr();
     const int   inp_sound_size  = inputSoundingData.size();
 
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    amrex::Real l_gravity = solverChoice.gravity;
+
+    // We want to set the lateral BC values, too
+    Box gbx = bx; // Copy constructor
+    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+
+    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Geometry
         const amrex::Real* prob_lo = geomdata.ProbLo();
         const amrex::Real* dx = geomdata.CellSize();
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+        int ktop = bx.bigEnd(2);
 
-        // TODO: Read this from file, the way we do for custom problems
-        // Or provide rho = rho (z) as applicable
         Real rho_k, rhoTh_k;
         if (init_sounding_ideal)
         {
@@ -411,6 +417,27 @@ ERF::init_bx_from_input_sounding(
             r_hse(i, j, k) = rho_k;
             p_hse(i, j, k) = getPgivenRTh(rhoTh_k);
             pi_hse(i, j, k) = getExnergivenRTh(rhoTh_k);
+
+            if (k==0)
+            {
+                // set the ghost cell with dz and rho at boundary
+                amrex::Real rho_surf =
+                    interpolate_1d(z_inp_sound, rho_inp_sound, 0.0, inp_sound_size);
+                amrex::Real rhoTh_surf =
+                    rho_surf * interpolate_1d(z_inp_sound, theta_inp_sound, 0.0, inp_sound_size);
+                 p_hse(i, j, k-1) = getPgivenRTh(rhoTh_surf) + dx[2]/2 * rho_surf * l_gravity;
+                pi_hse(i, j, k-1) = getExnergivenP(p_hse(i, j, k-1));
+            }
+            else if (k==ktop)
+            {
+                // set the ghost cell with dz and rho at boundary
+                amrex::Real rho_top =
+                    interpolate_1d(z_inp_sound, rho_inp_sound, z+dx[2]/2, inp_sound_size);
+                amrex::Real rhoTh_top =
+                    rho_top * interpolate_1d(z_inp_sound, theta_inp_sound, z+dx[2]/2, inp_sound_size);
+                 p_hse(i, j, k+1) = getPgivenRTh(rhoTh_top) - dx[2]/2 * rho_top * l_gravity;
+                pi_hse(i, j, k+1) = getExnergivenP(p_hse(i, j, k+1));
+            }
         }
 
 #ifdef ERF_USE_MOISTURE
@@ -421,11 +448,11 @@ ERF::init_bx_from_input_sounding(
     });
 
     // Construct a box that is on x-faces
-    const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
+    const amrex::Box& xbx = amrex::surroundingNodes(gbx,0);
     // Construct a box that is on y-faces
-    const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
+    const amrex::Box& ybx = amrex::surroundingNodes(gbx,1);
     // Construct a box that is on z-faces
-    const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+    const amrex::Box& zbx = amrex::surroundingNodes(gbx,2);
 
     // Set the x,y,z-velocities
     amrex::ParallelFor(xbx, ybx, zbx,
