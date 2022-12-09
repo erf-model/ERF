@@ -542,7 +542,7 @@ public:
 
         // Note:
         //   p_dry = rho_d R_d T
-        //   p_tot = rho_m R_d T_v 
+        //   p_tot = rho_m R_d T_v
         //         = rho_d(1 + q_v) R_d T_v
 
         // integrate from surface to domain top
