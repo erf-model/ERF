@@ -176,7 +176,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
           });
 #ifdef ERF_USE_MOISTURE
-	  { // Qt
+      { // Qt
             int ncomp  = 5;
             ParallelFor(bxcc,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
@@ -185,9 +185,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
               mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
               mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
             });
-	  }
+      }
 
-	  {// Qp
+      {// Qp
             int ncomp  = 6;
             ParallelFor(bxcc,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
@@ -196,7 +196,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
               mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
               mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
             });
-	  }
+      }
 #endif
         }
     }
@@ -258,7 +258,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
           });
 #ifdef ERF_USE_MOISTURE
-	  { // Qt
+      { // Qt
             int ncomp  = 5;
             ParallelFor(planez,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
@@ -269,9 +269,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
               mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
               mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
             });
-	  }
+      }
 
-	  { // Qp
+      { // Qp
             int ncomp  = 6;
             ParallelFor(planez,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
@@ -282,7 +282,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
               mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
               mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
             });
-	  }
+      }
 #endif
         }
     }
