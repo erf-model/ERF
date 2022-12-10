@@ -131,7 +131,7 @@ namespace EddyDiff {
 #ifdef ERF_USE_MOISTURE
         Qt_h,
         Qp_h,
-#endif	
+#endif
         Mom_v,
         Theta_v,
         Scalar_v,
@@ -140,7 +140,7 @@ namespace EddyDiff {
 #ifdef ERF_USE_MOISTURE
         Qt_v,
         Qp_v,
-#endif	
+#endif
         PBL_lengthscale,
         NumDiffs
     };
