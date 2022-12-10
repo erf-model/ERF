@@ -10,13 +10,12 @@
 #define RhoKE_comp     2 // for Deardorff LES Model
 #define RhoQKE_comp    3 // for MYNN PBL Model
 #define RhoScalar_comp 4
-
 #ifdef ERF_USE_MOISTURE
-#define RhoQt_comp     5
-#define RhoQp_comp     6
-#define NVAR           7
+  #define RhoQt_comp   5
+  #define RhoQp_comp   6
+  #define NVAR         7
 #else
-#define NVAR           5
+  #define NVAR         5
 #endif
 
 // Cell-centered primitive variables
@@ -24,12 +23,10 @@
 #define PrimKE_comp      RhoKE_comp    -1
 #define PrimQKE_comp     RhoQKE_comp   -1
 #define PrimScalar_comp  RhoScalar_comp-1
-
 #ifdef ERF_USE_MOISTURE
-#define PrimQt_comp      RhoQt_comp-1
-#define PrimQp_comp      RhoQp_comp-1
+  #define PrimQt_comp    RhoQt_comp-1
+  #define PrimQp_comp    RhoQp_comp-1
 #endif
-
 #define NUM_PRIM         NVAR-1
 
 namespace BCVars {
@@ -129,21 +126,21 @@ namespace EddyDiff {
         Mom_h = 0,
         Theta_h,
         Scalar_h,
+        KE_h,
+        QKE_h,
 #ifdef ERF_USE_MOISTURE
         Qt_h,
         Qp_h,
-#endif
-        KE_h,
-        QKE_h,
+#endif	
         Mom_v,
         Theta_v,
         Scalar_v,
+        KE_v,
+        QKE_v,
 #ifdef ERF_USE_MOISTURE
         Qt_v,
         Qp_v,
-#endif
-        KE_v,
-        QKE_v,
+#endif	
         PBL_lengthscale,
         NumDiffs
     };

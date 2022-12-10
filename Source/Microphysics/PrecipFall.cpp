@@ -256,7 +256,7 @@ void Microphysics::PrecipFall(int hydro_type) {
 //
 //      amrex::Gpu::Atomic::Add(&qpfall_t(k), tmp);
         Real lat_heat = -(lfac_array(i,j,kc)*fz_array(i,j,kc)-lfac_array(i,j,k)*fz_array(i,j,k))*irhoadz_t(k);
-        theta_array(i,j,k) = theta_array(i,j,k)-lat_heat*inv_cp;
+        theta_array(i,j,k) = theta_array(i,j,k)-lat_heat;
 //      amrex::Gpu::Atomic::Add(&tlat_t(k), -lat_heat);
 //      tmp = fz_t(k,j,i)*flagstat;
 //      amrex::Gpu::Atomic::Add(&precflux_t(k), -tmp);

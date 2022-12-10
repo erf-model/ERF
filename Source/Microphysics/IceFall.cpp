@@ -146,7 +146,7 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
          Real lat_heat = (fac_cond+fac_fus)*dqi;
 
          // Add divergence of latent heat flux contribution to liquid-ice static potential temperature.
-         amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat*inv_cp);
+         amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
          // Add divergence to liquid-ice static energy budget.
          amrex::Gpu::Atomic::Add(&tlatqi_t(k), -lat_heat);
        }

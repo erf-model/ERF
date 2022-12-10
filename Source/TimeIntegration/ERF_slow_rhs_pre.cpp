@@ -848,7 +848,7 @@ void erf_slow_rhs_pre (int level, int nrk,
 
 //if(i==2 && j==2) printf("rho_w_rhs: %d, %d, %d, %13.6f, %13.6f\n",i,j,k,qplus,qminus);
 
-                rho_w_rhs(i, j, k) -= 0.25*grav_gpu[2]*(qplus+qminus)*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp));
+                rho_w_rhs(i, j, k) += 0.25*grav_gpu[2]*(qplus+qminus)*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp));
 #else
                 rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
                                                              - r0_arr(i,j,k) -    r0_arr(i,j,k-1) );

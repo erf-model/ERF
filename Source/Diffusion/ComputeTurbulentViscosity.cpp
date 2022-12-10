@@ -145,7 +145,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         });
 
 
-        int ntot   = 5;
+        int ntot   = 7;
         int offset = EddyDiff::Theta_h;
         // Populate element other than mom_h/v on the whole grid
         if(use_QKE) {
@@ -175,6 +175,26 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
             mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
           });
+#ifdef ERF_USE_MOISTURE
+          // Qt	  
+          int ncomp  = 5;
+          ParallelFor(bxcc,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            int indx   = n + offset;
+            int indx_v = indx + ntot;
+            mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
+            mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+          });
+          // Qp
+          int ncomp  = 6;
+          ParallelFor(bxcc,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            int indx   = n + offset;
+            int indx_v = indx + ntot;
+            mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx];
+            mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+          });	  
+#endif
         }
     }
 
@@ -198,7 +218,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
-        int ntot   = 5;
+        int ntot   = 7;
         int offset = EddyDiff::Mom_h;
         // Extrap all components at top & bottom
         if(use_QKE) {
@@ -234,6 +254,30 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
             mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
           });
+#ifdef ERF_USE_MOISTURE
+	  // Qt
+          int ncomp  = 5;
+          ParallelFor(planez,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            int indx   = n + offset;
+            int indx_v = indx + ntot;
+            mu_turb(i, j, k_lo-k, indx  ) = mu_turb(i, j, k_lo, indx  );
+            mu_turb(i, j, k_hi+k, indx  ) = mu_turb(i, j, k_hi, indx  );
+            mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
+            mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
+          });
+          // Qp
+          int ncomp  = 6;
+          ParallelFor(planez,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+          {
+            int indx   = n + offset;
+            int indx_v = indx + ntot;
+            mu_turb(i, j, k_lo-k, indx  ) = mu_turb(i, j, k_lo, indx  );
+            mu_turb(i, j, k_hi+k, indx  ) = mu_turb(i, j, k_hi, indx  );
+            mu_turb(i, j, k_lo-k, indx_v) = mu_turb(i, j, k_lo, indx_v);
+            mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
+          });
+#endif	  
         }
     }
 }
