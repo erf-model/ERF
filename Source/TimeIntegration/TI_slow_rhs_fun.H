@@ -77,6 +77,9 @@
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
                              Omega, source, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
+#ifdef ERF_USE_MOISTURE
+                             qvapor, qcloud, qice,
+#endif
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], detJ_cc_src[level], r0_new, p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
@@ -160,6 +163,9 @@
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
                              Omega, source, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
+#ifdef ERF_USE_MOISTURE
+                             qvapor, qcloud, qice,
+#endif
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], detJ_cc[level], r0, p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],

@@ -20,6 +20,7 @@ constexpr amrex::Real ip_0         = 1./p_0;
 constexpr amrex::Real iR_d         = 1./R_d;
 constexpr amrex::Real iGamma       = 1./Gamma;
 constexpr amrex::Real rdOcp        = R_d/c_p;
+constexpr amrex::Real inv_cp       = 1./c_p;
 
 constexpr amrex::Real rhor         = 1000.; // Density of water, kg/m3
 constexpr amrex::Real rhos         = 100.;  // Density of snow, kg/m3

@@ -145,6 +145,9 @@ public:
                       amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
                       amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
                       amrex::MultiFab& source,
+#ifdef ERF_USE_MOISTURE
+                      amrex::MultiFab& qvapor, amrex::MultiFab& qcloud, amrex::MultiFab& qice,
+#endif
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
                       amrex::InterpFaceRegister* ifr);
@@ -554,6 +557,12 @@ private:
     static amrex::Real fixed_fast_dt;
     static int fixed_mri_dt_ratio;
     static bool use_lowM_dt;
+
+#ifdef ERF_USE_MOISTURE
+    bool do_cloud {true};
+    bool do_smoke {true};
+    bool do_precip {true};
+#endif
 
     // how often each level regrids the higher levels of refinement
     // (after a level advances that many time steps)

@@ -3,6 +3,7 @@
 
 #include "AMReX_Gpu.H"
 #include "AMReX_MultiFab.H"
+#include "AMReX_GpuContainers.H"
 #include "DirectionSelector.H"
 
 class PlaneAverage {
@@ -37,8 +38,9 @@ public:
     {
         return m_line_average;
     }
+
     AMREX_FORCE_INLINE
-    void line_average(int comp, amrex::Vector<amrex::Real>& l_vec);
+    void line_average(int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec);
 
     const amrex::Vector<amrex::Real>& line_centroids() const
     {
@@ -75,15 +77,16 @@ public:
     void compute_averages(const IndexSelector& idxOp, const amrex::MultiFab& mfab);
 };
 
+
 PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
                             amrex::Geometry geom_in,
                             int axis_in)
-   : m_field(field_in) , m_geom(geom_in) , m_axis(axis_in)
+   : m_field(field_in), m_geom(geom_in), m_axis(axis_in)
 {
     AMREX_ALWAYS_ASSERT(m_axis >= 0 && m_axis < AMREX_SPACEDIM);
 
-    m_xlo = m_geom.ProbLo(m_axis);
-    m_dx  = m_geom.CellSize(m_axis);
+    m_xlo   = m_geom.ProbLo(m_axis);
+    m_dx    = m_geom.CellSize(m_axis);
     m_ncomp = m_field->nComp();
 
     amrex::Box domain = m_geom.Domain();
@@ -105,7 +108,6 @@ PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
     }
 }
 
-AMREX_FORCE_INLINE
 amrex::Real
 PlaneAverage::line_average_interpolated(amrex::Real x, int comp) const
 {
@@ -131,9 +133,8 @@ PlaneAverage::line_average_interpolated(amrex::Real x, int comp) const
            m_line_average[m_ncomp * (ind + 1) + comp] * c;
 }
 
-AMREX_FORCE_INLINE
 void
-PlaneAverage::line_average(int comp, amrex::Vector<amrex::Real>& l_vec)
+PlaneAverage::line_average(int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec)
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
@@ -141,7 +142,6 @@ PlaneAverage::line_average(int comp, amrex::Vector<amrex::Real>& l_vec)
         l_vec[i] = m_line_average[m_ncomp * i + comp];
 }
 
-AMREX_FORCE_INLINE
 void
 PlaneAverage::operator()()
 {
@@ -163,7 +163,6 @@ PlaneAverage::operator()()
 }
 
 template <typename IndexSelector>
-AMREX_FORCE_INLINE
 void
 PlaneAverage::compute_averages(const IndexSelector& idxOp, const amrex::MultiFab& mfab)
 {

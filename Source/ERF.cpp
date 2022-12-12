@@ -153,6 +153,12 @@ ERF::ERF ()
         vars_old[lev].resize(Vars::NumTypes);
     }
 
+#ifdef ERF_USE_MOISTURE
+    qi.resize(nlevs_max);
+    qc.resize(nlevs_max);
+    qv.resize(nlevs_max);
+#endif
+
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);
 
@@ -891,6 +897,12 @@ ERF::init_only(int lev, Real time)
         init_from_wrfinput(lev);
 #endif
     }
+
+#ifdef ERF_USE_MOISTURE
+    qc[lev].setVal(0.0);
+    qv[lev].setVal(0.0);
+    qi[lev].setVal(0.0);
+#endif
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
     // The data associated with the lower grid ID is considered the correct value.

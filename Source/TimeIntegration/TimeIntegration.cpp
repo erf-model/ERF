@@ -18,6 +18,9 @@ void ERF::erf_advance(int level,
                       MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
                       MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                       MultiFab& source,
+#ifdef ERF_USE_MOISTURE
+                      MultiFab& qvapor, MultiFab& qcloud, MultiFab& qice,
+#endif
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt_advance, const amrex::Real old_time,
                       amrex::InterpFaceRegister* ifr)

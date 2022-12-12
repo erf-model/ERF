@@ -1,6 +1,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
+#include <AMReX_GpuContainers.H>
 #include <ERF_Constants.H>
 #include <Advection.H>
 #include <Diffusion.H>
@@ -10,6 +11,7 @@
 
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
+#include <PlaneAverage.H>
 
 using namespace amrex;
 
@@ -29,6 +31,11 @@ void erf_slow_rhs_pre (int level, int nrk,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                        MultiFab* eddyDiffs,
+#ifdef ERF_USE_MOISTURE
+                       const MultiFab& qvapor,
+                       const MultiFab& qcloud,
+                       const MultiFab& qice,
+#endif
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
@@ -71,6 +78,49 @@ void erf_slow_rhs_pre (int level, int nrk,
     const int domhi_z = domain.bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+
+    const Real dz  = geom.CellSize(2);
+    const Real loz = geom.ProbLo(2);
+    const Real hiz = geom.ProbHi(2);
+
+#ifdef ERF_USE_MOISTURE
+    PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, 2);
+    PlaneAverage prim_ave(&S_prim, geom, 2);
+    PlaneAverage qv_ave(&qvapor, geom, 2);
+    PlaneAverage qc_ave(&qcloud, geom, 2);
+    PlaneAverage qi_ave(&qice, geom, 2);
+    state_ave.compute_averages(ZDir(), state_ave.field());
+    prim_ave.compute_averages(ZDir(), prim_ave.field());
+    qv_ave.compute_averages(ZDir(), qv_ave.field());
+    qc_ave.compute_averages(ZDir(), qc_ave.field());
+    qi_ave.compute_averages(ZDir(), qi_ave.field());
+
+    // get plane averaged data
+    int ncell = state_ave.ncell_line();
+
+    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell),
+                          qp_h(ncell), qv_h(ncell),
+                          qi_h(ncell), qc_h(ncell);
+
+    state_ave.line_average(Rho_comp, rho_h);
+    prim_ave.line_average(PrimTheta_comp, theta_h);
+    prim_ave.line_average(PrimQp_comp, qp_h);
+    qv_ave.line_average(0, qv_h);
+    qi_ave.line_average(0, qi_h);
+    qc_ave.line_average(0, qc_h);
+
+    // copy data to device
+    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell),
+                            qp_d(ncell), qv_d(ncell),
+                            qi_d(ncell), qc_d(ncell);
+
+    Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_d.end(), rho_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qp_h.begin(), qp_h.end(), qp_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
+#endif
 
     // *************************************************************************
     // Combine external forcing terms
@@ -129,6 +179,11 @@ void erf_slow_rhs_pre (int level, int nrk,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real> &       cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & source_fab = source.const_array(mfi);
+#ifdef ERF_USE_MOISTURE
+        const Array4<const Real> & qv_data = qvapor.array(mfi);
+        const Array4<const Real> & qc_data = qcloud.array(mfi);
+        const Array4<const Real> & qi_data = qice.array(mfi);
+#endif
 
         // We must initialize these to zero each RK step
         S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.);
@@ -786,10 +841,32 @@ void erf_slow_rhs_pre (int level, int nrk,
 #else
                 rho_w_rhs(i, j, k) -= gpz;
 #endif
-                // Add buoyancy term (no longer in perturbational form)
+                 // Add buoyancy term (no longer in perturbational form)
+#ifdef ERF_USE_MOISTURE
+                 Real zp = min(loz + (k+0.5)*dz, hiz);
+                 Real zm = max(loz + (k-0.5)*dz, loz);
+
+                 Real tempp1d = getTgivenRandRTh(rho_d[k], rho_d[k]*theta_d[k]);
+                 Real tempm1d  = getTgivenRandRTh(rho_d[k-1], rho_d[k-1]*theta_d[k-1]);
+
+                 Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k,Rho_comp),
+                                                  cell_data(i,j,k,RhoTheta_comp));
+                 Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
+                                                  cell_data(i,j,k-1,RhoTheta_comp));
+
+                 Real qplus = (tempp1d*(0.61*(qv_data(i,j,k)-qv_d[k])-(qc_data(i,j,k)-qc_d[k]+qi_data(i,j,k)-qi_d[k]+cell_prim(i,j,k,PrimQp_comp)-qp_d[k]))
+                            +(tempp3d-tempp1d)*(1.+0.61*qv_d[k]-qc_d[k]-qi_d[k]-qp_d[k]))/tempp1d;
+
+                 Real qminus = (tempm1d*(0.61*(qv_data(i,j,k-1)-qv_d[k-1])-(qc_data(i,j,k-1)-qc_d[k-1]+qi_data(i,j,k-1)-qi_d[k-1]+cell_prim(i,j,k-1,PrimQp_comp)-qp_d[k-1]))
+                              +(tempm3d-tempm1d)*(1.+0.61*qv_d[k-1]-qi_d[k-1]-qc_d[k-1]-qp_d[k-1]))/tempm1d;
+
+//if(i==2 && j==2) printf("rho_w_rhs: %d, %d, %d, %13.6f, %13.6f\n",i,j,k,qplus,qminus);
+
+                rho_w_rhs(i, j, k) += 0.25*grav_gpu[2]*(qplus+qminus)*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp));
+#else
                 rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
                                                              - r0_arr(i,j,k) -    r0_arr(i,j,k-1) );
-
+#endif
                 // Add external drivers
                 rho_w_rhs(i, j, k) += ext_forcing[2];
 
