@@ -29,7 +29,7 @@ public:
             delete m_j_indx[lev];
             delete m_k_indx[lev];
         }
-    };
+    }
 
     // Reset the pointers to field MFs
     void update_field_ptrs(int lev,
@@ -41,7 +41,7 @@ public:
 
     // Compute ncells per plane
     void set_region_normalization()
-    {m_ncell_region = (2 * m_radius + 1) * (2 * m_radius + 1) * (2 * m_radius + 1);};
+    {m_ncell_region = (2 * m_radius + 1) * (2 * m_radius + 1) * (2 * m_radius + 1);}
 
     // Populate a 2D iMF k_indx (w/o terrain)
     void set_k_indices_N();
@@ -80,10 +80,10 @@ public:
     void write_averages(int lev);
 
     // Get pointer to the 2D mf of averages
-    const amrex::MultiFab* get_average(int lev, int comp) const { return m_averages[lev][comp]; };
+    const amrex::MultiFab* get_average(int lev, int comp) const { return m_averages[lev][comp]; }
 
     // Get z_ref (may be computed from specified k_indx)
-    amrex::Real get_zref() { return m_zref; };
+    amrex::Real get_zref() { return m_zref; }
 
     // Interpolate fields to a specified position (w/ terrain)
     AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -98,7 +98,7 @@ public:
                              const int interp_comp)
     {
         // Search to get z/k
-        amrex::Real zval;
+        amrex::Real zval= 0.0;
         int kmax = ubound(z_arr).z;
         int i_new = (int) (xp * dxi[0] - 0.5);
         int j_new = (int) (yp * dxi[1] - 0.5);

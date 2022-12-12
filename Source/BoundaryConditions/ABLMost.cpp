@@ -1,7 +1,5 @@
 #include <ABLMost.H>
 #include <MOSTAverage.H>
-#include <PlaneAverage.H>
-#include <VelPlaneAverage.H>
 
 using namespace amrex;
 
