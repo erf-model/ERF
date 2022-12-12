@@ -198,9 +198,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     // Microphysics applied after the timestep
 #ifdef ERF_USE_MOISTURE
-std::cout << "do_cloud= " << do_cloud << " ;do_smoke= " << do_smoke << " ;do_precip= " << do_precip << std::endl;
     Microphysics micro(do_cloud, do_smoke, do_precip);
-
     micro.Init(S_new,
                qc[lev],
                qv[lev],
@@ -211,11 +209,10 @@ std::cout << "do_cloud= " << do_cloud << " ;do_smoke= " << do_smoke << " ;do_pre
     micro.Diagnose();
     micro.IceFall();
     micro.Precip();
-//    micro.MicroPrecipFall();
+    micro.MicroPrecipFall();
     micro.Update(S_new,
                  qv[lev],
                  qc[lev],
                  qi[lev]);
 #endif
-
 }

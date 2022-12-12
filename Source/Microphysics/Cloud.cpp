@@ -3,15 +3,17 @@
 #include "IndexDefines.H"
 #include "EOS.H"
 
+using namespace amrex;
+
 void Microphysics::Cloud() {
 
-  constexpr amrex::Real an   = 1.0/(tbgmax-tbgmin);
-  constexpr amrex::Real bn   = tbgmin*an;
-  constexpr amrex::Real ap   = 1.0/(tprmax-tprmin);
-  constexpr amrex::Real bp   = tprmin*ap;
-  constexpr amrex::Real fac1 = fac_cond+(1.0+bp)*fac_fus;
-  constexpr amrex::Real fac2 = fac_fus*ap;
-  constexpr amrex::Real ag   = 1.0/(tgrmax-tgrmin);
+  constexpr Real an   = 1.0/(tbgmax-tbgmin);
+  constexpr Real bn   = tbgmin*an;
+  constexpr Real ap   = 1.0/(tprmax-tprmin);
+  constexpr Real bp   = tprmin*ap;
+  constexpr Real fac1 = fac_cond+(1.0+bp)*fac_fus;
+  constexpr Real fac2 = fac_fus*ap;
+  constexpr Real ag   = 1.0/(tgrmax-tgrmin);
 
   auto pres1d_t = pres1d.table();
   auto gamaz_t  = gamaz.table();
@@ -20,34 +22,26 @@ void Microphysics::Cloud() {
 
   auto qt    = mic_fab_vars[MicVar::qt];
   auto qp    = mic_fab_vars[MicVar::qp];
-  auto qv    = mic_fab_vars[MicVar::qv];
   auto qn    = mic_fab_vars[MicVar::qn];
   auto rho   = mic_fab_vars[MicVar::rho];
-  auto theta = mic_fab_vars[MicVar::qci];
   auto tabs  = mic_fab_vars[MicVar::tabs];
 
-  for ( amrex::MFIter mfi(*tabs, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+  for ( MFIter mfi(*tabs, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto qt_array    = qt->array(mfi);
      auto qp_array    = qp->array(mfi);
-     auto qv_array    = qv->array(mfi);
      auto qn_array    = qn->array(mfi);
      auto rho_array   = rho->array(mfi);
-     auto theta_array = theta->array(mfi);
      auto tabs_array  = tabs->array(mfi);
 
-     amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+     ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
         qt_array(i,j,k) = std::max(0.0,qt_array(i,j,k));
         // Initial guess for temperature assuming no cloud water/ice:
-        //Real theta    = t_t(k,j,i) - gamaz_t(k);
-        //t_t(k,j,i)    = theta+fac1*qp_t(k,j,i);
-        //Real density  = rho_t(k,j,i);
-        //tabs_t(k,j,i) = getTgivenRandRTh(density,t_t(k,j,i));
-        amrex::Real tabs1 = tabs_array(i,j,k);
+        Real tabs1 = tabs_array(i,j,k);
 
-        amrex::Real qsatt;
-        amrex::Real om;
-        amrex::Real qsatt1;
-        amrex::Real qsatt2;
+        Real qsatt;
+        Real om;
+        Real qsatt1;
+        Real qsatt2;
 
         // Warm cloud:
         if(tabs1 > tbgmax) {
@@ -66,15 +60,16 @@ void Microphysics::Cloud() {
           erf_qsati(tabs1, pres1d_t(k), qsatt2);
           qsatt = om*qsatt1 + (1.-om)*qsatt2;
        }
-if(i==2 && j==2)
-    printf("cloud: %d, %d, %d, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f\n",i,j,k,tabs1,pres1d_t(k),qt_array(i,j,k),qsatt,qn_array(i,j,k));
+//if(i==2 && j==2)
+//    printf("cloud: %d, %d, %d, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f\n",
+//        i,j,k,tabs1,pres1d_t(k),qt_array(i,j,k),qsatt,qn_array(i,j,k),qp_array(i,j,k));
 
        int niter;
-       amrex::Real dtabs, lstarn, dlstarn, omp, lstarp, dlstarp, fff, dfff, dqsat;
+       Real dtabs, lstarn, dlstarn, omp, lstarp, dlstarp, fff, dfff, dqsat;
        //  Test if condensation is possible:
        if(qt_array(i,j,k) > qsatt) {
           niter = 0;
-          dtabs = 1.0;
+          dtabs = 1;
           do {
             if(tabs1 >= tbgmax) {
               om=1.0;
@@ -132,8 +127,6 @@ if(i==2 && j==2)
       }
       tabs_array(i,j,k) = tabs1;
       qp_array(i,j,k)   = std::max(0.0, qp_array(i,j,k)); // just in case
-//if(i==2 && j==2)
-//    printf("%d, %d, %d, %13.6f, %13.6f, %13.6f\n",k,j,i,tabs1,qp_array(i,j,k),qn_array(i,j,k));
     });
   }
 }

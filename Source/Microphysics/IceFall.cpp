@@ -11,6 +11,7 @@ void Microphysics::IceFall() {
   const auto& hi    = amrex::ubound(box3d);
 
   const auto nz = hi.z - lo.z + 1;
+  Real dz   = m_geom.CellSize(2);
 
   Box box2d{box3d};
   box2d.setSmall(2, 0);
@@ -85,7 +86,7 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
          int kb = std::max(k-1, 0);
 
          // CFL number based on grid spacing interpolated to interface i,j,k-1/2
-         Real coef = dt; //dtn/(0.5*(adz(kb)+adz(k))*dz);
+         Real coef = dt/dz; //dtn/(0.5*(adz(kb)+adz(k))*dz);
 
          // Compute cloud ice density in this cell and the ones above/below.
          // Since cloud ice is falling, the above cell is u(icrm,upwind),
@@ -132,7 +133,7 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
      //       for (int icrm=0; icrm<ncrms; icrm++) {
      amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        if ( k >= std::max(0,kmin-1) && k <= kmax ) {
-         Real coef = dt/rho1d_t(k); //dtn/(dz*adz(k)*rho_1d(k));
+         Real coef = dt/dz;
          // The cloud ice increment is the difference of the fluxes.
          Real dqi  = coef*(fz_array(i,j,k)-fz_array(i,j,k+1));
          // Add this increment to both non-precipitating and total water.
@@ -159,9 +160,9 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
      //parallel_for( SimpleBounds<3>(ny,nx,ncrms) , YAKL_LAMBDA (int j, int i, int icrm) {
      amrex::ParallelFor(box2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        Real coef = dtn/dz;
-       Real dqi = -coef*fz(0,j,i);
-       precsfc (j,i) = precsfc (j,i)+dqi;
-       precssfc(j,i) = precssfc(j,i)+dqi;
+       Real dqi = -coef*fz(i,j,0);
+       precsfc (i,j) = precsfc (i,j)+dqi;
+       precssfc(i,j) = precssfc(i,j)+dqi;
      });
 #endif
   }

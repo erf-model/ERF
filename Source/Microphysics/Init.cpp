@@ -17,12 +17,6 @@ void Microphysics::Init(const amrex::MultiFab& cons_in,
   const auto& lo    = amrex::lbound(box3d);
   const auto& hi    = amrex::ubound(box3d);
 
-std::cout << "box3d: lo " << lo.x << "; " << lo.y << "; " << lo.z << std::endl;
-std::cout << "box3d: hi " << hi.x << "; " << hi.y << "; " << hi.z << std::endl;
-
-std::cout << "box3d: problo " << m_geom.ProbLo(0) << "; " << m_geom.ProbLo(1) << "; " << m_geom.ProbLo(2) << std::endl;
-std::cout << "box3d: probhi " << m_geom.ProbHi(0) << "; " << m_geom.ProbHi(1) << "; " << m_geom.ProbHi(2) << std::endl;
-
   const auto nz = box3d.length(2);
 
   int zlo = lo.z;
@@ -113,8 +107,6 @@ std::cout << "box3d: probhi " << m_geom.ProbHi(0) << "; " << m_geom.ProbHi(1) <<
        qn_array(i,j,k)    = qc_in_array(i,j,k) + qi_in_array(i,j,k);
        temp_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
        pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/100.;
-//if(i==10 && j==2) printf("%d, %d, %d, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f\n",i,j,k,rho_array(i,j,k),pres_array(i,j,k),
-//                        temp_array(i,j,k),theta_array(i,j,k),qt_array(i,j,k),qp_array(i,j,k),qn_array(i,j,k));
      });
   }
 
@@ -127,13 +119,11 @@ std::cout << "box3d: probhi " << m_geom.ProbHi(0) << "; " << m_geom.ProbHi(1) <<
     amrex::Real density  = cons_ave.line_average_interpolated(zlev, Rho_comp);
     amrex::Real rhotheta = cons_ave.line_average_interpolated(zlev, RhoTheta_comp);
     amrex::Real pressure = getPgivenRTh(rhotheta);
-
     rho1d_t(k)  = density;
     pres1d_t(k) = pressure/100.;
     tabs1d_t(k) = getTgivenRandRTh(density,rhotheta);
     zmid_t(k)   = lowz + (k+0.5)*dz;
     gamaz_t(k)  = CONST_GRAV/c_p*zmid_t(k);
-printf("k= %2d, zmid= %13.6f, pres= %13.6f, tabs= %13.6f\n",k,zmid_t(k),pres1d_t(k),tabs1d_t(k));
   });
 
   gam3  = erf_gammafff(3.0             );

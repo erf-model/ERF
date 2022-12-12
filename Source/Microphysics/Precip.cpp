@@ -45,22 +45,22 @@ void Microphysics::Precip() {
 
   Real dtn = dt;
 
-  amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
+  ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
     qpsrc_t(k)=0.0;
     qpevp_t(k)=0.0;
   });
 
   // get the temperature, dentisy, theta, qt and qp from input
-  for ( amrex::MFIter mfi(*tabs,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+  for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto tabs_array = mic_fab_vars[MicVar::tabs]->array(mfi);
      auto qn_array   = mic_fab_vars[MicVar::qn]->array(mfi);
      auto qt_array   = mic_fab_vars[MicVar::qt]->array(mfi);
      auto qp_array   = mic_fab_vars[MicVar::qp]->array(mfi);
 
-     amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+     ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         //------- Autoconversion/accretion
-        amrex::Real omn, omp, omg, qcc, qii, autor, autos, accrr, qrr, accrcs, accris,
-                    qss, accrcg, accrig, tmp, qgg, dq, qsatt, qsat;
+        Real omn, omp, omg, qcc, qii, autor, autos, accrr, qrr, accrcs, accris,
+             qss, accrcg, accrig, tmp, qgg, dq, qsatt, qsat;
 
         if (qn_array(i,j,k)+qp_array(i,j,k) > 0.0) {
            omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
@@ -110,8 +110,8 @@ void Microphysics::Precip() {
             qii = (qii+dtn*autos*qci0)/(1.0+dtn*(accris+accrig+autos));
             dq = dtn *(accrr*qcc + autor*(qcc-qcw0)+(accris+accrig)*qii + (accrcs+accrcg)*qcc + autos*(qii-qci0));
             dq = std::min(dq,qn_array(i,j,k));
+        qt_array(i,j,k) = qt_array(i,j,k) - dq;
             qp_array(i,j,k) = qp_array(i,j,k) + dq;
-            qt_array(i,j,k) = qt_array(i,j,k) - dq;
             qn_array(i,j,k) = qn_array(i,j,k) - dq;
             amrex::Gpu::Atomic::Add(&qpsrc_t(k), dq);
 
@@ -141,8 +141,8 @@ void Microphysics::Precip() {
           }
           dq = dq * dtn * (qt_array(i,j,k) / qsatt-1.0);
           dq = std::max(-0.5*qp_array(i,j,k),dq);
-          qp_array(i,j,k) = qp_array(i,j,k) + dq;
-          qt_array(i,j,k) = qt_array(i,j,k) - dq;
+      qt_array(i,j,k) = qt_array(i,j,k) - dq;
+      qp_array(i,j,k) = qp_array(i,j,k) + dq;
           amrex::Gpu::Atomic::Add(&qpevp_t(k), dq);
 
         } else {
@@ -151,7 +151,6 @@ void Microphysics::Precip() {
           qp_array(i,j,k) = 0.0;
         }
       }
-
       dq = qp_array(i,j,k);
       qp_array(i,j,k) = max(0.0,qp_array(i,j,k));
       qt_array(i,j,k) = qt_array(i,j,k) + (dq-qp_array(i,j,k));
