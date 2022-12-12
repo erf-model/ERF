@@ -256,6 +256,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
     } // no terrain
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 init_supercell_temperature(amrex::Real z, amrex::Real z_0, amrex::Real z_trop, amrex::Real z_top,
                            amrex::Real T_0, amrex::Real T_trop, amrex::Real T_top)
@@ -269,6 +270,7 @@ init_supercell_temperature(amrex::Real z, amrex::Real z_0, amrex::Real z_trop, a
     }
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 init_supercell_pressure(amrex::Real z, amrex::Real z_0,
                         amrex::Real z_trop, amrex::Real z_top,
@@ -293,11 +295,13 @@ init_supercell_pressure(amrex::Real z, amrex::Real z_0,
     }
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 init_supercell_sat_mix(amrex::Real press, amrex::Real T ) {
     return 380./(press) * std::exp(17.27*(T-273.)/(T-36.));
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 init_supercell_relhum(amrex::Real z, amrex::Real z_trop)
 {
