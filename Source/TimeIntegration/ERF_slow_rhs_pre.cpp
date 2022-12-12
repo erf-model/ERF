@@ -98,8 +98,8 @@ void erf_slow_rhs_pre (int level, int nrk,
     // get plane averaged data
     int ncell = state_ave.ncell_line();
 
-    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell), 
-                          qp_h(ncell), qv_h(ncell), 
+    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell),
+                          qp_h(ncell), qv_h(ncell),
                           qi_h(ncell), qc_h(ncell);
 
     state_ave.line_average(Rho_comp, rho_h);
@@ -110,8 +110,8 @@ void erf_slow_rhs_pre (int level, int nrk,
     qc_ave.line_average(0, qc_h);
 
     // copy data to device
-    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell), 
-                            qp_d(ncell), qv_d(ncell), 
+    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell),
+                            qp_d(ncell), qv_d(ncell),
                             qi_d(ncell), qc_d(ncell);
 
     Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_d.end(), rho_d.begin());

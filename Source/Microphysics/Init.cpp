@@ -123,7 +123,7 @@ void Microphysics::Init(const MultiFab& cons_in,
   Gpu::HostVector<Real> rho_h(ncell), rhotheta_h(ncell);
   cons_ave.line_average(Rho_comp, rho_h);
   cons_ave.line_average(RhoTheta_comp, rhotheta_h);
-  
+
   // copy data to device
   Gpu::DeviceVector<Real> rho_d(ncell), rhotheta_d(ncell);
   Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
