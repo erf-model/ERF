@@ -1,15 +1,15 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 999999
-stop_time = 900.0
+max_step = 1000
+stop_time = 90000.0
 
 amrex.fpe_trap_invalid = 1
 
-fabarray.mfiter_tile_size = 1024 1024 1024
+fabarray.mfiter_tile_size = 2048 1024 2048
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = -25600.   0.    0.
-geometry.prob_hi     =  25600. 400. 6400.
-amr.n_cell           =  512    4    64    # dx=dy=dz=100 m
+geometry.prob_hi     =  25600. 400. 12800.
+amr.n_cell           =  128    4    32    # dx=dy=dz=100 m
 
 # periodic in x to match WRF setup
 # - as an alternative, could use symmetry at x=0 and outflow at x=25600
@@ -32,29 +32,32 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 amr.check_file      = chk        # root name of checkpoint file
-amr.check_int       = 9000       # number of timesteps between checkpoints
+amr.check_int       = 10000       # number of timesteps between checkpoints
+#amr.restart         = chk01000
 
 # PLOTFILES
-amr.plot_file         = plt        # root name of plotfile
-amr.plot_int          = 600        # number of timesteps between plotfiles
-amr.plot_vars         = density x_velocity y_velocity z_velocity
-amr.derive_plot_vars  = pressure theta pres_hse dens_hse pert_pres pert_dens
+erf.plot_file_1         = plt        # root name of plotfile
+erf.plot_int_1          = 1         # number of timesteps between plotfiles
+erf.plot_vars_1         = density rhotheta rhoQt rhoQp x_velocity y_velocity z_velocity pressure theta temp
 
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.use_coriolis = false
-erf.use_rayleigh_damping = true
+erf.use_rayleigh_damping = false
 erf.spatial_order = 2
 
-erf.les_type         = "None"
+erf.les_type = "Deardorff"
+#erf.les_type = "None"
 #
 # diffusion coefficient from Straka, K = 75 m^2/s
 #
-erf.molec_diff_type = "ConstantAlpha"
+#erf.molec_diff_type = "ConstantAlpha"
+erf.molec_diff_type = "None"
 erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
 erf.dynamicViscosity = 75.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
 erf.alpha_T = 75.0 # [m^2/s]
 
 # PROBLEM PARAMETERS (optional)
 prob.T_0 = 300.0
-prob.U_0 = 0.0
+prob.U_0 = 0
+prob.T_pert = 3
