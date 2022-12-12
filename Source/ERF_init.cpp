@@ -326,10 +326,18 @@ ERF::init_from_input_sounding(int lev)
     if (lev == 0) {
         if (input_sounding_file.empty())
             amrex::Error("input_sounding file name must be provided via input");
-        input_sounding_data.read_from_file(input_sounding_file);
+        Real ztop = geom[0].ProbHi(AMREX_SPACEDIM-1);
+        input_sounding_data.read_from_file(input_sounding_file, ztop);
+
+        if (init_sounding_ideal) input_sounding_data.calc_rho_p(ztop);
     }
 
     auto& lev_new = vars_new[lev];
+
+    // update if init_sounding_ideal == true
+    MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
+    MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
+    MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -340,37 +348,50 @@ ERF::init_from_input_sounding(int lev)
         const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
         const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
         const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
+        Array4<Real> r_hse_arr = r_hse.array(mfi);
+        Array4<Real> p_hse_arr = p_hse.array(mfi);
+        Array4<Real> pi_hse_arr = pi_hse.array(mfi);
 
-        init_bx_from_input_sounding(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
-                                    geom[lev].data(), input_sounding_data);
+        if (init_sounding_ideal)
+        {
+            init_bx_scalars_from_input_sounding_hse(bx, cons_arr,
+                                                    r_hse_arr, p_hse_arr, pi_hse_arr,
+                                                    geom[lev].data(), input_sounding_data);
+        }
+        else
+        {
+            init_bx_scalars_from_input_sounding(bx, cons_arr,
+                                                geom[lev].data(), input_sounding_data);
+        }
+
+        init_bx_velocities_from_input_sounding(bx, xvel_arr, yvel_arr, zvel_arr,
+                                               geom[lev].data(), input_sounding_data);
     } //mfi
 }
 
 void
-ERF::init_bx_from_input_sounding(
+ERF::init_bx_scalars_from_input_sounding(
         const amrex::Box &bx,
         amrex::Array4<amrex::Real> const &state,
-        amrex::Array4<amrex::Real> const &x_vel,
-        amrex::Array4<amrex::Real> const &y_vel,
-        amrex::Array4<amrex::Real> const &z_vel,
         amrex::GeometryData const &geomdata,
         InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-    const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d.dataPtr();
-    const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d.dataPtr();
+    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
     const int   inp_sound_size  = inputSoundingData.size();
 
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    // We want to set the lateral BC values, too
+    Box gbx = bx; // Copy constructor
+    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+
+    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Geometry
         const amrex::Real* prob_lo = geomdata.ProbLo();
         const amrex::Real* dx = geomdata.CellSize();
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-        // TODO: Read this from file, the way we do for custom problems
-        // Or provide rho = rho (z) as applicable or computer rho = rho(z) as WRF does
-        Real rho_0 = 1.0;
+        amrex::Real rho_0 = 1.0;
 
         // Set the density
         state(i, j, k, Rho_comp) = rho_0;
@@ -380,14 +401,116 @@ ERF::init_bx_from_input_sounding(
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state(i, j, k, RhoScalar_comp) = 0;
+
+#ifdef ERF_USE_MOISTURE
+        // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there
+        // is no cloud water or cloud ice
+        state(i, j, k, RhoQt_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+#endif
     });
+}
+
+void
+ERF::init_bx_scalars_from_input_sounding_hse(
+        const amrex::Box &bx,
+        amrex::Array4<amrex::Real> const &state,
+        amrex::Array4<amrex::Real> const &r_hse,
+        amrex::Array4<amrex::Real> const &p_hse,
+        amrex::Array4<amrex::Real> const &pi_hse,
+        amrex::GeometryData const &geomdata,
+        InputSoundingData const &inputSoundingData)
+{
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
+    const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
+    const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
+    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size();
+
+    amrex::Real l_gravity = solverChoice.gravity;
+
+    // We want to set the lateral BC values, too
+    Box gbx = bx; // Copy constructor
+    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+
+    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        // Geometry
+        const amrex::Real* prob_lo = geomdata.ProbLo();
+        const amrex::Real* dx = geomdata.CellSize();
+        const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+        int ktop = bx.bigEnd(2);
+
+        Real rho_k, rhoTh_k;
+        rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
+
+        // Set the density
+        state(i, j, k, Rho_comp) = rho_k;
+
+        // Initial Rho0*Theta0
+        rhoTh_k = rho_k * interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+        state(i, j, k, RhoTheta_comp) = rhoTh_k;
+
+        // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
+        state(i, j, k, RhoScalar_comp) = 0;
+
+        // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
+        r_hse(i, j, k) = rho_k;
+        p_hse(i, j, k) = getPgivenRTh(rhoTh_k);
+        pi_hse(i, j, k) = getExnergivenRTh(rhoTh_k);
+
+        // Boundary treatment
+        if (k==0)
+        {
+            // set the ghost cell with dz and rho at boundary
+            amrex::Real rho_surf =
+                interpolate_1d(z_inp_sound, rho_inp_sound, 0.0, inp_sound_size);
+            amrex::Real rhoTh_surf =
+                rho_surf * interpolate_1d(z_inp_sound, theta_inp_sound, 0.0, inp_sound_size);
+             p_hse(i, j, k-1) = getPgivenRTh(rhoTh_surf) + dx[2]/2 * rho_surf * l_gravity;
+            pi_hse(i, j, k-1) = getExnergivenP(p_hse(i, j, k-1));
+        }
+        else if (k==ktop)
+        {
+            // set the ghost cell with dz and rho at boundary
+            amrex::Real rho_top =
+                interpolate_1d(z_inp_sound, rho_inp_sound, z+dx[2]/2, inp_sound_size);
+            amrex::Real rhoTh_top =
+                rho_top * interpolate_1d(z_inp_sound, theta_inp_sound, z+dx[2]/2, inp_sound_size);
+             p_hse(i, j, k+1) = getPgivenRTh(rhoTh_top) - dx[2]/2 * rho_top * l_gravity;
+            pi_hse(i, j, k+1) = getExnergivenP(p_hse(i, j, k+1));
+        }
+
+#ifdef ERF_USE_MOISTURE
+        // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there
+        // is no cloud water or cloud ice
+        state(i, j, k, RhoQt_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+#endif
+    });
+}
+
+void
+ERF::init_bx_velocities_from_input_sounding(
+        const amrex::Box &bx,
+        amrex::Array4<amrex::Real> const &x_vel,
+        amrex::Array4<amrex::Real> const &y_vel,
+        amrex::Array4<amrex::Real> const &z_vel,
+        amrex::GeometryData const &geomdata,
+        InputSoundingData const &inputSoundingData)
+{
+    const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
+    const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d.dataPtr();
+    const Real* V_inp_sound     = inputSoundingData.V_inp_sound_d.dataPtr();
+    const int   inp_sound_size  = inputSoundingData.size();
+
+    // We want to set the lateral BC values, too
+    Box gbx = bx; // Copy constructor
+    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
     // Construct a box that is on x-faces
-    const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
+    const amrex::Box& xbx = amrex::surroundingNodes(gbx,0);
     // Construct a box that is on y-faces
-    const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
+    const amrex::Box& ybx = amrex::surroundingNodes(gbx,1);
     // Construct a box that is on z-faces
-    const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+    const amrex::Box& zbx = amrex::surroundingNodes(gbx,2);
 
     // Set the x,y,z-velocities
     amrex::ParallelFor(xbx, ybx, zbx,

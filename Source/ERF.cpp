@@ -62,7 +62,10 @@ amrex::Vector<amrex::Vector<std::string>> ERF::nc_init_file = {{""}}; // Must pr
 std::string ERF::nc_bdy_file = ""; // Must provide via input
 
 // Text input_sounding file
-std::string ERF::input_sounding_file = ""; // Must provide via input
+std::string ERF::input_sounding_file = "input_sounding";
+
+// Flag to trigger ideal initialization like WRF
+bool ERF::init_sounding_ideal = false;
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
@@ -430,7 +433,7 @@ ERF::InitData ()
     }
 
     // If we are reading initial data from wrfinput, the base state is defined there.
-    if (init_type != "real") {
+    if ((init_type != "real") && (!init_sounding_ideal)) {
         initHSE();
     }
 
@@ -1030,6 +1033,9 @@ ERF::ReadParameters ()
 
         // Text input_sounding file
         pp.query("input_sounding_file", input_sounding_file);
+
+        // Flag to trigger ideal initialization like WRF
+        pp.query("init_sounding_ideal", init_sounding_ideal);
 
         // Output format
         pp.query("plotfile_type", plotfile_type);
