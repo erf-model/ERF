@@ -142,7 +142,7 @@ public:
           delete t_star[lev];
           delete t_surf[lev];
         }
-    };
+    }
 
     ABLMostData
     get_most_data ()
@@ -162,16 +162,16 @@ public:
     update_mac_ptrs(int lev,
                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim)
-    { m_ma.update_field_ptrs(lev,vars_old,Theta_prim); };
+    { m_ma.update_field_ptrs(lev,vars_old,Theta_prim); }
 
     const amrex::MultiFab*
-    get_u_star(int lev) { return u_star[lev]; };
+    get_u_star(int lev) { return u_star[lev]; }
 
     const amrex::MultiFab*
-    get_t_star(int lev) { return t_star[lev]; };
+    get_t_star(int lev) { return t_star[lev]; }
 
     const amrex::MultiFab*
-    get_mac_avg(int lev, int comp) { return m_ma.get_average(lev,comp); };
+    get_mac_avg(int lev, int comp) { return m_ma.get_average(lev,comp); }
 
     enum ThetaCalcType {
         HEAT_FLUX = 0,      ///< Heat-flux specified
