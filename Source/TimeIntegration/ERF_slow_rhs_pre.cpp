@@ -1,6 +1,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
+#include <AMReX_GpuContainers.H>
 #include <ERF_Constants.H>
 #include <Advection.H>
 #include <Diffusion.H>
@@ -93,6 +94,32 @@ void erf_slow_rhs_pre (int level, int nrk,
     qv_ave.compute_averages(ZDir(), qv_ave.field());
     qc_ave.compute_averages(ZDir(), qc_ave.field());
     qi_ave.compute_averages(ZDir(), qi_ave.field());
+
+    // get plane averaged data
+    int ncell = state_ave.ncell_line();
+
+    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell), 
+                          qp_h(ncell), qv_h(ncell), 
+                          qi_h(ncell), qc_h(ncell);
+
+    state_ave.line_average(Rho_comp, rho_h);
+    prim_ave.line_average(PrimTheta_comp, theta_h);
+    prim_ave.line_average(PrimQp_comp, qp_h);
+    qv_ave.line_average(0, qv_h);
+    qi_ave.line_average(0, qi_h);
+    qc_ave.line_average(0, qc_h);
+
+    // copy data to device
+    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell), 
+                            qp_d(ncell), qv_d(ncell), 
+                            qi_d(ncell), qc_d(ncell);
+
+    Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_d.end(), rho_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qp_h.begin(), qp_h.end(), qp_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
 #endif
 
     // *************************************************************************
@@ -819,32 +846,19 @@ void erf_slow_rhs_pre (int level, int nrk,
                  Real zp = min(loz + (k+0.5)*dz, hiz);
                  Real zm = max(loz + (k-0.5)*dz, loz);
 
-                 Real rhop1d   = state_ave.line_average_interpolated(zp, Rho_comp);
-                 Real thetap1d = prim_ave.line_average_interpolated(zp, PrimTheta_comp);
-                 Real qpp1d    = prim_ave.line_average_interpolated(zp, PrimQp_comp);
-                 Real tempp1d  = getTgivenRandRTh(rhop1d, rhop1d*thetap1d);
-                 Real qvp1d    = qv_ave.line_average_interpolated(zp, 0);
-                 Real qip1d    = qi_ave.line_average_interpolated(zp, 0);
-                 Real qcp1d    = qc_ave.line_average_interpolated(zp, 0);
-
-                 Real rhom1d   = state_ave.line_average_interpolated(zm, Rho_comp);
-                 Real thetam1d = prim_ave.line_average_interpolated(zm, PrimTheta_comp);
-                 Real qpm1d    = prim_ave.line_average_interpolated(zm, PrimQp_comp);
-                 Real tempm1d  = getTgivenRandRTh(rhom1d, rhom1d*thetam1d);
-                 Real qvm1d    = qv_ave.line_average_interpolated(zm, 0);
-                 Real qim1d    = qi_ave.line_average_interpolated(zm, 0);
-                 Real qcm1d    = qc_ave.line_average_interpolated(zm, 0);
+                 Real tempp1d = getTgivenRandRTh(rho_d[k], rho_d[k]*theta_d[k]);
+                 Real tempm1d  = getTgivenRandRTh(rho_d[k-1], rho_d[k-1]*theta_d[k-1]);
 
                  Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k,Rho_comp),
                                                   cell_data(i,j,k,RhoTheta_comp));
                  Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
                                                   cell_data(i,j,k-1,RhoTheta_comp));
 
-                 Real qplus = (tempp1d*(0.61*(qv_data(i,j,k)-qvp1d)-(qc_data(i,j,k)-qcp1d+qi_data(i,j,k)-qip1d+cell_prim(i,j,k,PrimQp_comp)-qpp1d))
-                            +(tempp3d-tempp1d)*(1.+0.61*qvp1d-qcp1d-qip1d-qpp1d))/tempp1d;
+                 Real qplus = (tempp1d*(0.61*(qv_data(i,j,k)-qv_d[k])-(qc_data(i,j,k)-qc_d[k]+qi_data(i,j,k)-qi_d[k]+cell_prim(i,j,k,PrimQp_comp)-qp_d[k]))
+                            +(tempp3d-tempp1d)*(1.+0.61*qv_d[k]-qc_d[k]-qi_d[k]-qp_d[k]))/tempp1d;
 
-                 Real qminus = (tempm1d*(0.61*(qv_data(i,j,k-1)-qvm1d)-(qc_data(i,j,k-1)-qcm1d+qi_data(i,j,k-1)-qim1d+cell_prim(i,j,k-1,PrimQp_comp)-qpm1d))
-                              +(tempm3d-tempm1d)*(1.+0.61*qvm1d-qim1d-qcm1d-qpm1d))/tempm1d;
+                 Real qminus = (tempm1d*(0.61*(qv_data(i,j,k-1)-qv_d[k-1])-(qc_data(i,j,k-1)-qc_d[k-1]+qi_data(i,j,k-1)-qi_d[k-1]+cell_prim(i,j,k-1,PrimQp_comp)-qp_d[k-1]))
+                              +(tempm3d-tempm1d)*(1.+0.61*qv_d[k-1]-qi_d[k-1]-qc_d[k-1]-qp_d[k-1]))/tempm1d;
 
 //if(i==2 && j==2) printf("rho_w_rhs: %d, %d, %d, %13.6f, %13.6f\n",i,j,k,qplus,qminus);
 

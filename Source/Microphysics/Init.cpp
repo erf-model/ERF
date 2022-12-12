@@ -1,15 +1,18 @@
 
+#include <AMReX_GpuContainers.H>
 #include "Microphysics.H"
 #include "IndexDefines.H"
 #include "PlaneAverage.H"
 #include "EOS.H"
 
-void Microphysics::Init(const amrex::MultiFab& cons_in,
-                        const amrex::MultiFab& qc_in,
-                        const amrex::MultiFab& qv_in,
-                        const amrex::MultiFab& qi_in,
-                        const amrex::Geometry& geom,
-                        const amrex::Real& dt_advance)
+using namespace amrex;
+
+void Microphysics::Init(const MultiFab& cons_in,
+                        const MultiFab& qc_in,
+                        const MultiFab& qv_in,
+                        const MultiFab& qi_in,
+                        const Geometry& geom,
+                        const Real& dt_advance)
  {
 
   m_geom = geom;
@@ -22,7 +25,7 @@ void Microphysics::Init(const amrex::MultiFab& cons_in,
   int zlo = lo.z;
   int zhi = hi.z;
 
-  amrex::Box box2d{box3d};
+  Box box2d{box3d};
   box2d.setSmall(2, 0);
   box2d.setBig(2, 0);
 
@@ -33,7 +36,7 @@ void Microphysics::Init(const amrex::MultiFab& cons_in,
 
   // initialize microphysics variables
   for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar)
-     mic_fab_vars[ivar] = std::make_shared<amrex::MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(), 1, cons_in.nGrowVect());
+     mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(), 1, cons_in.nGrowVect());
 
   // parameters
   accrrc.resize({zlo},  {zhi});
@@ -86,7 +89,7 @@ void Microphysics::Init(const amrex::MultiFab& cons_in,
   auto zmid_t   = zmid.table();
 
   // get the temperature, dentisy, theta, qt and qp from input
-  for ( amrex::MFIter mfi(cons_in, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+  for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto states_array = cons_in.array(mfi);
      auto qc_in_array  = qc_in.array(mfi);
      auto qv_in_array  = qv_in.array(mfi);
@@ -114,14 +117,24 @@ void Microphysics::Init(const amrex::MultiFab& cons_in,
   PlaneAverage cons_ave(&cons_in, m_geom, 2);
   cons_ave.compute_averages(ZDir(), cons_ave.field());
 
+  // get host variable rho, and rhotheta
+  int ncell = cons_ave.ncell_line();
+
+  Gpu::HostVector<Real> rho_h(ncell), rhotheta_h(ncell);
+  cons_ave.line_average(Rho_comp, rho_h);
+  cons_ave.line_average(RhoTheta_comp, rhotheta_h);
+  
+  // copy data to device
+  Gpu::DeviceVector<Real> rho_d(ncell), rhotheta_d(ncell);
+  Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
+  Gpu::copyAsync(Gpu::hostToDevice, rhotheta_h.begin(), rhotheta_h.end(), rhotheta_d.begin());
+
   amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
-    amrex::Real zlev     = lowz + (k+0.5)*dz;
-    amrex::Real density  = cons_ave.line_average_interpolated(zlev, Rho_comp);
-    amrex::Real rhotheta = cons_ave.line_average_interpolated(zlev, RhoTheta_comp);
-    amrex::Real pressure = getPgivenRTh(rhotheta);
-    rho1d_t(k)  = density;
+    Real zlev     = lowz + (k+0.5)*dz;
+    Real pressure = getPgivenRTh(rhotheta_d[k]);
+    rho1d_t(k)  = rho_d[k];
     pres1d_t(k) = pressure/100.;
-    tabs1d_t(k) = getTgivenRandRTh(density,rhotheta);
+    tabs1d_t(k) = getTgivenRandRTh(rho_d[k],rhotheta_d[k]);
     zmid_t(k)   = lowz + (k+0.5)*dz;
     gamaz_t(k)  = CONST_GRAV/c_p*zmid_t(k);
   });
@@ -174,15 +187,15 @@ void Microphysics::Init(const amrex::MultiFab& cons_in,
   //parallel_for( SimpleBounds<2>(nzm,ncrms) , YAKL_LAMBDA (int k, int icrm) {
   amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
 
-    amrex::Real pratio = sqrt(1.29 / rho1d_t(k));
-    amrex::Real rrr1=393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);
-    amrex::Real rrr2=std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
-    amrex::Real estw = 100.0*erf_esatw(tabs1d_t(k));
-    amrex::Real esti = 100.0*erf_esati(tabs1d_t(k));
+    Real pratio = sqrt(1.29 / rho1d_t(k));
+    Real rrr1=393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);
+    Real rrr2=std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
+    Real estw = 100.0*erf_esatw(tabs1d_t(k));
+    Real esti = 100.0*erf_esati(tabs1d_t(k));
 
     // accretion by snow:
-    amrex::Real coef1 = 0.25 * PI * nzeros * a_snow * gams1 * pratio/pow((PI * rhos * nzeros/rho1d_t(k) ) , ((3.0+b_snow)/4.0));
-    amrex::Real coef2 = exp(0.025*(tabs1d_t(k) - 273.15));
+    Real coef1 = 0.25 * PI * nzeros * a_snow * gams1 * pratio/pow((PI * rhos * nzeros/rho1d_t(k) ) , ((3.0+b_snow)/4.0));
+    Real coef2 = exp(0.025*(tabs1d_t(k) - 273.15));
     accrsi_t(k) =  coef1 * coef2 * esicoef;
     accrsc_t(k) =  coef1 * esccoef;
     coefice_t(k) =  coef2;

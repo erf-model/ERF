@@ -3,6 +3,7 @@
 
 #include "AMReX_Gpu.H"
 #include "AMReX_MultiFab.H"
+#include "AMReX_GpuContainers.H"
 #include "DirectionSelector.H"
 
 class PlaneAverage {
@@ -18,7 +19,7 @@ public:
     void operator()();
 
     /** evaluate line average at specific location for any average component */
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    AMREX_FORCE_INLINE
     amrex::Real line_average_interpolated(amrex::Real x, int comp) const;
 
     /** change precision of text file output */
@@ -39,7 +40,7 @@ public:
     }
 
     AMREX_FORCE_INLINE
-    void line_average(int comp, amrex::Vector<amrex::Real>& l_vec);
+    void line_average(int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec);
 
     const amrex::Vector<amrex::Real>& line_centroids() const
     {
@@ -133,7 +134,7 @@ PlaneAverage::line_average_interpolated(amrex::Real x, int comp) const
 }
 
 void
-PlaneAverage::line_average(int comp, amrex::Vector<amrex::Real>& l_vec)
+PlaneAverage::line_average(int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec)
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
