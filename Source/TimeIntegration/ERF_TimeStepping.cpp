@@ -2,7 +2,7 @@
 #include <Utils.H>
 
 #ifdef ERF_USE_MOISTURE
-  #include <Microphysics.H>
+#include <Microphysics.H>
 #endif
 
 using namespace amrex;

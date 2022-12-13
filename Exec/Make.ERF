@@ -67,6 +67,11 @@ include $(AMReXpack)
 
 ifeq ($(USE_MOISTURE), TRUE)
   DEFINES += -DERF_USE_MOISTURE
+
+  ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
+  include $(ERF_MOISTURE_DIR)/Make.package
+  VPATH_LOCATIONS   += $(ERF_MOISTURE_DIR)
+  INCLUDE_LOCATIONS += $(ERF_MOISTURE_DIR)
 endif
 
 ifeq ($(COMPUTE_ERROR), TRUE)

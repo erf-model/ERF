@@ -20,11 +20,11 @@ USE_DPCPP = FALSE
 # Debugging
 DEBUG = FALSE
 
-BL_NO_FORT = TRUE
+USE_MOISTURE = TRUE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DensityCurrent
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/SuperCell
 include $(ERF_HOME)/Exec/Make.ERF
