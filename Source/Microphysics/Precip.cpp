@@ -7,14 +7,6 @@ using namespace amrex;
 
 void Microphysics::Precip() {
 
-  const auto& box = m_geom.Domain();
-  const auto& lo  = amrex::lbound(box);
-  const auto& hi  = amrex::ubound(box);
-
-  const auto nx = hi.x - lo.x + 1;
-  const auto ny = hi.y - lo.y + 1;
-  const auto nz = hi.z - lo.z + 1;
-
   Real powr1 = (3.0 + b_rain) / 4.0;
   Real powr2 = (5.0 + b_rain) / 8.0;
   Real pows1 = (3.0 + b_snow) / 4.0;
@@ -57,7 +49,9 @@ void Microphysics::Precip() {
      auto qt_array   = mic_fab_vars[MicVar::qt]->array(mfi);
      auto qp_array   = mic_fab_vars[MicVar::qp]->array(mfi);
 
-     ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+     const auto& box3d = mfi.tilebox();
+
+     ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
         //------- Autoconversion/accretion
         Real omn, omp, omg, qcc, qii, autor, autos, accrr, qrr, accrcs, accris,
              qss, accrcg, accrig, tmp, qgg, dq, qsatt, qsat;

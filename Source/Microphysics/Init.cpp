@@ -16,18 +16,6 @@ void Microphysics::Init(const MultiFab& cons_in,
  {
 
   m_geom = geom;
-  const auto& box3d = m_geom.Domain();
-  const auto& lo    = amrex::lbound(box3d);
-  const auto& hi    = amrex::ubound(box3d);
-
-  const auto nz = box3d.length(2);
-
-  int zlo = lo.z;
-  int zhi = hi.z;
-
-  Box box2d{box3d};
-  box2d.setSmall(2, 0);
-  box2d.setBig(2, 0);
 
   auto dz   = m_geom.CellSize(2);
   auto lowz = m_geom.ProbLo(2);
@@ -38,33 +26,47 @@ void Microphysics::Init(const MultiFab& cons_in,
   for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar)
      mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(), 1, cons_in.nGrowVect());
 
-  // parameters
-  accrrc.resize({zlo},  {zhi});
-  accrsi.resize({zlo},  {zhi});
-  accrsc.resize({zlo},  {zhi});
-  coefice.resize({zlo}, {zhi});
-  evaps1.resize({zlo},  {zhi});
-  evaps2.resize({zlo},  {zhi});
-  accrgi.resize({zlo},  {zhi});
-  accrgc.resize({zlo},  {zhi});
-  evapg1.resize({zlo},  {zhi});
-  evapg2.resize({zlo},  {zhi});
-  evapr1.resize({zlo},  {zhi});
-  evapr2.resize({zlo},  {zhi});
+  for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+ 
+     const auto& box3d = mfi.tilebox();
 
-  // data (input)
-  rho1d.resize({zlo}, {zhi});
-  pres1d.resize({zlo}, {zhi});
-  tabs1d.resize({zlo}, {zhi});
-  gamaz.resize({zlo}, {zhi});
-  zmid.resize({zlo}, {zhi});
+     const auto& lo = amrex::lbound(box3d);
+     const auto& hi = amrex::ubound(box3d);
 
-  // output
-  qifall.resize({zlo}, {zhi});
-  tlatqi.resize({zlo}, {zhi});
+     nz  = box3d.length(2);
+     zlo = lo.z;
+     zhi = hi.z;
 
-  qpsrc.resize({zlo}, {zhi});
-  qpevp.resize({zlo}, {zhi});
+  std::cout << "local lo= " << lo << "; local hi= " << hi << std::endl;
+     
+     // parameters
+     accrrc.resize({zlo},  {zhi});
+     accrsi.resize({zlo},  {zhi});
+     accrsc.resize({zlo},  {zhi});
+     coefice.resize({zlo}, {zhi});
+     evaps1.resize({zlo},  {zhi});
+     evaps2.resize({zlo},  {zhi});
+     accrgi.resize({zlo},  {zhi});
+     accrgc.resize({zlo},  {zhi});
+     evapg1.resize({zlo},  {zhi});
+     evapg2.resize({zlo},  {zhi});
+     evapr1.resize({zlo},  {zhi});
+     evapr2.resize({zlo},  {zhi});
+
+     // data (input)
+     rho1d.resize({zlo}, {zhi});
+     pres1d.resize({zlo}, {zhi});
+     tabs1d.resize({zlo}, {zhi});
+     gamaz.resize({zlo}, {zhi});
+     zmid.resize({zlo}, {zhi});
+
+     // output
+     qifall.resize({zlo}, {zhi});
+     tlatqi.resize({zlo}, {zhi});
+
+     qpsrc.resize({zlo}, {zhi});
+     qpevp.resize({zlo}, {zhi});
+  }
 
   auto accrrc_t = accrrc.table();
   auto accrsi_t = accrsi.table();
@@ -101,6 +103,9 @@ void Microphysics::Init(const MultiFab& cons_in,
      auto theta_array  = mic_fab_vars[MicVar::theta]->array(mfi);
      auto temp_array   = mic_fab_vars[MicVar::tabs]->array(mfi);
      auto pres_array   = mic_fab_vars[MicVar::pres]->array(mfi);
+
+     const auto& box3d = mfi.tilebox();
+
      // get pressure, theta, temperature, density, and qt, qp
      amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
        rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
@@ -130,7 +135,6 @@ void Microphysics::Init(const MultiFab& cons_in,
   Gpu::copyAsync(Gpu::hostToDevice, rhotheta_h.begin(), rhotheta_h.end(), rhotheta_d.begin());
 
   amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
-    Real zlev     = lowz + (k+0.5)*dz;
     Real pressure = getPgivenRTh(rhotheta_d[k]);
     rho1d_t(k)  = rho_d[k];
     pres1d_t(k) = pressure/100.;

@@ -18,8 +18,6 @@ void Microphysics::Cloud() {
   auto pres1d_t = pres1d.table();
   auto gamaz_t  = gamaz.table();
 
-  const auto& box = m_geom.Domain();
-
   auto qt    = mic_fab_vars[MicVar::qt];
   auto qp    = mic_fab_vars[MicVar::qp];
   auto qn    = mic_fab_vars[MicVar::qn];
@@ -33,7 +31,9 @@ void Microphysics::Cloud() {
      auto rho_array   = rho->array(mfi);
      auto tabs_array  = tabs->array(mfi);
 
-     ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+     const auto& box3d = mfi.tilebox();
+
+     ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
         qt_array(i,j,k) = std::max(0.0,qt_array(i,j,k));
         // Initial guess for temperature assuming no cloud water/ice:
         Real tabs1 = tabs_array(i,j,k);

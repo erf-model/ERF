@@ -2,8 +2,6 @@
 
 void Microphysics::Diagnose() {
 
-  const auto& box3d = m_geom.Domain();
-
   auto qt   = mic_fab_vars[MicVar::qt];
   auto qp   = mic_fab_vars[MicVar::qp];
   auto qv   = mic_fab_vars[MicVar::qv];
@@ -24,6 +22,8 @@ void Microphysics::Diagnose() {
      auto qpl_array   = qpl->array(mfi);
      auto qpi_array   = qpi->array(mfi);
      auto tabs_array  = tabs->array(mfi);
+
+     const auto& box3d = mfi.tilebox();
 
      amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        qv_array(i,j,k)  = qt_array(i,j,k) - qn_array(i,j,k);

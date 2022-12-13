@@ -78,8 +78,8 @@ class Microphysics {
   // timestep
   amrex::Real dt;
 
-  // number of ghost cell
-  int nghost;
+  // number of vertical levels
+  int nz, zlo, zhi;
 
   // model options
   bool docloud, dosmoke, doprecip;
