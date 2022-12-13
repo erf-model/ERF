@@ -27,7 +27,7 @@ void Microphysics::Init(const MultiFab& cons_in,
      mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(), 1, cons_in.nGrowVect());
 
   for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
- 
+
      const auto& box3d = mfi.tilebox();
 
      const auto& lo = amrex::lbound(box3d);
@@ -38,7 +38,7 @@ void Microphysics::Init(const MultiFab& cons_in,
      zhi = hi.z;
 
   std::cout << "local lo= " << lo << "; local hi= " << hi << std::endl;
-     
+
      // parameters
      accrrc.resize({zlo},  {zhi});
      accrsi.resize({zlo},  {zhi});
