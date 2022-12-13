@@ -6,16 +6,7 @@ using namespace amrex;
 
 void Microphysics::IceFall() {
 
-  const auto& box3d = m_geom.Domain();
-  const auto& lo    = amrex::lbound(box3d);
-  const auto& hi    = amrex::ubound(box3d);
-
-  const auto nz = hi.z - lo.z + 1;
-  Real dz   = m_geom.CellSize(2);
-
-  Box box2d{box3d};
-  box2d.setSmall(2, 0);
-  box2d.setBig(2, 0);
+  Real dz = m_geom.CellSize(2);
 
   int kmax, kmin;
   auto qcl   = mic_fab_vars[MicVar::qcl];
@@ -78,6 +69,8 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
      auto tabs_array  = tabs->array(mfi);
      auto theta_array = theta->array(mfi);
      auto fz_array    = fz.array(mfi);
+
+     const auto& box3d = mfi.tilebox();
 
      amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        if (k >= std::max(0,kmin-1) && k <= kmax ) {

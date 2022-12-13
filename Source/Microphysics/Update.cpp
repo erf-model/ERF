@@ -8,8 +8,6 @@ void Microphysics::Update(amrex::MultiFab& cons_in,
                           amrex::MultiFab& qc_in,
                           amrex::MultiFab& qi_in)
 {
-  const auto& box3d = m_geom.Domain();
-
   // copy multifab data to qc, qv, and qi
   amrex::MultiFab::Copy(qv_in, *mic_fab_vars[MicVar::qv],  0, 0, 1, mic_fab_vars[MicVar::qv]->nGrowVect());
   amrex::MultiFab::Copy(qc_in, *mic_fab_vars[MicVar::qcl], 0, 0, 1, mic_fab_vars[MicVar::qcl]->nGrowVect());
@@ -22,6 +20,9 @@ void Microphysics::Update(amrex::MultiFab& cons_in,
      auto theta_array  = mic_fab_vars[MicVar::theta]->array(mfi);
      auto qt_array     = mic_fab_vars[MicVar::qt]->array(mfi);
      auto qp_array     = mic_fab_vars[MicVar::qp]->array(mfi);
+
+     const auto& box3d = mfi.tilebox();
+
      // get potential total density, temperature, qt, qp
      amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
        states_array(i,j,k,Rho_comp)      = rho_array(i,j,k);
@@ -30,6 +31,12 @@ void Microphysics::Update(amrex::MultiFab& cons_in,
        states_array(i,j,k,RhoQp_comp)    = rho_array(i,j,k)*qp_array(i,j,k);
      });
   }
+
+  // fill the boundary
+  cons_in.FillBoundary(m_geom.periodicity());
+  qv_in.FillBoundary(m_geom.periodicity());
+  qc_in.FillBoundary(m_geom.periodicity());
+  qi_in.FillBoundary(m_geom.periodicity());
 }
 
 

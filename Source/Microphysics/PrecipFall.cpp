@@ -14,11 +14,6 @@ void Microphysics::PrecipFall(int hydro_type) {
   Real constexpr eps = 1.e-10;
   bool constexpr nonos = true;
 
-  const auto& box3d = m_geom.Domain();
-  const auto& lo = amrex::lbound(box3d);
-  const auto& hi = amrex::ubound(box3d);
-  const auto nz = hi.z - lo.z + 1;
-
   auto qp    = mic_fab_vars[MicVar::qp];
   auto omega = mic_fab_vars[MicVar::omega];
   auto tabs  = mic_fab_vars[MicVar::tabs];
@@ -48,9 +43,9 @@ void Microphysics::PrecipFall(int hydro_type) {
   TableData<Real, 1> iwmax;
   TableData<Real, 1> rhofac;
 
-  irho.resize({0},{nz});
-  iwmax.resize({0},{nz});
-  rhofac.resize({0},{nz});
+  irho.resize({zlo},{zhi});
+  iwmax.resize({zlo},{zhi});
+  rhofac.resize({zlo},{zhi});
 
   auto irho_t    = irho.table();
   auto iwmax_t   = iwmax.table();
@@ -79,6 +74,8 @@ void Microphysics::PrecipFall(int hydro_type) {
      auto www_array      = www.array(mfi);
      auto fz_array       = fz.array(mfi);
      auto prec_cfl_array = prec_cfl_fab.array(mfi);
+
+     const auto& box3d = mfi.tilebox();
 
      ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        if (hydro_type == 0) {
@@ -124,6 +121,8 @@ void Microphysics::PrecipFall(int hydro_type) {
     nprec = std::ceil(prec_cfl/0.9);
     for (MFIter mfi(wp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       auto wp_array = wp.array(mfi);
+      const auto& box3d = mfi.tilebox();
+
       ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int k, int j, int i) {
         // wp already includes factor of dt, so reduce it by a
         // factor equal to the number of precipitation steps.
@@ -152,6 +151,8 @@ std::cout << "precipfall: nprec= " << nprec << std::endl;
        auto wp_array     = wp.array(mfi);
        auto lfac_array   = lfac.array(mfi);
        auto www_array    = www.array(mfi);
+
+       const auto& box3d = mfi.tilebox();
 
        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
          tmp_qp_array(i,j,k) = qp_array(i,j,k); // Temporary array for qp in this column
@@ -269,11 +270,11 @@ void Microphysics::MicroPrecipFall() {
   vsnow = a_snow * gams3 / 6.0 / pow((PI * rhos * nzeros), csnow);
   vgrau = a_grau * gamg3 / 6.0 / pow((PI * rhog * nzerog), cgrau);
 
-  const auto& box3d = m_geom.Domain();
-
   for ( MFIter mfi(*(mic_fab_vars[MicVar::omega]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto omega_array = mic_fab_vars[MicVar::omega]->array(mfi);
      auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
+
+     const auto& box3d = mfi.tilebox();
 
      ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
        omega_array(i,j,k) = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
