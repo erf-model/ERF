@@ -102,6 +102,7 @@ void erf_slow_rhs_pre (int level, int nrk,
                           qp_h(ncell), qv_h(ncell),
                           qi_h(ncell), qc_h(ncell);
 
+
     state_ave.line_average(Rho_comp, rho_h);
     prim_ave.line_average(PrimTheta_comp, theta_h);
     prim_ave.line_average(PrimQp_comp, qp_h);
@@ -114,12 +115,13 @@ void erf_slow_rhs_pre (int level, int nrk,
                             qp_d(ncell), qv_d(ncell),
                             qi_d(ncell), qc_d(ncell);
 
-    Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_d.end(), rho_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, qp_h.begin(), qp_h.end(), qp_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
+    Gpu::streamSynchronize();
 #endif
 
     // *************************************************************************
