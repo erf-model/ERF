@@ -62,12 +62,14 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                case PrimScalar_comp:
                     alpha_eff[PrimScalar_comp] = solverChoice.alpha_C;
                     break;
+#ifdef ERF_USE_MOISTURE
                case PrimQt_comp:
                     alpha_eff[PrimQt_comp] = solverChoice.alpha_C;
                     break;
                case PrimQp_comp:
                     alpha_eff[PrimQp_comp] = solverChoice.alpha_C;
                     break;
+#endif
                default:
                     alpha_eff[i] = 0.0;
                     break;
@@ -82,12 +84,14 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                case PrimScalar_comp:
                     alpha_eff[PrimScalar_comp] = solverChoice.rhoAlpha_C;
                     break;
+#ifdef ERF_USE_MOISTURE
                case PrimQt_comp:
                     alpha_eff[PrimQt_comp] = solverChoice.rhoAlpha_C;
                     break;
                case PrimQp_comp:
                     alpha_eff[PrimQp_comp] = solverChoice.rhoAlpha_C;
                     break;
+#endif
                default:
                     alpha_eff[i] = 0.0;
                     break;
