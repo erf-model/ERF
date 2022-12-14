@@ -145,7 +145,11 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         });
 
 
+#ifdef ERF_USE_MOISTURE
         int ntot   = 7;
+#else
+        int ntot   = 5;
+#endif
         int offset = EddyDiff::Theta_h;
         // Populate element other than mom_h/v on the whole grid
         if(use_QKE) {
