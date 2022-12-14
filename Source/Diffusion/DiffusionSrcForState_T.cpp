@@ -58,24 +58,24 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
     // Theta, KE, QKE, Scalar
     Vector<Real>    alpha_eff(NUM_PRIM, 0.0);
     if (l_consA) {
-	for (int i = 0; i < NUM_PRIM; ++i) {
-	   switch (i) {
-	       case PrimTheta_comp:
-		    alpha_eff[PrimTheta_comp] = solverChoice.alpha_T;
-		    break;
-	       case PrimScalar_comp:
-		    alpha_eff[PrimScalar_comp] = solverChoice.alpha_C;
-		    break;
-	       case PrimQt_comp:
-		    alpha_eff[PrimQt_comp] = solverChoice.alpha_C;
-		    break;
-	       case PrimQp_comp:
-		    alpha_eff[PrimQp_comp] = solverChoice.alpha_C;
+    for (int i = 0; i < NUM_PRIM; ++i) {
+       switch (i) {
+           case PrimTheta_comp:
+            alpha_eff[PrimTheta_comp] = solverChoice.alpha_T;
+            break;
+           case PrimScalar_comp:
+            alpha_eff[PrimScalar_comp] = solverChoice.alpha_C;
+            break;
+           case PrimQt_comp:
+            alpha_eff[PrimQt_comp] = solverChoice.alpha_C;
+            break;
+           case PrimQp_comp:
+            alpha_eff[PrimQp_comp] = solverChoice.alpha_C;
                     break;
-	       default:
-		    alpha_eff[i] = 0.0;
-		    break;
-	  }
+           default:
+            alpha_eff[i] = 0.0;
+            break;
+      }
        }
     } else {
         for (int i = 0; i < NUM_PRIM; ++i) {
@@ -96,7 +96,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                     alpha_eff[i] = 0.0;
                     break;
           }
-       }	    
+       }
     }
 
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h};

@@ -92,7 +92,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                     alpha_eff[i] = 0.0;
                     break;
           }
-       }        	    
+       }
     }
 #ifdef ERF_USE_MOISTURE
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
