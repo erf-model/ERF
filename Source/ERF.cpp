@@ -52,8 +52,8 @@ amrex::Real ERF::sum_per       = -1.0;
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
-// init_type:  "custom", "ideal", "real", "input_sounding"
-std::string ERF::init_type        = "custom";
+// init_type:  "ideal", "real", "input_sounding" or ""
+std::string ERF::init_type        = "";
 
 // NetCDF wrfinput (initialization) file(s)
 amrex::Vector<amrex::Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
@@ -64,7 +64,7 @@ std::string ERF::nc_bdy_file = ""; // Must provide via input
 // Text input_sounding file
 std::string ERF::input_sounding_file = "input_sounding";
 
-// Flag to trigger ideal initialization like WRF
+// Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
@@ -888,15 +888,17 @@ ERF::init_only(int lev, Real time)
     qi[lev].setVal(0.0);
 #endif
 
+    // Initialize background flow
     if (init_type == "input_sounding") {
         init_from_input_sounding(lev);
-    } else if (init_type == "custom") {
-        init_custom(lev);
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
         init_from_wrfinput(lev);
 #endif
     }
+
+    // Initialize problem-specific perturbation to background flow
+    init_custom(lev);
 
 #ifdef ERF_USE_MOISTURE
     qc[lev].setVal(0.0);
@@ -1002,12 +1004,11 @@ ERF::ReadParameters ()
 
         // How to initialize
         pp.query("init_type",init_type);
-        if (init_type != "custom" &&
-            init_type != "ideal" &&
+        if (init_type != "ideal" &&
             init_type != "real" &&
             init_type != "input_sounding")
         {
-            amrex::Error("init_type must be custom, ideal, real, or input_sounding");
+            amrex::Error("init_type must be ideal, real, or input_sounding");
         }
 
         // We use this to keep track of how many boxes we read in from WRF initialization
@@ -1046,7 +1047,7 @@ ERF::ReadParameters ()
         // Text input_sounding file
         pp.query("input_sounding_file", input_sounding_file);
 
-        // Flag to trigger ideal initialization like WRF
+        // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);
 
         // Output format

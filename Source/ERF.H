@@ -620,7 +620,7 @@ private:
     // Native or NetCDF
     static std::string plotfile_type;
 
-    // init_type:  "custom", "ideal", "real", "input_sounding"
+    // init_type:  "ideal", "real", "input_sounding" or ""
     static std::string init_type;
 
     // NetCDF initialization (wrfinput) file
@@ -632,7 +632,8 @@ private:
     // Text input_sounding file
     static std::string input_sounding_file;
 
-    // Flag to trigger ideal initialization like WRF
+    // Flag to trigger initialization from input_sounding like WRF's ideal.exe
+    // used with init_type == "input_sounding"
     static bool init_sounding_ideal;
 
     // 1D CDF output (for ingestion in AMR-Wind)
