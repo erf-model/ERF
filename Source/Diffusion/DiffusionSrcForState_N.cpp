@@ -52,11 +52,51 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     const int qty_offset = RhoTheta_comp;
 
     // Theta, KE, QKE, Scalar
-    Vector<Real> alpha_eff;
+    Vector<Real> alpha_eff(NUM_PRIM, 0.0);
     if (l_consA) {
-        alpha_eff = {solverChoice.alpha_T   , 0., 0., solverChoice.alpha_C   };
+        for (int i = 0; i < NUM_PRIM; ++i) {
+           switch (i) {
+               case PrimTheta_comp:
+                    alpha_eff[PrimTheta_comp] = solverChoice.alpha_T;
+                    break;
+               case PrimScalar_comp:
+                    alpha_eff[PrimScalar_comp] = solverChoice.alpha_C;
+                    break;
+#ifdef ERF_USE_MOISTURE
+               case PrimQt_comp:
+                    alpha_eff[PrimQt_comp] = solverChoice.alpha_C;
+                    break;
+               case PrimQp_comp:
+                    alpha_eff[PrimQp_comp] = solverChoice.alpha_C;
+                    break;
+#endif
+               default:
+                    alpha_eff[i] = 0.0;
+                    break;
+          }
+       }
     } else {
-        alpha_eff = {solverChoice.rhoAlpha_T, 0., 0., solverChoice.rhoAlpha_C};
+        for (int i = 0; i < NUM_PRIM; ++i) {
+           switch (i) {
+               case PrimTheta_comp:
+                    alpha_eff[PrimTheta_comp] = solverChoice.rhoAlpha_T;
+                    break;
+               case PrimScalar_comp:
+                    alpha_eff[PrimScalar_comp] = solverChoice.rhoAlpha_C;
+                    break;
+#ifdef ERF_USE_MOISTURE
+               case PrimQt_comp:
+                    alpha_eff[PrimQt_comp] = solverChoice.rhoAlpha_C;
+                    break;
+               case PrimQp_comp:
+                    alpha_eff[PrimQp_comp] = solverChoice.rhoAlpha_C;
+                    break;
+#endif
+               default:
+                    alpha_eff[i] = 0.0;
+                    break;
+          }
+       }
     }
 #ifdef ERF_USE_MOISTURE
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
