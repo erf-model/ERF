@@ -124,7 +124,7 @@ The specific entropy of the mixture :math:`s` is defined as:
 .. math::
    \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_l \eta_l
 
-where :math:`q_l` is condensates, for examples cloud ice, cloud water, and graupel. :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`, and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates, and :math:`T_l`, and :math:`T_r` are the reference temperature for condensates, and gas tracers (for example, dry air, water vapor, water ice and water cloud) assuming the they have same temperature.
+where :math:`q_l` is condensates, for examples cloud ice, cloud water, and graupel. :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`, and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates, and :math:`T_l`, and :math:`T_r` are the reference temperature for condensates, and gas tracers (for example, dry air, water vapor, water ice and water cloud) assuming that all have the same temperature.
 
 .. math::
   \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_rd}) + \eta_{rd}
