@@ -1004,11 +1004,12 @@ ERF::ReadParameters ()
 
         // How to initialize
         pp.query("init_type",init_type);
-        if (init_type != "ideal" &&
+        if (init_type != "" &&
+            init_type != "ideal" &&
             init_type != "real" &&
             init_type != "input_sounding")
         {
-            amrex::Error("init_type must be ideal, real, or input_sounding");
+            amrex::Error("if specified, init_type must be ideal, real, or input_sounding");
         }
 
         // We use this to keep track of how many boxes we read in from WRF initialization
