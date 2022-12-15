@@ -225,7 +225,11 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
+#ifdef ERF_USE_MOISTURE
         int ntot   = 7;
+#else
+        int ntot   = 5;
+#endif
         int offset = EddyDiff::Mom_h;
         // Extrap all components at top & bottom
         if(use_QKE) {
