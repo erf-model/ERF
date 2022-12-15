@@ -173,7 +173,6 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
             Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_lo = 1. / mf_u(i  ,j  ,0);
             Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_lo = 1. / mf_v(i  ,j  ,0);
-            Real mf_m_inv    = 1. / mf_m(i  ,j  ,0);
 
             Real xflux_hi = 0.25*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * mf_u_inv_hi * (w(i+1,j,k) + w(i,j,k));
             Real xflux_lo = 0.25*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * mf_u_inv_lo * (w(i-1,j,k) + w(i,j,k));

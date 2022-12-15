@@ -25,7 +25,6 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
     if (m_geom.isAllPeriodic()) return;
 
     const auto& domain = m_geom.Domain();
-    const auto dx      = m_geom.CellSizeArray();
     const auto dxInv   = m_geom.InvCellSizeArray();
 
     // Create a grown domain box containing valid + periodic cells

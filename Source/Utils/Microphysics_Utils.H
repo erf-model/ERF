@@ -157,7 +157,7 @@ void z0_est(amrex::Real z, amrex::Real bflx, amrex::Real wnd, amrex::Real ustar,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real term_vel_qp(int i, int j, int k, amrex::Real qploc, amrex::Real vrain, amrex::Real vsnow,
+amrex::Real term_vel_qp(int /*i*/, int /*j*/, int /*k*/, amrex::Real qploc, amrex::Real vrain, amrex::Real vsnow,
                  amrex::Real vgrau, amrex::Real crain, amrex::Real csnow, amrex::Real cgrau, amrex::Real rho,
                  amrex::Real tabs, amrex::Real a_pr, amrex::Real a_gr) {
   amrex::Real term_vel = 0.0;

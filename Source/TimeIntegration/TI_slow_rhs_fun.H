@@ -71,7 +71,6 @@
 
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
-            MultiFab* pi0_new = &pi_hse_new;
 
             erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],

@@ -11,7 +11,7 @@
 
 using namespace amrex;
 
-void erf_fast_rhs_N (int step, int level,
+void erf_fast_rhs_N (int step, int /*level*/,
                      BoxArray& grids_to_evolve,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
