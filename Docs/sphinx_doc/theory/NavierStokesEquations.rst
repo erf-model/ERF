@@ -95,14 +95,16 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Prognostic Equations (Moist)
 ===============================
 
-We consider a mixture of dry air :math:`\rho_d`, nonprecipitating water vapor :math:`\rho_v`, and assumed to be perfect idea gas with constant heat capacities :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`, and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l`, :math:`C_i`.
+We consider a mixture of dry air :math:`\rho_d` and nonprecipitating water vapor :math:`\rho_v`, assumed to be a perfect ideal gas with constant heat capacities
+:math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`,
+and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l`, :math:`C_i`.
 
-If we ignore the precipitation, and the volume occupied by the condensated water, then we will have
+Neglecting the volume occupied by the condensated water, we have
 
 .. math::
   p = p_d + p_v = \rho_d R_d T + \rho_v R_v T
 
-here :math:`p_d` and :math:`p_v` are the partial pressures of dry air and nonprecipitating water vapor, respectively. :math:`\rho_d` and :math:`\rho_v` are dry air density and nonprecipitating water vapor density, respectively.
+where :math:`p_d` and :math:`p_v` are the partial pressures of dry air and nonprecipitating water vapor, respectively.
 
 In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the others are sparse components :math:`\rho_s` with :math:`s = 1, ...., N`. The mixing ratios :math:`m_s` are defined as the mass density of species :math:`s` relative to dry air density :math:`\rho_d`, :math:`m_s=\frac{\rho_s}{\rho_d}`, therefore we can define:
 
@@ -124,7 +126,9 @@ and :math:`\eta` is the specific entropy, defined for the mixture as
 .. math::
    \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_l \eta_l
 
-where :math:`q_l` is condensates, for examples cloud ice, cloud water, and graupel. :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
+where :math:`q_v` is water vapor, :math:`q_c` is cloud water, :math:`q_i` is cloud ice, and
+:math:`q_l = q_c + q_i + q_{graupel}'` represents all condensates  (cloud water, cloud ice, and graupel).
+:math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
 and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates,
 and :math:`T_l`, is the reference temperature for the condensates:
 
@@ -153,8 +157,9 @@ and :math:`\theta`, :math:`p` can be expressed as
 
 and :math:`p_r` is the reference pressure.
 
-
-Assuming the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, where :math:`q_v` is water vapor, :math:`q_c` is cloud water, and :math:`q_i` is cloud ice, respectively, and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`, where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively. and :math:`\rho_d` is the density of the dry air.
+We define the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, 
+and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`, 
+where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively.
 
 The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` are:
 
@@ -162,7 +167,7 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-          \frac{1}{1 + q_t + q_v}  nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
+          \frac{1}{1 + q_t + q_v}  \nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
   \frac{\partial (\rho_d \theta)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta + F_{\theta}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
 
