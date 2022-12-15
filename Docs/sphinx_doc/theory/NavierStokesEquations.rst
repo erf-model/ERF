@@ -113,25 +113,12 @@ In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the 
 
   q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
 
-Same as other popular code, ERF chooses the most commomly used function of entropy, potential energy, as prognostic variable, which is defined as a function of temperature and specific entropy, that is
+Potential temperature is defined as a function of temperature and specific entropy, that is
 
 .. math::
   \theta (\eta) = T_r exp(\frac{\eta - \eta_0}{C_p})
 
-where :math:`\eta` is the specific entropy.
-The Exner pressure :math:`\Pi` can be written as,
-
-.. math::
-  \Pi = C_p (\frac{p}{\alpha P_r})^\frac{R}{C_p}
-
-and :math:`\theta`, :math:`p` can be expressed as
-
-.. math::
-   \theta = T (\frac{p_r}{p})^\frac{R}{C_p}
-
-   p = p_r (\frac{\Pi}{C_p})^{\frac{C_p}{R}}
-
-and :math:`p_r` is the reference pressure.
+where :math:`\eta` is the specific entropy, defined for the mixture as
 The specific entropy of the mixture :math:`s` is defined as:
 
 .. math::
@@ -149,6 +136,20 @@ where :math:`q_l` is condensates, for examples cloud ice, cloud water, and graup
   \eta_c = C_c ln (\frac{T}{T_r}) + \eta_{rc}
 
   \eta_l = C_l ln (\frac{T}{T_l}) + \eta_{rl}
+
+The Exner pressure :math:`\Pi` can be written as,
+
+.. math::
+  \Pi = C_p (\frac{p}{\alpha P_r})^\frac{R}{C_p}
+
+and :math:`\theta`, :math:`p` can be expressed as
+
+.. math::
+   \theta = T (\frac{p_r}{p})^\frac{R}{C_p}
+
+   p = p_r (\frac{\Pi}{C_p})^{\frac{C_p}{R}}
+
+and :math:`p_r` is the reference pressure.
 
 
 Assuming the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, where :math:`q_v` is water vapor, :math:`q_c` is cloud water, and :math:`q_i` is cloud ice, respectively, and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`, where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively. and :math:`\rho_d` is the density of the dry air.
