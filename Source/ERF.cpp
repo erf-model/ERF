@@ -888,7 +888,7 @@ ERF::init_only(int lev, Real time)
     qi[lev].setVal(0.0);
 #endif
 
-    // Initialize background flow
+    // Initialize background flow (optional)
     if (init_type == "input_sounding") {
         init_from_input_sounding(lev);
 #ifdef ERF_USE_NETCDF
@@ -897,14 +897,10 @@ ERF::init_only(int lev, Real time)
 #endif
     }
 
-    // Initialize problem-specific perturbation to background flow
+    // Add problem-specific flow features
+    // If init_type is specified, then this is a perturbation to the background
+    // flow from either input_sounding data or WRF WPS outputs (wrfinput_d0*)
     init_custom(lev);
-
-#ifdef ERF_USE_MOISTURE
-    qc[lev].setVal(0.0);
-    qv[lev].setVal(0.0);
-    qi[lev].setVal(0.0);
-#endif
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
     // The data associated with the lower grid ID is considered the correct value.

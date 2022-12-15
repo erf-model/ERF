@@ -551,6 +551,16 @@ ERF::init_custom(int lev)
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
 
+    MultiFab cons_pert(grids[lev],dmap[lev],Cons::NumVars,0);
+    MultiFab xvel_pert(grids[lev],dmap[lev],1,0);
+    MultiFab yvel_pert(grids[lev],dmap[lev],1,0);
+    MultiFab zvel_pert(grids[lev],dmap[lev],1,0);
+#ifdef ERF_USE_MOISTURE
+    MultiFab qv_pert(grids[lev],dmap[lev],1,0);
+    MultiFab qc_pert(grids[lev],dmap[lev],1,0);
+    MultiFab qi_pert(grids[lev],dmap[lev],1,0);
+#endif
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -561,6 +571,11 @@ ERF::init_custom(int lev)
         const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
         const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
         const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
+
+        const auto &cons_pert_arr = cons_pert.array(mfi);
+        const auto &xvel_pert_arr = xvel_pert.array(mfi);
+        const auto &yvel_pert_arr = yvel_pert.array(mfi);
+        const auto &zvel_pert_arr = zvel_pert.array(mfi);
 
         Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
@@ -573,16 +588,49 @@ ERF::init_custom(int lev)
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
 #ifdef ERF_USE_MOISTURE
-        Array4<Real> qv_arr = qv_new.array(mfi);
-        Array4<Real> qc_arr = qc_new.array(mfi);
-        Array4<Real> qi_arr = qi_new.array(mfi);
+        const auto &qv_arr = qv_new.array(mfi);
+        const auto &qc_arr = qc_new.array(mfi);
+        const auto &qi_arr = qi_new.array(mfi);
+
+        const auto &qv_pert_arr = qv_pert.array(mfi);
+        const auto &qc_pert_arr = qc_pert.array(mfi);
+        const auto &qi_pert_arr = qi_pert.array(mfi);
 #endif
-        init_custom_prob(bx, cons_arr, xvel_arr, yvel_arr, zvel_arr,
+        init_custom_prob(bx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                          r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
 #ifdef ERF_USE_MOISTURE
-                         qv_arr, qc_arr, qi_arr,
+                         qv_pert_arr, qc_pert_arr, qi_pert_arr,
 #endif
                          geom[lev].data(), mf_m, mf_u, mf_v);
+
+        // Add problem-specific perturbation to background flow
+        amrex::ParallelFor(bx,
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            cons_arr(i, j, k, Rho_comp)       += cons_pert_arr(i, j, k, Rho_comp);
+            cons_arr(i, j, k, RhoTheta_comp)  += cons_pert_arr(i, j, k, RhoTheta_comp);
+            cons_arr(i, j, k, RhoScalar_comp) += cons_pert_arr(i, j, k, RhoScalar_comp);
+            cons_arr(i, j, k, RhoQKE_comp)    += cons_pert_arr(i, j, k, RhoQKE_comp);
+#ifdef ERF_USE_MOISTURE
+            cons_arr(i, j, k, RhoQt_comp)     += cons_pert_arr(i, j, k, RhoQt_comp);
+            cons_arr(i, j, k, RhoQp_comp)     += cons_pert_arr(i, j, k, RhoQp_comp);
+              qv_arr(i, j, k)                 +=   qv_pert_arr(i, j, k);
+              qc_arr(i, j, k)                 +=   qc_pert_arr(i, j, k);
+              qi_arr(i, j, k)                 +=   qi_pert_arr(i, j, k);
+#endif
+        });
+        const Box& xbx = amrex::surroundingNodes(bx,0);
+        const Box& ybx = amrex::surroundingNodes(bx,1);
+        const Box& zbx = amrex::surroundingNodes(bx,2);
+        amrex::ParallelFor(xbx, ybx, zbx,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            xvel_arr(i, j, k) += xvel_pert_arr(i, j, k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            yvel_arr(i, j, k) += yvel_pert_arr(i, j, k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            zvel_arr(i, j, k) += zvel_pert_arr(i, j, k);
+        });
 
     } //mfi
 }
