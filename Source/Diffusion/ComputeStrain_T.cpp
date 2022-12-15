@@ -12,7 +12,9 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
                 Array4<Real>& tau31, Array4<Real>& tau32,
                 const Array4<const Real>& z_nd  ,
                 const BCRec* bc_ptr, const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
-                const Array4<const Real>& mf_m, const Array4<const Real>& mf_u, const Array4<const Real>& mf_v)
+                const Array4<const Real>& /*mf_m*/,
+                const Array4<const Real>& mf_u,
+                const Array4<const Real>& mf_v)
 {
     // Dirichlet on left or right plane
     bool xl_v_dir = ( (bc_ptr[BCVars::yvel_bc].lo(0) == ERFBCType::ext_dir)          ||

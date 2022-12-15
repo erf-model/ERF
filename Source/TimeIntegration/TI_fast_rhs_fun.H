@@ -1,4 +1,4 @@
-    auto fast_rhs_fun = [&](int fast_step, int ng_sub,
+    auto fast_rhs_fun = [&](int fast_step, int /*ng_sub*/,
                             Vector<MultiFab>& S_slow_rhs,
                             const Vector<MultiFab>& S_old,
                             Vector<MultiFab>& S_stage,

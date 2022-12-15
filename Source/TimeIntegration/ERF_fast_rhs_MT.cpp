@@ -12,7 +12,7 @@
 
 using namespace amrex;
 
-void erf_fast_rhs_MT (int step, int level,
+void erf_fast_rhs_MT (int step, int /*level*/,
                       BoxArray& grids_to_evolve,
                       Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
                       const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
@@ -34,7 +34,7 @@ void erf_fast_rhs_MT (int step, int level,
                       std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
                       std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stg
                       const amrex::Real dtau, const amrex::Real facinv,
-                      std::unique_ptr<MultiFab>& mapfac_m,
+                      std::unique_ptr<MultiFab>& /*mapfac_m*/,
                       std::unique_ptr<MultiFab>& mapfac_u,
                       std::unique_ptr<MultiFab>& mapfac_v)
 {
@@ -141,7 +141,6 @@ void erf_fast_rhs_MT (int step, int level,
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
         const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
