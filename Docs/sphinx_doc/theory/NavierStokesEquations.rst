@@ -173,7 +173,7 @@ where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid s
 
 .. math::
    \mathbf{B} = \rho_d^\prime \mathbf{g} = -\rho \mathbf{g}(\frac{T^\prime}{\bar{T}}+0.61 q_v^\prime-q_c-q_i-q_p)
-   
+
 Assuming the energy transport for different components are the same, we can further simplify these set of equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_p`, :math:`\mathbf{u}`, :math:`C`, and :math:`\Theta`
 
 .. math::
@@ -249,7 +249,7 @@ The evaporation rate of rain is
 Implementation of Moisture Model
 ===================================
 
-The microphysics model takes potential temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\rho_d` as input, 
+The microphysics model takes potential temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\rho_d` as input,
 and users can control the microphysics process by using
 
 ::
