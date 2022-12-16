@@ -95,14 +95,16 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Prognostic Equations (Moist)
 ===============================
 
-We consider a mixture of dry air :math:`\rho_d`, nonprecipitating water vapor :math:`\rho_v`, and assumed to be perfect idea gas with constant heat capacities :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`, and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l`, :math:`C_i`.
+We consider a mixture of dry air :math:`\rho_d` and nonprecipitating water vapor :math:`\rho_v`, assumed to be a perfect ideal gas with constant heat capacities
+:math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`,
+and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l`, :math:`C_i`.
 
-If we ignore the precipitation, and the volume occupied by the condensated water, then we will have
+Neglecting the volume occupied by the condensated water, we have
 
 .. math::
   p = p_d + p_v = \rho_d R_d T + \rho_v R_v T
 
-here :math:`p_d` and :math:`p_v` are the partial pressures of dry air and nonprecipitating water vapor, respectively. :math:`\rho_d` and :math:`\rho_v` are dry air density and nonprecipitating water vapor density, respectively.
+where :math:`p_d` and :math:`p_v` are the partial pressures of dry air and nonprecipitating water vapor, respectively.
 
 In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the others are sparse components :math:`\rho_s` with :math:`s = 1, ...., N`. The mixing ratios :math:`m_s` are defined as the mass density of species :math:`s` relative to dry air density :math:`\rho_d`, :math:`m_s=\frac{\rho_s}{\rho_d}`, therefore we can define:
 
@@ -113,12 +115,34 @@ In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the 
 
   q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
 
-Same as other popular code, ERF chooses the most commomly used function of entropy, potential energy, as prognostic variable, which is defined as a function of temperature and specific entropy, that is
+Potential temperature is defined as a function of temperature and specific entropy, that is
 
 .. math::
   \theta (\eta) = T_r exp(\frac{\eta - \eta_0}{C_p})
 
-where :math:`\eta` is the specific entropy.
+where :math:`T_r` is the reference temperature, usually chosen as the temperature at the surface,
+and :math:`\eta` is the specific entropy, defined for the mixture as
+
+.. math::
+   \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_l \eta_l
+
+where :math:`q_v` is water vapor, :math:`q_c` is cloud water, :math:`q_i` is cloud ice, and
+:math:`q_l = q_c + q_i + q_{graupel}'` represents all condensates  (cloud water, cloud ice, and graupel).
+:math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
+and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates,
+and :math:`T_l`, is the reference temperature for the condensates:
+
+.. math::
+  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_rd}) + \eta_{rd}
+
+  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_rv}) + \eta_{rv}
+
+  \eta_i = C_i ln (\frac{T}{T_r}) + \eta_{ri}
+
+  \eta_c = C_c ln (\frac{T}{T_r}) + \eta_{rc}
+
+  \eta_l = C_l ln (\frac{T}{T_l}) + \eta_{rl}
+
 The Exner pressure :math:`\Pi` can be written as,
 
 .. math::
@@ -132,36 +156,20 @@ and :math:`\theta`, :math:`p` can be expressed as
    p = p_r (\frac{\Pi}{C_p})^{\frac{C_p}{R}}
 
 and :math:`p_r` is the reference pressure.
-The specific entropy of the mixture :math:`s` is defined as:
 
-.. math::
-   \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_l \eta_l
+We define the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`,
+and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`,
+where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively.
 
-where :math:`q_l` is condensates, for examples cloud ice, cloud water, and graupel. :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`, and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates.
-
-.. math::
-  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_rd}) + \eta_{rd}
-
-  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_rv}) + \eta_{rv}
-
-  \eta_i = C_i ln (\frac{T}{T_r}) + \eta_{ri}
-
-  \eta_c = C_c ln (\frac{T}{T_r}) + \eta_{rc}
-
-  \eta_l = C_l ln (\frac{T}{T_l}) + \eta_{rl}
-
-
-Assuming the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, where :math:`q_v` is water vapor, :math:`q_c` is cloud water, and :math:`q_i` is cloud ice, respectively, and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`, where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively. and :math:`\rho_d` is the density of the dry air.
-
-The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta_s` are:
+The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` are:
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-  \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
+          \frac{1}{1 + q_t + q_v}  \nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
-  \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u} \theta_s + F_{\theta_s}) + \nabla \cdot ( \rho_s \alpha_{T}\ \nabla \theta_s) + F_Q
+  \frac{\partial (\rho_d \theta)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta + F_{\theta}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
 
   \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
 
@@ -172,24 +180,17 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
 where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes. :math:`\mathbf{B}` is the force of buoyancy,
 
 .. math::
-   \mathbf{B} = \mathbf{g}(\frac{T^\prime}{\bar{T}}+0.61 \bar{q_v}-q_c-q_i-q_p)
+   \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}+0.61 q_v^\prime-q_c-q_i-q_p)
 
-Assuming the energy transport for different components are the same, we can further simplify these set of equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_p`, :math:`\mathbf{u}`, :math:`C`, and :math:`\Theta`
+This is coded as
 
 .. math::
-  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
+   \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
+                  + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
 
-  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-  \rho_d \nabla p^\prime_d +\rho_d^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
+where the overbar represents a horizontal average of the current state.
 
-  \frac{\partial (\rho_d \theta)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta + F_{\theta}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
-
-  \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
-
-  \frac{\partial (\rho_d q_T)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_T +F_{q_{T}}) - Q
-
-  \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
-
+We note that we have assumed the energy transport for the different components are the same.
 
 Single Moment Microphysics Model
 ===================================
@@ -249,7 +250,8 @@ The evaporation rate of rain is
 Implementation of Moisture Model
 ===================================
 
-The microphysics model takes potention temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\rho_d` as input, and users can control the microphysics process by using
+The microphysics model takes potential temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\rho_d` as input,
+and users can control the microphysics process by using
 
 ::
 

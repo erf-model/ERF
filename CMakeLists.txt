@@ -17,7 +17,6 @@ option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
-option(ERF_ENABLE_TERRAIN "Enable Terrain" OFF)
 option(ERF_ENABLE_MOISTURE "Enable Moisture" OFF)
 
 #Options for performance
