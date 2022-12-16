@@ -302,8 +302,10 @@ init_custom_prob(
   const Real l_z_r = parms.z_r;
   const Real l_x_c = parms.x_c;
   const Real l_z_c = parms.z_c;
-  const Real l_c_p = parms.C_p;
+  const Real l_c_p = parms.c_p;
   const Real l_Tpt = parms.T_pert;
+
+  amrex::Print() << "c_p = " << l_c_p << std::endl;
 
   // These are at cell centers (unstaggered)
   Vector<Real> h_r(khi+1);
@@ -505,4 +507,5 @@ amrex_probinit(
   pp.query("x_r", parms.x_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
+  pp.query("c_p", parms.c_p);
 }

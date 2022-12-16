@@ -12,8 +12,8 @@ struct ProbParm {
   amrex::Real x_r = 4000.0;
   amrex::Real z_r = 2000.0;
   amrex::Real T_pert = -15.0; // perturbation temperature
-  // overridden physical constants
-  amrex::Real C_p = 1004.0;
+  // physical constants that may be overwritten
+  amrex::Real c_p = 1004.5; 
 }; // namespace ProbParm
 
 extern ProbParm parms;
