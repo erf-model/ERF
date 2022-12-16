@@ -542,6 +542,9 @@ ERF::init_bx_velocities_from_input_sounding(
 void
 ERF::init_custom(int lev)
 {
+    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
+
     auto& lev_new = vars_new[lev];
 #ifdef ERF_USE_MOISTURE
     auto& qv_new  = qv[lev];
@@ -551,14 +554,14 @@ ERF::init_custom(int lev)
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
 
-    MultiFab cons_pert(grids[lev],dmap[lev],Cons::NumVars,0);
-    MultiFab xvel_pert(grids[lev],dmap[lev],1,0);
-    MultiFab yvel_pert(grids[lev],dmap[lev],1,0);
-    MultiFab zvel_pert(grids[lev],dmap[lev],1,0);
+    MultiFab cons_pert(grids[lev],dmap[lev],Cons::NumVars,ngrow_state);
+    MultiFab xvel_pert(grids[lev],dmap[lev],1,ngrow_vels);
+    MultiFab yvel_pert(grids[lev],dmap[lev],1,ngrow_vels);
+    MultiFab zvel_pert(grids[lev],dmap[lev],1,ngrow_vels);
 #ifdef ERF_USE_MOISTURE
-    MultiFab qv_pert(grids[lev],dmap[lev],1,0);
-    MultiFab qc_pert(grids[lev],dmap[lev],1,0);
-    MultiFab qi_pert(grids[lev],dmap[lev],1,0);
+    MultiFab qv_pert(grids[lev],dmap[lev],1,ngrow_state);
+    MultiFab qc_pert(grids[lev],dmap[lev],1,ngrow_state);
+    MultiFab qi_pert(grids[lev],dmap[lev],1,ngrow_state);
 #endif
 
 #ifdef _OPENMP
@@ -602,35 +605,21 @@ ERF::init_custom(int lev)
                          qv_pert_arr, qc_pert_arr, qi_pert_arr,
 #endif
                          geom[lev].data(), mf_m, mf_u, mf_v);
-
-        // Add problem-specific perturbation to background flow
-        amrex::ParallelFor(bx,
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            cons_arr(i, j, k, Rho_comp)       += cons_pert_arr(i, j, k, Rho_comp);
-            cons_arr(i, j, k, RhoTheta_comp)  += cons_pert_arr(i, j, k, RhoTheta_comp);
-            cons_arr(i, j, k, RhoScalar_comp) += cons_pert_arr(i, j, k, RhoScalar_comp);
-            cons_arr(i, j, k, RhoQKE_comp)    += cons_pert_arr(i, j, k, RhoQKE_comp);
-#ifdef ERF_USE_MOISTURE
-            cons_arr(i, j, k, RhoQt_comp)     += cons_pert_arr(i, j, k, RhoQt_comp);
-            cons_arr(i, j, k, RhoQp_comp)     += cons_pert_arr(i, j, k, RhoQp_comp);
-              qv_arr(i, j, k)                 +=   qv_pert_arr(i, j, k);
-              qc_arr(i, j, k)                 +=   qc_pert_arr(i, j, k);
-              qi_arr(i, j, k)                 +=   qi_pert_arr(i, j, k);
-#endif
-        });
-        const Box& xbx = amrex::surroundingNodes(bx,0);
-        const Box& ybx = amrex::surroundingNodes(bx,1);
-        const Box& zbx = amrex::surroundingNodes(bx,2);
-        amrex::ParallelFor(xbx, ybx, zbx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            xvel_arr(i, j, k) += xvel_pert_arr(i, j, k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            yvel_arr(i, j, k) += yvel_pert_arr(i, j, k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            zvel_arr(i, j, k) += zvel_pert_arr(i, j, k);
-        });
-
     } //mfi
+
+    // Add problem-specific perturbation to background flow
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,      1, ngrow_state);
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, ngrow_state);
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, ngrow_state);
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, ngrow_state);
+#ifdef ERF_USE_MOISTURE
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQt_comp,    RhoQt_comp,    1, ngrow_state);
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQp_comp,    RhoQp_comp,    1, ngrow_state);
+    MultiFab::Add(             qv_new,   qv_pert, 0,             0,             1, ngrow_state);
+    MultiFab::Add(             qc_new,   qc_pert, 0,             0,             1, ngrow_state);
+    MultiFab::Add(             qi_new,   qi_pert, 0,             0,             1, ngrow_state);
+#endif
+    MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, ngrow_vels);
+    MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, ngrow_vels);
+    MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, ngrow_vels);
 }
