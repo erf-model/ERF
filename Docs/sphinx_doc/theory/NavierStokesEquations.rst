@@ -157,8 +157,8 @@ and :math:`\theta`, :math:`p` can be expressed as
 
 and :math:`p_r` is the reference pressure.
 
-We define the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`, 
-and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`, 
+We define the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`,
+and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`,
 where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively.
 
 The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` are:
@@ -180,7 +180,15 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
 where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes. :math:`\mathbf{B}` is the force of buoyancy,
 
 .. math::
-   \mathbf{B} = \rho_d^\prime \mathbf{g} = -\rho_d \mathbf{g} (\frac{T^\prime}{\bar{T}}+0.61 q_v^\prime-q_c-q_i-q_p)
+   \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}+0.61 q_v^\prime-q_c-q_i-q_p)
+
+This is coded as
+
+.. math::
+   \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime + q_p^\prime
+                  + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
+
+where the overbar represents a horizontal average of the current state.
 
 We note that we have assumed the energy transport for the different components are the same.
 
