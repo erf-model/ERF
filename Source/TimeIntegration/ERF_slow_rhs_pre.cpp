@@ -818,7 +818,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                            + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d[k-1]-qi_d[k-1]-qc_d[k-1]-qp_d[k-1]);
 
                 Real qavg  = Real(0.5) * (qplus + qminus);
-                Real r0avg = Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1))
+                Real r0avg = Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
 
                 rho_w_rhs(i, j, k) -= qavg * r0avg * grav_gpu[2];
 #else
@@ -885,7 +885,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                            + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d[k-1]-qi_d[k-1]-qc_d[k-1]-qp_d[k-1]);
 
                 Real qavg  = Real(0.5) * (qplus + qminus);
-                Real r0avg = Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1))
+                Real r0avg = Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
 
                 rho_w_rhs(i, j, k) -= qavg * r0avg * grav_gpu[2];
 #else
