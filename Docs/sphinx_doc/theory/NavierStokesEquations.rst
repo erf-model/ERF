@@ -185,7 +185,7 @@ where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid s
 This is coded as
 
 .. math::
-   \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime + q_p^\prime
+   \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
                   + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
 
 where the overbar represents a horizontal average of the current state.
