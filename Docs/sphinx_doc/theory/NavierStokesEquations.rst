@@ -142,7 +142,7 @@ and :math:`T_p`, is the reference temperature for the condensates:
 
   \eta_c = C_c ln (\frac{T}{T_r}) + \eta_{rc}
 
-  \eta_l = C_l ln (\frac{T}{T_l}) + \eta_{rl}
+  \eta_p = C_p ln (\frac{T}{T_p}) + \eta_{rp}
 
 The Exner pressure :math:`\Pi` can be written as,
 
@@ -211,7 +211,7 @@ the The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`,
 where :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid turbulent fluxes. :math:`\mathbf{F}` stands for the external force, and :math:`Q`, :math:`F_Q` represents the mass and energy transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes, respectively. :math:`\mathbf{B}` is the force of buoyancy,
 
 .. math::                 
-     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}} 
+     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} 
 
 which is coded as
 
