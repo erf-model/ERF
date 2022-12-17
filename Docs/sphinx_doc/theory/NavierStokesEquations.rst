@@ -169,9 +169,11 @@ A multispecies atmospheric flow that is composed of :math:`N` different species,
           \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g} \; (s=1, ..., N)
 
   \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) +
-         \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) \; (s=1, ..., N)
+         \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) + F_{Q_d} \; (s=1, ..., N)
+ 
+where :math:`Q_s` is the source/sink for individual species due to parameterized process, and :math:`\mathbf{F}_s` momentum sink/source due to external force, :math:`F_{Q_d}` is the energy transfer caused by parameterized physics process. 
 
-Assuming all species have same average speed, and define total potential temperature :math:`\theta = \sum_s \theta_s`, and :math:`\rho_d` is the dry air density,
+Let's assume all species have same average speed, and define total potential temperature :math:`\theta = \sum_s \theta_s`, and :math:`\rho_d` is the dry air density, 
 the total nonprecipitating water density :math:`\rho_T = \rho_v + \rho_c + \rho_i`,
 and the total precipitating water :math:`\rho_p = \rho_{rain} + \rho_{snow} + \rho_{graupel}`,
 where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, :math:`\rho_{graupel}` is graupel density, respectively.
@@ -192,7 +194,7 @@ where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, 
 
 Where :math:`Q_T` is the density change that caused by transformation of cloud water and water vapor to rain water through condensation, and :math:`Q_p = -Q_T`. :math:`F_{Q_d}` is the temperature change source that caused by the parameterized physics process.
 
-the The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
+The set of conservation equations for progonostic variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} + \mathbf{F}_\rho)
@@ -213,7 +215,7 @@ where :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_
 .. math::
      \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}
                  + 0.61 q_v^\prime - q_c - q_i - q_p - \frac{p^\prime}{\bar{p})
-
+                 
 which is coded as
 
 .. math::
