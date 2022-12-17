@@ -1,6 +1,7 @@
 #ifndef _PROB_H_
 #define _PROB_H_
 
+#include "EOS.H"
 #include "AMReX_REAL.H"
 
 struct ProbParm {
@@ -28,6 +29,44 @@ struct ProbParm {
 }; // namespace ProbParm
 
 extern ProbParm parms;
+
+/*
+ * Calculate perturbation to potential temperature and density at a
+ * given (x,y,z). Note that pressure is not perturbed.
+ */
+AMREX_FORCE_INLINE
+void
+perturb_rho_theta (const amrex::Real x,
+                   const amrex::Real y,
+                   const amrex::Real z,
+                   const amrex::Real p_hse,
+                   const amrex::Real r_hse,
+                   amrex::Real& rho,
+                   amrex::Real& rhotheta)
+{
+    // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
+    const amrex::Real Tbar_hse = p_hse / (R_d * r_hse);
+
+    // Perturbation air temperature
+    amrex::Real L = std::sqrt(
+        std::pow((x - parms.x_c)/parms.x_r, 2) +
+        std::pow((z - parms.z_c)/parms.z_r, 2)
+    );
+    amrex::Real dT;
+    if (L > 1.0) {
+        dT = 0.0;
+    }
+    else {
+        dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
+    }
+
+    // Note: theta_perturbed is theta PLUS perturbation in theta
+    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, R_d/parms.c_p);
+
+    // Update state -- this version perturbs rho but not p
+    rhotheta = getRhoThetagivenP(p_hse);
+    rho = rhotheta / theta_perturbed;
+}
 
 #endif
 

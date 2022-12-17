@@ -297,20 +297,11 @@ init_custom_prob(
   const Real dz        = geomdata.CellSize()[2];
   const Real prob_lo_z = geomdata.ProbLo()[2];
 
-  const Real l_x_r = parms.x_r;
-  const Real l_y_r = parms.y_r;
-  const Real l_z_r = parms.z_r;
-  const Real l_x_c = parms.x_c;
-  const Real l_y_c = parms.y_c;
-  const Real l_z_c = parms.z_c;
-  const Real l_c_p = parms.c_p;
-  const Real l_Tpt = parms.T_pert;
-
-  amrex::Print() << "Bubble delta T = " << l_Tpt << " K" << std::endl;
+  amrex::Print() << "Bubble delta T = " << parms.T_pert << " K" << std::endl;
   amrex::Print() << "  centered at ("
-      << l_x_c << " " << l_y_c << " " << l_z_c << ")" << std::endl;
+      << parms.x_c << " " << parms.y_c << " " << parms.z_c << ")" << std::endl;
   amrex::Print() << "  with extent ("
-      << l_x_r << " " << l_y_r << " " << l_z_r << ")" << std::endl;
+      << parms.x_r << " " << parms.y_r << " " << parms.z_r << ")" << std::endl;
 
   // These are at cell centers (unstaggered)
   Vector<Real> h_r(khi+1);
@@ -319,7 +310,7 @@ init_custom_prob(
   amrex::Gpu::DeviceVector<Real> d_r(khi+1);
   amrex::Gpu::DeviceVector<Real> d_p(khi+1);
 
-  if (z_cc) {
+  if (z_cc) { // nonflat terrain
 
     // Create a flat box with same horizontal extent but only one cell in vertical
     Box b2d = surroundingNodes(bx); // Copy constructor
@@ -340,38 +331,20 @@ init_custom_prob(
          r_hse(i,j,khi+1) = r_hse(i,j,khi);
       });
 
-      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+      amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo         = geomdata.ProbLo();
         const auto dx              = geomdata.CellSize();
 
         const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real y = prob_lo[1] + (j + 0.5) * dx[1];
         const Real z = z_cc(i,j,k);
 
-        // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-        const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
+        perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
+                          state(i, j, k, Rho_comp),
+                          state(i, j, k, RhoTheta_comp));
 
-        Real L = std::sqrt(
-            std::pow((x - l_x_c)/l_x_r, 2) +
-            std::pow((z - l_z_c)/l_z_r, 2)
-        );
-        Real dT;
-        if (L > 1.0) {
-            dT = 0.0;
-        }
-        else {
-            dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
-        }
-
-        // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/l_c_p);
-
-        // This version perturbs rho but not p
-        state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_hse(i,j,k));
-        state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
-
-        // Set scalar = 0 everywhere
         state(i, j, k, RhoScalar_comp) = 0.0;
 
 #ifdef ERF_USE_MOISTURE
@@ -389,38 +362,20 @@ init_custom_prob(
       Real* r = d_r.data();
       Real* p = d_p.data();
 
-      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+      amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo         = geomdata.ProbLo();
         const auto dx              = geomdata.CellSize();
 
         const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real y = prob_lo[1] + (j + 0.5) * dx[1];
         const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-        // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-        const Real Tbar_hse = p[k] / (R_d * r[k]);
+        perturb_rho_theta(x, y, z, p[k], r[k],
+                          state(i, j, k, Rho_comp),
+                          state(i, j, k, RhoTheta_comp));
 
-        Real L = std::sqrt(
-            std::pow((x - l_x_c)/l_x_r, 2) +
-            std::pow((z - l_z_c)/l_z_r, 2)
-        );
-        Real dT;
-        if (L > 1.0) {
-            dT = 0.0;
-        }
-        else {
-            dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
-        }
-
-        // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/l_c_p);
-
-        // This version perturbs rho but not p
-        state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p[k]);
-        state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
-
-        // Set scalar = 0 everywhere
         state(i, j, k, RhoScalar_comp) = 0.0;
 
 #ifdef ERF_USE_MOISTURE
@@ -431,6 +386,7 @@ init_custom_prob(
   }
 
   const Real u0 = parms.U_0;
+  const Real v0 = parms.V_0;
 
   // Construct a box that is on x-faces
   const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
@@ -446,7 +402,7 @@ init_custom_prob(
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = 0.0;
+      y_vel(i, j, k) = v0;
   });
 
   // Construct a box that is on z-faces
