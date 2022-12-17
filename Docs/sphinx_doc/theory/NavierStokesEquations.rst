@@ -184,7 +184,7 @@ where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, 
   \frac{\partial \rho_p}{\partial t} &= - \nabla \cdot (\rho_p \mathbf{u}) + Q_p
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-          \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho \mathbf{g}
+          \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho_d \mathbf{g}
         
   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d + F_{\theta _d}) + 
          \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{\theta d}
