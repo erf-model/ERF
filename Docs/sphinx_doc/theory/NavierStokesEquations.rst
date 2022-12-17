@@ -122,7 +122,7 @@ Potential temperature is defined as a function of temperature and specific entro
   \theta (\eta, T) = T_r exp(\frac{\eta - \eta_0}{C_p})
 
 where :math:`T_r` is the reference temperature, usually chosen as the temperature at the surface,
-and :math:`\eta` is the specific entropy, defined for the mixture as
+and where :math:`\eta_0` is the specific entropy at the reference temperature and pressure,  :math:`\eta` is the specific entropy, defined for the mixture as
 
 .. math::
    \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_p \eta_p
@@ -144,7 +144,7 @@ and :math:`T_p`, is the reference temperature for the condensates:
 
   \eta_p = C_p ln (\frac{T}{T_p}) + \eta_{rp}
 
-The Exner pressure :math:`\Pi` can be written as,
+where :math:`\eta_rd`, :math:`\eta_rv`, :math:`\eta_ri`, :math:`\eta_rc` and :math:`\eta_rp` are the specific entropy for dry air, water vapor, and ice, cloud, and condensate tracers, respectively. The Exner pressure :math:`\Pi` can be written as,
 
 .. math::
   \Pi = C_p (\frac{p}{\alpha P_r})^\frac{R}{C_p}
