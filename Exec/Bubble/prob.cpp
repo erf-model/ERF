@@ -337,9 +337,9 @@ init_custom_prob(
         const auto prob_lo         = geomdata.ProbLo();
         const auto dx              = geomdata.CellSize();
 
-        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-        const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-        const Real z = z_cc(i,j,k);
+        const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
+        const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
+        const amrex::Real z = z_cc(i,j,k);
 
         perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
                           state(i, j, k, Rho_comp),
