@@ -171,7 +171,7 @@ A multispecies atmospheric flow that is composed of :math:`N` different species,
   \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) + 
          \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) \; (s=1, ..., N)
   
-Assuming all species have same average speed, and define averaged potential temperature :math:`\theta = \frac{\sum_s \rho_s \theta_s}{\sum_s \rho_s}`, and :math:`\rho_d` is the dry air density, 
+Assuming all species have same average speed, and define total potential temperature :math:`\theta = \sum_s \theta_s`, and :math:`\rho_d` is the dry air density, 
 the total nonprecipitating water density :math:`\rho_T = \rho_v + \rho_c + \rho_i`,
 and the total precipitating water :math:`\rho_p = \rho_{rain} + \rho_{snow} + \rho_{graupel}`,
 where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, :math:`\rho_{graupel}` is graupel density, respectively.
@@ -189,8 +189,7 @@ where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, 
   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d + F_{\theta _d}) + 
          \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{\theta d}
          
-           
-The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` are:
+with the assumption, we have :math:`\rho \theta = \rho_d \theta_d + \rho_T \theta_T + \rho_p \theta_p`, and the set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
