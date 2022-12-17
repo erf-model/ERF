@@ -33,11 +33,9 @@ void Microphysics::Init(const MultiFab& cons_in,
      const auto& lo = amrex::lbound(box3d);
      const auto& hi = amrex::ubound(box3d);
 
-     nz  = box3d.length(2);
-     zlo = lo.z;
-     zhi = hi.z;
-
-  std::cout << "local lo= " << lo << "; local hi= " << hi << std::endl;
+     nlev = box3d.length(2);
+     zlo  = lo.z;
+     zhi  = hi.z;
 
      // parameters
      accrrc.resize({zlo},  {zhi});
@@ -90,6 +88,17 @@ void Microphysics::Init(const MultiFab& cons_in,
   auto gamaz_t  = gamaz.table();
   auto zmid_t   = zmid.table();
 
+  Real gam3  = erf_gammafff(3.0             );
+  Real gamr1 = erf_gammafff(3.0+b_rain      );
+  Real gamr2 = erf_gammafff((5.0+b_rain)/2.0);
+  Real gamr3 = erf_gammafff(4.0+b_rain      );
+  Real gams1 = erf_gammafff(3.0+b_snow      );
+  Real gams2 = erf_gammafff((5.0+b_snow)/2.0);
+  Real gams3 = erf_gammafff(4.0+b_snow      );
+  Real gamg1 = erf_gammafff(3.0+b_grau      );
+  Real gamg2 = erf_gammafff((5.0+b_grau)/2.0);
+  Real gamg3 = erf_gammafff(4.0+b_grau      );
+
   // get the temperature, dentisy, theta, qt and qp from input
   for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto states_array = cons_in.array(mfi);
@@ -133,30 +142,19 @@ void Microphysics::Init(const MultiFab& cons_in,
   Gpu::DeviceVector<Real> rho_d(ncell), rhotheta_d(ncell);
   Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
   Gpu::copyAsync(Gpu::hostToDevice, rhotheta_h.begin(), rhotheta_h.end(), rhotheta_d.begin());
+  Gpu::streamSynchronize();
 
-  amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
-    Real pressure = getPgivenRTh(rhotheta_d[k]);
-    rho1d_t(k)  = rho_d[k];
+  Real* rho_dptr      = rho_d.data();
+  Real* rhotheta_dptr = rhotheta_d.data();
+
+  amrex::ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept {
+    Real pressure = getPgivenRTh(rhotheta_dptr[k]);
+    rho1d_t(k)  = rho_dptr[k];
     pres1d_t(k) = pressure/100.;
-    tabs1d_t(k) = getTgivenRandRTh(rho_d[k],rhotheta_d[k]);
+    tabs1d_t(k) = getTgivenRandRTh(rho_dptr[k],rhotheta_dptr[k]);
     zmid_t(k)   = lowz + (k+0.5)*dz;
     gamaz_t(k)  = CONST_GRAV/c_p*zmid_t(k);
   });
-
-  gam3  = erf_gammafff(3.0             );
-  gamr1 = erf_gammafff(3.0+b_rain      );
-  gamr2 = erf_gammafff((5.0+b_rain)/2.0);
-  gamr3 = erf_gammafff(4.0+b_rain      );
-  gams1 = erf_gammafff(3.0+b_snow      );
-  gams2 = erf_gammafff((5.0+b_snow)/2.0);
-  gams3 = erf_gammafff(4.0+b_snow      );
-  gamg1 = erf_gammafff(3.0+b_grau      );
-  gamg2 = erf_gammafff((5.0+b_grau)/2.0);
-  gamg3 = erf_gammafff(4.0+b_grau      );
-
-  a_bg = 1.0/(tbgmax-tbgmin);
-  a_pr = 1.0/(tprmax-tprmin);
-  a_gr = 1.0/(tgrmax-tgrmin);
 
   if (docloud || dosmoke) {
     Diagnose();
@@ -176,7 +174,7 @@ void Microphysics::Init(const MultiFab& cons_in,
   });
 #endif
 
-  amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
+  amrex::ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept {
     qpsrc_t(k) = 0.0;
     qpevp_t(k) = 0.0;
   });
@@ -189,7 +187,7 @@ void Microphysics::Init(const MultiFab& cons_in,
   // for (int k=0; k<nzm; k++) {
   //  for (int icrm=0; icrm<ncrms; icrm++) {
   //parallel_for( SimpleBounds<2>(nzm,ncrms) , YAKL_LAMBDA (int k, int icrm) {
-  amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
+  amrex::ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept {
 
     Real pratio = sqrt(1.29 / rho1d_t(k));
     Real rrr1=393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);

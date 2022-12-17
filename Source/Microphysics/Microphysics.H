@@ -79,18 +79,10 @@ class Microphysics {
   amrex::Real dt;
 
   // number of vertical levels
-  int nz, zlo, zhi;
+  int nlev, zlo, zhi;
 
   // model options
   bool docloud, dosmoke, doprecip;
-
-  // microphysics constants
-  amrex::Real crain, csnow, cgrau;
-  amrex::Real vrain, vsnow, vgrau;
-  amrex::Real a_bg, a_pr, a_gr;
-  amrex::Real gam3, gamr1, gamr2, gamr3;
-  amrex::Real gams1, gams2, gams3;
-  amrex::Real gamg1, gamg2, gamg3;
 
   // microphysics parameters/coefficients
   amrex::TableData<amrex::Real, 1> accrrc;
