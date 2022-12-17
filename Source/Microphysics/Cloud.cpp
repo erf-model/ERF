@@ -11,12 +11,8 @@ void Microphysics::Cloud() {
   constexpr Real bn   = tbgmin*an;
   constexpr Real ap   = 1.0/(tprmax-tprmin);
   constexpr Real bp   = tprmin*ap;
-  // constexpr Real fac1 = fac_cond+(1.0+bp)*fac_fus;
-  // constexpr Real fac2 = fac_fus*ap;
-  // constexpr Real ag   = 1.0/(tgrmax-tgrmin);
 
   auto pres1d_t = pres1d.table();
-  // auto gamaz_t  = gamaz.table();
 
   auto qt    = mic_fab_vars[MicVar::qt];
   auto qp    = mic_fab_vars[MicVar::qp];
@@ -28,7 +24,6 @@ void Microphysics::Cloud() {
      auto qt_array    = qt->array(mfi);
      auto qp_array    = qp->array(mfi);
      auto qn_array    = qn->array(mfi);
-     // auto rho_array   = rho->array(mfi);
      auto tabs_array  = tabs->array(mfi);
 
      const auto& box3d = mfi.tilebox();

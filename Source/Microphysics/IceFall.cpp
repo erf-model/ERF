@@ -6,7 +6,9 @@ using namespace amrex;
 
 void Microphysics::IceFall() {
 
-  Real dz = m_geom.CellSize(2);
+  Real dz  = m_geom.CellSize(2);
+  Real dtn = dt;
+  int  nz  = nlev;
 
   int kmax, kmin;
   auto qcl   = mic_fab_vars[MicVar::qcl];
@@ -79,7 +81,7 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
          int kb = std::max(k-1, 0);
 
          // CFL number based on grid spacing interpolated to interface i,j,k-1/2
-         Real coef = dt/dz; //dtn/(0.5*(adz(kb)+adz(k))*dz);
+         Real coef = dtn/dz; //dtn/(0.5*(adz(kb)+adz(k))*dz);
 
          // Compute cloud ice density in this cell and the ones above/below.
          // Since cloud ice is falling, the above cell is u(icrm,upwind),
@@ -126,7 +128,7 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
      //       for (int icrm=0; icrm<ncrms; icrm++) {
      amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        if ( k >= std::max(0,kmin-1) && k <= kmax ) {
-         Real coef = dt/dz;
+         Real coef = dtn/dz;
          // The cloud ice increment is the difference of the fluxes.
          Real dqi  = coef*(fz_array(i,j,k)-fz_array(i,j,k+1));
          // Add this increment to both non-precipitating and total water.

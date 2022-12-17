@@ -74,4 +74,12 @@ constexpr amrex::Real fac_cond = lcond/c_p;
 constexpr amrex::Real fac_fus  = lfus/c_p;
 constexpr amrex::Real fac_sub  = lsub/c_p;
 
+constexpr amrex::Real a_bg = 1.0/(tbgmax-tbgmin);
+constexpr amrex::Real a_pr = 1.0/(tprmax-tprmin);
+constexpr amrex::Real a_gr = 1.0/(tgrmax-tgrmin);
+
+constexpr amrex::Real crain = b_rain / 4.0;
+constexpr amrex::Real csnow = b_snow / 4.0;
+constexpr amrex::Real cgrau = b_grau / 4.0;
+
 #endif
