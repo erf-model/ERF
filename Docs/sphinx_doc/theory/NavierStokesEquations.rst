@@ -163,25 +163,25 @@ Governing Equations for Multispecies Atmospheric Flow
 A multispecies atmospheric flow that is composed of :math:`N` different species, and :math:`s` stands for each individual species, the governing equations for the multicomponent fluid dynamics for each species :math:`s` can be written as
 
 .. math::
-  \frac{\partial \rho_s}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s}) (s=1, ..., N)
+  \frac{\partial \rho_s}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s}) + Q_s \; (s=1, ..., N)
 
   \frac{\partial (\rho_s \mathbf{u_s})}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \mathbf{u_s}) -
-          \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g} (s=1, ..., N)
+          \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g} \; (s=1, ..., N)
 
   \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) + 
-         \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) + F_s (s=1, ..., N)
+         \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) \; (s=1, ..., N)
   
 Assuming all species have same average speed, and define averaged potential temperature :math:`\theta = \frac{\sum_s \rho_s \theta_s}{\sum_s \rho_s}`, and :math:`\rho_d` is the dry air density, 
-the total nonprecipitating water density :math:`rho_T = rho_v + rho_c + rho_i`,
-and the total precipitating water :math:`rho_p = rho_{rain} + rho_{snow} + rho_{graupel}`,
-where :math:`rho_{rain}` is rain density, :math:`rho_{snow}` is snow density, :math:`rho_{graupel}` is graupel density, respectively.
+the total nonprecipitating water density :math:`\rho_T = \rho_v + \rho_c + \rho_i`,
+and the total precipitating water :math:`\rho_p = \rho_{rain} + \rho_{snow} + \rho_{graupel}`,
+where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, :math:`\rho_{graupel}` is graupel density, respectively.
 
 .. math::
-  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
+  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}) + Q_d
 
-  \frac{\partial \rho_T}{\partial t} &= - \nabla \cdot (\rho_T \mathbf{u})
+  \frac{\partial \rho_T}{\partial t} &= - \nabla \cdot (\rho_T \mathbf{u}) + Q_T
   
-  \frac{\partial \rho_p}{\partial t} &= - \nabla \cdot (\rho_p \mathbf{u})
+  \frac{\partial \rho_p}{\partial t} &= - \nabla \cdot (\rho_p \mathbf{u}) + Q_p
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
           \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho \mathbf{g}
