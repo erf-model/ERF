@@ -168,10 +168,10 @@ A multispecies atmospheric flow that is composed of :math:`N` different species,
   \frac{\partial (\rho_s \mathbf{u_s})}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \mathbf{u_s}) -
           \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g} \; (s=1, ..., N)
 
-  \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) + 
+  \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) +
          \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) \; (s=1, ..., N)
-  
-Assuming all species have same average speed, and define total potential temperature :math:`\theta = \sum_s \theta_s`, and :math:`\rho_d` is the dry air density, 
+
+Assuming all species have same average speed, and define total potential temperature :math:`\theta = \sum_s \theta_s`, and :math:`\rho_d` is the dry air density,
 the total nonprecipitating water density :math:`\rho_T = \rho_v + \rho_c + \rho_i`,
 and the total precipitating water :math:`\rho_p = \rho_{rain} + \rho_{snow} + \rho_{graupel}`,
 where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, :math:`\rho_{graupel}` is graupel density, respectively.
@@ -180,16 +180,16 @@ where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, 
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
 
   \frac{\partial \rho_T}{\partial t} &= - \nabla \cdot (\rho_T \mathbf{u}) + Q_T
-  
+
   \frac{\partial \rho_p}{\partial t} &= - \nabla \cdot (\rho_p \mathbf{u}) + Q_p
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
           \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho_d \mathbf{g}
-        
-  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d + F_{\theta _d}) + 
+
+  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d + F_{\theta _d}) +
          \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{Q_d}
- 
- 
+
+
 Where :math:`Q_T` is the density change that caused by transformation of cloud water and water vapor to rain water through condensation, and :math:`Q_p = -Q_T`. :math:`F_{Q_d}` is the temperature change source that caused by the parameterized physics process.
 
 the The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
@@ -210,9 +210,9 @@ the The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`,
 
 where :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid turbulent fluxes. :math:`\mathbf{F}` stands for the external force, and :math:`Q`, :math:`F_Q` represents the mass and energy transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes, respectively. :math:`\mathbf{B}` is the force of buoyancy,
 
-.. math::                 
-     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}} + 0.61 q_v^\prime - q_c - q_i - q_p
-                 - \frac{p^\prime}{\bar{p})
+.. math::
+     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}
+                 + 0.61 q_v^\prime - q_c - q_i - q_p - \frac{p^\prime}{\bar{p})
 
 which is coded as
 
