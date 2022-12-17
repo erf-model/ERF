@@ -341,9 +341,13 @@ init_custom_prob(
         const Real y = prob_lo[1] + (j + 0.5) * dx[1];
         const Real z = z_cc(i,j,k);
 
-        perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
+        perturb_rho_theta(x, parms.x_c, parms.x_r,
+                          y, parms.y_c, parms.y_r,
+                          z, parms.z_c, parms.z_r,
+                          p_hse(i,j,k), r_hse(i,j,k),
                           state(i, j, k, Rho_comp),
-                          state(i, j, k, RhoTheta_comp));
+                          state(i, j, k, RhoTheta_comp),
+                          parms.local_c_p, parms.T_pert);
 
         state(i, j, k, RhoScalar_comp) = 0.0;
 
@@ -372,9 +376,13 @@ init_custom_prob(
         const Real y = prob_lo[1] + (j + 0.5) * dx[1];
         const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-        perturb_rho_theta(x, y, z, p[k], r[k],
+        perturb_rho_theta(x, parms.x_c, parms.x_r,
+                          y, parms.y_c, parms.y_r,
+                          z, parms.z_c, parms.z_r,
+                          p[k], r[k],
                           state(i, j, k, Rho_comp),
-                          state(i, j, k, RhoTheta_comp));
+                          state(i, j, k, RhoTheta_comp),
+                          parms.local_c_p, parms.T_pert);
 
         state(i, j, k, RhoScalar_comp) = 0.0;
 
