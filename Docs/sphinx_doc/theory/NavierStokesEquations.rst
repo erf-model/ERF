@@ -187,10 +187,10 @@ where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, 
           \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho_d \mathbf{g}
         
   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d + F_{\theta _d}) + 
-         \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{\theta d}
+         \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{Q_d}
  
  
-Where :math:`Q_T` is the density change that caused by transformation of cloud water and water vapor to rain water through condensation, and :math:`Q_p = -Q_T`.
+Where :math:`Q_T` is the density change that caused by transformation of cloud water and water vapor to rain water through condensation, and :math:`Q_p = -Q_T`. :math:`F_{Q_d}` is the temperature change source that caused by the parameterized physics process.
 
 the The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
 
