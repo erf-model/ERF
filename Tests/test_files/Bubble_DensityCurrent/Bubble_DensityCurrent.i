@@ -53,10 +53,18 @@ erf.molec_diff_type  = "ConstantAlpha"
 # diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858
 erf.dynamicViscosity = 87.108013935 # kg/(m-s)
 
+erf.init_type = ""
+
 # PROBLEM PARAMETERS (optional)
-prob.T_0 = 300.0
-prob.U_0 = 0.0
-prob.c_p = 1004.0
+# cold bubble input from Straka et al, JNMF, vol 17, 1993
+prob.c_p    = 1004.0
+prob.T_pert = -15.0
+prob.T_0    = 300.0
+prob.U_0    = 0.0
+prob.x_c    = 0.0
+prob.z_c    = 3000.0
+prob.x_r    = 4000.0
+prob.z_r    = 2000.0
 
 # SETTING THE TIME STEP
 erf.change_max     = 1.05    # multiplier by which dt can change in one time step

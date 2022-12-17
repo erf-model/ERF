@@ -298,14 +298,19 @@ init_custom_prob(
   const Real prob_lo_z = geomdata.ProbLo()[2];
 
   const Real l_x_r = parms.x_r;
-  //const Real l_x_r = parms.x_r * mf_u(0,0,0); //used to validate constant msf
+  const Real l_y_r = parms.y_r;
   const Real l_z_r = parms.z_r;
   const Real l_x_c = parms.x_c;
+  const Real l_y_c = parms.y_c;
   const Real l_z_c = parms.z_c;
   const Real l_c_p = parms.c_p;
   const Real l_Tpt = parms.T_pert;
 
-  amrex::Print() << "c_p = " << l_c_p << std::endl;
+  amrex::Print() << "Bubble delta T = " << l_Tpt << " K" << std::endl;
+  amrex::Print() << "  centered at ("
+      << l_x_c << " " << l_y_c << " " << l_z_c << ")" << std::endl;
+  amrex::Print() << "  with extent ("
+      << l_x_r << " " << l_y_r << " " << l_z_r << ")" << std::endl;
 
   // These are at cell centers (unstaggered)
   Vector<Real> h_r(khi+1);
@@ -502,9 +507,12 @@ amrex_probinit(
   ParmParse pp("prob");
   pp.query("T_0", parms.T_0);
   pp.query("U_0", parms.U_0);
+  pp.query("V_0", parms.V_0);
   pp.query("x_c", parms.x_c);
+  pp.query("y_c", parms.y_c);
   pp.query("z_c", parms.z_c);
   pp.query("x_r", parms.x_r);
+  pp.query("y_r", parms.y_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
   pp.query("c_p", parms.c_p);
