@@ -125,13 +125,13 @@ where :math:`T_r` is the reference temperature, usually chosen as the temperatur
 and :math:`\eta` is the specific entropy, defined for the mixture as
 
 .. math::
-   \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_l \eta_l
+   \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_p \eta_p
 
 where :math:`q_v` is water vapor, :math:`q_c` is cloud water, :math:`q_i` is cloud ice, and
-:math:`q_l = q_c + q_i + q_{graupel}'` represents all condensates  (cloud water, cloud ice, and graupel).
+:math:`q_p = q_{rain} + q_{ice} + q_{graupel}'` represents all condensates  (rain water, snow ice, and graupel).
 :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
-and :math:`\eta_c`, :math:`\eta_l` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates,
-and :math:`T_l`, is the reference temperature for the condensates:
+and :math:`\eta_c`, :math:`\eta_p` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates,
+and :math:`T_p`, is the reference temperature for the condensates:
 
 .. math::
   \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_rd}) + \eta_{rd}
