@@ -94,7 +94,7 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 
 Prognostic Equations (Moist)
 ===============================
-Thermodynamics and the Specific Equation of Stats
+Thermodynamics and the Specific Equation of States
 --------------------------------------------------
 We consider a mixture of dry air :math:`\rho_d` and nonprecipitating water vapor :math:`\rho_v`, assumed to be a perfect ideal gas with constant heat capacities
 :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`,
@@ -166,14 +166,30 @@ A multispecies atmospheric flow that is composed of :math:`N` different species,
   \frac{\partial \rho_s}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s}) (s=1, ..., N)
 
   \frac{\partial (\rho_s \mathbf{u_s})}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \mathbf{u_s}) -
-          \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g}
+          \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g} (s=1, ..., N)
 
-  \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) + \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s)
+  \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) + 
+         \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) + F_s (s=1, ..., N)
   
-We define the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`,
-and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`,
-where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively.
+Assuming all species have same average speed, and define averaged potential temperature :math:`\theta = \frac{\sum_s \rho_s \theta_s}{\sum_s \rho_s}`, and :math:`\rho_d` is the dry air density, 
+the total nonprecipitating water density :math:`rho_T = rho_v + rho_c + rho_i`,
+and the total precipitating water :math:`rho_p = rho_{rain} + rho_{snow} + rho_{graupel}`,
+where :math:`rho_{rain}` is rain density, :math:`rho_{snow}` is snow density, :math:`rho_{graupel}` is graupel density, respectively.
 
+.. math::
+  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
+
+  \frac{\partial \rho_T}{\partial t} &= - \nabla \cdot (\rho_T \mathbf{u})
+  
+  \frac{\partial \rho_p}{\partial t} &= - \nabla \cdot (\rho_p \mathbf{u})
+
+  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
+          \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho \mathbf{g}
+        
+  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d + F_{\theta _d}) + 
+         \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{\theta d}
+         
+           
 The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` are:
 
 .. math::
