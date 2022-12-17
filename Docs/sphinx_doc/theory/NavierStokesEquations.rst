@@ -188,11 +188,11 @@ where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
           \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho_d \mathbf{g}
         
-  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d + F_{\theta _d}) + 
+  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d + 
          \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{Q_d}
  
  
-Where :math:`Q_T` is the density change that caused by transformation of cloud water and water vapor to rain water through condensation, and :math:`Q_p = -Q_T`. :math:`F_{Q_d}` is the temperature change source that caused by the parameterized physics process.
+Where :math:`Q_T` is the mass source/sink that caused by transformation of cloud water and water vapor to rain water through condensation, and :math:`Q_p = -Q_T`. :math:`F_{Q_d}` is the energy source/sink that caused by the parameterized physics process.
 
 The set of conservation equations for progonostic variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
 
@@ -210,7 +210,7 @@ The set of conservation equations for progonostic variables :math:`\rho_d`, :mat
 
   \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
 
-where :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid turbulent fluxes. :math:`\mathbf{F}` stands for the external force, and :math:`Q`, :math:`F_Q` represents the mass and energy transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes, respectively. :math:`\mathbf{B}` is the force of buoyancy,
+In this set of equations, the subgrid turbulent parameterization effects are included,  with fluxes :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}`. :math:`\mathbf{F}` stands for the external force, and :math:`Q`, :math:`F_Q` represents the mass and energy transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes, respectively. :math:`\mathbf{B}` is the force of buoyancy,
 
 .. math::                 
      \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\bar{T}} + 0.61 q_v^\prime - q_c - q_i - q_p
