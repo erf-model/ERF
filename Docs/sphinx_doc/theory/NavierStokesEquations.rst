@@ -144,7 +144,7 @@ and :math:`T_p`, is the reference temperature for the condensates:
 
   \eta_p = C_p ln (\frac{T}{T_p}) + \eta_{rp}
 
-where :math:`\eta_rd`, :math:`\eta_rv`, :math:`\eta_ri`, :math:`\eta_rc` and :math:`\eta_rp` are the specific entropy for dry air, water vapor, and ice, cloud, and condensate tracers, respectively. The Exner pressure :math:`\Pi` can be written as,
+where :math:`\eta_{rd}`, :math:`\eta_{rv}`, :math:`\eta_{ri}`, :math:`\eta_{rc}` and :math:`\eta_{rp}` are the specific entropy for dry air, water vapor, and ice, cloud, and condensate tracers, respectively. The Exner pressure :math:`\Pi` can be written as,
 
 .. math::
   \Pi = C_p (\frac{p}{\alpha P_r})^\frac{R}{C_p}
