@@ -98,7 +98,7 @@ Thermodynamics and the Specific Equation of States
 --------------------------------------------------
 We consider a mixture of dry air :math:`\rho_d` and nonprecipitating water vapor :math:`\rho_v`, assumed to be a perfect ideal gas with constant heat capacities
 :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`,
-and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l`, :math:`C_i`.
+and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_p`, :math:`C_i`.
 
 Neglecting the volume occupied by the condensated water, we have
 
@@ -119,7 +119,7 @@ In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the 
 Potential temperature is defined as a function of temperature and specific entropy, that is
 
 .. math::
-  \theta (\eta) = T_r exp(\frac{\eta - \eta_0}{C_p})
+  \theta (\eta, T) = T_r exp(\frac{\eta - \eta_0}{C_p})
 
 where :math:`T_r` is the reference temperature, usually chosen as the temperature at the surface,
 and :math:`\eta` is the specific entropy, defined for the mixture as
