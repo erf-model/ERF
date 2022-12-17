@@ -151,7 +151,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         // refactor the code to eliminate the need for ifdef's
         for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
             int offset = (EddyDiff::NumDiffs-1)/2;
-            switch (n) 
+            switch (n)
             {
               case EddyDiff::QKE_h:
                  // Populate element other than mom_h/v on the whole grid
@@ -178,7 +178,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                 break;
             default:
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                { 
+                {
                   int indx   = n;
                   int indx_v = indx + offset;
                   mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
