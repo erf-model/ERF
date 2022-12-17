@@ -211,8 +211,7 @@ the The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`,
 where :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid turbulent fluxes. :math:`\mathbf{F}` stands for the external force, and :math:`Q`, :math:`F_Q` represents the mass and energy transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes, respectively. :math:`\mathbf{B}` is the force of buoyancy,
 
 .. math::                 
-     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}+0.61 q_v^\prime-q_c-q_i-q_p
-                 - \frac{p^\prime}{\bar{p})
+     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}} 
 
 which is coded as
 
