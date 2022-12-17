@@ -188,11 +188,12 @@ where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, 
         
   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d + F_{\theta _d}) + 
          \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{\theta d}
-         
-with the assumption, we have :math:`\rho \theta = \rho_d \theta_d + \rho_T \theta_T + \rho_p \theta_p`, and the set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
+ 
+ 
+The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
 
 .. math::
-  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
+  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}) + Q_d
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
           \frac{1}{1 + q_t + q_v}  \nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
