@@ -180,9 +180,10 @@ The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :ma
 where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes. :math:`\mathbf{B}` is the force of buoyancy,
 
 .. math::
-   \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}+0.61 q_v^\prime-q_c-q_i-q_p)
+   \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}+0.61 q_v^\prime-q_c-q_i-q_p
+                   - \frac{p^\prime}{\bar{p})
 
-This is coded as
+which is coded as
 
 .. math::
    \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
