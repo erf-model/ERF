@@ -177,7 +177,7 @@ and the total precipitating water :math:`\rho_p = \rho_{rain} + \rho_{snow} + \r
 where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, :math:`\rho_{graupel}` is graupel density, respectively.
 
 .. math::
-  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}) + Q_d
+  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
 
   \frac{\partial \rho_T}{\partial t} &= - \nabla \cdot (\rho_T \mathbf{u}) + Q_T
   
@@ -190,27 +190,29 @@ where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, 
          \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{\theta d}
  
  
-The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
+Where :math:`Q_T` is the density change that caused by transformation of cloud water and water vapor to rain water through condensation, and :math:`Q_p = -Q_T`.
+
+the The set of conservation equations for variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
 
 .. math::
-  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u}) + Q_d
+  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} + \mathbf{F}_rhod)
 
-  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-          \frac{1}{1 + q_t + q_v}  \nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
+  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u} + \mathbf{F}_u) -
+          \frac{1}{1 + q_t + q_p}  \nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
   \frac{\partial (\rho_d \theta)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta + F_{\theta}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
 
-  \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
+  \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C + \mathbf{F}_C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
 
   \frac{\partial (\rho_d q_T)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_T +F_{q_{T}}) - Q
 
   \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
 
-where :math:`F_{\theta_{s}}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid scalar fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes. :math:`\mathbf{B}` is the force of buoyancy,
+where :math:`F_rhod`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}` are subgrid turbulent fluxes. and :math:`Q` represents the transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes. :math:`\mathbf{B}` is the force of buoyancy,
 
-.. math::
-   \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}+0.61 q_v^\prime-q_c-q_i-q_p
-                   - \frac{p^\prime}{\bar{p})
+.. math::                 
+     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}+0.61 q_v^\prime-q_c-q_i-q_p
+                 - \frac{p^\prime}{\bar{p})
 
 which is coded as
 
