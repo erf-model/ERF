@@ -48,10 +48,14 @@ perturb_rho_theta (const amrex::Real x,
     const amrex::Real Tbar_hse = p_hse / (R_d * r_hse);
 
     // Perturbation air temperature
-    amrex::Real L = std::sqrt(
-        std::pow((x - parms.x_c)/parms.x_r, 2) +
-        std::pow((z - parms.z_c)/parms.z_r, 2)
-    );
+    // - The bubble is either cylindrical (for 2-D problems, if two
+    //   radial extents are specified) or an ellipsoid (if all three
+    //   radial extents are specified).
+    amrex::Real L = 0.0;
+    if (parms.x_r > 0) L += std::pow((x - parms.x_c)/parms.x_r, 2);
+    if (parms.y_r > 0) L += std::pow((y - parms.y_c)/parms.y_r, 2);
+    if (parms.z_r > 0) L += std::pow((z - parms.z_c)/parms.z_r, 2);
+    L = std::sqrt(L);
     amrex::Real dT;
     if (L > 1.0) {
         dT = 0.0;
