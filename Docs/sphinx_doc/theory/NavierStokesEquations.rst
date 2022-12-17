@@ -94,7 +94,8 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 
 Prognostic Equations (Moist)
 ===============================
-
+Thermodynamics and the Specific Equation of Stats
+--------------------------------------------------
 We consider a mixture of dry air :math:`\rho_d` and nonprecipitating water vapor :math:`\rho_v`, assumed to be a perfect ideal gas with constant heat capacities
 :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`,
 and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_l`, :math:`C_i`.
@@ -157,6 +158,18 @@ and :math:`\theta`, :math:`p` can be expressed as
 
 and :math:`p_r` is the reference pressure.
 
+Governing Equations for Multispecies Atmospheric Flow
+-------------------------------------------------------
+A multispecies atmospheric flow that is composed of :math:`N` different species, and :math:`s` stands for each individual species, the governing equations for the multicomponent fluid dynamics for each species :math:`s` can be written as
+
+.. math::
+  \frac{\partial \rho_s}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s}) (s=1, ..., N)
+
+  \frac{\partial (\rho_s \mathbf{u_s})}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \mathbf{u_s}) -
+          \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g}
+
+  \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) + \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s)
+  
 We define the total nonprecipitating water :math:`q_T = q_v + q_c + q_i`,
 and the total precipitating water :math:`q_p = q_{rain} + q_{snow} + q_{graupel}`,
 where :math:`q_{rain}` is rain, :math:`q_{snow}` is snow, :math:`q_{graupel}` is graupel, respectively.
