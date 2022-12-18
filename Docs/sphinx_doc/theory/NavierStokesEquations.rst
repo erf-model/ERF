@@ -173,7 +173,7 @@ A multispecies atmospheric flow that is composed of :math:`N` different species,
  
 where :math:`Q_s` is the source/sink for individual species due to parameterized process, and :math:`\mathbf{F}_s` momentum sink/source due to external force, :math:`F_{Q_d}` is the energy transfer caused by parameterized physics process. 
 
-Let's assume all species have same average speed, and define total potential temperature :math:`\theta = \sum_s \theta_s`, and :math:`\rho_d` is the dry air density, 
+Let's assume all species have same average speed, and define total potential temperature :math:`\theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \rho_d (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c)`, and :math:`\rho_d` is the dry air density, 
 the total nonprecipitating water density :math:`\rho_T = \rho_v + \rho_c + \rho_i`,
 and the total precipitating water :math:`\rho_p = \rho_{rain} + \rho_{snow} + \rho_{graupel}`,
 where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, :math:`\rho_{graupel}` is graupel density, respectively.
@@ -212,8 +212,8 @@ The set of conservation equations for progonostic variables :math:`\rho_d`, :mat
 In this set of equations, the subgrid turbulent parameterization effects are included,  with fluxes :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}`. :math:`\mathbf{F}` stands for the external force, and :math:`Q`, :math:`F_Q` represents the mass and energy transformation of cloud water and water vapor to rain water through condensation, and determined by the microphysics parameterization processes, respectively. :math:`\mathbf{B}` is the force of buoyancy,
 
 .. math::
-     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} (\frac{T^\prime}{\bar{T}}
-                 + 0.61 q_v^\prime - q_c - q_i - q_p - \frac{p^\prime}{\bar{p})
+     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\bar{T}}
+                 + 0.61 q_v^\prime - q_c - q_i - q_p - \frac{p^\prime}{\bar{p}} )
                  
 which is coded as
 
