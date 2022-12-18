@@ -378,7 +378,9 @@ ERF::init_bx_scalars_from_input_sounding(
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
+#ifdef ERF_USE_MOISTURE
     const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
+#endif
     const int   inp_sound_size  = inputSoundingData.size();
 
     // We want to set the lateral BC values, too
@@ -423,7 +425,9 @@ ERF::init_bx_scalars_from_input_sounding_hse(
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
+#ifdef ERF_USE_MOISTURE
     const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
+#endif
     const int   inp_sound_size  = inputSoundingData.size();
 
     amrex::Real l_gravity = solverChoice.gravity;
@@ -570,10 +574,6 @@ ERF::init_custom(int lev)
     for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box &bx = mfi.tilebox();
-        const auto &cons_arr = lev_new[Vars::cons].array(mfi);
-        const auto &xvel_arr = lev_new[Vars::xvel].array(mfi);
-        const auto &yvel_arr = lev_new[Vars::yvel].array(mfi);
-        const auto &zvel_arr = lev_new[Vars::zvel].array(mfi);
 
         const auto &cons_pert_arr = cons_pert.array(mfi);
         const auto &xvel_pert_arr = xvel_pert.array(mfi);
@@ -591,10 +591,6 @@ ERF::init_custom(int lev)
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
 #ifdef ERF_USE_MOISTURE
-        const auto &qv_arr = qv_new.array(mfi);
-        const auto &qc_arr = qc_new.array(mfi);
-        const auto &qi_arr = qi_new.array(mfi);
-
         const auto &qv_pert_arr = qv_pert.array(mfi);
         const auto &qc_pert_arr = qc_pert.array(mfi);
         const auto &qi_pert_arr = qi_pert.array(mfi);

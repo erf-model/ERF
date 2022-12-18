@@ -7,7 +7,7 @@
 
 using namespace amrex;
 
-void make_fast_coeffs (int level,
+void make_fast_coeffs (int /*level*/,
                        BoxArray& grids_to_evolve,
                        MultiFab& fast_coeffs,
                        Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
@@ -27,8 +27,6 @@ void make_fast_coeffs (int level,
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
     bool l_use_terrain    = solverChoice.use_terrain;
-
-    Real c_v = c_p - R_d;
 
     const Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();

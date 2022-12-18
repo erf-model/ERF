@@ -276,7 +276,7 @@ init_custom_prob(
         Array4<Real      > const& z_vel,
         Array4<Real      > const& r_hse,
         Array4<Real      > const& p_hse,
-        Array4<Real const> const& z_nd,
+        Array4<Real const> const& /*z_nd*/,
         Array4<Real const> const& z_cc,
 #ifdef ERF_USE_MOISTURE
         Array4<Real      > const&,
@@ -284,9 +284,9 @@ init_custom_prob(
         Array4<Real      > const&,
 #endif
         GeometryData const& geomdata,
-        Array4<Real const> const& mf_m,
-        Array4<Real const> const& mf_u,
-        Array4<Real const> const& mf_v)
+        Array4<Real const> const& /*mf_m*/,
+        Array4<Real const> const& /*mf_u*/,
+        Array4<Real const> const& /*mf_v*/)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -331,7 +331,7 @@ init_custom_prob(
          r_hse(i,j,khi+1) = r_hse(i,j,khi);
       });
 
-      amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo         = geomdata.ProbLo();
@@ -341,9 +341,13 @@ init_custom_prob(
         const Real y = prob_lo[1] + (j + 0.5) * dx[1];
         const Real z = z_cc(i,j,k);
 
-        perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
+        perturb_rho_theta(x, parms.x_c, parms.x_r,
+                          y, parms.y_c, parms.y_r,
+                          z, parms.z_c, parms.z_r,
+                          p_hse(i,j,k), r_hse(i,j,k),
                           state(i, j, k, Rho_comp),
-                          state(i, j, k, RhoTheta_comp));
+                          state(i, j, k, RhoTheta_comp),
+                          parms.local_c_p, parms.T_pert);
 
         state(i, j, k, RhoScalar_comp) = 0.0;
 
@@ -362,7 +366,7 @@ init_custom_prob(
       Real* r = d_r.data();
       Real* p = d_p.data();
 
-      amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+      amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
         const auto prob_lo         = geomdata.ProbLo();
@@ -372,9 +376,13 @@ init_custom_prob(
         const Real y = prob_lo[1] + (j + 0.5) * dx[1];
         const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-        perturb_rho_theta(x, y, z, p[k], r[k],
+        perturb_rho_theta(x, parms.x_c, parms.x_r,
+                          y, parms.y_c, parms.y_r,
+                          z, parms.z_c, parms.z_r,
+                          p[k], r[k],
                           state(i, j, k, Rho_comp),
-                          state(i, j, k, RhoTheta_comp));
+                          state(i, j, k, RhoTheta_comp),
+                          parms.local_c_p, parms.T_pert);
 
         state(i, j, k, RhoScalar_comp) = 0.0;
 
@@ -471,5 +479,5 @@ amrex_probinit(
   pp.query("y_r", parms.y_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
-  pp.query("c_p", parms.c_p);
+  pp.query("c_p", parms.local_c_p);
 }

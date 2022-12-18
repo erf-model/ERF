@@ -36,7 +36,7 @@ void Microphysics::Precip() {
   auto tabs = mic_fab_vars[MicVar::tabs];
 
   Real dtn = dt;
- 
+
   ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept {
     qpsrc_t(k)=0.0;
     qpevp_t(k)=0.0;
