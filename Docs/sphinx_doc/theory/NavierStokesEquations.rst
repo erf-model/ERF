@@ -173,7 +173,7 @@ A multispecies atmospheric flow that is composed of :math:`N` different species,
  
 where :math:`Q_s` is the source/sink for individual species due to parameterized process, and :math:`\mathbf{F}_s` momentum sink/source due to external force, :math:`F_{Q_d}` is the energy transfer caused by parameterized physics process. 
 
-Let's assume all species have same average speed, and define total potential temperature :math:`\theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \rho_d (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c)`, and :math:`\rho_d` is the dry air density, 
+Let's assume all species have same average speed, and define total potential temperature :math:`\theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho} (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c)`, and :math:`\rho_d` is the dry air density, 
 the total nonprecipitating water density :math:`\rho_T = \rho_v + \rho_c + \rho_i`,
 and the total precipitating water :math:`\rho_p = \rho_{rain} + \rho_{snow} + \rho_{graupel}`,
 where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, :math:`\rho_{graupel}` is graupel density, respectively.
