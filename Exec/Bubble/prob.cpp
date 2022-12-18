@@ -342,6 +342,7 @@ init_custom_prob(
         const Real z = z_cc(i,j,k);
 
         perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
+                          parms,
                           state(i, j, k, Rho_comp),
                           state(i, j, k, RhoTheta_comp));
 
@@ -373,6 +374,7 @@ init_custom_prob(
         const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         perturb_rho_theta(x, y, z, p[k], r[k],
+                          parms,
                           state(i, j, k, Rho_comp),
                           state(i, j, k, RhoTheta_comp));
 

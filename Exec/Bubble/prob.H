@@ -41,6 +41,7 @@ perturb_rho_theta (const amrex::Real x,
                    const amrex::Real z,
                    const amrex::Real p_hse,
                    const amrex::Real r_hse,
+                   const ProbParm pp,
                    amrex::Real& rho,
                    amrex::Real& rhotheta)
 {
@@ -52,20 +53,20 @@ perturb_rho_theta (const amrex::Real x,
     //   radial extents are specified) or an ellipsoid (if all three
     //   radial extents are specified).
     amrex::Real L = 0.0;
-    if (parms.x_r > 0) L += std::pow((x - parms.x_c)/parms.x_r, 2);
-    if (parms.y_r > 0) L += std::pow((y - parms.y_c)/parms.y_r, 2);
-    if (parms.z_r > 0) L += std::pow((z - parms.z_c)/parms.z_r, 2);
+    if (pp.x_r > 0) L += std::pow((x - pp.x_c)/pp.x_r, 2);
+    if (pp.y_r > 0) L += std::pow((y - pp.y_c)/pp.y_r, 2);
+    if (pp.z_r > 0) L += std::pow((z - pp.z_c)/pp.z_r, 2);
     L = std::sqrt(L);
     amrex::Real dT;
     if (L > 1.0) {
         dT = 0.0;
     }
     else {
-        dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
+        dT = pp.T_pert * (std::cos(PI*L) + 1.0)/2.0;
     }
 
     // Note: theta_perturbed is theta PLUS perturbation in theta
-    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, R_d/parms.c_p);
+    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, R_d/pp.c_p);
 
     // Update state -- this version perturbs rho but not p
     rhotheta = getRhoThetagivenP(p_hse);
