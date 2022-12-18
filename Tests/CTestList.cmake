@@ -96,6 +96,8 @@ add_test_r(DensityCurrent_detJ2_MT           "DensityCurrent/density_current" "p
 add_test_r(MovingTerrain_nosub               "MovingTerrain/moving_terrain"   "plt00020")
 add_test_r(MovingTerrain_sub                 "MovingTerrain/moving_terrain"   "plt00010")
 add_test_r(Bubble_DensityCurrent             "Bubble/bubble" "plt00010")
+add_test_r(MSF_NoSub_IsentropicVortexAdv     "IsentropicVortex/erf_isentropic_vortex" "plt00010")
+add_test_r(MSF_Sub_IsentropicVortexAdv       "IsentropicVortex/erf_isentropic_vortex" "plt00010")
 
 #=============================================================================
 # Performance tests

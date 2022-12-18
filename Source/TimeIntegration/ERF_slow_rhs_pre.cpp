@@ -107,9 +107,12 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     qc_ave.line_average(0, qc_h);
 
     // copy data to device
-    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell),
-                            qp_d(ncell), qv_d(ncell),
-                            qi_d(ncell), qc_d(ncell);
+    Gpu::DeviceVector<Real>   rho_d(ncell);
+    Gpu::DeviceVector<Real> theta_d(ncell);
+    Gpu::DeviceVector<Real>    qp_d(ncell);
+    Gpu::DeviceVector<Real>    qv_d(ncell);
+    Gpu::DeviceVector<Real>    qc_d(ncell);
+    Gpu::DeviceVector<Real>    qi_d(ncell);
 
     Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
@@ -118,6 +121,13 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
     Gpu::streamSynchronize();
+
+    Real*   rho_d_ptr =   rho_d.data();
+    Real* theta_d_ptr = theta_d.data();
+    Real*    qp_d_ptr =    qp_d.data();
+    Real*    qv_d_ptr =    qv_d.data();
+    Real*    qc_d_ptr =    qc_d.data();
+    Real*    qi_d_ptr =    qi_d.data();
 #endif
 
     // *************************************************************************
@@ -799,23 +809,23 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
                 // Add buoyancy term
 #ifdef ERF_USE_MOISTURE
-                Real tempp1d = getTgivenRandRTh(rho_d[k  ], rho_d[k  ]*theta_d[k  ]);
-                Real tempm1d = getTgivenRandRTh(rho_d[k-1], rho_d[k-1]*theta_d[k-1]);
+                Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
+                Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
 
                 Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
                 Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
 
-                Real qplus = 0.61* ( qv_data(i,j,k)-qv_d[k]) -
-                                    (qc_data(i,j,k)-qc_d[k]+
-                                     qi_data(i,j,k)-qi_d[k]+
-                                     cell_prim(i,j,k,PrimQp_comp)-qp_d[k])
-                           + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d[k]-qc_d[k]-qi_d[k]-qp_d[k]);
+                Real qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
+                                    (qc_data(i,j,k)-qc_d_ptr[k]+
+                                     qi_data(i,j,k)-qi_d_ptr[k]+
+                                     cell_prim(i,j,k,PrimQp_comp)-qp_d_ptr[k])
+                           + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qi_d_ptr[k]-qp_d_ptr[k]);
 
-                Real qminus = 0.61 *( qv_data(i,j,k-1)-qv_d[k-1]) -
-                                     (qc_data(i,j,k-1)-qc_d[k-1]+
-                                      qi_data(i,j,k-1)-qi_d[k-1]+
-                                      cell_prim(i,j,k-1,PrimQp_comp)-qp_d[k-1])
-                           + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d[k-1]-qi_d[k-1]-qc_d[k-1]-qp_d[k-1]);
+                Real qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
+                                     (qc_data(i,j,k-1)-qc_d_ptr[k-1]+
+                                      qi_data(i,j,k-1)-qi_d_ptr[k-1]+
+                                      cell_prim(i,j,k-1,PrimQp_comp)-qp_d_ptr[k-1])
+                           + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qi_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
 
                 Real qavg  = Real(0.5) * (qplus + qminus);
                 Real r0avg = Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
@@ -866,23 +876,23 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 #endif
                 // Add buoyancy term
 #ifdef ERF_USE_MOISTURE
-                Real tempp1d = getTgivenRandRTh(rho_d[k  ], rho_d[k  ]*theta_d[k  ]);
-                Real tempm1d = getTgivenRandRTh(rho_d[k-1], rho_d[k-1]*theta_d[k-1]);
+                Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
+                Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
 
                 Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
                 Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
 
-                Real qplus = 0.61* ( qv_data(i,j,k)-qv_d[k]) -
-                                    (qc_data(i,j,k)-qc_d[k]+
-                                     qi_data(i,j,k)-qi_d[k]+
-                                     cell_prim(i,j,k,PrimQp_comp)-qp_d[k])
-                           + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d[k]-qc_d[k]-qi_d[k]-qp_d[k]);
+                Real qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
+                                    (qc_data(i,j,k)-qc_d_ptr[k]+
+                                     qi_data(i,j,k)-qi_d_ptr[k]+
+                                     cell_prim(i,j,k,PrimQp_comp)-qp_d_ptr[k])
+                           + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qi_d_ptr[k]-qp_d_ptr[k]);
 
-                Real qminus = 0.61 *( qv_data(i,j,k-1)-qv_d[k-1]) -
-                                     (qc_data(i,j,k-1)-qc_d[k-1]+
-                                      qi_data(i,j,k-1)-qi_d[k-1]+
-                                      cell_prim(i,j,k-1,PrimQp_comp)-qp_d[k-1])
-                           + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d[k-1]-qi_d[k-1]-qc_d[k-1]-qp_d[k-1]);
+                Real qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
+                                     (qc_data(i,j,k-1)-qc_d_ptr[k-1]+
+                                      qi_data(i,j,k-1)-qi_d_ptr[k-1]+
+                                      cell_prim(i,j,k-1,PrimQp_comp)-qp_d_ptr[k-1])
+                           + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qi_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
 
                 Real qavg  = Real(0.5) * (qplus + qminus);
                 Real r0avg = Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));

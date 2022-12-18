@@ -37,7 +37,7 @@ void Microphysics::Precip() {
 
   Real dtn = dt;
 
-  ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
+  ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept {
     qpsrc_t(k)=0.0;
     qpevp_t(k)=0.0;
   });

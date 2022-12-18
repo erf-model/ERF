@@ -5,7 +5,6 @@
  */
 
 #include "Microphysics.H"
-#include "ERF_Constants.H"
 
 using namespace amrex;
 
@@ -13,6 +12,24 @@ void Microphysics::PrecipFall(int hydro_type) {
 
   Real constexpr eps = 1.e-10;
   bool constexpr nonos = true;
+
+  Real gam3  = erf_gammafff(3.0             );
+  Real gamr1 = erf_gammafff(3.0+b_rain      );
+  Real gamr2 = erf_gammafff((5.0+b_rain)/2.0);
+  Real gamr3 = erf_gammafff(4.0+b_rain      );
+  Real gams1 = erf_gammafff(3.0+b_snow      );
+  Real gams2 = erf_gammafff((5.0+b_snow)/2.0);
+  Real gams3 = erf_gammafff(4.0+b_snow      );
+  Real gamg1 = erf_gammafff(3.0+b_grau      );
+  Real gamg2 = erf_gammafff((5.0+b_grau)/2.0);
+  Real gamg3 = erf_gammafff(4.0+b_grau      );
+
+  Real vrain = a_rain*gamr3/6.0/pow((PI*rhor*nzeror),crain);
+  Real vsnow = a_snow*gams3/6.0/pow((PI*rhos*nzeros),csnow);
+  Real vgrau = a_grau*gamg3/6.0/pow((PI*rhog*nzerog),cgrau);
+
+  Real dt_advance = dt;
+  int nz = nlev;
 
   auto qp    = mic_fab_vars[MicVar::qp];
   auto omega = mic_fab_vars[MicVar::omega];
@@ -57,7 +74,7 @@ void Microphysics::PrecipFall(int hydro_type) {
   ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept {
     rhofac_t(k)  = std::sqrt(1.29/rho1d_t(k));
     irho_t(k)    = 1.0/rho1d_t(k);
-    Real wmax    = dz/dt;   // Velocity equivalent to a cfl of 1.0.
+    Real wmax    = dz/dt_advance;   // Velocity equivalent to a cfl of 1.0.
     iwmax_t(k)   = 1.0/wmax;
   });
 
@@ -96,7 +113,7 @@ void Microphysics::PrecipFall(int hydro_type) {
        wp_array(i,j,k)=rhofac_t(k)*tmp;
        tmp = wp_array(i,j,k)*iwmax_t(k);
        prec_cfl_array(i,j,k) = tmp;
-       wp_array(i,j,k) = -wp_array(i,j,k)*rho1d_t(k)*dt/dz;
+       wp_array(i,j,k) = -wp_array(i,j,k)*rho1d_t(k)*dt_advance/dz;
        if (k == 0) {
          fz_array(i,j,nz-1)   = 0.0;
          www_array(i,j,nz-1)  = 0.0;
@@ -244,7 +261,7 @@ std::cout << "precipfall: nprec= " << nprec << std::endl;
                      tabs_array(i,j,k), a_pr, a_gr);
           wp_array(i,j,k) = rhofac_t(k)*tmp;
           // Decrease precipitation velocity by factor of nprec
-          wp_array(i,j,k) = -wp_array(i,j,k)*rho1d_t(k)*dt/dz/nprec;
+          wp_array(i,j,k) = -wp_array(i,j,k)*rho1d_t(k)*dt_advance/dz/nprec;
           // Note: Don't bother checking CFL condition at each
           // substep since it's unlikely that the CFL will
           // increase very much between substeps when using
@@ -262,13 +279,6 @@ std::cout << "precipfall: nprec= " << nprec << std::endl;
 
 
 void Microphysics::MicroPrecipFall() {
-
-  crain = b_rain / 4.0;
-  csnow = b_snow / 4.0;
-  cgrau = b_grau / 4.0;
-  vrain = a_rain * gamr3 / 6.0 / pow((PI * rhor * nzeror), crain);
-  vsnow = a_snow * gams3 / 6.0 / pow((PI * rhos * nzeros), csnow);
-  vgrau = a_grau * gamg3 / 6.0 / pow((PI * rhog * nzerog), cgrau);
 
   for ( MFIter mfi(*(mic_fab_vars[MicVar::omega]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto omega_array = mic_fab_vars[MicVar::omega]->array(mfi);

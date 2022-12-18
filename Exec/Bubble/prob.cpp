@@ -276,7 +276,7 @@ init_custom_prob(
         Array4<Real      > const& z_vel,
         Array4<Real      > const& r_hse,
         Array4<Real      > const& p_hse,
-        Array4<Real const> const& z_nd,
+        Array4<Real const> const& /*z_nd*/,
         Array4<Real const> const& z_cc,
 #ifdef ERF_USE_MOISTURE
         Array4<Real      > const&,
@@ -284,9 +284,9 @@ init_custom_prob(
         Array4<Real      > const&,
 #endif
         GeometryData const& geomdata,
-        Array4<Real const> const& mf_m,
-        Array4<Real const> const& mf_u,
-        Array4<Real const> const& mf_v)
+        Array4<Real const> const& /*mf_m*/,
+        Array4<Real const> const& /*mf_u*/,
+        Array4<Real const> const& /*mf_v*/)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -473,5 +473,5 @@ amrex_probinit(
   pp.query("y_r", parms.y_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
-  pp.query("c_p", parms.c_p);
+  pp.query("c_p", parms.local_c_p);
 }
