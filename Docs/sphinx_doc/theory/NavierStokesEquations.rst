@@ -96,18 +96,31 @@ Prognostic Equations (Moist)
 ===============================
 Thermodynamics and the Specific Equation of States
 --------------------------------------------------
-We consider a mixture of dry air :math:`\rho_d` and nonprecipitating water vapor :math:`\rho_v`, assumed to be a perfect ideal gas with constant heat capacities
+We consider a mixture of dry air :math:`\rho_d` and nonprecipitating water vapor :math:`\rho_v`,
+assumed to be a perfect ideal gas with constant heat capacities
 :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`,
-and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that are incompressible with constant heat capacities :math:`C_p`, :math:`C_i`.
+non-precipitating condensates :math:`\rho_c + \rho_i`, and
+    precipitating condensates :math:`\rho_{rain} + \rho_{snow} + \rho_{graupel}`.
+Here
+:math:`\rho_c` is the density of cloud water and
+:math:`\rho_i` is the density of cloud ice.
+We define the sum of all non-precipitating quantites as :math:`\rho_T = \rho_d + \rho_v + \rho_i`.
+All condensates  are treated as incompressible; cloud water and ice
+have constant heat capacities :math:`C_p`, :math:`C_i`, respectively.
 
-Neglecting the volume occupied by the condensated water, we have
+Neglecting the volume occupied by all water not in vapor form, we have
 
 .. math::
   p = p_d + p_v = \rho_d R_d T + \rho_v R_v T
 
-where :math:`p_d` and :math:`p_v` are the partial pressures of dry air and nonprecipitating water vapor, respectively, :math:`R_d` and :math:`R_v` are gas constant for dry air, and water vapor, respectively.
+where :math:`p_d` and :math:`p_v` are the partial pressures of dry air and water vapor, respectively,
+and :math:`R_d` and :math:`R_v` are the gas constants for dry air, and water vapor, respectively.
 
-In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the others are sparse components :math:`\rho_s` with :math:`s = 1, ...., N`. The mixing ratios :math:`m_s` are defined as the mass density of species :math:`s` relative to dry air density :math:`\rho_d`, :math:`m_s=\frac{\rho_s}{\rho_d}`, therefore we can define:
+In ERF, we select the dry air with density :math:`\rho_d` as the dominant component, and treat the others as sparse components
+:math:`\rho_s` with :math:`s = 1, ...., N`. The mixing ratio :math:`m_s` is defined as the mass density of species :math:`s`
+relative to dry air density :math:`\rho_d`: :math:`m_s=\frac{\rho_s}{\rho_d}`.
+
+We can then define:
 
 .. math::
   \rho = \frac{\rho_d}{1-\sum_s q_s} = \rho_d (1-\sum_s m_s) = \sum_s \rho_s
@@ -116,22 +129,23 @@ In ERF, we select the dry air :math:`\rho_d` as the dominant component, and the 
 
   q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
 
-Potential temperature is defined as a function of temperature and specific entropy, that is
+Potential temperature :math:`\theta1 is defined as a function of temperature and specific entropy:
 
 .. math::
   \theta (\eta, T) = T_r exp(\frac{\eta - \eta_0}{C_p})
 
 where :math:`T_r` is the reference temperature, usually chosen as the temperature at the surface,
-and where :math:`\eta_0` is the specific entropy at the reference temperature and pressure,  :math:`\eta` is the specific entropy, defined for the mixture as
+:math:`\eta_0` is the specific entropy at the reference temperature and pressure,
+:math:`\eta` is the specific entropy, defined for the mixture as
 
 .. math::
    \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_p \eta_p
 
-where :math:`q_v` is water vapor, :math:`q_c` is cloud water, :math:`q_i` is cloud ice, and
-:math:`q_p = q_{rain} + q_{snow} + q_{graupel}` represents all condensates  (rain, snow, and graupel).
-:math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
-and :math:`\eta_c`, :math:`\eta_p` are the partial specific entropies for dry air, water vapor, cloud water, cloud ice, and condensates,
-and :math:`T_p`, is the reference temperature for the condensates:
+%where :math:`q_v` is water vapor, :math:`q_c` is cloud water, :math:`q_i` is cloud ice, and
+%:math:`q_p = q_{rain} + q_{snow} + q_{graupel}` represents all condensates  (rain, snow, and graupel).
+where :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
+and :math:`\eta_c`, :math:`\eta_p` are the partial specific entropies for dry air, water vapor, cloud water, cloud ice,
+and precipitates, respectively, and :math:`T_p`, is the reference temperature for the condensates:
 
 .. math::
   \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_rd}) + \eta_{rd}
@@ -160,40 +174,47 @@ and :math:`p_r` is the reference pressure.
 
 Governing Equations for Multispecies Atmospheric Flow
 -------------------------------------------------------
-A multispecies atmospheric flow that is composed of :math:`N` different species, and :math:`s` stands for each individual species, the governing equations for the multicomponent fluid dynamics for each species :math:`s` can be written as
+%A multispecies atmospheric flow that is composed of :math:`N` different species, and :math:`s` stands for each individual species,
+%the governing equations for the multicomponent fluid dynamics for each species :math:`s` can be written as
+%
+%.. math::
+%  \frac{\partial \rho_s}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s}) + Q_s \; (s=1, ..., N)
+%
+%  \frac{\partial (\rho_s \mathbf{u_s})}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \mathbf{u_s}) -
+%          \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g} \; (s=1, ..., N)
+%
+%  \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) +
+%         \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) + F_{Q_d} \; (s=1, ..., N)
+%
+%where :math:`Q_s` is the source/sink for individual species due to parameterized process, and :math:`\mathbf{F}_s` momentum sink/source
+%due to external force, :math:`F_{Q_d}` is the energy transfer caused by parameterized physics process.
 
-.. math::
-  \frac{\partial \rho_s}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s}) + Q_s \; (s=1, ..., N)
+We assume that all species have same average speed, and define the total potential temperature
+:math:`\theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho}
+                (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c)`,
 
-  \frac{\partial (\rho_s \mathbf{u_s})}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \mathbf{u_s}) -
-          \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g} \; (s=1, ..., N)
+%Then the governing equations become
+%
+%.. math::
+%  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
+%
+%  \frac{\partial \rho_T}{\partial t} &= - \nabla \cdot (\rho_T \mathbf{u}) + Q_T
+%
+%  \frac{\partial \rho_p}{\partial t} &= - \nabla \cdot (\rho_p \mathbf{u}) - Q_T
+%
+%  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
+%          \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho_d \mathbf{g}
+%
+%  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d +
+%         \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{Q_d}
+%
+Where :math:`Q` is the mass source/sink resulting by transformation between water vapor and cloud water/ice.
+:math:`F_{Q_d}` is the energy source/sink that results from the transformation and is computed by the
+parametrization of the microphysics process.
 
-  \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) +
-         \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) + F_{Q_d} \; (s=1, ..., N)
-
-where :math:`Q_s` is the source/sink for individual species due to parameterized process, and :math:`\mathbf{F}_s` momentum sink/source due to external force, :math:`F_{Q_d}` is the energy transfer caused by parameterized physics process.
-
-Let's assume all species have same average speed, and define total potential temperature :math:`\theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho} (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c)`, and :math:`\rho_d` is the dry air density,
-the total nonprecipitating water density :math:`\rho_T = \rho_v + \rho_c + \rho_i`,
-and the total precipitating water :math:`\rho_p = \rho_{rain} + \rho_{snow} + \rho_{graupel}`,
-where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, :math:`\rho_{graupel}` is graupel density, respectively.
-
-.. math::
-  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
-
-  \frac{\partial \rho_T}{\partial t} &= - \nabla \cdot (\rho_T \mathbf{u}) + Q_T
-
-  \frac{\partial \rho_p}{\partial t} &= - \nabla \cdot (\rho_p \mathbf{u}) + Q_p
-
-  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-          \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho_d \mathbf{g}
-
-  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d +
-         \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{Q_d}
-
-Where :math:`Q_T` is the mass source/sink that caused by transformation of water vapor to condensate water, and :math:`Q_p = -Q_T`. :math:`F_{Q_d}` is the energy source/sink that caused by the parameterized physics process.
-
-The set of conservation equations for progonostic variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
+Then the governing equations become
+%The set of conservation equations for progonostic variables
+%:math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} + \mathbf{F}_\rho)
@@ -209,7 +230,11 @@ The set of conservation equations for progonostic variables :math:`\rho_d`, :mat
 
   \frac{\partial (\rho_d q_p)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_p + F_{q_{p}}) + Q
 
-In this set of equations, the subgrid turbulent parameterization effects are included with fluxes :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}`. :math:`\mathbf{F}` stands for the external force, and :math:`Q`, :math:`F_Q` represents the mass and energy transformation of water vapor to water through condensation, and determined by the microphysics parameterization processes, respectively. :math:`\mathbf{B}` is the force of buoyancy,
+In this set of equations, the subgrid turbulent parameterization effects are included with fluxes
+:math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}`.
+:math:`\mathbf{F}` stands for the external force, and :math:`Q` and :math:`F_Q` represent the mass and energy transformation
+of water vapor to/from water through condensation/evaporation, which is determined by the microphysics parameterization processes.
+:math:`\mathbf{B}` is the buoyancy force,
 
 .. math::
      \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\bar{T}}
