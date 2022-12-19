@@ -53,6 +53,8 @@ erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
 erf.dynamicViscosity = 75.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
 erf.alpha_T = 75.0 # [m^2/s]
 
+erf.c_p = 1004.0
+
 # PROBLEM PARAMETERS (optional)
 prob.T_0 = 300.0
 prob.U_0 = 0.0
