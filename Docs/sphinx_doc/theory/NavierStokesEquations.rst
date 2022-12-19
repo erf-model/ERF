@@ -103,7 +103,7 @@ and condensates :math:`\rho_p`, for examples cloud ice, and cloud water, that ar
 Neglecting the volume occupied by the condensated water, we have
 
 .. math::
-  p = p_d + p_v = \rho_d R_d T + \rho_v R_v T 
+  p = p_d + p_v = \rho_d R_d T + \rho_v R_v T
 
 where :math:`p_d` and :math:`p_v` are the partial pressures of dry air and nonprecipitating water vapor, respectively, :math:`R_d` and :math:`R_v` are gas constant for dry air, and water vapor, respectively.
 
