@@ -210,7 +210,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
         // refactor the code to eliminate the need for ifdef's
-        for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
+        for (auto n = 0; n < (EddyDiff::NumDiffs-1)/2; ++n) {
             int offset = (EddyDiff::NumDiffs-1)/2;
             switch (n)
             {
