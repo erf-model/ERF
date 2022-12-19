@@ -99,14 +99,14 @@ Thermodynamics and the Specific Equation of States
 We consider a mixture of dry air :math:`\rho_d` and nonprecipitating water vapor :math:`\rho_v`,
 assumed to be a perfect ideal gas with constant heat capacities
 :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`,
-non-precipitating condensates :math:`\rho_c + \rho_i`, and
-    precipitating condensates :math:`\rho_{rain} + \rho_{snow} + \rho_{graupel}`.
+non-precipitating condensates :math:`\rho_c + \rho_i`,
+and precipitating condensates :math:`\rho_{rain} + \rho_{snow} + \rho_{graupel}`.
 Here
 :math:`\rho_c` is the density of cloud water and
-:math:`\rho_i` is the density of cloud ice.
-We define the sum of all non-precipitating quantites as :math:`\rho_T = \rho_d + \rho_v + \rho_i`.
+:math:`\rho_i` is the density of cloud ice, and
+we define the sum of all non-precipitating quantites to be :math:`\rho_T = \rho_d + \rho_v + \rho_i`.
 All condensates  are treated as incompressible; cloud water and ice
-have constant heat capacities :math:`C_p`, :math:`C_i`, respectively.
+have constant heat capacities :math:`C_p` and :math:`C_i`, respectively.
 
 Neglecting the volume occupied by all water not in vapor form, we have
 
@@ -114,7 +114,7 @@ Neglecting the volume occupied by all water not in vapor form, we have
   p = p_d + p_v = \rho_d R_d T + \rho_v R_v T
 
 where :math:`p_d` and :math:`p_v` are the partial pressures of dry air and water vapor, respectively,
-and :math:`R_d` and :math:`R_v` are the gas constants for dry air, and water vapor, respectively.
+and :math:`R_d` and :math:`R_v` are the gas constants for dry air and water vapor, respectively.
 
 In ERF, we select the dry air with density :math:`\rho_d` as the dominant component, and treat the others as sparse components
 :math:`\rho_s` with :math:`s = 1, ...., N`. The mixing ratio :math:`m_s` is defined as the mass density of species :math:`s`
@@ -129,14 +129,14 @@ We can then define:
 
   q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
 
-Potential temperature :math:`\theta1 is defined as a function of temperature and specific entropy:
+Potential temperature :math:`\theta` is defined as a function of temperature and specific entropy:
 
 .. math::
   \theta (\eta, T) = T_r exp(\frac{\eta - \eta_0}{C_p})
 
 where :math:`T_r` is the reference temperature, usually chosen as the temperature at the surface,
 :math:`\eta_0` is the specific entropy at the reference temperature and pressure,
-:math:`\eta` is the specific entropy, defined for the mixture as
+and :math:`\eta` is the specific entropy, defined for the mixture as
 
 .. math::
    \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_p \eta_p
@@ -173,8 +173,9 @@ and :math:`p_r` is the reference pressure.
 Governing Equations for Multispecies Atmospheric Flow
 -------------------------------------------------------
 We assume that all species have same average speed, and define the total potential temperature
-:math:`\theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho}
-                (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c)`,
+
+.. math::
+  \theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho} (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c).
 
 Then the governing equations become
 
@@ -182,7 +183,7 @@ Then the governing equations become
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} + \mathbf{F}_\rho)
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u} + \mathbf{F}_u) -
-          \frac{1}{1 + q_t + q_p}  \nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
+          \frac{1}{1 + q_T + q_p}  \nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
   \frac{\partial (\rho_d \theta)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta + F_{\theta}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
 
