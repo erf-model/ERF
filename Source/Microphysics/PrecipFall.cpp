@@ -150,7 +150,7 @@ void Microphysics::PrecipFall(int hydro_type) {
     nprec = 1;
   }
 
-std::cout << "precipfall: nprec= " << nprec << std::endl;
+//std::cout << "precipfall: nprec= " << nprec << std::endl;
 
 #ifdef ERF_FIXED_SUBCYCLE
     nprec = 4;
@@ -233,7 +233,7 @@ std::cout << "precipfall: nprec= " << nprec << std::endl;
         // Note that fz is the total flux, including both the
         // upwind flux and the anti-diffusive correction.
         Real flagstat = 1.0;
-//        qp_array(i,j,k) = qp_array(i,j,k) - (fz_array(i,j,kc) - fz_array(i,j,k))*irho_t(k);
+        qp_array(i,j,k) = qp_array(i,j,k) - (fz_array(i,j,kc) - fz_array(i,j,k))*irho_t(k);
         Real tmp  = -(fz_array(i,j,kc)-fz_array(i,j,k))*irho_t(k)*flagstat;  // For qp budget
 //
 // NOTE qpfall, tlat, and precflux,...are output diagnostic variables, not sure whether we need to calculate these variables here?
