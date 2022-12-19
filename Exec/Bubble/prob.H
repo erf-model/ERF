@@ -36,13 +36,14 @@ extern ProbParm parms;
  */
 AMREX_FORCE_INLINE
 void
-perturb_rho_theta (const amrex::Real x, const amrex::Real x_c, const amrex::Real x_r,
-                   const amrex::Real y, const amrex::Real y_c, const amrex::Real y_r,
-                   const amrex::Real z, const amrex::Real z_c, const amrex::Real z_r,
-                   const amrex::Real p_hse, const amrex::Real r_hse,
-                   amrex::Real& rho, amrex::Real& rhotheta,
-                   const amrex::Real local_c_p,
-                   const amrex::Real T_pert)
+perturb_rho_theta (const amrex::Real x,
+                   const amrex::Real y,
+                   const amrex::Real z,
+                   const amrex::Real p_hse,
+                   const amrex::Real r_hse,
+                   const ProbParm pp,
+                   amrex::Real& rho,
+                   amrex::Real& rhotheta)
 {
     // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
     const amrex::Real Tbar_hse = p_hse / (R_d * r_hse);
@@ -52,20 +53,20 @@ perturb_rho_theta (const amrex::Real x, const amrex::Real x_c, const amrex::Real
     //   radial extents are specified) or an ellipsoid (if all three
     //   radial extents are specified).
     amrex::Real L = 0.0;
-    if (x_r > 0) L += std::pow((x - x_c)/x_r, 2);
-    if (y_r > 0) L += std::pow((y - y_c)/y_r, 2);
-    if (z_r > 0) L += std::pow((z - z_c)/z_r, 2);
+    if (pp.x_r > 0) L += std::pow((x - pp.x_c)/pp.x_r, 2);
+    if (pp.y_r > 0) L += std::pow((y - pp.y_c)/pp.y_r, 2);
+    if (pp.z_r > 0) L += std::pow((z - pp.z_c)/pp.z_r, 2);
     L = std::sqrt(L);
     amrex::Real dT;
     if (L > 1.0) {
         dT = 0.0;
     }
     else {
-        dT = T_pert * (std::cos(PI*L) + 1.0)/2.0;
+        dT = pp.T_pert * (std::cos(PI*L) + 1.0)/2.0;
     }
 
     // Note: theta_perturbed is theta PLUS perturbation in theta
-    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, R_d/local_c_p);
+    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, R_d/pp.local_c_p);
 
     // Update state -- this version perturbs rho but not p
     rhotheta = getRhoThetagivenP(p_hse);
