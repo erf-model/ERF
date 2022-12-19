@@ -159,7 +159,8 @@ init_custom_prob(
         GeometryData const& geomdata,
         Array4<Real const> const& /*mf_m*/,
         Array4<Real const> const& /*mf_u*/,
-        Array4<Real const> const& /*mf_v*/)
+        Array4<Real const> const& /*mf_v*/,
+        const SolverChoice&)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 

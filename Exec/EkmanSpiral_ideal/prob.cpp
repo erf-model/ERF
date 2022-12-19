@@ -56,7 +56,8 @@ init_custom_prob(
   GeometryData const&,
   Array4<Real const> const&,
   Array4<Real const> const&,
-  Array4<Real const> const&)
+  Array4<Real const> const&,
+  const SolverChoice&)
 {
   amrex::Print() << "Dummy function..Needed for linking" << std::endl;
 }

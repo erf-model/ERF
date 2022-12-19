@@ -116,7 +116,10 @@ ReadBndryPlanes::interp_in_time(const Real& time)
     return m_data_interp;
 }
 
-ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom): m_geom(geom)
+ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const SolverChoice& sc)
+:
+    m_geom(geom),
+    rdOcp(sc.rdOcp)
 {
     ParmParse pp("erf");
 
@@ -422,8 +425,8 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
                              Real R2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],n_for_density);
                              Real T1 =  bndry_read_arr(i, j, k, 0);
                              Real T2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
-                             Real Th1 = getThgivenRandT(R1,T1);
-                             Real Th2 = getThgivenRandT(R2,T2);
+                             Real Th1 = getThgivenRandT(R1,T1,rdOcp);
+                             Real Th2 = getThgivenRandT(R2,T2,rdOcp);
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||
@@ -452,8 +455,8 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
                              Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              Real T1  = bndry_read_arr(i, j, k, 0);
                              Real T2  = bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0);
-                             Real Th1 = getThgivenRandT(R1,T1);
-                             Real Th2 = getThgivenRandT(R2,T2);
+                             Real Th1 = getThgivenRandT(R1,T1,rdOcp);
+                             Real Th2 = getThgivenRandT(R2,T2,rdOcp);
                              bndry_mf_arr(i, j, k, 0) = 0.5 * (R1*Th1 + R2*Th2);
                         });
                   } else if (var_name == "scalar" || var_name == "qv" || var_name == "qc" ||

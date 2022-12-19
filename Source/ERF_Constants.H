@@ -9,7 +9,6 @@ constexpr amrex::Real PIoTwo       = PI/2.0;
 // Physical Constants
 constexpr amrex::Real R_d          = 287.0; // gas constant for dry air [J/(kg-K)]
 constexpr amrex::Real R_v          = 461.505; // gas constant for water vapor [J/(kg-K)]
-constexpr amrex::Real c_p          = 1004.5; // specific heat at constant pressure for dry air [J/(kg-K)]
 constexpr amrex::Real p_0          = 1.0e5; // reference surface pressure [Pa]
 constexpr amrex::Real Gamma        = 1.4;   // c_p / c_v [-]
 constexpr amrex::Real KAPPA        = 0.41;  // von Karman constant
@@ -19,7 +18,6 @@ constexpr amrex::Real CONST_GRAV   = 9.81;
 constexpr amrex::Real ip_0         = 1./p_0;
 constexpr amrex::Real iR_d         = 1./R_d;
 constexpr amrex::Real iGamma       = 1./Gamma;
-constexpr amrex::Real rdOcp        = R_d/c_p;
 
 constexpr amrex::Real rhor         = 1000.; // Density of water, kg/m3
 constexpr amrex::Real rhos         = 100.;  // Density of snow, kg/m3
@@ -68,10 +66,6 @@ constexpr amrex::Real rv     = rgas/mwwv;
 constexpr amrex::Real diffelq = 2.21e-05;     // Diffusivity of water vapor, m2/s
 constexpr amrex::Real therco  = 2.40e-02;     // Thermal conductivity of air, J/m/s/K
 constexpr amrex::Real muelq   = 1.717e-05;    // Dynamic viscosity of air
-
-constexpr amrex::Real fac_cond = lcond/c_p;
-constexpr amrex::Real fac_fus  = lfus/c_p;
-constexpr amrex::Real fac_sub  = lsub/c_p;
 
 constexpr amrex::Real a_bg = 1.0/(tbgmax-tbgmin);
 constexpr amrex::Real a_pr = 1.0/(tprmax-tprmin);

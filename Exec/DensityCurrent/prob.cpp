@@ -286,7 +286,8 @@ init_custom_prob(
         GeometryData const& geomdata,
         Array4<Real const> const& mf_m,
         Array4<Real const> const& mf_u,
-        Array4<Real const> const& mf_v)
+        Array4<Real const> const& mf_v,
+        const SolverChoice& sc)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -302,7 +303,6 @@ init_custom_prob(
   const Real l_z_r = parms.z_r;
   const Real l_x_c = parms.x_c;
   const Real l_z_c = parms.z_c;
-  const Real l_c_p = parms.local_c_p;
   const Real l_Tpt = parms.T_pert;
 
   // These are at cell centers (unstaggered)
@@ -311,6 +311,8 @@ init_custom_prob(
 
   amrex::Gpu::DeviceVector<Real> d_r(khi+1);
   amrex::Gpu::DeviceVector<Real> d_p(khi+1);
+
+  const Real rdOcp = sc.rdOcp;
 
   if (z_cc) {
 
@@ -358,7 +360,7 @@ init_custom_prob(
         }
 
         // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/l_c_p);
+        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
 
         // This version perturbs rho but not p
         state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_hse(i,j,k));
@@ -407,7 +409,7 @@ init_custom_prob(
         }
 
         // Note: dT is a perturbation in temperature, theta_perturbed is theta PLUS perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], R_d/l_c_p);
+        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p[k], rdOcp);
 
         // This version perturbs rho but not p
         state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p[k]);
@@ -505,5 +507,4 @@ amrex_probinit(
   pp.query("x_r", parms.x_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
-  pp.query("c_p", parms.local_c_p);
 }

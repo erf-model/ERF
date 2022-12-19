@@ -75,8 +75,10 @@ struct SolverChoice {
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
-
         gravity = use_gravity? CONST_GRAV: 0.0;
+
+        pp.query("c_p", c_p);
+        rdOcp = R_d / c_p;
 
         // Which LES closure?
         static std::string les_type_string = "None";
@@ -336,7 +338,10 @@ struct SolverChoice {
     bool        use_coriolis           = false;
     bool        use_rayleigh_damping   = false;
 
+    // Constants
     amrex::Real gravity;
+    amrex::Real c_p = 1004.5; // specific heat at constant pressure for dry air [J/(kg-K)]
+    amrex::Real rdOcp;
 
     // Molecular transport model
     MolecDiffType molec_diff_type;
@@ -536,8 +541,6 @@ public:
 
         amrex::Print() << "ideal sounding init: surface density of moist air = "
             << rhom_integ[0] << std::endl;
-        amrex::Print() << "ideal sounding init: surface exner = "
-            << std::pow(pm_integ[0] / p_0, R_d/c_p) << std::endl;
         amrex::Print() << "integrating moist air column up to " << ztop << std::endl;
 
         // Note:

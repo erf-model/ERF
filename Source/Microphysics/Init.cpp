@@ -153,7 +153,7 @@ void Microphysics::Init(const MultiFab& cons_in,
     pres1d_t(k) = pressure/100.;
     tabs1d_t(k) = getTgivenRandRTh(rho_dptr[k],rhotheta_dptr[k]);
     zmid_t(k)   = lowz + (k+0.5)*dz;
-    gamaz_t(k)  = CONST_GRAV/c_p*zmid_t(k);
+    gamaz_t(k)  = gOcp*zmid_t(k);
   });
 
   if (docloud || dosmoke) {

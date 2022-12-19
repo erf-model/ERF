@@ -25,7 +25,7 @@ void make_fast_coeffs (int /*level*/,
     Real beta_s = 0.1;
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
-    Real c_v = c_p - R_d;
+    Real c_v = solverChoice.c_p - R_d;
 
     bool l_use_terrain    = solverChoice.use_terrain;
 

@@ -3,6 +3,7 @@
 
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
+#include "DataStruct.H"
 
 void amrex_probinit (
   const amrex_real* problo,
@@ -33,7 +34,9 @@ init_custom_prob (
   amrex::GeometryData const& geomdata,
   amrex::Array4<amrex::Real const> const& mf_m,
   amrex::Array4<amrex::Real const> const& mf_u,
-  amrex::Array4<amrex::Real const> const& mf_v);
+  amrex::Array4<amrex::Real const> const& mf_v,
+  const SolverChoice& sc
+  );
 
 void
 init_custom_terrain (const amrex::Geometry& geom,

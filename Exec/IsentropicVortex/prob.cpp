@@ -73,12 +73,15 @@ init_custom_prob(
   amrex::GeometryData const& geomdata,
   Array4<Real const> const& /*mf_m*/,
   Array4<Real const> const& /*mf_u*/,
-  Array4<Real const> const& /*mf_v*/)
+  Array4<Real const> const& /*mf_v*/,
+  const SolverChoice& sc)
 {
 
   Real xc = parms.xc; Real yc = parms.yc;
   Real R  = parms.R ; Real beta = parms.beta;
   Real sigma = parms.sigma;
+
+  const Real rdOcp = sc.rdOcp;
 
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -99,7 +102,7 @@ init_custom_prob(
     const Real T = (1.0 + deltaT) * parms.T_inf;
     const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
                           * parms.rho_inf*parms.a_inf*parms.a_inf;
-    state(i, j, k, RhoTheta_comp) = T * std::pow(p_0 / p, R_d/c_p); // T --> theta
+    state(i, j, k, RhoTheta_comp) = T * std::pow(p_0 / p, rdOcp); // T --> theta
     state(i, j, k, RhoTheta_comp) *= state(i, j, k, Rho_comp);
 
     // Set scalar = 0 -- unused

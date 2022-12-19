@@ -244,10 +244,11 @@ ERF::init_base_state_from_wrfinput(int lev, const Box& bx, FArrayBox& p_hse, FAr
         const Array4<Real      >&  r_hse_arr =  r_hse.array();
         const Array4<Real const>& alpha_arr = NC_ALB_fab[idx].const_array();
         const Array4<Real const>& nc_pb_arr = NC_PB_fab[idx].const_array();
+        const Real rdOcp = solverChoice.rdOcp;
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             p_hse_arr(i,j,k)  = nc_pb_arr(i,j,k);
-            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k));
+            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), rdOcp);
             r_hse_arr(i,j,k)  = 1.0 / alpha_arr(i,j,k);
 
         });
@@ -436,6 +437,8 @@ ERF::init_bx_scalars_from_input_sounding_hse(
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
+    const Real rdOcp = solverChoice.rdOcp;
+
     amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Geometry
         const amrex::Real* prob_lo = geomdata.ProbLo();
@@ -459,7 +462,7 @@ ERF::init_bx_scalars_from_input_sounding_hse(
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
         r_hse(i, j, k) = rho_k;
         p_hse(i, j, k) = getPgivenRTh(rhoTh_k);
-        pi_hse(i, j, k) = getExnergivenRTh(rhoTh_k);
+        pi_hse(i, j, k) = getExnergivenRTh(rhoTh_k, rdOcp);
 
         // Boundary treatment
         if (k==0)
@@ -470,7 +473,7 @@ ERF::init_bx_scalars_from_input_sounding_hse(
             amrex::Real rhoTh_surf =
                 rho_surf * interpolate_1d(z_inp_sound, theta_inp_sound, 0.0, inp_sound_size);
              p_hse(i, j, k-1) = getPgivenRTh(rhoTh_surf) + dx[2]/2 * rho_surf * l_gravity;
-            pi_hse(i, j, k-1) = getExnergivenP(p_hse(i, j, k-1));
+            pi_hse(i, j, k-1) = getExnergivenP(p_hse(i, j, k-1), rdOcp);
         }
         else if (k==ktop)
         {
@@ -480,7 +483,7 @@ ERF::init_bx_scalars_from_input_sounding_hse(
             amrex::Real rhoTh_top =
                 rho_top * interpolate_1d(z_inp_sound, theta_inp_sound, z+dx[2]/2, inp_sound_size);
              p_hse(i, j, k+1) = getPgivenRTh(rhoTh_top) - dx[2]/2 * rho_top * l_gravity;
-            pi_hse(i, j, k+1) = getExnergivenP(p_hse(i, j, k+1));
+            pi_hse(i, j, k+1) = getExnergivenP(p_hse(i, j, k+1), rdOcp);
         }
 
 #ifdef ERF_USE_MOISTURE
@@ -612,7 +615,8 @@ ERF::init_custom(int lev)
 #ifdef ERF_USE_MOISTURE
                          qv_pert_arr, qc_pert_arr, qi_pert_arr,
 #endif
-                         geom[lev].data(), mf_m, mf_u, mf_v);
+                         geom[lev].data(), mf_m, mf_u, mf_v,
+                         solverChoice);
     } //mfi
 
     // Add problem-specific perturbation to background flow
