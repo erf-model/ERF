@@ -242,11 +242,16 @@ where :math:`\rho_{m}` is the density of moist hydrometeors. Assuming that the p
 .. math::
    v_{m} \left( D_{m},p \right) = a_{m}D_{m}^{b_{m}}\left(\frac{\rho_{0}}{\rho}\right)^{0.5}
 
-The total production rates including the contribution from aggregation, accretion, sublimation, melting, bergeron process, freezing and autoconversion are listed below without derivation, for details, please refer to Yuh-Lang Lin et al (J. Climate Appl. Meteor, 22, 1065, 1983) and Marat F. Khairoutdinov and David A. Randall's (J. Atm Sciences, 607, 1983). The implementation of mcrophysics model is similar to the work of SAM code (http://rossby.msrc.sunysb.edu/~marat/SAM.html)
+The total production rates including the contribution from aggregation, accretion, sublimation, melting,
+bergeron process, freezing and autoconversion are listed below without derivation.
+For details, please refer to Yuh-Lang Lin et al (J. Climate Appl. Meteor, 22, 1065, 1983) and
+Marat F. Khairoutdinov and David A. Randall's (J. Atm Sciences, 607, 1983).
+The implementation of microphysics model in ERF is similar to the that in the SAM code (http://rossby.msrc.sunysb.edu/~marat/SAM.html)
 
 Accretion
 ------------------
-There are several different type of accretional growth mechanisms needs to be included, it is involved the interaction of water vapor and cloud water with rain water.
+There are several different type of accretional growth mechanisms that need to be included; these describe
+the interaction of water vapor and cloud water with rain water.
 
 The accretion of cloud water forms in either the dry or wet growth rate can be written as:
 
