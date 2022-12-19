@@ -21,6 +21,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                    const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
                                    const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
                                    const amrex::Geometry& geom,
+                                   const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                    const SolverChoice& solverChoice)
 {
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -51,6 +52,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         Array4<Real const> tau13 = Tau13.array(mfi);
         Array4<Real const> tau23 = Tau23.array(mfi);
 
+        Array4<Real const> mf_u = mapfac_u.array(mfi);
+        Array4<Real const> mf_v = mapfac_v.array(mfi);
+
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
           Real s11bar = tau11(i,j,k);
@@ -65,7 +69,11 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
                       + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
 
-          mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqr * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+          Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
+          Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+          Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
+
+          mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
           mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
         });
       }
@@ -86,10 +94,16 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
         const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
 
+        Array4<Real const> mf_u = mapfac_u.array(mfi);
+        Array4<Real const> mf_v = mapfac_v.array(mfi);
+
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+          Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
+          Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+          
           // K = rho * C_k * Delta * KE^(1/2) = C_k * Delta * (rho * RhoKE)^1/2
-          mu_turb(i,j,k,EddyDiff::Mom_h) = l_C_k * Delta *
+          mu_turb(i,j,k,EddyDiff::Mom_h) = l_C_k * DeltaMsf *
             std::sqrt(cell_data(i,j,k,RhoKE_comp) * cell_data(i,j,k,Rho_comp));
           mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
         });
@@ -263,6 +277,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                 const amrex::MultiFab& cons_in,
                                 amrex::MultiFab& eddyViscosity,
                                 const amrex::Geometry& geom,
+                                const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                 const SolverChoice& solverChoice,
                                 std::unique_ptr<ABLMost>& most,
                                 bool vert_only)
@@ -296,7 +311,8 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
         ComputeTurbulentViscosityLES(Tau11, Tau22, Tau33,
                                      Tau12, Tau13, Tau23,
                                      cons_in, eddyViscosity,
-                                     geom, solverChoice);
+                                     geom, mapfac_u, mapfac_v,
+                                     solverChoice);
     }
 
     if (solverChoice.pbl_type != PBLType::None) {
