@@ -117,17 +117,13 @@ where :math:`p_d` and :math:`p_v` are the partial pressures of dry air and water
 and :math:`R_d` and :math:`R_v` are the gas constants for dry air and water vapor, respectively.
 
 In ERF, we select the dry air with density :math:`\rho_d` as the dominant component, and treat the others as sparse components
-:math:`\rho_s` with :math:`s = 1, ...., N`. The mixing ratio :math:`m_s` is defined as the mass density of species :math:`s`
-relative to dry air density :math:`\rho_d`: :math:`m_s=\frac{\rho_s}{\rho_d}`.
-
-We can then define:
+:math:`\rho_s` with :math:`s = 1, ...., N`. We define the mass mixing ratio, :math:`q_s`, as the mass density of species :math:`s`
+relative to the total density, i.e. :math:`q_s = \frac{\rho_s}{\rho}`.  We note that
 
 .. math::
-  \rho = \frac{\rho_d}{1-\sum_s q_s} = \rho_d (1-\sum_s m_s) = \sum_s \rho_s
+  \sum_s \rho_s = \rho
 
-  q_{s} = \frac{\rho_s}{\rho} = \frac{m_s}{1+\sum_s m_s}
-
-  q_{d} = 1-\frac{\sum_s \rho_s}{\rho} = 1 - \sum_s q_s
+  \sum_s _qs = 1
 
 Potential temperature :math:`\theta` is defined as a function of temperature and specific entropy:
 
@@ -156,7 +152,7 @@ and precipitates, respectively, and :math:`T_p`, is the reference temperature fo
 
   \eta_p = C_p ln (\frac{T}{T_p}) + \eta_{rp}
 
-where :math:`\eta_{rd}`, :math:`\eta_{rv}`, :math:`\eta_{ri}`, :math:`\eta_{rc}` and :math:`\eta_{rp}` are the specific entropy for dry air, water vapor, and ice, cloud, and condensate tracers, respectively. The Exner pressure :math:`\Pi` can be written as,
+where :math:`\eta_{rd}`, :math:`\eta_{rv}`, :math:`\eta_{ri}`, :math:`\eta_{rc}` and :math:`\eta_{rp}` are the specific entropy for dry air, water vapor, and ice, cloud, and precipitates, respectively. The Exner pressure :math:`\Pi` can be written as,
 
 .. math::
   \Pi = C_p (\frac{p}{\alpha P_r})^\frac{R}{C_p}
