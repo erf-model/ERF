@@ -25,7 +25,7 @@ struct ProbParm {
   amrex::Real T_pert = -15.0;
 
   // physical constants that may be overwritten
-  amrex::Real local_c_p = 1004.5;
+  amrex::Real local_c_p = c_p;
 }; // namespace ProbParm
 
 extern ProbParm parms;

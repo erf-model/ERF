@@ -13,7 +13,7 @@ struct ProbParm {
   amrex::Real z_r = 2000.0;
   amrex::Real T_pert = -15.0; // perturbation temperature
   // overridden physical constants
-  amrex::Real C_p = 1004.0;
+  amrex::Real local_c_p = 1004.0; // to match Straka study
 }; // namespace ProbParm
 
 extern ProbParm parms;

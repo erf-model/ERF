@@ -302,7 +302,7 @@ init_custom_prob(
   const Real l_z_r = parms.z_r;
   const Real l_x_c = parms.x_c;
   const Real l_z_c = parms.z_c;
-  const Real l_c_p = parms.C_p;
+  const Real l_c_p = parms.local_c_p;
   const Real l_Tpt = parms.T_pert;
 
   // These are at cell centers (unstaggered)
@@ -505,4 +505,5 @@ amrex_probinit(
   pp.query("x_r", parms.x_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
+  pp.query("c_p", parms.local_c_p);
 }
