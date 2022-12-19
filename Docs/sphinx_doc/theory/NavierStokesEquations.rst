@@ -123,7 +123,7 @@ relative to the total density, i.e. :math:`q_s = \frac{\rho_s}{\rho}`.  We note 
 .. math::
   \sum_s \rho_s = \rho
 
-  \sum_s _qs = 1
+  \sum_s q_s = 1
 
 Potential temperature :math:`\theta` is defined as a function of temperature and specific entropy:
 
