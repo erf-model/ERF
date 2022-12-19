@@ -53,6 +53,8 @@ erf.molec_diff_type  = "ConstantAlpha"
 # diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858
 erf.dynamicViscosity = 87.108013935 # kg/(m-s)
 
+erf.c_p = 1004.0
+
 # PROBLEM PARAMETERS (optional)
 prob.T_0 = 300.0
 prob.U_0 = 0.0

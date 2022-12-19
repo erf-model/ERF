@@ -55,9 +55,10 @@ erf.dynamicViscosity = 87.108013935 # kg/(m-s)
 
 erf.init_type = ""
 
+erf.c_p    = 1004.0
+
 # PROBLEM PARAMETERS (optional)
 # cold bubble input from Straka et al, JNMF, vol 17, 1993
-prob.c_p    = 1004.0
 prob.T_pert = -15.0
 prob.T_0    = 300.0
 prob.U_0    = 0.0
