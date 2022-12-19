@@ -170,10 +170,10 @@ A multispecies atmospheric flow that is composed of :math:`N` different species,
 
   \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) +
          \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) + F_{Q_d} \; (s=1, ..., N)
- 
-where :math:`Q_s` is the source/sink for individual species due to parameterized process, and :math:`\mathbf{F}_s` momentum sink/source due to external force, :math:`F_{Q_d}` is the energy transfer caused by parameterized physics process. 
 
-Let's assume all species have same average speed, and define total potential temperature :math:`\theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho} (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c)`, and :math:`\rho_d` is the dry air density, 
+where :math:`Q_s` is the source/sink for individual species due to parameterized process, and :math:`\mathbf{F}_s` momentum sink/source due to external force, :math:`F_{Q_d}` is the energy transfer caused by parameterized physics process.
+
+Let's assume all species have same average speed, and define total potential temperature :math:`\theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho} (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c)`, and :math:`\rho_d` is the dry air density,
 the total nonprecipitating water density :math:`\rho_T = \rho_v + \rho_c + \rho_i`,
 and the total precipitating water :math:`\rho_p = \rho_{rain} + \rho_{snow} + \rho_{graupel}`,
 where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, :math:`\rho_{graupel}` is graupel density, respectively.
@@ -190,7 +190,7 @@ where :math:`\rho_{rain}` is rain density, :math:`\rho_{snow}` is snow density, 
 
   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d +
          \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{Q_d}
-         
+
 Where :math:`Q_T` is the mass source/sink that caused by transformation of cloud water and water vapor to rain water through condensation, and :math:`Q_p = -Q_T`. :math:`F_{Q_d}` is the energy source/sink that caused by the parameterized physics process.
 
 The set of conservation equations for progonostic variables :math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
@@ -214,7 +214,7 @@ In this set of equations, the subgrid turbulent parameterization effects are inc
 .. math::
      \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\bar{T}}
                  + 0.61 q_v^\prime - q_c - q_i - q_p - \frac{p^\prime}{\bar{p}} )
-                 
+
 which is coded as
 
 .. math::

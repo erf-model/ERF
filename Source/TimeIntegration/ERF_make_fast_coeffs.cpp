@@ -1,6 +1,5 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-//#include <ERF_Constants.H>
 #include <IndexDefines.H>
 #include <TimeIntegration.H>
 #include <prob_common.H>
@@ -25,6 +24,8 @@ void make_fast_coeffs (int /*level*/,
     // beta_s =  1.0 : fully implicit
     Real beta_s = 0.1;
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
+
+    Real c_v = c_p - R_d;
 
     bool l_use_terrain    = solverChoice.use_terrain;
 
