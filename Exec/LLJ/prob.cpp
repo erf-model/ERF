@@ -52,9 +52,9 @@ init_custom_prob(
   Array4<Real const> const& z_nd,
   Array4<Real const> const& z_cc,
   amrex::GeometryData const& geomdata,
-  Array4<Real const> const& mf_m,
-  Array4<Real const> const& mf_u,
-  Array4<Real const> const& mf_v)
+  Array4<Real const> const& /*mf_m*/,
+  Array4<Real const> const& /*mf_u*/,
+  Array4<Real const> const& /*mf_v*/)
 {
   amrex::Print() << "Dummy function..Needed for linking" << std::endl;
 }

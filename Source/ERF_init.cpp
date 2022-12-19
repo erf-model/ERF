@@ -546,9 +546,6 @@ ERF::init_bx_velocities_from_input_sounding(
 void
 ERF::init_custom(int lev)
 {
-    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
-
     auto& lev_new = vars_new[lev];
 #ifdef ERF_USE_MOISTURE
     auto& qv_new  = qv[lev];
@@ -558,14 +555,25 @@ ERF::init_custom(int lev)
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
 
-    MultiFab cons_pert(grids[lev],dmap[lev],Cons::NumVars,ngrow_state);
-    MultiFab xvel_pert(grids[lev],dmap[lev],1,ngrow_vels);
-    MultiFab yvel_pert(grids[lev],dmap[lev],1,ngrow_vels);
-    MultiFab zvel_pert(grids[lev],dmap[lev],1,ngrow_vels);
+    MultiFab cons_pert(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
+                       lev_new[Vars::cons].nComp()   , lev_new[Vars::cons].nGrow());
+    MultiFab xvel_pert(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
+    MultiFab yvel_pert(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
+    MultiFab zvel_pert(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, lev_new[Vars::zvel].nGrowVect());
+
+    // Default all perturbations to zero
+    cons_pert.setVal(0.);
+    xvel_pert.setVal(0.);
+    yvel_pert.setVal(0.);
+    zvel_pert.setVal(0.);
+
 #ifdef ERF_USE_MOISTURE
-    MultiFab qv_pert(grids[lev],dmap[lev],1,ngrow_state);
-    MultiFab qc_pert(grids[lev],dmap[lev],1,ngrow_state);
-    MultiFab qi_pert(grids[lev],dmap[lev],1,ngrow_state);
+    MultiFab qv_pert(qv[lev].boxArray(), qv[lev].DistributionMap(), 1, qv[lev].nGrow());
+    MultiFab qc_pert(qc[lev].boxArray(), qc[lev].DistributionMap(), 1, qc[lev].nGrow());
+    MultiFab qi_pert(qi[lev].boxArray(), qi[lev].DistributionMap(), 1, qi[lev].nGrow());
+    qv_pert.setVal(0.);
+    qc_pert.setVal(0.);
+    qi_pert.setVal(0.);
 #endif
 
 #ifdef _OPENMP
@@ -608,18 +616,18 @@ ERF::init_custom(int lev)
     } //mfi
 
     // Add problem-specific perturbation to background flow
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,      1, ngrow_state);
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, ngrow_state);
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, ngrow_state);
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, ngrow_state);
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,      1, cons_pert.nGrow());
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, cons_pert.nGrow());
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, cons_pert.nGrow());
 #ifdef ERF_USE_MOISTURE
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQt_comp,    RhoQt_comp,    1, ngrow_state);
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQp_comp,    RhoQp_comp,    1, ngrow_state);
-    MultiFab::Add(             qv_new,   qv_pert, 0,             0,             1, ngrow_state);
-    MultiFab::Add(             qc_new,   qc_pert, 0,             0,             1, ngrow_state);
-    MultiFab::Add(             qi_new,   qi_pert, 0,             0,             1, ngrow_state);
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQt_comp,    RhoQt_comp,    1, cons_pert.nGrow());
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQp_comp,    RhoQp_comp,    1, cons_pert.nGrow());
+    MultiFab::Add(             qv_new,   qv_pert, 0,             0,             1,   qv_pert.nGrow());
+    MultiFab::Add(             qc_new,   qc_pert, 0,             0,             1,   qc_pert.nGrow());
+    MultiFab::Add(             qi_new,   qi_pert, 0,             0,             1,   qi_pert.nGrow());
 #endif
-    MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, ngrow_vels);
-    MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, ngrow_vels);
-    MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, ngrow_vels);
+    MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
+    MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
+    MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
 }
