@@ -71,9 +71,9 @@ init_custom_prob(
   Array4<Real      > const&,
 #endif
   amrex::GeometryData const& geomdata,
-  Array4<Real const> const& mf_m,
-  Array4<Real const> const& mf_u,
-  Array4<Real const> const& mf_v)
+  Array4<Real const> const& /*mf_m*/,
+  Array4<Real const> const& /*mf_u*/,
+  Array4<Real const> const& /*mf_v*/)
 {
 
   Real xc = parms.xc; Real yc = parms.yc;
