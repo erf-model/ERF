@@ -141,8 +141,6 @@ where :math:`T_r` is the reference temperature, usually chosen as the temperatur
 .. math::
    \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_p \eta_p
 
-%where :math:`q_v` is water vapor, :math:`q_c` is cloud water, :math:`q_i` is cloud ice, and
-%:math:`q_p = q_{rain} + q_{snow} + q_{graupel}` represents all condensates  (rain, snow, and graupel).
 where :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
 and :math:`\eta_c`, :math:`\eta_p` are the partial specific entropies for dry air, water vapor, cloud water, cloud ice,
 and precipitates, respectively, and :math:`T_p`, is the reference temperature for the condensates:
@@ -174,47 +172,11 @@ and :math:`p_r` is the reference pressure.
 
 Governing Equations for Multispecies Atmospheric Flow
 -------------------------------------------------------
-%A multispecies atmospheric flow that is composed of :math:`N` different species, and :math:`s` stands for each individual species,
-%the governing equations for the multicomponent fluid dynamics for each species :math:`s` can be written as
-%
-%.. math::
-%  \frac{\partial \rho_s}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s}) + Q_s \; (s=1, ..., N)
-%
-%  \frac{\partial (\rho_s \mathbf{u_s})}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \mathbf{u_s}) -
-%          \nabla p_s + \nabla \cdot \tau_s + \mathbf{F}_s + \rho_s \mathbf{g} \; (s=1, ..., N)
-%
-%  \frac{\partial (\rho_s \theta_s)}{\partial t} &= - \nabla \cdot (\rho_s \mathbf{u_s} \theta_s + F_{\theta _s}) +
-%         \nabla \cdot ( \rho_s \alpha_{T_s}\ \nabla \theta_s) + F_{Q_d} \; (s=1, ..., N)
-%
-%where :math:`Q_s` is the source/sink for individual species due to parameterized process, and :math:`\mathbf{F}_s` momentum sink/source
-%due to external force, :math:`F_{Q_d}` is the energy transfer caused by parameterized physics process.
-
 We assume that all species have same average speed, and define the total potential temperature
 :math:`\theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho}
                 (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c)`,
 
-%Then the governing equations become
-%
-%.. math::
-%  \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
-%
-%  \frac{\partial \rho_T}{\partial t} &= - \nabla \cdot (\rho_T \mathbf{u}) + Q_T
-%
-%  \frac{\partial \rho_p}{\partial t} &= - \nabla \cdot (\rho_p \mathbf{u}) - Q_T
-%
-%  \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-%          \nabla p_d + \nabla \cdot \tau + \mathbf{F}_d + \rho_d \mathbf{g}
-%
-%  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d +
-%         \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + F_{Q_d}
-%
-Where :math:`Q` is the mass source/sink resulting by transformation between water vapor and cloud water/ice.
-:math:`F_{Q_d}` is the energy source/sink that results from the transformation and is computed by the
-parametrization of the microphysics process.
-
 Then the governing equations become
-%The set of conservation equations for progonostic variables
-%:math:`\rho_d`, :math:`q_T`, :math:`q_P`, :math:`\mathbf{u}`, :math:`C`, and :math:`\theta` can be written:
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} + \mathbf{F}_\rho)
