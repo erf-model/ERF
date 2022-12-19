@@ -128,9 +128,9 @@ and where :math:`\eta_0` is the specific entropy at the reference temperature an
    \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_p \eta_p
 
 where :math:`q_v` is water vapor, :math:`q_c` is cloud water, :math:`q_i` is cloud ice, and
-:math:`q_p = q_{rain} + q_{ice} + q_{graupel}'` represents all condensates  (rain water, snow ice, and graupel).
+:math:`q_p = q_{rain} + q_{ice} + q_{graupel}'` represents all condensates  (rain water, snow, and graupel).
 :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
-and :math:`\eta_c`, :math:`\eta_p` are the partial specific entropies for dry air, water vapor, water ice, water cloud, and condensates,
+and :math:`\eta_c`, :math:`\eta_p` are the partial specific entropies for dry air, water vapor, cloud water, cloud ice, and condensates,
 and :math:`T_p`, is the reference temperature for the condensates:
 
 .. math::
