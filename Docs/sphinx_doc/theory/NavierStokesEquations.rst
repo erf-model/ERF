@@ -104,7 +104,7 @@ and precipitating condensates :math:`\rho_{rain} + \rho_{snow} + \rho_{graupel}`
 Here
 :math:`\rho_c` is the density of cloud water and
 :math:`\rho_i` is the density of cloud ice, and
-we define the sum of all non-precipitating quantites to be :math:`\rho_T = \rho_d + \rho_v + \rho_i`.
+we define the sum of all non-precipitating moist quantites to be :math:`\rho_T = \rho_v + \rho_c + \rho_i`.
 All condensates  are treated as incompressible; cloud water and ice
 have constant heat capacities :math:`C_p` and :math:`C_i`, respectively.
 
