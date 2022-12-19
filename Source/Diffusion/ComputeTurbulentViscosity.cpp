@@ -101,7 +101,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         {
           Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
           Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
-          
+
           // K = rho * C_k * Delta * KE^(1/2) = C_k * Delta * (rho * RhoKE)^1/2
           mu_turb(i,j,k,EddyDiff::Mom_h) = l_C_k * DeltaMsf *
             std::sqrt(cell_data(i,j,k,RhoKE_comp) * cell_data(i,j,k,Rho_comp));
