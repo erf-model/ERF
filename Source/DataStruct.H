@@ -532,7 +532,7 @@ public:
             (1 + (R_v/R_d-1) * qv_ref_inp_sound); // _moist_ theta == virtual potential temperature
         pm_integ[0] = 100. * press_ref_inp_sound; // _total_ pressure (incl moisture)
         rhom_integ[0] = 1 / (
-            R_d/p_0 * thm_surf * std::pow(pm_integ[0]/p_0, -1/Gamma)); // density of _moist_ air
+            R_d/p_0 * thm_surf * std::pow(pm_integ[0]/p_0, -iGamma)); // density of _moist_ air
 
         amrex::Print() << "ideal sounding init: surface density of moist air = "
             << rhom_integ[0] << std::endl;
@@ -558,7 +558,7 @@ public:
                     - 0.5*dz*(rhom_integ[k] + rhom_integ[k-1])*CONST_GRAV;
                 AMREX_ALWAYS_ASSERT(pm_integ[k] > 0);
                 rhom_integ[k] = 1 / (
-                    R_d/p_0 * theta_inp_sound[k]*qvf * std::pow(pm_integ[k]/p_0, -1/Gamma));
+                    R_d/p_0 * theta_inp_sound[k]*qvf * std::pow(pm_integ[k]/p_0, -iGamma));
             }
         }
 
@@ -566,7 +566,7 @@ public:
         // down to get the dry air column properties
         pd_integ[Ninp-1] = pm_integ[Ninp-1];
         rhod_integ[Ninp-1] = 1 / (
-                    R_d/p_0 * theta_inp_sound[Ninp-1] * std::pow(pd_integ[Ninp-1]/p_0, -1/Gamma));
+                    R_d/p_0 * theta_inp_sound[Ninp-1] * std::pow(pd_integ[Ninp-1]/p_0, -iGamma));
         amrex::Print() << "z  p_d  rho_d  theta" << std::endl;
         amrex::Print() << z_inp_sound[Ninp-1] << " " << pd_integ[Ninp-1] << " " << rhod_integ[Ninp-1] << " " << theta_inp_sound[Ninp-1] << std::endl; // DEBUG
         for (int k=Ninp-2; k >= 0; --k)
@@ -579,7 +579,7 @@ public:
                     + 0.5*dz*(rhod_integ[k] + rhod_integ[k+1])*CONST_GRAV;
                 AMREX_ALWAYS_ASSERT(pd_integ[k] > 0);
                 rhod_integ[k] = 1 / (
-                    R_d/p_0 * theta_inp_sound[k] * std::pow(pd_integ[k]/p_0, -1/Gamma));
+                    R_d/p_0 * theta_inp_sound[k] * std::pow(pd_integ[k]/p_0, -iGamma));
             }
             amrex::Print() << z_inp_sound[k] << " " << pd_integ[k] << " " << rhod_integ[k] << " " << theta_inp_sound[k] << std::endl; // DEBUG
         }

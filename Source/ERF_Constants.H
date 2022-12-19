@@ -10,9 +10,8 @@ constexpr amrex::Real PIoTwo       = PI/2.0;
 constexpr amrex::Real R_d          = 287.0; // gas constant for dry air [J/(kg-K)]
 constexpr amrex::Real R_v          = 461.505; // gas constant for water vapor [J/(kg-K)]
 constexpr amrex::Real c_p          = 1004.5; // specific heat at constant pressure for dry air [J/(kg-K)]
-constexpr amrex::Real cp_v         = 1859.0; // specific heat at constant pressure for water vapor [J/(kg-K)]
 constexpr amrex::Real p_0          = 1.0e5; // reference surface pressure [Pa]
-constexpr amrex::Real Gamma        = 1.4;   // C_p/C_v [-]
+constexpr amrex::Real Gamma        = 1.4;   // c_p / c_v [-]
 constexpr amrex::Real KAPPA        = 0.41;  // von Karman constant
 constexpr amrex::Real CONST_GRAV   = 9.81;
 
@@ -21,8 +20,6 @@ constexpr amrex::Real ip_0         = 1./p_0;
 constexpr amrex::Real iR_d         = 1./R_d;
 constexpr amrex::Real iGamma       = 1./Gamma;
 constexpr amrex::Real rdOcp        = R_d/c_p;
-constexpr amrex::Real inv_cp       = 1./c_p;
-constexpr amrex::Real cv_v         = R_v - cp_v;
 
 constexpr amrex::Real rhor         = 1000.; // Density of water, kg/m3
 constexpr amrex::Real rhos         = 100.;  // Density of snow, kg/m3
