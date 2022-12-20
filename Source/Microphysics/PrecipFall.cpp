@@ -98,6 +98,10 @@ void Microphysics::PrecipFall(int hydro_type) {
 
      const auto& box3d = mfi.tilebox();
 
+     const Real fac_cond = m_fac_cond;
+     const Real fac_sub  = m_fac_sub;
+     const Real fac_fus  = m_fac_fus;
+
      ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        if (hydro_type == 0) {
          lfac_array(i,j,k) = fac_cond;

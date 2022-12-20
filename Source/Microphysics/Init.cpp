@@ -147,6 +147,8 @@ void Microphysics::Init(const MultiFab& cons_in,
   Real* rho_dptr      = rho_d.data();
   Real* rhotheta_dptr = rhotheta_d.data();
 
+  Real gOcp = m_gOcp;
+
   amrex::ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept {
     Real pressure = getPgivenRTh(rhotheta_dptr[k]);
     rho1d_t(k)  = rho_dptr[k];

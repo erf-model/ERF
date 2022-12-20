@@ -126,6 +126,8 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
      //   for (int j=0; j<ny; j++) {
      //     for (int i=0; i<nx; i++) {
      //       for (int icrm=0; icrm<ncrms; icrm++) {
+     Real fac_cond = m_fac_cond;
+     Real fac_fus  = m_fac_fus;
      amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        if ( k >= std::max(0,kmin-1) && k <= kmax ) {
          Real coef = dtn/dz;

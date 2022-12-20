@@ -20,6 +20,10 @@ void Microphysics::Cloud() {
   auto rho   = mic_fab_vars[MicVar::rho];
   auto tabs  = mic_fab_vars[MicVar::tabs];
 
+  Real fac_cond = m_fac_cond;
+  Real fac_sub  = m_fac_sub;
+  Real fac_fus  = m_fac_fus;
+
   for ( MFIter mfi(*tabs, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto qt_array    = qt->array(mfi);
      auto qp_array    = qp->array(mfi);
