@@ -142,9 +142,9 @@ and :math:`\eta_c`, :math:`\eta_p` are the partial specific entropies for dry ai
 and precipitates, respectively, and :math:`T_p`, is the reference temperature for the condensates:
 
 .. math::
-  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_rd}) + \eta_{rd}
+  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_{rd}}) + \eta_{rd}
 
-  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_rv}) + \eta_{rv}
+  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_{rv}}) + \eta_{rv}
 
   \eta_i = C_i ln (\frac{T}{T_r}) + \eta_{ri}
 
