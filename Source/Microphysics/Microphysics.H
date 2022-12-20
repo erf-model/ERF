@@ -32,13 +32,16 @@ class Microphysics {
 
  public:
   // constructor
-  Microphysics(bool do_cloud, bool do_smoke, bool do_precip, SolverChoice& sc) :
-    docloud(do_cloud), dosmoke(do_smoke), doprecip(do_precip),
+  Microphysics(SolverChoice& sc)
+  :
+    docloud(sc.do_cloud),
+    dosmoke(sc.do_smoke),
+    doprecip(sc.do_precip),
     fac_cond(lcond / sc.c_p),
     fac_fus(lfus / sc.c_p),
     fac_sub(lsub / sc.c_p),
     gOcp(CONST_GRAV / sc.c_p)
-    {}
+  {}
 
   // destructor
   ~Microphysics() = default;

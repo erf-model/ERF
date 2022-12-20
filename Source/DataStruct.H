@@ -231,6 +231,12 @@ struct SolverChoice {
         } else {
             amrex::Error("Don't know this ic_bc_type");
         }
+
+#ifdef ERF_USE_MOISTURE
+        pp.query("mp_clouds", do_cloud);
+        pp.query("mp_smoke",  do_smoke);
+        pp.query("mp_precip", do_precip);
+#endif
     }
 
     void display()
@@ -406,6 +412,13 @@ struct SolverChoice {
 
     // IC and BC Type: "Ideal" or "Real"
     IC_BC_Type icBcType;
+
+#ifdef ERF_USE_MOISTURE
+    // Microphysics params
+    bool do_cloud {true};
+    bool do_smoke {true};
+    bool do_precip {true};
+#endif
 };
 
 struct InputSoundingData {

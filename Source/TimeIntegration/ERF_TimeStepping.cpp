@@ -198,7 +198,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     // Microphysics applied after the timestep
 #ifdef ERF_USE_MOISTURE
-    Microphysics micro(do_cloud, do_smoke, do_precip, solverChoice);
+    Microphysics micro(solverChoice);
     micro.Init(S_new,
                qc[lev],
                qv[lev],
