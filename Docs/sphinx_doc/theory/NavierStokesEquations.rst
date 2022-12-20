@@ -155,7 +155,7 @@ and precipitates, respectively, and :math:`T_p`, is the reference temperature fo
 where :math:`\eta_{rd}`, :math:`\eta_{rv}`, :math:`\eta_{ri}`, :math:`\eta_{rc}` and :math:`\eta_{rp}` are the specific entropy for dry air, water vapor, and ice, cloud, and precipitates, respectively. The Exner pressure :math:`\Pi` can be written as,
 
 .. math::
-  \Pi = C_p (\frac{p}{\alpha P_r})^\frac{R_d}{C_p}
+  \Pi = C_p (\frac{p}{\alpha p_r})^\frac{R_d}{C_p}
 
 and :math:`\theta`, :math:`p` can be expressed as
 
