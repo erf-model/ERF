@@ -331,7 +331,8 @@ init_custom_prob(
         GeometryData const& geomdata,
         Array4<Real const> const& /*mf_m*/,
         Array4<Real const> const& /*mf_u*/,
-        Array4<Real const> const& /*mf_v*/)
+        Array4<Real const> const& /*mf_v*/,
+        const SolverChoice& sc)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -341,6 +342,8 @@ init_custom_prob(
   const amrex::Real& dz        = geomdata.CellSize()[2];
   const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
   const amrex::Real& prob_hi_z = geomdata.ProbHi()[2];
+
+  const amrex::Real rdOcp   = sc.rdOcp;
 
   const amrex::Real thetatr = 343.0;
   const amrex::Real theta0  = 300.0;
@@ -398,7 +401,7 @@ init_custom_prob(
     amrex::Real scaling = (khi-static_cast<amrex::Real>(k))/khi;  // Less effect at higher levels
     amrex::Real deltaT = parms.T_pert*scaling*rand_double;
 
-    amrex::Real theta = getThgivenRandT(rho, temp+deltaT);
+    amrex::Real theta = getThgivenRandT(rho, temp+deltaT, rdOcp);
 
     // This version perturbs rho but not p
     state(i, j, k, RhoTheta_comp) = rho*theta;

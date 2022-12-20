@@ -558,12 +558,6 @@ private:
     static int fixed_mri_dt_ratio;
     static bool use_lowM_dt;
 
-#ifdef ERF_USE_MOISTURE
-    bool do_cloud {true};
-    bool do_smoke {true};
-    bool do_precip {true};
-#endif
-
     // how often each level regrids the higher levels of refinement
     // (after a level advances that many time steps)
     int regrid_int = 2;

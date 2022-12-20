@@ -21,6 +21,7 @@
 #include "ERF_Constants.H"
 #include "Microphysics_Utils.H"
 #include "IndexDefines.H"
+#include "DataStruct.H"
 
 //
 // use MultiFab for 3D data, but table for 1D data
@@ -31,8 +32,16 @@ class Microphysics {
 
  public:
   // constructor
-  Microphysics(bool do_cloud, bool do_smoke, bool do_precip) :
-               docloud(do_cloud), dosmoke(do_smoke), doprecip(do_precip) {}
+  Microphysics(SolverChoice& sc)
+  :
+    docloud(sc.do_cloud),
+    dosmoke(sc.do_smoke),
+    doprecip(sc.do_precip),
+    fac_cond(lcond / sc.c_p),
+    fac_fus(lfus / sc.c_p),
+    fac_sub(lsub / sc.c_p),
+    gOcp(CONST_GRAV / sc.c_p)
+  {}
 
   // destructor
   ~Microphysics() = default;
@@ -83,6 +92,12 @@ class Microphysics {
 
   // model options
   bool docloud, dosmoke, doprecip;
+
+  // constants
+  amrex::Real fac_cond;
+  amrex::Real fac_fus;
+  amrex::Real fac_sub;
+  amrex::Real gOcp;
 
   // microphysics parameters/coefficients
   amrex::TableData<amrex::Real, 1> accrrc;

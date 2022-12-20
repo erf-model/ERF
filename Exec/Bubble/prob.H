@@ -24,8 +24,6 @@ struct ProbParm {
   // perturbation temperature
   amrex::Real T_pert = -15.0;
 
-  // physical constants that may be overwritten
-  amrex::Real local_c_p = 1004.5;
 }; // namespace ProbParm
 
 extern ProbParm parms;
@@ -42,6 +40,7 @@ perturb_rho_theta (const amrex::Real x,
                    const amrex::Real p_hse,
                    const amrex::Real r_hse,
                    const ProbParm pp,
+                   const amrex::Real rdOcp,
                    amrex::Real& rho,
                    amrex::Real& rhotheta)
 {
@@ -66,7 +65,7 @@ perturb_rho_theta (const amrex::Real x,
     }
 
     // Note: theta_perturbed is theta PLUS perturbation in theta
-    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, R_d/pp.local_c_p);
+    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, rdOcp);
 
     // Update state -- this version perturbs rho but not p
     rhotheta = getRhoThetagivenP(p_hse);

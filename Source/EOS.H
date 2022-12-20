@@ -13,7 +13,7 @@ amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta)
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getThgivenRandT(const amrex::Real rho, const amrex::Real T)
+amrex::Real getThgivenRandT(const amrex::Real rho, const amrex::Real T, const amrex::Real rdOcp)
 {
     amrex::Real p_loc = rho * R_d * T;
     return T * std::pow((p_0/p_loc),rdOcp);
@@ -28,7 +28,8 @@ amrex::Real getPgivenRTh(const amrex::Real rhotheta)
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getRhoGivenThetaPress (const amrex::Real theta, const amrex::Real p) {
+amrex::Real getRhogivenThetaPress (const amrex::Real theta, const amrex::Real p, const amrex::Real rdOcp)
+{
     return std::pow(p_0, rdOcp) * std::pow(p, iGamma) / (R_d * theta);
 }
 
@@ -39,14 +40,14 @@ amrex::Real getdPdRgivenConstantTheta(const amrex::Real rho, const amrex::Real t
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getExnergivenP(const amrex::Real P)
+amrex::Real getExnergivenP(const amrex::Real P, const amrex::Real rdOcp)
 {
     // Exner function pi in terms of P
     return std::pow(P * ip_0, rdOcp);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getExnergivenRTh(const amrex::Real rhotheta)
+amrex::Real getExnergivenRTh(const amrex::Real rhotheta, const amrex::Real rdOcp)
 {
     // Exner function pi in terms of (rho theta)
     return std::pow(R_d * rhotheta * ip_0, Gamma * rdOcp);

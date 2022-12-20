@@ -286,7 +286,8 @@ init_custom_prob(
         GeometryData const& geomdata,
         Array4<Real const> const& /*mf_m*/,
         Array4<Real const> const& /*mf_u*/,
-        Array4<Real const> const& /*mf_v*/)
+        Array4<Real const> const& /*mf_v*/,
+        const SolverChoice& sc)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -309,6 +310,8 @@ init_custom_prob(
 
   amrex::Gpu::DeviceVector<Real> d_r(khi+1);
   amrex::Gpu::DeviceVector<Real> d_p(khi+1);
+
+  const Real rdOcp = sc.rdOcp;
 
   if (z_cc) { // nonflat terrain
 
@@ -342,7 +345,7 @@ init_custom_prob(
         const Real z = z_cc(i,j,k);
 
         perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
-                          parms,
+                          parms, rdOcp,
                           state(i, j, k, Rho_comp),
                           state(i, j, k, RhoTheta_comp));
 
@@ -374,7 +377,7 @@ init_custom_prob(
         const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
         perturb_rho_theta(x, y, z, p[k], r[k],
-                          parms,
+                          parms, rdOcp,
                           state(i, j, k, Rho_comp),
                           state(i, j, k, RhoTheta_comp));
 
@@ -473,5 +476,4 @@ amrex_probinit(
   pp.query("y_r", parms.y_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
-  pp.query("c_p", parms.local_c_p);
 }

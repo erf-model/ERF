@@ -420,7 +420,7 @@ ERF::InitData ()
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
         amrex::Print() << "Defining r2d for the first time " << std::endl;
-        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0]);
+        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0], solverChoice);
 
         // Read the "time.dat" file to know what data is available
         m_r2d->read_time_file();
