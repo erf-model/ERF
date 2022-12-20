@@ -4,6 +4,7 @@
  * NOTES: this code is modified from SAMXX (C++ version of SAM code)
  */
 
+#include "ERF_Constants.H"
 #include "Microphysics.H"
 
 using namespace amrex;
@@ -13,15 +14,18 @@ void Microphysics::PrecipFall(int hydro_type) {
   Real constexpr eps = 1.e-10;
   bool constexpr nonos = true;
 
+/*
   Real gam3  = erf_gammafff(3.0             );
   Real gamr1 = erf_gammafff(3.0+b_rain      );
   Real gamr2 = erf_gammafff((5.0+b_rain)/2.0);
-  Real gamr3 = erf_gammafff(4.0+b_rain      );
   Real gams1 = erf_gammafff(3.0+b_snow      );
   Real gams2 = erf_gammafff((5.0+b_snow)/2.0);
-  Real gams3 = erf_gammafff(4.0+b_snow      );
   Real gamg1 = erf_gammafff(3.0+b_grau      );
   Real gamg2 = erf_gammafff((5.0+b_grau)/2.0);
+*/
+
+  Real gamr3 = erf_gammafff(4.0+b_rain      );
+  Real gams3 = erf_gammafff(4.0+b_snow      );
   Real gamg3 = erf_gammafff(4.0+b_grau      );
 
   Real vrain = a_rain*gamr3/6.0/pow((PI*rhor*nzeror),crain);
@@ -108,8 +112,8 @@ void Microphysics::PrecipFall(int hydro_type) {
          lfac_array(i,j,k) = 0.0;
        }
        Real tmp = term_vel_qp(i,j,k,qp_array(i,j,k),
-                  vrain, vsnow, vgrau, crain, csnow, cgrau, rho1d_t(k),
-                  tabs_array(i,j,k), a_pr, a_gr);
+                  vrain, vsnow, vgrau, rho1d_t(k),
+                  tabs_array(i,j,k));
        wp_array(i,j,k)=rhofac_t(k)*tmp;
        tmp = wp_array(i,j,k)*iwmax_t(k);
        prec_cfl_array(i,j,k) = tmp;
@@ -135,7 +139,7 @@ void Microphysics::PrecipFall(int hydro_type) {
   // take more than one advection step to maintain stability.
   int nprec;
   if (prec_cfl > 0.9) {
-    nprec = std::ceil(prec_cfl/0.9);
+    nprec = static_cast<int>(std::ceil(prec_cfl/0.9));
     for (MFIter mfi(wp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
       auto wp_array = wp.array(mfi);
       const auto& box3d = mfi.tilebox();
@@ -232,9 +236,9 @@ void Microphysics::PrecipFall(int hydro_type) {
         // Update precipitation mass fraction.
         // Note that fz is the total flux, including both the
         // upwind flux and the anti-diffusive correction.
-        Real flagstat = 1.0;
+//      Real flagstat = 1.0;
         qp_array(i,j,k) = qp_array(i,j,k) - (fz_array(i,j,kc) - fz_array(i,j,k))*irho_t(k);
-        Real tmp  = -(fz_array(i,j,kc)-fz_array(i,j,k))*irho_t(k)*flagstat;  // For qp budget
+//      Real tmp  = -(fz_array(i,j,kc)-fz_array(i,j,k))*irho_t(k)*flagstat;  // For qp budget
 //
 // NOTE qpfall, tlat, and precflux,...are output diagnostic variables, not sure whether we need to calculate these variables here?
 // Please correct me!!! by xyuan@anl.gov
@@ -243,7 +247,7 @@ void Microphysics::PrecipFall(int hydro_type) {
         Real lat_heat = -(lfac_array(i,j,kc)*fz_array(i,j,kc)-lfac_array(i,j,k)*fz_array(i,j,k))*irho_t(k);
         amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
 //        amrex::Gpu::Atomic::Add(&tlat_t(k), -lat_heat);
-        tmp = fz_array(i,j,k)*flagstat;
+//      tmp = fz_array(i,j,k)*flagstat;
 //      amrex::Gpu::Atomic::Add(&precflux_t(k), -tmp);
 //      yakl::atomicAdd(precflux(k,icrm),-tmp);
         if (k == 0) {
@@ -257,8 +261,8 @@ void Microphysics::PrecipFall(int hydro_type) {
         // Re-compute precipitation velocity using new value of qp.
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
           Real tmp = term_vel_qp(i,j,k,qp_array(i,j,k),
-                     vrain, vsnow, vgrau, crain, csnow, cgrau, rho1d_t(k),
-                     tabs_array(i,j,k), a_pr, a_gr);
+                     vrain, vsnow, vgrau, rho1d_t(k),
+                     tabs_array(i,j,k));
           wp_array(i,j,k) = rhofac_t(k)*tmp;
           // Decrease precipitation velocity by factor of nprec
           wp_array(i,j,k) = -wp_array(i,j,k)*rho1d_t(k)*dt_advance/dz/nprec;
