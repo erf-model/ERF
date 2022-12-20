@@ -37,10 +37,10 @@ class Microphysics {
     docloud(sc.do_cloud),
     dosmoke(sc.do_smoke),
     doprecip(sc.do_precip),
-    fac_cond(lcond / sc.c_p),
-    fac_fus(lfus / sc.c_p),
-    fac_sub(lsub / sc.c_p),
-    gOcp(CONST_GRAV / sc.c_p)
+    m_fac_cond(lcond / sc.c_p),
+    m_fac_fus(lfus / sc.c_p),
+    m_fac_sub(lsub / sc.c_p),
+    m_gOcp(CONST_GRAV / sc.c_p)
   {}
 
   // destructor
@@ -94,10 +94,10 @@ class Microphysics {
   bool docloud, dosmoke, doprecip;
 
   // constants
-  amrex::Real fac_cond;
-  amrex::Real fac_fus;
-  amrex::Real fac_sub;
-  amrex::Real gOcp;
+  amrex::Real m_fac_cond;
+  amrex::Real m_fac_fus;
+  amrex::Real m_fac_sub;
+  amrex::Real m_gOcp;
 
   // microphysics parameters/coefficients
   amrex::TableData<amrex::Real, 1> accrrc;

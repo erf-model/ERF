@@ -19,7 +19,7 @@ class ReadBndryPlanes
 
 public:
     explicit ReadBndryPlanes(const amrex::Geometry& geom,
-                             const SolverChoice& sc);
+                             const amrex::Real& rd0cp);
 
     void define_level_data(int lev);
 
@@ -91,7 +91,7 @@ private:
     const int m_extent_rad = 0;
 
     //! R_d/c_p is needed for reading boundary files
-    const amrex::Real rdOcp;
+    const amrex::Real m_rdOcp;
 
     int is_velocity_read;
     int is_density_read;

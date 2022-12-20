@@ -116,10 +116,10 @@ ReadBndryPlanes::interp_in_time(const Real& time)
     return m_data_interp;
 }
 
-ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const SolverChoice& sc)
+ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
 :
     m_geom(geom),
-    rdOcp(sc.rdOcp)
+    m_rdOcp(rdOcp_in)
 {
     ParmParse pp("erf");
 
@@ -417,6 +417,7 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
 
                 // This is the scalars -- they all get multiplied by rho, and in the case of
                 //   reading in temperature, we must convert to theta first
+                Real rdOcp = m_rdOcp;
                 if (n_for_density >= 0) {
                   if (var_name == "temperature") {
                     ParallelFor(
