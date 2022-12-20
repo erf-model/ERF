@@ -160,11 +160,13 @@ where :math:`\eta_{rd}`, :math:`\eta_{rv}`, :math:`\eta_{ri}`, :math:`\eta_{rc}`
 and :math:`\theta`, :math:`p` can be expressed as
 
 .. math::
+   \alpha = \frac{R_d}{p}\frac{p}{p_r}^\kappa \theta
+
    \theta = T (\frac{p_r}{p})^\frac{R}{C_p}
 
    p = p_r (\frac{\Pi}{C_p})^{\frac{C_p}{R}}
 
-and :math:`p_r` is the reference pressure.
+and :math:`p_r` is the reference pressure, and :math:`\kappa=\frac{R_d}{c_p}`.
 
 Governing Equations for Multispecies Atmospheric Flow
 -------------------------------------------------------
