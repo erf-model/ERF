@@ -245,9 +245,9 @@ public:
     void init_bx_scalars_from_input_sounding_hse(
             const amrex::Box &bx,
             amrex::Array4<amrex::Real> const &state,
-            amrex::Array4<amrex::Real> const &r_hse,
-            amrex::Array4<amrex::Real> const &p_hse,
-            amrex::Array4<amrex::Real> const &pi_hse,
+            amrex::Array4<amrex::Real> const &r_hse_arr,
+            amrex::Array4<amrex::Real> const &p_hse_arr,
+            amrex::Array4<amrex::Real> const &pi_hse_arr,
             amrex::GeometryData const &geomdata,
             InputSoundingData const &inputSoundingData);
     void init_bx_velocities_from_input_sounding(

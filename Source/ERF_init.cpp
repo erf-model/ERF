@@ -361,6 +361,7 @@ ERF::init_from_input_sounding(int lev)
         }
         else
         {
+            // HSE arrays will be filled later with call to initHSE()
             init_bx_scalars_from_input_sounding(bx, cons_arr,
                                                 geom[lev].data(), input_sounding_data);
         }
@@ -417,9 +418,9 @@ void
 ERF::init_bx_scalars_from_input_sounding_hse(
         const amrex::Box &bx,
         amrex::Array4<amrex::Real> const &state,
-        amrex::Array4<amrex::Real> const &r_hse,
-        amrex::Array4<amrex::Real> const &p_hse,
-        amrex::Array4<amrex::Real> const &pi_hse,
+        amrex::Array4<amrex::Real> const &r_hse_arr,
+        amrex::Array4<amrex::Real> const &p_hse_arr,
+        amrex::Array4<amrex::Real> const &pi_hse_arr,
         amrex::GeometryData const &geomdata,
         InputSoundingData const &inputSoundingData)
 {
@@ -460,9 +461,9 @@ ERF::init_bx_scalars_from_input_sounding_hse(
         state(i, j, k, RhoScalar_comp) = 0;
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
-        r_hse(i, j, k) = rho_k;
-        p_hse(i, j, k) = getPgivenRTh(rhoTh_k);
-        pi_hse(i, j, k) = getExnergivenRTh(rhoTh_k, rdOcp);
+        r_hse_arr (i, j, k) = rho_k;
+        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k);
+        pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, rdOcp);
 
         // Boundary treatment
         if (k==0)
@@ -472,8 +473,8 @@ ERF::init_bx_scalars_from_input_sounding_hse(
                 interpolate_1d(z_inp_sound, rho_inp_sound, 0.0, inp_sound_size);
             amrex::Real rhoTh_surf =
                 rho_surf * interpolate_1d(z_inp_sound, theta_inp_sound, 0.0, inp_sound_size);
-             p_hse(i, j, k-1) = getPgivenRTh(rhoTh_surf) + dx[2]/2 * rho_surf * l_gravity;
-            pi_hse(i, j, k-1) = getExnergivenP(p_hse(i, j, k-1), rdOcp);
+            p_hse_arr (i, j, k-1) = getPgivenRTh(rhoTh_surf) + dx[2]/2 * rho_surf * l_gravity;
+            pi_hse_arr(i, j, k-1) = getExnergivenP(p_hse_arr(i, j, k-1), rdOcp);
         }
         else if (k==ktop)
         {
@@ -482,8 +483,8 @@ ERF::init_bx_scalars_from_input_sounding_hse(
                 interpolate_1d(z_inp_sound, rho_inp_sound, z+dx[2]/2, inp_sound_size);
             amrex::Real rhoTh_top =
                 rho_top * interpolate_1d(z_inp_sound, theta_inp_sound, z+dx[2]/2, inp_sound_size);
-             p_hse(i, j, k+1) = getPgivenRTh(rhoTh_top) - dx[2]/2 * rho_top * l_gravity;
-            pi_hse(i, j, k+1) = getExnergivenP(p_hse(i, j, k+1), rdOcp);
+            p_hse_arr (i, j, k+1) = getPgivenRTh(rhoTh_top) - dx[2]/2 * rho_top * l_gravity;
+            pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), rdOcp);
         }
 
 #ifdef ERF_USE_MOISTURE
