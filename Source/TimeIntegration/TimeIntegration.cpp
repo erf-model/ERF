@@ -197,7 +197,8 @@ void ERF::erf_advance(int level,
                                   *Tau11, *Tau22, *Tau33,
                                   *Tau12, *Tau13, *Tau23,
                                   state_old[IntVar::cons],
-                                  *eddyDiffs, fine_geom, solverChoice, m_most);
+                                  *eddyDiffs, fine_geom, *mapfac_u[level], *mapfac_v[level],
+                                  solverChoice, m_most);
     }
 
     // ***********************************************************************************************

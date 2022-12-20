@@ -14,6 +14,7 @@ ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& 
                            const amrex::MultiFab& cons_in,
                            amrex::MultiFab& eddyViscosity,
                            const amrex::Geometry& geom,
+                           const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                            const SolverChoice& solverChoice,
                            std::unique_ptr<ABLMost>& most,
                            bool vert_only = false);
