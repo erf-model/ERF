@@ -65,10 +65,10 @@ std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
   //     for (int i=0; i<nx; i++) {
   //       for (int icrm=0; icrm<ncrms; icrm++) {
   for ( amrex::MFIter mfi(*tabs, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-     auto qcl_array   = qcl->array(mfi);
+     //auto qcl_array   = qcl->array(mfi);
      auto qci_array   = qci->array(mfi);
      auto qt_array    = qt->array(mfi);
-     auto tabs_array  = tabs->array(mfi);
+     //auto tabs_array  = tabs->array(mfi);
      auto theta_array = theta->array(mfi);
      auto fz_array    = fz.array(mfi);
 

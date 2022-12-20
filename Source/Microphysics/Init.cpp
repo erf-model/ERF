@@ -9,7 +9,7 @@ using namespace amrex;
 
 void Microphysics::Init(const MultiFab& cons_in,
                         const MultiFab& qc_in,
-                        const MultiFab& qv_in,
+                        const MultiFab& /*qv_in*/,
                         const MultiFab& qi_in,
                         const Geometry& geom,
                         const Real& dt_advance)
@@ -91,19 +91,19 @@ void Microphysics::Init(const MultiFab& cons_in,
   Real gam3  = erf_gammafff(3.0             );
   Real gamr1 = erf_gammafff(3.0+b_rain      );
   Real gamr2 = erf_gammafff((5.0+b_rain)/2.0);
-  Real gamr3 = erf_gammafff(4.0+b_rain      );
+  // Real gamr3 = erf_gammafff(4.0+b_rain      );
   Real gams1 = erf_gammafff(3.0+b_snow      );
   Real gams2 = erf_gammafff((5.0+b_snow)/2.0);
-  Real gams3 = erf_gammafff(4.0+b_snow      );
+  // Real gams3 = erf_gammafff(4.0+b_snow      );
   Real gamg1 = erf_gammafff(3.0+b_grau      );
   Real gamg2 = erf_gammafff((5.0+b_grau)/2.0);
-  Real gamg3 = erf_gammafff(4.0+b_grau      );
+  // Real gamg3 = erf_gammafff(4.0+b_grau      );
 
   // get the temperature, dentisy, theta, qt and qp from input
   for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto states_array = cons_in.array(mfi);
      auto qc_in_array  = qc_in.array(mfi);
-     auto qv_in_array  = qv_in.array(mfi);
+     // auto qv_in_array  = qv_in.array(mfi);
      auto qi_in_array  = qi_in.array(mfi);
      auto qt_array     = mic_fab_vars[MicVar::qt]->array(mfi);
      auto qp_array     = mic_fab_vars[MicVar::qp]->array(mfi);

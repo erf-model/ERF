@@ -31,7 +31,7 @@ AMREX_FORCE_INLINE IntVect offset(const int face_dir, const int normal)
     return offset;
 }
 
-void ReadBndryPlanes::define_level_data(int lev)
+void ReadBndryPlanes::define_level_data(int /*lev*/)
 {
     amrex::Print() << "ReadBndryPlanes::define_level_data" << std::endl;
     // *********************************************************

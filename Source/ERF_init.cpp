@@ -602,10 +602,6 @@ ERF::init_custom(int lev)
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
 #ifdef ERF_USE_MOISTURE
-        const auto &qv_arr = qv_new.array(mfi);
-        const auto &qc_arr = qc_new.array(mfi);
-        const auto &qi_arr = qi_new.array(mfi);
-
         const auto &qv_pert_arr = qv_pert.array(mfi);
         const auto &qc_pert_arr = qc_pert.array(mfi);
         const auto &qi_pert_arr = qi_pert.array(mfi);

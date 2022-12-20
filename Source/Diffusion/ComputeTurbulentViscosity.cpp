@@ -25,15 +25,12 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                    const SolverChoice& solverChoice)
 {
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-    const Real cellVol = 1.0 / (dxInv[0] * dxInv[1] * dxInv[2]);
-    const Real Delta   = std::pow(cellVol,1.0/3.0);
 
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
     if (solverChoice.les_type == LESType::Smagorinsky)
     {
       Real Cs = solverChoice.Cs;
-      Real CsDeltaSqr = Cs*Cs*Delta*Delta;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
