@@ -68,8 +68,16 @@ perturb_rho_theta (const amrex::Real x,
     amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, rdOcp);
 
     // Update state -- this version perturbs rho but not p
-    rhotheta = getRhoThetagivenP(p_hse);
-    rho = rhotheta / theta_perturbed;
+    if (parms.T_0 > 0)
+    {
+        rhotheta = getRhoThetagivenP(p_hse);
+        rho = rhotheta / theta_perturbed;
+    } else {
+        // already have a background field initialized, need to return
+        // perturbations
+        rhotheta = 0.0;
+        rho = getRhoThetagivenP(p_hse) / theta_perturbed - r_hse;
+    }
 }
 
 #endif

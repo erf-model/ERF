@@ -372,13 +372,25 @@ init_custom_prob(
     } else {
 
         if (parms.T_0 > 0)
+        {
             init_isentropic_hse_no_terrain(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
   
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
+            amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
+            amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
   
-        Real* r = d_r.data();
-        Real* p = d_p.data();
+            Real* r = d_r.data();
+            Real* p = d_p.data();
+
+            amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            {
+                for (int k = 0; k <= khi; k++) {
+                   r_hse(i,j,k) = r[k];
+                   p_hse(i,j,k) = p[k];
+                }
+                r_hse(i,j,   -1) = r_hse(i,j,0);
+                r_hse(i,j,khi+1) = r_hse(i,j,khi);
+            });
+        }
   
         amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -390,7 +402,7 @@ init_custom_prob(
             const Real y = prob_lo[1] + (j + 0.5) * dx[1];
             const Real z = prob_lo[2] + (k + 0.5) * dx[2];
   
-            perturb_rho_theta(x, y, z, p[k], r[k],
+            perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
                               parms, rdOcp,
                               state(i, j, k, Rho_comp),
                               state(i, j, k, RhoTheta_comp));
