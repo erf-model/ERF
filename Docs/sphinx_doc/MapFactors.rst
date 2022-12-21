@@ -39,11 +39,11 @@ With map factors, the dry governing equations have the following form
 
   \frac{\partial (\rho \theta)}{\partial t} &= - m^2 \nabla_H \cdot (\rho \mathbf{u_H} \theta m^{-1})
                                                - m   \frac{\partial (\rho w \theta m^{-1})}{\partial z}
-                                               + \nabla \cdot ( \rho \alpha_{T}\ \nabla \theta) + F_{\rho \theta},
+                                               + \nabla \cdot ( \rho \alpha_{T}\ m \nabla \theta) + F_{\rho \theta},
 
   \frac{\partial (\rho C)}{\partial t} &= - m^2 \nabla_H \cdot (\rho \mathbf{u_H} C m^{-1})
                                           - m   \frac{\partial (\rho w C m^{-1})}{\partial z}
-                                          + \nabla \cdot (\rho \alpha_{C}\ \nabla C)
+                                          + \nabla \cdot (\rho \alpha_{C}\ m \nabla C)
 
 where
 :math:`u_H` is the velocity in the horizontal (lateral) only,
