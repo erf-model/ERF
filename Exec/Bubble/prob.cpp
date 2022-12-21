@@ -16,6 +16,8 @@ init_isentropic_hse_no_terrain(const Real& r_sfc, const Real& theta,
                                const Real& dz,    const Real&  /*prob_lo_z*/,
                                const int& khi)
 {
+  AMREX_ALWAYS_ASSERT(parms.T_0 > 0);
+
   // r_sfc / p_0 are the density / pressure at the surface
   int k0 = 0;
 
@@ -108,6 +110,8 @@ init_isentropic_hse_terrain(int i, int j,
                             const Array4<Real const> z_cc,
                             const int& khi)
 {
+  AMREX_ALWAYS_ASSERT(parms.T_0 > 0);
+
   // r_sfc / p_0 are the density / pressure at the surface
   int k0  = 0;
   Real half_dz = z_cc(i,j,k0);
@@ -297,12 +301,7 @@ init_custom_prob(
     const Real thetabar  = parms.T_0;
     const Real dz        = geomdata.CellSize()[2];
     const Real prob_lo_z = geomdata.ProbLo()[2];
-  
-    amrex::Print() << "Bubble delta T = " << parms.T_pert << " K" << std::endl;
-    amrex::Print() << "  centered at ("
-        << parms.x_c << " " << parms.y_c << " " << parms.z_c << ")" << std::endl;
-    amrex::Print() << "  with extent ("
-        << parms.x_r << " " << parms.y_r << " " << parms.z_r << ")" << std::endl;
+    const Real rdOcp     = sc.rdOcp;
   
     // These are at cell centers (unstaggered)
     Vector<Real> h_r(khi+1);
@@ -311,28 +310,42 @@ init_custom_prob(
     amrex::Gpu::DeviceVector<Real> d_r(khi+1);
     amrex::Gpu::DeviceVector<Real> d_p(khi+1);
   
-    const Real rdOcp = sc.rdOcp;
+    amrex::Print() << "Bubble delta T = " << parms.T_pert << " K" << std::endl;
+    amrex::Print() << "  centered at ("
+        << parms.x_c << " " << parms.y_c << " " << parms.z_c << ")" << std::endl;
+    amrex::Print() << "  with extent ("
+        << parms.x_r << " " << parms.y_r << " " << parms.z_r << ")" << std::endl;
+  
+    if (parms.T_0 <= 0)
+    {
+        amrex::Print() << "Ignoring parms.T_0 = " << parms.T_0
+            << ", background fields should have been initialized with erf.init_type"
+            << std::endl;
+    }
   
     if (z_cc) { // nonflat terrain
 
-        // Create a flat box with same horizontal extent but only one cell in vertical
-        Box b2d = surroundingNodes(bx); // Copy constructor
-        b2d.setRange(2,0);
-
-        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        if (parms.T_0 > 0)
         {
-            Array1D<Real,0,255> r;;
-            Array1D<Real,0,255> p;;
+            // Create a flat box with same horizontal extent but only one cell in vertical
+            Box b2d = surroundingNodes(bx); // Copy constructor
+            b2d.setRange(2,0);
 
-            init_isentropic_hse_terrain(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc,khi);
+            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+                Array1D<Real,0,255> r;;
+                Array1D<Real,0,255> p;;
 
-            for (int k = 0; k <= khi; k++) {
-               r_hse(i,j,k) = r(k);
-               p_hse(i,j,k) = p(k);
-            }
-            r_hse(i,j,   -1) = r_hse(i,j,0);
-            r_hse(i,j,khi+1) = r_hse(i,j,khi);
-        });
+                init_isentropic_hse_terrain(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc,khi);
+
+                for (int k = 0; k <= khi; k++) {
+                   r_hse(i,j,k) = r(k);
+                   p_hse(i,j,k) = p(k);
+                }
+                r_hse(i,j,   -1) = r_hse(i,j,0);
+                r_hse(i,j,khi+1) = r_hse(i,j,khi);
+            });
+        }
 
         amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -358,7 +371,8 @@ init_custom_prob(
         });
     } else {
 
-        init_isentropic_hse_no_terrain(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
+        if (parms.T_0 > 0)
+            init_isentropic_hse_no_terrain(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
   
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());

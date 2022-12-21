@@ -6,8 +6,8 @@
 
 struct ProbParm {
   // background conditions
-  // if init_type != "" then these are perturbations
-  amrex::Real T_0 = 0.0;
+  // if init_type != "" then these are perturbations and should be 0
+  amrex::Real T_0 = 300.0;
   amrex::Real U_0 = 0.0;
   amrex::Real V_0 = 0.0;
 
