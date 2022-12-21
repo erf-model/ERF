@@ -503,4 +503,6 @@ amrex_probinit(
   pp.query("y_r", parms.y_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
+  pp.query("T_pert_potential", parms.T_pert_potential);
+  pp.query("perturb_rho", parms.perturb_rho);
 }

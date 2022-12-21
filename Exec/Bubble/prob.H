@@ -23,6 +23,8 @@ struct ProbParm {
 
   // perturbation temperature
   amrex::Real T_pert = -15.0;
+  bool T_pert_potential = false; // input is potential temperature
+  bool perturb_rho = true; // not rho*theta (i.e., p is constant); otherwise perturb rho*theta
 
 }; // namespace ProbParm
 
@@ -44,9 +46,6 @@ perturb_rho_theta (const amrex::Real x,
                    amrex::Real& rho,
                    amrex::Real& rhotheta)
 {
-    // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-    const amrex::Real Tbar_hse = p_hse / (R_d * r_hse);
-
     // Perturbation air temperature
     // - The bubble is either cylindrical (for 2-D problems, if two
     //   radial extents are specified) or an ellipsoid (if all three
@@ -64,19 +63,46 @@ perturb_rho_theta (const amrex::Real x,
         dT = pp.T_pert * (std::cos(PI*L) + 1.0)/2.0;
     }
 
-    // Note: theta_perturbed is theta PLUS perturbation in theta
-    amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, rdOcp);
+    // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
+    const amrex::Real Tbar_hse = p_hse / (R_d * r_hse);
 
-    // Update state -- this version perturbs rho but not p
-    if (pp.T_0 > 0)
-    {
-        rhotheta = getRhoThetagivenP(p_hse);
-        rho = rhotheta / theta_perturbed;
+    // Note: theta_perturbed is theta PLUS perturbation in theta
+    amrex::Real theta_perturbed;
+    if (pp.T_pert_potential) {
+        // dT is potential temperature
+        theta_perturbed = Tbar_hse*std::pow(p_0/p_hse, rdOcp) + dT;
     } else {
-        // already have a background field initialized, need to return
-        // perturbations
-        rhotheta = 0.0;
-        rho = getRhoThetagivenP(p_hse) / theta_perturbed - r_hse;
+        // dT is air temperature
+        theta_perturbed = (Tbar_hse + dT)*std::pow(p_0/p_hse, rdOcp);
+    }
+
+    if (pp.perturb_rho) // - this version perturbs rho but not p (like density current problem)
+    {
+        if (pp.T_0 > 0)
+        {
+            // update full state, calculate HSE base state later
+            rhotheta = getRhoThetagivenP(p_hse);
+            rho = rhotheta / theta_perturbed;
+        } else {
+            // already have a background field initialized, need to return
+            // rho and rhotheta as _perturbations_
+            rhotheta = 0.0; // i.e., hydrostatically balanced pressure stays const
+            rho = getRhoThetagivenP(p_hse) / theta_perturbed - r_hse;
+        }
+    }
+    else // - this version perturbs p but not rho
+    {
+        if (pp.T_0 > 0)
+        {
+            // update full state, calculate HSE base state later
+            rho = r_hse;
+            rhotheta = r_hse * theta_perturbed;
+        } else {
+            // already have a base field initialized, need to return
+            // rho and rhotheta as _perturbations_
+            rho = 0.0; // i.e., hydrostatically balanced density stays const
+            rhotheta = r_hse * theta_perturbed - getRhoThetagivenP(p_hse);
+        }
     }
 }
 
