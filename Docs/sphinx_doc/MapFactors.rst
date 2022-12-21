@@ -49,3 +49,21 @@ where
 :math:`u_H` is the velocity in the horizontal (lateral) only,
 :math:`\nabla_H` is the horizontal (lateral) gradient,
 :math:`m` is the map factor at the appropriate spatial location and :math:`m^{-1} = 1 / m`.
+
+The viscous stress tensor
+:math:`\tau`
+is modified via the strain rates
+:math:`S_{ij}`:
+
+.. math::
+   S_{11} = m^2*\left[ \partial_x (um^{-1}) - \frac{h_\xi}{h_\zeta}\partial_z (um^{-1}) \right]
+   S_{22} = m^2*\left[ \partial_y (vm^{-1}) - \frac{h_\eta}{h_\zeta}\partial_z (vm^{-1})) \right]
+   S_{33} = \frac{1}{h_\zeta}\partial_z w
+   S_{12} = \frac{m^2}{2} * \left[ \partial_y (m^{-1}u) + \partial_x (vm^{-1}) - \frac{h_\eta}{h_\zeta} \partial_z (um^{-1}) - \frac{h_\xi}{h_\zeta}\partial_z (vm^{-1}) \right]
+   S_{13} = \frac{1}{2} * \left[ \frac{1}{h_\zeta}\partial_z u + m * \left( \partial_x w - \frac{h_\xi}{h_\zeta} \partial_z w \right) \right]
+   S_{23} = \frac{1}{2} * \left[ \frac{1}{h_\zeta}\partial_z v + m * \left( \partial_y w - \frac{h_\eta}{h_\zeta} \partial_z w \right) \right]
+
+When LES models are used, the cell volume is used to compute the eddy viscosities. The cell volume must be adjusted using the map factors:
+
+.. math::
+   cellVol = \frac{1}{\Delta x * m_x * \Delta y * m_y * \Delta z}
