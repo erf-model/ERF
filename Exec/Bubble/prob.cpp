@@ -16,8 +16,6 @@ init_isentropic_hse_no_terrain(const Real& r_sfc, const Real& theta,
                                const Real& dz,    const Real&  /*prob_lo_z*/,
                                const int& khi)
 {
-  AMREX_ALWAYS_ASSERT(parms.T_0 > 0);
-
   // r_sfc / p_0 are the density / pressure at the surface
   int k0 = 0;
 
@@ -110,8 +108,6 @@ init_isentropic_hse_terrain(int i, int j,
                             const Array4<Real const> z_cc,
                             const int& khi)
 {
-  AMREX_ALWAYS_ASSERT(parms.T_0 > 0);
-
   // r_sfc / p_0 are the density / pressure at the surface
   int k0  = 0;
   Real half_dz = z_cc(i,j,k0);
@@ -201,6 +197,11 @@ erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>& z_phys_cc,
                   Geometry const& geom)
 {
+    // if erf.init_type is specified, then the base density should
+    // already have been calculated. In that case, these assumed (dry)
+    // surface conditions are probably incorrect.
+    AMREX_ALWAYS_ASSERT(parms.T_0 > 0);
+
     const Real prob_lo_z = geom.ProbLo()[2];
     const Real dz        = geom.CellSize()[2];
     const int khi        = geom.Domain().bigEnd()[2];

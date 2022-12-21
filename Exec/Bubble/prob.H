@@ -68,7 +68,7 @@ perturb_rho_theta (const amrex::Real x,
     amrex::Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse, rdOcp);
 
     // Update state -- this version perturbs rho but not p
-    if (parms.T_0 > 0)
+    if (pp.T_0 > 0)
     {
         rhotheta = getRhoThetagivenP(p_hse);
         rho = rhotheta / theta_perturbed;
