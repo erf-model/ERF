@@ -448,9 +448,9 @@ ERF::init_bx_scalars_from_input_sounding_hse(
         int ktop = bx.bigEnd(2);
 
         Real rho_k, rhoTh_k;
-        rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
 
         // Set the density
+        rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
         state(i, j, k, Rho_comp) = rho_k;
 
         // Initial Rho0*Theta0
@@ -471,9 +471,7 @@ ERF::init_bx_scalars_from_input_sounding_hse(
             // set the ghost cell with dz and rho at boundary
             amrex::Real rho_surf =
                 interpolate_1d(z_inp_sound, rho_inp_sound, 0.0, inp_sound_size);
-            amrex::Real rhoTh_surf =
-                rho_surf * interpolate_1d(z_inp_sound, theta_inp_sound, 0.0, inp_sound_size);
-            p_hse_arr (i, j, k-1) = getPgivenRTh(rhoTh_surf) + dx[2]/2 * rho_surf * l_gravity;
+            p_hse_arr (i, j, k-1) = p_hse_arr(i,j,k) + dx[2] * rho_surf * l_gravity;
             pi_hse_arr(i, j, k-1) = getExnergivenP(p_hse_arr(i, j, k-1), rdOcp);
         }
         else if (k==ktop)
@@ -481,9 +479,7 @@ ERF::init_bx_scalars_from_input_sounding_hse(
             // set the ghost cell with dz and rho at boundary
             amrex::Real rho_top =
                 interpolate_1d(z_inp_sound, rho_inp_sound, z+dx[2]/2, inp_sound_size);
-            amrex::Real rhoTh_top =
-                rho_top * interpolate_1d(z_inp_sound, theta_inp_sound, z+dx[2]/2, inp_sound_size);
-            p_hse_arr (i, j, k+1) = getPgivenRTh(rhoTh_top) - dx[2]/2 * rho_top * l_gravity;
+            p_hse_arr (i, j, k+1) = p_hse_arr(i,j,k) - dx[2] * rho_top * l_gravity;
             pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), rdOcp);
         }
 

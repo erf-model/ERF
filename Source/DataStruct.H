@@ -599,6 +599,8 @@ public:
             }
             amrex::Print() << z_inp_sound[k] << " " << pd_integ[k] << " " << rhod_integ[k] << " " << theta_inp_sound[k] << std::endl; // DEBUG
         }
+        // Note: at this point, the surface pressure, density of the dry air
+        // column is stored in pd_integ[0], rhod_integ[0] 
 
         // update
         host_to_device();
