@@ -185,7 +185,7 @@ which is implemented as
    \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
                   + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
 
-(to derive the buoyancy term, we assume that the perturbation of :math:`p^\prime`, :math:`T^\prime`, and :math:`\rho^\prime` are small compared with the total pressure, temperature, and density,
+(to derive the buoyancy term, we assume that the perturbation of :math:`p^\prime`, :math:`T^\prime`, and :math:`\rho^\prime` are small compared with the total pressure, temperature, and density, and :math:`\rho = \rho_d + \rho_v + \rho_c + \rho_i + \rho_p`
 
 .. math::
    p = \rho (R_d q_d + R_v q_v) T = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
