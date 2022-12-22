@@ -193,13 +193,14 @@ which is implemented as
 then we can calculate the perturbation of density :math:`\rho^\prime`,
 
 .. math::
-   p^\prime = \frac{p}{ρ} ρ^\prime + ρ R_d T [(\frac{R_v}{R_d} - 1) q_v^\prime - q_c^\prime - q_p^\prime] + 
-             ρ R_d [1 + (\frac{R_v}{R_d} - 1) q_v - q_c - q_p ] T^\prime
+   p^\prime = \frac{p}{ρ} ρ^\prime + ρ R_d T [(\frac{R_v}{R_d} - 1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime] + 
+             ρ R_d [1 + (\frac{R_v}{R_d} - 1) q_v - q_c - q_i- q_p ] T^\prime
              
+therefore, we have             
 .. math::
-   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T^\prime}{T} \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i)}
+   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T^\prime}{T} \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)}
 
-assuming :math:`qc, q_i, qv << 1`, then we have :math:`1 + (\frac{R_v}{R_d}-1) q_v - q_c - q_i \approx 1`, so 
+assuming :math:`qc, q_i, qv, q_p << 1`, then we have :math:`1 + (\frac{R_v}{R_d}-1) q_v - q_c - q_i - q_p \approx 1`, so 
 
 .. math::
    \frac{\rho^\prime}{\rho} \approx \frac{p^\prime}{p} - \frac{T^\prime}{T} - \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c - q_i }{1}
