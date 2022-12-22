@@ -140,7 +140,7 @@ the EOS equation can be written as,
 .. math::
    p = p_0 (\frac{\Pi}{C_p^\star})^{\frac{C_p^\star}{R^\star}}
 
-where :math:`p_0` is the reference pressure. and 
+where :math:`p_0` is the reference pressure. and
 
 .. math::
   \Pi = C_p^\star (\frac{p}{\alpha p_0})^\frac{R^\star}{C_p^\star}
