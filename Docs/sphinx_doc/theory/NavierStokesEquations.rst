@@ -125,56 +125,32 @@ relative to the total density, i.e. :math:`q_s = \frac{\rho_s}{\rho}`.  We note 
 
   \sum_s q_s = 1
 
-Potential temperature :math:`\theta` is defined as a function of temperature and specific entropy:
+where :math:`\rho` is the moist air density.
 
-.. math::
-  \theta (\eta, T) = T_r exp(\frac{\eta - \eta_0}{C_p})
-
-where :math:`T_r` is the reference temperature, usually chosen as the temperature at the surface,
-:math:`\eta_0` is the specific entropy at the reference temperature and pressure,
-and :math:`\eta` is the specific entropy, defined for the mixture as
-
-.. math::
-   \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_p \eta_p
-
-where :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
-and :math:`\eta_c`, :math:`\eta_p` are the partial specific entropies for dry air, water vapor, cloud water, cloud ice,
-and precipitates, respectively, and :math:`T_p`, is the reference temperature for the condensates:
-
-.. math::
-  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_{rd}}) + \eta_{rd}
-
-  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_{rv}}) + \eta_{rv}
-
-  \eta_i = C_i ln (\frac{T}{T_r}) + \eta_{ri}
-
-  \eta_c = C_c ln (\frac{T}{T_r}) + \eta_{rc}
-
-  \eta_p = C_p ln (\frac{T}{T_p}) + \eta_{rp}
-
-where :math:`\eta_{rd}`, :math:`\eta_{rv}`, :math:`\eta_{ri}`, :math:`\eta_{rc}` and :math:`\eta_{rp}` are the specific entropy for dry air, water vapor, and ice, cloud, and precipitates, respectively. The Exner pressure :math:`\Pi` can be written as,
-
-.. math::
-  \Pi = C_p (\frac{p}{\alpha p_r})^\frac{R_d}{C_p}
-
-and :math:`\theta`, :math:`p` can be expressed as
-
-.. math::
-   \alpha = \frac{R_d}{p}(\frac{p}{p_r})^\frac{R_d}{c_p} \theta
-
-   \theta = T (\frac{p_r}{p})^\frac{R_d}{C_p}
-
-   p = p_r (\frac{\Pi}{C_p})^{\frac{C_p}{R_d}}
-
-and :math:`p_r` is the reference pressure.
-
-Governing Equations for Multispecies Atmospheric Flow
--------------------------------------------------------
-We assume that all species have same average speed, and define the total potential temperature
+define the total potential temperature
 
 .. math::
   \theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho} (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c).
 
+the EOS can be written as,
+.. math::
+   \theta = T (\frac{p_0}{p})^\frac{R^\star}{C_p^\star}
+
+   p = p_0 (\frac{\Pi}{C_p^\star})^{\frac{C_p^\star}{R^\star}}
+
+where :math:`p_0` is the reference pressure. and 
+.. math::
+  \Pi = C_p^\star (\frac{p}{\alpha p_0})^\frac{R^\star}{C_p^\star}
+
+with :math:`alpha = \frac{R^\star}{p}(\frac{p}{p_0})^\frac{R^\star}{c_p^\star} \theta`
+
+here, :math:`R^\star =  q_d R_{d} + q_v R_{v} + q_i R_{i} + q_p R_{p}`, :math:`C_p^\star = q_d C_{pd} + q_v C_{pv} + q_i C_{pi} + q_p C_{pp}`, and :math:`R_d`,
+:math:`R_v`, :math:`R_i`, :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitation tracers, espectively. :math:`C_{pd}`, :math:`C_{pv}`,
+:math:`C_{pi}`, :math:`C_{pp}` are the specific heat for dry air, water vapor, cloud ice, and precipitation traces, respectively.
+
+Governing Equations for Compressible Multispecies Atmospheric Flow
+-------------------------------------------------------
+We assume that all species have same average speed,
 Then the governing equations become
 
 .. math::
