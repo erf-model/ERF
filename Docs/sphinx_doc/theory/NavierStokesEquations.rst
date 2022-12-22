@@ -135,8 +135,10 @@ define the total potential temperature
 the EOS equation can be written as,
 
 .. math::
-   \theta = T (\frac{p_0}{p})^\frac{R^\star}{C_p^\star}
+  \theta = T (\frac{p_0}{p})^\frac{R^\star}{C_p^\star}
 
+
+.. math::
    p = p_0 (\frac{\Pi}{C_p^\star})^{\frac{C_p^\star}{R^\star}
 
 where :math:`p_0` is the reference pressure. and 
