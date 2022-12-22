@@ -206,6 +206,11 @@ assuming :math:`q_c, q_i, q_v, q_p \ll 1`, then we have :math:`1 + (\frac{R_v}{R
 .. math::
    \frac{\rho^\prime}{\rho} \approx \frac{p^\prime}{p} - \frac{T^\prime}{T} - \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c - q_i - q_p }{1}
    
+since :math:`\frac{R_v}{R_d}-1 = 0.606 \approx 0.61`, then we have
+
+.. math::
+   \frac{\rho^\prime}{\rho} \approx \frac{p^\prime}{p} - \frac{T^\prime}{T} - ( 0.61 q_v^\prime - q_c - q_i - q_p )
+   
 )
    
 where the overbar represents a horizontal average of the current state.
