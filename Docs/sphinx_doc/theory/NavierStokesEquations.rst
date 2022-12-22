@@ -199,7 +199,7 @@ then we can calculate the perturbation of density :math:`\rho^\prime`,
 therefore, we have  
 
 .. math::
-   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T^\prime}{T} \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)}
+   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T^\prime}{T} + \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)}
 
 assuming :math:`qc, q_i, qv, q_p << 1`, then we have :math:`1 + (\frac{R_v}{R_d}-1) q_v - q_c - q_i - q_p \approx 1`, so 
 
