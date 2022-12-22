@@ -185,6 +185,27 @@ which is implemented as
    \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
                   + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
 
+(to derive the buoyancy term, we assume that the perturbation of :math:`p^\prime`, :math:`T^\prime`, and :math:`rho^\prime` are small compared with the total pressure, temperature, and density,
+
+.. math::
+   p = \rho (R_d q_d + R_v q_v) T = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
+
+then we can calculate the perturbation of density :math:`\rho^\prime`,
+
+.. math::
+   p^\prime = \frac{p}{ρ} ρ^\prime + ρ R_d T [(\frac{R_v}{R_d} - 1) q_v^\prime - q_c^\prime - q_p^\prime] + 
+             ρ R_d [1 + (\frac{R_v}{R_d} - 1) q_v - q_c - q_p ] T^\prime
+             
+.. math::
+   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T^\prime}{T} \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i)}
+
+assuming :math:`qc, q_i, qv << 1`, then we have :math:`1 + (\frac{R_v}{R_d}-1) q_v - q_c - q_i \approx 1`, so 
+
+.. math::
+   \frac{\rho^prime}{\rho} \approx \frac{p^\prime}{p} - \frac{T^\prime}{T} - \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c - q_i }{1}
+   
+)
+   
 where the overbar represents a horizontal average of the current state.
 
 Single Moment Microphysics Model
