@@ -130,19 +130,19 @@ where :math:`\rho` is the moist air density.
 define the total potential temperature
 
 .. math::
-  \theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho} (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c).
+  \theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{1}{\rho} (\rho_d \theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c).
 
 the EOS can be written as,
 .. math::
    \theta = T (\frac{p_0}{p})^\frac{R^\star}{C_p^\star}
 
-   p = p_0 (\frac{\Pi}{C_p^\star})^{\frac{C_p^\star}{R^\star}}
+   p = p_0 (\frac{\Pi}{C_p^\star})^{\frac{C_p^\star}{R^\star}
 
 where :math:`p_0` is the reference pressure. and 
 .. math::
   \Pi = C_p^\star (\frac{p}{\alpha p_0})^\frac{R^\star}{C_p^\star}
 
-with :math:`alpha = \frac{R^\star}{p}(\frac{p}{p_0})^\frac{R^\star}{c_p^\star} \theta`
+with :math:`\alpha = \frac{R^\star}{p}(\frac{p}{p_0})^\frac{R^\star}{c_p^\star} \theta`
 
 here, :math:`R^\star =  q_d R_{d} + q_v R_{v} + q_i R_{i} + q_p R_{p}`, :math:`C_p^\star = q_d C_{pd} + q_v C_{pv} + q_i C_{pi} + q_p C_{pp}`, and :math:`R_d`,
 :math:`R_v`, :math:`R_i`, :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitation tracers, espectively. :math:`C_{pd}`, :math:`C_{pv}`,
