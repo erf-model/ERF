@@ -160,7 +160,7 @@ Then the governing equations become
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} + \mathbf{F}_\rho)
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u} + \mathbf{F}_u) -
-          \frac{1}{1 + q_T + q_p}  \nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
+          \frac{1}{1 + q_T + q_p}  \nabla p^\prime + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
   \frac{\partial (\rho_d \theta)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta + F_{\theta}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
 
