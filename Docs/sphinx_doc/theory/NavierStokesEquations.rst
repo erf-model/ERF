@@ -188,8 +188,6 @@ which is implemented as
 
 where the overbar represents a horizontal average of the current state.
 
-We note that we have assumed the energy transport for the different components are the same.
-
 Single Moment Microphysics Model
 ===================================
 The conversion rates among the moist hydrometeors are parameterized assuming that
