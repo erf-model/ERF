@@ -132,13 +132,15 @@ define the total potential temperature
 .. math::
   \theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{1}{\rho} (\rho_d \theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c).
 
-the EOS can be written as,
+the EOS equation can be written as,
+
 .. math::
    \theta = T (\frac{p_0}{p})^\frac{R^\star}{C_p^\star}
 
    p = p_0 (\frac{\Pi}{C_p^\star})^{\frac{C_p^\star}{R^\star}
 
 where :math:`p_0` is the reference pressure. and 
+
 .. math::
   \Pi = C_p^\star (\frac{p}{\alpha p_0})^\frac{R^\star}{C_p^\star}
 
