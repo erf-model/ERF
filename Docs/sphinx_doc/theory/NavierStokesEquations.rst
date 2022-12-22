@@ -125,63 +125,41 @@ relative to the total density, i.e. :math:`q_s = \frac{\rho_s}{\rho}`.  We note 
 
   \sum_s q_s = 1
 
-Potential temperature :math:`\theta` is defined as a function of temperature and specific entropy:
+where :math:`\rho` is the moist air density.
+
+define the total potential temperature
 
 .. math::
-  \theta (\eta, T) = T_r exp(\frac{\eta - \eta_0}{C_p})
+  \theta = \frac{\sum_s \rho_s \theta_s}{\sum_s \rho_s} \approx (q_d \theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c).
 
-where :math:`T_r` is the reference temperature, usually chosen as the temperature at the surface,
-:math:`\eta_0` is the specific entropy at the reference temperature and pressure,
-and :math:`\eta` is the specific entropy, defined for the mixture as
+the EOS equation can be written as,
 
 .. math::
-   \eta = q_d \eta_d + q_v \eta_v + q_i \eta_i + q_c \eta_c + q_p \eta_p
-
-where :math:`\eta_d`, :math:`\eta_v`, :math:`\eta_i`,
-and :math:`\eta_c`, :math:`\eta_p` are the partial specific entropies for dry air, water vapor, cloud water, cloud ice,
-and precipitates, respectively, and :math:`T_p`, is the reference temperature for the condensates:
+   T = \theta (\frac{p}{p_0})^\frac{R^\star}{C_p^\star}
 
 .. math::
-  \eta_d = C_{pd} ln (\frac{T}{T_r}) - R_d ln (\frac{p_d}{p_{rd}}) + \eta_{rd}
+   p = p_0 (\frac{\Pi}{C_p^\star})^{\frac{C_p^\star}{R^\star}}
 
-  \eta_v = C_{pv} ln (\frac{T}{T_r}) - R_v ln (\frac{p_v}{p_{rv}}) + \eta_{rv}
-
-  \eta_i = C_i ln (\frac{T}{T_r}) + \eta_{ri}
-
-  \eta_c = C_c ln (\frac{T}{T_r}) + \eta_{rc}
-
-  \eta_p = C_p ln (\frac{T}{T_p}) + \eta_{rp}
-
-where :math:`\eta_{rd}`, :math:`\eta_{rv}`, :math:`\eta_{ri}`, :math:`\eta_{rc}` and :math:`\eta_{rp}` are the specific entropy for dry air, water vapor, and ice, cloud, and precipitates, respectively. The Exner pressure :math:`\Pi` can be written as,
+where :math:`p_0` is the reference pressure. and
 
 .. math::
-  \Pi = C_p (\frac{p}{\alpha p_r})^\frac{R_d}{C_p}
+  \Pi = C_p^\star (\frac{p}{\alpha p_0})^\frac{R^\star}{C_p^\star}
 
-and :math:`\theta`, :math:`p` can be expressed as
+with :math:`\alpha = \frac{R^\star}{p}(\frac{p}{p_0})^\frac{R^\star}{c_p^\star} \theta`
 
-.. math::
-   \alpha = \frac{R_d}{p}(\frac{p}{p_r})^\frac{R_d}{c_p} \theta
+here, :math:`R^\star =  q_d R_{d} + q_v R_{v} + q_i R_{i} + q_p R_{p}`, and :math:`C_p^\star = q_d C_{pd} + q_v C_{pv} + q_i C_{pi} + q_p C_{pp}`. the :math:`R_d`,
+:math:`R_v`, :math:`R_i`, and :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitating condensates, espectively. :math:`C_{pd}`, :math:`C_{pv}`, :math:`C_{pi}`, and :math:`C_{pp}` are the specific heat for dry air, water vapor, cloud ice, and precipitating condensates, respectively.
 
-   \theta = T (\frac{p_r}{p})^\frac{R_d}{C_p}
-
-   p = p_r (\frac{\Pi}{C_p})^{\frac{C_p}{R_d}}
-
-and :math:`p_r` is the reference pressure.
-
-Governing Equations for Multispecies Atmospheric Flow
+Governing Equations for Compressible Multispecies Atmospheric Flow
 -------------------------------------------------------
-We assume that all species have same average speed, and define the total potential temperature
-
-.. math::
-  \theta = \frac{\sum_s \theta_s}{\sum_s \rho_s} \approx \frac{\rho_d}{\rho} (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c).
-
+We assume that all species have same average speed,
 Then the governing equations become
 
 .. math::
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} + \mathbf{F}_\rho)
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u} + \mathbf{F}_u) -
-          \frac{1}{1 + q_T + q_p}  \nabla p^\prime_d + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
+          \frac{1}{1 + q_T + q_p}  \nabla p^\prime + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
   \frac{\partial (\rho_d \theta)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta + F_{\theta}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
 
@@ -207,9 +185,30 @@ which is implemented as
    \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
                   + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
 
-where the overbar represents a horizontal average of the current state.
+(to derive the buoyancy term, we assume that the perturbation of :math:`p^\prime`, :math:`T^\prime`, and :math:`\rho^\prime` are small compared with the total pressure, temperature, and density, and :math:`\rho = \rho_d + \rho_v + \rho_c + \rho_i + \rho_p`
 
-We note that we have assumed the energy transport for the different components are the same.
+.. math::
+   p = \rho (R_d q_d + R_v q_v) T = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
+
+then we can calculate the perturbation of density :math:`\rho^\prime`,
+
+.. math::
+   p^\prime = \frac{p}{ρ} ρ^\prime + ρ R_d T [(\frac{R_v}{R_d} - 1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime] + 
+             ρ R_d [1 + (\frac{R_v}{R_d} - 1) q_v - q_c - q_i- q_p ] T^\prime
+             
+therefore, we have  
+
+.. math::
+   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T^\prime}{T} + \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)}
+
+assuming :math:`q_c, q_i, q_v, q_p \ll 1`, then we have :math:`1 + (\frac{R_v}{R_d}-1) q_v - q_c - q_i - q_p \approx 1`, so 
+
+.. math::
+   \frac{\rho^\prime}{\rho} \approx \frac{p^\prime}{p} - \frac{T^\prime}{T} - \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c - q_i - q_p }{1}
+   
+)
+   
+where the overbar represents a horizontal average of the current state.
 
 Single Moment Microphysics Model
 ===================================
