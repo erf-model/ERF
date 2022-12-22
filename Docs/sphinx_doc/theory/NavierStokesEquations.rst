@@ -229,7 +229,7 @@ then, we have
 .. math::
    \frac{\rho^\prime}{\rho} = \frac{p^\prime}{p} - \frac{T_v^\prime}{T_v}
    
- and 
+the implementation can be written as
  
 .. math::
    \frac{T_v^\prime}{T_v} = {T_0 [ (\frac{R_v}{R_d}-1) (q_v-q_{v0}) - (q_c + q_i + q_p - q_{c0} - q_{i0} - q_{p0})] +
