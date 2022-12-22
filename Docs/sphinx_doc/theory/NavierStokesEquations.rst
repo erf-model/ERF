@@ -148,8 +148,7 @@ where :math:`p_0` is the reference pressure. and
 with :math:`\alpha = \frac{R^\star}{p}(\frac{p}{p_0})^\frac{R^\star}{c_p^\star} \theta`
 
 here, :math:`R^\star =  q_d R_{d} + q_v R_{v} + q_i R_{i} + q_p R_{p}`, and :math:`C_p^\star = q_d C_{pd} + q_v C_{pv} + q_i C_{pi} + q_p C_{pp}`. the :math:`R_d`,
-:math:`R_v`, :math:`R_i`, :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitation tracers, espectively. :math:`C_{pd}`, :math:`C_{pv}`,
-:math:`C_{pi}`, :math:`C_{pp}` are the specific heat for dry air, water vapor, cloud ice, and precipitation traces, respectively.
+:math:`R_v`, :math:`R_i`, and :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitating condensates, espectively. :math:`C_{pd}`, :math:`C_{pv}`, :math:`C_{pi}`, and :math:`C_{pp}` are the specific heat for dry air, water vapor, cloud ice, and precipitating condensates, respectively.
 
 Governing Equations for Compressible Multispecies Atmospheric Flow
 -------------------------------------------------------
