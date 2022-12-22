@@ -233,7 +233,7 @@ the implementation can be written as
  
 .. math::
    \frac{T_v^\prime}{T_v} \approx \frac{T_0 [ (\frac{R_v}{R_d}-1) (q_v-q_{v0}) - (q_c + q_i + q_p - q_{c0} - q_{i0} - q_{p0})] +
-                           (T - T_0)(1+(\frac{R_v}{R_d}-1) q_{v0} - q_{c0} - q_{i0} - q_{p0} )}{T_0}
+                           (T - T_0)[1+(\frac{R_v}{R_d}-1) q_{v0} - q_{c0} - q_{i0} - q_{p0} ]}{T_0}
 )
    
 where the overbar represents a horizontal average of the current state.
