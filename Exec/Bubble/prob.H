@@ -23,7 +23,7 @@ struct ProbParm {
 
   // perturbation temperature
   amrex::Real T_pert = -15.0;
-  bool T_pert_potential = false; // input is potential temperature
+  bool T_pert_is_airtemp = true; // T_pert input is air temperature
   bool perturb_rho = true; // not rho*theta (i.e., p is constant); otherwise perturb rho*theta
 
 }; // namespace ProbParm
@@ -68,38 +68,46 @@ perturb_rho_theta (const amrex::Real x,
 
     // Note: theta_perturbed is theta PLUS perturbation in theta
     amrex::Real theta_perturbed;
-    if (pp.T_pert_potential) {
-        // dT is potential temperature
-        theta_perturbed = Tbar_hse*std::pow(p_0/p_hse, rdOcp) + dT;
-    } else {
+    if (pp.T_pert_is_airtemp) {
         // dT is air temperature
         theta_perturbed = (Tbar_hse + dT)*std::pow(p_0/p_hse, rdOcp);
+    } else {
+        // dT is potential temperature
+        theta_perturbed = Tbar_hse*std::pow(p_0/p_hse, rdOcp) + dT;
     }
 
-    if (pp.perturb_rho) // - this version perturbs rho but not p (like density current problem)
+    if (pp.perturb_rho)
     {
+        // this version perturbs rho but not p (i.e., rho*theta)
+        // - hydrostatic rebalance is needed
+        // - this is the approach taken in the density current problem
+
         if (pp.T_0 > 0)
         {
-            // update full state, calculate HSE base state later
+            // background field has not been initialized, update full state,
+            // need to calculate HSE later
             rhotheta = getRhoThetagivenP(p_hse);
             rho = rhotheta / theta_perturbed;
         } else {
-            // already have a background field initialized, need to return
-            // rho and rhotheta as _perturbations_
+            // already have a background field initialized, need to
+            // return rho and rhotheta as deviations from the base state
             rhotheta = 0.0; // i.e., hydrostatically balanced pressure stays const
             rho = getRhoThetagivenP(p_hse) / theta_perturbed - r_hse;
         }
     }
-    else // - this version perturbs p but not rho
+    else
     {
+        // this version perturbs rho*theta (i.e., p) but not rho
+
         if (pp.T_0 > 0)
         {
-            // update full state, calculate HSE base state later
+            // background field has not been initialized, update full state,
+            // need to calculate HSE later
             rho = r_hse;
             rhotheta = r_hse * theta_perturbed;
         } else {
-            // already have a base field initialized, need to return
-            // rho and rhotheta as _perturbations_
+            // already have a background field initialized, need to
+            // return rho and rhotheta as deviations from the base state
             rho = 0.0; // i.e., hydrostatically balanced density stays const
             rhotheta = r_hse * theta_perturbed - getRhoThetagivenP(p_hse);
         }
