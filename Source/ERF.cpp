@@ -448,7 +448,7 @@ ERF::InitData ()
     }
 
 #ifdef ERF_USE_MOISTURE
-    // Initialize microphysics here to get set the mass mixing ratios 
+    // Initialize microphysics here to get set the mass mixing ratios
     // TODO: instantiate and initialize Microphysics just once for the whole simulation?
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -511,7 +511,7 @@ ERF::InitData ()
             // overwrite Ubar, Tbar, and thetabar with input profiles
             setRayleighRefFromSounding();
         }
-            
+
     }
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
