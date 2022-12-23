@@ -187,7 +187,12 @@ One version of the buoyancy force is given in the Marat paper as
 This can be derived by starting with
 
 .. math::
-   p = \rho (R_d q_d + R_v q_v) T = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
+   p = \rho (R_d q_d + R_v q_v) T = \rho R_d T (q_d + \frac{Rv}{Rd} q_v) 
+   
+since :math:`q_d = 1 - q_v - q_c - q_i - q_p`, then replacing :math:`q_d` in the pressure and density relationship equation, we have
+   
+.. math::   
+   p = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
 
 then, assuming the perturbations of :math:`p^\prime`, :math:`T^\prime`, and :math:`\rho^\prime`
 are small compared with the total pressure, temperature, and density, respectively,
