@@ -162,17 +162,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         calculate_derived("KE",          derived::erf_derKE);
         calculate_derived("QKE",         derived::erf_derQKE);
         calculate_derived("scalar",      derived::erf_derscalar);
-#ifdef ERF_USE_MOISTURE
-        calculate_derived("qt",          derived::erf_derQt);
-        calculate_derived("qp",          derived::erf_derQp);
 
-        MultiFab qv_fab(qv[lev], make_alias, 0, 1);
-        MultiFab qc_fab(qc[lev], make_alias, 0, 1);
-        MultiFab qi_fab(qi[lev], make_alias, 0, 1);
-#endif
         MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
         MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
-
         if (containerHasElement(plot_var_names, "pres_hse"))
         {
             // p_0 is second component of base_state
@@ -185,28 +177,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],r_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
-#ifdef ERF_USE_MOISTURE
-        if (containerHasElement(plot_var_names, "qv"))
-        {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qv_fab,0,mf_comp,1,0);
-            mf_comp += 1;
-        }
-
-        if (containerHasElement(plot_var_names, "qc"))
-        {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qc_fab,0,mf_comp,1,0);
-            mf_comp += 1;
-        }
-
-        if (containerHasElement(plot_var_names, "qi"))
-        {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qi_fab,0,mf_comp,1,0);
-            mf_comp += 1;
-        }
-#endif
         if (containerHasElement(plot_var_names, "pert_pres"))
         {
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -224,7 +194,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
             mf_comp += 1;
         }
-
         if (containerHasElement(plot_var_names, "pert_dens"))
         {
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -538,6 +507,36 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
             mf_comp ++;
         }
+
+#ifdef ERF_USE_MOISTURE
+        calculate_derived("qt",          derived::erf_derQt);
+        calculate_derived("qp",          derived::erf_derQp);
+
+        MultiFab qv_fab(qv[lev], make_alias, 0, 1);
+        MultiFab qc_fab(qc[lev], make_alias, 0, 1);
+        MultiFab qi_fab(qi[lev], make_alias, 0, 1);
+
+        if (containerHasElement(plot_var_names, "qv"))
+        {
+            // r_0 is first component of base_state
+            MultiFab::Copy(mf[lev],qv_fab,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_var_names, "qc"))
+        {
+            // r_0 is first component of base_state
+            MultiFab::Copy(mf[lev],qc_fab,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_var_names, "qi"))
+        {
+            // r_0 is first component of base_state
+            MultiFab::Copy(mf[lev],qi_fab,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+#endif
 
 #ifdef ERF_COMPUTE_ERROR
         // Next, check for error in velocities and if desired, output them -- note we output none or all, not just some
