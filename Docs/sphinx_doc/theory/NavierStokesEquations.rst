@@ -178,7 +178,7 @@ of water vapor to/from water through condensation/evaporation, which is determin
 Buoyancy Force -- Paper
 -------------------------------------------------------
 
-One version of the buoyancy force is given in the Marat paper as
+One version of the buoyancy force is given in Marat F. Khairoutdinov and David A. Randall's paper (J. Atm Sciences, 607, 1983):
 
 .. math::
      \mathbf{B} = \rho^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\bar{T}}
@@ -187,14 +187,12 @@ One version of the buoyancy force is given in the Marat paper as
 This can be derived by starting with
 
 .. math::
-   p = \rho (R_d q_d + R_v q_v) T = \rho R_d T (q_d + \frac{Rv}{Rd} q_v) 
-   
-since :math:`q_d = 1 - q_v - q_c - q_i - q_p`, then replacing :math:`q_d` in the pressure and density relationship equation, we have
-   
-.. math::   
-   p = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
+   p = \rho (R_d q_d + R_v q_v) T = \rho R_d T (q_d + \frac{R_v}{R_d} q_v) =
+        \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
 
-then, assuming the perturbations of :math:`p^\prime`, :math:`T^\prime`, and :math:`\rho^\prime`
+where we have replaced :math:`q_d` by :math:`1 - q_v - q_c - q_i - q_p`.
+
+Then, assuming the perturbations of :math:`p^\prime`, :math:`T^\prime`, and :math:`\rho^\prime`
 are small compared with the total pressure, temperature, and density, respectively,
 and :math:`\rho = \rho_d + \rho_v + \rho_c + \rho_i + \rho_p`
 we can write
@@ -205,33 +203,28 @@ we can write
 which allows us to write
 
 .. math::
-     \mathbf{B} = \rho^\prime \mathbf{g} \approx \rho ( \frac{p^\prime}{p} - \frac{T^\prime}{T} -
-         \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)} )
+     \mathbf{B} = \rho^\prime \mathbf{g} \approx \rho \left( \frac{p^\prime}{p} - \frac{T^\prime}{T} -
+         \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)} \right)
 
 We can re-write
 
 .. math::
      \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+ ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) ) } )
-
-as
-
-.. math::
+     \approx
      (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime) (1 - ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) )
+     \approx
+     (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime)
 
-and retaining only first-order terms in the mixing ratios, we find
-
-.. math::
-     (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime) (1 - ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) )
+if we retain only first-order terms in the mixing ratios.
 
 Thus the buoyancy term can be finally written as
 
 .. math::
-     \mathbf{B} = \rho^\prime \mathbf{g} \approx \rho ( \frac{p^\prime}{p} - \frac{T^\prime}{T} -
-         ( (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime )
+     \mathbf{B} = \rho^\prime \mathbf{g} \approx \rho \left( \frac{p^\prime}{p} - \frac{T^\prime}{T} -
+         ( (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime \right)
 
-If we assume that :math:`q_c = q_c^\prime` and :math:`q_i = q_i^\prime` because :math:`\bar{q_i} = \bar{q_c} = 0`, then this
-is identical to the expression at the top of this section.
-
+If we assume that :math:`q_c = q_c^\prime` and :math:`q_i = q_i^\prime` and :math:`q_p = q_p^\prime`
+because :math:`\bar{q_i} = \bar{q_c} = \bar{q_p} = 0`, then this is identical to the expression at the top of this section.
 
 Buoyancy Force -- Code
 -------------------------------------------------------
