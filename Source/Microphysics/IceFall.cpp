@@ -49,7 +49,7 @@ void Microphysics::IceFall() {
    kmin = amrex::get<1>(k_max_min);
  }
 
-std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
+//std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
 
   // for (int k=0; k<nzm; k++) {
   //  for (int icrm=0; icrm<ncrms; icrm++) {

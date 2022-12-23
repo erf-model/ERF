@@ -197,6 +197,11 @@ erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>& z_phys_cc,
                   Geometry const& geom)
 {
+    // if erf.init_type is specified, then the base density should
+    // already have been calculated. In that case, these assumed (dry)
+    // surface conditions are probably incorrect.
+    AMREX_ALWAYS_ASSERT(parms.T_0 > 0);
+
     const Real prob_lo_z = geom.ProbLo()[2];
     const Real dz        = geom.CellSize()[2];
     const int khi        = geom.Domain().bigEnd()[2];
@@ -289,137 +294,159 @@ init_custom_prob(
         Array4<Real const> const& /*mf_v*/,
         const SolverChoice& sc)
 {
-  const int khi = geomdata.Domain().bigEnd()[2];
-
-  AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
-
-  const Real rho_sfc   = p_0 / (R_d*parms.T_0);
-  const Real thetabar  = parms.T_0;
-  const Real dz        = geomdata.CellSize()[2];
-  const Real prob_lo_z = geomdata.ProbLo()[2];
-
-  amrex::Print() << "Bubble delta T = " << parms.T_pert << " K" << std::endl;
-  amrex::Print() << "  centered at ("
-      << parms.x_c << " " << parms.y_c << " " << parms.z_c << ")" << std::endl;
-  amrex::Print() << "  with extent ("
-      << parms.x_r << " " << parms.y_r << " " << parms.z_r << ")" << std::endl;
-
-  // These are at cell centers (unstaggered)
-  Vector<Real> h_r(khi+1);
-  Vector<Real> h_p(khi+1);
-
-  amrex::Gpu::DeviceVector<Real> d_r(khi+1);
-  amrex::Gpu::DeviceVector<Real> d_p(khi+1);
-
-  const Real rdOcp = sc.rdOcp;
-
-  if (z_cc) { // nonflat terrain
-
-    // Create a flat box with same horizontal extent but only one cell in vertical
-    Box b2d = surroundingNodes(bx); // Copy constructor
-    b2d.setRange(2,0);
-
-    ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+    const int khi = geomdata.Domain().bigEnd()[2];
+  
+    AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
+  
+    const Real rho_sfc   = p_0 / (R_d*parms.T_0);
+    const Real thetabar  = parms.T_0;
+    const Real dz        = geomdata.CellSize()[2];
+    const Real prob_lo_z = geomdata.ProbLo()[2];
+    const Real rdOcp     = sc.rdOcp;
+  
+    // These are at cell centers (unstaggered)
+    Vector<Real> h_r(khi+1);
+    Vector<Real> h_p(khi+1);
+  
+    amrex::Gpu::DeviceVector<Real> d_r(khi+1);
+    amrex::Gpu::DeviceVector<Real> d_p(khi+1);
+  
+    amrex::Print() << "Bubble delta T = " << parms.T_pert << " K" << std::endl;
+    amrex::Print() << "  centered at ("
+        << parms.x_c << " " << parms.y_c << " " << parms.z_c << ")" << std::endl;
+    amrex::Print() << "  with extent ("
+        << parms.x_r << " " << parms.y_r << " " << parms.z_r << ")" << std::endl;
+  
+    if (parms.T_0 <= 0)
     {
-         Array1D<Real,0,255> r;;
-         Array1D<Real,0,255> p;;
+        amrex::Print() << "Ignoring parms.T_0 = " << parms.T_0
+            << ", background fields should have been initialized with erf.init_type"
+            << std::endl;
+    }
+  
+    if (z_cc) { // nonflat terrain
 
-         init_isentropic_hse_terrain(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc,khi);
+        if (parms.T_0 > 0)
+        {
+            // Create a flat box with same horizontal extent but only one cell in vertical
+            Box b2d = surroundingNodes(bx); // Copy constructor
+            b2d.setRange(2,0);
 
-         for (int k = 0; k <= khi; k++) {
-            r_hse(i,j,k) = r(k);
-            p_hse(i,j,k) = p(k);
-         }
-         r_hse(i,j,   -1) = r_hse(i,j,0);
-         r_hse(i,j,khi+1) = r_hse(i,j,khi);
-      });
+            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+                Array1D<Real,0,255> r;;
+                Array1D<Real,0,255> p;;
 
-      amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-      {
-        // Geometry (note we must include these here to get the data on device)
-        const auto prob_lo         = geomdata.ProbLo();
-        const auto dx              = geomdata.CellSize();
+                init_isentropic_hse_terrain(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc,khi);
 
-        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-        const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-        const Real z = z_cc(i,j,k);
+                for (int k = 0; k <= khi; k++) {
+                   r_hse(i,j,k) = r(k);
+                   p_hse(i,j,k) = p(k);
+                }
+                r_hse(i,j,   -1) = r_hse(i,j,0);
+                r_hse(i,j,khi+1) = r_hse(i,j,khi);
+            });
+        }
 
-        perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
-                          parms, rdOcp,
-                          state(i, j, k, Rho_comp),
-                          state(i, j, k, RhoTheta_comp));
+        amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            // Geometry (note we must include these here to get the data on device)
+            const auto prob_lo         = geomdata.ProbLo();
+            const auto dx              = geomdata.CellSize();
 
-        state(i, j, k, RhoScalar_comp) = 0.0;
+            const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            const Real y = prob_lo[1] + (j + 0.5) * dx[1];
+            const Real z = z_cc(i,j,k);
 
-#ifdef ERF_USE_MOISTURE
-        state(i, j, k, RhoQt_comp) = 0.0;
-        state(i, j, k, RhoQp_comp) = 0.0;
-#endif
-      });
-  } else {
+            perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
+                              parms, rdOcp,
+                              state(i, j, k, Rho_comp),
+                              state(i, j, k, RhoTheta_comp));
 
-      init_isentropic_hse_no_terrain(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
-
-      amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-      amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
-
-      Real* r = d_r.data();
-      Real* p = d_p.data();
-
-      amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-      {
-        // Geometry (note we must include these here to get the data on device)
-        const auto prob_lo         = geomdata.ProbLo();
-        const auto dx              = geomdata.CellSize();
-
-        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-        const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-        const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-
-        perturb_rho_theta(x, y, z, p[k], r[k],
-                          parms, rdOcp,
-                          state(i, j, k, Rho_comp),
-                          state(i, j, k, RhoTheta_comp));
-
-        state(i, j, k, RhoScalar_comp) = 0.0;
+            state(i, j, k, RhoScalar_comp) = 0.0;
 
 #ifdef ERF_USE_MOISTURE
-        state(i, j, k, RhoQt_comp) = 0.0;
-        state(i, j, k, RhoQp_comp) = 0.0;
+            state(i, j, k, RhoQt_comp) = 0.0;
+            state(i, j, k, RhoQp_comp) = 0.0;
 #endif
-      });
-  }
+        });
+    } else {
 
-  const Real u0 = parms.U_0;
-  const Real v0 = parms.V_0;
+        if (parms.T_0 > 0)
+        {
+            init_isentropic_hse_no_terrain(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
+  
+            amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
+            amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
+  
+            Real* r = d_r.data();
+            Real* p = d_p.data();
 
-  // Construct a box that is on x-faces
-  const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
-  // Set the x-velocity
-  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      x_vel(i, j, k) = u0;
-  });
+            amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int) noexcept
+            {
+                for (int k = 0; k <= khi; k++) {
+                   r_hse(i,j,k) = r[k];
+                   p_hse(i,j,k) = p[k];
+                }
+                r_hse(i,j,   -1) = r_hse(i,j,0);
+                r_hse(i,j,khi+1) = r_hse(i,j,khi);
+            });
+        }
+  
+        amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            // Geometry (note we must include these here to get the data on device)
+            const auto prob_lo         = geomdata.ProbLo();
+            const auto dx              = geomdata.CellSize();
+  
+            const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+            const Real y = prob_lo[1] + (j + 0.5) * dx[1];
+            const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+  
+            perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
+                              parms, rdOcp,
+                              state(i, j, k, Rho_comp),
+                              state(i, j, k, RhoTheta_comp));
+  
+            state(i, j, k, RhoScalar_comp) = 0.0;
 
-  // Construct a box that is on y-faces
-  const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
+#ifdef ERF_USE_MOISTURE
+            state(i, j, k, RhoQt_comp) = 0.0;
+            state(i, j, k, RhoQp_comp) = 0.0;
+#endif
+        });
+    }
 
-  // Set the y-velocity
-  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      y_vel(i, j, k) = v0;
-  });
-
-  // Construct a box that is on z-faces
-  const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
-
-  // Set the z-velocity
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      z_vel(i, j, k) = 0.0;
-  });
-
-  amrex::Gpu::streamSynchronize();
+    const Real u0 = parms.U_0;
+    const Real v0 = parms.V_0;
+  
+    // Construct a box that is on x-faces
+    const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
+    // Set the x-velocity
+    amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        x_vel(i, j, k) = u0;
+    });
+  
+    // Construct a box that is on y-faces
+    const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
+  
+    // Set the y-velocity
+    amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        y_vel(i, j, k) = v0;
+    });
+  
+    // Construct a box that is on z-faces
+    const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+  
+    // Set the z-velocity
+    amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        z_vel(i, j, k) = 0.0;
+    });
+  
+    amrex::Gpu::streamSynchronize();
 }
 
 void
@@ -450,13 +477,42 @@ init_custom_terrain (const Geometry& /*geom*/,
 }
 
 void
-erf_init_rayleigh(Vector<Real>& /*tau*/,
-                  Vector<Real>& /*ubar*/,
-                  Vector<Real>& /*vbar*/,
-                  Vector<Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
+erf_init_rayleigh(Vector<Real>& tau,
+                  Vector<Real>& ubar,
+                  Vector<Real>& vbar,
+                  Vector<Real>& thetabar,
+                  amrex::Geometry const& geom)
 {
-   amrex::Error("Should never get here for DensityCurrent problem");
+  const auto ztop = geom.ProbHi()[2];
+  amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<") between "
+    << ztop-parms.zdamp << " and " << ztop << std::endl;
+
+  const int khi = geom.Domain().bigEnd()[2];
+  const auto prob_lo = geom.ProbLo();
+  const auto dx = geom.CellSize();
+
+  for (int k = 0; k <= khi; k++)
+  {
+      // WRF's vertical velocity damping layer structure, which is based
+      // on Durran and Klemp 1983
+      const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+      const Real zfrac = 1 - (ztop - z) / parms.zdamp;
+      if (zfrac >= 0)
+      {
+          const Real sinefac = std::sin(PIoTwo*zfrac);
+          tau[k]      = parms.dampcoef * sinefac * sinefac;
+          ubar[k]     = parms.U_0;
+          vbar[k]     = parms.V_0;
+          thetabar[k] = parms.T_0;
+      }
+      else
+      {
+          tau[k]      = 0.0;
+          ubar[k]     = 0.0;
+          vbar[k]     = 0.0;
+          thetabar[k] = 0.0;
+      }
+  }
 }
 
 void
@@ -476,4 +532,8 @@ amrex_probinit(
   pp.query("y_r", parms.y_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
+  pp.query("T_pert_is_airtemp", parms.T_pert_is_airtemp);
+  pp.query("perturb_rho", parms.perturb_rho);
+  pp.query("dampcoef", parms.dampcoef);
+  pp.query("zdamp", parms.zdamp);
 }

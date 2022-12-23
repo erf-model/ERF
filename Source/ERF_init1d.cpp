@@ -46,6 +46,46 @@ ERF::initRayleigh()
 }
 
 void
+ERF::setRayleighRefFromSounding()
+{
+    const Real* z_inp_sound     = input_sounding_data.z_inp_sound.dataPtr();
+    const Real* U_inp_sound     = input_sounding_data.U_inp_sound.dataPtr();
+    const Real* V_inp_sound     = input_sounding_data.V_inp_sound.dataPtr();
+    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound.dataPtr();
+    const int   inp_sound_size  = input_sounding_data.size();
+
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        const int khi = geom[lev].Domain().bigEnd()[2];
+        const auto prob_lo = geom[lev].ProbLo();
+        const auto dx = geom[lev].CellSize();
+
+        for (int k = 0; k <= khi; k++)
+        {
+            const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+            h_rayleigh_ubar[lev][k]     = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
+            h_rayleigh_vbar[lev][k]     = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);
+            h_rayleigh_thetabar[lev][k] = interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+            if (h_rayleigh_tau[lev][k] > 0)
+                amrex::Print() << z << ":"
+                    << " tau=" << h_rayleigh_tau[lev][k]
+                    << " ubar=" << h_rayleigh_ubar[lev][k]
+                    << " vbar=" << h_rayleigh_vbar[lev][k]
+                    << " thetabar=" << h_rayleigh_thetabar[lev][k]
+                    << std::endl;
+        }
+
+        // Copy from host version to device version
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ubar[lev].begin(), h_rayleigh_ubar[lev].end(),
+                         d_rayleigh_ubar[lev].begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_vbar[lev].begin(), h_rayleigh_vbar[lev].end(),
+                         d_rayleigh_vbar[lev].begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_thetabar[lev].begin(), h_rayleigh_thetabar[lev].end(),
+                         d_rayleigh_thetabar[lev].begin());
+    }
+}
+
+void
 ERF::initHSE()
 {
     for (int lev = 0; lev <= finest_level; lev++)
