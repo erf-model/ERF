@@ -237,25 +237,8 @@ The buoyancy force is implemented in ERF using the following formula
    \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
                   + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
 
-(to derive the buoyancy term, we assume that
 
-.. math::
-   p^\prime = \frac{p}{ρ} ρ^\prime + ρ R_d T [(\frac{R_v}{R_d} - 1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime] +
-             ρ R_d [1 + (\frac{R_v}{R_d} - 1) q_v - q_c - q_i- q_p ] T^\prime
-
-therefore, we have
-assuming :math:`q_c, q_i, q_v, q_p \ll 1`, then we have :math:`1 + (\frac{R_v}{R_d}-1) q_v - q_c - q_i - q_p \approx 1`, so
-
-.. math::
-   \frac{\rho^\prime}{\rho} \approx \frac{p^\prime}{p} - \frac{T^\prime}{T} - \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c - q_i - q_p }{1}
-
-since :math:`\frac{R_v}{R_d}-1 = 0.606 \approx 0.61`, then we have
-
-.. math::
-   \frac{\rho^\prime}{\rho} \approx \frac{p^\prime}{p} - \frac{T^\prime}{T} - ( 0.61 q_v^\prime - q_c - q_i - q_p )
-
-
-In the SAM implementation, we assume :math:`T_v = T (1 + (\frac{R_v}{R_d} − 1 ) q_v − q_c − q_i - q_p) \approx T`, then
+To implement the buoyance force term, we assume :math:`T_v = T (1 + (\frac{R_v}{R_d} − 1 ) q_v − q_c − q_i - q_p) \approx T`, then we have
 
 .. math::
     p = \rho (R_d q_d + R_v q_v) T = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ] = \rho R_d T_v
@@ -267,17 +250,23 @@ so the perturbation of :math:`\rho` can be written as
    \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T_v^\prime}{T_v}
 
 
-then, we have
+then :math:`\frac{\rho^\prime}{\rho}` is
 
 .. math::
    \frac{\rho^\prime}{\rho} = \frac{p^\prime}{p} - \frac{T_v^\prime}{T_v}
 
-the implementation can be written as
+if we ignore the term :math:`\frac{p^\prime}{p}`, the equation implemented can be written as
 
 .. math::
    \frac{T_v^\prime}{T_v} \approx \frac{\bar{T} [ (\frac{R_v}{R_d}-1) (q_v-\bar{q_v}) - (q_c + q_i + q_p - \bar{q_c} - \bar{q_i} - \bar{q_p})] +
                            (T - \bar{T})[1+(\frac{R_v}{R_d}-1) \bar{q_v} - \bar{q_c} - \bar{q_i} - \bar{q_p} ]}{\bar{T}}
-)
+
+
+after reorganizing the terms, we get
+
+.. math::
+   \mathbf{B} = \mathbf{g} \rho^\prime = -\rho \mathbf{g} [ 0.61 (q_v - \bar{q_v}) - (q_c - \bar{q_c} + q_i - \bar{q_i} + q_p - \bar{q_p})
+                  + \frac{T - \bar{T}}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) ]
 
 where the overbar represents a horizontal average of the current state.
 
