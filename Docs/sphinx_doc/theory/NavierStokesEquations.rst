@@ -150,7 +150,7 @@ with :math:`\alpha = \frac{R^\star}{p}(\frac{p}{p_0})^\frac{R^\star}{c_p^\star} 
 here, :math:`R^\star =  q_d R_{d} + q_v R_{v} + q_i R_{i} + q_p R_{p}`, and :math:`C_p^\star = q_d C_{pd} + q_v C_{pv} + q_i C_{pi} + q_p C_{pp}`. the :math:`R_d`,
 :math:`R_v`, :math:`R_i`, and :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitating condensates, espectively. :math:`C_{pd}`, :math:`C_{pv}`, :math:`C_{pi}`, and :math:`C_{pp}` are the specific heat for dry air, water vapor, cloud ice, and precipitating condensates, respectively.
 
-Governing Equations for Compressible Multispecies Atmospheric Flow
+Governing Equations for Moist Atmospheric Flow
 -------------------------------------------------------
 We assume that all species have same average speed,
 Then the governing equations become
@@ -173,69 +173,111 @@ In this set of equations, the subgrid turbulent parameterization effects are inc
 :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}`.
 :math:`\mathbf{F}` stands for the external force, and :math:`Q` and :math:`F_Q` represent the mass and energy transformation
 of water vapor to/from water through condensation/evaporation, which is determined by the microphysics parameterization processes.
-:math:`\mathbf{B}` is the buoyancy force,
+:math:`\mathbf{B}` is the buoyancy force.
+
+Buoyancy Force -- Paper
+-------------------------------------------------------
+
+One version of the buoyancy force is given in the Marat paper as
 
 .. math::
-     \mathbf{B} = \rho_d^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\bar{T}}
+     \mathbf{B} = \rho^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\bar{T}}
                  + 0.61 q_v^\prime - q_c - q_i - q_p - \frac{p^\prime}{\bar{p}} )
 
-which is implemented as
+This can be derived by starting with
+
+.. math::
+   p = \rho (R_d q_d + R_v q_v) T = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
+
+then, assuming the perturbations of :math:`p^\prime`, :math:`T^\prime`, and :math:`\rho^\prime`
+are small compared with the total pressure, temperature, and density, respectively,
+and :math:`\rho = \rho_d + \rho_v + \rho_c + \rho_i + \rho_p`
+we can write
+
+.. math::
+   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T^\prime}{T} + \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)}
+
+which allows us to write
+
+.. math::
+     \mathbf{B} = \rho^\prime \mathbf{g} \approx \rho ( \frac{p^\prime}{p} - \frac{T^\prime}{T} -
+         \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)} )
+
+We can re-write
+
+.. math::
+     \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+ ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) ) } )
+
+as
+
+.. math::
+     (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime) (1 - ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) )
+
+and retaining only first-order terms in the mixing ratios, we find
+
+     (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime) (1 - ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) )
+
+Thus the buoyancy term can be finally written as
+
+.. math::
+     \mathbf{B} = \rho^\prime \mathbf{g} \approx \rho ( \frac{p^\prime}{p} - \frac{T^\prime}{T} -
+         ( (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime )
+
+If we assume that :math:`q_c = q_c^\prime` and :math:`q_i = q_i^\prime` because :math:`\bar{q_i} = \bar{q_c} = 0`, then this
+is identical to the expression at the top of this section.
+
+
+Buoyancy Force -- Code
+-------------------------------------------------------
+
+The buoyancy force is implemented in ERF using the following formula
 
 .. math::
    \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
                   + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
 
-(to derive the buoyancy term, we assume that the perturbation of :math:`p^\prime`, :math:`T^\prime`, and :math:`\rho^\prime` are small compared with the total pressure, temperature, and density, and :math:`\rho = \rho_d + \rho_v + \rho_c + \rho_i + \rho_p`
+(to derive the buoyancy term, we assume that
 
 .. math::
-   p = \rho (R_d q_d + R_v q_v) T = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
-
-then we can calculate the perturbation of density :math:`\rho^\prime`,
-
-.. math::
-   p^\prime = \frac{p}{ρ} ρ^\prime + ρ R_d T [(\frac{R_v}{R_d} - 1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime] + 
+   p^\prime = \frac{p}{ρ} ρ^\prime + ρ R_d T [(\frac{R_v}{R_d} - 1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime] +
              ρ R_d [1 + (\frac{R_v}{R_d} - 1) q_v - q_c - q_i- q_p ] T^\prime
-             
-therefore, we have  
 
-.. math::
-   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T^\prime}{T} + \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)}
-
-assuming :math:`q_c, q_i, q_v, q_p \ll 1`, then we have :math:`1 + (\frac{R_v}{R_d}-1) q_v - q_c - q_i - q_p \approx 1`, so 
+therefore, we have
+assuming :math:`q_c, q_i, q_v, q_p \ll 1`, then we have :math:`1 + (\frac{R_v}{R_d}-1) q_v - q_c - q_i - q_p \approx 1`, so
 
 .. math::
    \frac{\rho^\prime}{\rho} \approx \frac{p^\prime}{p} - \frac{T^\prime}{T} - \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c - q_i - q_p }{1}
-   
+
 since :math:`\frac{R_v}{R_d}-1 = 0.606 \approx 0.61`, then we have
 
 .. math::
    \frac{\rho^\prime}{\rho} \approx \frac{p^\prime}{p} - \frac{T^\prime}{T} - ( 0.61 q_v^\prime - q_c - q_i - q_p )
-   
+
 
 In the SAM implementation, we assume :math:`T_v = T (1 + (\frac{R_v}{R_d} − 1 ) q_v − q_c − q_i - q_p) \approx T`, then
- 
-.. math:: 
+
+.. math::
     p = \rho (R_d q_d + R_v q_v) T = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ] = \rho R_d T_v
- 
+
 
 so the perturbation of :math:`\rho` can be written as
- 
+
 .. math::
    \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T_v^\prime}{T_v}
- 
- 
+
+
 then, we have
- 
+
 .. math::
    \frac{\rho^\prime}{\rho} = \frac{p^\prime}{p} - \frac{T_v^\prime}{T_v}
-   
+
 the implementation can be written as
- 
+
 .. math::
    \frac{T_v^\prime}{T_v} \approx \frac{\bar{T} [ (\frac{R_v}{R_d}-1) (q_v-\bar{q_v}) - (q_c + q_i + q_p - \bar{q_c} - \bar{q_i} - \bar{q_p})] +
                            (T - \bar{T})[1+(\frac{R_v}{R_d}-1) \bar{q_v} - \bar{q_c} - \bar{q_i} - \bar{q_p} ]}{\bar{T}}
 )
-   
+
 where the overbar represents a horizontal average of the current state.
 
 Single Moment Microphysics Model
