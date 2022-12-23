@@ -350,10 +350,13 @@ private:
     void Advance (int lev, amrex::Real time, amrex::Real dt_lev, int iteration, int ncycle);
 
     //! Initialize HSE
-    void initHSE();
+    void initHSE ();
 
     //! Initialize Rayleigh damping profiles
-    void initRayleigh();
+    void initRayleigh ();
+
+    //! Set Rayleigh mean profiles from input sounding
+    void setRayleighRefFromSounding ();
 
     // a wrapper for estTimeStep()
     void ComputeDt ();

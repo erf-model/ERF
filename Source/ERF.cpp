@@ -506,6 +506,12 @@ ERF::InitData ()
     if (solverChoice.use_rayleigh_damping)
     {
         initRayleigh();
+        if (init_type == "input_sounding")
+        {
+            // overwrite Ubar, Tbar, and thetabar with input profiles
+            setRayleighRefFromSounding();
+        }
+            
     }
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {

@@ -504,7 +504,6 @@ erf_init_rayleigh(Vector<Real>& tau,
           ubar[k]     = parms.U_0;
           vbar[k]     = parms.V_0;
           thetabar[k] = parms.T_0;
-          amrex::Print() << z << " " << zfrac << " " << tau[k] << std::endl;
       }
       else
       {
