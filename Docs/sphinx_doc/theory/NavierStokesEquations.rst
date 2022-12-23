@@ -232,8 +232,8 @@ then, we have
 the implementation can be written as
  
 .. math::
-   \frac{T_v^\prime}{T_v} \approx \frac{T_0 [ (\frac{R_v}{R_d}-1) (q_v-q_{v0}) - (q_c + q_i + q_p - q_{c0} - q_{i0} - q_{p0})] +
-                           (T - T_0)[1+(\frac{R_v}{R_d}-1) q_{v0} - q_{c0} - q_{i0} - q_{p0} ]}{T_0}
+   \frac{T_v^\prime}{T_v} \approx \frac{\bar{T} [ (\frac{R_v}{R_d}-1) (q_v-\bar{q_v}) - (q_c + q_i + q_p - \bar{q_c} - \bar{q_i} - \bar{q_p})] +
+                           (T - \bar{T})[1+(\frac{R_v}{R_d}-1) \bar{q_v} - \bar{q_c} - \bar{q_i} - \bar{q_p} ]}{\bar{T}}
 )
    
 where the overbar represents a horizontal average of the current state.
