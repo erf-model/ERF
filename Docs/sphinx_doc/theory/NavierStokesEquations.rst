@@ -212,6 +212,7 @@ We can re-write
      \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+ ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) ) } )
      \approx
      (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime) (1 - ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) )
+
      \approx
      (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime)
 
@@ -221,10 +222,11 @@ Thus the buoyancy term can be finally written as
 
 .. math::
      \mathbf{B} = \rho^\prime \mathbf{g} \approx \rho \left( \frac{p^\prime}{p} - \frac{T^\prime}{T} -
-         ( (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime \right)
+         ( \frac{R_v}{R_d}-1) q_v^\prime + q_c^\prime + q_i^\prime + q_p^\prime \right)
 
-If we assume that :math:`q_c = q_c^\prime` and :math:`q_i = q_i^\prime` and :math:`q_p = q_p^\prime`
-because :math:`\bar{q_i} = \bar{q_c} = \bar{q_p} = 0`, then this is identical to the expression at the top of this section.
+If we assume that :math:`q_c = q_c^\prime`, :math:`q_i = q_i^\prime`, and :math:`q_p = q_p^\prime`
+because :math:`\bar{q_i} = \bar{q_c} = \bar{q_p} = 0`,  and we replace :math:`\frac{R_v}{R_d}` by 1.61,
+then this is identical to the expression at the top of this section.
 
 Buoyancy Force -- Code
 -------------------------------------------------------
