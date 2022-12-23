@@ -584,11 +584,11 @@ private:
                                                      };
 
     // Note that the order of variable names here must match the order in Derive.cpp
-    const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar", "pres_hse",
-                                                    "dens_hse", "pert_pres", "pert_dens", "dpdx", "dpdy",
-                                                    "pres_hse_x", "pres_hse_y", "z_phys", "detJ" , "mapfac"
+    const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar",
+                                                    "pres_hse", "dens_hse", "pert_pres", "pert_dens",
+                                                    "dpdx", "dpdy", "pres_hse_x", "pres_hse_y", "z_phys", "detJ" , "mapfac"
 #ifdef ERF_USE_MOISTURE
-                                                     ,"qt", "qp", "qc", "qi", "qv"
+                                                     ,"qt", "qp", "qv", "qc", "qi"
 #endif
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
