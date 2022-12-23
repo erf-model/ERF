@@ -15,6 +15,10 @@
 #include <MultiBlockContainer.H>
 #endif
 
+#ifdef ERF_USE_MOISTURE
+#include <Microphysics.H>
+#endif
+
 using namespace amrex;
 
 amrex::Real ERF::startCPUTime        = 0.0;
@@ -442,6 +446,26 @@ ERF::InitData ()
     if ((init_type != "real") && (!init_sounding_ideal)) {
         initHSE();
     }
+
+#ifdef ERF_USE_MOISTURE
+    // Initialize microphysics here to get set the mass mixing ratios 
+    // TODO: instantiate and initialize Microphysics just once for the whole simulation?
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        Microphysics micro(solverChoice);
+        micro.Init(vars_new[lev][Vars::cons],
+                   qc[lev],
+                   qv[lev],
+                   qi[lev],
+                   Geom(lev),
+                   0.0 // dummy value, not needed just to diagnose
+                  );
+        micro.Update(vars_new[lev][Vars::cons],
+                     qv[lev],
+                     qc[lev],
+                     qi[lev]);
+    }
+#endif
 
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine before calling WritePlotFile because
