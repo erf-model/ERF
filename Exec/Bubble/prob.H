@@ -26,6 +26,9 @@ struct ProbParm {
   bool T_pert_is_airtemp = true; // T_pert input is air temperature
   bool perturb_rho = true; // not rho*theta (i.e., p is constant); otherwise perturb rho*theta
 
+  // rayleigh damping
+  amrex::Real dampcoef = 0.0; // inverse time scale [1/s]
+  amrex::Real zdamp = 5000.0; // damping depth [m] from model top
 }; // namespace ProbParm
 
 extern ProbParm parms;

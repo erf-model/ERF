@@ -477,13 +477,43 @@ init_custom_terrain (const Geometry& /*geom*/,
 }
 
 void
-erf_init_rayleigh(Vector<Real>& /*tau*/,
-                  Vector<Real>& /*ubar*/,
-                  Vector<Real>& /*vbar*/,
-                  Vector<Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
+erf_init_rayleigh(Vector<Real>& tau,
+                  Vector<Real>& ubar,
+                  Vector<Real>& vbar,
+                  Vector<Real>& thetabar,
+                  amrex::Geometry const& geom)
 {
-   amrex::Error("Should never get here for DensityCurrent problem");
+  const auto ztop = geom.ProbHi()[2];
+  amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<") between "
+    << ztop-parms.zdamp << " and " << ztop << std::endl;
+
+  const int khi = geom.Domain().bigEnd()[2];
+  const auto prob_lo = geom.ProbLo();
+  const auto dx = geom.CellSize();
+
+  for (int k = 0; k <= khi; k++)
+  {
+      // WRF's vertical velocity damping layer structure, which is based
+      // on Durran and Klemp 1983
+      const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+      const Real zfrac = 1 - (ztop - z) / parms.zdamp;
+      if (zfrac >= 0)
+      {
+          const Real sinefac = std::sin(PIoTwo*zfrac);
+          tau[k]      = parms.dampcoef * sinefac * sinefac;
+          ubar[k]     = parms.U_0;
+          vbar[k]     = parms.V_0;
+          thetabar[k] = parms.T_0;
+          amrex::Print() << z << " " << zfrac << " " << tau[k] << std::endl;
+      }
+      else
+      {
+          tau[k]      = 0.0;
+          ubar[k]     = 0.0;
+          vbar[k]     = 0.0;
+          thetabar[k] = 0.0;
+      }
+  }
 }
 
 void
@@ -505,4 +535,6 @@ amrex_probinit(
   pp.query("T_pert", parms.T_pert);
   pp.query("T_pert_is_airtemp", parms.T_pert_is_airtemp);
   pp.query("perturb_rho", parms.perturb_rho);
+  pp.query("dampcoef", parms.dampcoef);
+  pp.query("zdamp", parms.zdamp);
 }
