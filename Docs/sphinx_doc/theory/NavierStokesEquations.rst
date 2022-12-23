@@ -220,6 +220,7 @@ as
 
 and retaining only first-order terms in the mixing ratios, we find
 
+.. math::
      (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime) (1 - ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) )
 
 Thus the buoyancy term can be finally written as
