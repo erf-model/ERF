@@ -234,7 +234,6 @@ struct SolverChoice {
 
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
-        pp.query("mp_smoke",  do_smoke);
         pp.query("mp_precip", do_precip);
 #endif
     }
@@ -416,7 +415,6 @@ struct SolverChoice {
 #ifdef ERF_USE_MOISTURE
     // Microphysics params
     bool do_cloud {true};
-    bool do_smoke {true};
     bool do_precip {true};
 #endif
 };

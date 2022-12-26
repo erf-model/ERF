@@ -35,7 +35,6 @@ class Microphysics {
   Microphysics(SolverChoice& sc)
   :
     docloud(sc.do_cloud),
-    dosmoke(sc.do_smoke),
     doprecip(sc.do_precip),
     m_fac_cond(lcond / sc.c_p),
     m_fac_fus(lfus / sc.c_p),
@@ -91,7 +90,7 @@ class Microphysics {
   int nlev, zlo, zhi;
 
   // model options
-  bool docloud, dosmoke, doprecip;
+  bool docloud, doprecip;
 
   // constants
   amrex::Real m_fac_cond;
