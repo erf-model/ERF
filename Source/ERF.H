@@ -37,6 +37,10 @@
 #include <ERF_MRI.H>
 #include <ERF_PhysBCFunct.H>
 
+#ifdef ERF_USE_MOISTURE
+#include "Microphysics.H"
+#endif
+
 #ifdef ERF_USE_NETCDF
 #include "NCWpsFile.H"
 #endif
@@ -490,6 +494,7 @@ private:
     amrex::Vector<amrex::MultiFab> rW_new;
 
 #ifdef ERF_USE_MOISTURE
+    Microphysics micro;
     amrex::Vector<amrex::MultiFab> qv;
     amrex::Vector<amrex::MultiFab> qc;
     amrex::Vector<amrex::MultiFab> qi;

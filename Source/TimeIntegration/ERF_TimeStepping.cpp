@@ -1,10 +1,6 @@
 #include <ERF.H>
 #include <Utils.H>
 
-#ifdef ERF_USE_MOISTURE
-#include <Microphysics.H>
-#endif
-
 using namespace amrex;
 
 // Advance a level by dt
@@ -196,9 +192,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 #endif
                 Geom(lev), dt_lev, time, &ifr);
 
-    // Microphysics applied after the timestep
 #ifdef ERF_USE_MOISTURE
-    Microphysics micro(solverChoice);
     micro.Init(S_new,
                qc[lev],
                qv[lev],
