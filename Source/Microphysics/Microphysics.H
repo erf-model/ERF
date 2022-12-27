@@ -32,15 +32,18 @@ class Microphysics {
 
  public:
   // constructor
-  Microphysics(SolverChoice& sc)
-  :
-    docloud(sc.do_cloud),
-    doprecip(sc.do_precip),
-    m_fac_cond(lcond / sc.c_p),
-    m_fac_fus(lfus / sc.c_p),
-    m_fac_sub(lsub / sc.c_p),
-    m_gOcp(CONST_GRAV / sc.c_p)
-  {}
+  Microphysics() {}
+
+  // Set up for first time
+  void define(SolverChoice& sc)
+  {
+      docloud = sc.do_cloud;
+      doprecip = sc.do_precip;
+      m_fac_cond = lcond / sc.c_p;
+      m_fac_fus = lfus / sc.c_p;
+      m_fac_sub = lsub / sc.c_p;
+      m_gOcp = CONST_GRAV / sc.c_p;
+  }
 
   // destructor
   ~Microphysics() = default;

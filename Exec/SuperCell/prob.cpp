@@ -319,10 +319,10 @@ init_custom_prob(
         Array4<Real      > const& x_vel,
         Array4<Real      > const& y_vel,
         Array4<Real      > const& z_vel,
-        Array4<Real      > const& r_hse,
-        Array4<Real      > const& p_hse,
-        Array4<Real const> const& z_nd,
-        Array4<Real const> const& z_cc,
+        Array4<Real      > const& /*r_hse*/,
+        Array4<Real      > const& /*p_hse*/,
+        Array4<Real const> const& /*z_nd*/,
+        Array4<Real const> const& /*z_cc*/,
 #ifdef ERF_USE_MOISTURE
         Array4<Real      > const& qv,
         Array4<Real      > const& qc,
@@ -345,8 +345,8 @@ init_custom_prob(
 
   const amrex::Real rdOcp   = sc.rdOcp;
 
-  const amrex::Real thetatr = 343.0;
-  const amrex::Real theta0  = 300.0;
+  // const amrex::Real thetatr = 343.0;
+  // const amrex::Real theta0  = 300.0;
   const amrex::Real ztr     = 12000.0;
   const amrex::Real Ttr     = 213.0;
   const amrex::Real Ttop    = 213.0;

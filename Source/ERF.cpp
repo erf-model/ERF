@@ -15,10 +15,6 @@
 #include <MultiBlockContainer.H>
 #endif
 
-#ifdef ERF_USE_MOISTURE
-#include <Microphysics.H>
-#endif
-
 using namespace amrex;
 
 amrex::Real ERF::startCPUTime        = 0.0;
@@ -448,11 +444,12 @@ ERF::InitData ()
     }
 
 #ifdef ERF_USE_MOISTURE
-    // Initialize microphysics here to get set the mass mixing ratios
-    // TODO: instantiate and initialize Microphysics just once for the whole simulation?
+    // Initialize microphysics here
+    micro.define(solverChoice);
+
+    // Call Init which will call Diagnose to fill qv, qc, qi
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        Microphysics micro(solverChoice);
         micro.Init(vars_new[lev][Vars::cons],
                    qc[lev],
                    qv[lev],

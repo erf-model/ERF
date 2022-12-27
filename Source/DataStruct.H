@@ -70,6 +70,9 @@ struct SolverChoice {
         // Do we use map scale factors?
         pp.query("test_mapfactor", test_mapfactor);
 
+        // Which expression (1,2 or 3) to use for buoyancy
+        pp.query("buoyancy_type", buoyancy_type);
+
         // Is the terrain static or moving?
         pp.query("terrain_type", terrain_type);
 
@@ -337,6 +340,11 @@ struct SolverChoice {
     bool        use_terrain            = false;
     bool        test_mapfactor         = false;
     int         terrain_type           = 0;
+#ifdef ERF_USE_MOISTURE
+    int         buoyancy_type          = 3;
+#else
+    int         buoyancy_type          = 1; // uses rhoprime directly
+#endif
 
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
