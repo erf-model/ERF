@@ -683,7 +683,7 @@ List of Parameters
 | Parameter                   | Definition         | Acceptable         | Default    |
 |                             |                    | Values             |            |
 +=============================+====================+====================+============+
-| **erf.use_terrain**         | use terrain-fitted |  true / fasle      | false      |
+| **erf.use_terrain**         | use terrain-fitted |  true / false      | false      |
 |                             | coordinates?       |                    |            |
 +-----------------------------+--------------------+--------------------+------------+
 | **erf.terrain_type**        | static or moving?  |  0 / 1             | 0          |
@@ -705,3 +705,25 @@ Examples of Usage
 
 -  **erf.terrain_smoothing**  = 2
     Sullivan TF is used when generating the terrain following coordinate.
+
+Moisture
+========
+
+The microphysics model takes potential temperature :math:`\theta`, total pressure :math:`p`,
+and dry air density :math:`\rho_d` as input.
+
+If ERF is compiled with ERF_USE_MOISTURE defined, then the following run-time options control how
+the moisture model is used.
+
+List of Parameters
+------------------
+
++-----------------------------+--------------------------+--------------------+------------+
+| Parameter                   | Definition               | Acceptable         | Default    |
+|                             |                          | Values             |            |
++=============================+==========================+====================+============+
+| **erf.do_cloud**            | use basic moisture model |  true / false      | true       |
++-----------------------------+--------------------------+--------------------+------------+
+| **erf.do_precip**           | include precipitation    |  true / false      | true       |
+|                             | in treatment of moisture |                    |            |
++-----------------------------+--------------------------+--------------------+------------+

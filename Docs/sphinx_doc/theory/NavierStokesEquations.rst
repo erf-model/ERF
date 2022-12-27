@@ -17,7 +17,8 @@ are solved in ERF for mass, momentum, potential temperature, and scalars:
 .. math::
   \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
 
-  \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u}) - \nabla p^\prime +\rho^\prime \mathbf{g} + \nabla \cdot \tau + \mathbf{F},
+  \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u}) - \nabla p^\prime
+        + \delta_{i,3}\mathbf{B} + \nabla \cdot \tau + \mathbf{F},
 
   \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot ( \rho \alpha_{T}\ \nabla \theta) + F_{\rho \theta},
 
@@ -104,7 +105,7 @@ and precipitating condensates :math:`\rho_{rain} + \rho_{snow} + \rho_{graupel}`
 Here
 :math:`\rho_c` is the density of cloud water and
 :math:`\rho_i` is the density of cloud ice, and
-we define the sum of all non-precipitating moist quantites to be :math:`\rho_T = \rho_v + \rho_c + \rho_i`.
+we define the sum of all non-precipitating moist quantities to be :math:`\rho_T = \rho_v + \rho_c + \rho_i`.
 All condensates  are treated as incompressible; cloud water and ice
 have constant heat capacities :math:`C_p` and :math:`C_i`, respectively.
 
@@ -148,7 +149,7 @@ where :math:`p_0` is the reference pressure. and
 with :math:`\alpha = \frac{R^\star}{p}(\frac{p}{p_0})^\frac{R^\star}{c_p^\star} \theta`
 
 here, :math:`R^\star =  q_d R_{d} + q_v R_{v} + q_i R_{i} + q_p R_{p}`, and :math:`C_p^\star = q_d C_{pd} + q_v C_{pv} + q_i C_{pi} + q_p C_{pp}`. the :math:`R_d`,
-:math:`R_v`, :math:`R_i`, and :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitating condensates, espectively. :math:`C_{pd}`, :math:`C_{pv}`, :math:`C_{pi}`, and :math:`C_{pp}` are the specific heat for dry air, water vapor, cloud ice, and precipitating condensates, respectively.
+:math:`R_v`, :math:`R_i`, and :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitating condensates, respectively. :math:`C_{pd}`, :math:`C_{pv}`, :math:`C_{pi}`, and :math:`C_{pp}` are the specific heat for dry air, water vapor, cloud ice, and precipitating condensates, respectively.
 
 Governing Equations for Moist Atmospheric Flow
 -------------------------------------------------------
@@ -174,171 +175,4 @@ In this set of equations, the subgrid turbulent parameterization effects are inc
 :math:`\mathbf{F}` stands for the external force, and :math:`Q` and :math:`F_Q` represent the mass and energy transformation
 of water vapor to/from water through condensation/evaporation, which is determined by the microphysics parameterization processes.
 :math:`\mathbf{B}` is the buoyancy force.
-
-Buoyancy Force -- Paper
--------------------------------------------------------
-
-One version of the buoyancy force is given in Marat F. Khairoutdinov and David A. Randall's paper (J. Atm Sciences, 607, 1983):
-
-.. math::
-     \mathbf{B} = \rho^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\bar{T}}
-                 + 0.61 q_v^\prime - q_c - q_i - q_p - \frac{p^\prime}{\bar{p}} )
-
-This can be derived by starting with
-
-.. math::
-   p = \rho (R_d q_d + R_v q_v) T = \rho R_d T (q_d + \frac{R_v}{R_d} q_v) =
-        \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ]
-
-where we have replaced :math:`q_d` by :math:`1 - q_v - q_c - q_i - q_p`.
-
-Then, assuming the perturbations of :math:`p^\prime`, :math:`T^\prime`, and :math:`\rho^\prime`
-are small compared with the total pressure, temperature, and density, respectively,
-and :math:`\rho = \rho_d + \rho_v + \rho_c + \rho_i + \rho_p`
-we can write
-
-.. math::
-   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T^\prime}{T} + \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)}
-
-which allows us to write
-
-.. math::
-     \mathbf{B} = \rho^\prime \mathbf{g} \approx \rho \left( \frac{p^\prime}{p} - \frac{T^\prime}{T} -
-         \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+(\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p)} \right)
-
-We can re-write
-
-.. math::
-     \frac{(\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+ ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) ) } )
-     \approx
-     (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime) (1 - ( (\frac{R_v}{R_d}-1)q_v - q_c - q_i - q_p) )
-
-     \approx
-     (\frac{R_v}{R_d}-1) q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime)
-
-if we retain only first-order terms in the mixing ratios.
-
-Thus the buoyancy term can be finally written as
-
-.. math::
-     \mathbf{B} = \rho^\prime \mathbf{g} \approx \rho \left( \frac{p^\prime}{p} - \frac{T^\prime}{T} -
-         ( \frac{R_v}{R_d}-1) q_v^\prime + q_c^\prime + q_i^\prime + q_p^\prime \right)
-
-If we assume that :math:`q_c = q_c^\prime`, :math:`q_i = q_i^\prime`, and :math:`q_p = q_p^\prime`
-because :math:`\bar{q_i} = \bar{q_c} = \bar{q_p} = 0`,  and we replace :math:`\frac{R_v}{R_d}` by 1.61,
-then this is identical to the expression at the top of this section.
-
-Buoyancy Force -- Code
--------------------------------------------------------
-
-The buoyancy force is implemented in ERF using the following formula
-
-.. math::
-   \mathbf{B} = -\rho_0 \mathbf{g} ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime
-                  + \frac{T^\prime}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) )
-
-
-To implement the buoyance force term, we assume :math:`T_v = T (1 + (\frac{R_v}{R_d} − 1 ) q_v − q_c − q_i - q_p) \approx T`, then we have
-
-.. math::
-    p = \rho (R_d q_d + R_v q_v) T = \rho R_d T [1 + (\frac{R_v}{R_d} − 1) q_v − q_c − q_i - q_p ] = \rho R_d T_v
-
-
-so the perturbation of :math:`\rho` can be written as
-
-.. math::
-   \frac{p^\prime}{p} = \frac{\rho^\prime}{\rho} + \frac{T_v^\prime}{T_v}
-
-
-then :math:`\frac{\rho^\prime}{\rho}` is
-
-.. math::
-   \frac{\rho^\prime}{\rho} = \frac{p^\prime}{p} - \frac{T_v^\prime}{T_v}
-
-if we ignore the term :math:`\frac{p^\prime}{p}`, the equation implemented can be written as
-
-.. math::
-   \frac{T_v^\prime}{T_v} \approx \frac{\bar{T} [ (\frac{R_v}{R_d}-1) (q_v-\bar{q_v}) - (q_c + q_i + q_p - \bar{q_c} - \bar{q_i} - \bar{q_p})] +
-                           (T - \bar{T})[1+(\frac{R_v}{R_d}-1) \bar{q_v} - \bar{q_c} - \bar{q_i} - \bar{q_p} ]}{\bar{T}}
-
-
-after reorganizing the terms, we get
-
-.. math::
-   \mathbf{B} = \mathbf{g} \rho^\prime = -\rho \mathbf{g} [ 0.61 (q_v - \bar{q_v}) - (q_c - \bar{q_c} + q_i - \bar{q_i} + q_p - \bar{q_p})
-                  + \frac{T - \bar{T}}{\bar{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) ]
-
-where the overbar represents a horizontal average of the current state.
-
-Single Moment Microphysics Model
-===================================
-The conversion rates among the moist hydrometeors are parameterized assuming that
-
-.. math::
-   \frac{\partial N_{m}}{\partial D} = n_{m}\left(D_{m}\right) = N_{0m} exp \left(-\lambda _{m} D_{m}\right)
-
-where :math:`N_{0m}` is the intercept parameter, :math:`D_{m}` is the diameters, and
-
-.. math::
-   \lambda_{m} = (\frac{\pi \rho_{m} N_{0m}}{q_{m}\rho})^{0.25}
-
-where :math:`\rho_{m}` is the density of moist hydrometeors. Assuming that the particle terminal velocity
-
-.. math::
-   v_{m} \left( D_{m},p \right) = a_{m}D_{m}^{b_{m}}\left(\frac{\rho_{0}}{\rho}\right)^{0.5}
-
-The total production rates including the contribution from aggregation, accretion, sublimation, melting,
-bergeron process, freezing and autoconversion are listed below without derivation.
-For details, please refer to Yuh-Lang Lin et al (J. Climate Appl. Meteor, 22, 1065, 1983) and
-Marat F. Khairoutdinov and David A. Randall's (J. Atm Sciences, 607, 1983).
-The implementation of microphysics model in ERF is similar to the that in the SAM code (http://rossby.msrc.sunysb.edu/~marat/SAM.html)
-
-Accretion
-------------------
-There are several different type of accretional growth mechanisms that need to be included; these describe
-the interaction of water vapor and cloud water with rain water.
-
-The accretion of cloud water forms in either the dry or wet growth rate can be written as:
-
-.. math::
-   Q_{gacw} = \frac{\pi E_{GW}n_{0G}q_{c}\Gamma(3.5)}{4\lambda_{G}^{3.5}}(\frac{4g\rho G}{3C_{D}\rho})^{0.5}
-
-The accretion of raindrops by accretion of cloud water is
-
-.. math::
-   Q_{racw} = \frac{\pi E_{RW}n_{0R}\alpha q_{c}\Gamma(3+b)}{4\lambda_{R}^{3+b}}(\frac{\rho_{0}}{\rho})^{1/2}
-
-The bergeron Process
-------------------------
-The cloud water transform to snow by deposition and rimming can be written as
-
-.. math::
-   Q_{sfw} = N_{150}\left(\alpha_{1}m_{150}^{\alpha_{2}}+\pi E_{iw}\rho q_{c}R_{150}^{2}U_{150}\right)
-
-Autoconversion
-------------------------
-The collision and coalesence of cloud water to from randrops is parameterized as following
-
-.. math::
-   Q_{raut} = \rho\left(q_{c}-q_{c0}\right)^{2}\left[1.2 \times 10^{-4}+{1.569 \times 10^{-12}N_{1}/[D_{0}(q_{c}-q_{c0})]}\right]^{-1}
-
-Evaporation
-------------------------
-The evaporation rate of rain is
-
-.. math::
-   Q_{revp} = 2\pi(S-1)n_{0R}[0.78\lambda_{R}^{-2}+0.31S_{c}^{1/3}\Gamma[(b+5)/2]a^{1/2}\mu^{-1/2}(\frac{\rho_{0}}{\rho})^{1/4}\lambda_{R}^{(b+5)/2}](\frac{1}{\rho})(\frac{L_{v}^{2}}{K_{0}R_{w}T^{2}}+\frac{1}{\rho r_{s}\psi})^{-1}
-
-
-Implementation of Moisture Model
-===================================
-
-The microphysics model takes potential temperature :math:`\theta`, total pressure :math:`p`, and dry air density :math:`\rho_d` as input,
-and users can control the microphysics process by using
-
-::
-
-   erf.do_cloud = true (to turn cloud on)
-   erf.do_precip = true (to turn precipitation on)
-
 
