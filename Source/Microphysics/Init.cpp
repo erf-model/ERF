@@ -158,9 +158,7 @@ void Microphysics::Init(const MultiFab& cons_in,
     gamaz_t(k)  = gOcp*zmid_t(k);
   });
 
-  if (docloud || dosmoke) {
-    Diagnose();
-  }
+  Diagnose();
 
 #if 0
   amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int k, int j, int i) {

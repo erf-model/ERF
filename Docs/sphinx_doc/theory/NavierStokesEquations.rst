@@ -339,7 +339,6 @@ and users can control the microphysics process by using
 ::
 
    erf.do_cloud = true (to turn cloud on)
-   erf.do_smoke = true (to turn smoke physics on)
    erf.do_precip = true (to turn precipitation on)
 
 

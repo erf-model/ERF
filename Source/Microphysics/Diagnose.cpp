@@ -39,17 +39,14 @@ void Microphysics::Diagnose() {
 
 void Microphysics::Proc() {
 
-  MicroPrecipFall();
+    MicroPrecipFall();
 
-  if (docloud) {
-    Cloud();
-    if (doprecip) {
-      Precip();
+    if (docloud) {
+        Cloud();
+        if (doprecip) {
+            Precip();
+        }
     }
-    Diagnose();
-  }
 
-  if (dosmoke) {
     Diagnose();
-  }
 }
