@@ -72,9 +72,15 @@
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
 
+            make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+#ifdef ERF_USE_MOISTURE
+                          qvapor, qcloud, qice,
+#endif
+                          fine_geom, solverChoice, r0_new);
+
             erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
-                             Omega, source, Tau11, Tau22, Tau33, Tau12,
+                             Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
 #ifdef ERF_USE_MOISTURE
                              qvapor, qcloud, qice,
@@ -158,9 +164,15 @@
 
         } else { // if moving_terrain
 
+            make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+#ifdef ERF_USE_MOISTURE
+                          qvapor, qcloud, qice,
+#endif
+                          fine_geom, solverChoice, r0);
+
             erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new, z_t_rk[level],
-                             Omega, source, Tau11, Tau22, Tau33, Tau12,
+                             Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
 #ifdef ERF_USE_MOISTURE
                              qvapor, qcloud, qice,
