@@ -61,7 +61,7 @@ We can re-write
 .. math::
      \frac{0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime}{1+ ( 0.61 q_v - q_c - q_i - q_p ) } )
      \approx
-     ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime ) (1 - ( 0.61 q_v - q_c - q_i - q_p ) )
+     ( 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime ) (1 - ( 0.61 q_v - q_c - q_i - q_p )
 
      \approx
      0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime)
@@ -110,6 +110,7 @@ and define
 After reorganizing the terms, we get
 
 .. math::
+
    \mathbf{B} = \rho^\prime \mathbf{g} = -\rho_0 \frac{\overline{T}}{\overline{T_v} \mathbf{g} [ 0.61 q_v^\prime - q_c^\prime + q_i^\prime + q_p^\prime )
                   + \frac{T^\prime}{\overline{T_v}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) ]
 
@@ -118,5 +119,7 @@ where the overbar represents a horizontal average of the current state and the p
 Again keeping only the first order terms in the mass mixing ratios, we can simplify this to
 
 .. math::
-   \mathbf{B} = \rho^\prime \mathbf{g} = -\rho_0 \mathbf{g} [ 0.61 q_v^\prime - q_c^\prime + q_i^\prime + q_p^\prime )
+   \mathbf{B} = \rho^\prime \mathbf{g} = -\rho_0 \mathbf{g} [ 0.61 q_v^\prime - q_c^\prime + q_i^\prime + q_p^\prime
                   + \frac{T^\prime}{\overline{T}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) ]
+
+We note that this reduces to Type 2 if the horizontal averages of the moisture terms are all zero.
