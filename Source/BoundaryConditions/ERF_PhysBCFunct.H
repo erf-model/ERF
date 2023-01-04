@@ -27,6 +27,7 @@ public:
                     const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                     const int& terrain_type,
                     amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_extdir_vals,
+                    amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> bc_neumann_vals,
                     std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                     std::unique_ptr<amrex::MultiFab>& detJ_cc)
         : m_lev(lev),
@@ -34,6 +35,7 @@ public:
           m_domain_bcs_type_d(domain_bcs_type_d),
           m_terrain_type(terrain_type),
           m_bc_extdir_vals(bc_extdir_vals),
+          m_bc_neumann_vals(bc_neumann_vals),
           m_z_phys_nd(z_phys_nd),
           m_detJ_cc(detJ_cc)
           {}
@@ -88,6 +90,7 @@ private:
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
     int           m_terrain_type;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_neumann_vals;
     std::unique_ptr<amrex::MultiFab>& m_z_phys_nd;
     std::unique_ptr<amrex::MultiFab>&   m_detJ_cc;
 };

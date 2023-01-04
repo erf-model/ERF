@@ -891,7 +891,7 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
 
     physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                     solverChoice.terrain_type, m_bc_extdir_vals,
+                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
                                                      z_phys_nd[lev], detJ_cc[lev]);
 }
 

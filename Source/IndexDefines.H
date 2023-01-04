@@ -161,7 +161,8 @@ enum mathematicalBndryTypes : int { bogus        = -666,
     foextrap     =  2,
     ext_dir      =  3,
     MOST         =  101,
-    ext_dir_ingested =  102
+    ext_dir_ingested =  102,
+    neumann          =  103,
 };
 }
 

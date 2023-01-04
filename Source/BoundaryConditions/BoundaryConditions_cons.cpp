@@ -45,10 +45,14 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
     const amrex::BCRec* bc_ptr = bcrs_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
-
     for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
             l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
+
+   GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_neumann_vals_d;
+    for (int i = 0; i < icomp+ncomp; i++)
+        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
+            l_bc_neumann_vals_d[i][ori] = m_bc_neumann_vals[bccomp+i][ori];
 
     GeometryData const& geomdata = m_geom.data();
     bool is_periodic_in_x = geomdata.isPeriodic(0);
@@ -181,6 +185,9 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
                 } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
+                } else if (bc_ptr[n].lo(2) == ERFBCType::neumann) {
+                    Real delta_z = dxInv[2]*(dom_lo.z - k);
+                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) - delta_z*l_bc_neumann_vals_d[n][2];
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
@@ -191,6 +198,9 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
                 } else if (bc_ptr[n].hi(2) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
+                } else if (bc_ptr[n].hi(2) == ERFBCType::neumann) {
+                    Real delta_z = dxInv[2]*(k - dom_hi.z);
+                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) + delta_z*l_bc_neumann_vals_d[n][5];
                 }
             }
         );

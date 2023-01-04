@@ -11,16 +11,27 @@ void ERF::init_bcs ()
     auto f = [this] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
-        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  1.0;
+        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]      =  1.0;
         m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = -1.0; // It is important to set this negative
-                                               // because the sign is tested on below
+                                                                // because the sign is tested on below
         m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori]     = 0.0;
+        m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
 
         m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.0; // default
         m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.0;
         m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.0;
+
+        // These are simply defaults for Neumann gradients -- they should be over-written below
+        m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]      =  0.0;
+        m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] =  0.0;
+        m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
+        m_bc_neumann_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
+        m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
+        m_bc_neumann_vals[BCVars::xvel_bc][ori] = 0.0;
+        m_bc_neumann_vals[BCVars::yvel_bc][ori] = 0.0;
+        m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
+
 
         ParmParse pp(bcid);
         std::string bc_type_in = "null";
@@ -139,6 +150,12 @@ void ERF::init_bcs ()
             {
                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = theta_in*m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
             }
+
+            Real theta_grad_in;
+            if (pp.query("theta_grad", theta_grad_in))
+            {
+                m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] = theta_grad_in;
+            }
         }
         else if (bc_type == "slipwall")
         {
@@ -153,6 +170,11 @@ void ERF::init_bcs ()
                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = theta_in*m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
             }
 
+            Real theta_grad_in;
+            if (pp.query("theta_grad", theta_grad_in))
+            {
+               m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] = theta_grad_in;
+            }
         }
         else if (bc_type == "most")
         {
@@ -327,11 +349,15 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
                 } else {
                     for (int i = 0; i < NVAR; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
                 }
             }
             else if (bct == ERF_BC::slip_wall)
@@ -341,11 +367,15 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
                 } else {
                     for (int i = 0; i < NVAR; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
+                        domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
                 }
             }
             else if (bct == ERF_BC::inflow)
