@@ -75,7 +75,10 @@ class Microphysics {
   void Update(amrex::MultiFab& cons_in,
               amrex::MultiFab& qv_in,
               amrex::MultiFab& qc_in,
-              amrex::MultiFab& qi_in);
+              amrex::MultiFab& qi_in,
+              amrex::MultiFab& qrain_in,
+              amrex::MultiFab& qsnow_in,
+              amrex::MultiFab& qgraup_in);
 
   // diagnose
   void Diagnose();
