@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 20
+max_step = 50
 
 amrex.fpe_trap_invalid = 1
 
@@ -20,7 +20,7 @@ zhi.theta_grad = 1.0
 
 # TIME STEP CONTROL
 erf.no_substepping     = 1
-erf.cfl                = 0.5     # cfl number for hyperbolic system
+erf.fixed_dt           = 0.01
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -43,7 +43,7 @@ erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity theta
 erf.use_gravity            = false
 
 erf.alpha_T = 1.0
-erf.alpha_C = 1.0
+erf.alpha_C = 0.0
 
 erf.les_type         = "None"
 erf.rho0_trans       = 1.0

@@ -65,13 +65,13 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][0];
+                if (bc_ptr[icomp+n].lo(0) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][0];
                 }
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[n].hi(0) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][3];
+                if (bc_ptr[icomp+n].hi(0) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][3];
                 }
             }
         );
@@ -83,13 +83,13 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
         Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][1];
+                if (bc_ptr[icomp+n].lo(1) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][1];
                 }
             },
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[n].hi(1) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][4];
+                if (bc_ptr[icomp+n].hi(1) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][4];
                 }
             }
         );
@@ -100,13 +100,13 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
         Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+1);
         ParallelFor(
             bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][2];
+                if (bc_ptr[icomp+n].lo(2) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][2];
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[n].hi(2) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[n][5];
+                if (bc_ptr[icomp+n].hi(2) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][5];
                 }
             }
         );
@@ -122,21 +122,21 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int iflip = dom_lo.x - 1 - i;
-                if (bc_ptr[n].lo(0) == ERFBCType::foextrap) {
+                if (bc_ptr[icomp+n].lo(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(dom_lo.x,j,k,icomp+n);
-                } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_even) {
+                } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
-                } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
                 }
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int iflip =  2*dom_hi.x + 1 - i;
-                if (bc_ptr[n].hi(0) == ERFBCType::foextrap) {
+                if (bc_ptr[icomp+n].hi(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(dom_hi.x,j,k,icomp+n);
-                } else if (bc_ptr[n].hi(0) == ERFBCType::reflect_even) {
+                } else if (bc_ptr[icomp+n].hi(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
-                } else if (bc_ptr[n].hi(0) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr[icomp+n].hi(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
                 }
             }
@@ -151,21 +151,21 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int jflip = dom_lo.y - 1 - j;
-                if (bc_ptr[n].lo(1) == ERFBCType::foextrap) {
+                if (bc_ptr[icomp+n].lo(1) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_lo.y,k,icomp+n);
-                } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_even) {
+                } else if (bc_ptr[icomp+n].lo(1) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,jflip,k,icomp+n);
-                } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr[icomp+n].lo(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,jflip,k,icomp+n);
                 }
             },
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int jflip =  2*dom_hi.y + 1 - j;
-                if (bc_ptr[n].hi(1) == ERFBCType::foextrap) {
+                if (bc_ptr[icomp+n].hi(1) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_hi.y,k,icomp+n);
-                } else if (bc_ptr[n].hi(1) == ERFBCType::reflect_even) {
+                } else if (bc_ptr[icomp+n].hi(1) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,jflip,k,icomp+n);
-                } else if (bc_ptr[n].hi(1) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr[icomp+n].hi(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,jflip,k,icomp+n);
                 }
             }
@@ -179,28 +179,28 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
         ParallelFor(
             bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int kflip = dom_lo.z - 1 - i;
-                if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
+                if (bc_ptr[icomp+n].lo(2) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_lo.z,icomp+n);
-                } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_even) {
+                } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
-                } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
-                } else if (bc_ptr[n].lo(2) == ERFBCType::neumann) {
-                    Real delta_z = dxInv[2]*(dom_lo.z - k);
-                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) - delta_z*l_bc_neumann_vals_d[n][2];
+                } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::neumann) {
+                    Real delta_z = (dom_lo.z - k) / dxInv[2];
+                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) - delta_z*l_bc_neumann_vals_d[icomp+n][2]*dest_arr(i,j,dom_lo.z,bccomp);
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int kflip =  2*dom_hi.z + 1 - i;
-                if (bc_ptr[n].hi(2) == ERFBCType::foextrap) {
+                if (bc_ptr[icomp+n].hi(2) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_hi.z,icomp+n);
-                } else if (bc_ptr[n].hi(2) == ERFBCType::reflect_even) {
+                } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
-                } else if (bc_ptr[n].hi(2) == ERFBCType::reflect_odd) {
+                } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
-                } else if (bc_ptr[n].hi(2) == ERFBCType::neumann) {
-                    Real delta_z = dxInv[2]*(k - dom_hi.z);
-                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) + delta_z*l_bc_neumann_vals_d[n][5];
+                } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::neumann) {
+                    Real delta_z = (k - dom_hi.z) / dxInv[2];
+                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_hi.z,icomp+n) + delta_z*l_bc_neumann_vals_d[icomp+n][5]*dest_arr(i,j,dom_hi.z,bccomp);
                 }
             }
         );
