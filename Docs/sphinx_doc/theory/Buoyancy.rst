@@ -111,7 +111,7 @@ then
 
 .. math::
 
-   \mathbf{B} = \rho^\prime \mathbf{g} = -\rho_0 \frac{\overline{T}}{\overline{T_v} \mathbf{g} [ 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime ) + \frac{T^\prime}{\overline{T_v}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) ]
+   \mathbf{B} = \rho^\prime \mathbf{g} = -\rho_0 \frac{\overline{T}}{\overline{T_v}} \mathbf{g} [ 0.61 q_v^\prime - q_c^\prime - q_i^\prime - q_p^\prime ) + \frac{T^\prime}{\overline{T_v}} (1.0 + 0.61 \bar{q_v} - \bar{q_i} - \bar{q_c} - \bar{q_p}) ]
 
 where the overbar represents a horizontal average of the current state and the perturbation is defined relative to that average.
 
