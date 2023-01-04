@@ -498,6 +498,9 @@ private:
     amrex::Vector<amrex::MultiFab> qv;
     amrex::Vector<amrex::MultiFab> qc;
     amrex::Vector<amrex::MultiFab> qi;
+    amrex::Vector<amrex::MultiFab> qrain;
+    amrex::Vector<amrex::MultiFab> qsnow;
+    amrex::Vector<amrex::MultiFab> qgraup;
 #endif
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
@@ -596,7 +599,7 @@ private:
                                                     "pres_hse", "dens_hse", "pert_pres", "pert_dens",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y", "z_phys", "detJ" , "mapfac"
 #ifdef ERF_USE_MOISTURE
-                                                     ,"qt", "qp", "qv", "qc", "qi"
+                                                     ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
 #endif
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"

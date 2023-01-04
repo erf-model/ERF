@@ -210,6 +210,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     micro.Update(S_new,
                  qv[lev],
                  qc[lev],
-                 qi[lev]);
+                 qi[lev],
+                 qrain[lev],
+                 qsnow[lev],
+                 qgraup[lev]);
 #endif
 }
