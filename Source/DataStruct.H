@@ -346,7 +346,7 @@ struct SolverChoice {
     bool        test_mapfactor         = false;
     int         terrain_type           = 0;
 #ifdef ERF_USE_MOISTURE
-    int         buoyancy_type          = 3;
+    int         buoyancy_type          = 2; // uses Tprime
 #else
     int         buoyancy_type          = 1; // uses rhoprime directly
 #endif
