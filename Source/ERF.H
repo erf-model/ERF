@@ -148,7 +148,7 @@ public:
                       amrex::MultiFab& xmom_old,  amrex::MultiFab& ymom_old,  amrex::MultiFab& zmom_old,
                       amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
                       amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
-                      amrex::MultiFab& source,
+                      amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
 #ifdef ERF_USE_MOISTURE
                       amrex::MultiFab& qvapor, amrex::MultiFab& qcloud, amrex::MultiFab& qice,
 #endif

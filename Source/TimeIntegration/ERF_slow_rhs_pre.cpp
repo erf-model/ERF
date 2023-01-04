@@ -27,6 +27,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
+                       const MultiFab& buoyancy,
                        MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
@@ -186,7 +187,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real> &       cell_rhs   = S_rhs[IntVar::cons].array(mfi);
-        const Array4<const Real> & source_fab = source.const_array(mfi);
+        const Array4<const Real> & source_fab   = source.const_array(mfi);
+        const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
 #ifdef ERF_USE_MOISTURE
         const Array4<const Real> & qv_data = qvapor.array(mfi);
         const Array4<const Real> & qc_data = qcloud.array(mfi);
@@ -807,34 +809,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 rho_w_rhs(i, j, k) -= gpz;
 #endif
 
-                // Add buoyancy term
-#ifdef ERF_USE_MOISTURE
-                Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
-                Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
-
-                Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
-                Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
-
-                Real qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
-                                    (qc_data(i,j,k)-qc_d_ptr[k]+
-                                     qi_data(i,j,k)-qi_d_ptr[k]+
-                                     cell_prim(i,j,k,PrimQp_comp)-qp_d_ptr[k])
-                           + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qi_d_ptr[k]-qp_d_ptr[k]);
-
-                Real qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
-                                     (qc_data(i,j,k-1)-qc_d_ptr[k-1]+
-                                      qi_data(i,j,k-1)-qi_d_ptr[k-1]+
-                                      cell_prim(i,j,k-1,PrimQp_comp)-qp_d_ptr[k-1])
-                           + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qi_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
-
-                Real qavg  = Real(0.5) * (qplus + qminus);
-                Real r0avg = Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
-
-                rho_w_rhs(i, j, k) -= qavg * r0avg * grav_gpu[2];
-#else
-                rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
-                                                             - r0_arr(i,j,k) -    r0_arr(i,j,k-1) );
-#endif
+                rho_w_rhs(i, j, k) += buoyancy_fab(i,j,k);
 
                 // Add external drivers
                 rho_w_rhs(i, j, k) += ext_forcing[2];
@@ -874,34 +849,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 #else
                 rho_w_rhs(i, j, k) -= gpz;
 #endif
-                // Add buoyancy term
-#ifdef ERF_USE_MOISTURE
-                Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
-                Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
 
-                Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
-                Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
+                rho_w_rhs(i, j, k) += buoyancy_fab(i,j,k);
 
-                Real qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
-                                    (qc_data(i,j,k)-qc_d_ptr[k]+
-                                     qi_data(i,j,k)-qi_d_ptr[k]+
-                                     cell_prim(i,j,k,PrimQp_comp)-qp_d_ptr[k])
-                           + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qi_d_ptr[k]-qp_d_ptr[k]);
-
-                Real qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
-                                     (qc_data(i,j,k-1)-qc_d_ptr[k-1]+
-                                      qi_data(i,j,k-1)-qi_d_ptr[k-1]+
-                                      cell_prim(i,j,k-1,PrimQp_comp)-qp_d_ptr[k-1])
-                           + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qi_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
-
-                Real qavg  = Real(0.5) * (qplus + qminus);
-                Real r0avg = Real(0.5) * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
-
-                rho_w_rhs(i, j, k) -= qavg * r0avg * grav_gpu[2];
-#else
-                rho_w_rhs(i, j, k) += grav_gpu[2] * 0.5 * ( cell_data(i,j,k) + cell_data(i,j,k-1)
-                                                             - r0_arr(i,j,k) -    r0_arr(i,j,k-1) );
-#endif
                 // Add external drivers
                 rho_w_rhs(i, j, k) += ext_forcing[2];
 
