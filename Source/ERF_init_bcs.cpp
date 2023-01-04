@@ -145,6 +145,12 @@ void ERF::init_bcs ()
                 m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
             }
 
+            Real rho_in;
+            if (pp.query("density", rho_in))
+            {
+                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
+            }
+
             Real theta_in;
             if (pp.query("theta", theta_in))
             {
@@ -163,6 +169,12 @@ void ERF::init_bcs ()
 
             phys_bc_type[ori] = ERF_BC::slip_wall;
             domain_bc_type[ori] = "SlipWall";
+
+            Real rho_in;
+            if (pp.query("density", rho_in))
+            {
+                m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] = rho_in;
+            }
 
             Real theta_in;
             if (pp.query("theta", theta_in))
