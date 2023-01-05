@@ -187,7 +187,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::neumann) {
                     Real delta_z = (dom_lo.z - k) / dxInv[2];
-                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) - delta_z*l_bc_neumann_vals_d[icomp+n][2]*dest_arr(i,j,dom_lo.z,bccomp);
+                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) - delta_z*l_bc_neumann_vals_d[icomp+n][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
@@ -200,7 +200,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
                 } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::neumann) {
                     Real delta_z = (k - dom_hi.z) / dxInv[2];
-                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_hi.z,icomp+n) + delta_z*l_bc_neumann_vals_d[icomp+n][5]*dest_arr(i,j,dom_hi.z,bccomp);
+                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_hi.z,icomp+n) + delta_z*l_bc_neumann_vals_d[icomp+n][5]*dest_arr(i,j,dom_hi.z,Rho_comp);
                 }
             }
         );
