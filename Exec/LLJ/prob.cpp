@@ -42,20 +42,25 @@ erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
 
 void
 init_custom_prob(
-  const Box& bx,
-  Array4<Real> const& state,
-  Array4<Real> const& x_vel,
-  Array4<Real> const& y_vel,
-  Array4<Real> const& z_vel,
-  Array4<Real> const& r_hse,
-  Array4<Real> const& p_hse,
-  Array4<Real const> const& z_nd,
-  Array4<Real const> const& z_cc,
-  amrex::GeometryData const& geomdata,
-  Array4<Real const> const& /*mf_m*/,
-  Array4<Real const> const& /*mf_u*/,
-  Array4<Real const> const& /*mf_v*/,
-  const SolverChoice&)
+        const Box&,
+        Array4<Real      > const&,
+        Array4<Real      > const&,
+        Array4<Real      > const&,
+        Array4<Real      > const&,
+        Array4<Real      > const&,
+        Array4<Real      > const&,
+        Array4<Real const> const&,
+        Array4<Real const> const&,
+#ifdef ERF_USE_MOISTURE
+        Array4<Real      > const&,
+        Array4<Real      > const&,
+        Array4<Real      > const&,
+#endif
+        GeometryData const&,
+        Array4<Real const> const&,
+        Array4<Real const> const&,
+        Array4<Real const> const&,
+        const SolverChoice&)
 {
   amrex::Print() << "Dummy function..Needed for linking" << std::endl;
 }
@@ -84,6 +89,7 @@ init_custom_terrain (const Geometry& /*geom*/,
     }
 }
 
+void
 amrex_probinit(
   const amrex_real* /*problo*/,
   const amrex_real* /*probhi*/)
