@@ -1,5 +1,14 @@
-# ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 50
+# ---------------------------------------------
+# ---------------------------------------------
+# NOTE: to run this test effectively, you must
+# hack Source/EOS.H so that getPgivenRTh
+# returns just p0; this allows theta to change
+# without changing the pressure and generating
+# a velocity field
+# ---------------------------------------------
+# ---------------------------------------------
+
+max_step = 2000
 
 amrex.fpe_trap_invalid = 1
 
@@ -15,12 +24,14 @@ geometry.is_periodic = 1 1 0
 zlo.type = "NoSlipWall"
 zhi.type = "NoSlipWall"
 
-zlo.theta = 300.0
-zhi.theta_grad = 1.0
+zlo.density = 2.0
+zlo.theta   = 300.0
+
+zhi.theta_grad = 3.0
 
 # TIME STEP CONTROL
 erf.no_substepping     = 1
-erf.fixed_dt           = 0.01
+erf.fixed_dt           = 0.005
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -36,7 +47,7 @@ erf.check_int       = 1000       # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
-erf.plot_int_1      = 1          # number of timesteps between plotfiles
+erf.plot_int_1      = 1000       # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity theta
 
 # SOLVER CHOICE
@@ -46,7 +57,7 @@ erf.alpha_T = 1.0
 erf.alpha_C = 0.0
 
 erf.les_type         = "None"
-erf.rho0_trans       = 1.0
+erf.rho0_trans       = 2.0
 erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 0.1
 
@@ -55,5 +66,5 @@ erf.use_coriolis = false
 erf.spatial_order = 2
 
 # PROBLEM PARAMETERS
-prob.rho_0 = 1.0
+prob.rho_0 = 2.0
 prob.T_0   = 300.0
