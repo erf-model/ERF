@@ -161,7 +161,7 @@ ABLMost::impose_most_bcs(const int lev,
         const auto t_surf_arr = t_surf[lev]->array(mfi);
 
         // Define temporaries so we can access these on GPU
-        Real d_dz    = m_geom[lev].CellSize(2);
+        Real d_dz = m_geom[lev].CellSize(2);
 
         for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
         {
