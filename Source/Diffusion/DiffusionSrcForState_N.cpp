@@ -290,12 +290,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
 
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
-
-                Real tmp = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
-                if (i==1 && j==1) {
-                    amrex::Print() << "TEST HO: " << zflux(i,j,k,qty_index) << ' ' << tmp << "\n";
-                }
-
             } else if (ext_dir_on_zhi) {
                 zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
             } else {
