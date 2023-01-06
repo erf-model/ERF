@@ -71,34 +71,36 @@ for each type; this is summarized in the table below.
 
 .. _sec:dirichlet:
 
-Dirichlet Boundary Conditions
+Boundary Conditions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-ERF provides the ability to specify constant Dirichlet BCs in the inputs file. We use the following options
-preceded by
-``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, and ``zhi``:
+ERF provides the ability to specify a variety of boundary conditions (BCs) in the inputs file.
+We use the following options preceded by ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, and ``zhi``:
 
-+------------+--------------+----------------+----------------+------------------+---------------+
-| Type       | Normal vel   | Tangential vel | Density        | Theta            | Scalar        |
-+============+==============+================+================+==================+===============+
-| inflow     | ext_dir      | ext_dir        | ext_dir        | ext_dir          | ext_dir       |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| outflow    | foextrap     | foextrap       | foextrap       | foextrap         | foextrap      |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| slipwall   | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap | foextrap      |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| noslipwall | ext_dir      | ext_dir        | foextrap       | ext_dir/foextrap | foextrap      |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| symmetry   | reflect_odd  | reflect_even   | reflect_even   | reflect_even     | reflect_even  |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| MOST       |              |                |                |                  |               |
-+------------+--------------+----------------+----------------+------------------+---------------+
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| Type       | Normal vel   | Tangential vel | Density        | Theta                    | Scalar        |
++============+==============+================+================+==========================+===============+
+| inflow     | ext_dir      | ext_dir        | ext_dir        | ext_dir                  | ext_dir       |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| outflow    | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| slipwall   | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap/neumann | foextrap      |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| noslipwall | ext_dir      | ext_dir        | foextrap       | ext_dir/foextrap/neumann | foextrap      |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| symmetry   | reflect_odd  | reflect_even   | reflect_even   | reflect_even             | reflect_even  |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| MOST       |              |                |                |                          |               |
++------------+--------------+----------------+----------------+--------------------------+---------------+
 
 Here ``ext_dir``, ``foextrap``, and ``reflect_even`` refer to AMReX keywords.   The ``ext_dir`` type
 refers to an "external Dirichlet" boundary, which means the values must be specified by the user.
 The ``foextrap`` type refers to "first order extrapolation" which sets all the ghost values to the
-same value in the last valid cell/face.  (AMReX also has a ``hoextrap``, or "higher order extrapolation"
-option, which does a linear extrapolation from the two nearest valid values.)
+same value in the last valid cell/face  (AMReX also has a ``hoextrap``, or "higher order extrapolation"
+option, which does a linear extrapolation from the two nearest valid values). By contrast, ``neumann``
+is an ERF-specific boundary type that allows a user to specify a variable gradient. Currently, the
+``neumann`` BC is only supported for theta to allow for weak capping inversion
+(:math:`\partial \theta / \partial z`) at the top domain.
 
 As an example,
 
@@ -120,7 +122,7 @@ xlo.scalar        = 2. sets the inflow value of the advected scalar
 The "slipwall" and "noslipwall" types have options for adiabatic vs Dirichlet boundary conditions.
 If a value for theta is given for a face with type "slipwall" or "noslipwall" then the boundary
 condition for theta is assumed to be "ext_dir", i.e. theta is specified on the boundary.
-If not value is specified then the wall is assumed to be adiabiatc, i.e. there is no temperature
+If no value is specified then the wall is assumed to be adiabiatc, i.e. there is no temperature
 flux at the boundary.  This is enforced with the "foextrap" designation.
 
 For example
@@ -132,9 +134,19 @@ For example
 
     zlo.theta = 301.0
 
-would designate theta = 301. at the bottom (zlo) boundary, while
-the top boundary condition would be a zero gradient, aka adiabatic
-because no value is specified for ``zhi.theta``
+would designate theta = 301 at the bottom (zlo) boundary, while
+the top boundary condition would default to a zero gradient (adiabatic)
+since no value is specified for ``zhi.theta`` or ``zhi.theta_grad``.
+By contrast, thermal inversion may be imposed at the top boundary
+by providing a specified gradient for theta
+
+::
+
+    zlo.type  = "NoSlipWall"
+    zhi.type  = "NoSlipWall"
+
+    zlo.theta = 301.0
+    zhi.theta_grad = 1.0
 
 We note that "noslipwall" allows for non-zero tangential velocities to be specified, as in the
 Couette regression test example, in which we specify
