@@ -169,9 +169,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
+                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -212,9 +212,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                            + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
+                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
+                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -252,9 +252,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
+                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -289,9 +289,15 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real Alpha = d_alpha_eff[prim_index];
 
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
+                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+
+                Real tmp = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
+                if (i==1 && j==1) {
+                    amrex::Print() << "TEST HO: " << zflux(i,j,k,qty_index) << ' ' << tmp << "\n";
+                }
+
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * (Real(2.0)*dz_inv);
+                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }

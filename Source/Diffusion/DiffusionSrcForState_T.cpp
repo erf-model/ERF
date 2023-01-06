@@ -181,7 +181,14 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
-            Real GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
+            Real GradCz;
+            if (ext_dir_on_zlo) {
+                GradCz = dz_inv * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) );
+            } else if (ext_dir_on_zhi) {
+                GradCz = dz_inv * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) );
+            } else {
+                GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
+            }
 
             zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
         });
@@ -238,7 +245,14 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
-            Real GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
+            Real GradCz;
+            if (ext_dir_on_zlo) {
+                GradCz = dz_inv * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) );
+            } else if (ext_dir_on_zhi) {
+                GradCz = dz_inv * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) );
+            } else {
+                GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
+            }
 
             zflux(i,j,k,qty_index) = Alpha * GradCz / met_h_zeta;
         });
@@ -291,7 +305,14 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
-            Real GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
+            Real GradCz;
+            if (ext_dir_on_zlo) {
+                GradCz = dz_inv * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) );
+            } else if (ext_dir_on_zhi) {
+                GradCz = dz_inv * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) );
+            } else {
+                GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
+            }
 
             zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
         });
@@ -341,7 +362,14 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
-            Real GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
+            Real GradCz;
+            if (ext_dir_on_zlo) {
+                GradCz = dz_inv * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) );
+            } else if (ext_dir_on_zhi) {
+                GradCz = dz_inv * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) );
+            } else {
+                GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
+            }
 
             zflux(i,j,k,qty_index) = Alpha * GradCz / met_h_zeta;
         });
