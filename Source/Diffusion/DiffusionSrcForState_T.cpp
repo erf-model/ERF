@@ -35,6 +35,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
     const Real dy_inv = dxInv[1];
     const Real dz_inv = dxInv[2];
 
+    const auto& dom_hi = amrex::ubound(domain);
+
     bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
     Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
