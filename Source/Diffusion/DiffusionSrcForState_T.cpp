@@ -182,6 +182,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
             Real GradCz;
+            bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) );
             } else if (ext_dir_on_zhi) {
@@ -246,6 +248,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
             Real GradCz;
+            bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) );
             } else if (ext_dir_on_zhi) {
@@ -306,6 +310,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
             Real GradCz;
+            bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) );
             } else if (ext_dir_on_zhi) {
@@ -363,6 +369,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             met_h_zeta = Compute_h_zeta_AtKface(i,j,k,dxInv,z_nd);
 
             Real GradCz;
+            bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) );
             } else if (ext_dir_on_zhi) {
