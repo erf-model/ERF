@@ -21,6 +21,7 @@ void erf_slow_rhs_pre(int level, int nrk,
                       std::unique_ptr<amrex::MultiFab>& z_t,
                             amrex::MultiFab& Omega,
                       const amrex::MultiFab& source,
+                      const amrex::MultiFab& buoyancy,
                             amrex::MultiFab* Tau11,
                             amrex::MultiFab* Tau22,
                             amrex::MultiFab* Tau33,
@@ -151,4 +152,17 @@ void make_fast_coeffs (int level,
                        const amrex::MultiFab* r0,
                        const amrex::MultiFab* pi0,
                        const amrex::Real fast_dt);
+
+void make_buoyancy(amrex::BoxArray& grids_to_evolve,
+                   amrex::Vector<  amrex::MultiFab>& S_data,
+                   const           amrex::MultiFab & S_prim,
+                         amrex::MultiFab& buoyancy,
+#ifdef ERF_USE_MOISTURE
+                   const amrex::MultiFab& qvapor,
+                   const amrex::MultiFab& qcloud,
+                   const amrex::MultiFab& qice,
+#endif
+                   const amrex::Geometry geom,
+                   const SolverChoice& solverChoice,
+                   const amrex::MultiFab* r0);
 #endif

@@ -515,6 +515,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         MultiFab qv_fab(qv[lev], make_alias, 0, 1);
         MultiFab qc_fab(qc[lev], make_alias, 0, 1);
         MultiFab qi_fab(qi[lev], make_alias, 0, 1);
+        MultiFab qrain_fab(qrain[lev], make_alias, 0, 1);
+        MultiFab qsnow_fab(qsnow[lev], make_alias, 0, 1);
+        MultiFab qgraup_fab(qgraup[lev], make_alias, 0, 1);
 
         if (containerHasElement(plot_var_names, "qv"))
         {
@@ -534,6 +537,27 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         {
             // r_0 is first component of base_state
             MultiFab::Copy(mf[lev],qi_fab,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_var_names, "qrain"))
+        {
+            // r_0 is first component of base_state
+            MultiFab::Copy(mf[lev],qrain_fab,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_var_names, "qsnow"))
+        {
+            // r_0 is first component of base_state
+            MultiFab::Copy(mf[lev],qsnow_fab,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_var_names, "qgraup"))
+        {
+            // r_0 is first component of base_state
+            MultiFab::Copy(mf[lev],qgraup_fab,0,mf_comp,1,0);
             mf_comp += 1;
         }
 #endif

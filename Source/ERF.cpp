@@ -157,6 +157,9 @@ ERF::ERF ()
     qi.resize(nlevs_max);
     qc.resize(nlevs_max);
     qv.resize(nlevs_max);
+    qrain. resize(nlevs_max);
+    qsnow. resize(nlevs_max);
+    qgraup.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);
@@ -460,7 +463,10 @@ ERF::InitData ()
         micro.Update(vars_new[lev][Vars::cons],
                      qv[lev],
                      qc[lev],
-                     qi[lev]);
+                     qi[lev],
+                     qrain[lev],
+                     qsnow[lev],
+                     qgraup[lev]);
     }
 #endif
 
@@ -759,9 +765,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     // Microphysics
     // *******************************************************************************************
 #ifdef ERF_USE_MOISTURE
-    qc[lev].define(ba, dm, 1, ngrow_state);
-    qv[lev].define(ba, dm, 1, ngrow_state);
-    qi[lev].define(ba, dm, 1, ngrow_state);
+    qc[lev].    define(ba, dm, 1, ngrow_state);
+    qv[lev].    define(ba, dm, 1, ngrow_state);
+    qi[lev].    define(ba, dm, 1, ngrow_state);
+    qrain[lev]. define(ba, dm, 1, ngrow_state);
+    qsnow[lev]. define(ba, dm, 1, ngrow_state);
+    qgraup[lev].define(ba, dm, 1, ngrow_state);
 #endif
 
     // ********************************************************************************************
@@ -891,7 +900,7 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
 
     physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                     solverChoice.terrain_type, m_bc_extdir_vals,
+                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
                                                      z_phys_nd[lev], detJ_cc[lev]);
 }
 
@@ -913,6 +922,9 @@ ERF::init_only(int lev, Real time)
     qc[lev].setVal(0.0);
     qv[lev].setVal(0.0);
     qi[lev].setVal(0.0);
+    qrain[lev].setVal(0.0);
+    qsnow[lev].setVal(0.0);
+    qgraup[lev].setVal(0.0);
 #endif
 
     // Initialize background flow (optional)
@@ -1343,6 +1355,9 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     qi.resize(nlevs_max);
     qc.resize(nlevs_max);
     qv.resize(nlevs_max);
+    qrain.resize(nlevs_max);
+    qsnow.resize(nlevs_max);
+    qgraup.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);

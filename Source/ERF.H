@@ -148,7 +148,7 @@ public:
                       amrex::MultiFab& xmom_old,  amrex::MultiFab& ymom_old,  amrex::MultiFab& zmom_old,
                       amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
                       amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
-                      amrex::MultiFab& source,
+                      amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
 #ifdef ERF_USE_MOISTURE
                       amrex::MultiFab& qvapor, amrex::MultiFab& qcloud, amrex::MultiFab& qice,
 #endif
@@ -498,6 +498,9 @@ private:
     amrex::Vector<amrex::MultiFab> qv;
     amrex::Vector<amrex::MultiFab> qc;
     amrex::Vector<amrex::MultiFab> qi;
+    amrex::Vector<amrex::MultiFab> qrain;
+    amrex::Vector<amrex::MultiFab> qsnow;
+    amrex::Vector<amrex::MultiFab> qgraup;
 #endif
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
@@ -535,6 +538,9 @@ private:
 
     // These hold the Dirichlet values at walls which need them ...
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
+
+    // These hold the Neumann values at walls which need them ...
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_neumann_vals;
 
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;
@@ -596,7 +602,7 @@ private:
                                                     "pres_hse", "dens_hse", "pert_pres", "pert_dens",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y", "z_phys", "detJ" , "mapfac"
 #ifdef ERF_USE_MOISTURE
-                                                     ,"qt", "qp", "qv", "qc", "qi"
+                                                     ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
 #endif
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"

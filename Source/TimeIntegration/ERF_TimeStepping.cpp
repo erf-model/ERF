@@ -163,6 +163,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
     MultiFab::Copy(cons_mf,S_old,0,0,S_old.nComp(),S_old.nGrowVect());
 
+    // Define Multifab for buoyancy term -- only added to vertical velocity
+    MultiFab buoyancy(W_old.boxArray(),W_old.DistributionMap(),1,1);
+
     // *****************************************************************
     // Update the cell-centered state and face-based velocity using
     // a time integrator.
@@ -186,7 +189,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 rU_old[lev], rV_old[lev], rW_old[lev],
                 rU_new[lev], rV_new[lev], rW_new[lev],
                 rU_crse, rV_crse, rW_crse,
-                source,
+                source, buoyancy,
 #ifdef ERF_USE_MOISTURE
                 qv[lev], qc[lev], qi[lev],
 #endif
@@ -207,6 +210,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     micro.Update(S_new,
                  qv[lev],
                  qc[lev],
-                 qi[lev]);
+                 qi[lev],
+                 qrain[lev],
+                 qsnow[lev],
+                 qgraup[lev]);
 #endif
 }

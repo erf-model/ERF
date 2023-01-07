@@ -72,6 +72,11 @@ struct SolverChoice {
 
         // Which expression (1,2 or 3) to use for buoyancy
         pp.query("buoyancy_type", buoyancy_type);
+#ifdef ERF_USE_MOISTURE
+        if (buoyancy_type != 2 && buoyancy_type != 3) {
+            amrex::Abort("buoyancy_type with moisture on must be 2 or 3");
+        }
+#endif
 
         // Is the terrain static or moving?
         pp.query("terrain_type", terrain_type);
@@ -341,7 +346,7 @@ struct SolverChoice {
     bool        test_mapfactor         = false;
     int         terrain_type           = 0;
 #ifdef ERF_USE_MOISTURE
-    int         buoyancy_type          = 3;
+    int         buoyancy_type          = 2; // uses Tprime
 #else
     int         buoyancy_type          = 1; // uses rhoprime directly
 #endif
