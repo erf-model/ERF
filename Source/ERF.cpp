@@ -404,8 +404,8 @@ ERF::InitData ()
         Real RhoKE_0 = 0.0;
         ParmParse pp(pp_prefix);
         pp.query("RhoKE_0", RhoKE_0);
-        int lb = max(finest_level-1,0);
-        for (int lev(lb); lev >= 0; --lev){
+        int lb = std::max(finest_level-1,0);
+        for (int lev(lb); lev >= 0; --lev)
             vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
 
         AverageDown();
