@@ -374,10 +374,6 @@ ERF::InitData ()
         }
 #endif
 
-        // For now we initialize rho_KE to 0
-        for (int lev = finest_level-1; lev >= 0; --lev)
-            vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
-
         if (init_type == "ideal" && solverChoice.use_terrain) {
             amrex::Abort("We do not currently support init_type = ideal with terrain");
         } else if (init_type == "input_sounding" && solverChoice.use_terrain) {
@@ -403,6 +399,14 @@ ERF::InitData ()
         // Note that make_J and make_zcc area now called inside init_from_wrfinput
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
+
+        // For now we initialize rho_KE to 0
+        Real RhoKE_0 = 0.0;
+        ParmParse pp(pp_prefix);
+        pp.query("RhoKE_0", RhoKE_0);
+        int lb = max(finest_level-1,0);
+        for (int lev(lb); lev >= 0; --lev){
+            vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
 
         AverageDown();
 
