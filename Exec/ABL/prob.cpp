@@ -113,15 +113,23 @@ init_custom_prob(
     // Note that this is called on a box of x-faces
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
+    const Real y = prob_lo[1] + (j + 0.5) * dx[1];
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
-    Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-    Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
-
     x_vel(i, j, k) = parms.U_0;
-    if(z <= parms.pert_max_height) {
+    if ((z <= parms.pert_ref_height) && (parms.U_0_Pert_Mag != 0.0))
+    {
+        Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+        Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
         x_vel(i, j, k) += x_vel_prime;
+    }
+    if (parms.pert_deltaU != 0.0)
+    {
+        const amrex::Real yl = y - prob_lo[1];
+        const amrex::Real zl = z / parms.pert_ref_height;
+        const amrex::Real damp = std::exp(-0.5 * zl * zl);
+        x_vel(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
     }
   });
 
@@ -132,15 +140,23 @@ init_custom_prob(
     // Note that this is called on a box of y-faces
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
+    const Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the y-velocity
-    Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-    Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
-
     y_vel(i, j, k) = parms.V_0;
-    if(z <= parms.pert_max_height) {
+    if ((z <= parms.pert_ref_height) && (parms.V_0_Pert_Mag != 0.0))
+    {
+        Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+        Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
         y_vel(i, j, k) += y_vel_prime;
+    }
+    if (parms.pert_deltaV != 0.0)
+    {
+        const amrex::Real xl = x - prob_lo[0];
+        const amrex::Real zl = z / parms.pert_ref_height;
+        const amrex::Real damp = std::exp(-0.5 * zl * zl);
+        y_vel(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
     }
   });
 
@@ -155,12 +171,14 @@ init_custom_prob(
     const int dom_hi_z = geomdata.Domain().bigEnd()[2];
 
     // Set the z-velocity
-    Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-    Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W_0_Pert_Mag;
-
-    if (k == dom_lo_z || k == dom_hi_z+1) {
+    if (k == dom_lo_z || k == dom_hi_z+1)
+    {
         z_vel(i, j, k) = 0.0;
-    } else {
+    }
+    else if (parms.W_0_Pert_Mag != 0.0)
+    {
+        Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+        Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W_0_Pert_Mag;
         z_vel(i, j, k) = parms.W_0 + z_vel_prime;
     }
   });
@@ -192,14 +210,15 @@ init_custom_terrain (const Geometry& /*geom*/,
 
 void
 amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
+  const amrex_real* problo,
+  const amrex_real* probhi)
 {
   // Parse params
   ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.Theta_0);
   pp.query("A_0", parms.A_0);
+  pp.query("QKE_0", parms.QKE_0);
 
   pp.query("U_0", parms.U_0);
   pp.query("V_0", parms.V_0);
@@ -207,7 +226,14 @@ amrex_probinit(
   pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
-  pp.query("pert_max_height", parms.pert_max_height);
 
-  pp.query("QKE_0", parms.QKE_0);
+  pp.query("pert_deltaU", parms.pert_deltaU);
+  pp.query("pert_deltaV", parms.pert_deltaV);
+  pp.query("pert_periods_U", parms.pert_periods_U);
+  pp.query("pert_periods_V", parms.pert_periods_V);
+  pp.query("pert_ref_height", parms.pert_ref_height);
+  parms.aval = parms.pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
+  parms.bval = parms.pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
+  parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
+  parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
 }
