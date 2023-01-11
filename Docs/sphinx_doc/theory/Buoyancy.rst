@@ -21,7 +21,11 @@ One version of the buoyancy force is expressed simply as
 .. math::
      \mathbf{B} = \rho^\prime \mathbf{g}
 
-where the base state density corresponds to the dry air only.
+.. math::
+     \rho^\prime = \rho_{total} - \rho_0
+
+where the full density :math:`\rho_{total}` is the sum of dry and moist components and :math:`rho_0` is the base state density
+for dry air only.
 
 Type 2
 ------
@@ -76,7 +80,7 @@ which removes the need to compute horizontal averages of these quantities.   Thi
 
 .. math::
      \mathbf{B} = \rho^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} ( \frac{T^\prime}{\overline{T}}
-                 + 0.61 q_v - q_c - q_i - q_p - \frac{p^\prime}{p_0} )
+                 + 0.61 q_v - q_c - q_i - q_p)
 
 We note that this version of the buoyancy force matches that given in Marat F. Khairoutdinov and David A. Randall's paper (J. Atm Sciences, 607, 1983)
 if we neglect :math:`\frac{p^\prime}{\bar{p_0}}`.

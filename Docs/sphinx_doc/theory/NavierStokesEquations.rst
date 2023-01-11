@@ -101,7 +101,7 @@ We consider a mixture of dry air :math:`\rho_d` and nonprecipitating water vapor
 assumed to be a perfect ideal gas with constant heat capacities
 :math:`C_{vd}`, :math:`C_{vv}`, :math:`C_{pd}`, :math:`C_{pv}`,
 non-precipitating condensates :math:`\rho_c + \rho_i`,
-and precipitating condensates :math:`\rho_{rain} + \rho_{snow} + \rho_{graupel}`.
+and precipitating condensates :math:`\rho_p = \rho_{rain} + \rho_{snow} + \rho_{graupel}`.
 Here
 :math:`\rho_c` is the density of cloud water and
 :math:`\rho_i` is the density of cloud ice, and
@@ -117,26 +117,20 @@ Neglecting the volume occupied by all water not in vapor form, we have
 where :math:`p_d` and :math:`p_v` are the partial pressures of dry air and water vapor, respectively,
 and :math:`R_d` and :math:`R_v` are the gas constants for dry air and water vapor, respectively.
 
-In ERF, we select the dry air with density :math:`\rho_d` as the dominant component, and treat the others as sparse components
-:math:`\rho_s` with :math:`s = 1, ...., N`. We define the mass mixing ratio, :math:`q_s`, as the mass density of species :math:`s`
-relative to the total density, i.e. :math:`q_s = \frac{\rho_s}{\rho}`.  We note that
+We define the mixing ratio of each moist componoent, :math:`q_s`, as the mass density of species :math:`s`
+relative to the density of dry air, i.e. :math:`q_s = \frac{\rho_s}{\rho_d}`.
+
+We define the total potential temperature
 
 .. math::
-  \sum_s \rho_s = \rho
+  \theta = \frac{\sum_s \rho_s \theta_s}{\sum_s \rho_s} \approx (\theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c).
 
-  \sum_s q_s = 1
-
-where :math:`\rho` is the moist air density.
-
-define the total potential temperature
-
-.. math::
-  \theta = \frac{\sum_s \rho_s \theta_s}{\sum_s \rho_s} \approx (q_d \theta_d + q_v \theta_v + q_i \theta_i + q_c \theta_c).
-
-the EOS equation can be written as,
+and write the EOS as
 
 .. math::
    T = \theta (\frac{p}{p_0})^\frac{R^\star}{C_p^\star}
+
+or
 
 .. math::
    p = p_0 (\frac{\Pi}{C_p^\star})^{\frac{C_p^\star}{R^\star}}
@@ -148,8 +142,10 @@ where :math:`p_0` is the reference pressure. and
 
 with :math:`\alpha = \frac{R^\star}{p}(\frac{p}{p_0})^\frac{R^\star}{c_p^\star} \theta`
 
-here, :math:`R^\star =  q_d R_{d} + q_v R_{v} + q_i R_{i} + q_p R_{p}`, and :math:`C_p^\star = q_d C_{pd} + q_v C_{pv} + q_i C_{pi} + q_p C_{pp}`. the :math:`R_d`,
-:math:`R_v`, :math:`R_i`, and :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitating condensates, respectively. :math:`C_{pd}`, :math:`C_{pv}`, :math:`C_{pi}`, and :math:`C_{pp}` are the specific heat for dry air, water vapor, cloud ice, and precipitating condensates, respectively.
+here, :math:`R^\star =  R_{d} + q_v R_{v} + q_i R_{i} + q_p R_{p}`, and :math:`C_p^\star = C_{pd} + q_v C_{pv} + q_i C_{pi} + q_p C_{pp}`.
+
+:math:`R_d`, :math:`R_v`, :math:`R_i`, and :math:`R_p` are the gas constants for dry air, water vapor, cloud ice, precipitating condensates, respectively. :math:`C_{pd}`, :math:`C_{pv}`, :math:`C_{pi}`, and :math:`C_{pp}` are the specific heats for dry air,
+water vapor, cloud ice, and precipitating condensates, respectively.
 
 Governing Equations for Moist Atmospheric Flow
 -------------------------------------------------------
@@ -174,5 +170,5 @@ In this set of equations, the subgrid turbulent parameterization effects are inc
 :math:`F_\rho`, :math:`F_u`, :math:`F_C`, :math:`F_{\theta}`, :math:`F_{q_{T}}`, :math:`F_{q_{r}}`.
 :math:`\mathbf{F}` stands for the external force, and :math:`Q` and :math:`F_Q` represent the mass and energy transformation
 of water vapor to/from water through condensation/evaporation, which is determined by the microphysics parameterization processes.
-:math:`\mathbf{B}` is the buoyancy force.
+:math:`\mathbf{B}` is the buoyancy force, which is defined in :ref:`Buoyancy <Buoyancy>`.
 
