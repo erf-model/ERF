@@ -466,7 +466,8 @@ public:
             std::getline(input_sounding_reader, line);
             std::istringstream iss(line);
             iss >> press_ref_inp_sound >> theta_ref_inp_sound >> qv_ref_inp_sound;
-            qv_ref_inp_sound *= 0.001;
+            press_ref_inp_sound *= 100; // convert from hPa to Pa
+            qv_ref_inp_sound *= 0.001; // convert from g/kg to kg/kg
 
             // Add surface
             z_inp_sound.push_back(0);
@@ -480,12 +481,20 @@ public:
             while(std::getline(input_sounding_reader, line)) {
                 std::istringstream iss_z(line);
                 iss_z >> z >> theta >> qv >> U >> V;
-                z_inp_sound.push_back(z);
-                theta_inp_sound.push_back(theta);
-                qv_inp_sound.push_back(qv*0.001);
-                U_inp_sound.push_back(U);
-                V_inp_sound.push_back(V);
-                if (z >= ztop) break;
+                if (z == 0) {
+                    AMREX_ALWAYS_ASSERT(theta == theta_inp_sound[0]);
+                    AMREX_ALWAYS_ASSERT(qv == qv_inp_sound[0]);
+                    U_inp_sound[0] = U;
+                    V_inp_sound[0] = V;
+                } else {
+                    AMREX_ALWAYS_ASSERT(z > z_inp_sound[-1]);
+                    z_inp_sound.push_back(z);
+                    theta_inp_sound.push_back(theta);
+                    qv_inp_sound.push_back(qv*0.001);
+                    U_inp_sound.push_back(U);
+                    V_inp_sound.push_back(V);
+                    if (z >= ztop) break;
+                }
             }
 
             // At this point, we have an input_sounding with
@@ -512,6 +521,8 @@ public:
 
                 if (z < ztop)
                 {
+                    amrex::Print() << "Note: sounding zmax=" << z
+                        << ", extrapolating to zhi=" << ztop << std::endl;
                     // Add domain top with extrapolated values
                     z_inp_sound.push_back(ztop);
                     theta_inp_sound.push_back(th_top);
@@ -521,6 +532,8 @@ public:
                 }
                 else // z > ztop
                 {
+                    amrex::Print() << "Note: sounding zmax=" << z
+                        << ", interpolating to zhi=" << ztop << std::endl;
                     // Overwrite top value with interpolated values
                     z_inp_sound[N-1] = ztop;
                     theta_inp_sound[N-1] = th_top;
@@ -559,12 +572,12 @@ public:
         // evaluate surface quantities (k=0)
         amrex::Real thm_surf = theta_ref_inp_sound *
             (1 + (R_v/R_d-1) * qv_ref_inp_sound); // _moist_ theta == virtual potential temperature
-        pm_integ[0] = 100. * press_ref_inp_sound; // _total_ pressure (incl moisture)
+        pm_integ[0] = press_ref_inp_sound; // _total_ pressure (incl moisture)
         rhom_integ[0] = 1 / (
             R_d/p_0 * thm_surf * std::pow(pm_integ[0]/p_0, -iGamma)); // density of _moist_ air
 
         amrex::Print() << "ideal sounding init: surface density of moist air = "
-            << rhom_integ[0] << std::endl;
+            << rhom_integ[0] << " kg/m^3" << std::endl;
         amrex::Print() << "integrating moist air column up to " << ztop << std::endl;
 
         // Note:
@@ -595,7 +608,7 @@ public:
         rhod_integ[Ninp-1] = 1 / (
                     R_d/p_0 * theta_inp_sound[Ninp-1] * std::pow(pd_integ[Ninp-1]/p_0, -iGamma));
         amrex::Print() << "z  p_d  rho_d  theta" << std::endl;
-        amrex::Print() << z_inp_sound[Ninp-1] << " " << pd_integ[Ninp-1] << " " << rhod_integ[Ninp-1] << " " << theta_inp_sound[Ninp-1] << std::endl; // DEBUG
+        amrex::Print() << z_inp_sound[Ninp-1] << " " << pd_integ[Ninp-1] << " " << rhod_integ[Ninp-1] << " " << theta_inp_sound[Ninp-1] << std::endl;
         for (int k=Ninp-2; k >= 0; --k)
         {
             dz = z_inp_sound[k+1] - z_inp_sound[k];
