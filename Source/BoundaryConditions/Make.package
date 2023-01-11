@@ -17,9 +17,5 @@ CEXE_headers += ERF_FillPatcher.H
 
 CEXE_headers += TimeInterpolatedData.H
 
-CEXE_headers += DirectionSelector.H
-CEXE_headers += PlaneAverage.H
-CEXE_headers += VelPlaneAverage.H
-
 CEXE_headers += MOSTAverage.H
 CEXE_sources += MOSTAverage.cpp

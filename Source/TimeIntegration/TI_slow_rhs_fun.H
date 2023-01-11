@@ -83,7 +83,7 @@
                              Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
 #ifdef ERF_USE_MOISTURE
-                             qvapor, qcloud, qice,
+                             qvapor, qcloud, qice, qv_d, qc_d, qi_d,
 #endif
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], detJ_cc_src[level], r0_new, p0_new,
@@ -175,7 +175,7 @@
                              Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
 #ifdef ERF_USE_MOISTURE
-                             qvapor, qcloud, qice,
+                             qvapor, qcloud, qice, qv_d, qc_d, qi_d,
 #endif
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], detJ_cc[level], r0, p0,

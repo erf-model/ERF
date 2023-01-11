@@ -90,9 +90,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_wrfbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
-       ${SRC_DIR}/BoundaryConditions/PlaneAverage.H
-       ${SRC_DIR}/BoundaryConditions/VelPlaneAverage.H
-       ${SRC_DIR}/BoundaryConditions/DirectionSelector.H
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.H
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
@@ -119,6 +116,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_Math.H
        ${SRC_DIR}/Utils/Microphysics_Utils.H
        ${SRC_DIR}/Utils/Interpolation.H
+       ${SRC_DIR}/Utils/PlaneAverage.H
+       ${SRC_DIR}/Utils/VelPlaneAverage.H
+       ${SRC_DIR}/Utils/DirectionSelector.H
        ${SRC_DIR}/Diffusion/Diffusion.H
        ${SRC_DIR}/Diffusion/StrainRate.H
        ${SRC_DIR}/Diffusion/StressTerm.H

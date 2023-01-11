@@ -150,7 +150,7 @@ public:
                       amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
                       amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
 #ifdef ERF_USE_MOISTURE
-                      amrex::MultiFab& qvapor, amrex::MultiFab& qcloud, amrex::MultiFab& qice,
+                      const amrex::MultiFab& qvapor, const amrex::MultiFab& qcloud, const amrex::MultiFab& qice,
 #endif
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,

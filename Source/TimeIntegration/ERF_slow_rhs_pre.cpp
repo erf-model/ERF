@@ -36,6 +36,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        const MultiFab& qvapor,
                        const MultiFab& qcloud,
                        const MultiFab& qice,
+                       Gpu::DeviceVector<Real> qv_d,
+                       Gpu::DeviceVector<Real> qc_d,
+                       Gpu::DeviceVector<Real> qi_d,
 #endif
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
@@ -82,45 +85,26 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
 #ifdef ERF_USE_MOISTURE
     PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, 2);
-    PlaneAverage prim_ave(&S_prim, geom, 2);
-    PlaneAverage qv_ave(&qvapor, geom, 2);
-    PlaneAverage qc_ave(&qcloud, geom, 2);
-    PlaneAverage qi_ave(&qice, geom, 2);
-    state_ave.compute_averages(ZDir(), state_ave.field());
-    prim_ave.compute_averages(ZDir(), prim_ave.field());
-    qv_ave.compute_averages(ZDir(), qv_ave.field());
-    qc_ave.compute_averages(ZDir(), qc_ave.field());
-    qi_ave.compute_averages(ZDir(), qi_ave.field());
+    PlaneAverage  prim_ave(&S_prim                , geom, 2);
 
-    // get plane averaged data
+    // Compute plane averages
+    state_ave.compute_averages(ZDir(), state_ave.field());
+    prim_ave.compute_averages (ZDir(), prim_ave.field());
+
     int ncell = state_ave.ncell_line();
 
-    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell),
-                          qp_h(ncell), qv_h(ncell),
-                          qi_h(ncell), qc_h(ncell);
+    Gpu::HostVector  <Real> rho_h(ncell), theta_h(ncell), qp_h(ncell);
+    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell), qp_d(ncell);
 
-
+    // Copy previously computed averages into HostVectors
     state_ave.line_average(Rho_comp, rho_h);
     prim_ave.line_average(PrimTheta_comp, theta_h);
     prim_ave.line_average(PrimQp_comp, qp_h);
-    qv_ave.line_average(0, qv_h);
-    qi_ave.line_average(0, qi_h);
-    qc_ave.line_average(0, qc_h);
 
-    // copy data to device
-    Gpu::DeviceVector<Real>   rho_d(ncell);
-    Gpu::DeviceVector<Real> theta_d(ncell);
-    Gpu::DeviceVector<Real>    qp_d(ncell);
-    Gpu::DeviceVector<Real>    qv_d(ncell);
-    Gpu::DeviceVector<Real>    qc_d(ncell);
-    Gpu::DeviceVector<Real>    qi_d(ncell);
-
-    Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
+    // Copy data to device
+    Gpu::copyAsync(Gpu::hostToDevice,   rho_h.begin(),   rho_h.end(),   rho_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qp_h.begin(), qp_h.end(), qp_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice,    qp_h.begin(),    qp_h.end(),    qp_d.begin());
     Gpu::streamSynchronize();
 
     Real*   rho_d_ptr =   rho_d.data();
