@@ -32,18 +32,13 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                        MultiFab* eddyDiffs,
-#ifdef ERF_USE_MOISTURE
-                       const MultiFab& qvapor,
-                       const MultiFab& qcloud,
-                       const MultiFab& qice,
-#endif
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
                        const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                        const Vector<amrex::BCRec> domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
-                       const MultiFab* r0, const MultiFab* p0,
+                       const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
@@ -79,57 +74,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const int domhi_z = domain.bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-
-#ifdef ERF_USE_MOISTURE
-    PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, 2);
-    PlaneAverage prim_ave(&S_prim, geom, 2);
-    PlaneAverage qv_ave(&qvapor, geom, 2);
-    PlaneAverage qc_ave(&qcloud, geom, 2);
-    PlaneAverage qi_ave(&qice, geom, 2);
-    state_ave.compute_averages(ZDir(), state_ave.field());
-    prim_ave.compute_averages(ZDir(), prim_ave.field());
-    qv_ave.compute_averages(ZDir(), qv_ave.field());
-    qc_ave.compute_averages(ZDir(), qc_ave.field());
-    qi_ave.compute_averages(ZDir(), qi_ave.field());
-
-    // get plane averaged data
-    int ncell = state_ave.ncell_line();
-
-    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell),
-                          qp_h(ncell), qv_h(ncell),
-                          qi_h(ncell), qc_h(ncell);
-
-
-    state_ave.line_average(Rho_comp, rho_h);
-    prim_ave.line_average(PrimTheta_comp, theta_h);
-    prim_ave.line_average(PrimQp_comp, qp_h);
-    qv_ave.line_average(0, qv_h);
-    qi_ave.line_average(0, qi_h);
-    qc_ave.line_average(0, qc_h);
-
-    // copy data to device
-    Gpu::DeviceVector<Real>   rho_d(ncell);
-    Gpu::DeviceVector<Real> theta_d(ncell);
-    Gpu::DeviceVector<Real>    qp_d(ncell);
-    Gpu::DeviceVector<Real>    qv_d(ncell);
-    Gpu::DeviceVector<Real>    qc_d(ncell);
-    Gpu::DeviceVector<Real>    qi_d(ncell);
-
-    Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qp_h.begin(), qp_h.end(), qp_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
-    Gpu::streamSynchronize();
-
-    Real*   rho_d_ptr =   rho_d.data();
-    Real* theta_d_ptr = theta_d.data();
-    Real*    qp_d_ptr =    qp_d.data();
-    Real*    qv_d_ptr =    qv_d.data();
-    Real*    qc_d_ptr =    qc_d.data();
-    Real*    qi_d_ptr =    qi_d.data();
-#endif
 
     // *************************************************************************
     // Combine external forcing terms
@@ -189,11 +133,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<Real> &       cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & source_fab   = source.const_array(mfi);
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
-#ifdef ERF_USE_MOISTURE
-        const Array4<const Real> & qv_data = qvapor.array(mfi);
-        const Array4<const Real> & qc_data = qcloud.array(mfi);
-        const Array4<const Real> & qi_data = qice.array(mfi);
-#endif
 
         // We must initialize these to zero each RK step
         S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.);
@@ -236,7 +175,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
 
         // Base state
-        const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
         const Box& gbx = mfi.growntilebox({1,1,0});

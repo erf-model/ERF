@@ -2,6 +2,8 @@
 max_step = 10
 stop_time = 900.0
 
+erf.buoyancy_type = 1
+
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024

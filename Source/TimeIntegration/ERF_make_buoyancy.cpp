@@ -23,6 +23,9 @@ void make_buoyancy (BoxArray& grids_to_evolve,
                     const MultiFab& qvapor,
                     const MultiFab& qcloud,
                     const MultiFab& qice,
+                    Gpu::DeviceVector<Real> qv_d,
+                    Gpu::DeviceVector<Real> qc_d,
+                    Gpu::DeviceVector<Real> qi_d,
 #endif
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
@@ -124,28 +127,60 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #endif
 
     // ******************************************************************************************
-    // Moist versions of buoyancy expressions -- only types 2 and 3 allowed
+    // Moist versions of buoyancy expressions
     // ******************************************************************************************
 #ifdef ERF_USE_MOISTURE
-    PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, 2);
-    PlaneAverage prim_ave(&S_prim, geom, 2);
+    if (solverChoice.buoyancy_type == 1) {
 
+        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
+
+            // Construct intersection of current tilebox and valid region for updating
+            Box tbz = mfi.tilebox() & valid_bx;
+
+            // We don't compute a source term for z-momentum on the bottom or top boundary
+            tbz.growLo(2,-1);
+            tbz.growHi(2,-1);
+
+            const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+            const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
+
+            // Base state density
+            const Array4<const Real>& r0_arr = r0->const_array(mfi);
+
+            const Array4<const Real> & qv_data    = qvapor.array(mfi);
+            const Array4<const Real> & qc_data    = qcloud.array(mfi);
+            const Array4<const Real> & qi_data    = qice.array(mfi);
+
+            amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real rhop_hi = cell_data(i,j,k  ) * (1.0 + qv_data(i,j,k  ) + qc_data(i,j,k  )
+                                                         + qi_data(i,j,k  )) - r0_arr(i,j,k  );
+                Real rhop_lo = cell_data(i,j,k-1) * (1.0 + qv_data(i,j,k-1) + qc_data(i,j,k-1)
+                                                         + qi_data(i,j,k-1)) - r0_arr(i,j,k-1);
+                buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( rhop_hi + rhop_lo );
+            });
+        } // mfi
+
+    } else {
+
+    PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, 2);
+    PlaneAverage  prim_ave(&S_prim                , geom, 2);
+
+    // Compute horizontal averages of all components of each field
     state_ave.compute_averages(ZDir(), state_ave.field());
-    prim_ave.compute_averages(ZDir(), prim_ave.field());
+     prim_ave.compute_averages(ZDir(), prim_ave.field());
 
     int ncell = state_ave.ncell_line();
 
-    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell),
-                          qp_h(ncell), qv_h(ncell),
-                          qi_h(ncell), qc_h(ncell);
-
+    Gpu::HostVector  <Real> rho_h(ncell), theta_h(ncell), qp_h(ncell);
+    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell), qp_d(ncell);
 
     state_ave.line_average(Rho_comp, rho_h);
-    Gpu::DeviceVector<Real>   rho_d(ncell);
     Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
 
     prim_ave.line_average(PrimTheta_comp, theta_h);
-    Gpu::DeviceVector<Real> theta_d(ncell);
     Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
 
     Real*   rho_d_ptr =   rho_d.data();
@@ -153,29 +188,12 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 
     if (solverChoice.buoyancy_type == 2) {
 
-        PlaneAverage qv_ave(&qvapor, geom, 2);
-        PlaneAverage qc_ave(&qcloud, geom, 2);
-        PlaneAverage qi_ave(&qice, geom, 2);
-
-        qv_ave.compute_averages(ZDir(), qv_ave.field());
-        qc_ave.compute_averages(ZDir(), qc_ave.field());
-        qi_ave.compute_averages(ZDir(), qi_ave.field());
-
         prim_ave.line_average(PrimQp_comp, qp_h);
-        qv_ave.line_average(0, qv_h);
-        qi_ave.line_average(0, qi_h);
-        qc_ave.line_average(0, qc_h);
 
-        // copy data to device
         Gpu::DeviceVector<Real>    qp_d(ncell);
-        Gpu::DeviceVector<Real>    qv_d(ncell);
-        Gpu::DeviceVector<Real>    qc_d(ncell);
-        Gpu::DeviceVector<Real>    qi_d(ncell);
 
+        // Copy data to device
         Gpu::copyAsync(Gpu::hostToDevice, qp_h.begin(), qp_h.end(), qp_d.begin());
-        Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
-        Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
-        Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
         Gpu::streamSynchronize();
 
         Real*    qp_d_ptr =    qp_d.data();
@@ -277,5 +295,6 @@ void make_buoyancy (BoxArray& grids_to_evolve,
             });
         } // mfi
     } // buoyancy_type
+    } // not buoyancy_type == 1
 #endif
 }

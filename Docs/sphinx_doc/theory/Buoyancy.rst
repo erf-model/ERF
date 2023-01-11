@@ -21,8 +21,7 @@ One version of the buoyancy force is expressed simply as
 .. math::
      \mathbf{B} = \rho^\prime \mathbf{g}
 
-which follows most directly from the Navier-Stokes equations with no additional approximations.
-This type is only allowed when moisture is not included.
+where the base state density corresponds to the dry air only.
 
 Type 2
 ------
