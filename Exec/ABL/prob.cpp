@@ -120,7 +120,7 @@ init_custom_prob(
     Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
 
     x_vel(i, j, k) = parms.U_0;
-    if(z <= 100.0) {
+    if(z <= parms.pert_max_height) {
         x_vel(i, j, k) += x_vel_prime;
     }
   });
@@ -139,7 +139,7 @@ init_custom_prob(
     Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
 
     y_vel(i, j, k) = parms.V_0;
-    if(z <= 100.) {
+    if(z <= parms.pert_max_height) {
         y_vel(i, j, k) += y_vel_prime;
     }
   });
@@ -207,6 +207,7 @@ amrex_probinit(
   pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
+  pp.query("pert_max_height", parms.pert_max_height);
 
   pp.query("QKE_0", parms.QKE_0);
 }

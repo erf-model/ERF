@@ -15,6 +15,7 @@ struct ProbParm {
   amrex::Real U_0_Pert_Mag = 1.0;
   amrex::Real V_0_Pert_Mag = 1.0;
   amrex::Real W_0_Pert_Mag = 0.0;
+  amrex::Real pert_max_height = 100.0;
 }; // namespace ProbParm
 
 extern ProbParm parms;
