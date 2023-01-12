@@ -7,10 +7,12 @@ constexpr amrex::Real PI           = 3.14159265358979323846264338327950288;
 constexpr amrex::Real PIoTwo       = PI/2.0;
 
 // Physical Constants
-constexpr amrex::Real R_d          = 287.0; // gas constant for dry air [J/(kg-K)]
-constexpr amrex::Real R_v          = 461.505; // gas constant for water vapor [J/(kg-K)]
-constexpr amrex::Real p_0          = 1.0e5; // reference surface pressure [Pa]
-constexpr amrex::Real Gamma        = 1.4;   // c_p / c_v [-]
+constexpr amrex::Real R_d          = 287.0;    // dry air constant for dry air [J/(kg-K)]
+constexpr amrex::Real R_v          = 461.505;  // water vapor constant for water vapor [J/(kg-K)]
+constexpr amrex::Real R_t          = R_d + R_v;
+constexpr amrex::Real p_0          = 1.0e5;                 // reference surface pressure [Pa]
+constexpr amrex::Real Gamma        = 1.4;             // c_p / c_v [-]
+constexpr amrex::Real Gamma_t      = 1.3534;
 constexpr amrex::Real KAPPA        = 0.41;  // von Karman constant
 constexpr amrex::Real CONST_GRAV   = 9.81;
 
