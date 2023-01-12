@@ -298,7 +298,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             tau33(i,j,k) = (w(i, j, k+1) - w(i, j, k))*dxInv[2]/met_h_zeta;
         });
 
-        Box planexy = tbxxy; planexy.setBig(2, planexz.smallEnd(2) );
+        Box planexy = tbxxy; planexy.setBig(2, planexy.smallEnd(2) );
         tbxxy.growLo(2,-1);
         amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradUz = 0.5 * dxInv[2] * ( (-(8./3.) * u(i,j  ,k-1) + 3. * u(i,j  ,k) - (1./3.) * u(i,j  ,k+1))
