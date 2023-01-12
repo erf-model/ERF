@@ -26,7 +26,7 @@ amrex::Real getPgivenRTh(const amrex::Real rhotheta)
     // see https://erf.readthedocs.io/en/latest/theory/NavierStokesEquations.html
 #ifdef ERF_USE_MOISTURE
     return p_0 * std::pow(R_t * rhotheta * ip_0, Gamma_t);
-#else    
+#else
     return p_0 * std::pow(R_d * rhotheta * ip_0, Gamma);
 #endif
 }
