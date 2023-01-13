@@ -238,6 +238,8 @@ struct SolverChoice {
             amrex::Error("Don't know this ic_bc_type");
         }
 
+        pp.query("Ave_Plane", ave_plane);
+
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
@@ -423,6 +425,7 @@ struct SolverChoice {
     // IC and BC Type: "Ideal" or "Real"
     IC_BC_Type icBcType;
 
+    int ave_plane {2};
 #ifdef ERF_USE_MOISTURE
     // Microphysics params
     bool do_cloud {true};
