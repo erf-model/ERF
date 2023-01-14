@@ -28,7 +28,7 @@ amrex::Real getPgivenRTh(const amrex::Real rhotheta, const amrex::Real qv = 0)
     amrex::Real Cp_t       = 1004.64+qv*1859.0;
     amrex::Real rhotheta_t = rhotheta*(1.0+qv);
     amrex::Real Gamma_t    = Cp_t/(Cp_t-R_t);
-    return p_0 * std::pow(R_t * rhotheta * ip_0, Gamma_t);
+    return p_0 * std::pow(R_t * rhotheta_t * ip_0, Gamma_t);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
