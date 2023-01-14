@@ -225,11 +225,11 @@ void erf_fast_rhs_N (int step, int /*level*/,
             gpy *= mf_v(i,j,0);
 
 #if defined(ERF_USE_MOISTURE)
-            Real q = 0.5 * ( prim(i,j,k,PrimQp_comp) + prim(i,j-1,k,PrimQt_comp)
+            Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j-1,k,PrimQt_comp)
                             +prim(i,j,k,PrimQp_comp) + prim(i,j-1,k,PrimQp_comp) );
             gpy /= (1.0 + q);
 #elif defined(ERF_USE_FASTEDDY)
-            Real q = 0.5 * ( prim(i,j,k,PrimQp_comp) + prim(i,j-1,k,PrimQt_comp) );
+            Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j-1,k,PrimQt_comp) );
             gpy /= (1.0 + q);
 #endif
             Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j,k,0));
