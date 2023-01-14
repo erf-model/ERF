@@ -164,7 +164,7 @@ erf_derQKE(
   erf_derrhodivide(bx, derfab, datfab, RhoQKE_comp);
 }
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
 void
 erf_derQt(
   const amrex::Box& bx,
@@ -193,6 +193,21 @@ erf_derQp(
   const int /*level*/)
 {
   erf_derrhodivide(bx, derfab, datfab, RhoQp_comp);
+}
+#elif defined(ERF_USE_FASTEDDY)
+void
+erf_derQt(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+  erf_derrhodivide(bx, derfab, datfab, RhoQt_comp);
 }
 #endif
 

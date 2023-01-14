@@ -73,8 +73,10 @@
             MultiFab* p0_new = &p_hse_new;
 
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                           qvapor, qcloud, qice, qv_d, qc_d, qi_d,
+#elif defined(ERF_USE_FASTEDDY)
+                          qvapor, qcloud,
 #endif
                           fine_geom, solverChoice, r0_new);
 
@@ -162,8 +164,10 @@
         } else { // if moving_terrain
 
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                           qvapor, qcloud, qice, qv_d, qc_d, qi_d,
+#elif defined(ERF_USE_FASTEDDY)
+                          qvapor, qcloud,
 #endif
                           fine_geom, solverChoice, r0);
 

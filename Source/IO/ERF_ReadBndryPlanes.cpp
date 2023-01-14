@@ -135,7 +135,10 @@ ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
     is_temperature_read  = 0;
     is_theta_read        = 0;
     is_scalar_read       = 0;
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+    is_qv_read           = 0;
+    is_qc_read           = 0;
+#elif defined(ERF_USE_FASTEDDY)
     is_qv_read           = 0;
     is_qc_read           = 0;
 #endif
@@ -153,7 +156,10 @@ ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
             if (m_var_names[i] == "temperature")  is_temperature_read = 1;
             if (m_var_names[i] == "theta")        is_theta_read = 1;
             if (m_var_names[i] == "scalar")       is_scalar_read = 1;
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+            if (m_var_names[i] == "qv")           is_qv_read = 1;
+            if (m_var_names[i] == "qc")           is_qc_read = 1;
+#elif defined(ERF_USE_FASTEDDY)
             if (m_var_names[i] == "qv")           is_qv_read = 1;
             if (m_var_names[i] == "qc")           is_qc_read = 1;
 #endif
@@ -367,7 +373,10 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
         if (var_name == "KE")          n_offset = BCVars::RhoKE_bc_comp;
         if (var_name == "QKE")         n_offset = BCVars::RhoQKE_bc_comp;
         if (var_name == "scalar")      n_offset = BCVars::RhoScalar_bc_comp;
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+        if (var_name == "qv")          n_offset = BCVars::RhoQt_bc_comp;
+        if (var_name == "qc")          n_offset = BCVars::RhoQp_bc_comp;
+#elif defined(ERF_USE_FASTEDDY)
         if (var_name == "qv")          n_offset = BCVars::RhoQt_bc_comp;
         if (var_name == "qc")          n_offset = BCVars::RhoQp_bc_comp;
 #endif

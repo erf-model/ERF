@@ -40,7 +40,10 @@ public:
     int ingested_theta()    const {return (is_temperature_read || is_theta_read);}
     int ingested_density()  const {return is_density_read;}
     int ingested_scalar()   const {return is_scalar_read;}
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+    int ingested_qv()       const {return is_qv_read;}
+    int ingested_qc()       const {return is_qc_read;}
+#elif defined(ERF_USE_FASTEDDY)
     int ingested_qv()       const {return is_qv_read;}
     int ingested_qc()       const {return is_qc_read;}
 #endif
@@ -98,7 +101,10 @@ private:
     int is_temperature_read;
     int is_theta_read;
     int is_scalar_read;
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+    int is_qv_read;
+    int is_qc_read;
+#elif defined(ERF_USE_FASTEDDY)
     int is_qv_read;
     int is_qc_read;
 #endif

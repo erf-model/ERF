@@ -151,13 +151,16 @@ void make_buoyancy(amrex::BoxArray& grids_to_evolve,
                    amrex::Vector<  amrex::MultiFab>& S_data,
                    const           amrex::MultiFab & S_prim,
                          amrex::MultiFab& buoyancy,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                    const amrex::MultiFab& qvapor,
                    const amrex::MultiFab& qcloud,
                    const amrex::MultiFab& qice,
                    const amrex::Gpu::DeviceVector<amrex::Real> qv_d,
                    const amrex::Gpu::DeviceVector<amrex::Real> qc_d,
                    const amrex::Gpu::DeviceVector<amrex::Real> qi_d,
+#elif defined(ERF_USE_FASTEDDY)
+                   const amrex::MultiFab& qvapor,
+                   const amrex::MultiFab& qcloud,
 #endif
                    const amrex::Geometry geom,
                    const SolverChoice& solverChoice,

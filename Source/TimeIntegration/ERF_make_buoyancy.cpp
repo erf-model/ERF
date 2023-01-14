@@ -19,13 +19,16 @@ void make_buoyancy (BoxArray& grids_to_evolve,
                     Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
                           MultiFab& buoyancy,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                     const MultiFab& qvapor,
                     const MultiFab& qcloud,
                     const MultiFab& qice,
                     Gpu::DeviceVector<Real> qv_d,
                     Gpu::DeviceVector<Real> qc_d,
                     Gpu::DeviceVector<Real> qi_d,
+#elif defined(ERF_USE_FASTEDDY)
+                    const MultiFab& qvapor,
+                    const MultiFab& qcloud,
 #endif
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
@@ -296,5 +299,37 @@ void make_buoyancy (BoxArray& grids_to_evolve,
         } // mfi
     } // buoyancy_type
     } // not buoyancy_type == 1
+
+#elif defined(ERF_USE_FASTEDDY)
+
+    AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
+
+        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
+
+            // Construct intersection of current tilebox and valid region for updating
+            Box tbz = mfi.tilebox() & valid_bx;
+
+            // We don't compute a source term for z-momentum on the bottom or top boundary
+            tbz.growLo(2,-1);
+            tbz.growHi(2,-1);
+
+            const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+            const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
+
+            // Base state density
+            const Array4<const Real>& r0_arr = r0->const_array(mfi);
+
+            const Array4<const Real> & qv_data    = qvapor.array(mfi);
+            const Array4<const Real> & qc_data    = qcloud.array(mfi);
+
+            amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real rhop_hi = cell_data(i,j,k  ) * (1.0 + qv_data(i,j,k  ) + qc_data(i,j,k  )) - r0_arr(i,j,k  );
+                Real rhop_lo = cell_data(i,j,k-1) * (1.0 + qv_data(i,j,k-1) + qc_data(i,j,k-1)) - r0_arr(i,j,k-1);
+                buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( rhop_hi + rhop_lo );
+            });
+        } // mfi
 #endif
 }

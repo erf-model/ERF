@@ -94,7 +94,7 @@ void ERF::init_bcs ()
                 if (pp.query("scalar", scalar_in))
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
             }
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
             Real qv_in = 0.;
             if (input_bndry_planes && m_r2d->ingested_qv()) {
                 m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = 0.;
@@ -108,6 +108,14 @@ void ERF::init_bcs ()
             } else {
                 if (pp.query("qc", qp_in))
                 m_bc_extdir_vals[BCVars::RhoQp_bc_comp][ori] = rho_in*qp_in;
+            }
+#elif defined(ERF_USE_FASTEDDY)
+            Real qv_in = 0.;
+            if (input_bndry_planes && m_r2d->ingested_qv()) {
+                m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = 0.;
+            } else {
+                if (pp.query("qv", qv_in))
+                m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = rho_in*qv_in;
             }
 #endif
             Real KE_in = 0.;
@@ -401,7 +409,10 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() )
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+                        || ( (BCVars::cons_bc+i == BCVars::RhoQt_bc_comp)     && m_r2d->ingested_qv()     )
+                        || ( (BCVars::cons_bc+i == BCVars::RhoQp_bc_comp)     && m_r2d->ingested_qc()     )
+#elif defined(ERF_USE_FASTEDDY)
                         || ( (BCVars::cons_bc+i == BCVars::RhoQt_bc_comp)     && m_r2d->ingested_qv()     )
                         || ( (BCVars::cons_bc+i == BCVars::RhoQp_bc_comp)     && m_r2d->ingested_qc()     )
 #endif
@@ -418,7 +429,10 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() )
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+                        || ( (BCVars::cons_bc+i == BCVars::RhoQt_bc_comp)     && m_r2d->ingested_qv()     )
+                        || ( (BCVars::cons_bc+i == BCVars::RhoQp_bc_comp)     && m_r2d->ingested_qc()     )
+#elif defined(ERF_USE_FASTEDDY)
                         || ( (BCVars::cons_bc+i == BCVars::RhoQt_bc_comp)     && m_r2d->ingested_qv()     )
                         || ( (BCVars::cons_bc+i == BCVars::RhoQp_bc_comp)     && m_r2d->ingested_qc()     )
 #endif

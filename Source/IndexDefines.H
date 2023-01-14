@@ -10,10 +10,13 @@
 #define RhoKE_comp     2 // for Deardorff LES Model
 #define RhoQKE_comp    3 // for MYNN PBL Model
 #define RhoScalar_comp 4
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
   #define RhoQt_comp   5
   #define RhoQp_comp   6
   #define NVAR         7
+#elif defined(ERF_USE_FASTEDDY)
+  #define RhoQt_comp   5
+  #define NVAR         6
 #else
   #define NVAR         5
 #endif
@@ -23,9 +26,11 @@
 #define PrimKE_comp      RhoKE_comp    -1
 #define PrimQKE_comp     RhoQKE_comp   -1
 #define PrimScalar_comp  RhoScalar_comp-1
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
   #define PrimQt_comp    RhoQt_comp-1
   #define PrimQp_comp    RhoQp_comp-1
+#elif defined(ERF_USE_FASTEDDY)
+  #define PrimQt_comp    RhoQt_comp-1
 #endif
 #define NUM_PRIM         NVAR-1
 
@@ -37,9 +42,11 @@ namespace BCVars {
         RhoKE_bc_comp,
         RhoQKE_bc_comp,
         RhoScalar_bc_comp,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         RhoQt_bc_comp,
         RhoQp_bc_comp,
+#elif defined(ERF_USE_FASTEDDY)
+        RhoQt_bc_comp,
 #endif
         xvel_bc = NVAR,
         yvel_bc,
@@ -97,9 +104,11 @@ namespace Cons {
         RhoKE,
         RhoQKE,
         RhoScalar,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         RhoQt,
         RhoQp,
+#elif defined(ERF_USE_FASTEDDY)
+        RhoQt,
 #endif
         NumVars
     };
@@ -111,9 +120,11 @@ namespace Prim {
         KE,
         QKE,
         Scalar,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         Qt,
         Qp,
+#elif defined(ERF_USE_FASTEDDY)
+        Qt,
 #endif
         NumVars
     };
@@ -128,18 +139,22 @@ namespace EddyDiff {
         Scalar_h,
         KE_h,
         QKE_h,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         Qt_h,
         Qp_h,
+#elif defined(ERF_USE_FASTEDDY)
+        Qt_h,
 #endif
         Mom_v,
         Theta_v,
         Scalar_v,
         KE_v,
         QKE_v,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         Qt_v,
         Qp_v,
+#elif defined(ERF_USE_FASTEDDY)
+        Qt_v,
 #endif
         PBL_lengthscale,
         NumDiffs
