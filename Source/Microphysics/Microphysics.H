@@ -43,6 +43,7 @@ class Microphysics {
       m_fac_fus = lfus / sc.c_p;
       m_fac_sub = lsub / sc.c_p;
       m_gOcp = CONST_GRAV / sc.c_p;
+      m_axis = sc.ave_plane;
   }
 
   // destructor
@@ -94,6 +95,9 @@ class Microphysics {
 
   // number of vertical levels
   int nlev, zlo, zhi;
+
+  // plane average axis
+  int m_axis;
 
   // model options
   bool docloud, doprecip;

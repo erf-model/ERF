@@ -128,7 +128,7 @@ void Microphysics::Init(const MultiFab& cons_in,
   }
 
   // calculate the plane average variables
-  PlaneAverage cons_ave(&cons_in, m_geom, 2);
+  PlaneAverage cons_ave(&cons_in, m_geom, m_axis);
   cons_ave.compute_averages(ZDir(), cons_ave.field());
 
   // get host variable rho, and rhotheta

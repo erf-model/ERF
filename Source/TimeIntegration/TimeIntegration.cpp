@@ -230,9 +230,9 @@ void ERF::erf_advance(int level,
     } // profile
 
 #ifdef ERF_USE_MOISTURE
-    PlaneAverage qv_ave(&qvapor, geom[level], 2);
-    PlaneAverage qc_ave(&qcloud, geom[level], 2);
-    PlaneAverage qi_ave(&qice, geom[level], 2);
+    PlaneAverage qv_ave(&qvapor, geom[level], solverChoice.ave_plane);
+    PlaneAverage qc_ave(&qcloud, geom[level], solverChoice.ave_plane);
+    PlaneAverage qi_ave(&qice, geom[level], solverChoice.ave_plane);
 
     // Compute plane averages
     qv_ave.compute_averages(ZDir(), qv_ave.field());

@@ -79,7 +79,7 @@ In order to close the above prognostic equations, a relationship between the pre
 must be specified. This is obtained by re-expressing the ideal gas equation of state in terms of :math:`\theta`:
 
 .. math::
-   p = \left( \frac{\rho R_d \theta}{p_0^{R_d / c_p}} \right)^\gamma
+   p = \left( \frac{\rho R_d \theta}{p_0^{R_d / c_p}} \right)^\gamma = p_0 \left( \frac{\rho R_d \theta}{p_0} \right)^\gamma
 
 Nomenclature
 ------------
@@ -117,7 +117,7 @@ Neglecting the volume occupied by all water not in vapor form, we have
 where :math:`p_d` and :math:`p_v` are the partial pressures of dry air and water vapor, respectively,
 and :math:`R_d` and :math:`R_v` are the gas constants for dry air and water vapor, respectively.
 
-We define the mixing ratio of each moist componoent, :math:`q_s`, as the mass density of species :math:`s`
+We define the mixing ratio of each moist component, :math:`q_s`, as the mass density of species :math:`s`
 relative to the density of dry air, i.e. :math:`q_s = \frac{\rho_s}{\rho_d}`.
 
 We define the total potential temperature

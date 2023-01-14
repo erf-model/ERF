@@ -71,8 +71,8 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 
     } else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3) {
 
-        PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, 2);
-        PlaneAverage prim_ave(&S_prim, geom, 2);
+        PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, solverChoice.ave_plane);
+        PlaneAverage prim_ave(&S_prim, geom, solverChoice.ave_plane);
 
         int ncell = state_ave.ncell_line();
 
@@ -168,8 +168,8 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 
     } else {
 
-    PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, 2);
-    PlaneAverage  prim_ave(&S_prim                , geom, 2);
+    PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, solverChoice.ave_plane);
+    PlaneAverage  prim_ave(&S_prim                , geom, solverChoice.ave_plane);
 
     // Compute horizontal averages of all components of each field
     state_ave.compute_averages(ZDir(), state_ave.field());
