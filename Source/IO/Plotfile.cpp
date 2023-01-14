@@ -500,9 +500,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
-                const Array4<Real>& mf_m   = mapfac_m[lev]->array(mfi); 
+                const Array4<Real>& mf_m   = mapfac_m[lev]->array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   derdat(i ,j ,k, mf_comp) = mf_m(i,j,0); 
+                   derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
                 });
             }
             mf_comp ++;
