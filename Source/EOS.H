@@ -20,16 +20,17 @@ amrex::Real getThgivenRandT(const amrex::Real rho, const amrex::Real T, const am
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getPgivenRTh(const amrex::Real rhotheta, const amrex::Real qv = 0)
+amrex::Real getPgivenRTh(const amrex::Real rhotheta, const amrex::Real qv = 0.)
 {
-    // diagnostic relation for the full pressure
-    // see https://erf.readthedocs.io/en/latest/theory/NavierStokesEquations.html
-#ifdef ERF_USE_MOISTURE
-    amrex::Real R_t        = R_d + qv*R_v;
-    amrex::Real Cp_t       = 1004.64+qv*1859.0;
-    amrex::Real rhotheta_t = rhotheta*(1.0+qv);
+#if defined(ERF_USE_MOISTURE)
+    amrex::Real R_t        =  R_d + qv*R_v;
+    amrex::Real Cp_t       = Cp_d + qv*Cp_v;
     amrex::Real Gamma_t    = Cp_t/(Cp_t-R_t);
+    amrex::Real rhotheta_t = rhotheta*(1.0+qv);
     return p_0 * std::pow(R_t * rhotheta_t * ip_0, Gamma_t);
+#elif defined(ERF_USE_FASTEDDY)
+    amrex::Real rhotheta_t = rhotheta*(1.0+(R_v/R_d)*qv);
+    return p_0 * std::pow(R_d * rhotheta_t * ip_0, Gamma);
 #else
     return p_0 * std::pow(R_d * rhotheta * ip_0, Gamma);
 #endif

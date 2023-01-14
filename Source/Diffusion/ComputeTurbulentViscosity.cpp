@@ -113,8 +113,10 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     Real inv_Pr_t    = solverChoice.Pr_t_inv;
     Real inv_Sc_t    = solverChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
+#elif defined(ERF_USE_FASTEDDY)
+    Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t}; // alpha = mu/Pr
 #else
     Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k}; // alpha = mu/Pr
 #endif

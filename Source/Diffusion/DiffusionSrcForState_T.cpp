@@ -68,12 +68,16 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
            case PrimScalar_comp:
             alpha_eff[PrimScalar_comp] = solverChoice.alpha_C;
             break;
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
            case PrimQt_comp:
             alpha_eff[PrimQt_comp] = solverChoice.alpha_C;
             break;
            case PrimQp_comp:
             alpha_eff[PrimQp_comp] = solverChoice.alpha_C;
+            break;
+#elif defined(ERF_USE_FASTEDDY)
+           case PrimQt_comp:
+            alpha_eff[PrimQt_comp] = solverChoice.alpha_C;
             break;
 #endif
            default:
@@ -90,12 +94,16 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                case PrimScalar_comp:
                     alpha_eff[PrimScalar_comp] = solverChoice.rhoAlpha_C;
                     break;
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                case PrimQt_comp:
                     alpha_eff[PrimQt_comp] = solverChoice.rhoAlpha_C;
                     break;
                case PrimQp_comp:
                     alpha_eff[PrimQp_comp] = solverChoice.rhoAlpha_C;
+                    break;
+#elif defined(ERF_USE_FASTEDDY)
+               case PrimQt_comp:
+                    alpha_eff[PrimQt_comp] = solverChoice.rhoAlpha_C;
                     break;
 #endif
                default:
@@ -105,9 +113,19 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
        }
     }
 
+#if defined(ERF_USE_MOISTURE)
+    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
+    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
+    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Qt_v, EddyDiff::Qp_v};
+#elif defined(ERF_USE_FASTEDDY)
+    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
+    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
+    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Qt_v, EddyDiff::Qp_v};
+#else
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h};
     Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h};
     Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v};
+#endif
 
     // Device vectors
     Gpu::AsyncVector<Real> alpha_eff_d;

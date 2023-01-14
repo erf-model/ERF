@@ -126,9 +126,13 @@ void make_fast_coeffs (int /*level*/,
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                 Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp)
                                 +prim(i,j,k,PrimQp_comp) + prim(i,j,k-1,PrimQp_comp) );
+                coeff_P /= (1.0 + q);
+                coeff_Q /= (1.0 + q);
+#elif defined(ERF_USE_FASTEDDY)
+                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp) );
                 coeff_P /= (1.0 + q);
                 coeff_Q /= (1.0 + q);
 #endif
@@ -170,9 +174,13 @@ void make_fast_coeffs (int /*level*/,
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                 Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp)
                                 +prim(i,j,k,PrimQp_comp) + prim(i,j,k-1,PrimQp_comp) );
+                coeff_P /= (1.0 + q);
+                coeff_Q /= (1.0 + q);
+#elif defined(ERF_USE_FASTEDDY)
+                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp) );
                 coeff_P /= (1.0 + q);
                 coeff_Q /= (1.0 + q);
 #endif

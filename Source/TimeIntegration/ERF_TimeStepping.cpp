@@ -190,12 +190,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 rU_new[lev], rV_new[lev], rW_new[lev],
                 rU_crse, rV_crse, rW_crse,
                 source, buoyancy,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                 qv[lev], qc[lev], qi[lev],
+#elif defined(ERF_USE_FASTEDDY)
+                qv[lev], qc[lev],
 #endif
                 Geom(lev), dt_lev, time, &ifr);
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     micro.Init(S_new,
                qc[lev],
                qv[lev],
@@ -214,5 +216,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                  qrain[lev],
                  qsnow[lev],
                  qgraup[lev]);
+#elif defined(ERF_USE_FASTEDDY)
+   // UPDATE QV AND QC HERE
 #endif
 }

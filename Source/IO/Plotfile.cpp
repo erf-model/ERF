@@ -502,13 +502,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real>& mf_m   = mapfac_m[lev]->array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
+                   derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
                 });
             }
             mf_comp ++;
         }
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         calculate_derived("qt",          derived::erf_derQt);
         calculate_derived("qp",          derived::erf_derQp);
 
@@ -558,6 +558,23 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         {
             // r_0 is first component of base_state
             MultiFab::Copy(mf[lev],qgraup_fab,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+#elif defined(ERF_USE_FASTEDDY)
+        calculate_derived("qt",          derived::erf_derQt);
+        MultiFab qv_fab(qv[lev], make_alias, 0, 1);
+        MultiFab qc_fab(qc[lev], make_alias, 0, 1);
+        if (containerHasElement(plot_var_names, "qv"))
+        {
+            // r_0 is first component of base_state
+            MultiFab::Copy(mf[lev],qv_fab,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_var_names, "qc"))
+        {
+            // r_0 is first component of base_state
+            MultiFab::Copy(mf[lev],qc_fab,0,mf_comp,1,0);
             mf_comp += 1;
         }
 #endif
