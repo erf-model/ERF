@@ -9,7 +9,7 @@ CEXE_sources += ERF_fast_rhs_N.cpp
 CEXE_sources += ERF_fast_rhs_T.cpp
 CEXE_sources += ERF_fast_rhs_MT.cpp
 
-ifeq ($(USE_MULTIBLOCK),TRUE)
+ifeq ($(USE_WARM_NO_PRECIP),TRUE)
 CEXE_sources += ERF_make_condensation_source.cpp
 endif
 

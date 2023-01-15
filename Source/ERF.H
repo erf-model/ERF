@@ -352,7 +352,8 @@ private:
     void timeStep (int lev, amrex::Real time, int iteration);
 
 #if defined(ERF_USE_WARM_NO_PRECIP)
-    void condensation_source (amrex::MultiFab& source, amrex::MultiFab& S_new, amrex::Real dt_lev);
+    void condensation_source (amrex::MultiFab& source, amrex::MultiFab& S_new,
+                              amrex::Real tau_cond, amrex::Real c_p);
 #endif
 
     // advance a single level for a single time step

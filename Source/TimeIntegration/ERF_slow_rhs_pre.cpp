@@ -472,19 +472,18 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             }
         }
 
-        // Add source terms
+        // Add source terms for (rho theta)
         {
             auto const& src_arr = source.const_array(mfi);
-            int ncomp = cell_rhs.nComp();
             if (l_use_terrain && l_moving_terrain) {
-                amrex::ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    cell_rhs(i,j,k,n) += src_arr(i,j,k,n) / detJ(i,j,k);
+                    cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp) / detJ(i,j,k);
                 });
             } else {
-                amrex::ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
+                    cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp);
                 });
             }
         }

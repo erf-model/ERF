@@ -39,7 +39,6 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // since they may be in any order in the input list
     Vector<std::string> tmp_plot_names;
     for (int i = 0; i < Cons::NumVars; ++i) {
-        amrex::Print() << "DOING I " << cons_names[i] << std::endl;
         if ( containerHasElement(plot_var_names, cons_names[i]) ) {
             tmp_plot_names.push_back(cons_names[i]);
         }
