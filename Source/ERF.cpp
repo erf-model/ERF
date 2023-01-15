@@ -160,9 +160,6 @@ ERF::ERF ()
     qrain.resize(nlevs_max);
     qsnow.resize(nlevs_max);
     qgraup.resize(nlevs_max);
-#elif defined(ERF_USE_FASTEDDY)
-    qv.resize(nlevs_max);
-    qc.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);
@@ -474,6 +471,18 @@ ERF::InitData ()
                      qrain[lev],
                      qsnow[lev],
                      qgraup[lev]);
+
+#if 0
+        for (MFIter mfi(qv[lev]); mfi.isValid(); ++mfi) {
+            const Box& box = mfi.growntilebox(IntVect(1,1,0));
+            // const Box& box = mfi.tilebox();
+            auto qv_arr = qv[lev].array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+               amrex::Print() << "QV " << IntVect(i,j,k) << " " << std::endl;
+               amrex::Print() << "QV " << qv_arr(i,j,k) << " " << std::endl;
+            });
+         }
+#endif
     }
 #endif
 
@@ -778,9 +787,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     qrain[lev].define(ba, dm, 1, ngrow_state);
     qsnow[lev].define(ba, dm, 1, ngrow_state);
     qgraup[lev].define(ba, dm, 1, ngrow_state);
-#elif defined(ERF_USE_FASTEDDY)
-    qv[lev].define(ba, dm, 1, ngrow_state);
-    qc[lev].define(ba, dm, 1, ngrow_state);
 #endif
 
     // ********************************************************************************************
@@ -935,9 +941,6 @@ ERF::init_only(int lev, Real time)
     qrain[lev].setVal(0.0);
     qsnow[lev].setVal(0.0);
     qgraup[lev].setVal(0.0);
-#elif defined(ERF_USE_FASTEDDY)
-    qv[lev].setVal(0.0);
-    qc[lev].setVal(0.0);
 #endif
 
     // Initialize background flow (optional)
@@ -1173,12 +1176,11 @@ ERF::MakeHorizontalAverages ()
         const Box& box = mfi.validbox();
         const IntVect& se = box.smallEnd();
         const IntVect& be = box.bigEnd();
-        auto  arr_cons = mf_cons[mfi].array();
+        auto  cons_arr = mf_cons[mfi].array();
 
 #if defined(ERF_USE_MOISTURE)
+        auto    qv_arr = qv[0][mfi].array();
         FArrayBox fab_reduce(box, 5);
-#elif defined(ERF_USE_FASTEDDY)
-        FArrayBox fab_reduce(box, 4);
 #else
         FArrayBox fab_reduce(box, 3);
 #endif
@@ -1186,15 +1188,17 @@ ERF::MakeHorizontalAverages ()
         auto arr_reduce = fab_reduce.array();
 
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            Real dens = arr_cons(i, j, k, Cons::Rho);
+            Real dens = cons_arr(i, j, k, Cons::Rho);
             arr_reduce(i, j, k, 0) = dens;
-            arr_reduce(i, j, k, 1) = arr_cons(i, j, k, Cons::RhoTheta) / dens;
-            arr_reduce(i, j, k, 2) = getPgivenRTh(arr_cons(i, j, k, Cons::RhoTheta));
+            arr_reduce(i, j, k, 1) = cons_arr(i, j, k, Cons::RhoTheta) / dens;
 #if defined(ERF_USE_MOISTURE)
-            arr_reduce(i, j, k, 3) = arr_cons(i, j, k, Cons::RhoQt) / dens;
-            arr_reduce(i, j, k, 4) = arr_cons(i, j, k, Cons::RhoQp) / dens;
-#elif defined(ERF_USE_FASTEDDY)
-            arr_reduce(i, j, k, 3) = arr_cons(i, j, k, Cons::RhoQt) / dens;
+            arr_reduce(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta), qv_arr(i,j,k));
+#else
+            arr_reduce(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta));
+#endif
+#if defined(ERF_USE_MOISTURE)
+            arr_reduce(i, j, k, 3) = cons_arr(i, j, k, Cons::RhoQt) / dens;
+            arr_reduce(i, j, k, 4) = cons_arr(i, j, k, Cons::RhoQp) / dens;
 #endif
         });
 
@@ -1206,8 +1210,6 @@ ERF::MakeHorizontalAverages ()
 #if defined(ERF_USE_MOISTURE)
             h_havg_qv          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,3);
             h_havg_qc          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,4);
-#elif defined(ERF_USE_FASTEDDY)
-            h_havg_qv          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,3);
 #endif
         }
     }
@@ -1219,8 +1221,6 @@ ERF::MakeHorizontalAverages ()
 #if defined(ERF_USE_MOISTURE)
     ParallelDescriptor::ReduceRealSum(h_havg_qv.dataPtr(), h_havg_qv.size());
     ParallelDescriptor::ReduceRealSum(h_havg_qc.dataPtr(), h_havg_qc.size());
-#elif defined(ERF_USE_FASTEDDY)
-    ParallelDescriptor::ReduceRealSum(h_havg_qv.dataPtr(), h_havg_qv.size());
 #endif
 
     // divide by the total number of cells we are averaging over
@@ -1230,7 +1230,6 @@ ERF::MakeHorizontalAverages ()
         h_havg_pressure[k]    /= area_z;
 #if defined(ERF_USE_MOISTURE)
         h_havg_qc[k]          /= area_z;
-#elif defined(ERF_USE_FASTEDDY)
         h_havg_qv[k]          /= area_z;
 #endif
     }
@@ -1239,7 +1238,7 @@ ERF::MakeHorizontalAverages ()
     d_havg_density.resize(size_z, 0.0_rt);
     d_havg_temperature.resize(size_z, 0.0_rt);
     d_havg_pressure.resize(size_z, 0.0_rt);
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     d_havg_qv.resize(size_z, 0.0_rt);
     d_havg_qc.resize(size_z, 0.0_rt);
 #endif
@@ -1248,7 +1247,7 @@ ERF::MakeHorizontalAverages ()
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_density.begin(), h_havg_density.end(), d_havg_density.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_temperature.begin(), h_havg_temperature.end(), d_havg_temperature.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_pressure.begin(), h_havg_pressure.end(), d_havg_pressure.begin());
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
 #endif
@@ -1380,9 +1379,6 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     qrain.resize(nlevs_max);
     qsnow.resize(nlevs_max);
     qgraup.resize(nlevs_max);
-#elif defined(ERF_USE_FASTEDDY)
-    qv.resize(nlevs_max);
-    qc.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);

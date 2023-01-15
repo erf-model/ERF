@@ -21,8 +21,6 @@ void ERF::erf_advance(int level,
                       MultiFab& source, MultiFab& buoyancy,
 #if defined(ERF_USE_MOISTURE)
                       const MultiFab& qvapor, const MultiFab& qcloud, const MultiFab& qice,
-#elif defined(ERF_USE_FASTEDDY)
-                      const MultiFab& qvapor, const MultiFab& qcloud,
 #endif
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt_advance, const amrex::Real old_time,

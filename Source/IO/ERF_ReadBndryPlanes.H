@@ -41,9 +41,9 @@ public:
     int ingested_density()  const {return is_density_read;}
     int ingested_scalar()   const {return is_scalar_read;}
 #if defined(ERF_USE_MOISTURE)
-    int ingested_qv()       const {return is_qv_read;}
-    int ingested_qc()       const {return is_qc_read;}
-#elif defined(ERF_USE_FASTEDDY)
+    int ingested_qt()       const {return is_qt_read;}
+    int ingested_qp()       const {return is_qp_read;}
+#elif defined(ERF_USE_WARM_NO_PRECIP)
     int ingested_qv()       const {return is_qv_read;}
     int ingested_qc()       const {return is_qc_read;}
 #endif
@@ -102,9 +102,9 @@ private:
     int is_theta_read;
     int is_scalar_read;
 #if defined(ERF_USE_MOISTURE)
-    int is_qv_read;
-    int is_qc_read;
-#elif defined(ERF_USE_FASTEDDY)
+    int is_qt_read;
+    int is_qp_read;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
     int is_qv_read;
     int is_qc_read;
 #endif

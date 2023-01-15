@@ -24,6 +24,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
+#ifdef ERF_USE_MOISTURE
+                       const MultiFab& qv,
+#endif
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
@@ -131,7 +134,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real> &       cell_rhs   = S_rhs[IntVar::cons].array(mfi);
-        const Array4<const Real> & source_fab   = source.const_array(mfi);
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
 
         // We must initialize these to zero each RK step
@@ -179,13 +181,24 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
         const Box& gbx = mfi.growntilebox({1,1,0});
         const Array4<Real> & pp_arr  = pprime.array(mfi);
+#ifdef ERF_USE_MOISTURE
+        const Array4<Real const> & qv_arr  =     qv.const_array(mfi);
+#endif
         {
         BL_PROFILE("slow_rhs_pre_pprime");
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
             //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
             //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
             AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-            pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp)) - p0_arr(i,j,k);
+#if defined(ERF_USE_MOISTURE)
+            Real qv_for_p = qv_arr(i,j,k);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+            Real qv_for_p = cell_data(i,j,k,RhoQv_comp) / cell_data(i,j,k,Rho_comp);
+#else
+            Real qv_for_p = 0.;
+#endif
+            pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
         });
         } // end profile
 
@@ -446,16 +459,33 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
             if (l_use_terrain) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
-                                       cell_data, cell_prim, source_fab, cell_rhs,
+                                       cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                        dxInv, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
-                                       cell_data, cell_prim, source_fab, cell_rhs,
+                                       cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+            }
+        }
+
+        // Add source terms
+        {
+            auto const& src_arr = source.const_array(mfi);
+            int ncomp = cell_rhs.nComp();
+            if (l_use_terrain && l_moving_terrain) {
+                amrex::ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    cell_rhs(i,j,k,n) += src_arr(i,j,k,n) / detJ(i,j,k);
+                });
+            } else {
+                amrex::ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
+                });
             }
         }
 
@@ -548,8 +578,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
                             +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
             rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
-#elif defined(ERF_USE_FASTEDDY)
-            Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
+                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
             rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
 #else
             rho_u_rhs(i, j, k) -= gpx;
@@ -593,8 +624,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
                               +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
               rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
-#elif defined(ERF_USE_FASTEDDY)
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
+                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
               rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
 #else
               rho_u_rhs(i, j, k) -= gpx;
@@ -658,8 +690,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
                               +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
               rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
-#elif defined(ERF_USE_FASTEDDY)
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
               rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
 #else
               rho_v_rhs(i, j, k) -= gpy;
@@ -700,8 +733,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
                               +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
               rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
-#elif defined(ERF_USE_FASTEDDY)
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
               rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
 #else
               rho_v_rhs(i, j, k) -= gpy;
@@ -755,8 +789,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
                                 +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
                 rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
-#elif defined(ERF_USE_FASTEDDY)
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
                 rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
 #else
                 rho_w_rhs(i, j, k) -= gpz;
@@ -799,8 +834,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
                                 +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
                 rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
-#elif defined(ERF_USE_FASTEDDY)
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
                 rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
 #else
                 rho_w_rhs(i, j, k) -= gpz;

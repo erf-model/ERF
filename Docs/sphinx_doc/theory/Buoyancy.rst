@@ -24,7 +24,7 @@ One version of the buoyancy force is expressed simply as
 .. math::
      \rho^\prime = \rho_{total} - \rho_0
 
-where the full density :math:`\rho_{total}` is the sum of dry and moist components and :math:`rho_0` is the base state density
+where the full density :math:`\rho_{total}` is the sum of dry and moist components and :math:`\rho_0` is the base state density
 for dry air only.
 
 Type 2

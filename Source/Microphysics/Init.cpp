@@ -9,12 +9,11 @@ using namespace amrex;
 
 void Microphysics::Init(const MultiFab& cons_in,
                         const MultiFab& qc_in,
-                        const MultiFab& /*qv_in*/,
+                              MultiFab& qv_in,
                         const MultiFab& qi_in,
                         const Geometry& geom,
                         const Real& dt_advance)
  {
-
   m_geom = geom;
 
   auto dz   = m_geom.CellSize(2);
@@ -23,8 +22,14 @@ void Microphysics::Init(const MultiFab& cons_in,
   dt = dt_advance;
 
   // initialize microphysics variables
-  for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar)
+  for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar) {
      mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(), 1, cons_in.nGrowVect());
+     mic_fab_vars[ivar]->setVal(0.);
+  }
+
+  // We must initialize to zero since we now need boundary values for the call to getP and we need all values filled
+  // The ghost cells of these arrays aren't filled in the boundary condition calls for the state
+  qv_in.setVal(0.);
 
   for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -160,6 +165,10 @@ void Microphysics::Init(const MultiFab& cons_in,
 
   Diagnose();
 
+  // This has just been filled in Diagnose
+  // (We need values in ghost cells because qv enters into the getP... call)
+  qv_in.FillBoundary(m_geom.periodicity());
+
 #if 0
   amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int k, int j, int i) {
     fluxbmk(l,j,i) = 0.0;
@@ -184,9 +193,6 @@ void Microphysics::Init(const MultiFab& cons_in,
     std::exit(-1);
   }
 
-  // for (int k=0; k<nzm; k++) {
-  //  for (int icrm=0; icrm<ncrms; icrm++) {
-  //parallel_for( SimpleBounds<2>(nzm,ncrms) , YAKL_LAMBDA (int k, int icrm) {
   amrex::ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept {
 
     Real pratio = sqrt(1.29 / rho1d_t(k));
@@ -235,5 +241,3 @@ void Microphysics::Init(const MultiFab& cons_in,
                   (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_rain)/8.0))*sqrt(pratio);
   });
 }
-
-

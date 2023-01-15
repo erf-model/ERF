@@ -158,6 +158,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Place-holder for source array -- for now just set to 0
     MultiFab source(ba,dm,nvars,1);
     source.setVal(0.0);
+#if defined(ERF_USE_WARM_NO_PRECIP)
+    condensation_source(source, S_new, dt_lev);
+#endif
 
     // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
@@ -192,8 +195,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 source, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                 qv[lev], qc[lev], qi[lev],
-#elif defined(ERF_USE_FASTEDDY)
-                qv[lev], qc[lev],
 #endif
                 Geom(lev), dt_lev, time, &ifr);
 
@@ -216,7 +217,5 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                  qrain[lev],
                  qsnow[lev],
                  qgraup[lev]);
-#elif defined(ERF_USE_FASTEDDY)
-   // UPDATE QV AND QC HERE
 #endif
 }

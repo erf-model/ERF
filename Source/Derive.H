@@ -122,8 +122,18 @@ void erf_derQp(
   amrex::Real time,
   const int* bcrec,
   const int level);
-#elif defined(ERF_USE_FASTEDDY)
-void erf_derQt(
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+void erf_derQv(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real time,
+  const int* bcrec,
+  const int level);
+void erf_derQc(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int dcomp,

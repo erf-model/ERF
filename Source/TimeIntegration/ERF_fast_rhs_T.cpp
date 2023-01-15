@@ -239,8 +239,9 @@ void erf_fast_rhs_T (int step, int /*level*/,
                 Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i-1,j,k,PrimQt_comp)
                                 +prim(i,j,k,PrimQp_comp) + prim(i-1,j,k,PrimQp_comp) );
                 gpx /= (1.0 + q);
-#elif defined(ERF_USE_FASTEDDY)
-                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i-1,j,k,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
+                                +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
                 gpx /= (1.0 + q);
 #endif
                 Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i  ,j,k,0));
@@ -271,8 +272,9 @@ void erf_fast_rhs_T (int step, int /*level*/,
                 Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j-1,k,PrimQt_comp)
                                 +prim(i,j,k,PrimQp_comp) + prim(i,j-1,k,PrimQp_comp) );
                 gpy /= (1.0 + q);
-#elif defined(ERF_USE_FASTEDDY)
-                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j-1,k,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
+                                +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
                 gpy /= (1.0 + q);
 #endif
                 Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j  ,k,0));
@@ -361,8 +363,9 @@ void erf_fast_rhs_T (int step, int /*level*/,
                             +prim(i,j,k,PrimQp_comp) + prim(i,j,k-1,PrimQp_comp) );
             coeff_P /= (1.0 + q);
             coeff_Q /= (1.0 + q);
-#elif defined(ERF_USE_FASTEDDY)
-            Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
+                            +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
             coeff_P /= (1.0 + q);
             coeff_Q /= (1.0 + q);
 #endif

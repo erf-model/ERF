@@ -151,8 +151,7 @@ public:
                       amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
 #if defined(ERF_USE_MOISTURE)
                       const amrex::MultiFab& qvapor, const amrex::MultiFab& qcloud, const amrex::MultiFab& qice,
-#elif defined(ERF_USE_FASTEDDY)
-                      const amrex::MultiFab& qvapor, const amrex::MultiFab& qcloud,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
@@ -352,6 +351,10 @@ private:
     // includes a recursive call for finer levels
     void timeStep (int lev, amrex::Real time, int iteration);
 
+#if defined(ERF_USE_WARM_NO_PRECIP)
+    void condensation_source (amrex::MultiFab& source, amrex::MultiFab& S_new, amrex::Real dt_lev);
+#endif
+
     // advance a single level for a single time step
     void Advance (int lev, amrex::Real time, amrex::Real dt_lev, int iteration, int ncycle);
 
@@ -503,9 +506,7 @@ private:
     amrex::Vector<amrex::MultiFab> qrain;
     amrex::Vector<amrex::MultiFab> qsnow;
     amrex::Vector<amrex::MultiFab> qgraup;
-#elif defined(ERF_USE_FASTEDDY)
-    amrex::Vector<amrex::MultiFab> qv;
-    amrex::Vector<amrex::MultiFab> qc;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
@@ -599,8 +600,8 @@ private:
     const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
 #if defined(ERF_USE_MOISTURE)
                                                      ,"rhoQt", "rhoQp"
-#elif defined(ERF_USE_FASTEDDY)
-                                                     ,"rhoQt",
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                                                     ,"rhoQv", "rhoQc"
 #endif
                                                      };
 
@@ -610,8 +611,8 @@ private:
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y", "z_phys", "detJ" , "mapfac"
 #if defined(ERF_USE_MOISTURE)
                                                      ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
-#elif defined(ERF_USE_FASTEDDY)
-                                                     ,"qt", "qv", "qc"
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                                                     ,"qv", "qc"
 #endif
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
