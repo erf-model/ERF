@@ -94,6 +94,15 @@ public:
     // Initialize multilevel data
     void InitData ();
 
+#ifdef ERF_USE_POISSON_SOLVE
+    // Project the initial velocities to be divergence-free
+    void project_initial_velocities ();
+
+    // Define the projection bc's based on the domain bc types
+    amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
+      get_projection_bc (amrex::Orientation::Side side) const noexcept;
+#endif
+
     // Init (NOT restart or regrid)
     void init_only (int lev, amrex::Real time);
 
