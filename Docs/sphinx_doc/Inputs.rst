@@ -9,9 +9,9 @@ Inputs
 .. toctree::
    :maxdepth: 1
 
-The ERF executable reads run-time information from an “inputs” file which you put on the command line.
+The ERF executable reads run-time information from an inputs file which you name on the command line.
 This section describes the inputs which can be specified either in the inputs file or on the command line.
-If a value is specified on the command line, that value will override a value specified in the inputs file.
+A value specified on the command line will override a value specified in the inputs file.
 
 Problem Geometry
 ================
@@ -167,8 +167,7 @@ Overview
 
 The user defines how to tag individual cells at a given level for refinement.
 This list of tagged cells is sent to a grid generation routine, which uses the
-Berger–Rigoutsos algorithm to create rectangular grids that contain the
-tagged cells.
+Berger-Rigoutsos algorithm to create rectangular grids that contain the tagged cells.
 
 See :ref:`MeshRefinement` for more details on how to specify regions for
 refinement.
@@ -443,7 +442,7 @@ Examples of Usage
      coarse time steps. The print statements have the form
    | TIME= 1.91717746 MASS= 1.792410279e+34
    | for example. If this line is commented out then it will not compute
-     and print these quanitities.
+     and print these quantities.
 
 
 Diffusive Physics
@@ -564,7 +563,7 @@ diffusivity.
 
 Right now, the QKE equation is solved if and only if the MYNN2.5 PBL model is selected. In that
 transport equation, it is optional to advect QKE, and to apply LES diffusive transport for QKE
-in the horizontal directions (the veritcal component is always computed as part of the PBL
+in the horizontal directions (the vertical component is always computed as part of the PBL
 scheme).
 
 Forcing Terms
@@ -611,20 +610,18 @@ List of Parameters
 Initialization
 ==============
 
-ERF can be initialzed in different ways. These are listed below:
+ERF can be initialized in different ways. These are listed below:
 
 - Custom initialization:
     Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are meant for demonstration and do not include any terrain or map scale factors.
 - Initialization using a NetCDF file:
-    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesocale data. This is a more realistic problem with real atmospheric data used for initialization. The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.  These problems are run with both terrain and map scale factors.
+    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesoscale data. This is a more realistic problem with real atmospheric data used for initialization. The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.  These problems are run with both terrain and map scale factors.
 - Initialization using an ``input_sounding`` file:
     Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile. This file has the same format as used by ``ideal.exe`` executable in WRF. Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed. This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
 
 In addition, there is a run-time option to project the initial velocity field to make it divergence-free.  To take
 advantage of this option, the code must be built with ``USE_POISSON_SOLVE = TRUE`` in the GNUmakefile if using gmake, or with
-``-DERF_ENABLE_POISSON_SOLVE:BOOL=ON`` in the cmake.sh file if using cmake.  (Additionally, if using cmake, the ``AMREX_LINEAR_SOLVERS``
-option in ``CMake/SetAmrexOptions.cmake`` must be toggled from OFF to ON.)
-
+``-DERF_ENABLE_POISSON_SOLVE:BOOL=ON`` in the cmake.sh file if using cmake.
 
 List of Parameters
 ------------------
@@ -639,23 +636,25 @@ List of Parameters
 |                                  |                   |"input_sounding"    |            |
 +----------------------------------+-------------------+--------------------+------------+
 | **erf.nc_init_file**             | NetCDF file with  |  String            | NONE       |
-|                                  | initial mesocale  |                    |            |
+|                                  | initial mesoscale |                    |            |
 |                                  | data              |                    |            |
 +----------------------------------+-------------------+--------------------+------------+
 | **erf.nc_bdy_file**              | NetCDF file with  |  String            | NONE       |
-|                                  | mesocale data at  |                    |            |
+|                                  | mesoscale data at |                    |            |
 |                                  | lateral boundaries|                    |            |
 +----------------------------------+-------------------+--------------------+------------+
 | **erf.project_initial_velocity** | project initial   |  Integer           | 1          |
-|                                  | veloocity?        |                    |            |
+|                                  | velocity?         |                    |            |
 +----------------------------------+-------------------+--------------------+------------+
 
 Notes
 -----------------
 
-If **erf.init_type = ideal**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in vertical direction.
+If **erf.init_type = ideal**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in the vertical direction.
 
-If **erf.init_type = real**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.  In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**”
+If **erf.init_type = real**, the problem is initialized with mesoscale data contained in a NetCDF file,
+provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.
+In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**
 
 If **erf.init_type = custom** or **erf.init_type = input_sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
 
@@ -680,7 +679,7 @@ or moving by setting **erf.terrain_type.**
 If using terrain, the user also has the option to specify one of three
 methods for defining how the terrain-fitted coordinates given the topography:
 
-- Basic Terain Following (BTF):
+- Basic Terrain Following (BTF):
     The influence of the terrain decreases linearly with height.
 - Smoothed Terrain Following (STF):
     Small-scale terrain structures are progressively smoothed out of the coordinate system as height increases.
