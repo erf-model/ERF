@@ -57,6 +57,10 @@ include $(AMREX_HOME)/Src/Base/Make.package
 
 AMReXdirs             := Base Boundary AmrCore
 
+ifeq ($(USE_POISSON_SOLVE),TRUE)
+AMReXdirs             += LinearSolvers/MLMG
+endif
+
 ifeq ($(USE_HDF5),TRUE)
 AMReXdirs             += Extern/HDF5
 endif
@@ -80,6 +84,10 @@ endif
 
 ifeq ($(COMPUTE_ERROR), TRUE)
   DEFINES += -DERF_COMPUTE_ERROR
+endif
+
+ifeq ($(USE_POISSON_SOLVE), TRUE)
+  DEFINES += -DERF_USE_POISSON_SOLVE
 endif
 
 ifeq ($(USE_MULTIBLOCK), TRUE)

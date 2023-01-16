@@ -90,6 +90,11 @@ struct SolverChoice {
         pp.query("tau_cond", tau_cond);
 #endif
 
+#if defined(ERF_USE_POISSON_SOLVE)
+        // Should we project the initial velocity field to make it divergence-free?
+        pp.query("project_initial_velocity", project_initial_velocity);
+#endif
+
         // Which LES closure?
         static std::string les_type_string = "None";
         pp.query("les_type",les_type_string);
@@ -367,6 +372,10 @@ struct SolverChoice {
 
 #if defined(ERF_USE_WARM_NO_PRECIP)
     amrex::Real tau_cond = 1.0; // Default time of 1 sec -- this is somewhat arbitray
+#endif
+
+#if defined(ERF_USE_POISSON_SOLVE)
+    int project_initial_velocity = 1;
 #endif
 
     // Molecular transport model
