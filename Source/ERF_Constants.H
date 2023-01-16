@@ -12,6 +12,8 @@ constexpr amrex::Real R_v          = 461.505;  // water vapor constant for water
 constexpr amrex::Real Cp_d         = 1004.5;   // We have set this so that with qv=0 we get identically gamma = 1.4
 constexpr amrex::Real Cp_v         = 1859.0;
 
+constexpr amrex::Real L_v          = 2.5e6;    // latent heat of vaporization (J / kg)
+
 constexpr amrex::Real p_0          = 1.0e5;                 // reference surface pressure [Pa]
 constexpr amrex::Real Gamma        = 1.4;             // c_p / c_v [-]
 constexpr amrex::Real KAPPA        = 0.41;  // von Karman constant

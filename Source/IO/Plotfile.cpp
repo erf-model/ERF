@@ -560,23 +560,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],qgraup_fab,0,mf_comp,1,0);
             mf_comp += 1;
         }
-#elif defined(ERF_USE_FASTEDDY)
-        calculate_derived("qt",          derived::erf_derQt);
-        MultiFab qv_fab(qv[lev], make_alias, 0, 1);
-        MultiFab qc_fab(qc[lev], make_alias, 0, 1);
-        if (containerHasElement(plot_var_names, "qv"))
-        {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qv_fab,0,mf_comp,1,0);
-            mf_comp += 1;
-        }
-
-        if (containerHasElement(plot_var_names, "qc"))
-        {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qc_fab,0,mf_comp,1,0);
-            mf_comp += 1;
-        }
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        calculate_derived("qv",          derived::erf_derQv);
+        calculate_derived("qc",          derived::erf_derQc);
 #endif
 
 #ifdef ERF_COMPUTE_ERROR

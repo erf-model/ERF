@@ -131,8 +131,9 @@ void make_fast_coeffs (int /*level*/,
                                 +prim(i,j,k,PrimQp_comp) + prim(i,j,k-1,PrimQp_comp) );
                 coeff_P /= (1.0 + q);
                 coeff_Q /= (1.0 + q);
-#elif defined(ERF_USE_FASTEDDY)
-                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                Real q = 0.5 * ( prim(i,j,k  ,PrimQv_comp) + prim(i,j,k  ,PrimQc_comp) +
+                                 prim(i,j,k-1,PrimQv_comp) + prim(i,j,k-1,PrimQc_comp) );
                 coeff_P /= (1.0 + q);
                 coeff_Q /= (1.0 + q);
 #endif
@@ -179,8 +180,9 @@ void make_fast_coeffs (int /*level*/,
                                 +prim(i,j,k,PrimQp_comp) + prim(i,j,k-1,PrimQp_comp) );
                 coeff_P /= (1.0 + q);
                 coeff_Q /= (1.0 + q);
-#elif defined(ERF_USE_FASTEDDY)
-                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                Real q = 0.5 * ( prim(i,j,k  ,PrimQv_comp) + prim(i,j,k  ,PrimQc_comp) +
+                                 prim(i,j,k-1,PrimQv_comp) + prim(i,j,k-1,PrimQc_comp) );
                 coeff_P /= (1.0 + q);
                 coeff_Q /= (1.0 + q);
 #endif

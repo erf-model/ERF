@@ -61,8 +61,11 @@ init_custom_prob(
     Array4<Real      > const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
     Array4<Real      > const&,
     Array4<Real      > const&,
 #endif
@@ -125,9 +128,12 @@ init_custom_prob(
 
     state(i, j, k, RhoScalar_comp) *= parms.rho_0;
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     state(i, j, k, RhoQt_comp) = 0.0;
     state(i, j, k, RhoQp_comp) = 0.0;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    state(i, j, k, RhoQv_comp) = 0.0;
+    state(i, j, k, RhoQc_comp) = 0.0;
 #endif
 
   });

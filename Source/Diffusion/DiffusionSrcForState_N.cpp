@@ -11,7 +11,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                         const Array4<const Real>& w,
                         const Array4<const Real>& cell_data,
                         const Array4<const Real>& cell_prim,
-                        const Array4<const Real>& source_fab,
                         const Array4<Real>& cell_rhs,
                         const Array4<Real>& xflux,
                         const Array4<Real>& yflux,
@@ -71,9 +70,12 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                case PrimQp_comp:
                     alpha_eff[PrimQp_comp] = solverChoice.alpha_C;
                     break;
-#elif defined(ERF_USE_FASTEDDY)
-               case PrimQt_comp:
-                    alpha_eff[PrimQt_comp] = solverChoice.alpha_C;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+               case PrimQv_comp:
+                    alpha_eff[PrimQv_comp] = solverChoice.alpha_C;
+                    break;
+               case PrimQc_comp:
+                    alpha_eff[PrimQc_comp] = solverChoice.alpha_C;
                     break;
 #endif
                default:
@@ -97,9 +99,12 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                case PrimQp_comp:
                     alpha_eff[PrimQp_comp] = solverChoice.rhoAlpha_C;
                     break;
-#elif defined(ERF_USE_FASTEDDY)
-               case PrimQt_comp:
-                    alpha_eff[PrimQt_comp] = solverChoice.rhoAlpha_C;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+               case PrimQv_comp:
+                    alpha_eff[PrimQv_comp] = solverChoice.rhoAlpha_C;
+                    break;
+               case PrimQc_comp:
+                    alpha_eff[PrimQc_comp] = solverChoice.rhoAlpha_C;
                     break;
 #endif
                default:
@@ -112,10 +117,10 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
     Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
     Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Qt_v, EddyDiff::Qp_v};
-#elif defined(ERF_USE_FASTEDDY)
-    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
-    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
-    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Qt_v, EddyDiff::Qp_v};
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qv_h, EddyDiff::Qc_h};
+    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qv_h, EddyDiff::Qc_h};
+    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Qv_v, EddyDiff::Qc_v};
 #else
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h};
     Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h};
@@ -317,9 +322,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             cell_rhs(i,j,k,qty_index) += (xflux(i+1,j  ,k  ,qty_index) - xflux(i, j, k, qty_index)) * dx_inv * mf_m(i,j,0)  // Diffusive flux in x-dir
                                         +(yflux(i  ,j+1,k  ,qty_index) - yflux(i, j, k, qty_index)) * dy_inv * mf_m(i,j,0)  // Diffusive flux in y-dir
                                         +(zflux(i  ,j  ,k+1,qty_index) - zflux(i, j, k, qty_index)) * dz_inv;  // Diffusive flux in z-dir
-
-            // Add source terms. TODO: Put this under an if condition when we implement source term
-            cell_rhs(i,j,k,qty_index) += source_fab(i,j,k,qty_index);
         });
     }
 

@@ -26,9 +26,6 @@ void make_buoyancy (BoxArray& grids_to_evolve,
                     Gpu::DeviceVector<Real> qv_d,
                     Gpu::DeviceVector<Real> qc_d,
                     Gpu::DeviceVector<Real> qi_d,
-#elif defined(ERF_USE_FASTEDDY)
-                    const MultiFab& qvapor,
-                    const MultiFab& qcloud,
 #endif
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
@@ -42,7 +39,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
     // ******************************************************************************************
     // Dry versions of buoyancy expressions (type 1 and type 2/3 -- types 2 and 3 are equivalent)
     // ******************************************************************************************
-#ifndef ERF_USE_MOISTURE
+#if !defined(ERF_USE_MOISTURE) && !defined(ERF_USE_WARM_NO_PRECIP)
 
     if (solverChoice.buoyancy_type == 1) {
         for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -132,7 +129,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
     // ******************************************************************************************
     // Moist versions of buoyancy expressions
     // ******************************************************************************************
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     if (solverChoice.buoyancy_type == 1) {
 
         for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -178,7 +175,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
     int ncell = state_ave.ncell_line();
 
     Gpu::HostVector  <Real> rho_h(ncell), theta_h(ncell), qp_h(ncell);
-    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell), qp_d(ncell);
+    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell);
 
     state_ave.line_average(Rho_comp, rho_h);
     Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
@@ -299,8 +296,9 @@ void make_buoyancy (BoxArray& grids_to_evolve,
         } // mfi
     } // buoyancy_type
     } // not buoyancy_type == 1
+#endif
 
-#elif defined(ERF_USE_FASTEDDY)
+#if defined(ERF_USE_WARM_NO_PRECIP)
 
     AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
 
@@ -321,13 +319,12 @@ void make_buoyancy (BoxArray& grids_to_evolve,
             // Base state density
             const Array4<const Real>& r0_arr = r0->const_array(mfi);
 
-            const Array4<const Real> & qv_data    = qvapor.array(mfi);
-            const Array4<const Real> & qc_data    = qcloud.array(mfi);
-
             amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                Real rhop_hi = cell_data(i,j,k  ) * (1.0 + qv_data(i,j,k  ) + qc_data(i,j,k  )) - r0_arr(i,j,k  );
-                Real rhop_lo = cell_data(i,j,k-1) * (1.0 + qv_data(i,j,k-1) + qc_data(i,j,k-1)) - r0_arr(i,j,k-1);
+                Real rhop_hi = cell_data(i,j,k  ,Rho_comp)   + cell_data(i,j,k  ,RhoQv_comp)
+                             + cell_data(i,j,k  ,RhoQc_comp) - r0_arr(i,j,k  );
+                Real rhop_lo = cell_data(i,j,k-1,Rho_comp)   + cell_data(i,j,k-1,RhoQv_comp)
+                             + cell_data(i,j,k-1,RhoQc_comp) - r0_arr(i,j,k-1);
                 buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( rhop_hi + rhop_lo );
             });
         } // mfi

@@ -30,7 +30,7 @@ init_custom_prob (
   amrex::Array4<amrex::Real      > const& qv,
   amrex::Array4<amrex::Real      > const& qc,
   amrex::Array4<amrex::Real      > const& qi,
-#elif defined(ERF_USE_FASTEDDY)
+#elif defined(ERF_USE_WARM_NO_PRECIP)
   amrex::Array4<amrex::Real      > const& qv,
   amrex::Array4<amrex::Real      > const& qc,
 #endif

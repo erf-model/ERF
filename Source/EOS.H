@@ -28,7 +28,7 @@ amrex::Real getPgivenRTh(const amrex::Real rhotheta, const amrex::Real qv = 0.)
     amrex::Real Gamma_t    = Cp_t/(Cp_t-R_t);
     amrex::Real rhotheta_t = rhotheta*(1.0+qv);
     return p_0 * std::pow(R_t * rhotheta_t * ip_0, Gamma_t);
-#elif defined(ERF_USE_FASTEDDY)
+#elif defined(ERF_USE_WARM_NO_PRECIP)
     amrex::Real rhotheta_t = rhotheta*(1.0+(R_v/R_d)*qv);
     return p_0 * std::pow(R_d * rhotheta_t * ip_0, Gamma);
 #else

@@ -17,7 +17,8 @@ option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
-option(ERF_ENABLE_MOISTURE "Enable Moisture" OFF)
+option(ERF_ENABLE_MOISTURE "Enable Full Moisture" OFF)
+option(ERF_ENABLE_WARM_NO_PRECIP "Enable Warm Moisture" OFF)
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)

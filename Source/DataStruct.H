@@ -86,6 +86,15 @@ struct SolverChoice {
         pp.query("c_p", c_p);
         rdOcp = R_d / c_p;
 
+#if defined(ERF_USE_WARM_NO_PRECIP)
+        pp.query("tau_cond", tau_cond);
+#endif
+
+#if defined(ERF_USE_POISSON_SOLVE)
+        // Is the terrain static or moving?
+        pp.query("project_initial_velocity", project_initial_velocity);
+#endif
+
         // Which LES closure?
         static std::string les_type_string = "None";
         pp.query("les_type",les_type_string);
@@ -360,6 +369,14 @@ struct SolverChoice {
     amrex::Real gravity;
     amrex::Real c_p = 1004.5; // specific heat at constant pressure for dry air [J/(kg-K)]
     amrex::Real rdOcp;
+
+#if defined(ERF_USE_WARM_NO_PRECIP)
+    amrex::Real tau_cond = 1.0; // Default time of 1 sec -- this is somewhat arbitray
+#endif
+
+#if defined(ERF_USE_POISSON_SOLVE)
+    int project_initial_velocity = 1;
+#endif
 
     // Molecular transport model
     MolecDiffType molec_diff_type;

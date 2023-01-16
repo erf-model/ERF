@@ -18,6 +18,9 @@ void erf_slow_rhs_pre(int level, int nrk,
                       const amrex::MultiFab& xvel,
                       const amrex::MultiFab& yvel,
                       const amrex::MultiFab& zvel,
+#if defined(ERF_USE_MOISTURE)
+                     const amrex::MultiFab& qvapor,
+#endif
                       std::unique_ptr<amrex::MultiFab>& z_t,
                             amrex::MultiFab& Omega,
                       const amrex::MultiFab& source,
@@ -158,9 +161,6 @@ void make_buoyancy(amrex::BoxArray& grids_to_evolve,
                    const amrex::Gpu::DeviceVector<amrex::Real> qv_d,
                    const amrex::Gpu::DeviceVector<amrex::Real> qc_d,
                    const amrex::Gpu::DeviceVector<amrex::Real> qi_d,
-#elif defined(ERF_USE_FASTEDDY)
-                   const amrex::MultiFab& qvapor,
-                   const amrex::MultiFab& qcloud,
 #endif
                    const amrex::Geometry geom,
                    const SolverChoice& solverChoice,

@@ -620,26 +620,35 @@ ERF can be initialzed in different ways. These are listed below:
 - Initialization using an ``input_sounding`` file:
     Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile. This file has the same format as used by ``ideal.exe`` executable in WRF. Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed. This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
 
+In addition, there is a run-time option to project the initial velocity field to make it divergence-free.  To take
+advantage of this option, the code must be built with ``USE_POISSON_SOLVE = TRUE`` in the GNUmakefile if using gmake, or with
+``-DERF_ENABLE_POISSON_SOLVE:BOOL=ON`` in the cmake.sh file if using cmake.  (Additionally, if using cmake, the ``AMREX_LINEAR_SOLVERS``
+option in ``CMake/SetAmrexOptions.cmake`` must be toggled from OFF to ON.)
+
+
 List of Parameters
 ------------------
 
-+-----------------------------+-------------------+--------------------+------------+
-| Parameter                   | Definition        | Acceptable         | Default    |
-|                             |                   | Values             |            |
-+=============================+===================+====================+============+
-| **erf.init_type**           | Initialization    | “custom”,          | “*custom*” |
-|                             | type              | “ideal”,           |            |
-|                             |                   | "real",            |            |
-|                             |                   |"input_sounding"    |            |
-+-----------------------------+-------------------+--------------------+------------+
-| **erf.nc_init_file**        | NetCDF file with  |  String            | NONE       |
-|                             | initial mesocale  |                    |            |
-|                             | data              |                    |            |
-+-----------------------------+-------------------+--------------------+------------+
-| **erf.nc_bdy_file**         | NetCDF file with  |  String            | NONE       |
-|                             | mesocale data at  |                    |            |
-|                             | lateral boundaries|                    |            |
-+-----------------------------+-------------------+--------------------+------------+
++----------------------------------+-------------------+--------------------+------------+
+| Parameter                        | Definition        | Acceptable         | Default    |
+|                                  |                   | Values             |            |
++==================================+===================+====================+============+
+| **erf.init_type**                | Initialization    | “custom”,          | “*custom*” |
+|                                  | type              | “ideal”,           |            |
+|                                  |                   | "real",            |            |
+|                                  |                   |"input_sounding"    |            |
++----------------------------------+-------------------+--------------------+------------+
+| **erf.nc_init_file**             | NetCDF file with  |  String            | NONE       |
+|                                  | initial mesocale  |                    |            |
+|                                  | data              |                    |            |
++----------------------------------+-------------------+--------------------+------------+
+| **erf.nc_bdy_file**              | NetCDF file with  |  String            | NONE       |
+|                                  | mesocale data at  |                    |            |
+|                                  | lateral boundaries|                    |            |
++----------------------------------+-------------------+--------------------+------------+
+| **erf.project_initial_velocity** | project initial   |  Integer           | 1          |
+|                                  | veloocity?        |                    |            |
++----------------------------------+-------------------+--------------------+------------+
 
 Notes
 -----------------
@@ -649,6 +658,8 @@ If **erf.init_type = ideal**, the problem is initialized with mesoscale data con
 If **erf.init_type = real**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.  In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**”
 
 If **erf.init_type = custom** or **erf.init_type = input_sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
+
+Setting **erf.project_initial_velocity = 1** will have no effect if the code is not built with **ERF_USE_POISSON_SOLVE** defined.
 
 Map Scale Factors
 =================
@@ -709,11 +720,14 @@ Examples of Usage
 Moisture
 ========
 
-The microphysics model takes potential temperature :math:`\theta`, total pressure :math:`p`,
-and dry air density :math:`\rho_d` as input.
+ERF has two different moisture models -- one that includes only water vapor and cloud water,
+and a more complete model that includes water vapor, cloud water, cloud ice, rain, snow and graupel.
+
+If ERF is compiled with ERF_USE_WARM_NO_PRECIP defined, then the first model is used and no
+further inputs are required.
 
 If ERF is compiled with ERF_USE_MOISTURE defined, then the following run-time options control how
-the moisture model is used.
+the full moisture model is used.
 
 List of Parameters
 ------------------

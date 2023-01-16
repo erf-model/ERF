@@ -48,6 +48,8 @@ erf.use_coriolis = false
 erf.use_rayleigh_damping = false
 erf.spatial_order = 2
 
+erf.buoyancy_type = 1
+
 # MULTILEVEL
 amr.max_level = 0
 

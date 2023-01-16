@@ -75,14 +75,15 @@
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qvapor, qcloud, qice, qv_d, qc_d, qi_d,
-#elif defined(ERF_USE_FASTEDDY)
-                          qvapor, qcloud,
 #endif
                           fine_geom, solverChoice, r0_new);
 
             erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
-                             xvel_new, yvel_new, zvel_new, z_t_rk[level],
-                             Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
+                             xvel_new, yvel_new, zvel_new,
+#if defined(ERF_USE_MOISTURE)
+                             qvapor,
+#endif
+                             z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], detJ_cc_src[level], p0_new,
@@ -166,14 +167,15 @@
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qvapor, qcloud, qice, qv_d, qc_d, qi_d,
-#elif defined(ERF_USE_FASTEDDY)
-                          qvapor, qcloud,
 #endif
                           fine_geom, solverChoice, r0);
 
             erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
-                             xvel_new, yvel_new, zvel_new, z_t_rk[level],
-                             Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
+                             xvel_new, yvel_new, zvel_new,
+#if defined(ERF_USE_MOISTURE)
+                             qvapor,
+#endif
+                             z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], detJ_cc[level], p0,

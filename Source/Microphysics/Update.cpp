@@ -12,11 +12,11 @@ void Microphysics::Update(amrex::MultiFab& cons_in,
                           amrex::MultiFab& qgraup_in)
 {
   // copy multifab data to qc, qv, and qi
-  amrex::MultiFab::Copy(qv_in, *mic_fab_vars[MicVar::qv],  0, 0, 1, mic_fab_vars[MicVar::qv]->nGrowVect());
-  amrex::MultiFab::Copy(qc_in, *mic_fab_vars[MicVar::qcl], 0, 0, 1, mic_fab_vars[MicVar::qcl]->nGrowVect());
-  amrex::MultiFab::Copy(qi_in, *mic_fab_vars[MicVar::qci], 0, 0, 1, mic_fab_vars[MicVar::qci]->nGrowVect());
-  amrex::MultiFab::Copy(qrain_in,  *mic_fab_vars[MicVar::qpl], 0, 0, 1, mic_fab_vars[MicVar::qpl]->nGrowVect());
-  amrex::MultiFab::Copy(qsnow_in,  *mic_fab_vars[MicVar::qpi], 0, 0, 1, mic_fab_vars[MicVar::qpi]->nGrowVect());
+  amrex::MultiFab::Copy(qv_in    , *mic_fab_vars[MicVar::qv],  0, 0, 1, mic_fab_vars[MicVar::qv]->nGrowVect());
+  amrex::MultiFab::Copy(qc_in    , *mic_fab_vars[MicVar::qcl], 0, 0, 1, mic_fab_vars[MicVar::qcl]->nGrowVect());
+  amrex::MultiFab::Copy(qi_in    , *mic_fab_vars[MicVar::qci], 0, 0, 1, mic_fab_vars[MicVar::qci]->nGrowVect());
+  amrex::MultiFab::Copy(qrain_in , *mic_fab_vars[MicVar::qpl], 0, 0, 1, mic_fab_vars[MicVar::qpl]->nGrowVect());
+  amrex::MultiFab::Copy(qsnow_in , *mic_fab_vars[MicVar::qpi], 0, 0, 1, mic_fab_vars[MicVar::qpi]->nGrowVect());
   amrex::MultiFab::Copy(qgraup_in, *mic_fab_vars[MicVar::qpi], 0, 0, 1, mic_fab_vars[MicVar::qci]->nGrowVect());
 
   // get the temperature, dentisy, theta, qt and qp from input
