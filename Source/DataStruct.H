@@ -91,7 +91,7 @@ struct SolverChoice {
 #endif
 
 #if defined(ERF_USE_POISSON_SOLVE)
-        // Is the terrain static or moving?
+        // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
 #endif
 
