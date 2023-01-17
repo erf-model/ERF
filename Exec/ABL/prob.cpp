@@ -34,19 +34,35 @@ erf_init_rayleigh(Vector<Real>& tau,
                   Vector<Real>& thetabar,
                   Geometry      const& geom)
 {
-  //const Real* prob_lo = geom.ProbLo();
-  //const auto dx              = geom.CellSize();
-  const int khi              = geom.Domain().bigEnd()[2];
+  const auto ztop = geom.ProbHi()[2];
+  amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<") between "
+    << ztop-parms.zdamp << " and " << ztop << std::endl;
+
+  const Real* prob_lo = geom.ProbLo();
+  const auto dx       = geom.CellSize();
+  const int khi       = geom.Domain().bigEnd()[2];
 
   for (int k = 0; k <= khi; k++)
   {
-      //const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-
-      tau[k]      = 1.0;
-
-      ubar[k]     = parms.U_0;
-      vbar[k]     = parms.V_0;
-      thetabar[k] = parms.Theta_0;
+      // WRF's vertical velocity damping layer structure, which is based
+      // on Durran and Klemp 1983
+      const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+      const Real zfrac = 1 - (ztop - z) / parms.zdamp;
+      if (zfrac >= 0)
+      {
+          const Real sinefac = std::sin(PIoTwo*zfrac);
+          tau[k]      = parms.dampcoef * sinefac * sinefac;
+          ubar[k]     = parms.U_0;
+          vbar[k]     = parms.V_0;
+          thetabar[k] = parms.Theta_0;
+      }
+      else
+      {
+          tau[k]      = 0.0;
+          ubar[k]     = 0.0;
+          vbar[k]     = 0.0;
+          thetabar[k] = 0.0;
+      }
   }
 }
 
@@ -242,4 +258,7 @@ amrex_probinit(
   parms.bval = parms.pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
   parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
   parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
+
+  pp.query("dampcoef", parms.dampcoef);
+  pp.query("zdamp", parms.zdamp);
 }

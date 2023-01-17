@@ -13,17 +13,21 @@ struct ProbParm {
   amrex::Real V_0 = 0.0;
   amrex::Real W_0 = 0.0;
 
-  // random perturbations (legacy code)
+  // random initial perturbations (legacy code)
   amrex::Real U_0_Pert_Mag = 0.0;
   amrex::Real V_0_Pert_Mag = 0.0;
   amrex::Real W_0_Pert_Mag = 0.0;
 
-  // divergence-free perturbations
+  // divergence-free initial perturbations
   amrex::Real pert_deltaU = 1.0;
   amrex::Real pert_deltaV = 1.0;
   amrex::Real pert_periods_U = 5.0;
   amrex::Real pert_periods_V = 5.0;
   amrex::Real pert_ref_height = 100.0;
+
+  // rayleigh damping
+  amrex::Real dampcoef = 0.003; // inverse time scale [1/s]
+  amrex::Real zdamp = 5000.0; // damping depth [m] from model top
 
   // helper vars
   amrex::Real aval;
