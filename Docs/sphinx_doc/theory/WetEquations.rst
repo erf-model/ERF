@@ -40,25 +40,25 @@ The governing equations for this model are
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
           \frac{1}{1 + q_v + q_c}  \nabla p^\prime + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
-  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) +
-           \frac{\theta_d L_v}{T_d C_{pd}} f_{cond}
+  \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d)
+                + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + \frac{\theta_d L_v}{T_d C_{pd}} f_{cond}
 
-  \frac{\partial (\rho_d q_v)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_v + \nabla \cdot (\rho_d \alpha}\ \nabla q_v) - f_{cond}
+  \frac{\partial (\rho_d q_v)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_v + \nabla \cdot (\rho_d \alpha \nabla q_v) - f_{cond}
 
-  \frac{\partial (\rho_d q_c)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_c + \nabla \cdot (\rho_d \alpha}\ \nabla q_c) + f_{cond}
+  \frac{\partial (\rho_d q_c)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_c + \nabla \cdot (\rho_d \alpha \nabla q_c) + f_{cond}
 
-Here $L_v$ is the latent heat of vaporization, $\theta_d$ is the (dry) potential temperature
+Here :math:`L_v` is the latent heat of vaporization, :math:`\theta_d` is the (dry) potential temperature
 :math:`\mathbf{B}` is the buoyancy force, which is defined in :ref:`Buoyancy <Buoyancy>`.
 
 The pressure perturbation is computed as
 
 .. math::
-  p^\prime = p_0 (\frac{R_d \rho_d \theta_m}{p_0}^\gamma - p_0
+  p^\prime = p_0 \left( \frac{R_d \rho_d \theta_m}{p_0} \right)^\gamma - p_0
 
 where :math:`\gamma = C_{pd} / C_{vd}` and
 
 .. math::
-  \theta_m = \theta_d (1 + \frac{R_v}{R_d} q_v
+  \theta_m = \theta_d (1 + \frac{R_v}{R_d} q_v)
 
 is the moist potential temperature.  We note that this is the only place :math:`\theta_m` is used; we evolve :math:`\theta_d` above.
 
@@ -128,8 +128,6 @@ Then the governing equations become
           \frac{1}{1 + q_T + q_p}  \nabla p^\prime + \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
 
   \frac{\partial (\rho_d \theta)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta + F_{\theta}) + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta) + F_Q
-
-  \frac{\partial (\rho_d C)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} C + \mathbf{F}_C) + \nabla \cdot (\rho_d \alpha_{C}\ \nabla C)
 
   \frac{\partial (\rho_d q_T)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_T +F_{q_{T}}) - Q
 
