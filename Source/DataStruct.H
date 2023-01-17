@@ -72,11 +72,9 @@ struct SolverChoice {
 
         // Which expression (1,2 or 3) to use for buoyancy
         pp.query("buoyancy_type", buoyancy_type);
-#ifdef ERF_USE_MOISTURE
-        if (buoyancy_type != 2 && buoyancy_type != 3) {
-            amrex::Abort("buoyancy_type with moisture on must be 2 or 3");
+        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3) {
+            amrex::Abort("buoyancy_type must be 1, 2 or 3");
         }
-#endif
 
         // Is the terrain static or moving?
         pp.query("terrain_type", terrain_type);
@@ -87,6 +85,15 @@ struct SolverChoice {
 
         pp.query("c_p", c_p);
         rdOcp = R_d / c_p;
+
+#if defined(ERF_USE_WARM_NO_PRECIP)
+        pp.query("tau_cond", tau_cond);
+#endif
+
+#if defined(ERF_USE_POISSON_SOLVE)
+        // Should we project the initial velocity field to make it divergence-free?
+        pp.query("project_initial_velocity", project_initial_velocity);
+#endif
 
         // Which LES closure?
         static std::string les_type_string = "None";
@@ -240,6 +247,8 @@ struct SolverChoice {
             amrex::Error("Don't know this ic_bc_type");
         }
 
+        pp.query("Ave_Plane", ave_plane);
+
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
@@ -361,6 +370,14 @@ struct SolverChoice {
     amrex::Real c_p = 1004.5; // specific heat at constant pressure for dry air [J/(kg-K)]
     amrex::Real rdOcp;
 
+#if defined(ERF_USE_WARM_NO_PRECIP)
+    amrex::Real tau_cond = 1.0; // Default time of 1 sec -- this is somewhat arbitray
+#endif
+
+#if defined(ERF_USE_POISSON_SOLVE)
+    int project_initial_velocity = 1;
+#endif
+
     // Molecular transport model
     MolecDiffType molec_diff_type;
     // Diffusive/viscous coefficients [m2/s]
@@ -425,6 +442,7 @@ struct SolverChoice {
     // IC and BC Type: "Ideal" or "Real"
     IC_BC_Type icBcType;
 
+    int ave_plane {2};
 #ifdef ERF_USE_MOISTURE
     // Microphysics params
     bool do_cloud {true};

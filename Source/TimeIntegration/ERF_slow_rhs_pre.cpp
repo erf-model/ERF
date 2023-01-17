@@ -24,6 +24,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
+#ifdef ERF_USE_MOISTURE
+                       const MultiFab& qv,
+#endif
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
@@ -32,18 +35,13 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                        MultiFab* eddyDiffs,
-#ifdef ERF_USE_MOISTURE
-                       const MultiFab& qvapor,
-                       const MultiFab& qcloud,
-                       const MultiFab& qice,
-#endif
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
                        const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
                        const Vector<amrex::BCRec> domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
-                       const MultiFab* r0, const MultiFab* p0,
+                       const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
@@ -79,57 +77,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const int domhi_z = domain.bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-
-#ifdef ERF_USE_MOISTURE
-    PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, 2);
-    PlaneAverage prim_ave(&S_prim, geom, 2);
-    PlaneAverage qv_ave(&qvapor, geom, 2);
-    PlaneAverage qc_ave(&qcloud, geom, 2);
-    PlaneAverage qi_ave(&qice, geom, 2);
-    state_ave.compute_averages(ZDir(), state_ave.field());
-    prim_ave.compute_averages(ZDir(), prim_ave.field());
-    qv_ave.compute_averages(ZDir(), qv_ave.field());
-    qc_ave.compute_averages(ZDir(), qc_ave.field());
-    qi_ave.compute_averages(ZDir(), qi_ave.field());
-
-    // get plane averaged data
-    int ncell = state_ave.ncell_line();
-
-    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell),
-                          qp_h(ncell), qv_h(ncell),
-                          qi_h(ncell), qc_h(ncell);
-
-
-    state_ave.line_average(Rho_comp, rho_h);
-    prim_ave.line_average(PrimTheta_comp, theta_h);
-    prim_ave.line_average(PrimQp_comp, qp_h);
-    qv_ave.line_average(0, qv_h);
-    qi_ave.line_average(0, qi_h);
-    qc_ave.line_average(0, qc_h);
-
-    // copy data to device
-    Gpu::DeviceVector<Real>   rho_d(ncell);
-    Gpu::DeviceVector<Real> theta_d(ncell);
-    Gpu::DeviceVector<Real>    qp_d(ncell);
-    Gpu::DeviceVector<Real>    qv_d(ncell);
-    Gpu::DeviceVector<Real>    qc_d(ncell);
-    Gpu::DeviceVector<Real>    qi_d(ncell);
-
-    Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qp_h.begin(), qp_h.end(), qp_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
-    Gpu::streamSynchronize();
-
-    Real*   rho_d_ptr =   rho_d.data();
-    Real* theta_d_ptr = theta_d.data();
-    Real*    qp_d_ptr =    qp_d.data();
-    Real*    qv_d_ptr =    qv_d.data();
-    Real*    qc_d_ptr =    qc_d.data();
-    Real*    qi_d_ptr =    qi_d.data();
-#endif
 
     // *************************************************************************
     // Combine external forcing terms
@@ -187,13 +134,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real> &       cell_rhs   = S_rhs[IntVar::cons].array(mfi);
-        const Array4<const Real> & source_fab   = source.const_array(mfi);
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
-#ifdef ERF_USE_MOISTURE
-        const Array4<const Real> & qv_data = qvapor.array(mfi);
-        const Array4<const Real> & qc_data = qcloud.array(mfi);
-        const Array4<const Real> & qi_data = qice.array(mfi);
-#endif
 
         // We must initialize these to zero each RK step
         S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.);
@@ -236,18 +177,28 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
 
         // Base state
-        const Array4<const Real>& r0_arr = r0->const_array(mfi);
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
         const Box& gbx = mfi.growntilebox({1,1,0});
         const Array4<Real> & pp_arr  = pprime.array(mfi);
+#ifdef ERF_USE_MOISTURE
+        const Array4<Real const> & qv_arr  =     qv.const_array(mfi);
+#endif
         {
         BL_PROFILE("slow_rhs_pre_pprime");
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
             //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
             //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
             AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-            pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp)) - p0_arr(i,j,k);
+#if defined(ERF_USE_MOISTURE)
+            Real qv_for_p = qv_arr(i,j,k);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+            Real qv_for_p = cell_data(i,j,k,RhoQv_comp) / cell_data(i,j,k,Rho_comp);
+#else
+            Real qv_for_p = 0.;
+#endif
+            pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
         });
         } // end profile
 
@@ -508,16 +459,32 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
             if (l_use_terrain) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
-                                       cell_data, cell_prim, source_fab, cell_rhs,
+                                       cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                        dxInv, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
-                                       cell_data, cell_prim, source_fab, cell_rhs,
+                                       cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+            }
+        }
+
+        // Add source terms for (rho theta)
+        {
+            auto const& src_arr = source.const_array(mfi);
+            if (l_use_terrain && l_moving_terrain) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp) / detJ(i,j,k);
+                });
+            } else {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp);
+                });
             }
         }
 
@@ -606,15 +573,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             gpx = gp_xi - (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
             gpx *= mf_u(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-            Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
-                            +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
-            rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
-#else
-            rho_u_rhs(i, j, k) -= gpx;
+            Real q = 0.0;
+#if defined(ERF_USE_MOISTURE)
+            q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
+                       +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+            q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
+                       +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-            // Add external drivers
-            rho_u_rhs(i, j, k) += ext_forcing[0];
+            rho_u_rhs(i, j, k) += -gpx / (1.0 + q) + ext_forcing[0];
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
             if (solverChoice.use_coriolis)
@@ -648,15 +615,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
               gpx *= mf_u(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
-                              +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
-              rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
-#else
-              rho_u_rhs(i, j, k) -= gpx;
+              Real q = 0.0;
+#if defined(ERF_USE_MOISTURE)
+              q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
+                         +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+              q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
+                         +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-              // Add external drivers
-              rho_u_rhs(i, j, k) += ext_forcing[0];
+              rho_u_rhs(i, j, k) += -gpx / (1.0 + q) + ext_forcing[0];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
@@ -710,15 +677,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
               gpy *= mf_v(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
-                              +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
-              rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
-#else
-              rho_v_rhs(i, j, k) -= gpy;
+              Real q = 0.0;
+#if defined(ERF_USE_MOISTURE)
+              q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
+                         +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+              q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                         +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-              // Add external drivers
-              rho_v_rhs(i, j, k) += ext_forcing[1];
+              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q) + ext_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (solverChoice.use_coriolis)
               {
@@ -749,16 +716,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
               gpy *= mf_v(i,j,0);
 
-#ifdef ERF_USE_MOISTURE
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
-                              +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
-              rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
-#else
-              rho_v_rhs(i, j, k) -= gpy;
+              Real q = 0.0;
+#if defined(ERF_USE_MOISTURE)
+              q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
+                         +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+              q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                         +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-
-              // Add external drivers
-              rho_v_rhs(i, j, k) += ext_forcing[1];
+              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q) + ext_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
@@ -801,18 +767,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 Real met_h_zeta = Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd);
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
-                                +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
-                rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
-#else
-                rho_w_rhs(i, j, k) -= gpz;
+                Real q = 0.0;
+#if defined(ERF_USE_MOISTURE)
+                q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
+                           +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                           +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-
-                rho_w_rhs(i, j, k) += buoyancy_fab(i,j,k);
-
-                // Add external drivers
-                rho_w_rhs(i, j, k) += ext_forcing[2];
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q) + ext_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (solverChoice.use_coriolis)
@@ -842,18 +805,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) );
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
-                                +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
-                rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
-#else
-                rho_w_rhs(i, j, k) -= gpz;
+                Real q = 0.0;
+#if defined(ERF_USE_MOISTURE)
+                q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
+                           +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                           +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-
-                rho_w_rhs(i, j, k) += buoyancy_fab(i,j,k);
-
-                // Add external drivers
-                rho_w_rhs(i, j, k) += ext_forcing[2];
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q) + ext_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (solverChoice.use_coriolis)

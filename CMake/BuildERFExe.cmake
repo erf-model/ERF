@@ -24,6 +24,16 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
   endif()
 
+  if(ERF_ENABLE_WARM_NO_PRECIP)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WARM_NO_PRECIP)
+  endif()
+
+  if(ERF_ENABLE_POISSON_SOLVE)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
+  endif()
+
   if(ERF_ENABLE_MULTIBLOCK)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/MultiBlockContainer.H
@@ -90,9 +100,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_wrfbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
-       ${SRC_DIR}/BoundaryConditions/PlaneAverage.H
-       ${SRC_DIR}/BoundaryConditions/VelPlaneAverage.H
-       ${SRC_DIR}/BoundaryConditions/DirectionSelector.H
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.H
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
@@ -119,6 +126,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_Math.H
        ${SRC_DIR}/Utils/Microphysics_Utils.H
        ${SRC_DIR}/Utils/Interpolation.H
+       ${SRC_DIR}/Utils/PlaneAverage.H
+       ${SRC_DIR}/Utils/VelPlaneAverage.H
+       ${SRC_DIR}/Utils/DirectionSelector.H
        ${SRC_DIR}/Diffusion/Diffusion.H
        ${SRC_DIR}/Diffusion/StrainRate.H
        ${SRC_DIR}/Diffusion/StressTerm.H
@@ -140,6 +150,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/TI_slow_rhs_fun.H
        ${SRC_DIR}/TimeIntegration/TI_fast_rhs_fun.H
        ${SRC_DIR}/TimeIntegration/ERF_make_buoyancy.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_make_condensation_source.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp

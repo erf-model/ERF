@@ -73,20 +73,20 @@
             MultiFab* p0_new = &p_hse_new;
 
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
-#ifdef ERF_USE_MOISTURE
-                          qvapor, qcloud, qice,
+#if defined(ERF_USE_MOISTURE)
+                          qvapor, qcloud, qice, qv_d, qc_d, qi_d,
 #endif
                           fine_geom, solverChoice, r0_new);
 
             erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
-                             xvel_new, yvel_new, zvel_new, z_t_rk[level],
-                             Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
-                             Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
-#ifdef ERF_USE_MOISTURE
-                             qvapor, qcloud, qice,
+                             xvel_new, yvel_new, zvel_new,
+#if defined(ERF_USE_MOISTURE)
+                             qvapor,
 #endif
+                             z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
+                             Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd_src[level], detJ_cc_src[level], r0_new, p0_new,
+                             z_phys_nd_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
@@ -165,20 +165,20 @@
         } else { // if moving_terrain
 
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
-#ifdef ERF_USE_MOISTURE
-                          qvapor, qcloud, qice,
+#if defined(ERF_USE_MOISTURE)
+                          qvapor, qcloud, qice, qv_d, qc_d, qi_d,
 #endif
                           fine_geom, solverChoice, r0);
 
             erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
-                             xvel_new, yvel_new, zvel_new, z_t_rk[level],
-                             Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
-                             Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
-#ifdef ERF_USE_MOISTURE
-                             qvapor, qcloud, qice,
+                             xvel_new, yvel_new, zvel_new,
+#if defined(ERF_USE_MOISTURE)
+                             qvapor,
 #endif
+                             z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
+                             Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd[level], detJ_cc[level], r0, p0,
+                             z_phys_nd[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_thetabar);

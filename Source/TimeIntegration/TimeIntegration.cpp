@@ -4,6 +4,7 @@
 #include <EddyViscosity.H>
 #include <TerrainMetrics.H>
 #include <TimeIntegration.H>
+#include <PlaneAverage.H>
 #include <Diffusion.H>
 #include <ERF.H>
 #include <EOS.H>
@@ -18,8 +19,8 @@ void ERF::erf_advance(int level,
                       MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
                       MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                       MultiFab& source, MultiFab& buoyancy,
-#ifdef ERF_USE_MOISTURE
-                      MultiFab& qvapor, MultiFab& qcloud, MultiFab& qice,
+#if defined(ERF_USE_MOISTURE)
+                      const MultiFab& qvapor, const MultiFab& qcloud, const MultiFab& qice,
 #endif
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt_advance, const amrex::Real old_time,
@@ -225,6 +226,35 @@ void ERF::erf_advance(int level,
               vel_and_mom_synced);
     cons_to_prim(state_old[IntVar::cons], state_old[IntVar::cons].nGrow());
     } // profile
+
+#ifdef ERF_USE_MOISTURE
+    PlaneAverage qv_ave(&qvapor, geom[level], solverChoice.ave_plane);
+    PlaneAverage qc_ave(&qcloud, geom[level], solverChoice.ave_plane);
+    PlaneAverage qi_ave(&qice, geom[level], solverChoice.ave_plane);
+
+    // Compute plane averages
+    qv_ave.compute_averages(ZDir(), qv_ave.field());
+    qc_ave.compute_averages(ZDir(), qc_ave.field());
+    qi_ave.compute_averages(ZDir(), qi_ave.field());
+
+    // get plane averaged data
+    int ncell = qv_ave.ncell_line();
+
+    Gpu::HostVector  <Real> qv_h(ncell), qi_h(ncell), qc_h(ncell);
+    Gpu::DeviceVector<Real> qv_d(ncell), qc_d(ncell), qi_d(ncell);
+
+    // Fill the vectors with the line averages computed above
+    qv_ave.line_average(0, qv_h);
+    qi_ave.line_average(0, qi_h);
+    qc_ave.line_average(0, qc_h);
+
+
+    // Copy data to device
+    Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
+    Gpu::streamSynchronize();
+#endif
 
 #include "TI_no_substep_fun.H"
 #include "TI_slow_rhs_fun.H"

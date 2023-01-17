@@ -100,7 +100,7 @@ void erf_derQKE(
   const int* bcrec,
   const int level);
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
 void erf_derQt(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
@@ -113,6 +113,27 @@ void erf_derQt(
   const int level);
 
 void erf_derQp(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real time,
+  const int* bcrec,
+  const int level);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+void erf_derQv(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real time,
+  const int* bcrec,
+  const int level);
+void erf_derQc(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int dcomp,

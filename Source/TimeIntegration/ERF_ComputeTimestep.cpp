@@ -66,6 +66,9 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
                const amrex::Real rho      = s(i, j, k, Rho_comp);
                const amrex::Real rhotheta = s(i, j, k, RhoTheta_comp);
 
+               // NOTE: even when moisture is present,
+               //       we only use the partial pressure of the dry air
+               //       to compute the soundspeed
                amrex::Real pressure = getPgivenRTh(rhotheta);
                amrex::Real c = std::sqrt(Gamma * pressure / rho);
 

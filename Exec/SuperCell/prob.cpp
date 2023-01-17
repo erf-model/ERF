@@ -323,10 +323,13 @@ init_custom_prob(
         Array4<Real      > const& /*p_hse*/,
         Array4<Real const> const& /*z_nd*/,
         Array4<Real const> const& /*z_cc*/,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         Array4<Real      > const& qv,
         Array4<Real      > const& qc,
         Array4<Real      > const& qi,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        Array4<Real      > const& qv,
+        Array4<Real      > const& qc,
 #endif
         GeometryData const& geomdata,
         Array4<Real const> const& /*mf_m*/,

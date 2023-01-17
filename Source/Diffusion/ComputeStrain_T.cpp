@@ -109,7 +109,7 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
 
             tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2]/met_h_zeta
                                  + ( (-(8./3.) * w(i-1,j,k) + 3. * w(i,j,k) - (1./3.) * w(i+1,j,k))*dxInv[0]
-                                   - (met_h_xi/met_h_zeta)*GradWz ) * mf_u(i,j,0) );
+                                     - (met_h_xi/met_h_zeta)*GradWz ) * mf_u(i,j,0) );
             tau31(i,j,k) = tau13(i,j,k);
         });
     }
@@ -273,6 +273,49 @@ ComputeStrain_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
             tau23(i,j,k) = 0.5 * ( -(-(8./3.) * v(i,j,k  ) + 3. * v(i,j,k-1) - (1./3.) * v(i,j,k-2))*dxInv[2]/met_h_zeta
                                  + (w(i, j, k) - w(i, j-1, k))*dxInv[1]*mf_v(i,j,0) );
             tau32(i,j,k) = tau23(i,j,k);
+        });
+    }
+
+    // HO derivatives w/ Dirichlet BC (\partival <var> / \partial z from terrain transform)
+    if (zl_u_dir && zl_v_dir) {
+        Box planecc = bxcc; planecc.setBig(2, planecc.smallEnd(2) );
+        bxcc.growLo(2,-1);
+        amrex::ParallelFor(planecc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real GradUz = 0.5 * dxInv[2] * ( (-(8./3.) * u(i  ,j,k-1) + 3. * u(i  ,j,k) - (1./3.) * u(i  ,j,k+1))
+                                           + (-(8./3.) * u(i-1,j,k-1) + 3. * u(i-1,j,k) - (1./3.) * u(i-1,j,k+1)) );
+            Real GradVz = 0.5 * dxInv[2] * ( (-(8./3.) * v(i,j  ,k-1) + 3. * v(i,j  ,k) - (1./3.) * v(i,j  ,k+1))
+                                           + (-(8./3.) * v(i,j-1,k-1) + 3. * v(i,j-1,k) - (1./3.) * v(i,j-1,k+1)) );
+
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+
+            tau11(i,j,k) = ( (u(i+1, j, k)/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]
+                           - (met_h_xi/met_h_zeta)*GradUz ) * mf_u(i,j,0)*mf_u(i,j,0);
+            tau22(i,j,k) = ( (v(i, j+1, k)/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]
+                           - (met_h_eta/met_h_zeta)*GradVz ) * mf_v(i,j,0)*mf_v(i,j,0);
+            tau33(i,j,k) = (w(i, j, k+1) - w(i, j, k))*dxInv[2]/met_h_zeta;
+        });
+
+        Box planexy = tbxxy; planexy.setBig(2, planexy.smallEnd(2) );
+        tbxxy.growLo(2,-1);
+        amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real GradUz = 0.5 * dxInv[2] * ( (-(8./3.) * u(i,j  ,k-1) + 3. * u(i,j  ,k) - (1./3.) * u(i,j  ,k+1))
+                                           + (-(8./3.) * u(i,j-1,k-1) + 3. * u(i,j-1,k) - (1./3.) * u(i,j-1,k+1)) );
+            Real GradVz = 0.5 * dxInv[2] * ( (-(8./3.) * v(i  ,j,k-1) + 3. * v(i  ,j,k) - (1./3.) * v(i  ,j,k+1))
+                                           + (-(8./3.) * v(i-1,j,k-1) + 3. * v(i-1,j,k) - (1./3.) * v(i-1,j,k+1)) );
+
+            Real met_h_xi,met_h_eta,met_h_zeta;
+            met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
+            met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
+
+            tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i  , j-1, k)/mf_u(i,j-1,0))*dxInv[1]
+                                 + (v(i, j, k)/mf_v(i,j,0) - v(i-1, j  , k)/mf_v(i-1,j,0))*dxInv[0]
+                                 - (met_h_eta/met_h_zeta)*GradUz
+                                 - (met_h_xi /met_h_zeta)*GradVz ) * mf_u(i,j,0)*mf_u(i,j,0);
+            tau21(i,j,k) = tau12(i,j,k);
         });
     }
 

@@ -75,7 +75,8 @@ public:
                           const amrex::Array4<amrex::Real const>& vely_arr,
                           const amrex::Array4<amrex::Real const>& z_nd,
                           const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
-                          amrex::Real time, int bccomp, int terrain_type);
+                          amrex::Real time, int bccomp_u, int bccomp_v, int bccomp_w,
+                          int terrain_type);
 
     void impose_cons_bcs (const amrex::Array4<amrex::Real>& mf,
                           const amrex::Box& bx, const amrex::Box& domain,

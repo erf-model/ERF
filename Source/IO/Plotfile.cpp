@@ -502,13 +502,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real>& mf_m   = mapfac_m[lev]->array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
+                   derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
                 });
             }
             mf_comp ++;
         }
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         calculate_derived("qt",          derived::erf_derQt);
         calculate_derived("qp",          derived::erf_derQp);
 
@@ -560,6 +560,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],qgraup_fab,0,mf_comp,1,0);
             mf_comp += 1;
         }
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        calculate_derived("qv",          derived::erf_derQv);
+        calculate_derived("qc",          derived::erf_derQc);
 #endif
 
 #ifdef ERF_COMPUTE_ERROR

@@ -153,12 +153,12 @@ ERF::ERF ()
         vars_old[lev].resize(Vars::NumTypes);
     }
 
-#ifdef ERF_USE_MOISTURE
-    qi.resize(nlevs_max);
-    qc.resize(nlevs_max);
+#if defined(ERF_USE_MOISTURE)
     qv.resize(nlevs_max);
-    qrain. resize(nlevs_max);
-    qsnow. resize(nlevs_max);
+    qc.resize(nlevs_max);
+    qi.resize(nlevs_max);
+    qrain.resize(nlevs_max);
+    qsnow.resize(nlevs_max);
     qgraup.resize(nlevs_max);
 #endif
 
@@ -471,6 +471,18 @@ ERF::InitData ()
                      qrain[lev],
                      qsnow[lev],
                      qgraup[lev]);
+
+#if 0
+        for (MFIter mfi(qv[lev]); mfi.isValid(); ++mfi) {
+            const Box& box = mfi.growntilebox(IntVect(1,1,0));
+            // const Box& box = mfi.tilebox();
+            auto qv_arr = qv[lev].array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+               amrex::Print() << "QV " << IntVect(i,j,k) << " " << std::endl;
+               amrex::Print() << "QV " << qv_arr(i,j,k) << " " << std::endl;
+            });
+         }
+#endif
     }
 #endif
 
@@ -543,24 +555,39 @@ ERF::InitData ()
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
 
         FillPatch(lev, t_new[lev],
                   {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
-
-        // Copy from new into old just in case
-        int ngs   = lev_new[Vars::cons].nGrow();
-        int ngvel = lev_new[Vars::xvel].nGrow();
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,ngs);
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
 
         // For moving terrain only
         if (solverChoice.terrain_type > 0) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
+    }
+
+#ifdef ERF_USE_POISSON_SOLVE
+    if (true) {
+        // Note -- this projection is only defined for no terrain
+        AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
+        if (solverChoice.project_initial_velocity) {
+            project_initial_velocities();
+        }
+    }
+#endif
+    // Copy from new into old just in case
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        auto& lev_new = vars_new[lev];
+        auto& lev_old = vars_old[lev];
+
+        int ngs   = lev_new[Vars::cons].nGrow();
+        int ngvel = lev_new[Vars::xvel].nGrow();
+
+        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,ngs);
+        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
+        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
     }
 }
 
@@ -768,12 +795,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-#ifdef ERF_USE_MOISTURE
-    qc[lev].    define(ba, dm, 1, ngrow_state);
-    qv[lev].    define(ba, dm, 1, ngrow_state);
-    qi[lev].    define(ba, dm, 1, ngrow_state);
-    qrain[lev]. define(ba, dm, 1, ngrow_state);
-    qsnow[lev]. define(ba, dm, 1, ngrow_state);
+#if defined(ERF_USE_MOISTURE)
+    qv[lev].define(ba, dm, 1, ngrow_state);
+    qc[lev].define(ba, dm, 1, ngrow_state);
+    qi[lev].define(ba, dm, 1, ngrow_state);
+    qrain[lev].define(ba, dm, 1, ngrow_state);
+    qsnow[lev].define(ba, dm, 1, ngrow_state);
     qgraup[lev].define(ba, dm, 1, ngrow_state);
 #endif
 
@@ -922,9 +949,9 @@ ERF::init_only(int lev, Real time)
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
 
-#ifdef ERF_USE_MOISTURE
-    qc[lev].setVal(0.0);
+#if defined(ERF_USE_MOISTURE)
     qv[lev].setVal(0.0);
+    qc[lev].setVal(0.0);
     qi[lev].setVal(0.0);
     qrain[lev].setVal(0.0);
     qsnow[lev].setVal(0.0);
@@ -1164,9 +1191,10 @@ ERF::MakeHorizontalAverages ()
         const Box& box = mfi.validbox();
         const IntVect& se = box.smallEnd();
         const IntVect& be = box.bigEnd();
-        auto  arr_cons = mf_cons[mfi].array();
+        auto  cons_arr = mf_cons[mfi].array();
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+        auto    qv_arr = qv[0][mfi].array();
         FArrayBox fab_reduce(box, 5);
 #else
         FArrayBox fab_reduce(box, 3);
@@ -1175,13 +1203,17 @@ ERF::MakeHorizontalAverages ()
         auto arr_reduce = fab_reduce.array();
 
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            Real dens = arr_cons(i, j, k, Cons::Rho);
+            Real dens = cons_arr(i, j, k, Cons::Rho);
             arr_reduce(i, j, k, 0) = dens;
-            arr_reduce(i, j, k, 1) = arr_cons(i, j, k, Cons::RhoTheta) / dens;
-            arr_reduce(i, j, k, 2) = getPgivenRTh(arr_cons(i, j, k, Cons::RhoTheta));
-#ifdef ERF_USE_MOISTURE
-            arr_reduce(i, j, k, 3) = arr_cons(i, j, k, Cons::RhoQt) / dens;
-            arr_reduce(i, j, k, 4) = arr_cons(i, j, k, Cons::RhoQp) / dens;
+            arr_reduce(i, j, k, 1) = cons_arr(i, j, k, Cons::RhoTheta) / dens;
+#if defined(ERF_USE_MOISTURE)
+            arr_reduce(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta), qv_arr(i,j,k));
+#else
+            arr_reduce(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta));
+#endif
+#if defined(ERF_USE_MOISTURE)
+            arr_reduce(i, j, k, 3) = cons_arr(i, j, k, Cons::RhoQt) / dens;
+            arr_reduce(i, j, k, 4) = cons_arr(i, j, k, Cons::RhoQp) / dens;
 #endif
         });
 
@@ -1190,7 +1222,7 @@ ERF::MakeHorizontalAverages ()
             h_havg_density     [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,0);
             h_havg_temperature [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,1);
             h_havg_pressure    [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,2);
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
             h_havg_qv          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,3);
             h_havg_qc          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,4);
 #endif
@@ -1201,7 +1233,7 @@ ERF::MakeHorizontalAverages ()
     ParallelDescriptor::ReduceRealSum(h_havg_density.dataPtr(), h_havg_density.size());
     ParallelDescriptor::ReduceRealSum(h_havg_temperature.dataPtr(), h_havg_temperature.size());
     ParallelDescriptor::ReduceRealSum(h_havg_pressure.dataPtr(), h_havg_pressure.size());
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     ParallelDescriptor::ReduceRealSum(h_havg_qv.dataPtr(), h_havg_qv.size());
     ParallelDescriptor::ReduceRealSum(h_havg_qc.dataPtr(), h_havg_qc.size());
 #endif
@@ -1211,9 +1243,9 @@ ERF::MakeHorizontalAverages ()
         h_havg_density[k]     /= area_z;
         h_havg_temperature[k] /= area_z;
         h_havg_pressure[k]    /= area_z;
-#ifdef ERF_USE_MOISTURE
-        h_havg_qv[k]          /= area_z;
+#if defined(ERF_USE_MOISTURE)
         h_havg_qc[k]          /= area_z;
+        h_havg_qv[k]          /= area_z;
 #endif
     }
 
@@ -1221,7 +1253,7 @@ ERF::MakeHorizontalAverages ()
     d_havg_density.resize(size_z, 0.0_rt);
     d_havg_temperature.resize(size_z, 0.0_rt);
     d_havg_pressure.resize(size_z, 0.0_rt);
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     d_havg_qv.resize(size_z, 0.0_rt);
     d_havg_qc.resize(size_z, 0.0_rt);
 #endif
@@ -1230,7 +1262,7 @@ ERF::MakeHorizontalAverages ()
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_density.begin(), h_havg_density.end(), d_havg_density.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_temperature.begin(), h_havg_temperature.end(), d_havg_temperature.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_pressure.begin(), h_havg_pressure.end(), d_havg_pressure.begin());
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
 #endif
@@ -1355,10 +1387,10 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
         vars_old[lev].resize(Vars::NumTypes);
     }
 
-#ifdef ERF_USE_MOISTURE
-    qi.resize(nlevs_max);
-    qc.resize(nlevs_max);
+#if defined(ERF_USE_MOISTURE)
     qv.resize(nlevs_max);
+    qc.resize(nlevs_max);
+    qi.resize(nlevs_max);
     qrain.resize(nlevs_max);
     qsnow.resize(nlevs_max);
     qgraup.resize(nlevs_max);

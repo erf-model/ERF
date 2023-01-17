@@ -93,14 +93,14 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
               int ii = amrex::max(amrex::min(i,imax),imin);
               int jj = amrex::max(amrex::min(j,jmax),jmin);
 
-              // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
-              if (k == k0) {
-                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
-                  z_arr(i,j,k0-1) = z_arr(ii,jj,k0) - dx[2];
-              }
-
               // Fill levels using BTF model from p2163 of Klemp2011
               z_arr(i,j,k) = z + (1. - (z/ztop)) * z_arr(ii,jj,k0);
+
+              // Fill lateral boundaries and below the bottom surface
+              if (k == k0)
+                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
+              if (k == 1)
+                  z_arr(i,j,k0-1) = 2.0*z_arr(ii,jj,k0) - z_arr(i,j,k);
           });
         }
 
@@ -147,9 +147,8 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
                   int ii = amrex::max(amrex::min(i,imax),imin);
                   int jj = amrex::max(amrex::min(j,jmax),jmin);
 
-                  // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
-                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
-                  z_arr(i,j,k0-1) = z_arr(ii,jj,k0) - dx[2];
+                  // Fill the lateral boundaries
+                  z_arr(i,j,k0) = z_arr(ii,jj,k0);
 
                   // Populate h with terrain
                   h(i,j,k0) = z_arr(i,j,k0);
@@ -238,14 +237,12 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
             //Populate z_phys_nd by solving z_arr(i,j,k) = z + A*h_s(i,j,k)
             for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
-
                 // Grown box with no z range
                 Box xybx = mfi.growntilebox(ngrow);
                 xybx.setRange(2,0);
 
                 Array4<Real> const& h_s   = h_mf_old.array(mfi);
                 Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-
 
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
@@ -255,6 +252,9 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
                     // STF model from p2164 of Klemp2011
                     z_arr(i,j,k) = z + A*h_s(i,j,k);
 
+                    // Fill below the bottom surface
+                    if (k == 1)
+                        z_arr(i,j,k0-1) = 2.0*z_arr(i,j,k0) - z_arr(i,j,k);
                 });
             }//mfi
         } //k
@@ -286,15 +286,15 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
                 int ii = amrex::max(amrex::min(i,imax),imin);
                 int jj = amrex::max(amrex::min(j,jmax),jmin);
 
-                // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "real")
-                if (k == k0) {
-                    z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
-                    z_arr(i,j,k0-1) = z_arr(ii,jj,k0) - dx[2];
-                }
-
                 // Fill levels using model from Sullivan et. al. 2014
                 int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
                 z_arr(i,j,k) = z + (std::pow((1. - (z/ztop)),omega) * z_arr(ii,jj,k0));
+
+                // Fill lateral boundaries and below the bottom surface
+                if (k == k0)
+                    z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
+                if (k == 1)
+                    z_arr(i,j,k0-1) = 2.0*z_arr(ii,jj,k0) - z_arr(i,j,k);
             });
         }
 
@@ -335,7 +335,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 z_arr(i,j,k  ) = 0.0;
-                z_arr(i,j,k-1) = 0.0 - dx[2];
+                z_arr(i,j,k-1) = -z_arr(i,j,k+1);
             });
         }
 

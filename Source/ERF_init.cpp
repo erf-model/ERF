@@ -380,7 +380,9 @@ ERF::init_bx_scalars_from_input_sounding(
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
+#elif defined(ERF_USE_WARM_NO_PRECIP)
     const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
 #endif
     const int   inp_sound_size  = inputSoundingData.size();
@@ -406,10 +408,11 @@ ERF::init_bx_scalars_from_input_sounding(
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state(i, j, k, RhoScalar_comp) = 0;
 
-#ifdef ERF_USE_MOISTURE
-        // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there
-        // is no cloud water or cloud ice
+        // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there is no cloud water or cloud ice
+#if defined(ERF_USE_MOISTURE)
         state(i, j, k, RhoQt_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        state(i, j, k, RhoQv_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
 #endif
     });
 }
@@ -427,7 +430,9 @@ ERF::init_bx_scalars_from_input_sounding_hse(
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
+    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
+#elif defined(ERF_USE_WARM_NO_PRECIP)
     const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
 #endif
     const int   inp_sound_size  = inputSoundingData.size();
@@ -462,7 +467,7 @@ ERF::init_bx_scalars_from_input_sounding_hse(
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
         r_hse_arr (i, j, k) = rho_k;
-        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k);
+        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k); // NOTE WE ONLY USE THE DRY AIR PRESSURE
         pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, rdOcp);
 
         // Boundary treatment
@@ -483,10 +488,12 @@ ERF::init_bx_scalars_from_input_sounding_hse(
             pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), rdOcp);
         }
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there
         // is no cloud water or cloud ice
         state(i, j, k, RhoQt_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        state(i, j, k, RhoQv_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
 #endif
     });
 }
@@ -547,7 +554,7 @@ void
 ERF::init_custom(int lev)
 {
     auto& lev_new = vars_new[lev];
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     auto& qv_new  = qv[lev];
     auto& qc_new  = qc[lev];
     auto& qi_new  = qi[lev];
@@ -567,13 +574,18 @@ ERF::init_custom(int lev)
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     MultiFab qv_pert(qv[lev].boxArray(), qv[lev].DistributionMap(), 1, qv[lev].nGrow());
     MultiFab qc_pert(qc[lev].boxArray(), qc[lev].DistributionMap(), 1, qc[lev].nGrow());
     MultiFab qi_pert(qi[lev].boxArray(), qi[lev].DistributionMap(), 1, qi[lev].nGrow());
     qv_pert.setVal(0.);
     qc_pert.setVal(0.);
     qi_pert.setVal(0.);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    MultiFab qv_pert(cons_pert.boxArray(), cons_pert.DistributionMap(), 1, cons_pert.nGrow());
+    MultiFab qc_pert(cons_pert.boxArray(), cons_pert.DistributionMap(), 1, cons_pert.nGrow());
+    qv_pert.setVal(0.);
+    qc_pert.setVal(0.);
 #endif
 
 #ifdef _OPENMP
@@ -598,15 +610,20 @@ ERF::init_custom(int lev)
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         const auto &qv_pert_arr = qv_pert.array(mfi);
         const auto &qc_pert_arr = qc_pert.array(mfi);
         const auto &qi_pert_arr = qi_pert.array(mfi);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        const auto &qv_pert_arr = qv_pert.array(mfi);
+        const auto &qc_pert_arr = qc_pert.array(mfi);
 #endif
         init_custom_prob(bx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                          r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                          qv_pert_arr, qc_pert_arr, qi_pert_arr,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                         qv_pert_arr, qc_pert_arr,
 #endif
                          geom[lev].data(), mf_m, mf_u, mf_v,
                          solverChoice);
@@ -617,12 +634,15 @@ ERF::init_custom(int lev)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, cons_pert.nGrow());
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQt_comp,    RhoQt_comp,    1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQp_comp,    RhoQp_comp,    1, cons_pert.nGrow());
     MultiFab::Add(             qv_new,   qv_pert, 0,             0,             1,   qv_pert.nGrow());
     MultiFab::Add(             qc_new,   qc_pert, 0,             0,             1,   qc_pert.nGrow());
     MultiFab::Add(             qi_new,   qi_pert, 0,             0,             1,   qi_pert.nGrow());
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQv_comp,    RhoQv_comp,    1, cons_pert.nGrow());
+    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQc_comp,    RhoQc_comp,    1, cons_pert.nGrow());
 #endif
     MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());

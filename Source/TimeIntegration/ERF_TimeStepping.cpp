@@ -158,6 +158,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Place-holder for source array -- for now just set to 0
     MultiFab source(ba,dm,nvars,1);
     source.setVal(0.0);
+#if defined(ERF_USE_WARM_NO_PRECIP)
+    Real tau_cond = solverChoice.tau_cond;
+    Real      c_p = solverChoice.c_p;
+    condensation_source(source, S_new, tau_cond, c_p);
+#endif
 
     // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
@@ -190,12 +195,12 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                 rU_new[lev], rV_new[lev], rW_new[lev],
                 rU_crse, rV_crse, rW_crse,
                 source, buoyancy,
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                 qv[lev], qc[lev], qi[lev],
 #endif
                 Geom(lev), dt_lev, time, &ifr);
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     micro.Init(S_new,
                qc[lev],
                qv[lev],

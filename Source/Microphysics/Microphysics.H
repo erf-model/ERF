@@ -43,6 +43,7 @@ class Microphysics {
       m_fac_fus = lfus / sc.c_p;
       m_fac_sub = lsub / sc.c_p;
       m_gOcp = CONST_GRAV / sc.c_p;
+      m_axis = sc.ave_plane;
   }
 
   // destructor
@@ -66,7 +67,7 @@ class Microphysics {
   // init
   void Init(const amrex::MultiFab& cons_in,
             const amrex::MultiFab& qc_in,
-            const amrex::MultiFab& qv_in,
+                  amrex::MultiFab& qv_in,
             const amrex::MultiFab& qi_in,
             const amrex::Geometry& geom,
             const amrex::Real& dt_advance);
@@ -94,6 +95,9 @@ class Microphysics {
 
   // number of vertical levels
   int nlev, zlo, zhi;
+
+  // plane average axis
+  int m_axis;
 
   // model options
   bool docloud, doprecip;

@@ -104,8 +104,9 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
 
             if (!cons_only) {
                 impose_zvel_bcs(velz_arr,zbx,domain,
-                                velx_arr,vely_arr,z_nd_arr,dxInv,
-                                time, BCVars::zvel_bc, m_terrain_type);
+                                velx_arr,vely_arr,z_nd_arr,dxInv, time,
+                                BCVars::xvel_bc, BCVars::yvel_bc, BCVars::zvel_bc,
+                                m_terrain_type);
             }
 
         } // MFIter

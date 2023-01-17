@@ -94,6 +94,15 @@ public:
     // Initialize multilevel data
     void InitData ();
 
+#ifdef ERF_USE_POISSON_SOLVE
+    // Project the initial velocities to be divergence-free
+    void project_initial_velocities ();
+
+    // Define the projection bc's based on the domain bc types
+    amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
+      get_projection_bc (amrex::Orientation::Side side) const noexcept;
+#endif
+
     // Init (NOT restart or regrid)
     void init_only (int lev, amrex::Real time);
 
@@ -149,8 +158,9 @@ public:
                       amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
                       amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
                       amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
-#ifdef ERF_USE_MOISTURE
-                      amrex::MultiFab& qvapor, amrex::MultiFab& qcloud, amrex::MultiFab& qice,
+#if defined(ERF_USE_MOISTURE)
+                      const amrex::MultiFab& qvapor, const amrex::MultiFab& qcloud, const amrex::MultiFab& qice,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
                       const amrex::Geometry fine_geom,
                       const amrex::Real dt, const amrex::Real time,
@@ -350,6 +360,11 @@ private:
     // includes a recursive call for finer levels
     void timeStep (int lev, amrex::Real time, int iteration);
 
+#if defined(ERF_USE_WARM_NO_PRECIP)
+    void condensation_source (amrex::MultiFab& source, amrex::MultiFab& S_new,
+                              amrex::Real tau_cond, amrex::Real c_p);
+#endif
+
     // advance a single level for a single time step
     void Advance (int lev, amrex::Real time, amrex::Real dt_lev, int iteration, int ncycle);
 
@@ -493,7 +508,7 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
     Microphysics micro;
     amrex::Vector<amrex::MultiFab> qv;
     amrex::Vector<amrex::MultiFab> qc;
@@ -501,6 +516,7 @@ private:
     amrex::Vector<amrex::MultiFab> qrain;
     amrex::Vector<amrex::MultiFab> qsnow;
     amrex::Vector<amrex::MultiFab> qgraup;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
@@ -592,8 +608,10 @@ private:
     amrex::Vector<std::string> plot_var_names_2;
     const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
     const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                                                      ,"rhoQt", "rhoQp"
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                                                     ,"rhoQv", "rhoQc"
 #endif
                                                      };
 
@@ -601,8 +619,10 @@ private:
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar",
                                                     "pres_hse", "dens_hse", "pert_pres", "pert_dens",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y", "z_phys", "detJ" , "mapfac"
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
                                                      ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                                                     ,"qv", "qc"
 #endif
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"

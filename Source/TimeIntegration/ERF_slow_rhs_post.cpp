@@ -109,7 +109,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
         const Array4<      Real> & old_cons   = S_old[IntVar::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
-        const Array4<const Real> & source_fab = source.const_array(mfi);
 
         const Array4<      Real> & new_cons   = S_new[IntVar::cons].array(mfi);
         const Array4<      Real> & new_xmom  = S_new[IntVar::xmom].array(mfi);
@@ -196,13 +195,13 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
             if (l_use_terrain) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
-                                       cur_cons, cur_prim, source_fab, cell_rhs,
+                                       cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                        dxInv, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
-                                       cur_cons, cur_prim, source_fab, cell_rhs,
+                                       cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
@@ -215,16 +214,20 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
         if (l_moving_terrain)
         {
+            auto const& src_arr = source.const_array(mfi);
             ParallelFor(bx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
+                // NOTE: we don't include additional source terms when terrain is moving
                 Real temp_val = detJ(i,j,k) * old_cons(i,j,k,n) + dt * detJ(i,j,k) * cell_rhs(i,j,k,n);
                 cur_cons(i,j,k,n) = temp_val / detJ_new(i,j,k);
             });
         } else {
+            auto const& src_arr = source.const_array(mfi);
             ParallelFor(bx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
+                cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                 cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
             });
         }

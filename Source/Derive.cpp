@@ -54,7 +54,16 @@ erf_derpres(
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
     AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+#if defined(ERF_USE_MOISTURE)
+    // HACK HACK HACK -- FOR NOW THIS IS ONLY THE PARTIAL PRESSURE OF THE DRY AIR
+    amrex::Real qv = 0.;
+    pfab(i,j,k) = getPgivenRTh(rhotheta,qv);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    amrex::Real qv = dat(i,j,k,RhoQv_comp) / dat(i,j,k,Rho_comp);
+    pfab(i,j,k) = getPgivenRTh(rhotheta,qv);
+#else
     pfab(i,j,k) = getPgivenRTh(rhotheta);
+#endif
   });
 }
 
@@ -73,11 +82,14 @@ erf_dersoundspeed(
   auto const dat = datfab.array();
   auto cfab      = derfab.array();
 
+  // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
+  amrex::Real qv = 0.;
+
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
     const amrex::Real rho      = dat(i, j, k, Rho_comp);
     AMREX_ALWAYS_ASSERT(rhotheta > 0.);
-    cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta) / rho);
+    cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
   });
 }
 
@@ -164,7 +176,7 @@ erf_derQKE(
   erf_derrhodivide(bx, derfab, datfab, RhoQKE_comp);
 }
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
 void
 erf_derQt(
   const amrex::Box& bx,
@@ -193,6 +205,35 @@ erf_derQp(
   const int /*level*/)
 {
   erf_derrhodivide(bx, derfab, datfab, RhoQp_comp);
+}
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+void
+erf_derQv(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+  erf_derrhodivide(bx, derfab, datfab, RhoQv_comp);
+}
+void
+erf_derQc(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+  erf_derrhodivide(bx, derfab, datfab, RhoQc_comp);
 }
 #endif
 
