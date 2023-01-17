@@ -44,7 +44,8 @@ For details on the equations that ERF solves, see the :ref:`theory section <theo
    :maxdepth: 1
    :hidden:
 
-   theory/NavierStokesEquations.rst
+   theory/DryEquations.rst
+   theory/WetEquations.rst
    theory/Buoyancy.rst
    theory/Microphysics.rst
    theory/DNSvsLES.rst

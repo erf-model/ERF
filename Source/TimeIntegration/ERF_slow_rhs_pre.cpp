@@ -573,19 +573,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             gpx = gp_xi - (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
             gpx *= mf_u(i,j,0);
 
+            Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-            Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
-                            +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
-            rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
+            q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
+                       +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-            Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
-                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
-            rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
-#else
-            rho_u_rhs(i, j, k) -= gpx;
+            q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
+                       +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-            // Add external drivers
-            rho_u_rhs(i, j, k) += ext_forcing[0];
+            rho_u_rhs(i, j, k) += -gpx / (1.0 + q) + ext_forcing[0];
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
             if (solverChoice.use_coriolis)
@@ -619,19 +615,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
               gpx *= mf_u(i,j,0);
 
+              Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
-                              +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
-              rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
+              q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
+                         +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
-                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
-              rho_u_rhs(i, j, k) -= gpx / (1.0 + q);
-#else
-              rho_u_rhs(i, j, k) -= gpx;
+              q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
+                         +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-              // Add external drivers
-              rho_u_rhs(i, j, k) += ext_forcing[0];
+              rho_u_rhs(i, j, k) += -gpx / (1.0 + q) + ext_forcing[0];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
@@ -685,19 +677,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
               gpy *= mf_v(i,j,0);
 
+              Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
-                              +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
-              rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
+              q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
+                         +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
-                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
-              rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
-#else
-              rho_v_rhs(i, j, k) -= gpy;
+              q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                         +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-              // Add external drivers
-              rho_v_rhs(i, j, k) += ext_forcing[1];
+              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q) + ext_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (solverChoice.use_coriolis)
               {
@@ -728,20 +716,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
               gpy *= mf_v(i,j,0);
 
+              Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
-                              +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
-              rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
+              q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
+                         +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-              Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
-                              +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
-              rho_v_rhs(i, j, k) -= gpy / (1.0_rt + q);
-#else
-              rho_v_rhs(i, j, k) -= gpy;
+              q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
+                         +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-
-              // Add external drivers
-              rho_v_rhs(i, j, k) += ext_forcing[1];
+              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q) + ext_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
@@ -784,22 +767,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 Real met_h_zeta = Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd);
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
+                Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
-                                +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
-                rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
+                q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
+                           +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
-                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
-                rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
-#else
-                rho_w_rhs(i, j, k) -= gpz;
+                q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                           +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-
-                rho_w_rhs(i, j, k) += buoyancy_fab(i,j,k);
-
-                // Add external drivers
-                rho_w_rhs(i, j, k) += ext_forcing[2];
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q) + ext_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (solverChoice.use_coriolis)
@@ -829,22 +805,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) );
 
+                Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
-                                +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
-                rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
+                q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
+                           +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-                Real q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
-                                +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
-                rho_w_rhs(i, j, k) -= gpz / (1.0_rt + q);
-#else
-                rho_w_rhs(i, j, k) -= gpz;
+                q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
+                           +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-
-                rho_w_rhs(i, j, k) += buoyancy_fab(i,j,k);
-
-                // Add external drivers
-                rho_w_rhs(i, j, k) += ext_forcing[2];
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q) + ext_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (solverChoice.use_coriolis)
