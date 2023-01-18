@@ -88,19 +88,14 @@ ERF::setRayleighRefFromSounding()
 void
 ERF::initHSE()
 {
+    AMREX_ALWAYS_ASSERT(!init_sounding_ideal);
+
     for (int lev = 0; lev <= finest_level; lev++)
     {
         MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
         MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
         MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
-        if ((init_type == "input_sounding") && init_sounding_ideal)
-        {
-            // density, *_hse fields have already been initialized
-            if (lev==0)
-                amrex::Print() << "Note: prob.rho_0 should be 0 or behavior may be undefined" << std::endl;
-        } else {
-            erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
-        }
+        erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
         erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev], z_phys_nd[lev]);
     }
 }
