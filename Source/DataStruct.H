@@ -208,6 +208,10 @@ struct SolverChoice {
 
         // Include Rayleigh damping?
         pp.query("use_rayleigh_damping", use_rayleigh_damping);
+        pp.query("rayleigh_damp_U", rayleigh_damp_U);
+        pp.query("rayleigh_damp_V", rayleigh_damp_V);
+        pp.query("rayleigh_damp_W", rayleigh_damp_W);
+        pp.query("rayleigh_damp_T", rayleigh_damp_T);
 
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
@@ -364,6 +368,11 @@ struct SolverChoice {
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
     bool        use_rayleigh_damping   = false;
+
+    bool        rayleigh_damp_U        = false;
+    bool        rayleigh_damp_V        = false;
+    bool        rayleigh_damp_W        = true;
+    bool        rayleigh_damp_T        = false;
 
     // Constants
     amrex::Real gravity;

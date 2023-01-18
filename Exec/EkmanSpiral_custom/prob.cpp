@@ -31,6 +31,7 @@ void
 erf_init_rayleigh(Vector<Real>& /*tau*/,
                   Vector<Real>& /*ubar*/,
                   Vector<Real>& /*vbar*/,
+                  Vector<Real>& /*wbar*/,
                   Vector<Real>& /*thetabar*/,
                   Geometry      const& /*geom*/)
 {

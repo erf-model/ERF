@@ -286,6 +286,7 @@ void
 erf_init_rayleigh(amrex::Vector<Real>& tau,
                   amrex::Vector<Real>& ubar,
                   amrex::Vector<Real>& vbar,
+                  amrex::Vector<Real>& wbar,
                   amrex::Vector<Real>& thetabar,
                   amrex::Geometry      const& geom)
 {
@@ -297,6 +298,7 @@ erf_init_rayleigh(amrex::Vector<Real>& tau,
        tau[k]  = 0.0;
        ubar[k] = 0.0;
        vbar[k] = 0.0;
+       wbar[k] = 0.0;
        thetabar[k] = 300.0;
    }
 
@@ -306,6 +308,7 @@ erf_init_rayleigh(amrex::Vector<Real>& tau,
        tau[k]  = 10.; // Remember that this gets multiplied by dt
        ubar[k] = 0.0;
        vbar[k] = 0.0;
+       wbar[k] = 0.0;
        thetabar[k] = 300.0;
    }
 }

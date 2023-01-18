@@ -42,7 +42,8 @@ void ERF::erf_advance(int level,
     Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[level].data() : nullptr;
     Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[level].data() : nullptr;
     Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[level].data() : nullptr;
-    amrex::Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
+    Real* dptr_rayleigh_wbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_wbar[level].data() : nullptr;
+    Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
 
     bool l_use_terrain = solverChoice.use_terrain;
     bool l_use_diff    = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||

@@ -14,6 +14,7 @@ void
 erf_init_rayleigh(amrex::Vector<Real>& tau,
                   amrex::Vector<Real>& ubar,
                   amrex::Vector<Real>& vbar,
+                  amrex::Vector<Real>& wbar,
                   amrex::Vector<Real>& thetabar,
                   amrex::Geometry      const& geom)
 {
@@ -25,6 +26,7 @@ erf_init_rayleigh(amrex::Vector<Real>& tau,
       tau[k]  = 1.0;
       ubar[k] = 2.0;
       vbar[k] = 1.0;
+      wbar[k] = 0.0;
       thetabar[k] = parms.Theta_0;
   }
 }
