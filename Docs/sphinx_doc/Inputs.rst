@@ -375,37 +375,36 @@ Notes
 -  | If **erf.no_substepping = 1** there is only one time step to be calculated,
      and **fixed_fast_dt** and **fixed_mri_dt_ratio** are not used.
 
-   * | If **erf.fixed_dt** is also set, the timestep will be the value specified by **fixed_dt**.
+   * | If **erf.fixed_dt** is also specified, the timestep will be set to **fixed_dt**.
 
-   * | If **erf.fixed_dt** is not set, the timestep will be computed using the CFL condition for incompressible flow.
+   * | If **erf.fixed_dt** is not specified, the timestep will be computed using the CFL condition for incompressible flow.
        If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
 -  | If **erf.no_substepping = 0** we must determine both the slow and fast timesteps.
-
-   * | If **erf.fixed_dt** is set, the slow timestep will be the value specified by **fixed_dt**.
+   * | If **erf.fixed_dt** is specified, the slow timestep will be set to **fixed_dt**.
 
    * | If **erf.fixed_dt** is not set, the slow timestep will be computed using the CFL
-       condition for incompressible flow.  If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+       condition for incompressible flow.  If **erf.cfl** is specified, that CFL value will be used.
+       If not, the default value will be used.
 
-   * | There are several consistency checks before the fast timestep is computed.  Specifically, if any 
+   * | There are several consistency checks before the fast timestep is computed.  Specifically, if any
        of the following are true the code will abort while reading the inputs.
 
-     * | If **fixed_mri_dt_ratio** is specified but is not an even positive integer
-     * | If **fixed_dt** and **fast_fixed_dt** are specified and the ratio of **fixed_dt** to **fast_fixed_dt**
-         is not an even positive integer 
-     * | If **fixed_dt** and **fast_fixed_dt** and **fixed_mri_dt_ratio** are all specified but are inconsitent 
+     * | If **erf.fixed_mri_dt_ratio** is specified but is not an even positive integer
+     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** are specified and the ratio of **fixed_dt** to **fast_fixed_dt**
+         is not an even positive integer
+     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsitent
 
-   * | Once the slow timestep is set and the inputs are allowed per the above criteria, 
+   * | Once the slow timestep is set and the inputs are allowed per the above criteria,
        the fast timestep is computed in one of several ways:
 
-     * | If **fixed_mri_dt_ratio** is specified (as a positive even integer) and **fixed_fast_dt** is not specified,
+     * | If **erf.fixed_fast_dt** is specified, the fast timestep will be set to **fixed_fast_dt**.
+
+     * | If **erf.fixed_mri_dt_ratio** is specified and **erf.fixed_fast_dt** is not specified,
          the fast timestep will be the slow timestep divided by **fixed_mri_dt_ratio.**
 
-     * | If **fixed_mri_dt_ratio** is not specified but **fixed_fast_dt** is specified, the fast timestep
-         will be set to the value of **fixed_fast_dt**.
-
-     * | If neither **fixed_mri_dt_ratio** nor **fixed_fast_dt** is specified, then the fast timestep 
-         will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary) 
+     * | If neither **erf.fixed_mri_dt_ratio** nor **erf.fixed_fast_dt** is specified, then the fast timestep
+         will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary)
          as above so that the ratio of slow timestep to fine timestep is an even integer.
          If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
