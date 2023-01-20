@@ -197,6 +197,12 @@ void ERF::init_bcs ()
                m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = theta_in*m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
             }
 
+            Real rho_grad_in;
+            if (pp.query("density_grad", rho_grad_in))
+            {
+               m_bc_neumann_vals[BCVars::Rho_bc_comp][ori] = rho_grad_in;
+            }
+            
             Real theta_grad_in;
             if (pp.query("theta_grad", theta_grad_in))
             {
@@ -396,6 +402,8 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
+                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.)
+                        domain_bcs_type[BCVars::Rho_bc_comp].setLo(dir, ERFBCType::neumann);
                 } else {
                     for (int i = 0; i < NVAR; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
@@ -403,6 +411,8 @@ void ERF::init_bcs ()
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
+                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.)
+                        domain_bcs_type[BCVars::Rho_bc_comp].setHi(dir, ERFBCType::neumann);
                 }
             }
             else if (bct == ERF_BC::inflow)
