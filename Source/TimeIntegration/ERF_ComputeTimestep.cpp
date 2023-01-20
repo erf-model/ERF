@@ -142,10 +142,10 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   if (fixed_dt > 0.0) {
     return fixed_dt;
   } else {
-    if (use_lowM_dt) {
-        return estdt_lowM;
-    } else {
+    if (no_substepping) {
         return estdt_comp;
+    } else {
+        return estdt_lowM;
     }
   }
 }
