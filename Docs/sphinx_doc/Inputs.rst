@@ -327,67 +327,113 @@ Time Step
 
 .. _list-of-parameters-6:
 
-List of Parameters for Single-Rate
-----------------------------------
+List of Parameters
+------------------
 
-+----------------------------+-----------------+----------------+-------------------+
-| Parameter                  | Definition      | Acceptable     | Default           |
-|                            |                 | Values         |                   |
-+============================+=================+================+===================+
-| **erf.cfl**                | CFL number for  | Real > 0 and   | 0.8               |
-|                            | hydro           | <= 1           |                   |
-|                            |                 |                |                   |
-|                            |                 |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.fixed_dt**           | set level 0 dt  | Real > 0       | unused if not     |
-|                            | as this value   |                | set               |
-|                            | regardless of   |                |                   |
-|                            | cfl or other    |                |                   |
-|                            | settings        |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.use_lowM_dt**        | set level 0 dt  | bool           | false             |
-|                            | based on        |                |                   |
-|                            | low M cfl cond  |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.fixed_fast_dt**      | set fast dt     | Real > 0       | only relevant     |
-|                            | as this value   |                | if use_native_mri |
-|                            |                 |                | is true           |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.fixed_mri_dt_ratio** | set fast dt     | int            | only relevant     |
-|                            | as slow dt /    |                | if use_native_mri |
-|                            | this ratio      |                | is true           |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.init_shrink**        | factor by which | Real > 0 and   | 1.0               |
-|                            | to shrink the   | <= 1           |                   |
-|                            | initial dt      |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.change_max**         | factor by which | Real >= 1      | 1.1               |
-|                            | dt can grow     |                |                   |
-|                            | in subsequent   |                |                   |
-|                            | steps           |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
++----------------------------+----------------------+----------------+-------------------+
+| Parameter                  | Definition           | Acceptable     | Default           |
+|                            |                      | Values         |                   |
++============================+======================+================+===================+
+| **erf.no_substepping**     | Should we turn off   | int (0 or 1)   | 0                 |
+|                            | substepping in time? |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.cfl**                | CFL number for       | Real > 0 and   | 0.8               |
+|                            | hydro                | <= 1           |                   |
+|                            |                      |                |                   |
+|                            |                      |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.fixed_dt**           | set level 0 dt       | Real > 0       | unused if not     |
+|                            | as this value        |                | set               |
+|                            | regardless of        |                |                   |
+|                            | cfl or other         |                |                   |
+|                            | settings             |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.fixed_fast_dt**      | set fast dt          | Real > 0       | only relevant     |
+|                            | as this value        |                | if use_native_mri |
+|                            |                      |                | is true           |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.fixed_mri_dt_ratio** | set fast dt          | int > 0        | only relevant     |
+|                            | as slow dt /         |                | if no_substepping |
+|                            | this ratio           |                | is 0              |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.init_shrink**        | factor by which      | Real > 0 and   | 1.0               |
+|                            | to shrink the        | <= 1           |                   |
+|                            | initial dt           |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.change_max**         | factor by which      | Real >= 1      | 1.1               |
+|                            | dt can grow          |                |                   |
+|                            | in subsequent        |                |                   |
+|                            | steps                |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+
+Notes
+-----------------
+
+-  | The time step controls work somewhat differently depending on whether one is using
+     acoustic substepping in time; this is determined by **erf.no_substepping".
+
+-  | If **erf.no_substepping = 1** there is only one time step to be calculated,
+     and **fixed_fast_dt** and **fixed_mri_dt_ratio** are not used.
+
+   * | If **erf.fixed_dt** is also set, the timestep will be the value specified by **fixed_dt**.
+
+   * | If **erf.fixed_dt** is **not* set, the timestep will be computed using the CFL
+     condition.  If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+
+-  | If **erf.no_substepping = 0** we must determine both the slow and fast timesteps.
+
+   * | If **erf.fixed_dt** is set, the slow timestep will be the value specified by **fixed_dt**.
+
+     * | If **fixed_mri_dt_ratio** is specified and **fixed_fast_dt** is not specified,
+       the fast timestep will be the slow timestep divided by **fixed_mri_dt_ratio.**
+
+     * | If **fixed_dt** and **fast_fixed_dt* and **fixed_mri_dt_ratio** are all specified
+       but are inconsistent, the code will abort.
+
+     * | If **fixed_mri_dt_ratio** is not specified but **fixed_fast_dt** is specified, the fast timestep
+       will be set to **fixed_fast_dt**, subject to the condition that the ratio of the slow timestep to
+       fast timestep is an even integer (see last note below).
+
+     * | If neither **fixed_mri_dt_ratio** nor **fixed_fast_dt* is specified, then the fast timestep will be computed using
+       CFL \* dx / (u+c), also subject to the condition that the ratio of the slow timestep to fast timestep
+       is an even integer (see last note below).  If **erf.cfl** is specified, that CFL value will be used.
+       If not, the default value will be used.
+
+   * | If **erf.fixed_dt** is not set, the slow timestep will be computed using the CFL
+     condition.  If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+
+     * | If **fixed_mri_dt_ratio** is specified and **fixed_fast_dt** is not specified,
+       the fast timestep will be the slow timestep divided by **fixed_mri_dt_ratio.**
+
+     * | If **fixed_mri_dt_ratio** is not specified but **fixed_fast_dt** is specified, the fast timestep
+       will be set to **fixed_fast_dt**, subject to the condition that the ratio of the slow timestep to
+       fast timestep is an even integer (see last note below).
+
+     * | If neither **fixed_mri_dt_ratio** nor **fixed_fast_dt* is specified, then the fast timestep will be computed using
+       CFL \* dx / (u+c), also subject to the condition that the ratio of the slow timestep to fast timestep
+       is an even integer (see last note below).  If **erf.cfl** is specified, that CFL value will be used.
+       If not, the default value will be used.
+
+-  | If the slow timestep and fast timestep as computed above do not satisfy the condition that the ratio of
+     the slow timestep to the fast timestep be an even integer.  If this is not satisfied, the ratio will be
+     rounded up to an even integer.  If rounding is necessary, the fast timestep will then be re-computed using
+     this ratio.
+
 
 .. _examples-of-usage-5:
 
-Examples of Usage
------------------
-
--  | **erf.cfl** = 0.9
-   | defines the timestep as dt = cfl \* dx / (u+c).  Only relevant if **fixed_dt** not set
+Examples of Usage of Additional Parameters
+-------------------------------------------
 
 -  | **erf.init_shrink** = 0.01
-   | sets the initial time step to 1% of what it would be otherwise.
+   | sets the initial slow time step to 1% of what it would be otherwise.
+     Note that if **erf.init_shrink** :math:`\neq 1` and **fixed_dt** is specified,
+     then the first time step will in fact be **erf.init_shrink** \* **erf.fixed_dt**.
 
 -  | **erf.change_max** = 1.1
-   | allows the time step to increase by no more than 10% in this case.
+   | allows the slow time step to increase by no more than 10% in this case.
      Note that the time step can shrink by any factor; this only
      controls the extent to which it can grow.
-
--  | **erf.fixed_dt** = 1.e-4
-   | sets the level-0 time step to be 1.e-4 for the entire simulation,
-     ignoring the other timestep controls. Note that if
-     **erf.init_shrink** :math:`\neq 1` then the first time step will in
-     fact be **erf.init_shrink** \* **erf.fixed_dt**.
 
 Restart Capability
 ==================

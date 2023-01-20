@@ -586,7 +586,6 @@ private:
     static amrex::Real fixed_dt;
     static amrex::Real fixed_fast_dt;
     static int fixed_mri_dt_ratio;
-    static bool use_lowM_dt;
 
     // how often each level regrids the higher levels of refinement
     // (after a level advances that many time steps)
