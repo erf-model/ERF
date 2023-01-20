@@ -1037,15 +1037,29 @@ ERF::ReadParameters ()
         pp.query("fixed_fast_dt", fixed_fast_dt);
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
-        if (fixed_dt > 0. && fixed_fast_dt > 0.) {
-            if (fixed_mri_dt_ratio > 0 &&
-               fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
+        // If this is set, it must be even
+        if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
+        {
+            amrex::Abort("If you specify fixed_mri_dt_ratio, it must be even");
+        }
+
+        // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
+        if (fixed_dt > 0. && fixed_fast_dt > 0. && fixed_mri_dt_ratio <= 0)
+        {
+            Real eps = 1.e-12;
+            int ratio = ( (1.0+eps) * fixed_dt ) / fixed_fast_dt;
+            if (fixed_dt / fixed_fast_dt != ratio)
+            {
+                amrex::Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
+            }
+        }
+
+        // If all three are specified, they must be consistent
+        if (fixed_dt > 0. && fixed_fast_dt > 0. &&  fixed_mri_dt_ratio > 0)
+        {
+            if (fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
             {
                 amrex::Abort("Dt is over-specfied");
-            } else {
-                fixed_mri_dt_ratio = static_cast<int>(fixed_dt / fixed_fast_dt);
-                if (fixed_mri_dt_ratio%2 != 0)
-                    fixed_mri_dt_ratio += 1; // This ratio must be even
             }
         }
 

@@ -352,7 +352,7 @@ List of Parameters
 |                            | as this value        |                | if use_native_mri |
 |                            |                      |                | is true           |
 +----------------------------+----------------------+----------------+-------------------+
-| **erf.fixed_mri_dt_ratio** | set fast dt          | int > 0        | only relevant     |
+| **erf.fixed_mri_dt_ratio** | set fast dt          | even int > 0   | only relevant     |
 |                            | as slow dt /         |                | if no_substepping |
 |                            | this ratio           |                | is 0              |
 +----------------------------+----------------------+----------------+-------------------+
@@ -370,7 +370,7 @@ Notes
 -----------------
 
 -  | The time step controls work somewhat differently depending on whether one is using
-     acoustic substepping in time; this is determined by **erf.no_substepping".
+     acoustic substepping in time; this is determined by the value of **no_substepping**.
 
 -  | If **erf.no_substepping = 1** there is only one time step to be calculated,
      and **fixed_fast_dt** and **fixed_mri_dt_ratio** are not used.
@@ -387,28 +387,27 @@ Notes
    * | If **erf.fixed_dt** is not set, the slow timestep will be computed using the CFL
        condition for incompressible flow.  If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
-   * | Once the slow timestep is set, the fast timestep is set in one of several ways:
+   * | There are several consistency checks before the fast timestep is computed.  Specifically, if any 
+       of the following are true the code will abort while reading the inputs.
 
-     * | If **fixed_mri_dt_ratio** is specified and **fixed_fast_dt** is not specified,
+     * | If **fixed_mri_dt_ratio** is specified but is not an even positive integer
+     * | If **fixed_dt** and **fast_fixed_dt** are specified and the ratio of **fixed_dt** to **fast_fixed_dt**
+         is not an even positive integer 
+     * | If **fixed_dt** and **fast_fixed_dt** and **fixed_mri_dt_ratio** are all specified but are inconsitent 
+
+   * | Once the slow timestep is set and the inputs are allowed per the above criteria, 
+       the fast timestep is computed in one of several ways:
+
+     * | If **fixed_mri_dt_ratio** is specified (as a positive even integer) and **fixed_fast_dt** is not specified,
          the fast timestep will be the slow timestep divided by **fixed_mri_dt_ratio.**
 
-     * | If **fixed_dt** and **fast_fixed_dt** and **fixed_mri_dt_ratio** are all specified
-         but are inconsistent, the code will abort.
-
      * | If **fixed_mri_dt_ratio** is not specified but **fixed_fast_dt** is specified, the fast timestep
-         will be set to **fixed_fast_dt**, subject to the condition that the ratio of the slow timestep to
-         fast timestep be an even integer (see last note below).
+         will be set to the value of **fixed_fast_dt**.
 
-     * | If neither **fixed_mri_dt_ratio** nor **fixed_fast_dt** is specified, then the fast timestep will be computed using
-         the CFL condition for compressible flow, also subject to the condition that the ratio of the slow timestep to fast timestep
-         be an even integer (see below).  If **erf.cfl** is specified, that CFL value will be used.
-         If not, the default value will be used.
-
--  | If the slow timestep and fast timestep as computed above do not satisfy the condition that the ratio of
-     the slow timestep to the fast timestep be an even integer.  If this is not satisfied, the ratio will be
-     rounded up to an even integer.  If rounding is necessary, the fast timestep will then be re-computed using
-     this ratio.
-
+     * | If neither **fixed_mri_dt_ratio** nor **fixed_fast_dt** is specified, then the fast timestep 
+         will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary) 
+         as above so that the ratio of slow timestep to fine timestep is an even integer.
+         If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
 .. _examples-of-usage-5:
 
