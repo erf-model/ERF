@@ -120,7 +120,7 @@ ERF::WriteCheckpointFile () const
 
        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),0);
        MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),0);
-       VisMF::Write(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
+       VisMF::Write(base, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
 
        if (solverChoice.use_terrain)  {
            // Note that we write the ghost cells of z_phys_nd (unlike above)
