@@ -229,7 +229,6 @@ ERF::ReadCheckpointFile ()
     {
         MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
         VisMF::Read(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
-        //vars_new[lev][Vars::cons].setVal(0.);
         MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,Cons::NumVars,0);
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
@@ -247,6 +246,7 @@ ERF::ReadCheckpointFile ()
         MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),0);
         VisMF::Read(base, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
         MultiFab::Copy(base_state[lev],base,0,0,base.nComp(),0);
+        base_state[lev].FillBoundary(geom[lev].periodicity());
 
        if (solverChoice.use_terrain)  {
            // Note that we read the ghost cells of z_phys_nd (unlike above)
