@@ -568,10 +568,11 @@ ERF::InitData ()
     }
 
 #ifdef ERF_USE_POISSON_SOLVE
-    if (true) {
+    if (restart_chkfile == "")
+    {
         // Note -- this projection is only defined for no terrain
-        AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
         if (solverChoice.project_initial_velocity) {
+            AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
             project_initial_velocities();
         }
     }
