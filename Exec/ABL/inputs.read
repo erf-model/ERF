@@ -53,8 +53,6 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 
-erf.spatial_order = 2
-
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0

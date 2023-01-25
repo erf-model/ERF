@@ -48,8 +48,6 @@ erf.molec_diff_type  = "Constant"
 erf.rho0_trans       = 1.0
 erf.dynamicViscosity = 1.0
 
-erf.spatial_order = 2
-
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0

@@ -100,7 +100,8 @@
 
             // Remember this does NOT maintain dp_0 / dz = -rho_0 g, so we can no longer
             //    discretize the vertical pressure gradient in perturbational form.
-            AMREX_ALWAYS_ASSERT(solverChoice.spatial_order == 2);
+            AMREX_ALWAYS_ASSERT(solverChoice.horiz_spatial_order == 2);
+            AMREX_ALWAYS_ASSERT(solverChoice.vert_spatial_order == 2);
 
             Real dt_base  = (new_stage_time - old_step_time);
 

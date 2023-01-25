@@ -201,7 +201,8 @@ struct SolverChoice {
         rhoAlpha_C = rho0_trans * alpha_C;
 
         // Order of spatial discretization
-        pp.query("spatial_order", spatial_order);
+        pp.query("horiz_spatial_order", horiz_spatial_order);
+        pp.query("vert_spatial_order",   vert_spatial_order);
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
@@ -272,7 +273,8 @@ struct SolverChoice {
         amrex::Print() << "sigma_k               : " << sigma_k << std::endl;
         amrex::Print() << "Pr_t                  : " << Pr_t << std::endl;
         amrex::Print() << "Sc_t                  : " << Sc_t << std::endl;
-        amrex::Print() << "spatial_order         : " << spatial_order << std::endl;
+        amrex::Print() << "horiz spatial_order   : " << horiz_spatial_order << std::endl;
+        amrex::Print() << "vert  spatial_order   : " << vert_spatial_order << std::endl;
 
         if (abl_driver_type == ABLDriverType::None) {
             amrex::Print() << "ABL Driver Type: " << "None" << std::endl;
@@ -433,7 +435,8 @@ struct SolverChoice {
     amrex::Real sinphi          = 0.0;
 
     // Spatial discretization
-    int         spatial_order = 2;
+    int   horiz_spatial_order = 2;
+    int    vert_spatial_order = 2;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;

@@ -40,7 +40,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp the
 erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
-erf.spatial_order = 2
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "Constant"

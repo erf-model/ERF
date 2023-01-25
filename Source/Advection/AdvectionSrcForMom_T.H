@@ -11,7 +11,7 @@ AdvectionSrcForXMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& z_nd,  const amrex::Array4<const amrex::Real>& detJ,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& mf_u, const amrex::Array4<const amrex::Real>& mf_v,
-                       int spatial_order)
+                       int horiz_spatial_order, int vert_spatial_order)
 {
     //used when spatial order > 2
 
@@ -33,14 +33,14 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i+1, j, k) * mf_u_inv_hi + rho_u(i, j, k) * mf_u_inv_mid);
     amrex::Real centFluxXXNext = rho_u_avg * met_h_zeta *
-                          InterpolateInX(i+1, j, k, u, 0, rho_u_avg, spatial_order);
+                          InterpolateInX(i+1, j, k, u, 0, rho_u_avg, horiz_spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     met_h_zeta = Compute_h_zeta_AtCellCenter(i-1,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i-1, j, k) * mf_u_inv_lo + rho_u(i, j, k) * mf_u_inv_mid);
     amrex::Real centFluxXXPrev = rho_u_avg * met_h_zeta *
-                          InterpolateInX(i  , j, k, u, 0, rho_u_avg, spatial_order);
+                          InterpolateInX(i  , j, k, u, 0, rho_u_avg, horiz_spatial_order);
 
     // ****************************************************************************************
     // Y-fluxes (at edges in k-direction)
@@ -50,7 +50,7 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i  ,j+1,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j+1, k) * mf_v_inv_1 + rho_v(i-1, j+1, k) * mf_v_inv_2);
     amrex::Real edgeFluxXYNext = rho_v_avg * met_h_zeta *
-                          InterpolateInY(i, j+1, k, u, 0, rho_v_avg, spatial_order);
+                          InterpolateInY(i, j+1, k, u, 0, rho_v_avg, horiz_spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
@@ -58,18 +58,18 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j  , k) * mf_v_inv_3 + rho_v(i-1, j  , k) * mf_v_inv_4);
     amrex::Real edgeFluxXYPrev = rho_v_avg * met_h_zeta *
-                          InterpolateInY(i, j  , k, u, 0, rho_v_avg, spatial_order);
+                          InterpolateInY(i, j  , k, u, 0, rho_v_avg, horiz_spatial_order);
 
     // ****************************************************************************************
     // Z-fluxes (at edges in j-direction)
     // ****************************************************************************************
 
     Omega_avg_hi = 0.5 * (Omega(i, j, k+1) + Omega(i-1, j, k+1));
-    amrex::Real edgeFluxXZNext = Omega_avg_hi * InterpolateInZ(i,j,k+1,u,0,Omega_avg_hi,spatial_order);
+    amrex::Real edgeFluxXZNext = Omega_avg_hi * InterpolateInZ(i,j,k+1,u,0,Omega_avg_hi,vert_spatial_order);
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     Omega_avg_lo = 0.5 * (Omega(i, j, k) + Omega(i-1, j, k));
-    amrex::Real edgeFluxXZPrev = Omega_avg_lo * InterpolateInZ(i,j,k  ,u,0,Omega_avg_lo,spatial_order);
+    amrex::Real edgeFluxXZPrev = Omega_avg_lo * InterpolateInZ(i,j,k  ,u,0,Omega_avg_lo,vert_spatial_order);
 
     // ****************************************************************************************
 
@@ -92,7 +92,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& z_nd, const amrex::Array4<const amrex::Real>& detJ,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& mf_u,  const amrex::Array4<const amrex::Real>& mf_v,
-                       int spatial_order)
+                       int horiz_spatial_order, int vert_spatial_order)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -113,7 +113,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i+1,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i+1, j, k) * mf_u_inv_1 + rho_u(i+1, j-1, k) * mf_u_inv_2);
     amrex::Real edgeFluxYXNext = rho_u_avg * met_h_zeta *
-                          InterpolateInX(i+1, j, k, v, 0, rho_u_avg, spatial_order);
+                          InterpolateInX(i+1, j, k, v, 0, rho_u_avg, horiz_spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
@@ -121,7 +121,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i  , j, k) * mf_u_inv_3 + rho_u(i  , j-1, k) * mf_u_inv_4);
     amrex::Real edgeFluxYXPrev = rho_u_avg * met_h_zeta *
-                          InterpolateInX(i  , j, k, v, 0, rho_u_avg, spatial_order);
+                          InterpolateInX(i  , j, k, v, 0, rho_u_avg, horiz_spatial_order);
 
     // ****************************************************************************************
     // y-fluxes (at cell centers)
@@ -130,14 +130,14 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j, k) * mf_v_inv_mid + rho_v(i, j+1, k) * mf_v_inv_hi);
     amrex::Real centFluxYYNext = rho_v_avg * met_h_zeta *
-                          InterpolateInY(i, j+1, k, v, 0, rho_v_avg, spatial_order);
+                          InterpolateInY(i, j+1, k, v, 0, rho_v_avg, horiz_spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     met_h_zeta = Compute_h_zeta_AtCellCenter(i  ,j-1,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j, k) * mf_v_inv_mid + rho_v(i, j-1, k) * mf_v_inv_lo);
     amrex::Real centFluxYYPrev = rho_v_avg * met_h_zeta *
-                          InterpolateInY(i  , j, k, v, 0, rho_v_avg, spatial_order);
+                          InterpolateInY(i  , j, k, v, 0, rho_v_avg, horiz_spatial_order);
 
 
     // ****************************************************************************************
@@ -146,12 +146,12 @@ AdvectionSrcForYMom_T (int i, int j, int k,
 
     Omega_avg_hi = 0.5 * (Omega(i, j, k+1) + Omega(i, j-1, k+1));
     amrex::Real edgeFluxYZNext = Omega_avg_hi *
-                          InterpolateInZ(i, j, k+1, v, 0, Omega_avg_hi, spatial_order);
+                          InterpolateInZ(i, j, k+1, v, 0, Omega_avg_hi, vert_spatial_order);
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     Omega_avg_lo = 0.5 * (Omega(i, j, k)+ Omega(i, j-1, k));
     amrex::Real edgeFluxYZPrev = Omega_avg_lo*
-                          InterpolateInZ(i, j, k  , v, 0, Omega_avg_lo, spatial_order);
+                          InterpolateInZ(i, j, k  , v, 0, Omega_avg_lo, vert_spatial_order);
 
     // ****************************************************************************************
 
@@ -175,7 +175,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& mf_m,  const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
-                       int spatial_order, int domhi_z)
+                       int horiz_spatial_order, int vert_spatial_order, int domhi_z)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -194,7 +194,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i+1,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * mf_u_inv_hi;
     amrex::Real edgeFluxZXNext = rho_u_avg * met_h_zeta *
-                          InterpolateInX(i+1, j, k, w, 0, rho_u_avg, spatial_order);
+                          InterpolateInX(i+1, j, k, w, 0, rho_u_avg, horiz_spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
@@ -202,7 +202,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_u_avg = 0.5 * (rho_u(i  , j, k) + rho_u(i  , j, k-1)) * mf_u_inv_lo;
     amrex::Real edgeFluxZXPrev = rho_u_avg * met_h_zeta *
-                          InterpolateInX(i  , j, k, w, 0, rho_u_avg, spatial_order);
+                          InterpolateInX(i  , j, k, w, 0, rho_u_avg, horiz_spatial_order);
 
     // ****************************************************************************************
     // y-fluxes (at edges in i-direction)
@@ -212,7 +212,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i  ,j+1,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * mf_v_inv_hi;
     amrex::Real edgeFluxZYNext = rho_v_avg * met_h_zeta *
-                          InterpolateInY(i, j+1, k, w, 0, rho_v_avg, spatial_order);
+                          InterpolateInY(i, j+1, k, w, 0, rho_v_avg, horiz_spatial_order);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
@@ -220,7 +220,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i  ,j  ,k  ,cellSizeInv,z_nd);
     rho_v_avg = 0.5 * (rho_v(i, j  , k) + rho_v(i, j  , k-1)) * mf_v_inv_lo;
     amrex::Real edgeFluxZYPrev = rho_v_avg * met_h_zeta *
-                          InterpolateInY(i, j  , k, w, 0, rho_v_avg, spatial_order);
+                          InterpolateInY(i, j  , k, w, 0, rho_v_avg, horiz_spatial_order);
 
     // ****************************************************************************************
     // z-fluxes (at cell centers)
@@ -231,7 +231,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
 
     // If k == domhi_z   and spatial_order >= 3 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,2)
     // If k == domhi_z-1 and spatial_order >= 5 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,4)
-    int l_spatial_order_hi = std::min(std::min(spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
+    int l_spatial_order_hi = std::min(std::min(vert_spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
     centFluxZZNext *= (k == domhi_z+1) ? w(i,j,k) :
         InterpolateInZ(i, j, k+1, w, 0, Omega_avg, l_spatial_order_hi);
 
@@ -242,7 +242,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
 
     // If k == 1 and spatial_order >= 3 we would reach to k = -1 so we set to spatial_order = min(spatial_order,2)
     // If k == 2 and spatial_order >= 5 we would reach to k = -1 so we set to spatial_order = min(spatial_order,4)
-    int l_spatial_order_lo = std::min(std::min(spatial_order, 2*(domhi_z+2-k)), 2*k);
+    int l_spatial_order_lo = std::min(std::min(vert_spatial_order, 2*(domhi_z+2-k)), 2*k);
     centFluxZZPrev *= (k == 0) ? w(i,j,k) : InterpolateInZ(i, j, k  , w, 0, Omega_avg, l_spatial_order_lo);
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *

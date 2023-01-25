@@ -56,7 +56,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     int start_comp = 0;
     int   num_comp = 2;
 
-    const int  l_spatial_order  = solverChoice.spatial_order;
+    const int  l_horiz_spatial_order = solverChoice.horiz_spatial_order;
+    const int  l_vert_spatial_order  = solverChoice.vert_spatial_order;
     const bool l_use_terrain    = solverChoice.use_terrain;
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
@@ -443,7 +444,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                    rho_u, rho_v, omega_arr, fac,
                                    avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
                                    cell_prim, z_nd, detJ,
-                                   dxInv, mf_m, mf_u, mf_v, l_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, mf_u, mf_v,
+                                   l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -517,7 +519,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
                            z_nd, detJ, dxInv, mf_m, mf_u, mf_v,
-                           l_spatial_order, l_use_terrain, domhi_z);
+                           l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain, domhi_z);
 
         if (l_use_diff) {
             if (l_use_terrain) {
