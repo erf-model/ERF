@@ -667,8 +667,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
 
-    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
+    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order)+1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order);
 
     temp_lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
     temp_lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
@@ -762,8 +762,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
-    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
+    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order)+1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order);
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -872,7 +872,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         ba_nd.surroundingNodes();
 
         // We need this to be one greater than the ghost cells to handle levels > 0
-        int ngrow = ComputeGhostCells(solverChoice.spatial_order)+2;
+        int ngrow = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order)+2;
         z_phys_nd[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
         if (solverChoice.terrain_type > 0) {
             z_phys_nd_new[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));

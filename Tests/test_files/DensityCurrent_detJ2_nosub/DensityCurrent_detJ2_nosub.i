@@ -47,7 +47,9 @@ erf.alpha_C = 0.0
 erf.use_gravity = true
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
-erf.spatial_order = 2
+
+erf.horiz_spatial_order = 2
+erf.vert_spatial_order = 2
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "ConstantAlpha"

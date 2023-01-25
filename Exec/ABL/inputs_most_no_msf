@@ -54,7 +54,8 @@ erf.molec_diff_type = "Constant"
 erf.les_type = "Smagorinsky"
 erf.Cs       = 0.1
 
-erf.spatial_order = 3
+erf.horiz_spatial_order = 3
+erf.vert_spatial_order = 3
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

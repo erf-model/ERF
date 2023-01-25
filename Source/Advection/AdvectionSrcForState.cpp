@@ -20,7 +20,9 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                             const Array4<const Real>& mf_m,
                             const Array4<const Real>& mf_u,
                             const Array4<const Real>& mf_v,
-                            const int &spatial_order, const int& use_terrain)
+                            const int horiz_spatial_order,
+                            const int vert_spatial_order,
+                            const int use_terrain)
 {
     BL_PROFILE_VAR("AdvectionSrcForRhoAndTheta", AdvectionSrcForRhoAndTheta);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -28,7 +30,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
     // We note that valid_bx is the actual grid, while bx may be a tile within that grid
     const auto& vbx_hi = amrex::ubound(valid_bx);
 
-    if ( use_terrain && (spatial_order == 2) ) {
+    if ( use_terrain && (std::max(horiz_spatial_order,vert_spatial_order) == 2) ) {
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real invdetJ = 1./ detJ(i,j,k);
@@ -76,7 +78,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                 ( zflux_hi * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index)) -
                   zflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index)) ) * dzInv);
     });
-    } else if ( use_terrain && (spatial_order > 2) ) {
+    } else if ( use_terrain ) {
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real invdetJ = 1./ detJ(i,j,k);
@@ -113,14 +115,14 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 
             const int prim_index = 0;
             advectionSrc(i,j,k,1) = - invdetJ * (
-                ( xflux_hi * InterpolateInX(i+1,j  , k  , cell_prim, prim_index, rho_u(i+1,j,k), spatial_order) -
-                  xflux_lo * InterpolateInX(i  ,j  , k  , cell_prim, prim_index, rho_u(i  ,j,k), spatial_order) ) * dxInv * mfsq +
-                ( yflux_hi * InterpolateInY(i  ,j+1, k  , cell_prim, prim_index, rho_v(i,j+1,k), spatial_order) -
-                  yflux_lo * InterpolateInY(i  ,j  , k  , cell_prim, prim_index, rho_v(i  ,j,k), spatial_order) ) * dyInv * mfsq +
-                ( zflux_hi * InterpolateInZ(i  ,j  , k+1, cell_prim, prim_index, Omega(i,j,k+1), spatial_order) -
-                  zflux_lo * InterpolateInZ(i  ,j  , k  , cell_prim, prim_index, Omega(i  ,j,k), spatial_order) ) * dzInv);
+                ( xflux_hi * InterpolateInX(i+1,j  , k  , cell_prim, prim_index, rho_u(i+1,j,k), horiz_spatial_order) -
+                  xflux_lo * InterpolateInX(i  ,j  , k  , cell_prim, prim_index, rho_u(i  ,j,k), horiz_spatial_order) ) * dxInv * mfsq +
+                ( yflux_hi * InterpolateInY(i  ,j+1, k  , cell_prim, prim_index, rho_v(i,j+1,k), horiz_spatial_order) -
+                  yflux_lo * InterpolateInY(i  ,j  , k  , cell_prim, prim_index, rho_v(i  ,j,k), horiz_spatial_order) ) * dyInv * mfsq +
+                ( zflux_hi * InterpolateInZ(i  ,j  , k+1, cell_prim, prim_index, Omega(i,j,k+1), vert_spatial_order) -
+                  zflux_lo * InterpolateInZ(i  ,j  , k  , cell_prim, prim_index, Omega(i  ,j,k), vert_spatial_order) ) * dzInv);
     });
-    } else if ( !use_terrain && (spatial_order == 2) ) {
+    } else if ( !use_terrain && (std::max(horiz_spatial_order,vert_spatial_order) == 2) ) {
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real xflux_lo = rho_u(i  ,j,k) / mf_u(i  ,j  ,0);
@@ -186,12 +188,12 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 
             const int prim_index = 0;
             advectionSrc(i,j,k,1) = -(
-              ( xflux_hi * InterpolateInX(i+1,j  , k  , cell_prim, prim_index, rho_u(i+1,j,k), spatial_order) -
-                xflux_lo * InterpolateInX(i  ,j  , k  , cell_prim, prim_index, rho_u(i  ,j,k), spatial_order) ) * dxInv * mfsq +
-              ( yflux_hi * InterpolateInY(i  ,j+1, k  , cell_prim, prim_index, rho_v(i,j+1,k), spatial_order) -
-                yflux_lo * InterpolateInY(i  ,j  , k  , cell_prim, prim_index, rho_v(i  ,j,k), spatial_order) ) * dyInv * mfsq +
-              ( zflux_hi * InterpolateInZ(i  ,j  , k+1, cell_prim, prim_index, Omega(i,j,k+1), spatial_order) -
-                zflux_lo * InterpolateInZ(i  ,j  , k  , cell_prim, prim_index, Omega(i  ,j,k), spatial_order) ) * dzInv);
+              ( xflux_hi * InterpolateInX(i+1,j  , k  , cell_prim, prim_index, rho_u(i+1,j,k), horiz_spatial_order) -
+                xflux_lo * InterpolateInX(i  ,j  , k  , cell_prim, prim_index, rho_u(i  ,j,k), horiz_spatial_order) ) * dxInv * mfsq +
+              ( yflux_hi * InterpolateInY(i  ,j+1, k  , cell_prim, prim_index, rho_v(i,j+1,k), horiz_spatial_order) -
+                yflux_lo * InterpolateInY(i  ,j  , k  , cell_prim, prim_index, rho_v(i  ,j,k), horiz_spatial_order) ) * dyInv * mfsq +
+              ( zflux_hi * InterpolateInZ(i  ,j  , k+1, cell_prim, prim_index, Omega(i,j,k+1), vert_spatial_order) -
+                zflux_lo * InterpolateInZ(i  ,j  , k  , cell_prim, prim_index, Omega(i  ,j,k), vert_spatial_order) ) * dzInv);
         });
     }
 }
@@ -205,12 +207,13 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<const Real>& mf_m,
-                        const int &spatial_order, const int& use_terrain)
+                        const int horiz_spatial_order, const int vert_spatial_order,
+                        const int use_terrain)
 {
     BL_PROFILE_VAR("AdvectionSrcForScalars", AdvectionSrcForScalars);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
-    if (spatial_order == 2)
+    if (std::max(horiz_spatial_order,vert_spatial_order) == 2)
     {
         amrex::ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
@@ -249,17 +252,17 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
 
             advectionSrc(i,j,k,cons_index) = - invdetJ * (
             ( avg_xmom(i+1,j,k) *
-                InterpolateInX(i+1,j,k,cell_prim, prim_index, avg_xmom(i+1,j,k), spatial_order) -
+                InterpolateInX(i+1,j,k,cell_prim, prim_index, avg_xmom(i+1,j,k), horiz_spatial_order) -
               avg_xmom(i  ,j,k) *
-                InterpolateInX(i  ,j,k,cell_prim, prim_index, avg_xmom(i  ,j,k), spatial_order) ) * dxInv * mfsq +
+                InterpolateInX(i  ,j,k,cell_prim, prim_index, avg_xmom(i  ,j,k), horiz_spatial_order) ) * dxInv * mfsq +
             ( avg_ymom(i,j+1,k) *
-                InterpolateInY(i,j+1,k,cell_prim, prim_index, avg_ymom(i,j+1,k), spatial_order) -
+                InterpolateInY(i,j+1,k,cell_prim, prim_index, avg_ymom(i,j+1,k), horiz_spatial_order) -
               avg_ymom(i,j  ,k) *
-                InterpolateInY(i,j  ,k,cell_prim, prim_index, avg_ymom(i  ,j,k), spatial_order) ) * dyInv * mfsq +
+                InterpolateInY(i,j  ,k,cell_prim, prim_index, avg_ymom(i  ,j,k), horiz_spatial_order) ) * dyInv * mfsq +
             ( avg_zmom(i,j,k+1) *
-                InterpolateInZ(i,j,k+1,cell_prim, prim_index, avg_zmom(i,j,k+1), spatial_order) -
+                InterpolateInZ(i,j,k+1,cell_prim, prim_index, avg_zmom(i,j,k+1), vert_spatial_order) -
                 avg_zmom(i,j,k  ) *
-                InterpolateInZ(i,j,k  ,cell_prim, prim_index, avg_zmom(i  ,j,k), spatial_order) ) * dzInv );
+                InterpolateInZ(i,j,k  ,cell_prim, prim_index, avg_zmom(i  ,j,k), vert_spatial_order) ) * dzInv );
         });
     }
 }
