@@ -727,8 +727,10 @@ private:
 
     AMREX_FORCE_INLINE
     int
-    ComputeGhostCells(const int& spatial_order) {
+    ComputeGhostCells(const int& horiz_spatial_order, const int& vert_spatial_order) {
       int nGhostCells;
+
+      int spatial_order = std::max(horiz_spatial_order, vert_spatial_order);
 
       switch (spatial_order) {
         case 2:

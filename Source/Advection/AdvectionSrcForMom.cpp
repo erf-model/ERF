@@ -16,7 +16,8 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                     const Array4<const Real>& mf_m,
                     const Array4<const Real>& mf_u,
                     const Array4<const Real>& mf_v,
-                    const int spatial_order, const int use_terrain, const int domhi_z)
+                    const int horiz_spatial_order, const int vert_spatial_order,
+                    const int use_terrain, const int domhi_z)
 {
     BL_PROFILE_VAR("AdvectionSrcForMom", AdvectionSrcForMom);
 
@@ -24,7 +25,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
-    if (use_terrain && (spatial_order == 2)) {
+    if (use_terrain && (std::max(horiz_spatial_order,vert_spatial_order) == 2)) {
 
         ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -117,7 +118,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             rho_w_rhs(i, j, k) = -advectionSrc / (0.5*(detJ(i,j,k) + detJ(i,j,k-1)));
         });
 
-    } else if (!use_terrain && (spatial_order == 2)) {
+    } else if (!use_terrain && (std::max(horiz_spatial_order,vert_spatial_order) == 2)) {
 
         ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -193,42 +194,42 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             rho_w_rhs(i, j, k) = -advectionSrc;
         });
 
-    } else if (use_terrain && (spatial_order > 2)) {
+    } else if (use_terrain) {
 
         amrex::ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_T(i, j, k, rho_u, rho_v, Omega, u, z_nd, detJ,
-                                                        cellSizeInv, mf_u, mf_v, spatial_order);
+                                                        cellSizeInv, mf_u, mf_v, horiz_spatial_order, vert_spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_T(i, j, k, rho_u, rho_v, Omega, v, z_nd, detJ,
-                                                        cellSizeInv, mf_u, mf_v, spatial_order);
+                                                        cellSizeInv, mf_u, mf_v, horiz_spatial_order, vert_spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_T(i, j, k, rho_u, rho_v, Omega, w, z_nd, detJ,
-                                                        cellSizeInv, mf_m, mf_u, mf_v, spatial_order, domhi_z);
+                                                        cellSizeInv, mf_m, mf_u, mf_v, horiz_spatial_order, vert_spatial_order, domhi_z);
         });
 
-    } else if (!use_terrain && (spatial_order > 2)) {
+    } else if (!use_terrain) {
 
         amrex::ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_N(i, j, k, rho_u, rho_v, Omega, u,
-                                                        cellSizeInv, mf_u, mf_v, spatial_order);
+                                                        cellSizeInv, mf_u, mf_v, horiz_spatial_order, vert_spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_N(i, j, k, rho_u, rho_v, Omega, v,
-                                                        cellSizeInv, mf_u, mf_v, spatial_order);
+                                                        cellSizeInv, mf_u, mf_v, horiz_spatial_order, vert_spatial_order);
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, Omega, w,
-                                                        cellSizeInv, mf_m, mf_u, mf_v, spatial_order, domhi_z);
+                                                        cellSizeInv, mf_m, mf_u, mf_v, horiz_spatial_order, vert_spatial_order, domhi_z);
         });
     }
 }

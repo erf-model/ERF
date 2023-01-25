@@ -43,7 +43,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
-    const int  l_spatial_order  = solverChoice.spatial_order;
+    const int  l_horiz_spatial_order = solverChoice.horiz_spatial_order;
+    const int  l_vert_spatial_order  = solverChoice.vert_spatial_order;
     const bool l_use_terrain    = solverChoice.use_terrain;
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
@@ -166,20 +167,20 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             int   num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ,
-                                   dxInv, mf_m, l_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
         }
         if (l_use_QKE) {
             int start_comp = RhoQKE_comp;
             int   num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ,
-                                   dxInv, mf_m, l_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
         }
         int start_comp = RhoScalar_comp;
         int   num_comp = S_data[IntVar::cons].nComp() - start_comp;
         AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ,
-                               dxInv, mf_m, l_spatial_order, l_use_terrain);
+                               dxInv, mf_m, l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
