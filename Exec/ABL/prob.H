@@ -17,6 +17,7 @@ struct ProbParm {
   amrex::Real U_0_Pert_Mag = 0.0;
   amrex::Real V_0_Pert_Mag = 0.0;
   amrex::Real W_0_Pert_Mag = 0.0;
+  amrex::Real T_0_Pert_Mag = 0.0; // perturbation to rho*Theta
 
   // divergence-free initial perturbations
   amrex::Real pert_deltaU = 0.0;

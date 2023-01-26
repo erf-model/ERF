@@ -94,7 +94,7 @@ init_custom_prob(
   Array4<Real const> const& /*mf_v*/,
   const SolverChoice&)
 {
-  ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
     const Real* prob_hi = geomdata.ProbHi();
@@ -114,7 +114,12 @@ init_custom_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial Rho0*Theta0
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
+    Real RhoTheta = parms.rho_0 * parms.Theta_0;
+    if ((z <= parms.pert_ref_height) && (parms.T_0_Pert_Mag != 0.0)) {
+        Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+        RhoTheta += (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
+    }
+    state(i, j, k, RhoTheta_comp) = RhoTheta;
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
@@ -251,6 +256,7 @@ amrex_probinit(
   pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
+  pp.query("T_0_Pert_Mag", parms.T_0_Pert_Mag);
 
   pp.query("pert_deltaU", parms.pert_deltaU);
   pp.query("pert_deltaV", parms.pert_deltaV);
