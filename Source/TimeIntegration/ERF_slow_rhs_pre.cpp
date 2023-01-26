@@ -85,11 +85,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
-    const GpuArray<Real, AMREX_SPACEDIM> ext_forcing = {
-       -solverChoice.abl_pressure_grad[0] + solverChoice.abl_geo_forcing[0],
-       -solverChoice.abl_pressure_grad[1] + solverChoice.abl_geo_forcing[1],
-       -solverChoice.abl_pressure_grad[2] + solverChoice.abl_geo_forcing[2]};
-
     // *************************************************************************
     // Pre-computed quantities
     // *************************************************************************
@@ -583,7 +578,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
                        +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-            rho_u_rhs(i, j, k) += -gpx / (1.0 + q) + ext_forcing[0];
+            rho_u_rhs(i, j, k) += -gpx / (1.0 + q)
+                                - solverChoice.abl_pressure_grad[0]
+                                + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * solverChoice.abl_geo_forcing[0];
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
             if (solverChoice.use_coriolis)
@@ -625,7 +622,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-              rho_u_rhs(i, j, k) += -gpx / (1.0 + q) + ext_forcing[0];
+              rho_u_rhs(i, j, k) += -gpx / (1.0 + q)
+                                  - solverChoice.abl_pressure_grad[0]
+                                  + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * solverChoice.abl_geo_forcing[0];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
@@ -687,7 +686,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q) + ext_forcing[1];
+              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q)
+                                  - solverChoice.abl_pressure_grad[1]
+                                  + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * solverChoice.abl_geo_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (solverChoice.use_coriolis)
               {
@@ -726,7 +727,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q) + ext_forcing[1];
+              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q)
+                                  - solverChoice.abl_pressure_grad[1]
+                                  + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * solverChoice.abl_geo_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
@@ -777,7 +780,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q) + ext_forcing[2];
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q)
+                                    - solverChoice.abl_pressure_grad[2]
+                                    + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * solverChoice.abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (solverChoice.use_coriolis)
@@ -815,7 +820,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q) + ext_forcing[2];
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q)
+                                    - solverChoice.abl_pressure_grad[2]
+                                    + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * solverChoice.abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (solverChoice.use_coriolis)
