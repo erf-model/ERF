@@ -202,7 +202,7 @@ void ERF::init_bcs ()
             {
                m_bc_neumann_vals[BCVars::Rho_bc_comp][ori] = rho_grad_in;
             }
-            
+
             Real theta_grad_in;
             if (pp.query("theta_grad", theta_grad_in))
             {

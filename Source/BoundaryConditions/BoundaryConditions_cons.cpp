@@ -194,7 +194,7 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                 int kflip =  2*dom_hi.z + 1 - i;
                 if (bc_ptr[icomp+n].hi(2) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_hi.z,icomp+n);
-                    
+
                 } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
                 } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::reflect_odd) {
