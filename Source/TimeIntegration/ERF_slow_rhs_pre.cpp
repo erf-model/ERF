@@ -403,7 +403,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             });
         } // use Deardorff
         } // profile
-        
+
         {
         BL_PROFILE("slow_rhs_making_stress");
         if (l_use_diff) {
