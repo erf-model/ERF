@@ -1,5 +1,5 @@
 #include <AMReX.H>
-#include <DiffusionSrcForMom_T.H>
+#include <Diffusion.H>
 #include <IndexDefines.H>
 
 using namespace amrex;

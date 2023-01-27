@@ -5,7 +5,6 @@
 
 #include <ABLMost.H>
 #include <DataStruct.H>
-#include <StrainRate.H>
 
 void
 ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel ,
@@ -22,175 +21,26 @@ ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeSmnSmnWithTerrain (int i, int j, int k,
-                          const amrex::Array4<amrex::Real const>& u,
-                          const amrex::Array4<amrex::Real const>& v,
-                          const amrex::Array4<amrex::Real const>& w,
-                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                          const amrex::Box& domain, const amrex::BCRec* bc_ptr)
+ComputeSmnSmn (int& i, int& j, int& k,
+               const amrex::Array4<amrex::Real const>& tau11,
+               const amrex::Array4<amrex::Real const>& tau22,
+               const amrex::Array4<amrex::Real const>& tau33,
+               const amrex::Array4<amrex::Real const>& tau12,
+               const amrex::Array4<amrex::Real const>& tau13,
+               const amrex::Array4<amrex::Real const>& tau23)
 {
-  amrex::Real met_h_xi,met_h_eta,met_h_zeta;
-
-  // TO-DO :
-  //         1. Calls to TerrainMetrics.H functions to get metrics
-  //         2. Pass metrics at each ijk
-  //         3. Pass z_nd to ComputeSmnSmn
-  //         4. Anisotropy of stress tensor
-  met_h_xi   = 0.0;
-  met_h_eta  = 0.0;
-  met_h_zeta = 1.0;
-
-  amrex::Real S11 = ComputeS11WithTerrain(i+1, j, k, u, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta);
-  amrex::Real S22 = ComputeS22WithTerrain(i, j+1, k, v, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta);
-  amrex::Real S33 = ComputeS33WithTerrain(i, j, k+1, w, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain);
-
-    amrex::Real S12 = 0.25* (
-              ComputeS12WithTerrain(i  , j  , k, u, v, w, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            + ComputeS12WithTerrain(i  , j+1, k, u, v, w, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            + ComputeS12WithTerrain(i+1, j  , k, u, v, w, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            + ComputeS12WithTerrain(i+1, j+1, k, u, v, w, cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            );
-
-    amrex::Real S13 = 0.25* (
-              ComputeS13WithTerrain(i  , j, k  , u, v, w,  cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            + ComputeS13WithTerrain(i  , j, k+1, u, v, w,  cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            + ComputeS13WithTerrain(i+1, j, k  , u, v, w,  cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            + ComputeS13WithTerrain(i+1, j, k+1, u, v, w,  cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            );
-
-    amrex::Real S23 = 0.25* (
-              ComputeS23WithTerrain(i, j  , k  , u, v, w,  cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            + ComputeS23WithTerrain(i, j  , k+1, u, v, w,  cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            + ComputeS23WithTerrain(i, j+1, k  , u, v, w,  cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            + ComputeS23WithTerrain(i, j+1, k+1, u, v, w,  cellSizeInv, met_h_xi, met_h_eta, met_h_zeta, domain, bc_ptr)
-            );
-
-    amrex::Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
+    amrex::Real s11bar = tau11(i,j,k);
+    amrex::Real s22bar = tau22(i,j,k);
+    amrex::Real s33bar = tau33(i,j,k);
+    amrex::Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
+                                + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
+    amrex::Real s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
+                                + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
+    amrex::Real s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
+                                + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
+    amrex::Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
+                       + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
 
     return SmnSmn;
-}
-
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-ComputeSmnSmn (int i, int j, int k,
-               const amrex::Array4<amrex::Real const>& u,
-               const amrex::Array4<amrex::Real const>& v,
-               const amrex::Array4<amrex::Real const>& w,
-               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-               const amrex::Box& domain, const amrex::BCRec* bc_ptr)
-{
-    amrex::Real S11 = ComputeS11(i+1, j, k, u, cellSizeInv);
-    amrex::Real S22 = ComputeS22(i, j+1, k, v, cellSizeInv);
-    amrex::Real S33 = ComputeS33(i, j, k+1, w, cellSizeInv, domain);
-
-    amrex::Real S12 = 0.25* (
-              ComputeS12(i  , j  , k, u, v, w, cellSizeInv, domain, bc_ptr)
-            + ComputeS12(i  , j+1, k, u, v, w, cellSizeInv, domain, bc_ptr)
-            + ComputeS12(i+1, j  , k, u, v, w, cellSizeInv, domain, bc_ptr)
-            + ComputeS12(i+1, j+1, k, u, v, w, cellSizeInv, domain, bc_ptr)
-            );
-
-    amrex::Real S13 = 0.25* (
-              ComputeS13(i  , j, k  , u, v, w,  cellSizeInv, domain, bc_ptr)
-            + ComputeS13(i  , j, k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
-            + ComputeS13(i+1, j, k  , u, v, w,  cellSizeInv, domain, bc_ptr)
-            + ComputeS13(i+1, j, k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
-            );
-
-    amrex::Real S23 = 0.25* (
-              ComputeS23(i, j  , k  , u, v, w,  cellSizeInv, domain, bc_ptr)
-            + ComputeS23(i, j  , k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
-            + ComputeS23(i, j+1, k  , u, v, w,  cellSizeInv, domain, bc_ptr)
-            + ComputeS23(i, j+1, k+1, u, v, w,  cellSizeInv, domain, bc_ptr)
-            );
-
-    amrex::Real SmnSmn = S11*S11 + S22*S22 + S33*S33 + 2.0*S12*S12 + 2.0*S13*S13 + 2.0*S23*S23;
-
-    return SmnSmn;
-}
-
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-ComputeTKEProduction (int i, int j, int k,
-                      const amrex::Array4<const amrex::Real>& u,
-                      const amrex::Array4<const amrex::Real>& v,
-                      const amrex::Array4<const amrex::Real>& w,
-                      const amrex::Array4<const amrex::Real>& K_turb,
-                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                      const amrex::Box& domain, const amrex::BCRec* bc_ptr, const int& use_terrain)
-{
-    amrex::Real TKE_production;
-    if (use_terrain)
-        TKE_production = K_turb(i,j,k,EddyDiff::Mom_h) * ComputeSmnSmnWithTerrain(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
-    else
-        TKE_production = K_turb(i,j,k,EddyDiff::Mom_h) * ComputeSmnSmn(i,j,k,u,v,w,cellSizeInv,domain,bc_ptr);
-
-    return TKE_production;
-}
-
-/// Compute K_turb (i-1/2, j+1/2, k) etc given K_turb (i, j, k) is known
-// Note: This should be at edges for momEqnDir != diffDir, cell centers otherwise
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-InterpolateTurbulentViscosity (int i, int j, int k,
-                               enum MomentumEqn momentumEqn,
-                               enum DiffusionDir diffDir,
-                               const amrex::Array4<const amrex::Real>& K_turb)
-{
-  // Assuming we already have 'K_turb' computed for all (i, j, k)
-  amrex::Real turbViscInterpolated = 1.0;
-
-  switch (momentumEqn) {
-  case MomentumEqn::x: // Reference face is x-face index (i, j, k)
-    switch (diffDir) {
-    case DiffusionDir::x:
-      turbViscInterpolated = K_turb(i-1, j, k, EddyDiff::Mom_h);
-      break;
-    case DiffusionDir::y:
-      turbViscInterpolated = 0.25*( K_turb(i-1, j  , k, EddyDiff::Mom_h) + K_turb(i, j, k, EddyDiff::Mom_h)
-                                  + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i, j-1, k, EddyDiff::Mom_h) );
-      break;
-    case DiffusionDir::z:
-      turbViscInterpolated = 0.25*( K_turb(i-1, j, k  , EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-                                  + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
-      break;
-    }
-    break;
-  case MomentumEqn::y: // Reference face is y-face index (i, j, k)
-    switch (diffDir) {
-    case DiffusionDir::x:
-      turbViscInterpolated = 0.25*( K_turb(i  , j-1, k, EddyDiff::Mom_h) + K_turb(i, j, k, EddyDiff::Mom_h)
-                                  + K_turb(i-1, j-1, k, EddyDiff::Mom_h) + K_turb(i-1, j, k, EddyDiff::Mom_h) );
-      break;
-    case DiffusionDir::y:
-      turbViscInterpolated = K_turb(i, j-1, k, EddyDiff::Mom_h);
-      break;
-    case DiffusionDir::z:
-      turbViscInterpolated = 0.25*( K_turb(i, j-1, k, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-                                  + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j, k-1, EddyDiff::Mom_v) );
-      break;
-    }
-    break;
-  case MomentumEqn::z: // Reference face is z-face index (i, j, k)
-    switch (diffDir) {
-    case DiffusionDir::x:
-      turbViscInterpolated = 0.25*( K_turb(i  , j, k-1, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-                                  + K_turb(i-1, j, k-1, EddyDiff::Mom_v) + K_turb(i-1, j, k, EddyDiff::Mom_v) );
-      break;
-    case DiffusionDir::y:
-      turbViscInterpolated = 0.25*( K_turb(i, j  , k-1, EddyDiff::Mom_v) + K_turb(i, j, k, EddyDiff::Mom_v)
-                                  + K_turb(i, j-1, k-1, EddyDiff::Mom_v) + K_turb(i, j-1, k, EddyDiff::Mom_v) );
-      break;
-    case DiffusionDir::z:
-      turbViscInterpolated = K_turb(i, j, k-1, EddyDiff::Mom_v);
-      break;
-    }
-    break;
-  }
-
-  return turbViscInterpolated;
 }
 #endif
