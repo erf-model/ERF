@@ -13,10 +13,6 @@ CEXE_sources += ComputeStrain_T.cpp
 CEXE_sources += PBLModels.cpp
 CEXE_sources += ComputeTurbulentViscosity.cpp
         
-CEXE_headers += DiffusionSrcForMom_N.H
-CEXE_headers += DiffusionSrcForMom_T.H
 CEXE_headers += Diffusion.H
-CEXE_headers += StrainRate.H
-CEXE_headers += StressTerm.H
 CEXE_headers += EddyViscosity.H
 CEXE_headers += ComputeQKESourceTerm.H

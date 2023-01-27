@@ -34,6 +34,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
+                       MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
@@ -386,6 +387,23 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         } // nrk==0 && l_use_diff && m_most
         } // profile
 
+        Array4<Real> SmnSmn_a;
+        if (SmnSmn) {
+            SmnSmn_a = SmnSmn->array(mfi);
+        } else {
+            SmnSmn_a = Array4<Real>{};
+        }
+        {
+        BL_PROFILE("slow_rhs_making_SmnSmn");
+        // Populate SmnSmn if using Deardorff (used as diff src in post)
+        if (solverChoice.les_type == LESType::Deardorff) {
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
+            });
+        } // use Deardorff
+        } // profile
+
         {
         BL_PROFILE("slow_rhs_making_stress");
         if (l_use_diff) {
@@ -458,13 +476,13 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
-                                       dxInv, mf_m, mf_u, mf_v,
+                                       dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
-                                       dxInv, mf_m, mf_u, mf_v,
+                                       dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             }
         }

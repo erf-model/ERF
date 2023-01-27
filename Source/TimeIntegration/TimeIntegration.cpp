@@ -59,10 +59,13 @@ void ERF::erf_advance(int level,
     MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
     MultiFab* eddyDiffs;
+    MultiFab* SmnSmn;
     if (l_use_kturb) {
-      eddyDiffs = new MultiFab(ba , dm, EddyDiff::NumDiffs, 1);
+      eddyDiffs = new MultiFab(ba, dm, EddyDiff::NumDiffs, 1);
+      if(solverChoice.les_type == LESType::Deardorff) SmnSmn = new MultiFab(ba, dm, 1, 0);
     } else {
       eddyDiffs = nullptr;
+      SmnSmn    = nullptr;
     }
 
     // **************************************************************************************
@@ -282,6 +285,8 @@ void ERF::erf_advance(int level,
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
     if (l_use_kturb) delete eddyDiffs;
+
+    if(solverChoice.les_type == LESType::Deardorff) delete SmnSmn;
 
     if (l_use_diff) {
       delete Tau11;
