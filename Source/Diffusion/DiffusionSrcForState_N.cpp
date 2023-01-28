@@ -16,6 +16,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                         const Array4<Real>& yflux,
                         const Array4<Real>& zflux,
                         const amrex::GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                        const Array4<const Real>& SmnSmn_a,
                         const Array4<const Real>& mf_m,
                         const Array4<const Real>& mf_u,
                         const Array4<const Real>& mf_v,
@@ -344,7 +345,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             cell_rhs(i,j,k,qty_index) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
             // Add TKE production
-            cell_rhs(i,j,k,qty_index) += ComputeTKEProduction(i,j,k,u,v,w,mu_turb,cellSizeInv,domain,bc_ptr,l_use_terrain);
+            cell_rhs(i,j,k,qty_index) += mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
 
             // Add dissipation
             if (std::abs(E) > 0.) {

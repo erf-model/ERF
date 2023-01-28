@@ -84,12 +84,13 @@
                              qvapor,
 #endif
                              z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
-                             Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
+                             Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+                             dptr_rayleigh_vbar, dptr_rayleigh_wbar,
+                             dptr_rayleigh_thetabar);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
@@ -177,12 +178,13 @@
                              qvapor,
 #endif
                              z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
-                             Tau13, Tau21,  Tau23, Tau31, Tau32, eddyDiffs,
+                             Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
-                             dptr_rayleigh_vbar, dptr_rayleigh_thetabar);
+                             dptr_rayleigh_vbar, dptr_rayleigh_wbar,
+                             dptr_rayleigh_thetabar);
         } // if not moving_terrain
 
         // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
@@ -236,14 +238,14 @@
         if ( solverChoice.use_terrain && (solverChoice.terrain_type == 1) ) {
             erf_slow_rhs_post(level, slow_dt, S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
-                              source, eddyDiffs,
+                              source, SmnSmn, eddyDiffs,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level]);
         } else {
             erf_slow_rhs_post(level, slow_dt, S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
-                              source, eddyDiffs,
+                              source, SmnSmn, eddyDiffs,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level]);

@@ -43,12 +43,17 @@ erf.alpha_C = 0.0
 erf.use_gravity = false
 erf.use_coriolis = false
 erf.use_rayleigh_damping = true
+erf.rayleigh_damp_T = true
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_W = true
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
 erf.dynamicViscosity = 0.0
 
-erf.spatial_order = 2
+erf.horiz_spatial_order = 2
+erf.vert_spatial_order = 2
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

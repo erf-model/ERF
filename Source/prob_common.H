@@ -50,6 +50,7 @@ void
 erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
                    amrex::Vector<amrex::Real>& ubar,
                    amrex::Vector<amrex::Real>& vbar,
+                   amrex::Vector<amrex::Real>& wbar,
                    amrex::Vector<amrex::Real>& thetabar,
                    amrex::Geometry      const& geom);
 #endif

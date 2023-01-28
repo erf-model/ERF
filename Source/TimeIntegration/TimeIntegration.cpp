@@ -42,7 +42,8 @@ void ERF::erf_advance(int level,
     Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[level].data() : nullptr;
     Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[level].data() : nullptr;
     Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[level].data() : nullptr;
-    amrex::Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
+    Real* dptr_rayleigh_wbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_wbar[level].data() : nullptr;
+    Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
 
     bool l_use_terrain = solverChoice.use_terrain;
     bool l_use_diff    = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
@@ -59,10 +60,13 @@ void ERF::erf_advance(int level,
     MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
     MultiFab* eddyDiffs;
+    MultiFab* SmnSmn;
     if (l_use_kturb) {
-      eddyDiffs = new MultiFab(ba , dm, EddyDiff::NumDiffs, 1);
+      eddyDiffs = new MultiFab(ba, dm, EddyDiff::NumDiffs, 1);
+      if(solverChoice.les_type == LESType::Deardorff) SmnSmn = new MultiFab(ba, dm, 1, 0);
     } else {
       eddyDiffs = nullptr;
+      SmnSmn    = nullptr;
     }
 
     // **************************************************************************************
@@ -282,6 +286,8 @@ void ERF::erf_advance(int level,
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
     if (l_use_kturb) delete eddyDiffs;
+
+    if(solverChoice.les_type == LESType::Deardorff) delete SmnSmn;
 
     if (l_use_diff) {
       delete Tau11;

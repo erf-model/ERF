@@ -487,6 +487,7 @@ void
 erf_init_rayleigh(Vector<Real>& tau,
                   Vector<Real>& ubar,
                   Vector<Real>& vbar,
+                  Vector<Real>& wbar,
                   Vector<Real>& thetabar,
                   amrex::Geometry const& geom)
 {
@@ -510,6 +511,7 @@ erf_init_rayleigh(Vector<Real>& tau,
           tau[k]      = parms.dampcoef * sinefac * sinefac;
           ubar[k]     = parms.U_0;
           vbar[k]     = parms.V_0;
+          wbar[k]     = 0.0;
           thetabar[k] = parms.T_0;
       }
       else
@@ -517,6 +519,7 @@ erf_init_rayleigh(Vector<Real>& tau,
           tau[k]      = 0.0;
           ubar[k]     = 0.0;
           vbar[k]     = 0.0;
+          wbar[k]     = 0.0;
           thetabar[k] = 0.0;
       }
   }

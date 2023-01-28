@@ -26,6 +26,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         const MultiFab& yvel,
                         const MultiFab& zvel,
                         const MultiFab& source,
+                        const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
                         const amrex::Geometry geom,
                         const SolverChoice& solverChoice,
@@ -142,6 +143,9 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
+        // SmnSmn for KE src with Deardorff
+        const Array4<const Real>& SmnSmn_a = l_use_deardorff ? SmnSmn->const_array(mfi) : Array4<const Real>{};
+
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
         // **************************************************************************
@@ -157,7 +161,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
         } // end profile
-
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
@@ -198,13 +201,13 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                 DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
-                                       dxInv, mf_m, mf_u, mf_v,
+                                       dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
-                                       dxInv, mf_m, mf_u, mf_v,
+                                       dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             }
         }

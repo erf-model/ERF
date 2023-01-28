@@ -54,21 +54,10 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-          Real s11bar = tau11(i,j,k);
-          Real s22bar = tau22(i,j,k);
-          Real s33bar = tau33(i,j,k);
-          Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
-                               + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
-          Real s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
-                               + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
-          Real s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
-                               + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
-          Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
-                      + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
-
-          Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
-          Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
-          Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
+            Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
+            Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
+            Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+            Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
 
           mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
           mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);

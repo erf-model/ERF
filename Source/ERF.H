@@ -687,10 +687,12 @@ private:
     amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
     amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
     amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_wbar;
     amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_wbar;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
 
     amrex::Vector<amrex::Real> h_havg_density;

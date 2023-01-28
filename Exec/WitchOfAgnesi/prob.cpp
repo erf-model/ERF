@@ -281,6 +281,7 @@ void
 erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
                   amrex::Vector<Real>& /*ubar*/,
                   amrex::Vector<Real>& /*vbar*/,
+                  amrex::Vector<Real>& /*wbar*/,
                   amrex::Vector<Real>& /*thetabar*/,
                   amrex::Geometry      const& /*geom*/)
 {

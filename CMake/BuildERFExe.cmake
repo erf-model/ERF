@@ -116,8 +116,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.cpp
        ${SRC_DIR}/Diffusion/DiffusionSrcForState_N.cpp
        ${SRC_DIR}/Diffusion/DiffusionSrcForState_T.cpp
-       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_N.H
-       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.H
        ${SRC_DIR}/Diffusion/EddyViscosity.H
        ${SRC_DIR}/Diffusion/ComputeStress_N.cpp
        ${SRC_DIR}/Diffusion/ComputeStress_T.cpp
@@ -130,8 +128,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/VelPlaneAverage.H
        ${SRC_DIR}/Utils/DirectionSelector.H
        ${SRC_DIR}/Diffusion/Diffusion.H
-       ${SRC_DIR}/Diffusion/StrainRate.H
-       ${SRC_DIR}/Diffusion/StressTerm.H
        ${SRC_DIR}/Diffusion/ComputeQKESourceTerm.H
        ${SRC_DIR}/Diffusion/ComputeTurbulentViscosity.cpp
        ${SRC_DIR}/Utils/MomentumToVelocity.cpp

@@ -445,6 +445,8 @@ ERF::InitData ()
     }
 
     // If we are reading initial data from wrfinput, the base state is defined there.
+    // If we are reading initial data from an input_sounding, then the base state is calculated by
+    //   InputSoundingData.calc_rho_p().
     if ((init_type != "real") && (!init_sounding_ideal)) {
         initHSE();
     }

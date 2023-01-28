@@ -45,7 +45,9 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 erf.use_gravity = true
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
-erf.spatial_order = 2
+
+erf.horiz_spatial_order = 2
+erf.vert_spatial_order = 2
 
 erf.buoyancy_type = 1
 
