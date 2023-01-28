@@ -47,7 +47,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
                        const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-                       const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_thetabar)
+                       const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_wbar,
+                       const amrex::Real* dptr_rayleigh_thetabar)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -504,7 +505,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         }
 
         // Add Rayleigh damping
-        if (solverChoice.use_rayleigh_damping) {
+        if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_T) {
             int n  = RhoTheta_comp;
             int nr = Rho_comp;
             int np = PrimTheta_comp;
@@ -610,7 +611,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             }
 
             // Add Rayleigh damping
-            if (solverChoice.use_rayleigh_damping)
+            if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_U)
             {
                 Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
                 rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
@@ -654,7 +655,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               }
 
               // Add Rayleigh damping
-              if (solverChoice.use_rayleigh_damping)
+              if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_U)
               {
                   Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
                   rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
@@ -715,7 +716,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               }
 
               // Add Rayleigh damping
-              if (solverChoice.use_rayleigh_damping)
+              if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_V)
               {
                   Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
                   rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
@@ -757,7 +758,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               }
 
               // Add Rayleigh damping
-              if (solverChoice.use_rayleigh_damping)
+              if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_V)
               {
                   Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
                   rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
@@ -774,7 +775,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         // Enforce no forcing term at top and bottom boundaries
         amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rho_w_rhs(i,j,        0) = 0.;
-            rho_w_rhs(i,j,domhi_z+1) = 0.;
+            rho_w_rhs(i,j,domhi_z+1) = 0.; // TODO: generalize this
         });
         } // end profile
 
@@ -810,9 +811,10 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 }
 
                 // Add Rayleigh damping
-                if (solverChoice.use_rayleigh_damping)
+                if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_W)
                 {
-                    rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
+                    Real ww = rho_w(i,j,k) / cell_data(i,j,k,Rho_comp);
+                    rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (ww - dptr_rayleigh_wbar[k]) * cell_data(i,j,k,Rho_comp);
                 }
 
                 if (l_use_terrain && l_moving_terrain) {
@@ -850,9 +852,10 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 }
 
                 // Add Rayleigh damping
-                if (solverChoice.use_rayleigh_damping)
+                if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_W)
                 {
-                    rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * rho_w(i,j,k);
+                    Real ww = rho_w(i,j,k) / cell_data(i,j,k,Rho_comp);
+                    rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (ww - dptr_rayleigh_wbar[k]) * cell_data(i,j,k,Rho_comp);
                 }
         });
         } // no terrain

@@ -377,7 +377,7 @@ Notes
 
    * | If **erf.fixed_dt** is also specified, the timestep will be set to **fixed_dt**.
 
-   * | If **erf.fixed_dt** is not specified, the timestep will be computed using the CFL condition for incompressible flow.
+   * | If **erf.fixed_dt** is not specified, the timestep will be computed using the CFL condition for compressible flow.
        If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
 -  | If **erf.no_substepping = 0** we must determine both the slow and fast timesteps.
