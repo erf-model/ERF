@@ -529,7 +529,8 @@ ERF::InitData ()
         if (init_type == "input_sounding")
         {
             // overwrite Ubar, Tbar, and thetabar with input profiles
-            setRayleighRefFromSounding();
+            bool restarting = (restart_chkfile != "");
+            setRayleighRefFromSounding(restarting);
         }
 
     }
