@@ -35,7 +35,7 @@ ERF::initRayleigh()
         d_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
 
         erf_init_rayleigh(h_rayleigh_tau[lev], h_rayleigh_ubar[lev], h_rayleigh_vbar[lev],
-                          h_rayleigh_wbar[lev], h_rayleigh_thetabar[lev], geom[lev]);
+                          h_rayleigh_vbar[lev], h_rayleigh_thetabar[lev], geom[lev]);
 
         // Copy from host version to device version
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_tau[lev].begin(), h_rayleigh_tau[lev].end(),
@@ -52,8 +52,16 @@ ERF::initRayleigh()
 }
 
 void
-ERF::setRayleighRefFromSounding()
+ERF::setRayleighRefFromSounding(bool restarting)
 {
+    // If we are restarting then we haven't read the input_sounding file yet
+    //    so we need to read it here
+    // TODO: should we store this information in the checkpoint file instead?
+    if (restarting) {
+        Real ztop = geom[0].ProbHi(AMREX_SPACEDIM-1);
+        input_sounding_data.read_from_file(input_sounding_file, ztop);
+    }
+
     const Real* z_inp_sound     = input_sounding_data.z_inp_sound.dataPtr();
     const Real* U_inp_sound     = input_sounding_data.U_inp_sound.dataPtr();
     const Real* V_inp_sound     = input_sounding_data.V_inp_sound.dataPtr();
