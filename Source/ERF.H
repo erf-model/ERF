@@ -375,7 +375,7 @@ private:
     void initRayleigh ();
 
     //! Set Rayleigh mean profiles from input sounding
-    void setRayleighRefFromSounding ();
+    void setRayleighRefFromSounding (bool restarting);
 
     // a wrapper for estTimeStep()
     void ComputeDt ();
