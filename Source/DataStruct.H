@@ -517,7 +517,7 @@ public:
                     U_inp_sound[0] = U;
                     V_inp_sound[0] = V;
                 } else {
-                    AMREX_ALWAYS_ASSERT(z > z_inp_sound[-1]);
+                    AMREX_ALWAYS_ASSERT(z > z_inp_sound[0]);
                     z_inp_sound.push_back(z);
                     theta_inp_sound.push_back(theta);
                     qv_inp_sound.push_back(qv*0.001);
