@@ -52,6 +52,7 @@ prob.A_0 = 1.0
 prob.U_0 = 10.0
 prob.V_0 = 0.0
 prob.W_0 = 0.0
+prob.T_0 = 300.0
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
