@@ -292,6 +292,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
         sum_integrated_quantities(time);
+        write_1D_profiles(time);
     }
 
     if (output_1d_column) {
@@ -537,6 +538,7 @@ ERF::InitData ()
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
+        write_1D_profiles(t_new[0]);
     }
 
     // We only write the file at level 0 for now
@@ -1176,86 +1178,54 @@ ERF::ReadParameters ()
 void
 ERF::MakeHorizontalAverages ()
 {
+    int lev = 0;
+
     // First, average down all levels
     AverageDown();
 
-    // get the number of cells in z at level 0
-    int dir_z = AMREX_SPACEDIM-1;
-    auto domain = geom[0].Domain();
-    int size_z = domain.length(dir_z);
-    int start_z = domain.smallEnd()[dir_z];
-    Real area_z = static_cast<Real>(domain.length(0));
-    area_z *= domain.length(1);
-
-    // resize the level 0 horizontal average vectors
-    h_havg_density.resize(size_z, 0.0_rt);
-    h_havg_temperature.resize(size_z, 0.0_rt);
-    h_havg_pressure.resize(size_z, 0.0_rt);
-#ifdef ERF_USE_MOISTURE
-    h_havg_qv.resize(size_z, 0.0_rt);
-    h_havg_qc.resize(size_z, 0.0_rt);
-#endif
-
-    // get the cell centered data and construct sums
-    auto& mf_cons = vars_new[0][Vars::cons];
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for (MFIter mfi(mf_cons); mfi.isValid(); ++mfi) {
-        const Box& box = mfi.validbox();
-
-        const IntVect& se = box.smallEnd();
-        const IntVect& be = box.bigEnd();
-
-        auto    cons_arr = mf_cons[mfi].array();
-
 #if defined(ERF_USE_MOISTURE)
-        auto    qv_arr = qv[0][mfi].array();
-        FArrayBox fab_reduce(box, 5);
+    int nv = 5;
 #else
-        FArrayBox fab_reduce(box, 3);
+    int nv = 3;
 #endif
-        Elixir elx_reduce = fab_reduce.elixir();
-        auto arr_reduce = fab_reduce.array();
+    MultiFab mf(grids[lev], dmap[lev], 5, 0);
 
-        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        auto fab_arr  = mf.array(mfi);
+        auto cons_arr = vars_new[lev][Vars::cons].array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real dens = cons_arr(i, j, k, Cons::Rho);
-            arr_reduce(i, j, k, 0) = dens;
-            arr_reduce(i, j, k, 1) = cons_arr(i, j, k, Cons::RhoTheta) / dens;
+            fab_arr(i, j, k, 0) = dens;
+            fab_arr(i, j, k, 1) = cons_arr(i, j, k, Cons::RhoTheta) / dens;
 #if defined(ERF_USE_MOISTURE)
-            arr_reduce(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta), qv_arr(i,j,k));
+            fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta), qv_arr(i,j,k));
 #else
-            arr_reduce(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta));
+            fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta));
 #endif
 #if defined(ERF_USE_MOISTURE)
-            arr_reduce(i, j, k, 3) = cons_arr(i, j, k, Cons::RhoQt) / dens;
-            arr_reduce(i, j, k, 4) = cons_arr(i, j, k, Cons::RhoQp) / dens;
+            fab_arr(i, j, k, 3) = cons_arr(i, j, k, Cons::RhoQt) / dens;
+            fab_arr(i, j, k, 4) = cons_arr(i, j, k, Cons::RhoQp) / dens;
 #endif
         });
-
-        for (int k=se[dir_z]; k <= be[dir_z]; ++k) {
-            Box kbox(box); kbox.setSmall(dir_z,k); kbox.setBig(dir_z,k);
-            h_havg_density     [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,0);
-            h_havg_temperature [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,1);
-            h_havg_pressure    [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,2);
-#if defined(ERF_USE_MOISTURE)
-            h_havg_qv          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,3);
-            h_havg_qc          [k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,4);
-#endif
-        }
     }
 
-    // combine sums from different MPI ranks
-    ParallelDescriptor::ReduceRealSum(h_havg_density.dataPtr(), h_havg_density.size());
-    ParallelDescriptor::ReduceRealSum(h_havg_temperature.dataPtr(), h_havg_temperature.size());
-    ParallelDescriptor::ReduceRealSum(h_havg_pressure.dataPtr(), h_havg_pressure.size());
-#if defined(ERF_USE_MOISTURE)
-    ParallelDescriptor::ReduceRealSum(h_havg_qv.dataPtr(), h_havg_qv.size());
-    ParallelDescriptor::ReduceRealSum(h_havg_qc.dataPtr(), h_havg_qc.size());
+    int zdir = 2;
+    auto domain = geom[0].Domain();
+
+    // Sum in the horizontal plane
+    Gpu::HostVector<Real> h_avg_density     = sumToLine(mf,0,1,domain,zdir);
+    Gpu::HostVector<Real> h_avg_temperature = sumToLine(mf,1,1,domain,zdir);
+    Gpu::HostVector<Real> h_avg_pressure    = sumToLine(mf,2,1,domain,zdir);
+#ifdef ERF_USE_MOISTURE
+    Gpu::HostVector<Real> h_avg_qv          = sumToLine(mf,3,1,domain,zdir);
+    Gpu::HostVector<Real> h_avg_qc          = sumToLine(mf,4,1,domain,zdir);
 #endif
 
-    // divide by the total number of cells we are averaging over
-    for (int k = 0; k < size_z; ++k) {
+    // Divide by the total number of cells we are averaging over
+     int size_z = domain.length(zdir);
+    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+    for (int k = 0; k < h_avg_density.size(); ++k) {
         h_havg_density[k]     /= area_z;
         h_havg_temperature[k] /= area_z;
         h_havg_pressure[k]    /= area_z;
