@@ -67,32 +67,6 @@ ERF::sum_integrated_quantities(Real time)
 #ifdef AMREX_LAZY
         });
 #endif
-        if (NumDataLogs() > 1)
-        {
-
-            // The second data log holds 1d arrays
-            Vector<Real> h_avg_1, h_avg_2;
-            // Prints out 1d average of density -- this should equation dens_hse at step 0
-            MakeDiagnosticAverage(h_avg_1, vars_new[0][Vars::cons], 0);
-
-            // Sample -- output horiz averages of <uprime wprime>
-            derive_upwp(h_avg_2);
-
-            auto const& dx = geom[0].CellSizeArray();
-            if (amrex::ParallelDescriptor::IOProcessor()) {
-                std::ostream& data_log1 = DataLog(1);
-                if (data_log1.good()) {
-                  // Write the quantities at this time
-                  data_log1 << std::setw(datwidth) << time << "\n";
-                  for (int k = 0; k < h_avg_1.size(); k++) {
-                      Real z = (k + 0.5)* dx[2];
-                      data_log1 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                           << h_avg_1[k]  << "    " << h_avg_2[k] << std::endl;
-                  } // loop over z
-                  data_log1 << std::endl;
-                } // if good
-            } // if IOProcessor
-        } // if NumDataLogs > 1
     } // if verbose
 }
 
@@ -178,46 +152,4 @@ ERF::is_it_time_for_action(int nstep, Real time, Real dtlev, int action_interval
   }
 
   return int_test || per_test;
-}
-
-void
-ERF::derive_upwp(Vector<Real>& h_avg)
-{
-    // We assume that this is always called at level 0
-    int lev = 0;
-
-    MultiFab mf(grids[lev], dmap[lev], AMREX_SPACEDIM, 0);
-    MultiFab u_cc(mf, make_alias, 0, 1); // u at cell centers
-    MultiFab w_cc(mf, make_alias, 2, 1); // w at cell centers
-
-    average_face_to_cellcenter(mf,0,
-            Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
-
-    Vector<Real> h_u_avg;
-    MakeDiagnosticAverage(h_u_avg, u_cc, 0);
-    amrex::Gpu::DeviceVector<amrex::Real> d_u_avg;
-    d_u_avg.resize(h_u_avg.size(),0.0_rt);
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_u_avg.begin(), h_u_avg.end(), d_u_avg.begin());
-
-    Vector<Real> h_w_avg;
-    MakeDiagnosticAverage(h_w_avg, w_cc, 0);
-    amrex::Gpu::DeviceVector<amrex::Real> d_w_avg;
-    d_w_avg.resize(h_w_avg.size(),0.0_rt);
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_w_avg.begin(), h_w_avg.end(), d_w_avg.begin());
-
-    for ( MFIter mfi(mf,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            const Box& bx = mfi.tilebox();
-            const Array4<Real>& derdat = mf.array(mfi);
-            const Array4<Real>& u_cc_arr = u_cc.array(mfi);
-            const Array4<Real>& w_cc_arr = w_cc.array(mfi);
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                derdat(i, j, k, 0) = (u_cc_arr(i,j,k) - h_u_avg[k]) * (w_cc_arr(i,j,k) - h_w_avg[k]);
-            });
-        }
-
-    h_avg.resize(h_u_avg.size());
-    MakeDiagnosticAverage(h_avg, mf, 0);
 }
