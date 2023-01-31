@@ -191,8 +191,12 @@ struct SolverChoice {
         }
 
         pp.query("Ce" , Ce);
-        pp.query("Ck" , Ck);
         pp.query("sigma_k" , sigma_k);
+
+        // Enforce that we input a value for Ck so it isn't the default (0)
+        if  (les_type == LESType::Deardorff) {
+            pp.get("Ck" , Ck);
+        }
 
         // Compute relevant forms of diffusion parameters
         Pr_t_inv = 1.0 / Pr_t;

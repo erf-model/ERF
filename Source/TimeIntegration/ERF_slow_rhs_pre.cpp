@@ -389,21 +389,17 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         } // profile
 
         Array4<Real> SmnSmn_a;
-        if (SmnSmn) {
-            SmnSmn_a = SmnSmn->array(mfi);
-        } else {
-            SmnSmn_a = Array4<Real>{};
-        }
-        {
-        BL_PROFILE("slow_rhs_making_SmnSmn");
+
         // Populate SmnSmn if using Deardorff (used as diff src in post)
         if (solverChoice.les_type == LESType::Deardorff) {
+            SmnSmn_a = SmnSmn->array(mfi);
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
             });
-        } // use Deardorff
-        } // profile
+        } else {
+            SmnSmn_a = Array4<Real>{};
+        }
 
         {
         BL_PROFILE("slow_rhs_making_stress");
