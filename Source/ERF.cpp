@@ -1171,13 +1171,11 @@ ERF::ReadParameters ()
     solverChoice.init_params();
 }
 
-// Create horizontal average quantities
+// Create horizontal average quantities for 5 variables:
+//        density, temperature, pressure, qc, qv (if present)
 void
 ERF::MakeHorizontalAverages ()
 {
-    // We need to create horizontal averages for 5 variables:
-    // density, temperature, pressure, qc, qv (if present)
-
     // First, average down all levels
     AverageDown();
 
@@ -1205,9 +1203,11 @@ ERF::MakeHorizontalAverages ()
 #endif
     for (MFIter mfi(mf_cons); mfi.isValid(); ++mfi) {
         const Box& box = mfi.validbox();
+
         const IntVect& se = box.smallEnd();
         const IntVect& be = box.bigEnd();
-        auto  cons_arr = mf_cons[mfi].array();
+
+        auto    cons_arr = mf_cons[mfi].array();
 
 #if defined(ERF_USE_MOISTURE)
         auto    qv_arr = qv[0][mfi].array();
@@ -1282,6 +1282,55 @@ ERF::MakeHorizontalAverages ()
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
 #endif
+}
+
+// Create horizontal average quantities for the MultiFab passed in
+// NOTE: this does not create device versions of the 1d arrays
+void
+ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
+{
+    // Get the number of cells in z at level 0
+    int dir_z = AMREX_SPACEDIM-1;
+    auto domain = geom[0].Domain();
+    int size_z = domain.length(dir_z);
+    int start_z = domain.smallEnd()[dir_z];
+    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+
+    // resize the level 0 horizontal average vectors
+    h_havg.resize(size_z, 0.0_rt);
+
+    // Get the cell centered data and construct sums
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(S); mfi.isValid(); ++mfi) {
+        const Box& box = mfi.validbox();
+        const IntVect& se = box.smallEnd();
+        const IntVect& be = box.bigEnd();
+
+        auto      fab_arr = S[mfi].array();
+
+        FArrayBox fab_reduce(box, 1);
+        Elixir elx_reduce = fab_reduce.elixir();
+        auto arr_reduce   = fab_reduce.array();
+
+        ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            arr_reduce(i, j, k, 0) = fab_arr(i,j,k,n);
+        });
+
+        for (int k=se[dir_z]; k <= be[dir_z]; ++k) {
+            Box kbox(box); kbox.setSmall(dir_z,k); kbox.setBig(dir_z,k);
+            h_havg[k-start_z] += fab_reduce.sum<RunOn::Device>(kbox,0);
+        }
+    }
+
+    // combine sums from different MPI ranks
+    ParallelDescriptor::ReduceRealSum(h_havg.dataPtr(), h_havg.size());
+
+    // divide by the total number of cells we are averaging over
+    for (int k = 0; k < size_z; ++k) {
+        h_havg[k]     /= area_z;
+    }
 }
 
 // Set covered coarse cells to be the average of overlying fine cells for all levels
