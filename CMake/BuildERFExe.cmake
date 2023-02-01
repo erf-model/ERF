@@ -86,7 +86,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/ERF_init.cpp
        ${SRC_DIR}/ERF_init1d.cpp
-       ${SRC_DIR}/ERF_SumIQ.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.H
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
@@ -106,6 +105,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.H
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles.cpp
+       ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/Advection/Advection.H
