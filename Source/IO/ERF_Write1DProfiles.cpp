@@ -122,6 +122,12 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
     h_avg_v  = sumToLine(mf_vels ,1,1,domain,zdir);
     h_avg_w  = sumToLine(mf_vels ,2,1,domain,zdir);
 
+    // Divide by the total number of cells we are averaging over
+    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+    for (int k = 0; k < h_avg_u.size(); ++k) {
+        h_avg_u[k] /= area_z; h_avg_v[k] /= area_z; h_avg_w[k] /= area_z;
+    }
+
     MultiFab mf_cons(vars_new[lev][Vars::cons], make_alias, 0, 2);
 
     for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -161,6 +167,14 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
     h_avg_vth  = sumToLine(mf_out, 8,1,domain,zdir);
     h_avg_wth  = sumToLine(mf_out, 9,1,domain,zdir);
     h_avg_thth = sumToLine(mf_out,10,1,domain,zdir);
+
+    // Divide by the total number of cells we are averaging over
+    for (int k = 0; k < h_avg_u.size(); ++k) {
+        h_avg_th[k] /= area_z;  h_avg_thth[k] /= area_z;
+        h_avg_uu[k] /= area_z;  h_avg_uv[k]   /= area_z; h_avg_uw[k]  /= area_z;
+        h_avg_vv[k] /= area_z;  h_avg_vw[k]   /= area_z; h_avg_ww[k]  /= area_z;
+        h_avg_uth[k] /= area_z; h_avg_vth[k]  /= area_z; h_avg_wth[k] /= area_z;
+    }
 }
 void
 ERF::derive_stress_profiles(Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<Real>& h_avg_tau12,

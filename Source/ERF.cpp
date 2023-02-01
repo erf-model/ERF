@@ -493,7 +493,16 @@ ERF::InitData ()
     //       WritePlotFile calls FillPatch in order to compute gradients
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-      m_most = std::make_unique<ABLMost>(geom,vars_old,Theta_prim,z_phys_nd);
+        m_most = std::make_unique<ABLMost>(geom,vars_old,Theta_prim,z_phys_nd);
+
+        // We now configure ABLMost params here so that we can print the averages at t=0
+        // Note we don't fill ghost cells here because this is just for diagnostics
+        int lev = 0; amrex::IntVect ng = IntVect(0,0,0);
+        MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
+        MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
+        MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
+        m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
+        m_most->update_fluxes(lev);
     }
 
     if (restart_chkfile == "" && check_int > 0)
@@ -1183,11 +1192,6 @@ ERF::MakeHorizontalAverages ()
     // First, average down all levels
     AverageDown();
 
-#if defined(ERF_USE_MOISTURE)
-    int nv = 5;
-#else
-    int nv = 3;
-#endif
     MultiFab mf(grids[lev], dmap[lev], 5, 0);
 
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
