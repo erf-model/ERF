@@ -1192,8 +1192,11 @@ ERF::MakeHorizontalAverages ()
 
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
-        auto fab_arr  = mf.array(mfi);
+        auto  fab_arr = mf.array(mfi);
         auto cons_arr = vars_new[lev][Vars::cons].array(mfi);
+#if defined(ERF_USE_MOISTURE)
+        auto   qv_arr = qv[lev].array(mfi);
+#endif
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real dens = cons_arr(i, j, k, Cons::Rho);
             fab_arr(i, j, k, 0) = dens;
