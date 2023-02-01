@@ -33,6 +33,7 @@ void ABLMost::update_fluxes(int lev, int max_iters)
 
         auto t_star_arr = t_star[lev]->array(mfi);
         auto u_star_arr = u_star[lev]->array(mfi);
+        auto olen_arr   = olen[lev]->array(mfi);
 
         const auto umm_arr = umm_ptr->array(mfi);
         const auto z0_arr  = z_0[lev].array();
@@ -40,6 +41,7 @@ void ABLMost::update_fluxes(int lev, int max_iters)
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             t_star_arr(i,j,k) = 0.0;
+            olen_arr(i,j,k) = 0.0;
             u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / std::log(d_zref / z0_arr(i,j,k));
         });
     }
@@ -57,6 +59,8 @@ void ABLMost::update_fluxes(int lev, int max_iters)
             const auto tm_arr  = tm_ptr->array(mfi);
             const auto umm_arr = umm_ptr->array(mfi);
             const auto z0_arr  = z_0[lev].array();
+
+            auto olen_arr = olen[lev]->array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -80,6 +84,8 @@ void ABLMost::update_fluxes(int lev, int max_iters)
                 t_surf_arr(i,j,k) = d_surf_temp_flux * (std::log(d_zref / z0_arr(i,j,k)) - psi_h) /
                                     (u_star_arr(i,j,k) * d_kappa) + tm_arr(i,j,k);
                 t_star_arr(i,j,k) = -d_surf_temp_flux / u_star_arr(i,j,k);
+
+                olen_arr(i,j,k) = Olen;
             });
         }
     // Specified surface temperature
@@ -95,6 +101,8 @@ void ABLMost::update_fluxes(int lev, int max_iters)
             const auto tm_arr  = tm_ptr->array(mfi);
             const auto umm_arr = umm_ptr->array(mfi);
             const auto z0_arr  = z_0[lev].array();
+
+            auto olen_arr = olen[lev]->array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -122,6 +130,8 @@ void ABLMost::update_fluxes(int lev, int max_iters)
 
                     t_star_arr(i,j,k) = d_kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                                         (std::log(d_zref / z0_arr(i,j,k)) - psi_h);
+
+                    olen_arr(i,j,k) = Olen;
                 }
             });
         }
