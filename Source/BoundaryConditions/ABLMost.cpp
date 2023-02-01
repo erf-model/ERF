@@ -218,7 +218,7 @@ ABLMost::impose_most_bcs(const int lev,
                     vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy  ,jy+1,zlo));
                     rho   = cons_arr(ic,jc,zlo,Rho_comp);
                     theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
-                    eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v);
+                    eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
 
                     Real d_thM  =  tm_arr(ic,jc,zlo);
                     Real d_vmM  = umm_arr(ic,jc,zlo);
@@ -235,7 +235,7 @@ ABLMost::impose_most_bcs(const int lev,
                     if (!var_is_derived) {
                         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
                     } else {
-                        dest_arr(i,j,k,icomp+n) = theta - moflux/eta*deltaz;
+                        dest_arr(i,j,k,icomp+n) = theta - moflux*rho/eta*deltaz;
                     }
                 });
 
