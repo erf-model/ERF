@@ -15,8 +15,8 @@ zhi.type = "SlipWall"
 
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 zlo.type      = "Most"
-erf.most.z0   = 100.0
-erf.most.zref = 200.0
+erf.most.z0   = 0.1
+erf.most.zref = 8.0
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.2  # fixed time step depending on grid resolution
