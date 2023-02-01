@@ -412,16 +412,16 @@ struct SolverChoice {
     // Smagorinsky CI coefficient
     amrex::Real CI = 0.0;
     // Smagorinsky Turbulent Prandtl Number
-    amrex::Real Pr_t = 1.0;
-    amrex::Real Pr_t_inv = 1.0;
+    amrex::Real Pr_t = 1. / 3.;
+    amrex::Real Pr_t_inv = 3.0;
     // Smagorinsky Turbulent Schmidt Number
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;
 
     // Deardorff Ce coefficient
-    amrex::Real Ce = 0.0;
+    amrex::Real Ce = 0.93;
     // Deardorff Ck coefficient
-    amrex::Real Ck = 0.0;
+    amrex::Real Ck = 0.1;
     // Deardorff sigma_k coefficient
     amrex::Real sigma_k = 1.0;
 
