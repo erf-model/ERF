@@ -7,8 +7,10 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
+#include <AMReX_Geometry.H>
 
 #include <ERF_Constants.H>
+#include <ERF_Math.H>
 
 enum class ABLDriverType {
     None, PressureGradient, GeostrophicWind
@@ -412,16 +414,16 @@ struct SolverChoice {
     // Smagorinsky CI coefficient
     amrex::Real CI = 0.0;
     // Smagorinsky Turbulent Prandtl Number
-    amrex::Real Pr_t = 1.0;
-    amrex::Real Pr_t_inv = 1.0;
+    amrex::Real Pr_t = 1. / 3.;
+    amrex::Real Pr_t_inv = 3.0;
     // Smagorinsky Turbulent Schmidt Number
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;
 
     // Deardorff Ce coefficient
-    amrex::Real Ce = 0.0;
+    amrex::Real Ce = 0.93;
     // Deardorff Ck coefficient
-    amrex::Real Ck = 0.0;
+    amrex::Real Ck = 0.1;
     // Deardorff sigma_k coefficient
     amrex::Real sigma_k = 1.0;
 
@@ -471,19 +473,25 @@ public:
     InputSoundingData() {}
 
     void read_from_file(const std::string input_sounding_file,
-                        const amrex::Real ztop)
+                        amrex::Geometry const &geom)
     {
-        z_inp_sound.resize(0);
-        theta_inp_sound.resize(0);
-        qv_inp_sound.resize(0);
-        U_inp_sound.resize(0);
-        V_inp_sound.resize(0);
+        const amrex::Real zbot = geom.ProbLo(AMREX_SPACEDIM-1);
+        AMREX_ALWAYS_ASSERT(zbot == 0);
+        const amrex::Real ztop = geom.ProbHi(AMREX_SPACEDIM-1);
+        const amrex::Real dz = geom.CellSize(AMREX_SPACEDIM-1);
+        const int Nz = geom.Domain().size()[AMREX_SPACEDIM-1];
 
-        pm_integ.resize(0);
-        rhom_integ.resize(0);
+        z_inp_sound.resize(Nz+2);
+        theta_inp_sound.resize(Nz+2);
+        qv_inp_sound.resize(Nz+2);
+        U_inp_sound.resize(Nz+2);
+        V_inp_sound.resize(Nz+2);
 
-        pd_integ.resize(0);
-        rhod_integ.resize(0);
+        pm_integ.resize(Nz+2);
+        rhom_integ.resize(Nz+2);
+
+        pd_integ.resize(Nz+2);
+        rhod_integ.resize(Nz+2);
 
         // Read the input_sounding file
         amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
@@ -494,7 +502,12 @@ public:
         else {
             // Read the contents of the input_sounding file
             amrex::Print() << "Successfully opened the input_sounding file. Now reading... " << std::endl;
-            std::string  line;
+            std::string line;
+
+            // First, read the input data into temp vectors; then, interpolate vectors to the
+            // domain lo/hi and cell centers (from level 0)
+            amrex::Vector<amrex::Real> z_inp_sound_tmp, theta_inp_sound_tmp, qv_inp_sound_tmp,
+                                       U_inp_sound_tmp, V_inp_sound_tmp;
 
             // Read the first line
             std::getline(input_sounding_reader, line);
@@ -504,11 +517,11 @@ public:
             qv_ref_inp_sound *= 0.001; // convert from g/kg to kg/kg
 
             // Add surface
-            z_inp_sound.push_back(0);
-            theta_inp_sound.push_back(theta_ref_inp_sound);
-            qv_inp_sound.push_back(qv_ref_inp_sound);
-            U_inp_sound.push_back(0);
-            V_inp_sound.push_back(0);
+            z_inp_sound_tmp.push_back(0); // height AGL
+            theta_inp_sound_tmp.push_back(theta_ref_inp_sound);
+            qv_inp_sound_tmp.push_back(qv_ref_inp_sound);
+            U_inp_sound_tmp.push_back(0);
+            V_inp_sound_tmp.push_back(0);
 
             // Read the vertical profile at each given height
             amrex::Real z, theta, qv, U, V;
@@ -516,74 +529,51 @@ public:
                 std::istringstream iss_z(line);
                 iss_z >> z >> theta >> qv >> U >> V;
                 if (z == 0) {
-                    AMREX_ALWAYS_ASSERT(theta == theta_inp_sound[0]);
-                    AMREX_ALWAYS_ASSERT(qv == qv_inp_sound[0]);
-                    U_inp_sound[0] = U;
-                    V_inp_sound[0] = V;
+                    AMREX_ALWAYS_ASSERT(theta == theta_inp_sound_tmp[0]);
+                    AMREX_ALWAYS_ASSERT(qv == qv_inp_sound_tmp[0]);
+                    U_inp_sound_tmp[0] = U;
+                    V_inp_sound_tmp[0] = V;
                 } else {
-                    AMREX_ALWAYS_ASSERT(z > z_inp_sound[0]);
-                    z_inp_sound.push_back(z);
-                    theta_inp_sound.push_back(theta);
-                    qv_inp_sound.push_back(qv*0.001);
-                    U_inp_sound.push_back(U);
-                    V_inp_sound.push_back(V);
+                    AMREX_ALWAYS_ASSERT(z > z_inp_sound[z_inp_sound_tmp.size()-1]); // sounding is increasing in height
+                    z_inp_sound_tmp.push_back(z);
+                    theta_inp_sound_tmp.push_back(theta);
+                    qv_inp_sound_tmp.push_back(qv*0.001);
+                    U_inp_sound_tmp.push_back(U);
+                    V_inp_sound_tmp.push_back(V);
                     if (z >= ztop) break;
                 }
             }
 
-            // At this point, we have an input_sounding with
-            // z_inp_sound[N-1] <= ztop
-            if (z != ztop)
-            {
-                int N = size();
-                amrex::Real z1  =     z_inp_sound[N-2];
-                amrex::Real th1 = theta_inp_sound[N-2];
-                amrex::Real qv1 =    qv_inp_sound[N-2];
-                amrex::Real U1  =     U_inp_sound[N-2];
-                amrex::Real V1  =     V_inp_sound[N-2];
-                amrex::Real z2  =     z_inp_sound[N-1];
-                amrex::Real th2 = theta_inp_sound[N-1];
-                amrex::Real qv2 =    qv_inp_sound[N-1];
-                amrex::Real U2  =     U_inp_sound[N-1];
-                amrex::Real V2  =     V_inp_sound[N-1];
-
-                amrex::Real zfrac = (ztop - z1) / (z2 - z1);
-                amrex::Real th_top = th1 + zfrac*(th2 - th1);
-                amrex::Real qv_top = qv1 + zfrac*(qv2 - qv1);
-                amrex::Real  U_top =  U1 + zfrac*( U2 -  U1);
-                amrex::Real  V_top =  V1 + zfrac*( V2 -  V1);
-
-                if (z < ztop)
-                {
-                    amrex::Print() << "Note: sounding zmax=" << z
-                        << ", extrapolating to zhi=" << ztop << std::endl;
-                    // Add domain top with extrapolated values
-                    z_inp_sound.push_back(ztop);
-                    theta_inp_sound.push_back(th_top);
-                    qv_inp_sound.push_back(qv_top);
-                    U_inp_sound.push_back(U_top);
-                    V_inp_sound.push_back(V_top);
-                }
-                else // z > ztop
-                {
-                    amrex::Print() << "Note: sounding zmax=" << z
-                        << ", interpolating to zhi=" << ztop << std::endl;
-                    // Overwrite top value with interpolated values
-                    z_inp_sound[N-1] = ztop;
-                    theta_inp_sound[N-1] = th_top;
-                    qv_inp_sound[N-1] = qv_top;
-                    U_inp_sound[N-1] = U_top;
-                    V_inp_sound[N-1] = V_top;
-                }
+            // At this point, we have an input_sounding from z=0 AGL up to
+            // z_inp_sound_tmp[N-1] >= ztop. Now, interpolate to grid level 0
+            // heights.
+            const int Ninp = z_inp_sound_tmp.size();
+            z_inp_sound[0]     = zbot;
+            theta_inp_sound[0] = theta_inp_sound_tmp[0];
+            qv_inp_sound[0]    = qv_inp_sound_tmp[0];
+            U_inp_sound[0]     = U_inp_sound_tmp[0];
+            V_inp_sound[0]     = V_inp_sound_tmp[0];
+            for (int k=0; k < Nz; ++k) {
+                z_inp_sound[k+1] = zbot + (k + 0.5) * dz;
+                theta_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
+                   qv_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
+                    U_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
+                    V_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     V_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
             }
+            z_inp_sound[Nz+1]     = ztop;
+            theta_inp_sound[Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), ztop, Ninp);
+               qv_inp_sound[Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), ztop, Ninp);
+                U_inp_sound[Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), ztop, Ninp);
+                V_inp_sound[Nz+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     V_inp_sound_tmp.dataPtr(), ztop, Ninp);
         }
+
         amrex::Print() << "Successfully read the input_sounding file..." << std::endl;
         input_sounding_reader.close();
 
         host_to_device();
     }
 
-    void calc_rho_p(const amrex::Real ztop)
+    void calc_rho_p()
     {
         /* Calculate density and pressure, roughly following the procedure in
          * WRF dyn_em/module_initialize_ideal.F. We integrate hydrostatically
@@ -612,7 +602,6 @@ public:
 
         amrex::Print() << "ideal sounding init: surface density of moist air = "
             << rhom_integ[0] << " kg/m^3" << std::endl;
-        amrex::Print() << "integrating moist air column up to " << ztop << std::endl;
 
         // Note:
         //   p_dry = rho_d R_d T
