@@ -51,7 +51,7 @@ amrex::Real ERF::sum_per       = -1.0;
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
-// init_type:  "ideal", "real", "input_sounding" or ""
+// init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
 std::string ERF::init_type        = "";
 
 // NetCDF wrfinput (initialization) file(s)
@@ -374,10 +374,8 @@ ERF::InitData ()
         }
 #endif
 
-        if (init_type == "ideal" && solverChoice.use_terrain) {
-            amrex::Abort("We do not currently support init_type = ideal with terrain");
-        } else if (init_type == "input_sounding" && solverChoice.use_terrain) {
-            amrex::Abort("We do not currently support init_type = input_sounding with terrain");
+        if ( (init_type == "ideal" || init_type == "input_sounding") && solverChoice.use_terrain) {
+            amrex::Abort("We do not currently support init_type = ideal or input_sounding with terrain");
         }
 
         if (!solverChoice.use_terrain && solverChoice.terrain_type != 0) {
@@ -385,7 +383,7 @@ ERF::InitData ()
         }
 
         if (solverChoice.use_terrain) {
-            if (init_type != "real") {
+            if (init_type != "real" && init_type != "metgrid") {
                 for (int lev = 0; lev <= finest_level; lev++)
                 {
                     init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
@@ -446,9 +444,11 @@ ERF::InitData ()
     }
 
     // If we are reading initial data from wrfinput, the base state is defined there.
+    // If we are reading initial data from metgrid output, the base state is defined there and we will rebalance
+    //    after interpolation.
     // If we are reading initial data from an input_sounding, then the base state is calculated by
     //   InputSoundingData.calc_rho_p().
-    if ((init_type != "real") && (!init_sounding_ideal)) {
+    if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
         initHSE();
     }
 
@@ -1028,6 +1028,8 @@ ERF::init_only(int lev, Real time)
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
         init_from_wrfinput(lev);
+    } else if (init_type == "metgrid") {
+        init_from_metgrid(lev);
 #endif
     }
 
@@ -1150,9 +1152,10 @@ ERF::ReadParameters ()
         if (init_type != "" &&
             init_type != "ideal" &&
             init_type != "real" &&
+            init_type != "metgrid" &&
             init_type != "input_sounding")
         {
-            amrex::Error("if specified, init_type must be ideal, real, or input_sounding");
+            amrex::Error("if specified, init_type must be ideal, real, metgrid or input_sounding");
         }
 
         // We use this to keep track of how many boxes we read in from WRF initialization
@@ -1389,7 +1392,7 @@ void
 ERF::define_grids_to_evolve (int lev)
 {
    Box domain(geom[lev].Domain());
-   if (lev == 0 && init_type == "real")
+   if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
    {
       Box shrunk_domain(domain);
       shrunk_domain.grow(0,-1);

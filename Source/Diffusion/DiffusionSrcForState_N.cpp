@@ -186,9 +186,13 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                          + 3. * cell_prim(i, j, k  , prim_index)
+                                                     - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                          - 3. * cell_prim(i, j, k  , prim_index)
+                                                     + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -228,9 +232,13 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                       + 3. * cell_prim(i, j, k  , prim_index)
+                                                  - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                       - 3. * cell_prim(i, j, k  , prim_index)
+                                                  + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -267,9 +275,13 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                          + 3. * cell_prim(i, j, k  , prim_index)
+                                                     - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                          - 3. * cell_prim(i, j, k  , prim_index)
+                                                     + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -303,9 +315,13 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                       + 3. * cell_prim(i, j, k  , prim_index)
+                                                  - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                       - 3. * cell_prim(i, j, k  , prim_index)
+                                                  + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }

@@ -84,9 +84,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/prob_common.H
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
-       ${SRC_DIR}/ERF_init.cpp
+       ${SRC_DIR}/ERF_init_custom.cpp
+       ${SRC_DIR}/ERF_init_from_input_sounding.cpp
+       ${SRC_DIR}/ERF_init_from_wrfinput.cpp
+       ${SRC_DIR}/ERF_init_from_metgrid.cpp
        ${SRC_DIR}/ERF_init1d.cpp
-       ${SRC_DIR}/ERF_SumIQ.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.H
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
@@ -106,6 +108,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.H
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles.cpp
+       ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/Advection/Advection.H
