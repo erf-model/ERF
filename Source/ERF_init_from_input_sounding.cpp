@@ -17,10 +17,9 @@ ERF::init_from_input_sounding(int lev)
     if (lev == 0) {
         if (input_sounding_file.empty())
             amrex::Error("input_sounding file name must be provided via input");
-        Real ztop = geom[0].ProbHi(AMREX_SPACEDIM-1);
-        input_sounding_data.read_from_file(input_sounding_file, ztop);
+        input_sounding_data.read_from_file(input_sounding_file, geom[lev]);
 
-        if (init_sounding_ideal) input_sounding_data.calc_rho_p(ztop);
+        if (init_sounding_ideal) input_sounding_data.calc_rho_p();
     }
 
     auto& lev_new = vars_new[lev];
