@@ -264,6 +264,48 @@ public:
                                        amrex::FArrayBox& r_hse_fab,
                                        const amrex::Vector<amrex::FArrayBox>& NC_ALB_fab,
                                        const amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
+
+    // Read the netcdf metgrid file once
+    void read_from_metgrid(int lev, int idx,
+                           amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_rhop_fab, amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_MUB_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab, amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_SST_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_RDNW_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab,
+                           amrex::Vector<amrex::FArrayBox>& NC_ALB_fab, amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
+
+    // Copy from the NC*fabs into the MultiFabs holding the initial data
+    void init_state_from_metgrid(int lev,
+                                 amrex::FArrayBox& state_vel_fab, amrex::FArrayBox& x_vel_fab,
+                                 amrex::FArrayBox&     y_vel_fab, amrex::FArrayBox& z_vel_fab,
+                                 const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
+                                 const amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
+                                 const amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab);
+
+    void init_msfs_from_metgrid(int lev,
+                                amrex::FArrayBox& msfu_fab, amrex::FArrayBox& msfv_fab,
+                                amrex::FArrayBox& msfm_fab,
+                                const amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab,
+                                const amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
+                                const amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab);
+
+    // Copy from NC_PH* fabs into the MultiFabs holding the terrain data
+    void init_terrain_from_metgrid(int lev,  amrex::FArrayBox& z_phys,
+                                   const amrex::Vector<amrex::FArrayBox>& NC_PH_fab,
+                                   const amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
+
+    // Copy from NC_PB fabs into the MultiFab holding the base state
+    void init_base_state_from_metgrid(int lev, const amrex::Box& bx,
+                                      amrex::FArrayBox& p_hse_fab,
+                                      amrex::FArrayBox& pi_hse_fab,
+                                      amrex::FArrayBox& r_hse_fab,
+                                      const amrex::Vector<amrex::FArrayBox>& NC_ALB_fab,
+                                      const amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
 #endif //ERF_USE_NETCDF
 
     void init_from_input_sounding(int lev);
@@ -346,6 +388,7 @@ private:
 
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput(int lev);
+    void init_from_metgrid(int lev);
 #endif // ERF_USE_NETCDF
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
@@ -663,7 +706,7 @@ private:
     // Native or NetCDF
     static std::string plotfile_type;
 
-    // init_type:  "ideal", "real", "input_sounding" or ""
+    // init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
     static std::string init_type;
 
     // NetCDF initialization (wrfinput) file
