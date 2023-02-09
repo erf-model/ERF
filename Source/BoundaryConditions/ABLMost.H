@@ -90,6 +90,7 @@ public:
         u_star.resize(nlevs);
         t_star.resize(nlevs);
         t_surf.resize(nlevs);
+        olen.resize(nlevs);
 
         for (int lev = 0; lev < nlevs; lev++)
         {
@@ -123,6 +124,9 @@ public:
                 t_star[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 t_star[lev]->setVal(1.E34);
 
+                olen[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
+                olen[lev]->setVal(1.E34);
+
                 t_surf[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
                 if (erf_st) {
                    t_surf[lev]->setVal(surf_temp);
@@ -140,6 +144,7 @@ public:
         {
           delete u_star[lev];
           delete t_star[lev];
+          delete olen[lev];
           delete t_surf[lev];
         }
     }
@@ -171,6 +176,9 @@ public:
     get_t_star(int lev) { return t_star[lev]; }
 
     const amrex::MultiFab*
+    get_olen(int lev) { return olen[lev]; }
+
+    const amrex::MultiFab*
     get_mac_avg(int lev, int comp) { return m_ma.get_average(lev,comp); }
 
     enum ThetaCalcType {
@@ -200,6 +208,7 @@ public:
         MOSTAverage m_ma;
         amrex::Vector<amrex::MultiFab*> u_star;
         amrex::Vector<amrex::MultiFab*> t_star;
+        amrex::Vector<amrex::MultiFab*> olen;
         amrex::Vector<amrex::MultiFab*> t_surf;
 };
 

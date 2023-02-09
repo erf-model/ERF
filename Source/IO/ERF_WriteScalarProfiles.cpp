@@ -24,6 +24,29 @@ ERF::sum_integrated_quantities(Real time)
     }
 
     if (verbose > 0) {
+
+        Gpu::HostVector<Real> h_avg_ustar; h_avg_ustar.resize(1);
+        Gpu::HostVector<Real> h_avg_tstar; h_avg_tstar.resize(1);
+        Gpu::HostVector<Real> h_avg_olen; h_avg_olen.resize(1);
+        if (m_most != nullptr) {
+            Box domain = geom[0].Domain();
+            int zdir = 2;
+            h_avg_ustar = sumToLine(*m_most->get_u_star(0),0,1,domain,zdir);
+            h_avg_tstar = sumToLine(*m_most->get_t_star(0),0,1,domain,zdir);
+            h_avg_olen  = sumToLine(*m_most->get_olen(0),0,1,domain,zdir);
+
+            // Divide by the total number of cells we are averaging over
+            Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+            h_avg_ustar[0] /= area_z;
+            h_avg_tstar[0] /= area_z;
+            h_avg_olen[0]  /= area_z;
+
+        } else {
+            h_avg_ustar[0] = 0.;
+            h_avg_tstar[0] = 0.;
+            h_avg_olen[0]  = 0.;
+        }
+
         const int nfoo = 2;
         amrex::Real foo[nfoo] = {mass,scalar};
 #ifdef AMREX_LAZY
@@ -41,30 +64,36 @@ ERF::sum_integrated_quantities(Real time)
             amrex::Print() << "TIME= " << time << " MASS        = " << mass   << '\n';
             amrex::Print() << "TIME= " << time << " SCALAR      = " << scalar << '\n';
 
-            if (NumDataLogs() > 0) {
-                std::ostream& data_log1 = DataLog(0);
+            // The first data log only holds scalars
+            if (NumDataLogs() > 0)
+            {
+                int nd = 0;
+                std::ostream& data_log1 = DataLog(nd);
                 if (data_log1.good()) {
                     if (time == 0.0) {
                         data_log1 << std::setw(datwidth) << "          time";
-                        data_log1 << std::setw(datwidth) << "          mass";
-                        data_log1 << std::setw(datwidth) << "        scalar";
+                        data_log1 << std::setw(datwidth) << "          u_star";
+                        data_log1 << std::setw(datwidth) << "          t_star";
+                        data_log1 << std::setw(datwidth) << "          olen";
                         data_log1 << std::endl;
-                    }
+                    } // time = 0
 
                   // Write the quantities at this time
                   data_log1 << std::setw(datwidth) << time;
                   data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                            << mass;
+                            << h_avg_ustar[0];
                   data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                            << scalar;
+                            << h_avg_tstar[0];
+                  data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
+                            << h_avg_olen[0];
                   data_log1 << std::endl;
-              }
-            }
-          }
+                } // if good
+            } // loop over i
+          } // if IOProcessor
 #ifdef AMREX_LAZY
         });
 #endif
-    }
+    } // if verbose
 }
 
 amrex::Real
