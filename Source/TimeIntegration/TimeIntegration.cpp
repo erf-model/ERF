@@ -59,45 +59,24 @@ void ERF::erf_advance(int level,
     MultiFab    S_prim  (ba  , dm, NUM_PRIM,          cons_old.nGrowVect());
     MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
-    MultiFab* eddyDiffs;
-    MultiFab* SmnSmn;
-    if (l_use_kturb) {
-      eddyDiffs = new MultiFab(ba, dm, EddyDiff::NumDiffs, 1);
-      if(solverChoice.les_type == LESType::Deardorff) SmnSmn = new MultiFab(ba, dm, 1, 0);
-    } else {
-      eddyDiffs = nullptr;
-      SmnSmn    = nullptr;
-    }
+    MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
+    MultiFab* SmnSmn    = SmnSmn_lev[level].get();
 
     // **************************************************************************************
     // Compute strain for use in slow RHS, Smagorinsky model, and MOST
     // **************************************************************************************
-    BoxArray ba12 = convert(ba, IntVect(1,1,0));
-    BoxArray ba13 = convert(ba, IntVect(1,0,1));
-    BoxArray ba23 = convert(ba, IntVect(0,1,1));
-    MultiFab* Tau11 = nullptr;
-    MultiFab* Tau22 = nullptr;
-    MultiFab* Tau33 = nullptr;
-    MultiFab* Tau12 = nullptr;
-    MultiFab* Tau13 = nullptr;
-    MultiFab* Tau23 = nullptr;
-    MultiFab* Tau21 = nullptr;
-    MultiFab* Tau31 = nullptr;
-    MultiFab* Tau32 = nullptr;
+    MultiFab* Tau11 = Tau11_lev[level].get();
+    MultiFab* Tau22 = Tau22_lev[level].get();
+    MultiFab* Tau33 = Tau33_lev[level].get();
+    MultiFab* Tau12 = Tau12_lev[level].get();
+    MultiFab* Tau13 = Tau13_lev[level].get();
+    MultiFab* Tau23 = Tau23_lev[level].get();
+    MultiFab* Tau21 = Tau21_lev[level].get();
+    MultiFab* Tau31 = Tau31_lev[level].get();
+    MultiFab* Tau32 = Tau32_lev[level].get();
     {
     BL_PROFILE("erf_advance_strain");
     if (l_use_diff) {
-        Tau11 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau22 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau33 = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        Tau12 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
-        Tau13 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
-        Tau23 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
-        if (l_use_terrain) {
-            Tau21 = new MultiFab(ba12, dm, 1, IntVect(1,1,0));
-            Tau31 = new MultiFab(ba13, dm, 1, IntVect(1,1,0));
-            Tau32 = new MultiFab(ba23, dm, 1, IntVect(1,1,0));
-        }
 
         const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
@@ -284,24 +263,6 @@ void ERF::erf_advance(int level,
     } // profile
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
-
-    if (l_use_kturb) delete eddyDiffs;
-
-    if(solverChoice.les_type == LESType::Deardorff) delete SmnSmn;
-
-    if (l_use_diff) {
-      delete Tau11;
-      delete Tau22;
-      delete Tau33;
-      delete Tau12;
-      delete Tau13;
-      delete Tau23;
-      if (l_use_terrain) {
-        delete Tau21;
-        delete Tau31;
-        delete Tau32;
-      }
-    }
 
     if (verbose) Print() << "Done with advance at level " << level << std::endl;
 }
