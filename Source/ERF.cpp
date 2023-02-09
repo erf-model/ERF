@@ -828,11 +828,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     bool l_use_kturb   = ( (solverChoice.les_type != LESType::None)   ||
                            (solverChoice.pbl_type != PBLType::None) );
     bool l_use_ddorf   = (solverChoice.les_type == LESType::Deardorff);
-    
+
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
-    
+
     Tau11_lev.resize(lev+1); Tau22_lev.resize(lev+1); Tau33_lev.resize(lev+1);
     Tau12_lev.resize(lev+1); Tau21_lev.resize(lev+1);
     Tau13_lev.resize(lev+1); Tau31_lev.resize(lev+1);
