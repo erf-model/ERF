@@ -852,6 +852,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
             Tau21_lev[lev].reset( new MultiFab(ba12, dm, 1, IntVect(1,1,0)) );
             Tau31_lev[lev].reset( new MultiFab(ba13, dm, 1, IntVect(1,1,0)) );
             Tau32_lev[lev].reset( new MultiFab(ba23, dm, 1, IntVect(1,1,0)) );
+        } else {
+            Tau21_lev[lev] = nullptr;
+            Tau31_lev[lev] = nullptr;
+            Tau32_lev[lev] = nullptr;
         }
     } else {
       Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
@@ -862,7 +866,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
     if (l_use_kturb) {
       eddyDiffs_lev[lev].reset( new MultiFab(ba, dm, EddyDiff::NumDiffs, 1) );
-      if(l_use_ddorf) SmnSmn_lev[lev].reset( new MultiFab(ba, dm, 1, 0) );
+      if(l_use_ddorf) {
+          SmnSmn_lev[lev].reset( new MultiFab(ba, dm, 1, 0) );
+      } else {
+          SmnSmn_lev[lev] = nullptr;
+      }
     } else {
       eddyDiffs_lev[lev] = nullptr;
       SmnSmn_lev[lev]    = nullptr;
