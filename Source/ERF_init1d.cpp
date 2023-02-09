@@ -1,3 +1,6 @@
+/**
+ * \file ERF_init1d.cpp
+ */
 #include <ERF.H>
 #include <EOS.H>
 #include <prob_common.H>
