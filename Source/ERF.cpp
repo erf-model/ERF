@@ -43,6 +43,7 @@ int         ERF::verbose       = 0;
 // Use the native ERF MRI integrator
 int         ERF::use_native_mri = 1;
 int         ERF::no_substepping = 0;
+int         ERF::force_stage1_single_substep = 1;
 
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
@@ -1001,6 +1002,7 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
+    mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(force_stage1_single_substep);
 
     physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                      solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
@@ -1098,6 +1100,7 @@ ERF::ReadParameters ()
         // Use the native ERF MRI integrator
         pp.query("use_native_mri", use_native_mri);
         pp.query("no_substepping", no_substepping);
+        pp.query("force_stage1_single_substep", force_stage1_single_substep);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
