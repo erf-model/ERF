@@ -578,6 +578,14 @@ private:
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
 
+    // Diffusive stresses and Smag
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau11_lev, Tau22_lev, Tau33_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau12_lev, Tau21_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau13_lev, Tau31_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau23_lev, Tau32_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;

@@ -819,6 +819,64 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 #endif
 
     // ********************************************************************************************
+    // Diffusive terms
+    // ********************************************************************************************
+    bool l_use_terrain = solverChoice.use_terrain;
+    bool l_use_diff    = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+                           (solverChoice.les_type        !=       LESType::None) ||
+                           (solverChoice.pbl_type        !=       PBLType::None) );
+    bool l_use_kturb   = ( (solverChoice.les_type != LESType::None)   ||
+                           (solverChoice.pbl_type != PBLType::None) );
+    bool l_use_ddorf   = (solverChoice.les_type == LESType::Deardorff);
+
+    BoxArray ba12 = convert(ba, IntVect(1,1,0));
+    BoxArray ba13 = convert(ba, IntVect(1,0,1));
+    BoxArray ba23 = convert(ba, IntVect(0,1,1));
+
+    Tau11_lev.resize(lev+1); Tau22_lev.resize(lev+1); Tau33_lev.resize(lev+1);
+    Tau12_lev.resize(lev+1); Tau21_lev.resize(lev+1);
+    Tau13_lev.resize(lev+1); Tau31_lev.resize(lev+1);
+    Tau23_lev.resize(lev+1); Tau32_lev.resize(lev+1);
+
+    eddyDiffs_lev.resize(lev+1);
+    SmnSmn_lev.resize(lev+1);
+
+    if (l_use_diff) {
+        Tau11_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        Tau22_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        Tau33_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        Tau12_lev[lev].reset( new MultiFab(ba12, dm, 1, IntVect(1,1,0)) );
+        Tau13_lev[lev].reset( new MultiFab(ba13, dm, 1, IntVect(1,1,0)) );
+        Tau23_lev[lev].reset( new MultiFab(ba23, dm, 1, IntVect(1,1,0)) );
+        if (l_use_terrain) {
+            Tau21_lev[lev].reset( new MultiFab(ba12, dm, 1, IntVect(1,1,0)) );
+            Tau31_lev[lev].reset( new MultiFab(ba13, dm, 1, IntVect(1,1,0)) );
+            Tau32_lev[lev].reset( new MultiFab(ba23, dm, 1, IntVect(1,1,0)) );
+        } else {
+            Tau21_lev[lev] = nullptr;
+            Tau31_lev[lev] = nullptr;
+            Tau32_lev[lev] = nullptr;
+        }
+    } else {
+      Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
+      Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
+      Tau13_lev[lev] = nullptr; Tau31_lev[lev] = nullptr;
+      Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
+    }
+
+    if (l_use_kturb) {
+      eddyDiffs_lev[lev].reset( new MultiFab(ba, dm, EddyDiff::NumDiffs, 1) );
+      if(l_use_ddorf) {
+          SmnSmn_lev[lev].reset( new MultiFab(ba, dm, 1, 0) );
+      } else {
+          SmnSmn_lev[lev] = nullptr;
+      }
+    } else {
+      eddyDiffs_lev[lev] = nullptr;
+      SmnSmn_lev[lev]    = nullptr;
+    }
+
+    // ********************************************************************************************
     // Metric terms
     // ********************************************************************************************
     z_phys_nd.resize(lev+1);

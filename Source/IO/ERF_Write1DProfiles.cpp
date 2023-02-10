@@ -191,16 +191,22 @@ ERF::derive_stress_profiles(Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<
         const Box& bx = mfi.tilebox();
         const Array4<Real>& fab_arr = mf_out.array(mfi);
 
+        // NOTE: These are from the last RK stage...
+        const Array4<const Real>& tau11_arr = Tau11_lev[lev]->const_array(mfi);
+        const Array4<const Real>& tau12_arr = Tau12_lev[lev]->const_array(mfi);
+        const Array4<const Real>& tau13_arr = Tau13_lev[lev]->const_array(mfi);
+        const Array4<const Real>& tau22_arr = Tau22_lev[lev]->const_array(mfi);
+        const Array4<const Real>& tau23_arr = Tau23_lev[lev]->const_array(mfi);
+        const Array4<const Real>& tau33_arr = Tau33_lev[lev]->const_array(mfi);
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-#if 0
             fab_arr(i, j, k, 0) = tau11_arr(i,j,k);
             fab_arr(i, j, k, 1) = tau12_arr(i,j,k);
             fab_arr(i, j, k, 2) = tau13_arr(i,j,k);
             fab_arr(i, j, k, 3) = tau22_arr(i,j,k);
             fab_arr(i, j, k, 4) = tau23_arr(i,j,k);
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k);
-#endif
         });
     }
 
