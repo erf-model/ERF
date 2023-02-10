@@ -51,6 +51,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/IO/NCPlotFile.cpp
                    ${SRC_DIR}/IO/NCCheckpoint.cpp
                    ${SRC_DIR}/IO/NCMultiFabFile.cpp
+                   ${SRC_DIR}/IO/ReadFromMetgrid.cpp
                    ${SRC_DIR}/IO/ReadFromWRFBdy.cpp
                    ${SRC_DIR}/IO/ReadFromWRFInput.cpp
                    ${SRC_DIR}/IO/NCColumnFile.cpp)
