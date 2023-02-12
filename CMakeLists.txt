@@ -24,8 +24,8 @@ option(ERF_ENABLE_WARM_NO_PRECIP "Enable Warm Moisture" OFF)
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
 option(ERF_ENABLE_OPENMP "Enable OpenMP" OFF)
 option(ERF_ENABLE_CUDA "Enable CUDA" OFF)
-option(ERF_ENABLE_HIP "Enable HIP" OFF)
-option(ERF_ENABLE_DPCPP "Enable DPCPP" OFF)
+option(ERF_ENABLE_HIP  "Enable HIP" OFF)
+option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
 
 #Options for C++
 set(CMAKE_CXX_STANDARD 14)

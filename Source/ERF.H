@@ -30,6 +30,7 @@
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 #include <DataStruct.H>
+#include <InputSoundingData.H>
 #include <ABLMost.H>
 #include <Derive.H>
 #include <ERF_ReadBndryPlanes.H>
@@ -222,113 +223,9 @@ public:
     void writeToNCColumnFile(const int lev,
                              const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
                              const amrex::Real time);
-
-    // Read the netcdf wrfinput file once
-    void read_from_wrfinput(int lev, int idx,
-                            amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_rhop_fab, amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_MUB_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab, amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_SST_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_RDNW_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_ALB_fab, amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
-
-    // Copy from the NC*fabs into the MultiFabs holding the initial data
-    void init_state_from_wrfinput(int lev,
-                            amrex::FArrayBox& state_vel_fab, amrex::FArrayBox& x_vel_fab,
-                            amrex::FArrayBox&     y_vel_fab, amrex::FArrayBox& z_vel_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab);
-
-    void init_msfs_from_wrfinput(int lev,
-                            amrex::FArrayBox& msfu_fab, amrex::FArrayBox& msfv_fab,
-                            amrex::FArrayBox& msfm_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab);
-
-    // Copy from NC_PH* fabs into the MultiFabs holding the terrain data
-    void init_terrain_from_wrfinput(int lev,  amrex::FArrayBox& z_phys,
-                                    const amrex::Vector<amrex::FArrayBox>& NC_PH_fab,
-                                    const amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
-
-    // Copy from NC_PB fabs into the MultiFab holding the base state
-    void init_base_state_from_wrfinput(int lev, const amrex::Box& bx,
-                                       amrex::FArrayBox& p_hse_fab,
-                                       amrex::FArrayBox& pi_hse_fab,
-                                       amrex::FArrayBox& r_hse_fab,
-                                       const amrex::Vector<amrex::FArrayBox>& NC_ALB_fab,
-                                       const amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
-
-    // Read the netcdf metgrid file once
-    void read_from_metgrid(int lev, int idx,
-                           amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_rhop_fab, amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_MUB_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab, amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_SST_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_RDNW_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab,
-                           amrex::Vector<amrex::FArrayBox>& NC_ALB_fab, amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
-
-    // Copy from the NC*fabs into the MultiFabs holding the initial data
-    void init_state_from_metgrid(int lev,
-                                 amrex::FArrayBox& state_vel_fab, amrex::FArrayBox& x_vel_fab,
-                                 amrex::FArrayBox&     y_vel_fab, amrex::FArrayBox& z_vel_fab,
-                                 const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                                 const amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
-                                 const amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab);
-
-    void init_msfs_from_metgrid(int lev,
-                                amrex::FArrayBox& msfu_fab, amrex::FArrayBox& msfv_fab,
-                                amrex::FArrayBox& msfm_fab,
-                                const amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab,
-                                const amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                                const amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab);
-
-    // Copy from NC_PH* fabs into the MultiFabs holding the terrain data
-    void init_terrain_from_metgrid(int lev,  amrex::FArrayBox& z_phys,
-                                   const amrex::Vector<amrex::FArrayBox>& NC_PH_fab,
-                                   const amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
-
-    // Copy from NC_PB fabs into the MultiFab holding the base state
-    void init_base_state_from_metgrid(int lev, const amrex::Box& bx,
-                                      amrex::FArrayBox& p_hse_fab,
-                                      amrex::FArrayBox& pi_hse_fab,
-                                      amrex::FArrayBox& r_hse_fab,
-                                      const amrex::Vector<amrex::FArrayBox>& NC_ALB_fab,
-                                      const amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
 #endif //ERF_USE_NETCDF
 
     void init_from_input_sounding(int lev);
-    void init_bx_scalars_from_input_sounding(
-            const amrex::Box &bx,
-            amrex::Array4<amrex::Real> const &state,
-            amrex::GeometryData const &geomdata,
-            InputSoundingData const &inputSoundingData);
-    void init_bx_scalars_from_input_sounding_hse(
-            const amrex::Box &bx,
-            amrex::Array4<amrex::Real> const &state,
-            amrex::Array4<amrex::Real> const &r_hse_arr,
-            amrex::Array4<amrex::Real> const &p_hse_arr,
-            amrex::Array4<amrex::Real> const &pi_hse_arr,
-            amrex::GeometryData const &geomdata,
-            InputSoundingData const &inputSoundingData);
-    void init_bx_velocities_from_input_sounding(
-            const amrex::Box &bx,
-            amrex::Array4<amrex::Real> const &x_vel,
-            amrex::Array4<amrex::Real> const &y_vel,
-            amrex::Array4<amrex::Real> const &z_vel,
-            amrex::GeometryData const &geomdata,
-            InputSoundingData const &inputSoundingData);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -483,17 +380,13 @@ private:
                           amrex::Vector<amrex::FArrayBox*> T_lateral);
 
     // *** *** FArrayBox's for holding the SURFACE data
-    // Data read from the wrfinput NetCDF file
-    amrex::FArrayBox NC_HGT_fab;    // Terrain height (variable HGT in the wrfinput file)
-    amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
-    amrex::FArrayBox NC_z0_fab;     // Surface Roughness, z0 = z0 (IVGTYP)
-    amrex::FArrayBox NC_PSFC_fab;   // Surface pressure
+    // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
+    // amrex::FArrayBox NC_z0_fab;     // Surface Roughness, z0 = z0 (IVGTYP)
+    // amrex::FArrayBox NC_PSFC_fab;   // Surface pressure
 
     // TODO: Clarify the relation between SST and TSK
     // amrex::FArrayBox NC_SST_fab;    // Sea Surface Temperature; Defined even for land area
     // amrex::FArrayBox NC_TSK_fab;    // Surface Skin Temperature; Appears to be same as SST...
-
-    amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab;
 
     // Vectors (over time) of Vector (over variables) of FArrayBoxs for holding the data read from the wrfbdy NetCDF file
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xlo;

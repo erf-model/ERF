@@ -17,15 +17,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   amrex::Geometry const&)
 {
-    Real R0 = parms.rho_0;
-    for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-       Array4<Real> rho_arr = rho_hse.array(mfi);
-       const Box& gbx = mfi.growntilebox(1);
-       ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-           rho_arr(i,j,k) = R0;
-       });
-    }
+   amrex::Error("Should never get here for metgrid problems");
 }
 
 void
@@ -33,10 +25,6 @@ amrex_probinit(
   const amrex_real* /*problo*/,
   const amrex_real* /*probhi*/)
 {
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
 }
 
 void
@@ -47,7 +35,7 @@ erf_init_rayleigh(Vector<Real>& /*tau*/,
                   Vector<Real>& /*thetabar*/,
                   Geometry      const& /*geom*/)
 {
-   amrex::Error("Should never get here for WPS tests problem");
+   amrex::Error("Should never get here for metgrid problems");
 }
 
 void

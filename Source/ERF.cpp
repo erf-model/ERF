@@ -2,7 +2,7 @@
  * \file ERF.cpp
  */
 
-#include <prob_common.H>
+#include "prob_common.H"
 #include <EOS.H>
 #include <ERF.H>
 
