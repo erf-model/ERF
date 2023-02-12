@@ -6,6 +6,8 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real interpolate_1d(const amrex::Real* alpha, const amrex::Real* beta,
                            const amrex::Real alpha_interp, const int alpha_size)
 {
+    using namespace amrex;
+
     /*
     Interpolates 1D array beta at the location alpha_interp in the array alpha
     requiring 1D arrays alpha and beta to be the same size alpha_size.
@@ -65,7 +67,5 @@ amrex::Real interpolate_1d(const amrex::Real* alpha, const amrex::Real* beta,
     }
 
     return beta_interp;
-
-using namespace amrex;
 }
 #endif

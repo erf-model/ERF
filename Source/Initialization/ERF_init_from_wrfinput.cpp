@@ -1,5 +1,5 @@
 /**
- * \file ERF_init_from_metgrid.cpp
+ * \file ERF_init_from_wrfinput.cpp
  */
 
 #include <ERF.H>
@@ -11,6 +11,19 @@
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
+
+void
+read_from_wrfinput(int lev, const std::string& fname,
+                   FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
+                   FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
+                   FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
+                   FArrayBox& NC_MUB_fab ,
+                   FArrayBox& NC_MSFU_fab, FArrayBox& NC_MSFV_fab,
+                   FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
+                   FArrayBox& NC_C1H_fab , FArrayBox& NC_C2H_fab,
+                   FArrayBox& NC_RDNW_fab,
+                   FArrayBox& NC_PH_fab  , FArrayBox& NC_PHB_fab,
+                   FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab);
 
 Real
 read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
@@ -37,7 +50,35 @@ convert_wrfbdy_data(int which, const Box& domain,
                     const FArrayBox& NC_rhoth_fab);
 
 void
-ERF::init_from_metgrid(int lev)
+init_state_from_wrfinput(int lev, FArrayBox& state_fab,
+                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+                         FArrayBox& z_vel_fab,
+                         const Vector<FArrayBox>& NC_xvel_fab,
+                         const Vector<FArrayBox>& NC_yvel_fab,
+                         const Vector<FArrayBox>& NC_zvel_fab,
+                         const Vector<FArrayBox>& NC_rho_fab,
+                         const Vector<FArrayBox>& NC_rhotheta_fab);
+
+void
+init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
+                        FArrayBox& msfv_fab, FArrayBox& msfm_fab,
+                        const Vector<FArrayBox>& NC_MSFU_fab,
+                        const Vector<FArrayBox>& NC_MSFV_fab,
+                        const Vector<FArrayBox>& NC_MSFM_fab);
+void
+init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
+                           const Vector<FArrayBox>& NC_PH_fab,
+                           const Vector<FArrayBox>& NC_PHB_fab);
+
+void
+init_base_state_from_wrfinput(int lev, const Box& bx, const Real l_rdOcp,
+                              FArrayBox& p_hse, FArrayBox& pi_hse,
+                              FArrayBox& r_hse,
+                              const Vector<FArrayBox>& NC_ALB_fab,
+                              const Vector<FArrayBox>& NC_PB_fab);
+
+void
+ERF::init_from_wrfinput(int lev)
 {
     // *** FArrayBox's at this level for holding the INITIAL data
     Vector<FArrayBox> NC_xvel_fab ; NC_xvel_fab.resize(num_boxes_at_level[lev]);
@@ -59,17 +100,17 @@ ERF::init_from_metgrid(int lev)
     Vector<FArrayBox> NC_ALB_fab  ; NC_ALB_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PB_fab   ; NC_PB_fab.resize(num_boxes_at_level[lev]);
 
+    // amrex::Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
     if (nc_init_file.size() == 0)
         amrex::Error("NetCDF initialization file name must be provided via input");
 
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
     {
-        read_from_metgrid(lev,idx,NC_xvel_fab,NC_yvel_fab,NC_zvel_fab,NC_rho_fab,
-                          NC_rhop_fab,NC_rhoth_fab,NC_MUB_fab,
-                          NC_MSFU_fab,NC_MSFV_fab,NC_MSFM_fab,
-                          NC_SST_fab,
-                          NC_C1H_fab,NC_C2H_fab,NC_RDNW_fab,
-                          NC_PH_fab,NC_PHB_fab,NC_ALB_fab,NC_PB_fab);
+        read_from_wrfinput(lev,nc_init_file[lev][idx],NC_xvel_fab[idx],NC_yvel_fab[idx],NC_zvel_fab[idx],NC_rho_fab[idx],
+                           NC_rhop_fab[idx],NC_rhoth_fab[idx], NC_MUB_fab[idx],
+                           NC_MSFU_fab[idx],NC_MSFV_fab[idx],NC_MSFM_fab[idx],
+                           NC_SST_fab[idx], NC_C1H_fab[idx],NC_C2H_fab[idx],NC_RDNW_fab[idx],
+                           NC_PH_fab[idx],NC_PHB_fab[idx],NC_ALB_fab[idx],NC_PB_fab[idx]);
     }
 
     auto& lev_new = vars_new[lev];
@@ -77,6 +118,7 @@ ERF::init_from_metgrid(int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
+    // INITIAL DATA common for "ideal" as well as "real" simulation
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
         // Define fabs for holding the initial data
@@ -85,7 +127,7 @@ ERF::init_from_metgrid(int lev)
         FArrayBox &yvel_fab = lev_new[Vars::yvel][mfi];
         FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
 
-        init_state_from_metgrid(lev, cons_fab, xvel_fab, yvel_fab, zvel_fab,
+        init_state_from_wrfinput(lev, cons_fab, xvel_fab, yvel_fab, zvel_fab,
                                  NC_xvel_fab, NC_yvel_fab, NC_zvel_fab,
                                  NC_rho_fab, NC_rhoth_fab);
     } // mf
@@ -101,8 +143,8 @@ ERF::init_from_metgrid(int lev)
         FArrayBox &msfv_fab = (*mapfac_v[lev])[mfi];
         FArrayBox &msfm_fab = (*mapfac_m[lev])[mfi];
 
-        init_msfs_from_metgrid(lev, msfu_fab, msfv_fab, msfm_fab,
-                               NC_MSFU_fab, NC_MSFV_fab, NC_MSFM_fab);
+        init_msfs_from_wrfinput(lev, msfu_fab, msfv_fab, msfm_fab,
+                                NC_MSFU_fab, NC_MSFV_fab, NC_MSFM_fab);
     } // mf
 
     if (solverChoice.use_terrain)
@@ -111,7 +153,7 @@ ERF::init_from_metgrid(int lev)
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
-            init_terrain_from_metgrid(lev, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
+            init_terrain_from_wrfinput(lev, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
         } // mf
 
         make_J  (geom[lev],*z_phys_nd[lev],*  detJ_cc[lev]);
@@ -123,6 +165,8 @@ ERF::init_from_metgrid(int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
+    const Real l_rdOcp = solverChoice.rdOcp;
+
     if (init_type == "real") {
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
@@ -130,13 +174,14 @@ ERF::init_from_metgrid(int lev)
             FArrayBox& pi_hse_fab = pi_hse[mfi];
             FArrayBox&  r_hse_fab = r_hse[mfi];
 
-            const Box& bx = mfi.validbox();
-            init_base_state_from_metgrid(lev, bx, p_hse_fab, pi_hse_fab, r_hse_fab,
-                                         NC_ALB_fab, NC_PB_fab);
+            const Box valid_bx = mfi.validbox();
+            init_base_state_from_wrfinput(lev, valid_bx, l_rdOcp,
+                                          p_hse_fab, pi_hse_fab, r_hse_fab,
+                                          NC_ALB_fab, NC_PB_fab);
         }
     }
 
-    if (lev == 0) {
+    if (init_type == "real" && (lev == 0)) {
         if (nc_bdy_file.empty())
             amrex::Error("NetCDF boundary file name must be provided via input");
         bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi);
@@ -167,16 +212,17 @@ ERF::init_from_metgrid(int lev)
 }
 
 void
-ERF::init_state_from_metgrid(int lev, FArrayBox& state_fab,
-                             FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
-                             FArrayBox& z_vel_fab,
-                             const Vector<FArrayBox>& NC_xvel_fab,
-                             const Vector<FArrayBox>& NC_yvel_fab,
-                             const Vector<FArrayBox>& NC_zvel_fab,
-                             const Vector<FArrayBox>& NC_rho_fab,
-                             const Vector<FArrayBox>& NC_rhotheta_fab)
+init_state_from_wrfinput(int lev, FArrayBox& state_fab,
+                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+                         FArrayBox& z_vel_fab,
+                         const Vector<FArrayBox>& NC_xvel_fab,
+                         const Vector<FArrayBox>& NC_yvel_fab,
+                         const Vector<FArrayBox>& NC_zvel_fab,
+                         const Vector<FArrayBox>& NC_rho_fab,
+                         const Vector<FArrayBox>& NC_rhotheta_fab)
 {
-    for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
+    int nboxes = NC_xvel_fab.size();
+    for (int idx = 0; idx < nboxes; idx++)
     {
         //
         // FArrayBox to FArrayBox copy does "copy on intersection"
@@ -203,13 +249,14 @@ ERF::init_state_from_metgrid(int lev, FArrayBox& state_fab,
 }
 
 void
-ERF::init_msfs_from_metgrid(int lev, FArrayBox& msfu_fab,
-                            FArrayBox& msfv_fab, FArrayBox& msfm_fab,
-                            const Vector<FArrayBox>& NC_MSFU_fab,
-                            const Vector<FArrayBox>& NC_MSFV_fab,
-                            const Vector<FArrayBox>& NC_MSFM_fab)
+init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
+                        FArrayBox& msfv_fab, FArrayBox& msfm_fab,
+                        const Vector<FArrayBox>& NC_MSFU_fab,
+                        const Vector<FArrayBox>& NC_MSFV_fab,
+                        const Vector<FArrayBox>& NC_MSFM_fab)
 {
-    for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
+    int nboxes = NC_MSFU_fab.size();
+    for (int idx = 0; idx < nboxes; idx++)
     {
         //
         // FArrayBox to FArrayBox copy does "copy on intersection"
@@ -227,27 +274,26 @@ ERF::init_msfs_from_metgrid(int lev, FArrayBox& msfu_fab,
 }
 
 void
-ERF::init_base_state_from_metgrid(int lev, const Box& bx, FArrayBox& p_hse, FArrayBox& pi_hse,
-                                  FArrayBox& r_hse,
-                                  const Vector<FArrayBox>& NC_ALB_fab,
-                                  const Vector<FArrayBox>& NC_PB_fab)
+init_base_state_from_wrfinput(int lev, const Box& valid_bx, const Real l_rdOcp,
+                              FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
+                              const Vector<FArrayBox>& NC_ALB_fab,
+                              const Vector<FArrayBox>& NC_PB_fab)
 {
-    for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
+    int nboxes = NC_ALB_fab.size();
+    for (int idx = 0; idx < nboxes; idx++)
     {
         //
         // FArrayBox to FArrayBox copy does "copy on intersection"
         // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
         //
         const Array4<Real      >&  p_hse_arr =  p_hse.array();
-        const Array4<Real      >& pi_hse_arr = pi_hse.array();
-        const Array4<Real      >&  r_hse_arr =  r_hse.array();
+        const Array4<Real      >& pi_hse_arr = pi_hse.array(); const Array4<Real      >&  r_hse_arr =  r_hse.array();
         const Array4<Real const>& alpha_arr = NC_ALB_fab[idx].const_array();
         const Array4<Real const>& nc_pb_arr = NC_PB_fab[idx].const_array();
-        const Real rdOcp = solverChoice.rdOcp;
 
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        amrex::ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             p_hse_arr(i,j,k)  = nc_pb_arr(i,j,k);
-            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), rdOcp);
+            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
             r_hse_arr(i,j,k)  = 1.0 / alpha_arr(i,j,k);
 
         });
@@ -255,17 +301,13 @@ ERF::init_base_state_from_metgrid(int lev, const Box& bx, FArrayBox& p_hse, FArr
 }
 
 void
-ERF::init_terrain_from_metgrid(int lev, FArrayBox& z_phys,
-                               const Vector<FArrayBox>& NC_PH_fab,
-                               const Vector<FArrayBox>& NC_PHB_fab)
+init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
+                           const Vector<FArrayBox>& NC_PH_fab,
+                           const Vector<FArrayBox>& NC_PHB_fab)
 {
-    for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
+    int nboxes = NC_PH_fab.size();
+    for (int idx = 0; idx < nboxes; idx++)
     {
-        //
-        // FArrayBox to FArrayBox copy does "copy on intersection"
-        // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
-        //
-
         // This copies from NC_zphys on z-faces to z_phys_nd on nodes
         const Array4<Real      >&      z_arr = z_phys.array();
         const Array4<Real const>& nc_phb_arr = NC_PHB_fab[idx].const_array();

@@ -20,13 +20,16 @@ USE_SYCL = FALSE
 
 # Debugging
 DEBUG = FALSE
+DEBUG = TRUE
 
 TEST = TRUE
 USE_ASSERTION = TRUE
+
+USE_NETCDF = TRUE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/EkmanSpiral_custom
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/MetGrid
 include $(ERF_HOME)/Exec/Make.ERF
