@@ -170,8 +170,10 @@ init_terrain_from_metgrid(int lev, FArrayBox& z_phys_nd_fab,
 
    for (int idx = 0; idx < nboxes; idx++)
    {
+#ifndef AMREX_USE_GPU
         amrex::Print() << " SIZE OF HGT FAB " << NC_hgt_fab[idx].box() << std::endl;
         amrex::Print() << " SIZE OF ZP FAB "  << z_phys_nd_fab.box() << std::endl;
+#endif
 
         // This copies from NC_zphys on z-faces to z_phys_nd on nodes
         const Array4<Real      >&      z_arr = z_phys_nd_fab.array();
@@ -188,8 +190,10 @@ init_terrain_from_metgrid(int lev, FArrayBox& z_phys_nd_fab,
         Box   from_box = surroundingNodes(NC_hgt_fab[idx].box()); from_box.growHi(2,-1);
         Box bx = z_phys_box & from_box;
 
+#ifndef AMREX_USE_GPU
         amrex::Print() << "FROM BOX " << from_box << std::endl;
         amrex::Print() << "BX " << bx << std::endl;
+#endif
 
         //
         // We must be careful not to read out of bounds of the WPS data
@@ -217,9 +221,11 @@ init_state_from_metgrid(int lev, FArrayBox& state_fab,
 {
     int nboxes = NC_hgt_fab.size();
 
+#ifndef AMREX_USE_GPU
     amrex::Print() << " U FROM NC " << NC_xvel_fab[0].box() << std::endl;
     amrex::Print() << " U INTO FAB " << x_vel_fab.box() << std::endl;
     exit(0);
+#endif
     for (int idx = 0; idx < nboxes; idx++)
     {
         // ********************************************************
@@ -356,6 +362,7 @@ init_base_state_from_metgrid(int lev, const Box& valid_bx, const Real l_rdOcp,
     } // idx
 }
 
+AMREX_GPU_DEVICE
 void
 interpolate_column(int i, int j, int src_comp, int dest_comp,
                    const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
@@ -365,8 +372,10 @@ interpolate_column(int i, int j, int src_comp, int dest_comp,
 
     int kmax     = amrex::ubound(Box(new_data)).z;
     int kmax_old = amrex::ubound(Box(orig_data)).z;
+#ifndef AMREX_USE_GPU
     amrex::Print() << "KMAX     IN INTERP " << kmax << std::endl;
     amrex::Print() << "KMAX_OLD IN INTERP " << kmax_old << std::endl;
+#endif
     int klast = 0;
     for (int k = 0; k < kmax; k++) {
 
@@ -374,7 +383,9 @@ interpolate_column(int i, int j, int src_comp, int dest_comp,
 
         bool kfound = false;
 
+#ifndef AMREX_USE_GPU
         amrex::Print() << "AT THIS K WE ARE USING KLAST " << k << " " << klast << std::endl;
+#endif
         for (int kk = klast; kk < kmax_old; kk++) {
            if (z >= orig_z(i,j,k)) {
               Real y0 = orig_data(i,j,kk  ,src_comp);
