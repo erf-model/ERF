@@ -322,7 +322,7 @@ init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
         int jlo = nodal_box.smallEnd()[1];
         int jhi = nodal_box.bigEnd()[1];
         int klo = nodal_box.smallEnd()[2];
-        int khi = nodal_box.bigEnd()[2];
+        int khi = nodal_box.bigEnd()[2]-1;
 
         //
         // We must be careful not to read out of bounds of the WPS data
