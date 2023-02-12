@@ -134,7 +134,15 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   }
 
   // Force time step ratio to be an even value
-  if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
+  if (force_stage1_single_substep) {
+      if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
+  } else {
+      if ( dt_fast_ratio%6 != 0) {
+          amrex::Print() << "mri_dt_ratio = " << dt_fast_ratio
+            << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
+          dt_fast_ratio = std::ceil(dt_fast_ratio/6.0) * 6;
+      }
+  }
 
   if (verbose)
     amrex::Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;

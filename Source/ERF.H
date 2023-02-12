@@ -594,6 +594,7 @@ private:
     static int verbose;
     static int use_native_mri;
     static int no_substepping;
+    static int force_stage1_single_substep;
 
     // mesh refinement
     static std::string coupling_type;
