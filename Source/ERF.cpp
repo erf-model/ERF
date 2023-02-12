@@ -573,6 +573,10 @@ ERF::InitData ()
         FillPatch(lev, t_new[lev],
                   {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
 
+        // We need to fill the ghost cell values of the base state in case it wasn't
+        //    done in the initialization
+        base_state[lev].FillBoundary(geom[lev].periodicity());
+
         // For moving terrain only
         if (solverChoice.terrain_type > 0) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);

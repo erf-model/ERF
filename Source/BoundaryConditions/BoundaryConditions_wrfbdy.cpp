@@ -17,10 +17,6 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
     //
 
     int lev = 0;
-    const Box& domain = geom[lev].Domain();
-
-    const auto& dom_lo = amrex::lbound(domain);
-    const auto& dom_hi = amrex::ubound(domain);
 
     Real dT = bdy_time_interval;
 
@@ -38,13 +34,20 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
         const int icomp = 0;
         const int ncomp = 1;
 
+        Box domain = geom[lev].Domain();
+
         if (var_idx == Vars::xvel) {
            ivar   = WRFBdyVars::U; // U
+           domain.growHi(0,1); domain.setType(amrex::IndexType(IntVect(1,0,0)));
         } else if (var_idx == Vars::yvel) {
            ivar   = WRFBdyVars::V; // V
+           domain.growHi(1,1); domain.setType(amrex::IndexType(IntVect(0,1,0)));
         } else  if (var_idx == Vars::cons) {
            ivar   = WRFBdyVars::R; // R (we assume that T comes right after R)
         }
+
+        const auto& dom_lo = amrex::lbound(domain);
+        const auto& dom_hi = amrex::ubound(domain);
 
         // We have data at fixed time intervals we will call dT
         // Then to interpolate, given time, we can define n = (time/dT)
@@ -70,67 +73,67 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
             const Array4<Real>& dest_arr = mf.array(mfi);
             Box bx = mfi.validbox();
 
+            const auto& bx_lo = amrex::lbound(bx);
+            const auto& bx_hi = amrex::ubound(bx);
+
+            // Note: "domain" here is the domain for the centering of this variable, i.e.
+            //       it is x-face centered for u, y-face-centered for v, and cell-centered for the state
+
             // x-faces
             {
-                Box bx_xlo(bx);
-                bx_xlo.setSmall(0,dom_lo.x); bx_xlo.setBig(0,dom_lo.x);
-                bx_xlo.setSmall(1,dom_lo.y); bx_xlo.setBig(1,dom_hi.y);
-                bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
+                if (bx_lo.x == dom_lo.x)
+                {
+                    Box bx_xlo(bx & domain);
+                    bx_xlo.setBig(0,dom_lo.x);
 
-                Box bx_xhi(bx);
-                bx_xhi.setSmall(1,dom_lo.y); bx_xhi.setBig(1,dom_hi.y);
-                bx_xhi.setSmall(2,dom_lo.z); bx_xhi.setBig(2,dom_hi.z);
-
-                if (var_idx == Vars::xvel) {
-                    bx_xhi.setSmall(0,dom_hi.x+1); bx_xhi.setBig(0,dom_hi.x+1);
-                } else {
-                    bx_xhi.setSmall(0,dom_hi.x); bx_xhi.setBig(0,dom_hi.x);
+                    ParallelFor(bx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dest_arr(i,j,k,icomp+nv) = oma   * bdatxlo_n  (i,j,k,nv)
+                                                 + alpha * bdatxlo_np1(i,j,k,nv);
+                    });
                 }
 
-                ParallelFor(
-                  bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int )
-                  {
-                      dest_arr(i,j,k,icomp+nv) = oma   * bdatxlo_n  (i,j,k,nv)
-                                               + alpha * bdatxlo_np1(i,j,k,nv);
-                  },
-                  bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int )
-                  {
-                      dest_arr(i,j,k,icomp+nv) = oma   * bdatxhi_n  (i,j,k,nv)
-                                               + alpha * bdatxhi_np1(i,j,k,nv);
-                  }
-                );
+                if (bx_hi.x == dom_hi.x)
+                {
+                    Box bx_xhi(bx & domain);
+                    bx_xhi.setSmall(0,dom_hi.x);
+
+                    ParallelFor(bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                   {
+                       dest_arr(i,j,k,icomp+nv) = oma   * bdatxhi_n  (i,j,k,nv)
+                                                + alpha * bdatxhi_np1(i,j,k,nv);
+                   });
+                }
+
             } // x-faces
 
             // y-faces
             {
-                Box bx_ylo(bx);
-                bx_ylo.setSmall(0,dom_lo.x); bx_ylo.setBig(0,dom_hi.x);
-                bx_ylo.setSmall(1,dom_lo.y); bx_ylo.setBig(1,dom_lo.y);
-                bx_ylo.setSmall(2,dom_lo.z); bx_ylo.setBig(2,dom_hi.z);
+                if (bx_lo.y == dom_lo.y)
+                {
+                    Box bx_ylo(bx & domain);
+                    bx_ylo.setBig(1,dom_lo.y);
 
-                Box bx_yhi(bx);
-                bx_yhi.setSmall(0,dom_lo.x); bx_yhi.setBig(0,dom_hi.x);
-                bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
-
-                if (var_idx == Vars::yvel) {
-                    bx_yhi.setSmall(1,dom_hi.y+1); bx_yhi.setBig(1,dom_hi.y+1);
-                } else {
-                    bx_yhi.setSmall(1,dom_hi.y); bx_yhi.setBig(1,dom_hi.y);
+                    ParallelFor(bx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dest_arr(i,j,k,icomp+nv) = oma   * bdatylo_n  (i,j,k,nv)
+                                                 + alpha * bdatylo_np1(i,j,k,nv);
+                    });
                 }
 
-                ParallelFor(
-                  bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int )
-                  {
-                      dest_arr(i,j,k,icomp+nv) = oma   * bdatylo_n  (i,j,k,nv)
-                                               + alpha * bdatylo_np1(i,j,k,nv);
-                  },
-                  bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int )
-                  {
-                      dest_arr(i,j,k,icomp+nv) = oma   * bdatyhi_n  (i,j,k,nv)
-                                               + alpha * bdatyhi_np1(i,j,k,nv);
-                  }
-                );
+                if (bx_hi.y == dom_hi.y)
+                {
+                    Box bx_yhi(bx & domain);
+                    bx_yhi.setSmall(1,dom_hi.y);
+
+                    ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        dest_arr(i,j,k,icomp+nv) = oma   * bdatyhi_n  (i,j,k,nv)
+                                                 + alpha * bdatyhi_np1(i,j,k,nv);
+                    });
+                }
             } // y-faces
+
           } // mfi
         } // nv
     } // var_idx
