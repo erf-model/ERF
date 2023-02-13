@@ -36,8 +36,6 @@ init_bx_velocities_from_input_sounding( const amrex::Box &bx,
 void
 ERF::init_from_input_sounding(int lev)
 {
-    InputSoundingData input_sounding_data;
-
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
         if (input_sounding_file.empty())

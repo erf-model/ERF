@@ -174,8 +174,14 @@ public:
         pd_integ[Ninp-1] = pm_integ[Ninp-1];
         rhod_integ[Ninp-1] = 1 / (
                     R_d/p_0 * theta_inp_sound[Ninp-1] * std::pow(pd_integ[Ninp-1]/p_0, -iGamma));
-        amrex::Print() << "z  p_d  rho_d  theta" << std::endl;
-        amrex::Print() << z_inp_sound[Ninp-1] << " " << pd_integ[Ninp-1] << " " << rhod_integ[Ninp-1] << " " << theta_inp_sound[Ninp-1] << std::endl;
+        amrex::Print() << "z  p_d  rho_d  theta  U  V" << std::endl;
+        amrex::Print() << z_inp_sound[Ninp-1]
+            << " " << pd_integ[Ninp-1]
+            << " " << rhod_integ[Ninp-1]
+            << " " << theta_inp_sound[Ninp-1]
+            << " " << U_inp_sound[Ninp-1]
+            << " " << V_inp_sound[Ninp-1]
+            << std::endl;
         for (int k=Ninp-2; k >= 0; --k)
         {
             dz = z_inp_sound[k+1] - z_inp_sound[k];
@@ -188,7 +194,13 @@ public:
                 rhod_integ[k] = 1 / (
                     R_d/p_0 * theta_inp_sound[k] * std::pow(pd_integ[k]/p_0, -iGamma));
             }
-            amrex::Print() << z_inp_sound[k] << " " << pd_integ[k] << " " << rhod_integ[k] << " " << theta_inp_sound[k] << std::endl; // DEBUG
+            amrex::Print() << z_inp_sound[k]
+                << " " << pd_integ[k]
+                << " " << rhod_integ[k]
+                << " " << theta_inp_sound[k]
+                << " " << U_inp_sound[k]
+                << " " << V_inp_sound[k]
+                << std::endl;
         }
         // Note: at this point, the surface pressure, density of the dry air
         // column is stored in pd_integ[0], rhod_integ[0]
