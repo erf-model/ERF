@@ -14,6 +14,7 @@ ERF::write_1D_profiles(Real time)
 
     int datwidth = 14;
     int datprecision = 6;
+    int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
 
     if (verbose > 0 && NumDataLogs() > 1)
     {
@@ -40,7 +41,7 @@ ERF::write_1D_profiles(Real time)
                 std::ostream& data_log1 = DataLog(1);
                 if (data_log1.good()) {
                   // Write the quantities at this time
-                  data_log1 << std::setw(datwidth) << time << "\n";
+                  data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << "\n";
                   for (int k = 0; k < h_avg_u.size(); k++) {
                       Real z = (k + 0.5)* dx[2];
                       data_log1 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -54,7 +55,7 @@ ERF::write_1D_profiles(Real time)
                 std::ostream& data_log2 = DataLog(2);
                 if (data_log2.good()) {
                   // Write the perturbational quantities at this time
-                  data_log2 << std::setw(datwidth) << time << "\n";
+                  data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << "\n";
                   for (int k = 0; k < h_avg_u.size(); k++) {
                       Real z = (k + 0.5)* dx[2];
                       data_log2 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -77,7 +78,7 @@ ERF::write_1D_profiles(Real time)
                 std::ostream& data_log3 = DataLog(3);
                 if (data_log3.good()) {
                   // Write the average stresses
-                  data_log3 << std::setw(datwidth) << time << "\n";
+                  data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << "\n";
                   for (int k = 0; k < h_avg_u.size(); k++) {
                       Real z = (k + 0.5)* dx[2];
                       data_log3 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
