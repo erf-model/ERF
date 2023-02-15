@@ -130,8 +130,9 @@ evolve.
 
 # Acknowledgements
 
-We acknowledge the support of the U.S. Department of Energy's
-Wind Energy Technology Office, as well as the help of the AMReX team
+Funding for this work was provided by the U.S. Department of Energy
+Office of Energy Efficiency and Renewable Energy Wind Energy Technologies Office.
+We acknowledge as well as the help of the AMReX team
 in developing and supporting new AMReX features needed by ERF.
 The work at LBNL was supported by the U.S. Department of Energy
 under contract No. DE-AC02-05CH11231.
