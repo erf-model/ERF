@@ -86,7 +86,7 @@ dry or moist air.  Microphysics options in ERF include a warm non-precipitating 
 that evolves cloud water and cloud vapor, as well as a single-moment model that 
 additionally allows for cloud ice, rain, hail, graupel and snow.  
 Two Large Eddy Simulation (LES) models -- Smagorinsky and Deardorff -- as well as a
-MYNN Level 2.5 Planetary Boundary Layer (PBL) scheme - are available as run-time potions.
+MYNN Level 2.5 Planetary Boundary Layer (PBL) scheme - are available as run-time options.
 
 The spatial discretization in ERF uses the classic Arakawa C-grid with 
 scalar quantities at cell centers and normal velocities at cell faces.  
