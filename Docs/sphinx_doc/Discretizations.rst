@@ -204,7 +204,7 @@ Additionally, weighted essentially non-oscillatory (WENO) schemes are available 
    \begin{array}{ll}
    \left. q_{m - \frac{1}{2}} = \sum_{n=1}^{N} w_n q_{m - \frac{1}{2}}^{(n)} &  \\
    \left. w_{n} = \frac{\hat{w}_{n}}{\sum_{l=1}^{N} \hat{w}_{l}} & \hat{w}_{l} = \frac{\omega_{l}}{\left(\epsilon + \beta_{l} \right)^2} \\
-\end{array}
+   \end{array}
 
 With the WENO3 scheme, one has :math:`N=2 \; \omega_{1} = 1/3, \; \omega_{2} = 2/3` and the following closures
 
