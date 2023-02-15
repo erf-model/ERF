@@ -18,10 +18,11 @@
         {
             for ( MFIter mfi(S_sum[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box bx = mfi.tilebox();
-                const Box tbx = mfi.nodaltilebox(0);
-                const Box tby = mfi.nodaltilebox(1);
-                const Box tbz = mfi.nodaltilebox(2);
+                const Box bx = mfi.tilebox() & grids_to_evolve[level][mfi.index()];
+
+                Box tbx = surroundingNodes((mfi.tilebox() & grids_to_evolve[level][mfi.index()]),0);
+                Box tby = surroundingNodes((mfi.tilebox() & grids_to_evolve[level][mfi.index()]),1);
+                Box tbz = surroundingNodes((mfi.tilebox() & grids_to_evolve[level][mfi.index()]),2);
 
                 Vector<Array4<Real> >  ssum_h(n_data);
                 Vector<Array4<Real> >  sold_h(n_data);

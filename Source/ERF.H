@@ -755,6 +755,19 @@ private:
         return samplelog.size();
     }
 
+    amrex::IntVect&
+    SamplePoint (int i)
+    {
+        return samplepoint[i];
+    }
+
+    AMREX_FORCE_INLINE
+    int
+    NumSamplePoints () noexcept
+    {
+        return samplepoint.size();
+    }
+
     static amrex::Real startCPUTime;
     static amrex::Real previousCPUTimeUsed;
 
@@ -786,14 +799,19 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
     }
 
-    void setRecordSampleInfo (int i, const std::string& filename)
+    void setRecordSampleInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
     {
-        if (amrex::ParallelDescriptor::IOProcessor())
+        amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
+        for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
         {
-            samplelog[i] = std::make_unique<std::fstream>();
-            samplelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
-            if (!samplelog[i]->good()) {
-                amrex::FileOpenFailed(filename);
+            const amrex::Box& bx = mfi.validbox();
+            if (bx.contains(cell)) {
+                amrex::AllPrint() << "MAKING ON MY PROC " << amrex::ParallelDescriptor::MyProc() << std::endl;
+                samplelog[i] = std::make_unique<std::fstream>();
+                samplelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+                if (!samplelog[i]->good()) {
+                    amrex::FileOpenFailed(filename);
+                }
             }
         }
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleInfo");
@@ -804,6 +822,7 @@ private:
 
     amrex::Vector<std::unique_ptr<std::fstream> > samplelog;
     amrex::Vector<std::string> samplelogname;
+    amrex::Vector<amrex::IntVect> samplepoint;
 
     //! The filename of the ith datalog file.
     const std::string DataLogName (int i) const noexcept { return datalogname[i]; }

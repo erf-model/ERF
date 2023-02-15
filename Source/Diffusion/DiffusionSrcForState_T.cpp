@@ -47,8 +47,6 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                       (solverChoice.les_type == LESType::Deardorff  ) ||
                       (solverChoice.pbl_type == PBLType::MYNN25     ) );
 
-    int l_use_terrain = solverChoice.use_terrain;
-
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);
