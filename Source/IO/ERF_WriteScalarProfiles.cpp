@@ -97,14 +97,20 @@ ERF::sum_integrated_quantities(Real time)
 
     // This is just an alias for convenience
     int lev = 0;
-    IntVect iv(3,3,4);
-    sample_space(lev, time, iv, vars_new[lev][Vars::cons]);
+    if (NumSampleLogs() > 0 && NumSamplePoints() > 0) {
+        for (int i = 0; i < NumSamplePoints(); ++i)
+        {
+            sample_space(lev, time, SamplePoint(i), vars_new[lev][Vars::cons]);
+        }
+    }
 }
 
 void
 ERF::sample_space(int lev, Real time, IntVect cell, MultiFab& mf)
 {
     int datwidth = 14;
+
+    int ifile = 0;
 
     for (MFIter mfi(mf); mfi.isValid(); ++mfi)
     {
@@ -119,18 +125,15 @@ ERF::sample_space(int lev, Real time, IntVect cell, MultiFab& mf)
 
             // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
 
-            if (NumSampleLogs() > 0)
-            {
-                std::ostream& sample_log = SampleLog(0);
-                if (sample_log.good()) {
-                  sample_log << std::setw(datwidth) << time;
-                  for (int i = 0; i < ncomp; ++i)
-                  {
-                      sample_log << std::setw(datwidth) << my_point[i];
-                  }
-                  sample_log << std::endl;
-                } // if good
-            } // file has been named in inputs file and should have been opened
+            std::ostream& sample_log = SampleLog(ifile);
+            if (sample_log.good()) {
+              sample_log << std::setw(datwidth) << time;
+              for (int i = 0; i < ncomp; ++i)
+              {
+                  sample_log << std::setw(datwidth) << my_point[i];
+              }
+              sample_log << std::endl;
+            } // if good
         } // bx contains cell
     }
 }

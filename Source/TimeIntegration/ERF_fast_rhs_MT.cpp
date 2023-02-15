@@ -87,10 +87,8 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
     for ( MFIter mfi(S_stg_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
         // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
+        Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
 
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
