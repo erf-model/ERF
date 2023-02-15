@@ -70,9 +70,9 @@ bibliography: paper.bib
 
 # Summary
 
-The Energy Research and Forecasting (ERF) code is a new mesoscale atmospheric modeling code
-that runs on the latest high-performance computing architectures.  It employs hierarchical 
-parallelism using an MPI+X model, where X may be OpenMP on multicore CPU-only systems,
+The Energy Research and Forecasting (ERF) code is a new model that simulates the mesoscale and microscale
+dynamics of the atmosphere using the latest high-performance computing architectures.  It employs
+hierarchical parallelism using an MPI+X model, where X may be OpenMP on multicore CPU-only systems,
 or CUDA, HIP or SYCL on GPU-accelerated systems.  ERF is designed to provide a flexible 
 computational framework for the exploration and investigation of different physics parameterizations 
 and numerical strategies, and to provide a characterization of the flow field that impacts the 
@@ -85,7 +85,7 @@ ERF solves the fully-compressible Navier-Stokes equations for
 dry or moist air.  Microphysics options in ERF include a warm non-precipitating model
 that evolves cloud water and cloud vapor, as well as a single-moment model that 
 additionally allows for cloud ice, rain, hail, graupel and snow.  
-Two Large Eddy Simulation (LES) models -- Smagorinsky and Deardorff - as well as a
+Two Large Eddy Simulation (LES) models -- Smagorinsky and Deardorff -- as well as a
 MYNN Level 2.5 Planetary Boundary Layer (PBL) scheme - are available as run-time potions.
 
 The spatial discretization in ERF uses the classic Arakawa C-grid with 
