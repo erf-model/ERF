@@ -30,8 +30,8 @@ authors:
   - name: Bruce Perry
     orcid: 0000-0002-9150-8103
     affiliation: 2
-  - name: Eliot Quan
-    orcid: 0000-0001-8092-1974
+  - name: Eliot Quon
+    orcid: 0000-0002-8445-5840
     affiliation: 2
   - name: Michael Sanders
     orcid: 0000-0001-6644-2571
