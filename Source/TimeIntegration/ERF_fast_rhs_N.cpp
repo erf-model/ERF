@@ -83,10 +83,8 @@ void erf_fast_rhs_N (int step, int /*level*/,
 
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
         // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
+        Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
 
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
@@ -407,10 +405,6 @@ void erf_fast_rhs_N (int step, int /*level*/,
         // **************************************************************************
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
-
-        // We note that valid_bx is the actual grid, while bx may be a tile within that grid
-        // const auto& vbx_hi = amrex::ubound(valid_bx);
-
         {
         BL_PROFILE("fast_rho_final_update");
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

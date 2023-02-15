@@ -608,6 +608,48 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
         MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
     }
+
+    // Set these up here because we need to know which MPI rank "cell" is on...
+    ParmParse pp("erf");
+    if (pp.contains("data_log"))
+    {
+        int num_datalogs = pp.countval("data_log");
+        datalog.resize(num_datalogs);
+        datalogname.resize(num_datalogs);
+        pp.queryarr("data_log",datalogname,0,num_datalogs);
+        for (int i = 0; i < num_datalogs; i++)
+            setRecordDataInfo(i,datalogname[i]);
+    }
+
+    if (pp.contains("sample_log") && pp.contains("sample_point"))
+    {
+        int lev = 0;
+
+        int num_samplepts = pp.countval("sample_point") / AMREX_SPACEDIM;
+        if (num_samplepts > 0) {
+            Vector<int> index; index.resize(num_samplepts*AMREX_SPACEDIM);
+            samplepoint.resize(num_samplepts);
+
+            pp.queryarr("sample_point",index,0,num_samplepts*AMREX_SPACEDIM);
+            for (int i = 0; i < num_samplepts; i++) {
+                IntVect iv(index[AMREX_SPACEDIM*i+0],index[AMREX_SPACEDIM*i+1],index[AMREX_SPACEDIM*i+2]);
+                samplepoint[i] = iv;
+            }
+        }
+
+        int num_samplelogs = pp.countval("sample_log");
+        AMREX_ALWAYS_ASSERT(num_samplelogs == num_samplepts);
+        if (num_samplelogs > 0) {
+            samplelog.resize(num_samplelogs);
+            samplelogname.resize(num_samplelogs);
+            pp.queryarr("sample_log",samplelogname,0,num_samplelogs);
+
+            for (int i = 0; i < num_samplelogs; i++) {
+                setRecordSampleInfo(i,lev,samplepoint[i],samplelogname[i]);
+            }
+        }
+
+    }
 }
 
 void
@@ -1093,25 +1135,6 @@ ERF::ReadParameters ()
         pp.query("restart", restart_chkfile);
         pp_amr.query("restart", restart_chkfile);
 
-        if (pp.contains("data_log"))
-        {
-            int num_datalogs = pp.countval("data_log");
-            datalog.resize(num_datalogs);
-            datalogname.resize(num_datalogs);
-            pp.queryarr("data_log",datalogname,0,num_datalogs);
-            for (int i = 0; i < num_datalogs; i++)
-                setRecordDataInfo(i,datalogname[i]);
-        }
-        if (pp.contains("sample_log"))
-        {
-            int num_samplelogs = pp.countval("sample_log");
-            samplelog.resize(num_samplelogs);
-            samplelogname.resize(num_samplelogs);
-            pp.queryarr("sample_log",samplelogname,0,num_samplelogs);
-            for (int i = 0; i < num_samplelogs; i++)
-                setRecordSampleInfo(i,samplelogname[i]);
-        }
-
         // Verbosity
         pp.query("v", verbose);
 
@@ -1143,7 +1166,7 @@ ERF::ReadParameters ()
         if (fixed_dt > 0. && fixed_fast_dt > 0. && fixed_mri_dt_ratio <= 0)
         {
             Real eps = 1.e-12;
-            int ratio = ( (1.0+eps) * fixed_dt ) / fixed_fast_dt;
+            int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt ) / fixed_fast_dt );
             if (fixed_dt / fixed_fast_dt != ratio)
             {
                 amrex::Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
@@ -1314,7 +1337,8 @@ ERF::MakeHorizontalAverages ()
     // Divide by the total number of cells we are averaging over
      int size_z = domain.length(zdir);
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
-    for (int k = 0; k < h_avg_density.size(); ++k) {
+    int klen = static_cast<int>(h_avg_density.size());
+    for (int k = 0; k < klen; ++k) {
         h_havg_density[k]     /= area_z;
         h_havg_temperature[k] /= area_z;
         h_havg_pressure[k]    /= area_z;
