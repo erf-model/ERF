@@ -117,6 +117,8 @@ public:
     void sum_integrated_quantities(amrex::Real time);
     void write_1D_profiles(amrex::Real time);
 
+    void sample_space(int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
+
     void derive_diag_profiles(amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_th,
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
@@ -739,6 +741,20 @@ private:
         return datalog.size();
     }
 
+    AMREX_FORCE_INLINE
+    std::ostream&
+    SampleLog (int i)
+    {
+        return *samplelog[i];
+    }
+
+    AMREX_FORCE_INLINE
+    int
+    NumSampleLogs () noexcept
+    {
+        return samplelog.size();
+    }
+
     static amrex::Real startCPUTime;
     static amrex::Real previousCPUTimeUsed;
 
@@ -770,11 +786,30 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
     }
 
+    void setRecordSampleInfo (int i, const std::string& filename)
+    {
+        if (amrex::ParallelDescriptor::IOProcessor())
+        {
+            samplelog[i] = std::make_unique<std::fstream>();
+            samplelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+            if (!samplelog[i]->good()) {
+                amrex::FileOpenFailed(filename);
+            }
+        }
+        amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleInfo");
+    }
+
     amrex::Vector<std::unique_ptr<std::fstream> > datalog;
     amrex::Vector<std::string> datalogname;
 
+    amrex::Vector<std::unique_ptr<std::fstream> > samplelog;
+    amrex::Vector<std::string> samplelogname;
+
     //! The filename of the ith datalog file.
     const std::string DataLogName (int i) const noexcept { return datalogname[i]; }
+
+    //! The filename of the ith samplelog file.
+    const std::string SampleLogName (int i) const noexcept { return samplelogname[i]; }
 
 public:
     void writeJobInfo(const std::string& dir) const;

@@ -94,6 +94,45 @@ ERF::sum_integrated_quantities(Real time)
         });
 #endif
     } // if verbose
+
+    // This is just an alias for convenience
+    int lev = 0;
+    IntVect iv(3,3,4);
+    sample_space(lev, time, iv, vars_new[lev][Vars::cons]);
+}
+
+void
+ERF::sample_space(int lev, Real time, IntVect cell, MultiFab& mf)
+{
+    int datwidth = 14;
+
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.validbox();
+        if (bx.contains(cell)) {
+            const int ncomp = mf.nComp();
+            Vector<Real> my_point(ncomp);
+            for (int i = 0; i < ncomp; ++i)
+            {
+                my_point[i] = mf[mfi](cell,i);
+            }
+
+            // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
+
+            if (NumSampleLogs() > 0)
+            {
+                std::ostream& sample_log = SampleLog(0);
+                if (sample_log.good()) {
+                  sample_log << std::setw(datwidth) << time;
+                  for (int i = 0; i < ncomp; ++i)
+                  {
+                      sample_log << std::setw(datwidth) << my_point[i];
+                  }
+                  sample_log << std::endl;
+                } // if good
+            } // file has been named in inputs file and should have been opened
+        } // bx contains cell
+    }
 }
 
 amrex::Real
