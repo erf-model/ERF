@@ -1,10 +1,12 @@
 ---
 title: 'ERF: Energy Research and Forecasting'
+
 tags:
   - C++
   - atmospheric modeling
   - mesoscale
   - wind energy
+
 authors:
   - name: Ann Almgren
     orcid: 0000-0003-2103-312X
@@ -43,6 +45,7 @@ authors:
   - name: Weiqun Zhang
     orcid: 0000-0001-8092-1974
     affiliation: 1
+
 affiliations:
  - name: Lawrence Berkeley National Laboratory
    index: 1
@@ -56,8 +59,11 @@ affiliations:
    index: 5
  - name: National Center for Atmospheric Research
    index: 6
+
 date: 17 February 2023
+
 bibliography: paper.bib
+---
 
 # Summary
 
