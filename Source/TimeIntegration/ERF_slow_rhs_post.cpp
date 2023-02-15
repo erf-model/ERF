@@ -55,9 +55,12 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
     const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
                                     (solverChoice.les_type        !=       LESType::None) ||
                                     (solverChoice.pbl_type        !=       PBLType::None) );
-    bool       l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
+    const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
                                     solverChoice.les_type == LESType::Deardorff   ||
                                     solverChoice.pbl_type == PBLType::MYNN25 );
+    const bool l_all_WENO       = solverChoice.all_use_WENO;
+    const bool l_moist_WENO     = solverChoice.moist_use_WENO;
+    const int  l_spatial_order_WENO = solverChoice.spatial_order_WENO;
 
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
@@ -170,20 +173,23 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             int   num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ,
-                                   dxInv, mf_m, l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, l_all_WENO, l_moist_WENO, l_spatial_order_WENO,
+                                   l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
         }
         if (l_use_QKE) {
             int start_comp = RhoQKE_comp;
             int   num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ,
-                                   dxInv, mf_m, l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, l_all_WENO, l_moist_WENO, l_spatial_order_WENO,
+                                   l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
         }
         int start_comp = RhoScalar_comp;
         int   num_comp = S_data[IntVar::cons].nComp() - start_comp;
         AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ,
-                               dxInv, mf_m, l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
+                               dxInv, mf_m, l_all_WENO, l_moist_WENO, l_spatial_order_WENO,
+                               l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);

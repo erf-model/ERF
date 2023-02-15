@@ -130,6 +130,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_Math.H
        ${SRC_DIR}/Utils/Microphysics_Utils.H
        ${SRC_DIR}/Utils/Interpolation.H
+       ${SRC_DIR}/Utils/Interpolation_WENO.H
        ${SRC_DIR}/Utils/PlaneAverage.H
        ${SRC_DIR}/Utils/VelPlaneAverage.H
        ${SRC_DIR}/Utils/DirectionSelector.H
