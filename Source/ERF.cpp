@@ -1097,6 +1097,15 @@ ERF::ReadParameters ()
             for (int i = 0; i < num_datalogs; i++)
                 setRecordDataInfo(i,datalogname[i]);
         }
+        if (pp.contains("sample_log"))
+        {
+            int num_samplelogs = pp.countval("sample_log");
+            samplelog.resize(num_samplelogs);
+            samplelogname.resize(num_samplelogs);
+            pp.queryarr("sample_log",samplelogname,0,num_samplelogs);
+            for (int i = 0; i < num_samplelogs; i++)
+                setRecordSampleInfo(i,samplelogname[i]);
+        }
 
         // Verbosity
         pp.query("v", verbose);
