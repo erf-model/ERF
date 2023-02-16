@@ -413,7 +413,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                                    - (1./3.) * cell_prim(i, j, k+1, prim_index) );
             } else if (ext_dir_on_zhi) {
                 GradCz = dz_inv * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
-                                        - 3. * cell_prim(i, j, k ), prim_index
+                                        - 3. * cell_prim(i, j, k  , prim_index)
                                    + (1./3.) * cell_prim(i, j, k+1, prim_index) );
             } else {
                 GradCz = dz_inv * ( cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index) );
