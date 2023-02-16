@@ -220,4 +220,11 @@ ERF::derive_stress_profiles(Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<
     h_avg_tau22 = sumToLine(mf_out,3,1,domain,zdir);
     h_avg_tau23 = sumToLine(mf_out,4,1,domain,zdir);
     h_avg_tau33 = sumToLine(mf_out,5,1,domain,zdir);
+
+    // Divide by the total number of cells we are averaging over
+    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+    for (int k = 0; k < h_avg_tau11.size(); ++k) {
+        h_avg_tau11[k] /= area_z; h_avg_tau12[k] /= area_z; h_avg_tau13[k] /= area_z;
+        h_avg_tau22[k] /= area_z; h_avg_tau23[k] /= area_z; h_avg_tau33[k] /= area_z;
+    }
 }
