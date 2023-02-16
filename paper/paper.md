@@ -91,8 +91,8 @@ the so called MYNN model for mesoscale simulations. LES parameterizations
 are Smagorinsky-type [@LES:Smagorinsky, @LES:Lilly] and Deardorff [@LES:Deardorff].
 
 Microphysics options in ERF include a warm non-precipitating model
-that evolves cloud water and cloud vapor, as well as a single-moment model [@SAMXX:marat]. 
-It includes precipitating and nonprecipitating tracers particles, such as water vapor, rain, ice, snow, and graupel. 
+that evolves cloud water and cloud vapor, as well as a single-moment model [@SAMXX:marat] that evolves precipitating and 
+nonprecipitating tracers, such as water vapor, rain, ice, snow, and graupel. 
 These prognostic variables are able to track particle evolution through all the important mechanisms of ice and water growth, 
 including vapor deposition, aggregation, and autocoversion, and condensation.
 
