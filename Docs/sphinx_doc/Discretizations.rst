@@ -227,7 +227,7 @@ With the WENO5 scheme, one has :math:`N=3, \; \omega_{1} = 1/10, \; \omega_{2} =
    \beta_{3} = \frac{13}{12} \left(q_{m - 1} - 2 q_{m} + q_{m+1} \right)^2 + \frac{1}{4} \left( 3 q_{m - 1} - 4 q_{m} + q_{m+1} \right)^2  \\
    q_{m - \frac{1}{2}}^{(1)} = \frac{1}{3} q_{m-3} - \frac{7}{6} q_{m-2} + \frac{11}{6} q_{m-1} \\
    q_{m - \frac{1}{2}}^{(2)} = -\frac{1}{6} q_{m-2} + \frac{5}{6} q_{m-1} + \frac{1}{3} q_{m} \\
-   q_{m - \frac{1}{2}}^{(3)} = \frac{1}{3} q_{m-1} + \frac{5}{6} q_{m} - \frac{1}{3} q_{m+1}
+   q_{m - \frac{1}{2}}^{(3)} = \frac{1}{3} q_{m-1} + \frac{5}{6} q_{m} - \frac{1}{6} q_{m+1}
    \end{array}
 
 By default, the WENO3 scheme will be employed for moisture variables if the code is compiled with moisture support. However, users may utilize the WENO scheme for all variables, with a specified order, via the following inputs:
