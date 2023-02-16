@@ -200,7 +200,7 @@ WENO Methods
 Additionally, weighted essentially non-oscillatory (WENO) schemes are available for :math:`3rd` and :math:`5th` order interpolation. The general formulation is as follows:
 
 .. math::
-   
+
    \begin{array}{ll}
    \left. q_{m - \frac{1}{2}} = \sum_{n=1}^{N} w_n q_{m - \frac{1}{2}}^{(n)} &  \\
    \left. w_{n} = \frac{\hat{w}_{n}}{\sum_{l=1}^{N} \hat{w}_{l}} & \hat{w}_{l} = \frac{\omega_{l}}{\left(\epsilon + \beta_{l} \right)^2} \\
@@ -209,7 +209,7 @@ Additionally, weighted essentially non-oscillatory (WENO) schemes are available 
 With the WENO3 scheme, one has :math:`N=2 \; \omega_{1} = 1/3, \; \omega_{2} = 2/3` and the following closures
 
 .. math::
-  
+
    \begin{array}{l}
    \left. \beta_{1} = \left(q_{m - 1} - q_{m-2} \right)^2 \\
    \left. \beta_{2} = \left(q_{m} - q_{m-1} \right)^2 \\
@@ -220,7 +220,7 @@ With the WENO3 scheme, one has :math:`N=2 \; \omega_{1} = 1/3, \; \omega_{2} = 2
 With the WENO5 scheme, one has :math:`N=3, \; \omega_{1} = 1/10, \; \omega_{2} = 3/5, \; \omega_{3} = 3/10` and the following closures
 
 .. math::
-   
+
    \begin{array}{l}
    \left. \beta_{1} = \frac{13}{12} \left(q_{m - 3} - 2 q_{m-2} + q_{m-1} \right)^2 + \frac{1}{4} \left(q_{m - 3} - 4 q_{m-2} + 3 q_{m-1} \right)^2  \\
    \left. \beta_{2} = \frac{13}{12} \left(q_{m - 2} - 2 q_{m-1} + q_{m} \right)^2 + \frac{1}{4} \left(q_{m - 2} - q_{m} \right)^2  \\
