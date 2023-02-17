@@ -96,6 +96,9 @@ nonprecipitating tracers, such as water vapor, rain, ice, snow, and graupel.
 These prognostic variables are able to track particle evolution through all the important mechanisms of ice and water growth, 
 including vapor deposition, aggregation, and autocoversion, and condensation.
 
+The time discretization in ERF utilizes a third-order Runge-Kutta scheme with
+substepping of perturbational quantities at the acoustic time scale [@FAST:Klemp].
+(A non-substepping method is also available as a run-time option.)
 The spatial discretization in ERF uses the classic Arakawa C-grid with 
 scalar quantities at cell centers and normal velocities at cell faces.
 For simulations over complex topography, a terrain-following, height-based
@@ -105,11 +108,6 @@ The advection terms may be calculated using second- through sixth-order accurate
 spatial discretizations, including both centered difference and upwind 
 schemes.  Third- and fifth-order WENO advection schemes are also
 available for the cell-centered scalars.
-
-The time discretization in ERF utilizes a third-order Runge-Kutta scheme with 
-substepping of perturbational quantities at the acoustic time scale [@FAST:Klemp]. 
-(A non-substepping method is also available as a run-time option.)
-
 ERF supports both static and dynamic (adaptive) mesh refinement,
 with subcycling in time at finer levels of refinement.
 
