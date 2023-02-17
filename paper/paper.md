@@ -95,7 +95,7 @@ Microphysics options in ERF include a warm non-precipitating model
 that evolves cloud water and cloud vapor, as well as a single-moment model [@SAMXX:marat] that evolves precipitating and 
 nonprecipitating tracers, such as water vapor, rain, ice, snow, and graupel. 
 These prognostic variables are able to track particle evolution through all the important mechanisms of ice and water growth, 
-including vapor deposition, aggregation, and autocoversion, and condensation.
+including vapor deposition, aggregation, and autoconversion, and condensation.
 
 The time discretization in ERF utilizes a third-order Runge-Kutta scheme with
 substepping of perturbational quantities at the acoustic time scale [@FAST:Klemp].
