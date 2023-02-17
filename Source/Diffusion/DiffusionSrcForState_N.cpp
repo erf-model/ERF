@@ -342,7 +342,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
 
     // Using Deardorff
     if (l_use_deardorff && n_end >= RhoKE_comp) {
-      amrex::Print() << "STARTED...\n";
         int qty_index = RhoKE_comp;
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
