@@ -85,7 +85,7 @@ provides the underlying performance-portable software infrastructure for block-s
 
 ERF solves the fully-compressible Navier-Stokes equations for
 dry or moist air and includes a planetary boundary layer
-parameterization (PBL) as well as subfilter parameterizations for
+parameterization (PBL) as well as subfilter flux parameterizations for
 large-eddy simulations (LES). The PBL parameterization is based upon
 the work of Mellor and Yamada [@PBL:Mellor] and Nakanishi and Niino [@PBL:Nakanishi],
 the so called MYNN model for mesoscale simulations. LES parameterizations
