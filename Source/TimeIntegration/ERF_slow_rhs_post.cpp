@@ -201,7 +201,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
             // NOTE: No diffusion for continuity, so n starts at 1.
             //       KE calls moved inside DiffSrcForState.
-            int n_start = amrex::max(start_comp,RhoTheta_comp);
+            int n_start = amrex::max(start_comp,RhoKE_comp);
             int n_end   = start_comp + num_comp - 1;
 
             if (l_use_terrain) {
@@ -233,6 +233,29 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                 Real temp_val = detJ(i,j,k) * old_cons(i,j,k,n) + dt * detJ(i,j,k) * cell_rhs(i,j,k,n);
                 cur_cons(i,j,k,n) = temp_val / detJ_new(i,j,k);
             });
+
+            if (l_use_deardorff) {
+              start_comp = RhoKE_comp;
+              num_comp = 1;
+              ParallelFor(valid_bx, num_comp,
+              [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                const int n = start_comp + nn;
+                // NOTE: we don't include additional source terms when terrain is moving
+                Real temp_val = detJ(i,j,k) * old_cons(i,j,k,n) + dt * detJ(i,j,k) * cell_rhs(i,j,k,n);
+                cur_cons(i,j,k,n) = temp_val / detJ_new(i,j,k);
+              });
+            }
+            if (l_use_QKE) {
+              start_comp = RhoQKE_comp;
+              num_comp = 1;
+              ParallelFor(valid_bx, num_comp,
+              [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                const int n = start_comp + nn;
+                // NOTE: we don't include additional source terms when terrain is moving
+                Real temp_val = detJ(i,j,k) * old_cons(i,j,k,n) + dt * detJ(i,j,k) * cell_rhs(i,j,k,n);
+                cur_cons(i,j,k,n) = temp_val / detJ_new(i,j,k);
+              });
+            }
         } else {
             auto const& src_arr = source.const_array(mfi);
             ParallelFor(valid_bx, num_comp,
@@ -241,6 +264,27 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                 cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
             });
+
+            if (l_use_deardorff) {
+              start_comp = RhoKE_comp;
+              num_comp = 1;
+              ParallelFor(valid_bx, num_comp,
+              [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                const int n = start_comp + nn;
+                cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
+                cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
+              });
+            }
+            if (l_use_QKE) {
+              start_comp = RhoQKE_comp;
+              num_comp = 1;
+              ParallelFor(valid_bx, num_comp,
+              [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
+                const int n = start_comp + nn;
+                cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
+                cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
+              });
+            }
         }
         } // end profile
 
