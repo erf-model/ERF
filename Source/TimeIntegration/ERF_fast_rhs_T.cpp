@@ -154,7 +154,10 @@ void erf_fast_rhs_T (int step, int /*level*/,
         //    so that we don't have to fill ghost cells of the new MultiFabs
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
-        Box gbx   = mfi.growntilebox(1);
+
+        // Note: it is important to grow the tilebox rather than use growntilebox because
+        //       we need to fill the ghost cells of the tilebox so we can use them below
+        Box gbx   = mfi.tilebox();  gbx.grow(1);
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
         Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
@@ -326,7 +329,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
         } // end profile
 
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
+        Box gbxo = mfi.nodaltilebox(2);
         {
         BL_PROFILE("fast_T_making_omega");
         amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
