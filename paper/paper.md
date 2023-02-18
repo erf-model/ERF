@@ -146,7 +146,10 @@ Office of Energy Efficiency and Renewable Energy Wind Energy Technologies Office
 We acknowledge as well as the help of the AMReX team
 in developing and supporting new AMReX features needed by ERF.
 The work at LBNL was supported by the U.S. Department of Energy
-under contract No. DE-AC02-05CH11231. This work was authored in part by the
+under contract No. DE-AC02-05CH11231. 
+The work at LLNL was supported by the U.S. Department of Energy
+under contract No. DE-AC52-07NA27344.
+This work was authored in part by the
 National Renewable Energy Laboratory, operated by Alliance for Sustainable Energy, LLC,
 for the U.S. Department of Energy (DOE) under Contract No. DE-AC36-08GO28308.
 A portion of this code development was performed using computational resources sponsored by the
@@ -154,6 +157,6 @@ U.S. Department of Energy's Office of Energy Efficiency and Renewable Energy and
 at the National Renewable Energy Laboratory. This development also used resources of the 
 National Energy Research Scientific Computing Center (NERSC), 
 a U.S. Department of Energy Office of Science User Facility located at 
-Lawrence Berkeley National Laboratory, operated under Contract No. DE-AC02-05CH11231.
+Lawrence Berkeley National Laboratory.
 
 # References
