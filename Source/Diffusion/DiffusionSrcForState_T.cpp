@@ -532,7 +532,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                 length = l_Delta;
             } else {
               length = 0.76*std::sqrt(E) / std::sqrt(denom);
-            }   
+            }
             Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
             cell_rhs(i,j,k,qty_index) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
