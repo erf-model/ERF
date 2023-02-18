@@ -179,7 +179,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
-        const Box& gbx = mfi.growntilebox({1,1,0});
+        // Note: it is important to grow the tilebox rather than use growntilebox because
+        //       we need to fill the ghost cells of the tilebox so we can use them below
+        Box gbx(mfi.tilebox()); gbx.grow(0,1); gbx.grow(1,1);
         const Array4<Real> & pp_arr  = pprime.array(mfi);
 #ifdef ERF_USE_MOISTURE
         const Array4<Real const> & qv_arr  =     qv.const_array(mfi);
@@ -211,7 +213,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         BL_PROFILE("slow_rhs_making_er");
         if (l_use_diff)
         {
-            const Box& gbx2 = mfi.growntilebox(IntVect(1,1,0));
+            Box gbx2 = mfi.tilebox(); gbx2.grow(IntVect(1,1,0));
 
             if (l_use_terrain) {
                 // First create Omega using velocity (not momentum)
