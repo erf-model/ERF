@@ -149,6 +149,8 @@ The work at LBNL was supported by the U.S. Department of Energy
 under contract No. DE-AC02-05CH11231. 
 The work at LLNL was supported by the U.S. Department of Energy
 under contract No. DE-AC52-07NA27344.
+The contribution of Branko Kosovic was supported by the National Center for Atmospheric Research,
+which is a major facility sponsored by the National Science Foundation under Cooperative Agreement No. 1852977.
 This work was authored in part by the
 National Renewable Energy Laboratory, operated by Alliance for Sustainable Energy, LLC,
 for the U.S. Department of Energy (DOE) under Contract No. DE-AC36-08GO28308.

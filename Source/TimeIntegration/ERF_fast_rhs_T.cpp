@@ -78,6 +78,73 @@ void erf_fast_rhs_T (int step, int /*level*/,
     MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
 
     // *************************************************************************
+    // First set up some arrays we'll need
+    // *************************************************************************
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Array4<Real>       & cur_cons  = S_data[IntVar::cons].array(mfi);
+        const Array4<const Real>& prev_cons  = S_prev[IntVar::cons].const_array(mfi);
+        const Array4<const Real>& stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
+        const Array4<Real>& scratch_rtheta   = S_scratch[IntVar::cons].array(mfi);
+
+        const Array4<Real>& old_drho       = Delta_rho.array(mfi);
+        const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
+        const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
+        const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
+        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+
+        const Array4<const Real>&  prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
+        const Array4<const Real>&  prev_ymom = S_prev[IntVar::ymom].const_array(mfi);
+        const Array4<const Real>&  prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
+
+        const Array4<const Real>& stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
+        const Array4<const Real>& stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
+        const Array4<const Real>& stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
+
+        Box gbx = mfi.tilebox() & grids_to_evolve[mfi.index()]; gbx.grow(1);
+        if (step == 0) {
+            amrex::ParallelFor(gbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
+                scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
+            });
+        } // step = 0
+
+        Box gtbx = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
+        Box gtby = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
+        Box gtbz = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
+        amrex::ParallelFor(gtbz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
+        });
+
+        const Array4<Real>& theta_extrap = extrap.array(mfi);
+
+        amrex::ParallelFor(gtbx, gtby, gtbz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
+        });
+
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
+            old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
+            theta_extrap(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
+              (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
+        });
+    } // mfi
+
+    // *************************************************************************
     // Define updates in the current RK stage
     // *************************************************************************
 #ifdef _OPENMP
@@ -123,13 +190,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
         const Array4<Real>& cur_ymom = S_data[IntVar::ymom].array(mfi);
         const Array4<Real>& cur_zmom = S_data[IntVar::zmom].array(mfi);
 
-        const Array4<Real>& scratch_rtheta = S_scratch[IntVar::cons].array(mfi);
-
-        const Array4<const Real>& prev_cons = S_prev[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>& prev_ymom = S_prev[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
-
         // These store the advection momenta which we will use to update the slow variables
         const Array4<Real>& avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         const Array4<Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
@@ -161,42 +221,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
         Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
-
-        {
-        BL_PROFILE("fast_rhs_copies_0");
-        if (step == 0) {
-            amrex::ParallelFor(gbx,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
-                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
-                scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
-            });
-        }
-        } // end profile
-
-        {
-        BL_PROFILE("fast_rhs_copies_1");
-        amrex::ParallelFor(gtbx, gtby, gtbz,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
-        });
-        } // end profile
-
-        {
-        BL_PROFILE("fast_rhs_copies_2");
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
-            old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
-            theta_extrap(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
-              (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
-        });
-        } // end profile
 
         RHS_fab.resize(tbz,1);
         soln_fab.resize(tbz,1);

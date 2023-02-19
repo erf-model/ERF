@@ -307,8 +307,12 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         }
         {
         BL_PROFILE("slow_rhs_making_strain");
-        if (nrk>0 && l_use_diff) {
-            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
+        // if (nrk>0 && l_use_diff) {
+        // FIXME:  This is extra work in the first RK stage, but is
+        //         necessary for accuracy right now if we are using
+        //         tiling
+        if (l_use_diff) {
+            Box bxcc  = mfi.tilebox(); bxcc.grow(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
@@ -408,7 +412,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         {
         BL_PROFILE("slow_rhs_making_stress");
         if (l_use_diff) {
-            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
+            Box bxcc  = mfi.tilebox(); bxcc.grow(IntVect(1,1,0));
             Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
             Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
             Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
