@@ -526,21 +526,22 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
             dtheta_dz /= met_h_zeta;
 
+            Real denom      = std::abs(grav_gpu[2]) * dtheta_dz / theta;
             Real length;
-            if (dtheta_dz <= 0.) {
+            if (denom <= 1.e-16) {
                 length = l_Delta;
             } else {
-                length = 0.76*std::sqrt(E) / std::sqrt((std::abs(grav_gpu[2])/theta)*dtheta_dz);
+              length = 0.76*std::sqrt(E) / std::sqrt(denom);
             }
             Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
             cell_rhs(i,j,k,qty_index) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
-            // Add TKE production
-            cell_rhs(i,j,k,qty_index) += mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
+            // TKE production
+            cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
 
-            // Add dissipation
+            // TKE dissipation
             if (std::abs(E) > 0.) {
-                cell_rhs(i,j,k,qty_index) += cell_data(i,j,k,Rho_comp) * l_C_e *
+                cell_rhs(i,j,k,qty_index) -= cell_data(i,j,k,Rho_comp) * l_C_e *
                     std::pow(E,1.5) / length;
             }
         });

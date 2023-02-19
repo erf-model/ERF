@@ -20,7 +20,7 @@ void ABLMost::update_fluxes(int lev, int max_iters)
     ABLMostData d_most = get_most_data();
 
     // Tolerances
-    constexpr amrex::Real eps = 1.0e-16;
+    constexpr amrex::Real eps = std::numeric_limits<Real>::epsilon();
     constexpr amrex::Real tol = 1.0e-5;
 
     // Ghost cells for CC var
