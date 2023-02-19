@@ -117,7 +117,8 @@ public:
     void sum_integrated_quantities(amrex::Real time);
     void write_1D_profiles(amrex::Real time);
 
-    void sample_space(int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
+    void sample_points(int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
+    void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
     void derive_diag_profiles(amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_th,
@@ -757,16 +758,30 @@ private:
 
     AMREX_FORCE_INLINE
     std::ostream&
-    SampleLog (int i)
+    SamplePointLog (int i)
     {
-        return *samplelog[i];
+        return *sampleptlog[i];
     }
 
     AMREX_FORCE_INLINE
     int
-    NumSampleLogs () noexcept
+    NumSamplePointLogs () noexcept
     {
-        return samplelog.size();
+        return sampleptlog.size();
+    }
+
+    AMREX_FORCE_INLINE
+    std::ostream&
+    SampleLineLog (int i)
+    {
+        return *samplelinelog[i];
+    }
+
+    AMREX_FORCE_INLINE
+    int
+    NumSampleLineLogs () noexcept
+    {
+        return samplelinelog.size();
     }
 
     amrex::IntVect&
@@ -780,6 +795,19 @@ private:
     NumSamplePoints () noexcept
     {
         return samplepoint.size();
+    }
+
+    amrex::IntVect&
+    SampleLine (int i)
+    {
+        return sampleline[i];
+    }
+
+    AMREX_FORCE_INLINE
+    int
+    NumSampleLines () noexcept
+    {
+        return sampleline.size();
     }
 
     static amrex::Real startCPUTime;
@@ -813,36 +841,59 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
     }
 
-    void setRecordSampleInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
+    void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
     {
         amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
         for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
         {
             const amrex::Box& bx = mfi.validbox();
             if (bx.contains(cell)) {
-                amrex::AllPrint() << "MAKING ON MY PROC " << amrex::ParallelDescriptor::MyProc() << std::endl;
-                samplelog[i] = std::make_unique<std::fstream>();
-                samplelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
-                if (!samplelog[i]->good()) {
+                sampleptlog[i] = std::make_unique<std::fstream>();
+                sampleptlog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+                if (!sampleptlog[i]->good()) {
                     amrex::FileOpenFailed(filename);
                 }
             }
         }
-        amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleInfo");
+        amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
+    }
+
+    void setRecordSampleLineInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
+    {
+        amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
+        for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
+        {
+            const amrex::Box& bx = mfi.validbox();
+            if (bx.contains(cell)) {
+                samplelinelog[i] = std::make_unique<std::fstream>();
+                samplelinelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+                if (!samplelinelog[i]->good()) {
+                    amrex::FileOpenFailed(filename);
+                }
+            }
+        }
+        amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleLineInfo");
     }
 
     amrex::Vector<std::unique_ptr<std::fstream> > datalog;
     amrex::Vector<std::string> datalogname;
 
-    amrex::Vector<std::unique_ptr<std::fstream> > samplelog;
-    amrex::Vector<std::string> samplelogname;
+    amrex::Vector<std::unique_ptr<std::fstream> > sampleptlog;
+    amrex::Vector<std::string> sampleptlogname;
     amrex::Vector<amrex::IntVect> samplepoint;
+
+    amrex::Vector<std::unique_ptr<std::fstream> > samplelinelog;
+    amrex::Vector<std::string> samplelinelogname;
+    amrex::Vector<amrex::IntVect> sampleline;
 
     //! The filename of the ith datalog file.
     const std::string DataLogName (int i) const noexcept { return datalogname[i]; }
 
-    //! The filename of the ith samplelog file.
-    const std::string SampleLogName (int i) const noexcept { return samplelogname[i]; }
+    //! The filename of the ith sampleptlog file.
+    const std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
+
+    //! The filename of the ith samplelinelog file.
+    const std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
 public:
     void writeJobInfo(const std::string& dir) const;
