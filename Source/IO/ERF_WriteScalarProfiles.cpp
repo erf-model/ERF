@@ -97,45 +97,84 @@ ERF::sum_integrated_quantities(Real time)
 
     // This is just an alias for convenience
     int lev = 0;
-    if (NumSampleLogs() > 0 && NumSamplePoints() > 0) {
+    if (NumSamplePointLogs() > 0 && NumSamplePoints() > 0) {
         for (int i = 0; i < NumSamplePoints(); ++i)
         {
-            sample_space(lev, time, SamplePoint(i), vars_new[lev][Vars::cons]);
+            sample_points(lev, time, SamplePoint(i), vars_new[lev][Vars::cons]);
+        }
+    }
+    if (NumSampleLineLogs() > 0 && NumSampleLines() > 0) {
+        for (int i = 0; i < NumSampleLines(); ++i)
+        {
+            sample_lines(lev, time, SampleLine(i), vars_new[lev][Vars::cons]);
         }
     }
 }
 
 void
-ERF::sample_space(int lev, Real time, IntVect cell, MultiFab& mf)
+ERF::sample_points(int lev, Real time, IntVect cell, MultiFab& mf)
 {
     int datwidth = 14;
 
     int ifile = 0;
 
-    for (MFIter mfi(mf); mfi.isValid(); ++mfi)
+    //
+    // Sample the data at a single point in space
+    //
+    int ncomp = mf.nComp();
+    Vector<Real> my_point = get_cell_data(mf, cell);
+
+    if (my_point.size() > 0) {
+
+        // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
+
+        std::ostream& sample_log = SamplePointLog(ifile);
+        if (sample_log.good()) {
+          sample_log << std::setw(datwidth) << time;
+          for (int i = 0; i < ncomp; ++i)
+          {
+              sample_log << std::setw(datwidth) << my_point[i];
+          }
+          sample_log << std::endl;
+        } // if good
+    } // only write from processor that holds the cell
+}
+
+void
+ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
+{
+    int datwidth = 14;
+
+    int ifile = 0;
+
+    //
+    // Sample the data at a line (in direction "dir") in space
+    // In this case we sample in the vertical direction so dir = 2
+    // The "k" value of "cell" is ignored
+    //
+    int dir = 2;
+    MultiFab my_line = get_line_data(mf, dir, cell);
+
+    for (MFIter mfi(my_line, false); mfi.isValid(); ++mfi)
     {
-        const Box& bx = mfi.validbox();
-        if (bx.contains(cell)) {
-            const int ncomp = mf.nComp();
-            Vector<Real> my_point(ncomp);
-            for (int i = 0; i < ncomp; ++i)
-            {
-                my_point[i] = mf[mfi](cell,i);
-            }
+        // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
 
-            // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
-
-            std::ostream& sample_log = SampleLog(ifile);
-            if (sample_log.good()) {
-              sample_log << std::setw(datwidth) << time;
-              for (int i = 0; i < ncomp; ++i)
-              {
-                  sample_log << std::setw(datwidth) << my_point[i];
-              }
-              sample_log << std::endl;
-            } // if good
-        } // bx contains cell
-    }
+        std::ostream& sample_log = SampleLineLog(ifile);
+        if (sample_log.good()) {
+          sample_log << std::setw(datwidth) << time;
+          const auto& my_line_arr = my_line[0].const_array();
+          const Box&  my_box = my_line[0].box();
+          const int klo = my_box.smallEnd(2);
+          const int khi = my_box.bigEnd(2);
+          int i = cell[0];
+          int j = cell[1];
+          int n = 0;
+          for (int k = klo; k <= khi; k++) {
+              sample_log << std::setw(datwidth) << my_line_arr(i,j,k,n);
+          }
+          sample_log << std::endl;
+        } // if good
+    } // mfi
 }
 
 amrex::Real

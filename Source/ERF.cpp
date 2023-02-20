@@ -621,7 +621,7 @@ ERF::InitData ()
             setRecordDataInfo(i,datalogname[i]);
     }
 
-    if (pp.contains("sample_log") && pp.contains("sample_point"))
+    if (pp.contains("sample_point_log") && pp.contains("sample_point"))
     {
         int lev = 0;
 
@@ -637,15 +637,45 @@ ERF::InitData ()
             }
         }
 
-        int num_samplelogs = pp.countval("sample_log");
-        AMREX_ALWAYS_ASSERT(num_samplelogs == num_samplepts);
-        if (num_samplelogs > 0) {
-            samplelog.resize(num_samplelogs);
-            samplelogname.resize(num_samplelogs);
-            pp.queryarr("sample_log",samplelogname,0,num_samplelogs);
+        int num_sampleptlogs = pp.countval("sample_point_log");
+        AMREX_ALWAYS_ASSERT(num_sampleptlogs == num_samplepts);
+        if (num_sampleptlogs > 0) {
+            sampleptlog.resize(num_sampleptlogs);
+            sampleptlogname.resize(num_sampleptlogs);
+            pp.queryarr("sample_point_log",sampleptlogname,0,num_sampleptlogs);
 
-            for (int i = 0; i < num_samplelogs; i++) {
-                setRecordSampleInfo(i,lev,samplepoint[i],samplelogname[i]);
+            for (int i = 0; i < num_sampleptlogs; i++) {
+                setRecordSamplePointInfo(i,lev,samplepoint[i],sampleptlogname[i]);
+            }
+        }
+
+    }
+
+    if (pp.contains("sample_line_log") && pp.contains("sample_line"))
+    {
+        int lev = 0;
+
+        int num_samplelines = pp.countval("sample_line") / AMREX_SPACEDIM;
+        if (num_samplelines > 0) {
+            Vector<int> index; index.resize(num_samplelines*AMREX_SPACEDIM);
+            sampleline.resize(num_samplelines);
+
+            pp.queryarr("sample_line",index,0,num_samplelines*AMREX_SPACEDIM);
+            for (int i = 0; i < num_samplelines; i++) {
+                IntVect iv(index[AMREX_SPACEDIM*i+0],index[AMREX_SPACEDIM*i+1],index[AMREX_SPACEDIM*i+2]);
+                sampleline[i] = iv;
+            }
+        }
+
+        int num_samplelinelogs = pp.countval("sample_line_log");
+        AMREX_ALWAYS_ASSERT(num_samplelinelogs == num_samplelines);
+        if (num_samplelinelogs > 0) {
+            samplelinelog.resize(num_samplelinelogs);
+            samplelinelogname.resize(num_samplelinelogs);
+            pp.queryarr("sample_line_log",samplelinelogname,0,num_samplelinelogs);
+
+            for (int i = 0; i < num_samplelinelogs; i++) {
+                setRecordSampleLineInfo(i,lev,sampleline[i],samplelinelogname[i]);
             }
         }
 
