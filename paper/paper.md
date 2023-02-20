@@ -89,7 +89,7 @@ parameterization (PBL) as well as subfilter flux parameterizations for
 large-eddy simulations (LES). The PBL parameterization is based upon
 the work of Mellor and Yamada [@PBL:Mellor] and Nakanishi and Niino [@PBL:Nakanishi],
 the so called MYNN model for mesoscale simulations. LES parameterizations
-are Smagorinsky-type [@LES:Smagorinsky, @LES:Lilly] and Deardorff [@LES:Deardorff].
+are Smagorinsky-type [@LES:Smagorinsky; @LES:Lilly] and Deardorff [@LES:Deardorff].
 
 Microphysics options in ERF include a warm non-precipitating model
 that evolves cloud water and cloud vapor, as well as a single-moment model [@SAMXX:marat] that evolves precipitating and 
