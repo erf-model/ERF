@@ -20,7 +20,7 @@ void ABLMost::update_fluxes(int lev, int max_iters)
     ABLMostData d_most = get_most_data();
 
     // Tolerances
-    constexpr amrex::Real eps = 1.0e-16;
+    constexpr amrex::Real eps = std::numeric_limits<Real>::epsilon();
     constexpr amrex::Real tol = 1.0e-5;
 
     // Ghost cells for CC var
@@ -179,11 +179,6 @@ ABLMost::impose_most_bcs(const int lev,
             auto dest_arr = (*mfs[var_idx])[mfi].array();
             int zlo = 0;
 
-            bool var_is_derived = false;
-            if (var_idx == Vars::xvel || var_idx == Vars::yvel) {
-                var_is_derived = true;
-            }
-
             if (var_idx == Vars::cons) {
                 amrex::Box b2d = bx; // Copy constructor
                 b2d.setBig(2,zlo-1);
@@ -218,7 +213,7 @@ ABLMost::impose_most_bcs(const int lev,
                     vely  = 0.5*(vely_arr(iy,jy,zlo)+vely_arr(iy  ,jy+1,zlo));
                     rho   = cons_arr(ic,jc,zlo,Rho_comp);
                     theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
-                    eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v);
+                    eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
 
                     Real d_thM  =  tm_arr(ic,jc,zlo);
                     Real d_vmM  = umm_arr(ic,jc,zlo);
@@ -232,11 +227,7 @@ ABLMost::impose_most_bcs(const int lev,
                     Real moflux  = d_ttau*d_utau*(num1+num2)/((d_thM-d_sfcT)*d_vmM);
                     Real deltaz  = d_dz * (zlo - k);
 
-                    if (!var_is_derived) {
-                        dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
-                    } else {
-                        dest_arr(i,j,k,icomp+n) = theta - moflux/eta*deltaz;
-                    }
+                    dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
                 });
 
             } else if (var_idx == Vars::xvel || var_idx == Vars::xmom) { //for velx
@@ -282,9 +273,10 @@ ABLMost::impose_most_bcs(const int lev,
                                    (d_vmM*d_vmM) * d_utau*d_utau;
                     Real deltaz  = d_dz * (zlo - k);
 
-                    if (!var_is_derived) {
+                    if (var_idx == Vars::xmom) {
                         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho*rho/eta*deltaz;
                     } else {
+                        AMREX_ALWAYS_ASSERT(var_idx == Vars::xvel);
                         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
                     }
                 });
@@ -332,9 +324,10 @@ ABLMost::impose_most_bcs(const int lev,
                                     (d_vmM*d_vmM)*d_utau*d_utau;
                     Real deltaz  = d_dz * (zlo - k);
 
-                    if (!var_is_derived) {
+                    if (var_idx == Vars::ymom) {
                         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho*rho/eta*deltaz;
                     } else {
+                        AMREX_ALWAYS_ASSERT(var_idx == Vars::yvel);
                         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
                     }
                 });

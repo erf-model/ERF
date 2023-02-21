@@ -6,6 +6,7 @@ CEXE_headers += TerrainMetrics.H
 CEXE_headers += Microphysics_Utils.H
 CEXE_headers += Utils.H
 CEXE_headers += Interpolation.H
+CEXE_headers += Interpolation_WENO.H
 CEXE_sources += TerrainMetrics.cpp
 
 CEXE_headers += DirectionSelector.H

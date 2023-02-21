@@ -1,0 +1,4 @@
+ifeq ($(USE_MULTIBLOCK),TRUE)
+CEXE_sources += MultiBlockContainer.cpp
+CEXE_headers += MultiBlockContainer.H
+endif

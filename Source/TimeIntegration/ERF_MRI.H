@@ -36,6 +36,11 @@ private:
     int no_substepping;
 
    /**
+    * \brief Do we follow the recommendation to only perform a single substep in the first RK stage
+    */
+    int force_stage1_single_substep;
+
+   /**
     * \brief The  pre_update function is called by the integrator on stage data before using it to evaluate a right-hand side.
     * \brief The post_update function is called by the integrator on stage data at the end of the stage
     */
@@ -80,6 +85,11 @@ public:
     void setNoSubstepping(int _no_substepping)
     {
         no_substepping = _no_substepping;
+    }
+
+    void setForceFirstStageSingleSubstep(int _force_stage1_single_substep)
+    {
+        force_stage1_single_substep = _force_stage1_single_substep;
     }
 
     void set_rhs (std::function<void(T&, const T&, const amrex::Real, const amrex::Real, int)> F)
@@ -274,7 +284,12 @@ public:
             // Capture the time we got to in the previous RK step
             old_time_stage = time_stage;
 
-            if (nrk == 0) { nsubsteps = 1;               dtau = timestep / 3.0; time_stage = time + timestep / 3.0;}
+            if (nrk == 0) {
+                if (force_stage1_single_substep)
+                          { nsubsteps = 1;               dtau = timestep / 3.0; time_stage = time + timestep / 3.0;}
+                else
+                          { nsubsteps = substep_ratio/3; dtau = sub_timestep  ; time_stage = time + timestep / 3.0;}
+            }
             if (nrk == 1) { nsubsteps = substep_ratio/2; dtau = sub_timestep  ; time_stage = time + timestep / 2.0;}
             if (nrk == 2) { nsubsteps = substep_ratio;   dtau = sub_timestep  ; time_stage = time + timestep      ;}
 

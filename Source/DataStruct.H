@@ -7,38 +7,16 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
+#include <AMReX_Geometry.H>
 
 #include <ERF_Constants.H>
+#include <ERF_Math.H>
 
 enum class ABLDriverType {
     None, PressureGradient, GeostrophicWind
 };
 
 enum class Coord {
-    x, y, z
-};
-
-enum class Stagger {
-    None, x, y, z
-};
-
-enum class AdvectedQuantity {
-    unity, u, v, w, theta, scalar
-};
-
-enum class AdvectingQuantity {
-    rho_u, rho_v, rho_w
-};
-
-enum class AdvectionDir {
-    x, y, z
-};
-
-enum class DiffusionDir {
-    x, y, z
-};
-
-enum class MomentumEqn {
     x, y, z
 };
 
@@ -52,10 +30,6 @@ enum class PBLType {
 
 enum class MolecDiffType {
     None, Constant, ConstantAlpha
-};
-
-enum class IC_BC_Type {
-    Ideal, Real
 };
 
 struct SolverChoice {
@@ -248,20 +222,22 @@ struct SolverChoice {
         static std::string ic_bc_type_string = "Ideal";
         pp.query("ic_bc_type", ic_bc_type_string);
 
-        if (!ic_bc_type_string.compare("Ideal")) {
-            icBcType = IC_BC_Type::Ideal;
-        } else if (!ic_bc_type_string.compare("Real")) {
-            icBcType = IC_BC_Type::Real;
-        } else {
-            amrex::Error("Don't know this ic_bc_type");
-        }
-
         pp.query("Ave_Plane", ave_plane);
 
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
+        moist_use_WENO = true;
 #endif
+
+        // Use WENO for advection?
+        pp.query("all_use_WENO", all_use_WENO);
+        if (all_use_WENO || moist_use_WENO) {
+            pp.query("spatial_order_WENO", spatial_order_WENO);
+            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
+                                      "WENO advection only supports orders 3 & 5.");
+        }
+
     }
 
     void display()
@@ -314,13 +290,6 @@ struct SolverChoice {
         } else if (molec_diff_type == MolecDiffType::None) {
             amrex::Print() << "Not using any molecular diffusivity, i.e. using the modeled turbulent diffusivity"
             << std::endl;
-        }
-
-        if (icBcType == IC_BC_Type::Ideal) {
-            amrex::Print() << "Using idealized initial and boundary conditions (No mesoscale forcing!)" << std::endl;
-        }
-        else if (icBcType == IC_BC_Type::Real) {
-            amrex::Print() << "Using REAL initial and boundary conditions (Mesoscale forcing!)" << std::endl;
         }
     }
 
@@ -412,16 +381,16 @@ struct SolverChoice {
     // Smagorinsky CI coefficient
     amrex::Real CI = 0.0;
     // Smagorinsky Turbulent Prandtl Number
-    amrex::Real Pr_t = 1.0;
-    amrex::Real Pr_t_inv = 1.0;
+    amrex::Real Pr_t = 1. / 3.;
+    amrex::Real Pr_t_inv = 3.0;
     // Smagorinsky Turbulent Schmidt Number
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;
 
     // Deardorff Ce coefficient
-    amrex::Real Ce = 0.0;
+    amrex::Real Ce = 0.93;
     // Deardorff Ck coefficient
-    amrex::Real Ck = 0.0;
+    amrex::Real Ck = 0.1;
     // Deardorff sigma_k coefficient
     amrex::Real sigma_k = 1.0;
 
@@ -437,7 +406,7 @@ struct SolverChoice {
     amrex::Real pbl_C3 = 0.352;
     amrex::Real pbl_C4 = 0.0;
     amrex::Real pbl_C5 = 0.2;
-    // QKE stuff - default is not to use it, if MYNN2.5 PBL is used default is turb transport in Z-directioon only
+    // QKE stuff - default is not to use it, if MYNN2.5 PBL is used default is turb transport in Z-direction only
     bool use_QKE = false;
     bool diffuse_QKE_3D = false;
     bool advect_QKE = true;
@@ -451,12 +420,14 @@ struct SolverChoice {
     int   horiz_spatial_order = 2;
     int    vert_spatial_order = 2;
 
+    // Positive definite advection scheme (3/5 order)
+    bool all_use_WENO{false};
+    bool moist_use_WENO{false};
+    int  spatial_order_WENO{3};
+
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
-
-    // IC and BC Type: "Ideal" or "Real"
-    IC_BC_Type icBcType;
 
     int ave_plane {2};
 #ifdef ERF_USE_MOISTURE
@@ -464,263 +435,5 @@ struct SolverChoice {
     bool do_cloud {true};
     bool do_precip {true};
 #endif
-};
-
-struct InputSoundingData {
-public:
-    InputSoundingData() {}
-
-    void read_from_file(const std::string input_sounding_file,
-                        const amrex::Real ztop)
-    {
-        z_inp_sound.resize(0);
-        theta_inp_sound.resize(0);
-        qv_inp_sound.resize(0);
-        U_inp_sound.resize(0);
-        V_inp_sound.resize(0);
-
-        pm_integ.resize(0);
-        rhom_integ.resize(0);
-
-        pd_integ.resize(0);
-        rhod_integ.resize(0);
-
-        // Read the input_sounding file
-        amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
-        std::ifstream input_sounding_reader(input_sounding_file);
-        if(!input_sounding_reader.is_open()) {
-            amrex::Error("Error opening the input_sounding file\n");
-        }
-        else {
-            // Read the contents of the input_sounding file
-            amrex::Print() << "Successfully opened the input_sounding file. Now reading... " << std::endl;
-            std::string  line;
-
-            // Read the first line
-            std::getline(input_sounding_reader, line);
-            std::istringstream iss(line);
-            iss >> press_ref_inp_sound >> theta_ref_inp_sound >> qv_ref_inp_sound;
-            press_ref_inp_sound *= 100; // convert from hPa to Pa
-            qv_ref_inp_sound *= 0.001; // convert from g/kg to kg/kg
-
-            // Add surface
-            z_inp_sound.push_back(0);
-            theta_inp_sound.push_back(theta_ref_inp_sound);
-            qv_inp_sound.push_back(qv_ref_inp_sound);
-            U_inp_sound.push_back(0);
-            V_inp_sound.push_back(0);
-
-            // Read the vertical profile at each given height
-            amrex::Real z, theta, qv, U, V;
-            while(std::getline(input_sounding_reader, line)) {
-                std::istringstream iss_z(line);
-                iss_z >> z >> theta >> qv >> U >> V;
-                if (z == 0) {
-                    AMREX_ALWAYS_ASSERT(theta == theta_inp_sound[0]);
-                    AMREX_ALWAYS_ASSERT(qv == qv_inp_sound[0]);
-                    U_inp_sound[0] = U;
-                    V_inp_sound[0] = V;
-                } else {
-                    AMREX_ALWAYS_ASSERT(z > z_inp_sound[0]);
-                    z_inp_sound.push_back(z);
-                    theta_inp_sound.push_back(theta);
-                    qv_inp_sound.push_back(qv*0.001);
-                    U_inp_sound.push_back(U);
-                    V_inp_sound.push_back(V);
-                    if (z >= ztop) break;
-                }
-            }
-
-            // At this point, we have an input_sounding with
-            // z_inp_sound[N-1] <= ztop
-            if (z != ztop)
-            {
-                int N = size();
-                amrex::Real z1  =     z_inp_sound[N-2];
-                amrex::Real th1 = theta_inp_sound[N-2];
-                amrex::Real qv1 =    qv_inp_sound[N-2];
-                amrex::Real U1  =     U_inp_sound[N-2];
-                amrex::Real V1  =     V_inp_sound[N-2];
-                amrex::Real z2  =     z_inp_sound[N-1];
-                amrex::Real th2 = theta_inp_sound[N-1];
-                amrex::Real qv2 =    qv_inp_sound[N-1];
-                amrex::Real U2  =     U_inp_sound[N-1];
-                amrex::Real V2  =     V_inp_sound[N-1];
-
-                amrex::Real zfrac = (ztop - z1) / (z2 - z1);
-                amrex::Real th_top = th1 + zfrac*(th2 - th1);
-                amrex::Real qv_top = qv1 + zfrac*(qv2 - qv1);
-                amrex::Real  U_top =  U1 + zfrac*( U2 -  U1);
-                amrex::Real  V_top =  V1 + zfrac*( V2 -  V1);
-
-                if (z < ztop)
-                {
-                    amrex::Print() << "Note: sounding zmax=" << z
-                        << ", extrapolating to zhi=" << ztop << std::endl;
-                    // Add domain top with extrapolated values
-                    z_inp_sound.push_back(ztop);
-                    theta_inp_sound.push_back(th_top);
-                    qv_inp_sound.push_back(qv_top);
-                    U_inp_sound.push_back(U_top);
-                    V_inp_sound.push_back(V_top);
-                }
-                else // z > ztop
-                {
-                    amrex::Print() << "Note: sounding zmax=" << z
-                        << ", interpolating to zhi=" << ztop << std::endl;
-                    // Overwrite top value with interpolated values
-                    z_inp_sound[N-1] = ztop;
-                    theta_inp_sound[N-1] = th_top;
-                    qv_inp_sound[N-1] = qv_top;
-                    U_inp_sound[N-1] = U_top;
-                    V_inp_sound[N-1] = V_top;
-                }
-            }
-        }
-        amrex::Print() << "Successfully read the input_sounding file..." << std::endl;
-        input_sounding_reader.close();
-
-        host_to_device();
-    }
-
-    void calc_rho_p(const amrex::Real ztop)
-    {
-        /* Calculate density and pressure, roughly following the procedure in
-         * WRF dyn_em/module_initialize_ideal.F. We integrate hydrostatically
-         * from the surface up through the air column to get the total (moist)
-         * density and pressure, then back down to get the dry density and
-         * pressure.
-         *
-         * This deviates from that code slightly because we calculate the
-         * correct moist theta, equal to virtual potential temperature, and
-         * also remove the factor (1+qv) for consistency with the the surface
-         * density.
-         */
-        const int maxiter = 10;
-        const int Ninp = size();
-        pm_integ.resize(Ninp);
-        pd_integ.resize(Ninp);
-        rhom_integ.resize(Ninp);
-        rhod_integ.resize(Ninp);
-
-        // evaluate surface quantities (k=0)
-        amrex::Real thm_surf = theta_ref_inp_sound *
-            (1 + (R_v/R_d-1) * qv_ref_inp_sound); // _moist_ theta == virtual potential temperature
-        pm_integ[0] = press_ref_inp_sound; // _total_ pressure (incl moisture)
-        rhom_integ[0] = 1 / (
-            R_d/p_0 * thm_surf * std::pow(pm_integ[0]/p_0, -iGamma)); // density of _moist_ air
-
-        amrex::Print() << "ideal sounding init: surface density of moist air = "
-            << rhom_integ[0] << " kg/m^3" << std::endl;
-        amrex::Print() << "integrating moist air column up to " << ztop << std::endl;
-
-        // Note:
-        //   p_dry = rho_d R_d T
-        //   p_tot = rho_m R_d T_v
-        //         = rho_d(1 + q_v) R_d T_v
-
-        // integrate from surface to domain top
-        amrex::Real qvf, dz;
-        for (int k=1; k < size(); ++k)
-        {
-            qvf = 1 + (R_v/R_d-1) * qv_inp_sound[k];
-            dz = z_inp_sound[k] - z_inp_sound[k-1];
-            rhom_integ[k] = rhom_integ[k-1]; // guess
-            for (int it=0; it < maxiter; ++it)
-            {
-                pm_integ[k] = pm_integ[k-1]
-                    - 0.5*dz*(rhom_integ[k] + rhom_integ[k-1])*CONST_GRAV;
-                AMREX_ALWAYS_ASSERT(pm_integ[k] > 0);
-                rhom_integ[k] = 1 / (
-                    R_d/p_0 * theta_inp_sound[k]*qvf * std::pow(pm_integ[k]/p_0, -iGamma));
-            }
-        }
-
-        // now, integrate from the top of the sounding (where it's dry) back
-        // down to get the dry air column properties
-        pd_integ[Ninp-1] = pm_integ[Ninp-1];
-        rhod_integ[Ninp-1] = 1 / (
-                    R_d/p_0 * theta_inp_sound[Ninp-1] * std::pow(pd_integ[Ninp-1]/p_0, -iGamma));
-        amrex::Print() << "z  p_d  rho_d  theta" << std::endl;
-        amrex::Print() << z_inp_sound[Ninp-1] << " " << pd_integ[Ninp-1] << " " << rhod_integ[Ninp-1] << " " << theta_inp_sound[Ninp-1] << std::endl;
-        for (int k=Ninp-2; k >= 0; --k)
-        {
-            dz = z_inp_sound[k+1] - z_inp_sound[k];
-            rhod_integ[k] = rhod_integ[k+1]; // guess
-            for (int it=0; it < maxiter; ++it)
-            {
-                pd_integ[k] = pd_integ[k+1]
-                    + 0.5*dz*(rhod_integ[k] + rhod_integ[k+1])*CONST_GRAV;
-                AMREX_ALWAYS_ASSERT(pd_integ[k] > 0);
-                rhod_integ[k] = 1 / (
-                    R_d/p_0 * theta_inp_sound[k] * std::pow(pd_integ[k]/p_0, -iGamma));
-            }
-            amrex::Print() << z_inp_sound[k] << " " << pd_integ[k] << " " << rhod_integ[k] << " " << theta_inp_sound[k] << std::endl; // DEBUG
-        }
-        // Note: at this point, the surface pressure, density of the dry air
-        // column is stored in pd_integ[0], rhod_integ[0]
-
-        // update
-        host_to_device();
-    }
-
-    void host_to_device()
-    {
-        z_inp_sound_d.resize(size());
-        theta_inp_sound_d.resize(size());
-        qv_inp_sound_d.resize(size());
-        U_inp_sound_d.resize(size());
-        V_inp_sound_d.resize(size());
-
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         z_inp_sound.begin(), z_inp_sound.end(),
-                         z_inp_sound_d.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         theta_inp_sound.begin(), theta_inp_sound.end(),
-                         theta_inp_sound_d.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         qv_inp_sound.begin(), qv_inp_sound.end(),
-                         qv_inp_sound_d.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         U_inp_sound.begin(), U_inp_sound.end(),
-                         U_inp_sound_d.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         V_inp_sound.begin(), V_inp_sound.end(),
-                         V_inp_sound_d.begin());
-
-        if (rhod_integ.size() > 0)
-        {
-            //amrex::Print() << "Copying rho_d, p_d to device" << std::endl;
-            rho_inp_sound_d.resize(size()+2);
-            p_inp_sound_d.resize(size()+2);
-            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                             rhod_integ.begin(), rhod_integ.end(),
-                             rho_inp_sound_d.begin());
-            amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                             pd_integ.begin(), pd_integ.end(),
-                             p_inp_sound_d.begin());
-        }
-    }
-
-    int size() const
-    {
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == theta_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == qv_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == U_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == V_inp_sound.size());
-        return z_inp_sound.size();
-    }
-
-    // Members
-    // - read from file
-    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, qv_ref_inp_sound; // input
-    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, qv_inp_sound, U_inp_sound, V_inp_sound;
-    amrex::Gpu::DeviceVector<amrex::Real> z_inp_sound_d, theta_inp_sound_d, qv_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
-    // - moist profiles
-    amrex::Vector<amrex::Real> pm_integ, rhom_integ; // from integrating up air column
-    // - dry profiles
-    amrex::Vector<amrex::Real> pd_integ, rhod_integ; // from integrating down air column
-    // - to set solution fields
-    amrex::Gpu::DeviceVector<amrex::Real> p_inp_sound_d, rho_inp_sound_d;
 };
 #endif

@@ -36,8 +36,8 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MULTIBLOCK)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/MultiBlockContainer.H
-                   ${SRC_DIR}/MultiBlockContainer.cpp)
+                   ${SRC_DIR}/MultiBlock/MultiBlockContainer.H
+                   ${SRC_DIR}/MultiBlock/MultiBlockContainer.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
   endif()
 
@@ -51,6 +51,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/IO/NCPlotFile.cpp
                    ${SRC_DIR}/IO/NCCheckpoint.cpp
                    ${SRC_DIR}/IO/NCMultiFabFile.cpp
+                   ${SRC_DIR}/IO/ReadFromMetgrid.cpp
                    ${SRC_DIR}/IO/ReadFromWRFBdy.cpp
                    ${SRC_DIR}/IO/ReadFromWRFInput.cpp
                    ${SRC_DIR}/IO/NCColumnFile.cpp)
@@ -81,13 +82,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Derive.H
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/IndexDefines.H
-       ${SRC_DIR}/prob_common.H
        ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
-       ${SRC_DIR}/ERF_init.cpp
-       ${SRC_DIR}/ERF_init1d.cpp
-       ${SRC_DIR}/ERF_SumIQ.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
+       ${SRC_DIR}/prob_common.H
        ${SRC_DIR}/BoundaryConditions/ABLMost.H
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
        ${SRC_DIR}/BoundaryConditions/MOSTAverage.H
@@ -100,12 +98,19 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_wrfbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
+       ${SRC_DIR}/Initialization/ERF_init_custom.cpp
+       ${SRC_DIR}/Initialization/ERF_init_from_input_sounding.cpp
+       ${SRC_DIR}/Initialization/ERF_init_from_wrfinput.cpp
+       ${SRC_DIR}/Initialization/ERF_init_from_metgrid.cpp
+       ${SRC_DIR}/Initialization/ERF_init1d.cpp
+       ${SRC_DIR}/Initialization/InputSoundingData.H
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.H
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.H
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles.cpp
+       ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/Advection/Advection.H
@@ -125,6 +130,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_Math.H
        ${SRC_DIR}/Utils/Microphysics_Utils.H
        ${SRC_DIR}/Utils/Interpolation.H
+       ${SRC_DIR}/Utils/Interpolation_WENO.H
        ${SRC_DIR}/Utils/PlaneAverage.H
        ${SRC_DIR}/Utils/VelPlaneAverage.H
        ${SRC_DIR}/Utils/DirectionSelector.H
@@ -190,6 +196,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Diffusion)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Utils)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Initialization)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})
 
@@ -228,7 +235,7 @@ function(build_erf_exe erf_exe_name)
 
   target_sources(${erf_exe_name}
      PRIVATE
-       ${SRC_DIR}/ERF_init_bcs.cpp
+       ${SRC_DIR}/Initialization/ERF_init_bcs.cpp
 
   )
   if(ERF_ENABLE_CUDA)
