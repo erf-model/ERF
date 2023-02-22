@@ -502,7 +502,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
         tbz.setBig(2,hi.z);
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
+              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),z_nd,dxInv);
               cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
         });
         } // end profile
