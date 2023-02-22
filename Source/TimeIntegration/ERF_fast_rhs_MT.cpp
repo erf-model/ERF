@@ -469,16 +469,15 @@ void erf_fast_rhs_MT (int step, int /*level*/,
              Real rho_on_face = 0.5 * (cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp));
 
              if (k == 0) {
-                 cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
-                                              cur_xmom,cur_ymom,z_nd_new,dxInv);
+                 cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),z_nd_new,dxInv);
 
                  // We need to set this here because it is used to define zflux_lo below
                  soln_a(i,j,k) = 0.;
 
              } else {
 
-                 Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),cur_xmom,cur_ymom,z_nd_new,dxInv)
-                           -WFromOmega(i,j,k,           0.,stg_xmom,stg_ymom,z_nd_stg,dxInv);
+                 Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),z_nd_new,dxInv)
+                           -WFromOmega(i,j,k,           0.,z_nd_stg,dxInv);
                  Real dJ_old_kface = 0.5 * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
                  Real dJ_new_kface = 0.5 * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
 

@@ -374,40 +374,22 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 WFromOmega (int i, int j, int k, amrex::Real omega,
-            amrex::Real u, amrex::Real v,
             const amrex::Array4<const amrex::Real>& z_nd,
             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
   // This is dh/dxi at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_xi   = 0.5 * dxInv[0] *
+  amrex::Real met_xi   = 0.5 * dxInv[0] *
     ( z_nd(i+1,j+1,k  ) + z_nd(i+1,j  ,k  )    // hi i, lo k
      -z_nd(i  ,j+1,k  ) - z_nd(i  ,j  ,k  ) ); // lo i, lo k
 
   // This is dh/deta at z-face (i,j,k-1/2)
-  amrex::Real met_zlo_eta  = 0.5 * dxInv[1] *
+  amrex::Real met_eta  = 0.5 * dxInv[1] *
     ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
      -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
 
-  amrex::Real w = met_zlo_xi * u + met_zlo_eta * v + omega;
-  return w;
-}
+  // This dots the Omega vector (normal to the face) with the z-direction
+  amrex::Real w = omega / std::sqrt(1.0 + met_xi*met_xi + met_eta*met_eta);
 
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-WFromOmega (int i, int j, int k, amrex::Real omega,
-            const amrex::Array4<const amrex::Real>& u,
-            const amrex::Array4<const amrex::Real>& v,
-            const amrex::Array4<const amrex::Real>& z_nd,
-            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
-{
-  // Use extrapolation instead of interpolation if at the bottom boundary
-  amrex::Real vec_zlo_xi   = (k == 0) ? 1.5 * (0.5*(u(i,j,k)+u(i+1,j,k))) - 0.5*(0.5*(u(i,j,k+1)+u(i+1,j,k+1))) :
-    0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
-  amrex::Real vec_zlo_eta  = (k == 0) ? 1.5 * (0.5*(v(i,j,k)+v(i,j+1,k))) - 0.5*(0.5*(v(i,j,k+1)+v(i,j+1,k+1))) :
-    0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
-
-  amrex::Real w = WFromOmega(i,j,k,omega,vec_zlo_xi,vec_zlo_eta,z_nd,dxInv);
   return w;
 }
 #endif
