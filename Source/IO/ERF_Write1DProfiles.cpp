@@ -14,6 +14,7 @@ ERF::write_1D_profiles(Real time)
 
     int datwidth = 14;
     int datprecision = 6;
+    int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
 
     if (verbose > 0 && NumDataLogs() > 1)
     {
@@ -40,13 +41,13 @@ ERF::write_1D_profiles(Real time)
                 std::ostream& data_log1 = DataLog(1);
                 if (data_log1.good()) {
                   // Write the quantities at this time
-                  data_log1 << std::setw(datwidth) << time << "\n";
                   for (int k = 0; k < h_avg_u.size(); k++) {
                       Real z = (k + 0.5)* dx[2];
-                      data_log1 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                           << h_avg_u[k]  << " " << h_avg_v[k] << " " << h_avg_w[k] << " " << h_avg_th[k] << std::endl;
+                      data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
+                                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                                << h_avg_u[k]  << " " << h_avg_v[k] << " " << h_avg_w[k] << " " << h_avg_th[k]
+                                << std::endl;
                   } // loop over z
-                  data_log1 << std::endl;
                 } // if good
             } // NumDataLogs
 
@@ -54,22 +55,22 @@ ERF::write_1D_profiles(Real time)
                 std::ostream& data_log2 = DataLog(2);
                 if (data_log2.good()) {
                   // Write the perturbational quantities at this time
-                  data_log2 << std::setw(datwidth) << time << "\n";
                   for (int k = 0; k < h_avg_u.size(); k++) {
                       Real z = (k + 0.5)* dx[2];
-                      data_log2 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                           << h_avg_uu[k]  - h_avg_u[k]*h_avg_u[k]  << " " <<
-                              h_avg_uv[k]  - h_avg_u[k]*h_avg_v[k]  << " " <<
-                              h_avg_uw[k]  - h_avg_u[k]*h_avg_w[k]  << " " <<
-                              h_avg_vv[k]  - h_avg_v[k]*h_avg_v[k]  << " " <<
-                              h_avg_vw[k]  - h_avg_v[k]*h_avg_w[k]  << " " <<
-                              h_avg_ww[k]  - h_avg_w[k]*h_avg_w[k]  << " " <<
-                              h_avg_uth[k] - h_avg_u[k]*h_avg_th[k] << " " <<
-                              h_avg_vth[k] - h_avg_v[k]*h_avg_th[k] << " " <<
-                              h_avg_wth[k] - h_avg_w[k]*h_avg_th[k] << " " <<
-                              h_avg_thth[k]-h_avg_th[k]*h_avg_th[k] << std::endl;
+                      data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
+                                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                                << h_avg_uu[k]  - h_avg_u[k]*h_avg_u[k]  << " "
+                                << h_avg_uv[k]  - h_avg_u[k]*h_avg_v[k]  << " "
+                                << h_avg_uw[k]  - h_avg_u[k]*h_avg_w[k]  << " "
+                                << h_avg_vv[k]  - h_avg_v[k]*h_avg_v[k]  << " "
+                                << h_avg_vw[k]  - h_avg_v[k]*h_avg_w[k]  << " "
+                                << h_avg_ww[k]  - h_avg_w[k]*h_avg_w[k]  << " "
+                                << h_avg_uth[k] - h_avg_u[k]*h_avg_th[k] << " "
+                                << h_avg_vth[k] - h_avg_v[k]*h_avg_th[k] << " "
+                                << h_avg_wth[k] - h_avg_w[k]*h_avg_th[k] << " "
+                                << h_avg_thth[k]-h_avg_th[k]*h_avg_th[k]
+                                << std::endl;
                   } // loop over z
-                  data_log2 << std::endl;
                 } // if good
             } // NumDataLogs
 
@@ -77,14 +78,14 @@ ERF::write_1D_profiles(Real time)
                 std::ostream& data_log3 = DataLog(3);
                 if (data_log3.good()) {
                   // Write the average stresses
-                  data_log3 << std::setw(datwidth) << time << "\n";
                   for (int k = 0; k < h_avg_u.size(); k++) {
                       Real z = (k + 0.5)* dx[2];
-                      data_log3 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                           << h_avg_tau11[k] << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
-                           << h_avg_tau22[k] << " " << h_avg_tau23[k] << " " << h_avg_tau33[k] << std::endl;
+                      data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
+                                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
+                                << h_avg_tau11[k] << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
+                                << h_avg_tau22[k] << " " << h_avg_tau23[k] << " " << h_avg_tau33[k]
+                                << std::endl;
                   } // loop over z
-                  data_log3 << std::endl;
                 } // if good
             } // NumDataLogs
         } // if IOProcessor
@@ -219,4 +220,11 @@ ERF::derive_stress_profiles(Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<
     h_avg_tau22 = sumToLine(mf_out,3,1,domain,zdir);
     h_avg_tau23 = sumToLine(mf_out,4,1,domain,zdir);
     h_avg_tau33 = sumToLine(mf_out,5,1,domain,zdir);
+
+    // Divide by the total number of cells we are averaging over
+    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+    for (int k = 0; k < h_avg_tau11.size(); ++k) {
+        h_avg_tau11[k] /= area_z; h_avg_tau12[k] /= area_z; h_avg_tau13[k] /= area_z;
+        h_avg_tau22[k] /= area_z; h_avg_tau23[k] /= area_z; h_avg_tau33[k] /= area_z;
+    }
 }

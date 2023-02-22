@@ -63,7 +63,9 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // Check to see if we found all the requested variables
     for (auto plot_name : plot_var_names) {
       if (!containerHasElement(tmp_plot_names, plot_name)) {
-           Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
+           if (amrex::ParallelDescriptor::IOProcessor()) {
+               Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
+           }
       }
     }
     plot_var_names = tmp_plot_names;

@@ -1,27 +1,14 @@
 CEXE_sources += main.cpp
 CEXE_sources += ERF.cpp
-CEXE_sources += ERF_init_custom.cpp
-CEXE_sources += ERF_init_from_input_sounding.cpp
 CEXE_headers += ERF.H
 CEXE_headers += prob_common.H
-
-ifeq ($(USE_NETCDF),TRUE)
-CEXE_sources += ERF_init_from_wrfinput.cpp
-CEXE_sources += ERF_init_from_metgrid.cpp
-endif
 
 CEXE_headers += IndexDefines.H
 CEXE_headers += EOS.H
 CEXE_headers += DataStruct.H
+CEXE_headers += InputSoundingData.H
 CEXE_headers += ERF_Constants.H
-CEXE_sources += ERF_init_bcs.cpp
-CEXE_sources += ERF_init1d.cpp
 CEXE_sources += ERF_Tagging.cpp
 
 CEXE_sources += Derive.cpp
 CEXE_headers += Derive.H
-
-ifeq ($(USE_MULTIBLOCK),TRUE)
-CEXE_sources += MultiBlockContainer.cpp
-CEXE_headers += MultiBlockContainer.H
-endif

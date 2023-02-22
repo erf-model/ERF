@@ -2,7 +2,7 @@
  * \file ERF.cpp
  */
 
-#include <prob_common.H>
+#include "prob_common.H"
 #include <EOS.H>
 #include <ERF.H>
 
@@ -43,6 +43,7 @@ int         ERF::verbose       = 0;
 // Use the native ERF MRI integrator
 int         ERF::use_native_mri = 1;
 int         ERF::no_substepping = 0;
+int         ERF::force_stage1_single_substep = 1;
 
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
@@ -572,6 +573,10 @@ ERF::InitData ()
         FillPatch(lev, t_new[lev],
                   {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
 
+        // We need to fill the ghost cell values of the base state in case it wasn't
+        //    done in the initialization
+        base_state[lev].FillBoundary(geom[lev].periodicity());
+
         // For moving terrain only
         if (solverChoice.terrain_type > 0) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
@@ -602,6 +607,78 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
         MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
         MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
+    }
+
+    // Set these up here because we need to know which MPI rank "cell" is on...
+    ParmParse pp("erf");
+    if (pp.contains("data_log"))
+    {
+        int num_datalogs = pp.countval("data_log");
+        datalog.resize(num_datalogs);
+        datalogname.resize(num_datalogs);
+        pp.queryarr("data_log",datalogname,0,num_datalogs);
+        for (int i = 0; i < num_datalogs; i++)
+            setRecordDataInfo(i,datalogname[i]);
+    }
+
+    if (pp.contains("sample_point_log") && pp.contains("sample_point"))
+    {
+        int lev = 0;
+
+        int num_samplepts = pp.countval("sample_point") / AMREX_SPACEDIM;
+        if (num_samplepts > 0) {
+            Vector<int> index; index.resize(num_samplepts*AMREX_SPACEDIM);
+            samplepoint.resize(num_samplepts);
+
+            pp.queryarr("sample_point",index,0,num_samplepts*AMREX_SPACEDIM);
+            for (int i = 0; i < num_samplepts; i++) {
+                IntVect iv(index[AMREX_SPACEDIM*i+0],index[AMREX_SPACEDIM*i+1],index[AMREX_SPACEDIM*i+2]);
+                samplepoint[i] = iv;
+            }
+        }
+
+        int num_sampleptlogs = pp.countval("sample_point_log");
+        AMREX_ALWAYS_ASSERT(num_sampleptlogs == num_samplepts);
+        if (num_sampleptlogs > 0) {
+            sampleptlog.resize(num_sampleptlogs);
+            sampleptlogname.resize(num_sampleptlogs);
+            pp.queryarr("sample_point_log",sampleptlogname,0,num_sampleptlogs);
+
+            for (int i = 0; i < num_sampleptlogs; i++) {
+                setRecordSamplePointInfo(i,lev,samplepoint[i],sampleptlogname[i]);
+            }
+        }
+
+    }
+
+    if (pp.contains("sample_line_log") && pp.contains("sample_line"))
+    {
+        int lev = 0;
+
+        int num_samplelines = pp.countval("sample_line") / AMREX_SPACEDIM;
+        if (num_samplelines > 0) {
+            Vector<int> index; index.resize(num_samplelines*AMREX_SPACEDIM);
+            sampleline.resize(num_samplelines);
+
+            pp.queryarr("sample_line",index,0,num_samplelines*AMREX_SPACEDIM);
+            for (int i = 0; i < num_samplelines; i++) {
+                IntVect iv(index[AMREX_SPACEDIM*i+0],index[AMREX_SPACEDIM*i+1],index[AMREX_SPACEDIM*i+2]);
+                sampleline[i] = iv;
+            }
+        }
+
+        int num_samplelinelogs = pp.countval("sample_line_log");
+        AMREX_ALWAYS_ASSERT(num_samplelinelogs == num_samplelines);
+        if (num_samplelinelogs > 0) {
+            samplelinelog.resize(num_samplelinelogs);
+            samplelinelogname.resize(num_samplelinelogs);
+            pp.queryarr("sample_line_log",samplelinelogname,0,num_samplelinelogs);
+
+            for (int i = 0; i < num_samplelinelogs; i++) {
+                setRecordSampleLineInfo(i,lev,sampleline[i],samplelinelogname[i]);
+            }
+        }
+
     }
 }
 
@@ -681,8 +758,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
 
-    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order);
+    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
+                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO))+1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
+                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO);
 
     temp_lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
     temp_lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
@@ -776,8 +855,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
-    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order);
+    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
+                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO))+1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
+                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO);
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -944,7 +1025,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         ba_nd.surroundingNodes();
 
         // We need this to be one greater than the ghost cells to handle levels > 0
-        int ngrow = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order)+2;
+        int ngrow = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
+                                      solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO))+2;
         z_phys_nd[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
         if (solverChoice.terrain_type > 0) {
             z_phys_nd_new[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
@@ -1001,6 +1083,7 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
+    mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(force_stage1_single_substep);
 
     physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                      solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
@@ -1082,22 +1165,13 @@ ERF::ReadParameters ()
         pp.query("restart", restart_chkfile);
         pp_amr.query("restart", restart_chkfile);
 
-        if (pp.contains("data_log"))
-        {
-            int num_datalogs = pp.countval("data_log");
-            datalog.resize(num_datalogs);
-            datalogname.resize(num_datalogs);
-            pp.queryarr("data_log",datalogname,0,num_datalogs);
-            for (int i = 0; i < num_datalogs; i++)
-                setRecordDataInfo(i,datalogname[i]);
-        }
-
         // Verbosity
         pp.query("v", verbose);
 
         // Use the native ERF MRI integrator
         pp.query("use_native_mri", use_native_mri);
         pp.query("no_substepping", no_substepping);
+        pp.query("force_stage1_single_substep", force_stage1_single_substep);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1122,7 +1196,7 @@ ERF::ReadParameters ()
         if (fixed_dt > 0. && fixed_fast_dt > 0. && fixed_mri_dt_ratio <= 0)
         {
             Real eps = 1.e-12;
-            int ratio = ( (1.0+eps) * fixed_dt ) / fixed_fast_dt;
+            int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt ) / fixed_fast_dt );
             if (fixed_dt / fixed_fast_dt != ratio)
             {
                 amrex::Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
@@ -1293,7 +1367,8 @@ ERF::MakeHorizontalAverages ()
     // Divide by the total number of cells we are averaging over
      int size_z = domain.length(zdir);
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
-    for (int k = 0; k < h_avg_density.size(); ++k) {
+    int klen = static_cast<int>(h_avg_density.size());
+    for (int k = 0; k < klen; ++k) {
         h_havg_density[k]     /= area_z;
         h_havg_temperature[k] /= area_z;
         h_havg_pressure[k]    /= area_z;

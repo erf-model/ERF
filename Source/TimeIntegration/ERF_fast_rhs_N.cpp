@@ -67,26 +67,73 @@ void erf_fast_rhs_N (int step, int /*level*/,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
+    // This will hold theta extrapolated forward in time
     MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
 
+    // This will hold the update for (rho) and (rho theta)
+    MultiFab temp_rhs(S_stage_data[IntVar::zmom].boxArray(),S_stage_data[IntVar::zmom].DistributionMap(),2,0);
+
+    // This will hold the new x- and y-momenta temporarily (so that we don't overwrite values we need when tiling)
+    MultiFab temp_cur_xmom(S_stage_data[IntVar::xmom].boxArray(),S_stage_data[IntVar::xmom].DistributionMap(),1,0);
+    MultiFab temp_cur_ymom(S_stage_data[IntVar::ymom].boxArray(),S_stage_data[IntVar::ymom].DistributionMap(),1,0);
+
     // *************************************************************************
-    // Define updates in the current RK stage
+    // First set up some arrays we'll need
     // *************************************************************************
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     {
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Array4<Real>       & cur_cons  = S_data[IntVar::cons].array(mfi);
+        const Array4<const Real>& prev_cons  = S_prev[IntVar::cons].const_array(mfi);
+        const Array4<const Real>& stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
+        const Array4<Real>& scratch_rtheta   = S_scratch[IntVar::cons].array(mfi);
 
-    FArrayBox temp_rhs_fab;
-    FArrayBox RHS_fab;
-    FArrayBox soln_fab;
+        const Array4<Real>& old_drho       = Delta_rho.array(mfi);
+        const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
+        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+
+        const Array4<const Real>&  prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
+        const Array4<const Real>& stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
+
+        Box gbx = mfi.tilebox() & grids_to_evolve[mfi.index()]; gbx.grow(1);
+        if (step == 0) {
+            amrex::ParallelFor(gbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
+                scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
+            });
+        } // step = 0
+
+        Box gtbz = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
+        amrex::ParallelFor(gtbz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
+        });
+
+        const Array4<Real>& theta_extrap = extrap.array(mfi);
+
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
+            old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
+
+            theta_extrap(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
+              (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
+        });
+    } // mfi
+
+    // *************************************************************************
+    // Define updates in the current RK stage
+    // *************************************************************************
 
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
         // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
+        Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
 
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
@@ -108,9 +155,10 @@ void erf_fast_rhs_N (int step, int /*level*/,
         const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVar::zmom].const_array(mfi);
 
         const Array4<Real>& cur_cons       = S_data[IntVar::cons].array(mfi);
-        const Array4<Real>& cur_xmom       = S_data[IntVar::xmom].array(mfi);
-        const Array4<Real>& cur_ymom       = S_data[IntVar::ymom].array(mfi);
         const Array4<Real>& cur_zmom       = S_data[IntVar::zmom].array(mfi);
+
+        const Array4<Real>& temp_cur_xmom_arr  = temp_cur_xmom.array(mfi);
+        const Array4<Real>& temp_cur_ymom_arr  = temp_cur_ymom.array(mfi);
 
         const Array4<Real>& scratch_rtheta = S_scratch[IntVar::cons].array(mfi);
 
@@ -133,53 +181,27 @@ void erf_fast_rhs_N (int step, int /*level*/,
         const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
-        Box gbx   = mfi.growntilebox(1);
+        // Note: it is important to grow the tilebox rather than use growntilebox because
+        //       we need to fill the ghost cells of the tilebox so we can use them below
+        Box gbx   = mfi.tilebox();  gbx.grow(1);
+
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
         Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
-        {
-        BL_PROFILE("fast_rhs_copies_0");
-        if (step == 0) {
-            amrex::ParallelFor(gbx,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
-                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
-                scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
-            });
-        }
-        } // end profile
-
-        {
-        BL_PROFILE("fast_rhs_copies_1");
-        amrex::ParallelFor(gtbz,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
-        });
-        } // end profile
-
-        {
-        BL_PROFILE("fast_rhs_copies_2");
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
-            old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
-            theta_extrap(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
-              (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
-        });
-        } // end profile
-
+        FArrayBox RHS_fab;
         RHS_fab.resize(tbz,1);
+
+        FArrayBox soln_fab;
         soln_fab.resize(tbz,1);
 
         auto const& RHS_a  = RHS_fab.array();
         auto const& soln_a = soln_fab.array();
 
+        auto const& temp_rhs_arr = temp_rhs.array(mfi);
+
         Elixir rCeli       = RHS_fab.elixir();
         Elixir sCeli       = soln_fab.elixir();
-
-        temp_rhs_fab.resize(tbz,2);
-        auto const& temp_rhs_arr = temp_rhs_fab.array();
-        Elixir temp_rhs_eli      = temp_rhs_fab.elixir();
 
         auto const&     coeffA_a =     coeff_A_mf.array(mfi);
         auto const& inv_coeffB_a = inv_coeff_B_mf.array(mfi);
@@ -217,7 +239,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
 
             avg_xmom(i,j,k) += facinv*new_drho_u;
 
-            cur_xmom(i,j,k) = stage_xmom(i,j,k) + new_drho_u;
+            temp_cur_xmom_arr(i,j,k) = stage_xmom(i,j,k) + new_drho_u;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -243,7 +265,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
 
             avg_ymom(i,j,k) += facinv*new_drho_v;
 
-            cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
+            temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
         });
         } // end profile
 
@@ -252,10 +274,10 @@ void erf_fast_rhs_N (int step, int /*level*/,
         BL_PROFILE("making_rho_rhs");
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real xflux_lo = (cur_xmom(i  ,j,k) - stage_xmom(i  ,j,k)) / mf_u(i  ,j,0);;
-            Real xflux_hi = (cur_xmom(i+1,j,k) - stage_xmom(i+1,j,k)) / mf_u(i+1,j,0);;
-            Real yflux_lo = (cur_ymom(i,j  ,k) - stage_ymom(i,j  ,k)) / mf_v(i,j  ,0);;
-            Real yflux_hi = (cur_ymom(i,j+1,k) - stage_ymom(i,j+1,k)) / mf_v(i,j+1,0);;
+            Real xflux_lo = (temp_cur_xmom_arr(i  ,j,k) - stage_xmom(i  ,j,k)) / mf_u(i  ,j,0);;
+            Real xflux_hi = (temp_cur_xmom_arr(i+1,j,k) - stage_xmom(i+1,j,k)) / mf_u(i+1,j,0);;
+            Real yflux_lo = (temp_cur_ymom_arr(i,j  ,k) - stage_ymom(i,j  ,k)) / mf_v(i,j  ,0);;
+            Real yflux_hi = (temp_cur_ymom_arr(i,j+1,k) - stage_ymom(i,j+1,k)) / mf_v(i,j+1,0);;
 
             Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
@@ -407,10 +429,6 @@ void erf_fast_rhs_N (int step, int /*level*/,
         // **************************************************************************
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
-
-        // We note that valid_bx is the actual grid, while bx may be a tile within that grid
-        // const auto& vbx_hi = amrex::ubound(valid_bx);
-
         {
         BL_PROFILE("fast_rho_final_update");
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -423,12 +441,52 @@ void erf_fast_rhs_N (int step, int /*level*/,
             // Note that in the solve we effectively impose soln_a(i,j,vbx_hi.z+1)=0
             // so we don't update avg_zmom at k=vbx_hi.z+1
 
-            cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) - temp_rhs_arr(i,j,k,0) - ( zflux_hi - zflux_lo ) * dzi );
+            temp_rhs_arr(i,j,k,0) += ( zflux_hi - zflux_lo ) * dzi;
+            // cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) - temp_rhs_arr(i,j,k,0) - ( zflux_hi - zflux_lo ) * dzi );
 
-            cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) - temp_rhs_arr(i,j,k,1) - 0.5 * (
-              ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi ) );
+            temp_rhs_arr(i,j,k,1) += 0.5 * dzi *
+               ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
+
+//          cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) - temp_rhs_arr(i,j,k,1) - 0.5 * (
+//            ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi;
         });
         } // end profile
     } // mfi
-    }
+
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx =  mfi.tilebox() & grids_to_evolve[mfi.index()];
+
+        const Array4<Real>& cur_cons  = S_data[IntVar::cons].array(mfi);
+        auto const& temp_rhs_arr  = temp_rhs.const_array(mfi);
+        auto const& slow_rhs_cons = S_slow_rhs[IntVar::cons].const_array(mfi);
+
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) - temp_rhs_arr(i,j,k,0));
+
+            cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) - temp_rhs_arr(i,j,k,1));
+        });
+
+        const Array4<Real>& cur_xmom       = S_data[IntVar::xmom].array(mfi);
+        const Array4<Real>& cur_ymom       = S_data[IntVar::ymom].array(mfi);
+
+        const Array4<Real const>& temp_cur_xmom_arr  = temp_cur_xmom.const_array(mfi);
+        const Array4<Real const>& temp_cur_ymom_arr  = temp_cur_ymom.const_array(mfi);
+
+        Box tbx = surroundingNodes(bx,0);
+        Box tby = surroundingNodes(bx,1);
+
+        amrex::ParallelFor(tbx, tby,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            cur_xmom(i,j,k) = temp_cur_xmom_arr(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            cur_ymom(i,j,k) = temp_cur_ymom_arr(i,j,k);
+        });
+
+    } // mfi
+    } // openmp loop
 }

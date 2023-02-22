@@ -75,7 +75,7 @@ init_custom_prob(
         Array4<Real const> const&,
         const SolverChoice&)
 {
-    amrex::Error("We don't belong in init_custom_prob!");
+   // NOTE: this adds perturbations to what has already been defined; here we add nothing
 }
 
 void

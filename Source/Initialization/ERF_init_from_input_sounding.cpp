@@ -11,12 +11,36 @@
 using namespace amrex;
 
 void
+init_bx_scalars_from_input_sounding( const amrex::Box &bx,
+                                     amrex::Array4<amrex::Real> const &state,
+                                     amrex::GeometryData const &geomdata,
+                                     InputSoundingData const &inputSoundingData);
+void
+init_bx_scalars_from_input_sounding_hse( const amrex::Box &bx,
+                                         amrex::Array4<amrex::Real> const &state,
+                                         amrex::Array4<amrex::Real> const &r_hse_arr,
+                                         amrex::Array4<amrex::Real> const &p_hse_arr,
+                                         amrex::Array4<amrex::Real> const &pi_hse_arr,
+                                         amrex::GeometryData const &geomdata,
+                                         amrex::Real l_gravity, amrex::Real l_rdOcp,
+                                         InputSoundingData const &inputSoundingData);
+
+void
+init_bx_velocities_from_input_sounding( const amrex::Box &bx,
+                                        amrex::Array4<amrex::Real> const &x_vel,
+                                        amrex::Array4<amrex::Real> const &y_vel,
+                                        amrex::Array4<amrex::Real> const &z_vel,
+                                        amrex::GeometryData const &geomdata,
+                                        InputSoundingData const &inputSoundingData);
+
+void
 ERF::init_from_input_sounding(int lev)
 {
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
         if (input_sounding_file.empty())
             amrex::Error("input_sounding file name must be provided via input");
+
         input_sounding_data.read_from_file(input_sounding_file, geom[lev]);
 
         if (init_sounding_ideal) input_sounding_data.calc_rho_p();
@@ -28,6 +52,9 @@ ERF::init_from_input_sounding(int lev)
     MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
+
+    const Real l_gravity = solverChoice.gravity;
+    const Real l_rdOcp   = solverChoice.rdOcp;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -46,7 +73,7 @@ ERF::init_from_input_sounding(int lev)
         {
             init_bx_scalars_from_input_sounding_hse(bx, cons_arr,
                                                     r_hse_arr, p_hse_arr, pi_hse_arr,
-                                                    geom[lev].data(), input_sounding_data);
+                                                    geom[lev].data(), l_gravity, l_rdOcp, input_sounding_data);
         }
         else
         {
@@ -61,11 +88,10 @@ ERF::init_from_input_sounding(int lev)
 }
 
 void
-ERF::init_bx_scalars_from_input_sounding(
-        const amrex::Box &bx,
-        amrex::Array4<amrex::Real> const &state,
-        amrex::GeometryData const &geomdata,
-        InputSoundingData const &inputSoundingData)
+init_bx_scalars_from_input_sounding( const amrex::Box &bx,
+                                     amrex::Array4<amrex::Real> const &state,
+                                     amrex::GeometryData const &geomdata,
+                                     InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
@@ -107,14 +133,15 @@ ERF::init_bx_scalars_from_input_sounding(
 }
 
 void
-ERF::init_bx_scalars_from_input_sounding_hse(
-        const amrex::Box &bx,
-        amrex::Array4<amrex::Real> const &state,
-        amrex::Array4<amrex::Real> const &r_hse_arr,
-        amrex::Array4<amrex::Real> const &p_hse_arr,
-        amrex::Array4<amrex::Real> const &pi_hse_arr,
-        amrex::GeometryData const &geomdata,
-        InputSoundingData const &inputSoundingData)
+init_bx_scalars_from_input_sounding_hse( const amrex::Box &bx,
+                                         amrex::Array4<amrex::Real> const &state,
+                                         amrex::Array4<amrex::Real> const &r_hse_arr,
+                                         amrex::Array4<amrex::Real> const &p_hse_arr,
+                                         amrex::Array4<amrex::Real> const &pi_hse_arr,
+                                         amrex::GeometryData const &geomdata,
+                                         const amrex::Real l_gravity,
+                                         const amrex::Real l_rdOcp,
+                                         InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
@@ -126,13 +153,9 @@ ERF::init_bx_scalars_from_input_sounding_hse(
 #endif
     const int   inp_sound_size  = inputSoundingData.size();
 
-    amrex::Real l_gravity = solverChoice.gravity;
-
     // We want to set the lateral BC values, too
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
-
-    const Real rdOcp = solverChoice.rdOcp;
 
     amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Geometry
@@ -157,7 +180,7 @@ ERF::init_bx_scalars_from_input_sounding_hse(
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
         r_hse_arr (i, j, k) = rho_k;
         p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k); // NOTE WE ONLY USE THE DRY AIR PRESSURE
-        pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, rdOcp);
+        pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
 
         // Boundary treatment
         if (k==0)
@@ -166,7 +189,7 @@ ERF::init_bx_scalars_from_input_sounding_hse(
             amrex::Real rho_surf =
                 interpolate_1d(z_inp_sound, rho_inp_sound, 0.0, inp_sound_size);
             p_hse_arr (i, j, k-1) = p_hse_arr(i,j,k) + dx[2] * rho_surf * l_gravity;
-            pi_hse_arr(i, j, k-1) = getExnergivenP(p_hse_arr(i, j, k-1), rdOcp);
+            pi_hse_arr(i, j, k-1) = getExnergivenP(p_hse_arr(i, j, k-1), l_rdOcp);
         }
         else if (k==ktop)
         {
@@ -174,7 +197,7 @@ ERF::init_bx_scalars_from_input_sounding_hse(
             amrex::Real rho_top =
                 interpolate_1d(z_inp_sound, rho_inp_sound, z+dx[2]/2, inp_sound_size);
             p_hse_arr (i, j, k+1) = p_hse_arr(i,j,k) - dx[2] * rho_top * l_gravity;
-            pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), rdOcp);
+            pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), l_rdOcp);
         }
 
 #if defined(ERF_USE_MOISTURE)
@@ -188,13 +211,12 @@ ERF::init_bx_scalars_from_input_sounding_hse(
 }
 
 void
-ERF::init_bx_velocities_from_input_sounding(
-        const amrex::Box &bx,
-        amrex::Array4<amrex::Real> const &x_vel,
-        amrex::Array4<amrex::Real> const &y_vel,
-        amrex::Array4<amrex::Real> const &z_vel,
-        amrex::GeometryData const &geomdata,
-        InputSoundingData const &inputSoundingData)
+init_bx_velocities_from_input_sounding( const amrex::Box &bx,
+                                        amrex::Array4<amrex::Real> const &x_vel,
+                                        amrex::Array4<amrex::Real> const &y_vel,
+                                        amrex::Array4<amrex::Real> const &z_vel,
+                                        amrex::GeometryData const &geomdata,
+                                        InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* U_inp_sound     = inputSoundingData.U_inp_sound_d.dataPtr();
