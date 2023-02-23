@@ -139,7 +139,8 @@
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density
-        VelocityToMomentum(xvel_new, IntVect(ng_vel,ng_vel,ng_vel),
+        VelocityToMomentum(grids_to_evolve[level],
+                           xvel_new, IntVect(ng_vel,ng_vel,ng_vel),
                            yvel_new, IntVect(ng_vel,ng_vel,ng_vel),
                            zvel_new, IntVect(ng_vel,ng_vel,0),
                            S_data[IntVar::cons],

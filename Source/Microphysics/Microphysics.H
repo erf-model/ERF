@@ -23,6 +23,29 @@
 #include "IndexDefines.H"
 #include "DataStruct.H"
 
+namespace MicVar {
+   enum {
+      // independent variables
+      qt = 0,
+      qp,
+      theta, // liquid/ice water potential temperature
+      tabs,  // temperature
+      rho,   // density
+      pres,  // pressure
+      // derived variables
+      qr,   // rain water
+      qv,   // water vapor
+      qn,   // cloud condensate (liquid+ice), initial to zero
+      qci,  // cloud ice
+      qcl,  // cloud water
+      qpl,  // precip rain
+      qpi,  // precip ice
+      // temporary variable
+      omega,
+      NumVars
+  };
+}
+
 //
 // use MultiFab for 3D data, but table for 1D data
 //
@@ -69,6 +92,7 @@ class Microphysics {
             const amrex::MultiFab& qc_in,
                   amrex::MultiFab& qv_in,
             const amrex::MultiFab& qi_in,
+            const amrex::BoxArray& grids_to_evolve,
             const amrex::Geometry& geom,
             const amrex::Real& dt_advance);
 
@@ -90,6 +114,9 @@ class Microphysics {
  private:
   // geometry
   amrex::Geometry m_geom;
+  // valid boxes on which to evolve the solution
+  amrex::BoxArray m_gtoe;
+
   // timestep
   amrex::Real dt;
 

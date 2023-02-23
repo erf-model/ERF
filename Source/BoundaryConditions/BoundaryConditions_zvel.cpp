@@ -10,15 +10,12 @@ using namespace amrex;
 // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals
 //     so this follows the BCVars enum
 //
-void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                      const Array4<Real const>& velx_arr,
-                                      const Array4<Real const>& vely_arr,
-                                      const Array4<Real const>& z_nd_arr,
-                                      const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                      Real /*time*/, int bccomp_u,
-                                      int bccomp_v, int bccomp_w,
-                                      int terrain_type)
+void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                              const Array4<Real const>& z_nd_arr,
+                                              const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+                                              Real /*time*/, int bccomp_w)
 {
+    BL_PROFILE_VAR("impose_lateral_zvel_bcs()",impose_lateral_zvel_bcs);
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
 
@@ -26,9 +23,7 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
     int ncomp = 1;
-    Vector<BCRec> bcrs_u(1), bcrs_v(1), bcrs_w(1);
-    amrex::setBC(bx, domain, bccomp_u, 0, 1, m_domain_bcs_type, bcrs_u);
-    amrex::setBC(bx, domain, bccomp_v, 0, 1, m_domain_bcs_type, bcrs_v);
+    Vector<BCRec> bcrs_w(1);
     amrex::setBC(bx, domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
 
     // xlo: ori = 0
@@ -38,20 +33,12 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
     // yhi: ori = 4
     // zhi: ori = 5
 
-    amrex::Gpu::DeviceVector<BCRec> bcrs_u_d(ncomp);
-    amrex::Gpu::DeviceVector<BCRec> bcrs_v_d(ncomp);
     amrex::Gpu::DeviceVector<BCRec> bcrs_w_d(ncomp);
 #ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy_async(bcrs_u_d.data(), bcrs_u.data(), sizeof(BCRec));
-    Gpu::htod_memcpy_async(bcrs_v_d.data(), bcrs_v.data(), sizeof(BCRec));
     Gpu::htod_memcpy_async(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
 #else
-    std::memcpy(bcrs_u_d.data(), bcrs_u.data(), sizeof(BCRec));
-    std::memcpy(bcrs_v_d.data(), bcrs_v.data(), sizeof(BCRec));
     std::memcpy(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
 #endif
-    const amrex::BCRec* bc_ptr_u = bcrs_u_d.data();
-    const amrex::BCRec* bc_ptr_v = bcrs_v_d.data();
     const amrex::BCRec* bc_ptr_w = bcrs_w_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
@@ -59,7 +46,6 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
     FArrayBox dhdtfab;
 
     bool l_use_terrain = (m_z_phys_nd != nullptr);
-    bool l_moving_terrain = (terrain_type == 1);
 
     for (int i = 0; i < ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
@@ -143,6 +129,57 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
         });
     }
 
+    Gpu::streamSynchronize();
+}
+
+void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                               const Array4<Real const>& z_nd_arr,
+                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+                                               Real /*time*/, int bccomp_u,
+                                               int bccomp_v, int bccomp_w,
+                                               int terrain_type)
+{
+    BL_PROFILE_VAR("impose_vertical_zvel_bcs()",impose_vertical_zvel_bcs);
+    const auto& dom_lo = amrex::lbound(domain);
+    const auto& dom_hi = amrex::ubound(domain);
+
+    // xlo: ori = 0
+    // ylo: ori = 1
+    // zlo: ori = 2
+    // xhi: ori = 3
+    // yhi: ori = 4
+    // zhi: ori = 5
+
+    // Based on BCRec for the domain, we need to make BCRec for this Box
+    // bccomp is used as starting index for m_domain_bcs_type
+    //      0 is used as starting index for bcrs
+    int ncomp = 1;
+    Vector<BCRec> bcrs_u(1), bcrs_v(1), bcrs_w(1);
+    amrex::setBC(bx, domain, bccomp_u, 0, 1, m_domain_bcs_type, bcrs_u);
+    amrex::setBC(bx, domain, bccomp_v, 0, 1, m_domain_bcs_type, bcrs_v);
+    amrex::setBC(bx, domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
+
+    amrex::Gpu::DeviceVector<BCRec> bcrs_u_d(ncomp);
+    amrex::Gpu::DeviceVector<BCRec> bcrs_v_d(ncomp);
+    amrex::Gpu::DeviceVector<BCRec> bcrs_w_d(ncomp);
+#ifdef AMREX_USE_GPU
+    Gpu::htod_memcpy_async(bcrs_u_d.data(), bcrs_u.data(), sizeof(BCRec));
+    Gpu::htod_memcpy_async(bcrs_v_d.data(), bcrs_v.data(), sizeof(BCRec));
+    Gpu::htod_memcpy_async(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
+#else
+    std::memcpy(bcrs_u_d.data(), bcrs_u.data(), sizeof(BCRec));
+    std::memcpy(bcrs_v_d.data(), bcrs_v.data(), sizeof(BCRec));
+    std::memcpy(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
+#endif
+    const amrex::BCRec* bc_ptr_u = bcrs_u_d.data();
+    const amrex::BCRec* bc_ptr_v = bcrs_v_d.data();
+    const amrex::BCRec* bc_ptr_w = bcrs_w_d.data();
+
+    bool l_use_terrain = (m_z_phys_nd != nullptr);
+    bool l_moving_terrain = (terrain_type == 1);
+
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+
     {
         Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);
         Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+2);
@@ -221,6 +258,5 @@ void ERFPhysBCFunct::impose_zvel_bcs (const Array4<Real>& dest_arr, const Box& b
           }
         );
     }
-
     Gpu::streamSynchronize();
 }

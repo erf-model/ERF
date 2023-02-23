@@ -165,7 +165,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
         Box tby = surroundingNodes(bx,1);
         Box tbz = surroundingNodes(bx,2);
 
-        const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
@@ -220,7 +219,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
         Box gbx   = mfi.tilebox();  gbx.grow(1);
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
-        Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
         RHS_fab.resize(tbz,1);
         soln_fab.resize(tbz,1);

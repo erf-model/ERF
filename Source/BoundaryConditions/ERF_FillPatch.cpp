@@ -78,12 +78,15 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     IntVect ngvect_cons = mfs[Vars::cons]->nGrowVect();
     IntVect ngvect_vels = mfs[Vars::xvel]->nGrowVect();
 
-    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,cons_only);
-
-    if (m_r2d) fill_from_bndryregs(mfs,time);
 #ifdef ERF_USE_NETCDF
+    // We call this here because it is an ERF routine
     if (init_type == "real") fill_from_wrfbdy(mfs,time);
 #endif
+
+    if (m_r2d) fill_from_bndryregs(mfs,time);
+
+    // We call this even if init_type == real because this routine will fill the vertical bcs
+    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only);
 }
 
 //
@@ -171,13 +174,16 @@ ERF::FillIntermediatePatch (int lev, Real time,
     IntVect ngvect_cons = IntVect(ng_cons,ng_cons,ng_cons);
     IntVect ngvect_vels = IntVect(ng_vel ,ng_vel ,ng_vel);
 
-    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,cons_only);
-    // ***************************************************************************
-
-    if (m_r2d) fill_from_bndryregs(mfs,time);
 #ifdef ERF_USE_NETCDF
+    // We call this here because it is an ERF routine
     if (init_type == "real") fill_from_wrfbdy(mfs,time);
 #endif
+
+    if (m_r2d) fill_from_bndryregs(mfs,time);
+
+    // We call this even if init_type == real because this routine will fill the vertical bcs
+    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only);
+    // ***************************************************************************
 
     //
     // It is important that we apply the MOST bcs after we have imposed all the others
@@ -238,7 +244,7 @@ ERF::FillCoarsePatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     IntVect ngvect_vels = mfs[Vars::xvel]->nGrowVect();
     bool cons_only = false;
 
-    (*physbcs[lev])(mfs,0,mfs[Vars::cons]->nComp(),ngvect_cons,ngvect_vels,time,cons_only);
+    (*physbcs[lev])(mfs,0,mfs[Vars::cons]->nComp(),ngvect_cons,ngvect_vels,time,init_type,cons_only);
 
     // ***************************************************************************
     // Since lev > 0 here we don't worry about m_r2d or wrfbdy data

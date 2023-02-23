@@ -11,10 +11,12 @@ void Microphysics::Init(const MultiFab& cons_in,
                         const MultiFab& qc_in,
                               MultiFab& qv_in,
                         const MultiFab& qi_in,
+                        const BoxArray& grids_to_evolve,
                         const Geometry& geom,
                         const Real& dt_advance)
  {
   m_geom = geom;
+  m_gtoe = grids_to_evolve;
 
   auto dz   = m_geom.CellSize(2);
   auto lowz = m_geom.ProbLo(2);

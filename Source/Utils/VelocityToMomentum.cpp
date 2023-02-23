@@ -10,7 +10,8 @@ using namespace amrex;
 /**
  * Convert velocity to momentum.
  */
-void VelocityToMomentum( const MultiFab& xvel_in,
+void VelocityToMomentum( BoxArray& grids_to_evolve,
+                         const MultiFab& xvel_in,
                          const IntVect& xvel_ngrow,
                          const MultiFab& yvel_in,
                          const IntVect& yvel_ngrow,
@@ -27,9 +28,10 @@ void VelocityToMomentum( const MultiFab& xvel_in,
 #endif
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        Box tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow); tbx.setSmall(2,0);
-        Box tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow); tby.setSmall(2,0);
-        Box tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow); tbz.setSmall(2,0);
+        const Box& valid_box = amrex::grow(grids_to_evolve[mfi],IntVect(1,1,0));
+        Box tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow) & surroundingNodes(valid_box,0); tbx.setSmall(2,0);
+        Box tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow) & surroundingNodes(valid_box,1); tby.setSmall(2,0);
+        Box tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow) & surroundingNodes(valid_box,2); tbz.setSmall(2,0);
 
         // Conserved/state variables on cell centers -- we use this for density
         const Array4<const Real>& cons = cons_in.array(mfi);
