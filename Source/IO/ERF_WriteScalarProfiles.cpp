@@ -144,8 +144,15 @@ void
 ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
 {
     int datwidth = 14;
+    int datprecision = 6;
 
     int ifile = 0;
+
+    const int ncomp = mf.nComp(); // cell-centered state vars
+
+    MultiFab mf_vels(grids[lev], dmap[lev], AMREX_SPACEDIM, 0);
+    average_face_to_cellcenter(mf_vels, 0,
+                               Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
 
     //
     // Sample the data at a line (in direction "dir") in space
@@ -153,7 +160,14 @@ ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
     // The "k" value of "cell" is ignored
     //
     int dir = 2;
-    MultiFab my_line = get_line_data(mf, dir, cell);
+    MultiFab my_line       = get_line_data(mf,              dir, cell);
+    MultiFab my_line_vels  = get_line_data(mf_vels,         dir, cell);
+    MultiFab my_line_tau11 = get_line_data(*Tau11_lev[lev], dir, cell);
+    MultiFab my_line_tau12 = get_line_data(*Tau12_lev[lev], dir, cell);
+    MultiFab my_line_tau13 = get_line_data(*Tau13_lev[lev], dir, cell);
+    MultiFab my_line_tau22 = get_line_data(*Tau22_lev[lev], dir, cell);
+    MultiFab my_line_tau23 = get_line_data(*Tau23_lev[lev], dir, cell);
+    MultiFab my_line_tau33 = get_line_data(*Tau33_lev[lev], dir, cell);
 
     for (MFIter mfi(my_line, false); mfi.isValid(); ++mfi)
     {
@@ -161,16 +175,33 @@ ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
 
         std::ostream& sample_log = SampleLineLog(ifile);
         if (sample_log.good()) {
-          sample_log << std::setw(datwidth) << time;
+          sample_log << std::setw(datwidth) << std::setprecision(datprecision) << time;
           const auto& my_line_arr = my_line[0].const_array();
+          const auto& my_line_vels_arr = my_line_vels[0].const_array();
+          const auto& my_line_tau11_arr = my_line_tau11[0].const_array();
+          const auto& my_line_tau12_arr = my_line_tau12[0].const_array();
+          const auto& my_line_tau13_arr = my_line_tau13[0].const_array();
+          const auto& my_line_tau22_arr = my_line_tau22[0].const_array();
+          const auto& my_line_tau23_arr = my_line_tau23[0].const_array();
+          const auto& my_line_tau33_arr = my_line_tau33[0].const_array();
           const Box&  my_box = my_line[0].box();
           const int klo = my_box.smallEnd(2);
           const int khi = my_box.bigEnd(2);
           int i = cell[0];
           int j = cell[1];
-          int n = 0;
           for (int k = klo; k <= khi; k++) {
-              sample_log << std::setw(datwidth) << my_line_arr(i,j,k,n);
+              for (int n = 0; n < ncomp; n++) {
+                  sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_arr(i,j,k,n);
+              }
+              for (int n = 0; n < AMREX_SPACEDIM; n++) {
+                  sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_vels_arr(i,j,k,n);
+              }
+              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau11_arr(i,j,k);
+              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau12_arr(i,j,k);
+              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau13_arr(i,j,k);
+              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau22_arr(i,j,k);
+              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau23_arr(i,j,k);
+              sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau33_arr(i,j,k);
           }
           sample_log << std::endl;
         } // if good
