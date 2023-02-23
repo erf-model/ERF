@@ -46,7 +46,8 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
             for (MFIter mfi(mf); mfi.isValid(); ++mfi)
             {
                 const Array4<Real>& dest_arr = mf.array(mfi);
-                Box bx = mfi.validbox();
+                Box bx  = mfi.tilebox();
+                Box gbx = mfi.growntilebox(ng_vect);
 
                 const auto& bx_lo = amrex::lbound(bx);
                 const auto& bx_hi = amrex::ubound(bx);
@@ -58,7 +59,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                 {
                     if (bx_lo.x == dom_lo.x)
                     {
-                        Box bx_xlo(bx & domain);
+                        Box bx_xlo(gbx & domain);
                         bx_xlo.setSmall(0,dom_lo.x-ng_vect[0]);
                         bx_xlo.setBig(0,dom_lo.x+wrfbdy_width-1);
 
@@ -70,7 +71,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
 
                     if (bx_hi.x == dom_hi.x)
                     {
-                        Box bx_xhi(bx & domain);
+                        Box bx_xhi(gbx & domain);
                         bx_xhi.setSmall(0,dom_hi.x-wrfbdy_width+ng_vect[0]);
                         bx_xhi.setBig(0,dom_hi.x+1);
 
@@ -85,7 +86,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                 {
                     if (bx_lo.y == dom_lo.y)
                     {
-                        Box bx_ylo(bx & domain);
+                        Box bx_ylo(gbx & domain);
                         bx_ylo.setSmall(1,dom_lo.y-ng_vect[1]);
                         bx_ylo.setBig(1,dom_lo.y+wrfbdy_width-1);
 
@@ -97,7 +98,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
 
                     if (bx_hi.y == dom_hi.y)
                     {
-                        Box bx_yhi(bx & domain);
+                        Box bx_yhi(gbx & domain);
                         bx_yhi.setSmall(1,dom_hi.y-wrfbdy_width+1);
                         bx_yhi.setBig(1,dom_hi.y+ng_vect[1]);
                         ParallelFor(bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
@@ -251,7 +252,8 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
         for (MFIter mfi(mf); mfi.isValid(); ++mfi)
         {
             const Array4<Real>& dest_arr = mf.array(mfi);
-            Box bx = mfi.validbox();
+            Box bx  = mfi.tilebox();
+            Box gbx = mfi.growntilebox(ng_vect);
 
             const auto& bx_lo = amrex::lbound(bx);
             const auto& bx_hi = amrex::ubound(bx);
@@ -263,7 +265,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
             {
                 if (bx_lo.x == dom_lo.x)
                 {
-                    Box bx_xlo(bx & domain);
+                    Box bx_xlo(gbx & domain);
                     bx_xlo.setSmall(0,dom_lo.x-ng_vect[0]);
                     bx_xlo.setBig(0,dom_lo.x+wrfbdy_width-1);
 
@@ -277,7 +279,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
 
                 if (bx_hi.x == dom_hi.x)
                 {
-                    Box bx_xhi(bx & domain);
+                    Box bx_xhi(gbx & domain);
                     bx_xhi.setSmall(0,dom_hi.x-wrfbdy_width+1);
                     bx_xhi.setBig(0,dom_hi.x+ng_vect[0]);
 
@@ -294,7 +296,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
             {
                 if (bx_lo.y == dom_lo.y)
                 {
-                    Box bx_ylo(bx & domain);
+                    Box bx_ylo(gbx & domain);
                     bx_ylo.setSmall(1,dom_lo.y-ng_vect[0]);
                     bx_ylo.setBig(1,dom_lo.y+wrfbdy_width-1);
 
@@ -308,7 +310,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
 
                 if (bx_hi.y == dom_hi.y)
                 {
-                    Box bx_yhi(bx & domain);
+                    Box bx_yhi(gbx & domain);
                     bx_yhi.setSmall(1,dom_hi.y-wrfbdy_width+1);
                     bx_yhi.setBig(1,dom_hi.y+ng_vect[0]);
                     ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k)
