@@ -189,18 +189,32 @@ ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
           const int khi = my_box.bigEnd(2);
           int i = cell[0];
           int j = cell[1];
-          for (int k = klo; k <= khi; k++) {
-              for (int n = 0; n < ncomp; n++) {
+          for (int n = 0; n < ncomp; n++) {
+              for (int k = klo; k <= khi; k++) {
                   sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_arr(i,j,k,n);
               }
-              for (int n = 0; n < AMREX_SPACEDIM; n++) {
+          }
+          for (int n = 0; n < AMREX_SPACEDIM; n++) {
+              for (int k = klo; k <= khi; k++) {
                   sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_vels_arr(i,j,k,n);
               }
+          }
+          for (int k = klo; k <= khi; k++) {
               sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau11_arr(i,j,k);
+          }
+          for (int k = klo; k <= khi; k++) {
               sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau12_arr(i,j,k);
+          }
+          for (int k = klo; k <= khi; k++) {
               sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau13_arr(i,j,k);
+          }
+          for (int k = klo; k <= khi; k++) {
               sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau22_arr(i,j,k);
+          }
+          for (int k = klo; k <= khi; k++) {
               sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau23_arr(i,j,k);
+          }
+          for (int k = klo; k <= khi; k++) {
               sample_log << std::setw(datwidth) << std::setprecision(datprecision) << my_line_tau33_arr(i,j,k);
           }
           sample_log << std::endl;
