@@ -35,13 +35,15 @@ ERF::write_1D_profiles(Real time)
                                    h_avg_tau22, h_avg_tau23, h_avg_tau33);
         }
 
+        int hu_size =  h_avg_u.size();
+
         auto const& dx = geom[0].CellSizeArray();
         if (amrex::ParallelDescriptor::IOProcessor()) {
             if (NumDataLogs() > 1) {
                 std::ostream& data_log1 = DataLog(1);
                 if (data_log1.good()) {
                   // Write the quantities at this time
-                  for (int k = 0; k < h_avg_u.size(); k++) {
+                  for (int k = 0; k < hu_size; k++) {
                       Real z = (k + 0.5)* dx[2];
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -55,7 +57,7 @@ ERF::write_1D_profiles(Real time)
                 std::ostream& data_log2 = DataLog(2);
                 if (data_log2.good()) {
                   // Write the perturbational quantities at this time
-                  for (int k = 0; k < h_avg_u.size(); k++) {
+                  for (int k = 0; k < hu_size; k++) {
                       Real z = (k + 0.5)* dx[2];
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -78,7 +80,7 @@ ERF::write_1D_profiles(Real time)
                 std::ostream& data_log3 = DataLog(3);
                 if (data_log3.good()) {
                   // Write the average stresses
-                  for (int k = 0; k < h_avg_u.size(); k++) {
+                  for (int k = 0; k < hu_size; k++) {
                       Real z = (k + 0.5)* dx[2];
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -123,9 +125,11 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
     h_avg_v  = sumToLine(mf_vels ,1,1,domain,zdir);
     h_avg_w  = sumToLine(mf_vels ,2,1,domain,zdir);
 
+    int hu_size =  h_avg_u.size();
+
     // Divide by the total number of cells we are averaging over
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
-    for (int k = 0; k < h_avg_u.size(); ++k) {
+    for (int k = 0; k < hu_size; ++k) {
         h_avg_u[k] /= area_z; h_avg_v[k] /= area_z; h_avg_w[k] /= area_z;
     }
 
@@ -170,7 +174,7 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
     h_avg_thth = sumToLine(mf_out,10,1,domain,zdir);
 
     // Divide by the total number of cells we are averaging over
-    for (int k = 0; k < h_avg_u.size(); ++k) {
+    for (int k = 0; k < hu_size; ++k) {
         h_avg_th[k] /= area_z;  h_avg_thth[k] /= area_z;
         h_avg_uu[k] /= area_z;  h_avg_uv[k]   /= area_z; h_avg_uw[k]  /= area_z;
         h_avg_vv[k] /= area_z;  h_avg_vw[k]   /= area_z; h_avg_ww[k]  /= area_z;
@@ -221,9 +225,11 @@ ERF::derive_stress_profiles(Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<
     h_avg_tau23 = sumToLine(mf_out,4,1,domain,zdir);
     h_avg_tau33 = sumToLine(mf_out,5,1,domain,zdir);
 
+    int ht_size =  h_avg_tau11.size();
+
     // Divide by the total number of cells we are averaging over
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
-    for (int k = 0; k < h_avg_tau11.size(); ++k) {
+    for (int k = 0; k < ht_size; ++k) {
         h_avg_tau11[k] /= area_z; h_avg_tau12[k] /= area_z; h_avg_tau13[k] /= area_z;
         h_avg_tau22[k] /= area_z; h_avg_tau23[k] /= area_z; h_avg_tau33[k] /= area_z;
     }

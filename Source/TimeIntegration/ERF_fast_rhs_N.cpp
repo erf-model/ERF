@@ -139,7 +139,6 @@ void erf_fast_rhs_N (int step, int /*level*/,
         Box tby = surroundingNodes(bx,1);
         Box tbz = surroundingNodes(bx,2);
 
-        const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
@@ -154,15 +153,11 @@ void erf_fast_rhs_N (int step, int /*level*/,
         const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVar::zmom].const_array(mfi);
 
-        const Array4<Real>& cur_cons       = S_data[IntVar::cons].array(mfi);
         const Array4<Real>& cur_zmom       = S_data[IntVar::zmom].array(mfi);
 
         const Array4<Real>& temp_cur_xmom_arr  = temp_cur_xmom.array(mfi);
         const Array4<Real>& temp_cur_ymom_arr  = temp_cur_ymom.array(mfi);
 
-        const Array4<Real>& scratch_rtheta = S_scratch[IntVar::cons].array(mfi);
-
-        const Array4<const Real>& prev_cons = S_prev[IntVar::cons].const_array(mfi);
         const Array4<const Real>& prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
         const Array4<const Real>& prev_ymom = S_prev[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
@@ -187,7 +182,6 @@ void erf_fast_rhs_N (int step, int /*level*/,
 
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
-        Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
         FArrayBox RHS_fab;
         RHS_fab.resize(tbz,1);
