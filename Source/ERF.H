@@ -566,6 +566,9 @@ private:
     int plot_int_1 = -1;
     int plot_int_2 = -1;
 
+    // other sampling output control
+    int profile_int = -1;
+
     // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};
     std::string check_type {"native"};

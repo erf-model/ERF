@@ -293,6 +293,9 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
         sum_integrated_quantities(time);
+    }
+
+    if (profile_int > 0 && (nstep+1) % profile_int == 0) {
         write_1D_profiles(time);
     }
 
@@ -1292,6 +1295,8 @@ ERF::ReadParameters ()
         pp.query("plot_file_2", plot_file_2);
         pp.query("plot_int_1", plot_int_1);
         pp.query("plot_int_2", plot_int_2);
+
+        pp.query("profile_int", profile_int);
 
         pp.query("output_1d_column", output_1d_column);
         pp.query("column_per", column_per);
