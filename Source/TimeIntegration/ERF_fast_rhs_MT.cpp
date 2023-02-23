@@ -88,7 +88,8 @@ void erf_fast_rhs_MT (int step, int /*level*/,
     for ( MFIter mfi(S_stg_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box       bx = mfi.tilebox() & valid_bx;
 
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
@@ -144,9 +145,9 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
         // Note: it is important to grow the tilebox rather than use growntilebox because
         //       we need to fill the ghost cells of the tilebox so we can use them below
-        Box gbx   = mfi.tilebox();  gbx.grow(1);
-        Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
-        Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
+        Box gbx   = mfi.tilebox() & valid_bx;  gbx.grow(1);
+        Box gtbx  = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0); gtbx.grow(1); gtbx.setSmall(2,0);
+        Box gtby  = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1); gtby.grow(1); gtby.setSmall(2,0);
 
         {
         BL_PROFILE("fast_rhs_copies_0");

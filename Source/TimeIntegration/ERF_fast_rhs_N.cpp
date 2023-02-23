@@ -99,7 +99,9 @@ void erf_fast_rhs_N (int step, int /*level*/,
         const Array4<const Real>&  prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
         const Array4<const Real>& stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
 
-        Box gbx = mfi.tilebox() & grids_to_evolve[mfi.index()]; gbx.grow(1);
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
+
         if (step == 0) {
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -109,7 +111,8 @@ void erf_fast_rhs_N (int step, int /*level*/,
             });
         } // step = 0
 
-        Box gtbz = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
+        Box gtbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+        gtbz.grow(IntVect(1,1,0));
         amrex::ParallelFor(gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
