@@ -43,8 +43,6 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, cons
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
 
-    FArrayBox dhdtfab;
-
     bool l_use_terrain = (m_z_phys_nd != nullptr);
 
     for (int i = 0; i < ncomp; i++)
@@ -54,6 +52,8 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, cons
     GeometryData const& geomdata = m_geom.data();
     bool is_periodic_in_x = geomdata.isPeriodic(0);
     bool is_periodic_in_y = geomdata.isPeriodic(1);
+
+    FArrayBox dhdtfab;
 
     // First do all ext_dir bcs
     if (!is_periodic_in_x)
@@ -179,6 +179,10 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr, con
     bool l_moving_terrain = (terrain_type == 1);
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+
+    for (int i = 0; i < ncomp; i++)
+        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
+            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp_w+i][ori];
 
     {
         Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);
