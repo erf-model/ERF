@@ -30,7 +30,8 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                 Vector<Vector<FArrayBox>>& bdy_data_yhi);
+                 Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                 int& width);
 
 void
 convert_wrfbdy_data(int which, const Box& domain,
@@ -184,7 +185,10 @@ ERF::init_from_wrfinput(int lev)
     if (init_type == "real" && (lev == 0)) {
         if (nc_bdy_file.empty())
             amrex::Error("NetCDF boundary file name must be provided via input");
-        bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi);
+        bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),
+                                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+                                             wrfbdy_width);
+        amrex::Print() << "Read in boundary data with width " << wrfbdy_width << std::endl;
 
         const Box& domain = geom[lev].Domain();
 

@@ -30,7 +30,7 @@ void Microphysics::Cloud() {
      auto qn_array    = qn->array(mfi);
      auto tabs_array  = tabs->array(mfi);
 
-     const auto& box3d = mfi.tilebox();
+     const auto& box3d = mfi.tilebox() & m_gtoe[mfi.index()];
 
      ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
         qt_array(i,j,k) = std::max(0.0,qt_array(i,j,k));

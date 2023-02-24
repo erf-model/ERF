@@ -71,15 +71,6 @@ namespace WRFBdyVars {
     };
 }
 
-namespace WRFBdyTypes {
-    enum {
-        x_lo,
-        x_hi,
-        y_lo,
-        y_hi
-    };
-}
-
 namespace Vars {
     enum {
         cons = 0,
@@ -189,28 +180,5 @@ namespace IntVar {
         zmom,
         NumVars
     };
-}
-
-namespace MicVar {
-   enum {
-      // independent variables
-      qt = 0,
-      qp,
-      theta, // liquid/ice water potential temperature
-      tabs,  // temperature
-      rho,   // density
-      pres,  // pressure
-      // derived variables
-      qr,   // rain water
-      qv,   // water vapor
-      qn,   // cloud condensate (liquid+ice), initial to zero
-      qci,  // cloud ice
-      qcl,  // cloud water
-      qpl,  // precip rain
-      qpi,  // precip ice
-      // temporary variable
-      omega,
-      NumVars
-  };
 }
 #endif

@@ -130,7 +130,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
         rV_crse.define(V_crse.boxArray(), V_crse.DistributionMap(), 1, V_crse.nGrow());
         rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, W_crse.nGrow());
 
-        VelocityToMomentum(U_crse, U_crse.nGrowVect(),
+        VelocityToMomentum(grids_to_evolve[lev],
+                           U_crse, U_crse.nGrowVect(),
                            V_crse, V_crse.nGrowVect(),
                            W_crse, W_crse.nGrowVect(),
                           *S_crse,rU_crse,rV_crse,rW_crse);
@@ -205,6 +206,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                qc[lev],
                qv[lev],
                qi[lev],
+               grids_to_evolve[lev],
                Geom(lev),
                dt_lev);
     micro.Cloud();

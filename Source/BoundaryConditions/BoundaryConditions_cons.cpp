@@ -14,20 +14,12 @@ using namespace amrex;
 // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
 //     so this follows the BCVars enum
 //
-void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                      const Array4<Real const>& z_nd,
-                                      const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                      int icomp, int ncomp, Real /*time*/, int bccomp)
+void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                              int icomp, int ncomp, Real /*time*/, int bccomp)
 {
-    BL_PROFILE_VAR("impose_cons_bcs()",impose_cons_bcs);
+    BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
-
-    // Based on BCRec for the domain, we need to make BCRec for this Box
-    // bccomp is used as starting index for m_domain_bcs_type
-    //      0 is used as starting index for bcrs
-    Vector<BCRec> bcrs(icomp+ncomp);
-    amrex::setBC(bx, domain, bccomp, 0, icomp+ncomp, m_domain_bcs_type, bcrs);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -35,6 +27,12 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
     // xhi: ori = 3
     // yhi: ori = 4
     // zhi: ori = 5
+
+    // Based on BCRec for the domain, we need to make BCRec for this Box
+    // bccomp is used as starting index for m_domain_bcs_type
+    //      0 is used as starting index for bcrs
+    Vector<BCRec> bcrs(icomp+ncomp);
+    amrex::setBC(bx, domain, bccomp, 0, icomp+ncomp, m_domain_bcs_type, bcrs);
 
     amrex::Gpu::DeviceVector<BCRec> bcrs_d(icomp+ncomp);
 #ifdef AMREX_USE_GPU
@@ -90,23 +88,6 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 if (bc_ptr[icomp+n].hi(1) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][4];
-                }
-            }
-        );
-    }
-
-    {
-        Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);
-        Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+1);
-        ParallelFor(
-            bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[icomp+n].lo(2) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][2];
-                }
-            },
-            bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[icomp+n].hi(2) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][5];
                 }
             }
         );
@@ -171,6 +152,67 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
             }
         );
     }
+    Gpu::streamSynchronize();
+}
+void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                               const Array4<Real const>& z_nd,
+                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+                                               int icomp, int ncomp, Real /*time*/, int bccomp)
+{
+    BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
+    const auto& dom_lo = amrex::lbound(domain);
+    const auto& dom_hi = amrex::ubound(domain);
+
+    GeometryData const& geomdata = m_geom.data();
+
+    // xlo: ori = 0
+    // ylo: ori = 1
+    // zlo: ori = 2
+    // xhi: ori = 3
+    // yhi: ori = 4
+    // zhi: ori = 5
+
+    // Based on BCRec for the domain, we need to make BCRec for this Box
+    // bccomp is used as starting index for m_domain_bcs_type
+    //      0 is used as starting index for bcrs
+    Vector<BCRec> bcrs(icomp+ncomp);
+    amrex::setBC(bx, domain, bccomp, 0, icomp+ncomp, m_domain_bcs_type, bcrs);
+
+    amrex::Gpu::DeviceVector<BCRec> bcrs_d(icomp+ncomp);
+#ifdef AMREX_USE_GPU
+    Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*(icomp+ncomp));
+#else
+    std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*(icomp+ncomp));
+#endif
+    const amrex::BCRec* bc_ptr = bcrs_d.data();
+
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+    for (int i = 0; i < icomp+ncomp; i++)
+        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
+            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
+
+   GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_neumann_vals_d;
+    for (int i = 0; i < icomp+ncomp; i++)
+        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
+            l_bc_neumann_vals_d[i][ori] = m_bc_neumann_vals[bccomp+i][ori];
+
+
+    {
+        Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);
+        Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+1);
+        ParallelFor(
+            bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                if (bc_ptr[icomp+n].lo(2) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][2];
+                }
+            },
+            bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+                if (bc_ptr[icomp+n].hi(2) == ERFBCType::ext_dir) {
+                    dest_arr(i,j,k,icomp+n) = l_bc_extdir_vals_d[icomp+n][5];
+                }
+            }
+        );
+    }
 
     {
         Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);
@@ -187,7 +229,8 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,j,kflip,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::neumann) {
                     Real delta_z = (dom_lo.z - k) / dxInv[2];
-                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) - delta_z*l_bc_neumann_vals_d[icomp+n][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
+                    dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) -
+                        delta_z*l_bc_neumann_vals_d[icomp+n][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
                 }
             },
             bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
@@ -202,9 +245,11 @@ void ERFPhysBCFunct::impose_cons_bcs (const Array4<Real>& dest_arr, const Box& b
                 } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::neumann) {
                     Real delta_z = (k - dom_hi.z) / dxInv[2];
                     if( (icomp+n) == Rho_comp ) {
-                        dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_hi.z,icomp+n) + delta_z*l_bc_neumann_vals_d[icomp+n][5];
+                        dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_hi.z,icomp+n) +
+                            delta_z*l_bc_neumann_vals_d[icomp+n][5];
                     } else {
-                        dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_hi.z,icomp+n) + delta_z*l_bc_neumann_vals_d[icomp+n][5]*dest_arr(i,j,dom_hi.z,Rho_comp);
+                        dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_hi.z,icomp+n) +
+                            delta_z*l_bc_neumann_vals_d[icomp+n][5]*dest_arr(i,j,dom_hi.z,Rho_comp);
                     }
                 }
             }
