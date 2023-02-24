@@ -12,6 +12,8 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
 {
     int lev = 0;
 
+    int width = wrfbdy_width;
+
     //
     // *********************************************************************************
     // First we loop over the variables which were NOT read in from wrfbdy
@@ -61,23 +63,23 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                     {
                         Box bx_xlo(gbx & domain);
                         bx_xlo.setSmall(0,dom_lo.x-ng_vect[0]);
-                        bx_xlo.setBig(0,dom_lo.x+wrfbdy_width-1);
+                        bx_xlo.setBig(0,dom_lo.x+width-1);
 
                         ParallelFor(bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                         {
-                            dest_arr(i,j,k,icomp+n) = dest_arr(dom_lo.x+wrfbdy_width,j,k,icomp+n);
+                            dest_arr(i,j,k,icomp+n) = dest_arr(dom_lo.x+width,j,k,icomp+n);
                         });
                     } // bx
 
                     if (bx_hi.x == dom_hi.x)
                     {
                         Box bx_xhi(gbx & domain);
-                        bx_xhi.setSmall(0,dom_hi.x-wrfbdy_width+ng_vect[0]);
+                        bx_xhi.setSmall(0,dom_hi.x-width+ng_vect[0]);
                         bx_xhi.setBig(0,dom_hi.x+1);
 
                         ParallelFor(bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                         {
-                            dest_arr(i,j,k,icomp+n) = dest_arr(dom_hi.x-wrfbdy_width,j,k,icomp+n);
+                            dest_arr(i,j,k,icomp+n) = dest_arr(dom_hi.x-width,j,k,icomp+n);
                         });
                     } // bx
                 } // x-faces
@@ -88,22 +90,22 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                     {
                         Box bx_ylo(gbx & domain);
                         bx_ylo.setSmall(1,dom_lo.y-ng_vect[1]);
-                        bx_ylo.setBig(1,dom_lo.y+wrfbdy_width-1);
+                        bx_ylo.setBig(1,dom_lo.y+width-1);
 
                         ParallelFor(bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                         {
-                            dest_arr(i,j,k,icomp+n) = dest_arr(i,dom_lo.y+wrfbdy_width,k,icomp+n);
+                            dest_arr(i,j,k,icomp+n) = dest_arr(i,dom_lo.y+width,k,icomp+n);
                         });
                     } // bx
 
                     if (bx_hi.y == dom_hi.y)
                     {
                         Box bx_yhi(gbx & domain);
-                        bx_yhi.setSmall(1,dom_hi.y-wrfbdy_width+1);
+                        bx_yhi.setSmall(1,dom_hi.y-width+1);
                         bx_yhi.setBig(1,dom_hi.y+ng_vect[1]);
                         ParallelFor(bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                         {
-                            dest_arr(i,j,k,icomp+n) = dest_arr(i,dom_hi.y-wrfbdy_width,k,icomp+n);
+                            dest_arr(i,j,k,icomp+n) = dest_arr(i,dom_hi.y-width,k,icomp+n);
                         });
                     } // bx
                 } // y-faces
@@ -267,7 +269,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                 {
                     Box bx_xlo(gbx & domain);
                     bx_xlo.setSmall(0,dom_lo.x-ng_vect[0]);
-                    bx_xlo.setBig(0,dom_lo.x+wrfbdy_width-1);
+                    bx_xlo.setBig(0,dom_lo.x+width-1);
 
                     ParallelFor(bx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -280,7 +282,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                 if (bx_hi.x == dom_hi.x)
                 {
                     Box bx_xhi(gbx & domain);
-                    bx_xhi.setSmall(0,dom_hi.x-wrfbdy_width+1);
+                    bx_xhi.setSmall(0,dom_hi.x-width+1);
                     bx_xhi.setBig(0,dom_hi.x+ng_vect[0]);
 
                     ParallelFor(bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -298,7 +300,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                 {
                     Box bx_ylo(gbx & domain);
                     bx_ylo.setSmall(1,dom_lo.y-ng_vect[0]);
-                    bx_ylo.setBig(1,dom_lo.y+wrfbdy_width-1);
+                    bx_ylo.setBig(1,dom_lo.y+width-1);
 
                    ParallelFor(bx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                    {
@@ -311,7 +313,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                 if (bx_hi.y == dom_hi.y)
                 {
                     Box bx_yhi(gbx & domain);
-                    bx_yhi.setSmall(1,dom_hi.y-wrfbdy_width+1);
+                    bx_yhi.setSmall(1,dom_hi.y-width+1);
                     bx_yhi.setBig(1,dom_hi.y+ng_vect[0]);
                     ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
