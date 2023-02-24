@@ -284,13 +284,25 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         // This must be done before we set cur_xmom and cur_ymom, since those
         //      in fact point to the same array as prev_xmom and prev_ymom
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2);
+        Box gbxo = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
         {
-        BL_PROFILE("fast_T_making_omega");
+        BL_PROFILE("fast_MT_making_omega");
+        Box gbxo_lo = gbxo; gbxo.setBig(2,0);
         amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = (k == 0) ? 0. :
-               (OmegaFromW(i,j,k, prev_zmom(i,j,k), prev_xmom, prev_ymom,z_nd_old,dxInv)
-               -OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
+            omega_arr(i,j,k) = 0.;
+        });
+        Box gbxo_hi = gbxo; gbxo.setSmall(2,gbxo.bigEnd(2));
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k) - zp_t_arr(i,j,k);
+        });
+        Box gbxo_mid = gbxo; gbxo.setSmall(2,1); gbxo.setBig(2,gbxo.bigEnd(2)-1);
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) =
+               (OmegaFromW(i,j,k,prev_zmom(i,j,k),prev_xmom,prev_ymom,z_nd_old,dxInv)
+               -OmegaFromW(i,j,k, stg_zmom(i,j,k), stg_xmom, stg_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
+        });
+
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         });
         } // end profile
         // *********************************************************************
