@@ -265,15 +265,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                             rho_at_face * z_t(i,j,k);
                     });
                 } else {
-                    Box gbxo_lo = gbxo; gbxo.setBig(2,0);
+                    Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
                     amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = 0.;
                     });
-                    Box gbxo_hi = gbxo; gbxo.setSmall(2,gbxo.bigEnd(2));
+                    Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
                     amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = rho_w(i,j,k);
                     });
-                    Box gbxo_mid = gbxo; gbxo.setSmall(2,1); gbxo.setBig(2,gbxo.bigEnd(2)-1);
+                    Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
                     });
