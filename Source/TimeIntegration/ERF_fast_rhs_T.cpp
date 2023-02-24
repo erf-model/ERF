@@ -105,7 +105,9 @@ void erf_fast_rhs_T (int step, int /*level*/,
         const Array4<const Real>& stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
 
-        Box gbx = mfi.tilebox() & grids_to_evolve[mfi.index()]; gbx.grow(1);
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
+
         if (step == 0) {
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -115,15 +117,9 @@ void erf_fast_rhs_T (int step, int /*level*/,
             });
         } // step = 0
 
-        Box gtbx = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
-        Box gtby = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
-        Box gtbz = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
-        amrex::ParallelFor(gtbz,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
-        });
-
-        const Array4<Real>& theta_extrap = extrap.array(mfi);
+        Box gtbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0); gtbx.grow(IntVect(1,1,0));
+        Box gtby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1); gtby.grow(IntVect(1,1,0));
+        Box gtbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2); gtbz.grow(IntVect(1,1,0));
 
         amrex::ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -136,10 +132,12 @@ void erf_fast_rhs_T (int step, int /*level*/,
             old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
         });
 
+        const Array4<Real>& theta_extrap = extrap.array(mfi);
+
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
-            theta_extrap(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
+            theta_extrap(i,j,k)   = old_drho_theta(i,j,k) + beta_d * (
               (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
         });
     } // mfi
@@ -159,13 +157,13 @@ void erf_fast_rhs_T (int step, int /*level*/,
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box bx = mfi.tilebox() & valid_bx;
 
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
         Box tbz = surroundingNodes(bx,2);
 
-        const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
@@ -220,7 +218,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
         Box gbx   = mfi.tilebox();  gbx.grow(1);
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
-        Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
 
         RHS_fab.resize(tbz,1);
         soln_fab.resize(tbz,1);
@@ -353,11 +350,20 @@ void erf_fast_rhs_T (int step, int /*level*/,
         } // end profile
 
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2);
+        Box gbxo = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
         {
         BL_PROFILE("fast_T_making_omega");
+        Box gbxo_lo = gbxo; gbxo.setBig(2,0);
         amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
+            omega_arr(i,j,k) = 0.;
+        });
+        Box gbxo_hi = gbxo; gbxo.setSmall(2,gbxo.bigEnd(2));
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = old_drho_w(i,j,k);
+        });
+        Box gbxo_mid = gbxo; gbxo.setSmall(2,1); gbxo.setBig(2,gbxo.bigEnd(2)-1);
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
         });
         } // end profile
         // *********************************************************************

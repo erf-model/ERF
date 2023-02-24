@@ -88,7 +88,8 @@ void erf_fast_rhs_MT (int step, int /*level*/,
     for ( MFIter mfi(S_stg_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box       bx = mfi.tilebox() & valid_bx;
 
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
@@ -144,9 +145,9 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
         // Note: it is important to grow the tilebox rather than use growntilebox because
         //       we need to fill the ghost cells of the tilebox so we can use them below
-        Box gbx   = mfi.tilebox();  gbx.grow(1);
-        Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
-        Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
+        Box gbx   = mfi.tilebox() & valid_bx;  gbx.grow(1);
+        Box gtbx  = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0); gtbx.grow(1); gtbx.setSmall(2,0);
+        Box gtby  = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1); gtby.grow(1); gtby.setSmall(2,0);
 
         {
         BL_PROFILE("fast_rhs_copies_0");
@@ -283,13 +284,25 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         // This must be done before we set cur_xmom and cur_ymom, since those
         //      in fact point to the same array as prev_xmom and prev_ymom
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2);
+        Box gbxo = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
         {
-        BL_PROFILE("fast_T_making_omega");
+        BL_PROFILE("fast_MT_making_omega");
+        Box gbxo_lo = gbxo; gbxo.setBig(2,0);
         amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = (k == 0) ? 0. :
-               (OmegaFromW(i,j,k, prev_zmom(i,j,k), prev_xmom, prev_ymom,z_nd_old,dxInv)
-               -OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
+            omega_arr(i,j,k) = 0.;
+        });
+        Box gbxo_hi = gbxo; gbxo.setSmall(2,gbxo.bigEnd(2));
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k) - zp_t_arr(i,j,k);
+        });
+        Box gbxo_mid = gbxo; gbxo.setSmall(2,1); gbxo.setBig(2,gbxo.bigEnd(2)-1);
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) =
+               (OmegaFromW(i,j,k,prev_zmom(i,j,k),prev_xmom,prev_ymom,z_nd_old,dxInv)
+               -OmegaFromW(i,j,k, stg_zmom(i,j,k), stg_xmom, stg_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
+        });
+
+        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         });
         } // end profile
         // *********************************************************************

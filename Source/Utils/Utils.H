@@ -26,7 +26,8 @@ void MomentumToVelocity (amrex::BoxArray& grids_to_evolve,
                          const amrex::MultiFab& ymom_in,
                          const amrex::MultiFab& zmom_in);
 
-void VelocityToMomentum (const amrex::MultiFab& xvel_in,
+void VelocityToMomentum (amrex::BoxArray& grids_to_evolve,
+                         const amrex::MultiFab& xvel_in,
                          const amrex::IntVect& xvel_ngrow,
                          const amrex::MultiFab& yvel_in,
                          const amrex::IntVect& yvel_ngrow,
