@@ -190,7 +190,8 @@ void ERF::erf_advance(int level,
     // ***********************************************************************************************
     {
     BL_PROFILE("pre_set_up_mri");
-    VelocityToMomentum(xvel_old, xvel_old.nGrowVect(),
+    VelocityToMomentum(grids_to_evolve[level],
+                       xvel_old, xvel_old.nGrowVect(),
                        yvel_old, yvel_old.nGrowVect(),
                        zvel_old, zvel_old.nGrowVect(),
                        state_old[IntVar::cons],

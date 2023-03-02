@@ -32,6 +32,7 @@ amrex::Real getPgivenRTh(const amrex::Real rhotheta, const amrex::Real qv = 0.)
     amrex::Real rhotheta_t = rhotheta*(1.0+(R_v/R_d)*qv);
     return p_0 * std::pow(R_d * rhotheta_t * ip_0, Gamma);
 #else
+    amrex::ignore_unused(qv);
     return p_0 * std::pow(R_d * rhotheta * ip_0, Gamma);
 #endif
 }

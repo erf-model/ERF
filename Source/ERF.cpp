@@ -467,6 +467,7 @@ ERF::InitData ()
                    qc[lev],
                    qv[lev],
                    qi[lev],
+                   grids_to_evolve[lev],
                    Geom(lev),
                    0.0 // dummy value, not needed just to diagnose
                   );

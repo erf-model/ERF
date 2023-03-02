@@ -140,7 +140,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
       if ( dt_fast_ratio%6 != 0) {
           amrex::Print() << "mri_dt_ratio = " << dt_fast_ratio
             << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
-          dt_fast_ratio = std::ceil(dt_fast_ratio/6.0) * 6;
+          dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/6.0) * 6);
       }
   }
 

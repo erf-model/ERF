@@ -628,6 +628,7 @@ private:
 
     // NetCDF initialization (wrfbdy) file
     static std::string nc_bdy_file;
+    int wrfbdy_width;
 
     // Text input_sounding file
     static std::string input_sounding_file;
