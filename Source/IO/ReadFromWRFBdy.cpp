@@ -18,6 +18,15 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
+namespace WRFBdyTypes {
+    enum {
+        x_lo,
+        x_hi,
+        y_lo,
+        y_hi
+    };
+}
+
 // Converts UTC time string to a time_t value.
 std::time_t getEpochTime(const std::string& dateTime, const std::string& dateTimeFormat)
 {
@@ -46,7 +55,8 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                 Vector<Vector<FArrayBox>>& bdy_data_yhi)
+                 Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                 int& width)
 {
     amrex::Print() << "Loading boundary data from NetCDF file " << std::endl;
 
@@ -66,7 +76,7 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
         // Read the time stamps
         using CharArray = NDArray<char>;
         amrex::Vector<CharArray> array_ts(1);
-        ReadWRFFile(nc_bdy_file, {"Times"}, array_ts);
+        ReadNetCDFFile(nc_bdy_file, {"Times"}, array_ts);
 
         ntimes = array_ts[0].get_vshape()[0];
         auto dateStrLen = array_ts[0].get_vshape()[1];
@@ -127,19 +137,20 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
     using RARRAY = NDArray<float>;
     amrex::Vector<RARRAY> arrays(nc_var_names.size());
 
-    int ng;
     if (ParallelDescriptor::IOProcessor())
     {
-        ReadWRFFile(nc_bdy_file, nc_var_names, arrays);
+        ReadNetCDFFile(nc_bdy_file, nc_var_names, arrays);
 
         // Assert that the data has the same number of time snapshots
         int itimes = static_cast<int>(arrays[0].get_vshape()[0]);
         AMREX_ALWAYS_ASSERT(itimes == ntimes);
 
-        // Width of the boundary region (1 <= ng <= 5)
-        ng = arrays[0].get_vshape()[1];
+        // Width of the boundary region
+        width = arrays[0].get_vshape()[1];
+
+        AMREX_ALWAYS_ASSERT(1 <= width && width <= 5);
     }
-    ParallelDescriptor::Bcast(&ng,1,ioproc);
+    ParallelDescriptor::Bcast(&width,1,ioproc);
 
     // This loops over every variable on every face, so nvars should be 4 * number of "ivartype" below
     for (int iv = 0; iv < nvars; iv++)
@@ -190,15 +201,15 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 // *******************************************************************************
                 // xlo bdy
                 // *******************************************************************************
-                plo[0] = lo[0]     ; plo[1] = lo[1]; plo[2] = lo[2];
-                phi[0] = lo[0]+ng-1; phi[1] = hi[1]; phi[2] = hi[2];
+                plo[0] = lo[0]        ; plo[1] = lo[1]; plo[2] = lo[2];
+                phi[0] = lo[0]+width-1; phi[1] = hi[1]; phi[2] = hi[2];
                 const Box pbx_xlo(plo, phi);
 
                 Box xlo_plane_no_stag(pbx_xlo);
                 Box xlo_plane_x_stag = pbx_xlo; xlo_plane_x_stag.shiftHalf(0,-1);
                 Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
 
-                Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+ng-1, hi[1], 0));
+                Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+width-1, hi[1], 0));
 
                 if        (bdyVarType == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -232,15 +243,15 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 // *******************************************************************************
                 // xhi bdy
                 // *******************************************************************************
-                plo[0] = hi[0]-ng+1; plo[1] = lo[1]; plo[2] = lo[2];
-                phi[0] = hi[0]     ; phi[1] = hi[1]; phi[2] = hi[2];
+                plo[0] = hi[0]-width+1; plo[1] = lo[1]; plo[2] = lo[2];
+                phi[0] = hi[0]        ; phi[1] = hi[1]; phi[2] = hi[2];
                 const Box pbx_xhi(plo, phi);
 
                 Box xhi_plane_no_stag(pbx_xhi);
                 Box xhi_plane_x_stag = pbx_xhi; xhi_plane_x_stag.shiftHalf(0,1);
                 Box xhi_plane_y_stag = convert(pbx_xhi, {0, 1, 0});
 
-                Box xhi_line(IntVect(hi[0]-ng+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
+                Box xhi_line(IntVect(hi[0]-width+1, lo[1], 0), IntVect(hi[0], hi[1], 0));
 
                 //amrex::Print() << "HI XBX NO STAG " << pbx_xhi << std::endl;
                 //amrex::Print() << "HI XBX  X STAG " << xhi_plane_x_stag << std::endl;
@@ -278,15 +289,15 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 // *******************************************************************************
                 // ylo bdy
                 // *******************************************************************************
-                plo[1] = lo[1]     ; plo[0] = lo[0]; plo[2] = lo[2];
-                phi[1] = lo[1]+ng-1; phi[0] = hi[0]; phi[2] = hi[2];
+                plo[1] = lo[1]        ; plo[0] = lo[0]; plo[2] = lo[2];
+                phi[1] = lo[1]+width-1; phi[0] = hi[0]; phi[2] = hi[2];
                 const Box pbx_ylo(plo, phi);
 
                 Box ylo_plane_no_stag(pbx_ylo);
                 Box ylo_plane_x_stag = convert(pbx_ylo, {1, 0, 0});
                 Box ylo_plane_y_stag = pbx_ylo; ylo_plane_y_stag.shiftHalf(1,-1);
 
-                Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+ng-1, 0));
+                Box ylo_line(IntVect(lo[0], lo[1], 0), IntVect(hi[0], lo[1]+width-1, 0));
 
                 if        (bdyVarType == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
@@ -320,15 +331,15 @@ read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
                 // *******************************************************************************
                 // yhi bdy
                 // *******************************************************************************
-                plo[1] = hi[1]-ng+1; plo[0] = lo[0]; plo[2] = lo[2];
-                phi[1] = hi[1]     ; phi[0] = hi[0]; phi[2] = hi[2];
+                plo[1] = hi[1]-width+1; plo[0] = lo[0]; plo[2] = lo[2];
+                phi[1] = hi[1]        ; phi[0] = hi[0]; phi[2] = hi[2];
                 const Box pbx_yhi(plo, phi);
 
                 Box yhi_plane_no_stag(pbx_yhi);
                 Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
                 Box yhi_plane_y_stag = pbx_yhi; yhi_plane_y_stag.shiftHalf(1,1);
 
-                Box yhi_line(IntVect(lo[0], hi[1]-ng+1, 0), IntVect(hi[0], hi[1], 0));
+                Box yhi_line(IntVect(lo[0], hi[1]-width+1, 0), IntVect(hi[0], hi[1], 0));
 
                 //amrex::Print() << "HI YBX NO STAG " << pbx_yhi << std::endl;
                 //amrex::Print() << "HI YBX  X STAG " << yhi_plane_x_stag << std::endl;

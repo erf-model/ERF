@@ -30,6 +30,7 @@
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 #include <DataStruct.H>
+#include <InputSoundingData.H>
 #include <ABLMost.H>
 #include <Derive.H>
 #include <ERF_ReadBndryPlanes.H>
@@ -115,6 +116,9 @@ public:
     // Diagnostics
     void sum_integrated_quantities(amrex::Real time);
     void write_1D_profiles(amrex::Real time);
+
+    void sample_points(int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
+    void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
     void derive_diag_profiles(amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_th,
@@ -222,71 +226,9 @@ public:
     void writeToNCColumnFile(const int lev,
                              const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
                              const amrex::Real time);
-
-    // Read the netcdf wrfinput file once
-    void read_from_wrfinput(int lev, int idx,
-                            amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_rhop_fab, amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_MUB_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab, amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_SST_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_C1H_fab,  amrex::Vector<amrex::FArrayBox>& NC_C2H_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_RDNW_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_PH_fab, amrex::Vector<amrex::FArrayBox>& NC_PHB_fab,
-                            amrex::Vector<amrex::FArrayBox>& NC_ALB_fab, amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
-
-    // Copy from the NC*fabs into the MultiFabs holding the initial data
-    void init_state_from_wrfinput(int lev,
-                            amrex::FArrayBox& state_vel_fab, amrex::FArrayBox& x_vel_fab,
-                            amrex::FArrayBox&     y_vel_fab, amrex::FArrayBox& z_vel_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_xvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_yvel_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_zvel_fab, const amrex::Vector<amrex::FArrayBox>& NC_rho_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_rhoth_fab);
-
-    void init_msfs_from_wrfinput(int lev,
-                            amrex::FArrayBox& msfu_fab, amrex::FArrayBox& msfv_fab,
-                            amrex::FArrayBox& msfm_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_MSFU_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_MSFV_fab,
-                            const amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab);
-
-    // Copy from NC_PH* fabs into the MultiFabs holding the terrain data
-    void init_terrain_from_wrfinput(int lev,  amrex::FArrayBox& z_phys,
-                                    const amrex::Vector<amrex::FArrayBox>& NC_PH_fab,
-                                    const amrex::Vector<amrex::FArrayBox>& NC_PHB_fab);
-
-    // Copy from NC_PB fabs into the MultiFab holding the base state
-    void init_base_state_from_wrfinput(int lev, const amrex::Box& bx,
-                                       amrex::FArrayBox& p_hse_fab,
-                                       amrex::FArrayBox& pi_hse_fab,
-                                       amrex::FArrayBox& r_hse_fab,
-                                       const amrex::Vector<amrex::FArrayBox>& NC_ALB_fab,
-                                       const amrex::Vector<amrex::FArrayBox>& NC_PB_fab);
 #endif //ERF_USE_NETCDF
 
     void init_from_input_sounding(int lev);
-    void init_bx_scalars_from_input_sounding(
-            const amrex::Box &bx,
-            amrex::Array4<amrex::Real> const &state,
-            amrex::GeometryData const &geomdata,
-            InputSoundingData const &inputSoundingData);
-    void init_bx_scalars_from_input_sounding_hse(
-            const amrex::Box &bx,
-            amrex::Array4<amrex::Real> const &state,
-            amrex::Array4<amrex::Real> const &r_hse_arr,
-            amrex::Array4<amrex::Real> const &p_hse_arr,
-            amrex::Array4<amrex::Real> const &pi_hse_arr,
-            amrex::GeometryData const &geomdata,
-            InputSoundingData const &inputSoundingData);
-    void init_bx_velocities_from_input_sounding(
-            const amrex::Box &bx,
-            amrex::Array4<amrex::Real> const &x_vel,
-            amrex::Array4<amrex::Real> const &y_vel,
-            amrex::Array4<amrex::Real> const &z_vel,
-            amrex::GeometryData const &geomdata,
-            InputSoundingData const &inputSoundingData);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -346,6 +288,7 @@ private:
 
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput(int lev);
+    void init_from_metgrid(int lev);
 #endif // ERF_USE_NETCDF
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
@@ -440,17 +383,13 @@ private:
                           amrex::Vector<amrex::FArrayBox*> T_lateral);
 
     // *** *** FArrayBox's for holding the SURFACE data
-    // Data read from the wrfinput NetCDF file
-    amrex::FArrayBox NC_HGT_fab;    // Terrain height (variable HGT in the wrfinput file)
-    amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
-    amrex::FArrayBox NC_z0_fab;     // Surface Roughness, z0 = z0 (IVGTYP)
-    amrex::FArrayBox NC_PSFC_fab;   // Surface pressure
+    // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
+    // amrex::FArrayBox NC_z0_fab;     // Surface Roughness, z0 = z0 (IVGTYP)
+    // amrex::FArrayBox NC_PSFC_fab;   // Surface pressure
 
     // TODO: Clarify the relation between SST and TSK
     // amrex::FArrayBox NC_SST_fab;    // Sea Surface Temperature; Defined even for land area
     // amrex::FArrayBox NC_TSK_fab;    // Surface Skin Temperature; Appears to be same as SST...
-
-    amrex::FArrayBox NC_eta_fab, NC_phb_fab, NC_z_phy_fab;
 
     // Vectors (over time) of Vector (over variables) of FArrayBoxs for holding the data read from the wrfbdy NetCDF file
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xlo;
@@ -534,6 +473,14 @@ private:
     amrex::Vector<amrex::MultiFab> qgraup;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
+
+    // Diffusive stresses and Smag
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau11_lev, Tau22_lev, Tau33_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau12_lev, Tau21_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau13_lev, Tau31_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau23_lev, Tau32_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
@@ -650,6 +597,7 @@ private:
     static int verbose;
     static int use_native_mri;
     static int no_substepping;
+    static int force_stage1_single_substep;
 
     // mesh refinement
     static std::string coupling_type;
@@ -663,7 +611,7 @@ private:
     // Native or NetCDF
     static std::string plotfile_type;
 
-    // init_type:  "ideal", "real", "input_sounding" or ""
+    // init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
     static std::string init_type;
 
     // NetCDF initialization (wrfinput) file
@@ -671,6 +619,7 @@ private:
 
     // NetCDF initialization (wrfbdy) file
     static std::string nc_bdy_file;
+    int wrfbdy_width;
 
     // Text input_sounding file
     static std::string input_sounding_file;
@@ -745,29 +694,43 @@ private:
 
     AMREX_FORCE_INLINE
     int
-    ComputeGhostCells(const int& horiz_spatial_order, const int& vert_spatial_order) {
+    ComputeGhostCells(const int& horiz_spatial_order, const int& vert_spatial_order,
+                      const int& spatial_order_WENO,  const bool& use_WENO) {
       int nGhostCells;
 
       int spatial_order = std::max(horiz_spatial_order, vert_spatial_order);
 
-      switch (spatial_order) {
-        case 2:
-          nGhostCells = 2; // We need this many to compute the eddy viscosity in the ghost cells
-          break;
-        case 3:
-          nGhostCells = 2;
-          break;
-        case 4:
-          nGhostCells = 2;
-          break;
-        case 5:
-          nGhostCells = 3;
-          break;
-        case 6:
-          nGhostCells = 3;
-          break;
-        default:
-          amrex::Error("Must specify spatial order to be 2,3,4,5 or 6");
+      if(!use_WENO) {
+          switch (spatial_order) {
+          case 2:
+              nGhostCells = 2; // We need this many to compute the eddy viscosity in the ghost cells
+              break;
+          case 3:
+              nGhostCells = 2;
+              break;
+          case 4:
+              nGhostCells = 2;
+              break;
+          case 5:
+              nGhostCells = 3;
+              break;
+          case 6:
+              nGhostCells = 3;
+              break;
+          default:
+              amrex::Error("Must specify spatial order to be 2,3,4,5 or 6");
+          }
+      } else {
+          switch (spatial_order_WENO) {
+          case 3:
+              nGhostCells = 2;
+              break;
+          case 5:
+              nGhostCells = 3;
+              break;
+          default:
+              amrex::Error("Must specify WENO spatial order to be 3 or 5");
+          }
       }
 
       return nGhostCells;
@@ -792,6 +755,60 @@ private:
     NumDataLogs () noexcept
     {
         return datalog.size();
+    }
+
+    AMREX_FORCE_INLINE
+    std::ostream&
+    SamplePointLog (int i)
+    {
+        return *sampleptlog[i];
+    }
+
+    AMREX_FORCE_INLINE
+    int
+    NumSamplePointLogs () noexcept
+    {
+        return sampleptlog.size();
+    }
+
+    AMREX_FORCE_INLINE
+    std::ostream&
+    SampleLineLog (int i)
+    {
+        return *samplelinelog[i];
+    }
+
+    AMREX_FORCE_INLINE
+    int
+    NumSampleLineLogs () noexcept
+    {
+        return samplelinelog.size();
+    }
+
+    amrex::IntVect&
+    SamplePoint (int i)
+    {
+        return samplepoint[i];
+    }
+
+    AMREX_FORCE_INLINE
+    int
+    NumSamplePoints () noexcept
+    {
+        return samplepoint.size();
+    }
+
+    amrex::IntVect&
+    SampleLine (int i)
+    {
+        return sampleline[i];
+    }
+
+    AMREX_FORCE_INLINE
+    int
+    NumSampleLines () noexcept
+    {
+        return sampleline.size();
     }
 
     static amrex::Real startCPUTime;
@@ -825,11 +842,59 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
     }
 
+    void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
+    {
+        amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
+        for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
+        {
+            const amrex::Box& bx = mfi.validbox();
+            if (bx.contains(cell)) {
+                sampleptlog[i] = std::make_unique<std::fstream>();
+                sampleptlog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+                if (!sampleptlog[i]->good()) {
+                    amrex::FileOpenFailed(filename);
+                }
+            }
+        }
+        amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
+    }
+
+    void setRecordSampleLineInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
+    {
+        amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
+        for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
+        {
+            const amrex::Box& bx = mfi.validbox();
+            if (bx.contains(cell)) {
+                samplelinelog[i] = std::make_unique<std::fstream>();
+                samplelinelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+                if (!samplelinelog[i]->good()) {
+                    amrex::FileOpenFailed(filename);
+                }
+            }
+        }
+        amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleLineInfo");
+    }
+
     amrex::Vector<std::unique_ptr<std::fstream> > datalog;
     amrex::Vector<std::string> datalogname;
 
+    amrex::Vector<std::unique_ptr<std::fstream> > sampleptlog;
+    amrex::Vector<std::string> sampleptlogname;
+    amrex::Vector<amrex::IntVect> samplepoint;
+
+    amrex::Vector<std::unique_ptr<std::fstream> > samplelinelog;
+    amrex::Vector<std::string> samplelinelogname;
+    amrex::Vector<amrex::IntVect> sampleline;
+
     //! The filename of the ith datalog file.
     const std::string DataLogName (int i) const noexcept { return datalogname[i]; }
+
+    //! The filename of the ith sampleptlog file.
+    const std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
+
+    //! The filename of the ith samplelinelog file.
+    const std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
 public:
     void writeJobInfo(const std::string& dir) const;

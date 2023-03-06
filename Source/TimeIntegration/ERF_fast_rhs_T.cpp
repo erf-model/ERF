@@ -78,6 +78,71 @@ void erf_fast_rhs_T (int step, int /*level*/,
     MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
 
     // *************************************************************************
+    // First set up some arrays we'll need
+    // *************************************************************************
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Array4<Real>       & cur_cons  = S_data[IntVar::cons].array(mfi);
+        const Array4<const Real>& prev_cons  = S_prev[IntVar::cons].const_array(mfi);
+        const Array4<const Real>& stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
+        const Array4<Real>& scratch_rtheta   = S_scratch[IntVar::cons].array(mfi);
+
+        const Array4<Real>& old_drho       = Delta_rho.array(mfi);
+        const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
+        const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
+        const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
+        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+
+        const Array4<const Real>&  prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
+        const Array4<const Real>&  prev_ymom = S_prev[IntVar::ymom].const_array(mfi);
+        const Array4<const Real>&  prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
+
+        const Array4<const Real>& stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
+        const Array4<const Real>& stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
+        const Array4<const Real>& stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
+
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
+
+        if (step == 0) {
+            amrex::ParallelFor(gbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
+                scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
+            });
+        } // step = 0
+
+        Box gtbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0); gtbx.grow(IntVect(1,1,0));
+        Box gtby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1); gtby.grow(IntVect(1,1,0));
+        Box gtbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2); gtbz.grow(IntVect(1,1,0));
+
+        amrex::ParallelFor(gtbx, gtby, gtbz,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
+        });
+
+        const Array4<Real>& theta_extrap = extrap.array(mfi);
+
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
+            old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
+            theta_extrap(i,j,k)   = old_drho_theta(i,j,k) + beta_d * (
+              (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
+        });
+    } // mfi
+
+    // *************************************************************************
     // Define updates in the current RK stage
     // *************************************************************************
 #ifdef _OPENMP
@@ -91,16 +156,14 @@ void erf_fast_rhs_T (int step, int /*level*/,
 
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
         // Construct intersection of current tilebox and valid region for updating
+        Box valid_bx = grids_to_evolve[mfi.index()];
         Box bx = mfi.tilebox() & valid_bx;
 
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
         Box tbz = surroundingNodes(bx,2);
 
-        const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
@@ -124,13 +187,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
         const Array4<Real>& cur_xmom = S_data[IntVar::xmom].array(mfi);
         const Array4<Real>& cur_ymom = S_data[IntVar::ymom].array(mfi);
         const Array4<Real>& cur_zmom = S_data[IntVar::zmom].array(mfi);
-
-        const Array4<Real>& scratch_rtheta = S_scratch[IntVar::cons].array(mfi);
-
-        const Array4<const Real>& prev_cons = S_prev[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>& prev_ymom = S_prev[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
         const Array4<Real>& avg_xmom = S_scratch[IntVar::xmom].array(mfi);
@@ -156,46 +212,12 @@ void erf_fast_rhs_T (int step, int /*level*/,
         //    so that we don't have to fill ghost cells of the new MultiFabs
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
-        Box gbx   = mfi.growntilebox(1);
+
+        // Note: it is important to grow the tilebox rather than use growntilebox because
+        //       we need to fill the ghost cells of the tilebox so we can use them below
+        Box gbx   = mfi.tilebox();  gbx.grow(1);
         Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
         Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
-        Box gtbz  = mfi.nodaltilebox(2).grow(IntVect(1,1,0));
-
-        {
-        BL_PROFILE("fast_rhs_copies_0");
-        if (step == 0) {
-            amrex::ParallelFor(gbx,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
-                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
-                scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
-            });
-        }
-        } // end profile
-
-        {
-        BL_PROFILE("fast_rhs_copies_1");
-        amrex::ParallelFor(gtbx, gtby, gtbz,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
-        });
-        } // end profile
-
-        {
-        BL_PROFILE("fast_rhs_copies_2");
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
-            old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
-            theta_extrap(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
-              (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
-        });
-        } // end profile
 
         RHS_fab.resize(tbz,1);
         soln_fab.resize(tbz,1);
@@ -328,11 +350,20 @@ void erf_fast_rhs_T (int step, int /*level*/,
         } // end profile
 
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
+        Box gbxo = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
         {
         BL_PROFILE("fast_T_making_omega");
-        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
+        Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
+        amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = 0.;
+        });
+        Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
+        amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = old_drho_w(i,j,k);
+        });
+        Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+        amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
         });
         } // end profile
         // *********************************************************************
@@ -477,7 +508,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
         tbz.setBig(2,hi.z);
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
+              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),z_nd,dxInv);
               cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
         });
         } // end profile
@@ -485,9 +516,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
         // **************************************************************************
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
-
-        // We note that valid_bx is the actual grid, while bx may be a tile within that grid
-        // const auto& vbx_hi = amrex::ubound(valid_bx);
 
         {
         BL_PROFILE("fast_rho_final_update");

@@ -18,10 +18,11 @@
         {
             for ( MFIter mfi(S_sum[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box bx = mfi.tilebox();
-                const Box tbx = mfi.nodaltilebox(0);
-                const Box tby = mfi.nodaltilebox(1);
-                const Box tbz = mfi.nodaltilebox(2);
+                const Box bx = mfi.tilebox() & grids_to_evolve[level][mfi.index()];
+
+                Box tbx = surroundingNodes((mfi.tilebox() & grids_to_evolve[level][mfi.index()]),0);
+                Box tby = surroundingNodes((mfi.tilebox() & grids_to_evolve[level][mfi.index()]),1);
+                Box tbz = surroundingNodes((mfi.tilebox() & grids_to_evolve[level][mfi.index()]),2);
 
                 Vector<Array4<Real> >  ssum_h(n_data);
                 Vector<Array4<Real> >  sold_h(n_data);
@@ -84,8 +85,7 @@
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         if (k == 0) {
                             Real rho_on_face = 0.5 * ( sold[IntVar::cons](i,j,k,Rho_comp) +sold[IntVar::cons](i,j,k-1,Rho_comp) );
-                            ssum[IntVar::zmom](i,j,k) = WFromOmega(i,j,k,rho_on_face*z_t_arr(i,j,k),
-                                                                   ssum[IntVar::xmom],ssum[IntVar::ymom],z_nd_new,dxInv);
+                            ssum[IntVar::zmom](i,j,k) = WFromOmega(i,j,k,rho_on_face*z_t_arr(i,j,k),z_nd_new,dxInv);
                         } else {
                             Real dJ_old_zface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
                             Real dJ_new_zface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j,k-1));

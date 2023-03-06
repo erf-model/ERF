@@ -25,6 +25,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                    const SolverChoice& solverChoice)
 {
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+    const Box& domain = geom.Domain();
 
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
@@ -131,24 +132,35 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
-        // Extrapolate x & y (over-written on interior ghost cells by FillBoundary)
-        amrex::ParallelFor(planex, planey,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            mu_turb(i_lo-i, j, k, EddyDiff::Mom_h) = mu_turb(i_lo, j, k, EddyDiff::Mom_h);
-            mu_turb(i_lo-i, j, k, EddyDiff::Mom_v) = mu_turb(i_lo, j, k, EddyDiff::Mom_v);
-
-            mu_turb(i_hi+i, j, k, EddyDiff::Mom_h) = mu_turb(i_hi, j, k, EddyDiff::Mom_h);
-            mu_turb(i_hi+i, j, k, EddyDiff::Mom_v) = mu_turb(i_hi, j, k, EddyDiff::Mom_v);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            mu_turb(i, j_lo-j, k, EddyDiff::Mom_h) = mu_turb(i, j_lo, k, EddyDiff::Mom_h);
-            mu_turb(i, j_lo-j, k, EddyDiff::Mom_v) = mu_turb(i, j_lo, k, EddyDiff::Mom_v);
-
-            mu_turb(i, j_hi+j, k, EddyDiff::Mom_h) = mu_turb(i, j_hi, k, EddyDiff::Mom_h);
-            mu_turb(i, j_hi+j, k, EddyDiff::Mom_v) = mu_turb(i, j_hi, k, EddyDiff::Mom_v);
-        });
+        // Extrapolate outside the domain in lateral directions
+        if (i_lo == domain.smallEnd(0)) {
+            amrex::ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                mu_turb(i_lo-i, j, k, EddyDiff::Mom_h) = mu_turb(i_lo, j, k, EddyDiff::Mom_h);
+                mu_turb(i_lo-i, j, k, EddyDiff::Mom_v) = mu_turb(i_lo, j, k, EddyDiff::Mom_v);
+            });
+        }
+        if (i_hi == domain.bigEnd(0)) {
+            amrex::ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                mu_turb(i_hi+i, j, k, EddyDiff::Mom_h) = mu_turb(i_hi, j, k, EddyDiff::Mom_h);
+                mu_turb(i_hi+i, j, k, EddyDiff::Mom_v) = mu_turb(i_hi, j, k, EddyDiff::Mom_v);
+            });
+        }
+        if (j_lo == domain.smallEnd(1)) {
+            amrex::ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                mu_turb(i, j_lo-j, k, EddyDiff::Mom_h) = mu_turb(i, j_lo, k, EddyDiff::Mom_h);
+                mu_turb(i, j_lo-j, k, EddyDiff::Mom_v) = mu_turb(i, j_lo, k, EddyDiff::Mom_v);
+            });
+        }
+        if (j_hi == domain.bigEnd(1)) {
+            amrex::ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                mu_turb(i, j_hi+j, k, EddyDiff::Mom_h) = mu_turb(i, j_hi, k, EddyDiff::Mom_h);
+                mu_turb(i, j_hi+j, k, EddyDiff::Mom_v) = mu_turb(i, j_hi, k, EddyDiff::Mom_v);
+            });
+        }
 
         // refactor the code to eliminate the need for ifdef's
         for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {

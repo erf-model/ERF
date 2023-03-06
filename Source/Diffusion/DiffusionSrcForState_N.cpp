@@ -44,8 +44,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                       (solverChoice.les_type == LESType::Deardorff  ) ||
                       (solverChoice.pbl_type == PBLType::MYNN25     ) );
 
-    int l_use_terrain = solverChoice.use_terrain;
-
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);
@@ -186,9 +184,13 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                          + 3. * cell_prim(i, j, k  , prim_index)
+                                                     - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                          - 3. * cell_prim(i, j, k  , prim_index)
+                                                     + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -228,9 +230,13 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                       + 3. * cell_prim(i, j, k  , prim_index)
+                                                  - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                       - 3. * cell_prim(i, j, k  , prim_index)
+                                                  + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -267,9 +273,13 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                          + 3. * cell_prim(i, j, k  , prim_index)
+                                                     - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                          - 3. * cell_prim(i, j, k  , prim_index)
+                                                     + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -303,9 +313,13 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
             if (ext_dir_on_zlo) {
-                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i,j,k-1) + 3. * cell_prim(i,j,k) - (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                       + 3. * cell_prim(i, j, k  , prim_index)
+                                                  - (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (ext_dir_on_zhi) {
-                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i,j,k-1) - 3. * cell_prim(i,j,k) + (1./3.) * cell_prim(i,j,k+1) ) * dz_inv;
+                zflux(i,j,k,qty_index) = Alpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
+                                                       - 3. * cell_prim(i, j, k  , prim_index)
+                                                  + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else {
                 zflux(i,j,k,qty_index) = Alpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -332,24 +346,26 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Add Buoyancy Source
+            Real eps       = std::numeric_limits<Real>::epsilon();
             Real theta     = cell_prim(i,j,k,PrimTheta_comp);
             Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
             Real E         = cell_prim(i,j,k,PrimKE_comp);
+            Real denom     = std::abs(grav_gpu[2]) * dtheta_dz / theta;
             Real length;
-            if (dtheta_dz <= 0.) {
+            if (denom <= eps) {
                 length = l_Delta;
             } else {
-                length = 0.76*std::sqrt(E)*(grav_gpu[2]/theta)*dtheta_dz;
+              length = 0.76*std::sqrt(E) / std::sqrt(denom);
             }
             Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
             cell_rhs(i,j,k,qty_index) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
-            // Add TKE production
-            cell_rhs(i,j,k,qty_index) += mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
+            // TKE production
+            cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
 
-            // Add dissipation
+            // TKE dissipation
             if (std::abs(E) > 0.) {
-                cell_rhs(i,j,k,qty_index) += cell_data(i,j,k,Rho_comp) * l_C_e *
+                cell_rhs(i,j,k,qty_index) -= cell_data(i,j,k,Rho_comp) * l_C_e *
                     std::pow(E,1.5) / length;
             }
         });

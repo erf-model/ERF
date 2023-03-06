@@ -18,9 +18,13 @@ using namespace amrex;
 //
 void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, int ncomp_cons,
                                  IntVect const& nghost_cons, IntVect const& nghost_vels, Real time,
-                                 bool cons_only)
+                                 std::string& init_type, bool cons_only)
 {
     BL_PROFILE("ERFPhysBCFunct::()");
+
+#ifndef ERF_USE_NETCDF
+    amrex::ignore_unused(init_type);
+#endif
 
     if (m_geom.isAllPeriodic()) return;
 
@@ -49,15 +53,15 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
         }
     }
 
-
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
-        for (MFIter mfi(*mfs[Vars::cons]); mfi.isValid(); ++mfi)
+        for (MFIter mfi(*mfs[Vars::cons],false); mfi.isValid(); ++mfi)
         {
             //
             // This is the box we pass to the different routines
+            // NOTE -- this is the full grid NOT the tile box
             //
             Box bx  = mfi.validbox();
 
@@ -81,33 +85,50 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            //! If there are cells not in the valid + periodic grown box
-            //! we need to fill them here
-            if (!gdomain.contains(cbx))
+            if (init_type != "real")
             {
-                int bccomp = BCVars::cons_bc;
-                impose_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,
-                                icomp_cons,ncomp_cons,time,bccomp);
-            }
 
-            if (!gdomainx.contains(xbx) && !cons_only)
-            {
-                impose_xvel_bcs(velx_arr,xbx,domain,z_nd_arr,dxInv,
-                                time,BCVars::xvel_bc);
-            }
+                //! If there are cells not in the valid + periodic grown box
+                //! we need to fill them here
+                if (!gdomain.contains(cbx))
+                {
+                    int bccomp = BCVars::cons_bc;
+                    impose_lateral_cons_bcs(cons_arr,cbx,domain,icomp_cons,ncomp_cons,time,bccomp);
+                }
 
-            if (!gdomainy.contains(ybx) && !cons_only)
+                if (!cons_only)
+                {
+                    if (!gdomainx.contains(xbx))
+                    {
+                        impose_lateral_xvel_bcs(velx_arr,xbx,domain,time,BCVars::xvel_bc);
+                    }
+
+                    if (!gdomainy.contains(ybx))
+                    {
+                        impose_lateral_yvel_bcs(vely_arr,ybx,domain,time,BCVars::yvel_bc);
+                    }
+
+                    impose_lateral_zvel_bcs(velz_arr,zbx,domain,z_nd_arr,dxInv,time,BCVars::zvel_bc);
+                } // !cons_only
+            } // init_type != "real"
+
+            // Every grid touches the bottom and top domain boundary so we call the vertical bcs
+            //       for every box -- and we need to call these even if init_type == real
             {
-                impose_yvel_bcs(vely_arr,ybx,domain,z_nd_arr,dxInv,
-                                time,BCVars::yvel_bc);
+            int bccomp = BCVars::cons_bc;
+            impose_vertical_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,
+                                     icomp_cons,ncomp_cons,time,bccomp);
             }
 
             if (!cons_only) {
-                impose_zvel_bcs(velz_arr,zbx,domain,
-                                velx_arr,vely_arr,z_nd_arr,dxInv, time,
-                                BCVars::xvel_bc, BCVars::yvel_bc, BCVars::zvel_bc,
-                                m_terrain_type);
-            }
+                impose_vertical_xvel_bcs(velx_arr,xbx,domain,z_nd_arr,dxInv,
+                                         time,BCVars::xvel_bc);
+                impose_vertical_yvel_bcs(vely_arr,ybx,domain,z_nd_arr,dxInv,
+                                         time,BCVars::yvel_bc);
+                impose_vertical_zvel_bcs(velz_arr,zbx,domain,z_nd_arr,dxInv,time,
+                                         BCVars::xvel_bc, BCVars::yvel_bc, BCVars::zvel_bc,
+                                         m_terrain_type);
+            } // !cons_only
 
         } // MFIter
     } // OpenMP

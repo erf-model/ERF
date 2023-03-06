@@ -803,12 +803,12 @@ MOSTAverage::compute_region_averages(int lev)
     if (not_per_x || not_per_y) {
         amrex::Box domain = geom.Domain();
         for (int iavg(0); iavg < m_navg; ++iavg) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
             amrex::IndexType ixt = averages[iavg]->boxArray().ixType();
             amrex::Box ldomain   = domain; ldomain.convert(ixt);
             amrex::IntVect ng    = averages[iavg]->nGrowVect(); ng[2]=0;
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for (amrex::MFIter mfi(*averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 amrex::Box gpbx = mfi.growntilebox(ng); gpbx.setSmall(2,0); gpbx.setBig(2,0);
 

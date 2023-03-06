@@ -63,9 +63,9 @@ ERF::refinement_criteria_setup()
                     boxes_at_level[lev_for_box].push_back(bx);
                     amrex::Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
-                if (init_type == "real") {
+                if (init_type == "real" || init_type == "metgrid") {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
-                        amrex::Error("Numbef of boxes doesnt match number of wrfinput files");
+                        amrex::Error("Number of boxes doesnt match number of input files");
 
                     }
                 }

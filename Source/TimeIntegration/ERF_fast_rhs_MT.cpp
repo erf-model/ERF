@@ -87,10 +87,9 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
     for ( MFIter mfi(S_stg_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
         // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box       bx = mfi.tilebox() & valid_bx;
 
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
@@ -144,9 +143,11 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
-        Box gbx   = mfi.growntilebox(1);
-        Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
-        Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
+        // Note: it is important to grow the tilebox rather than use growntilebox because
+        //       we need to fill the ghost cells of the tilebox so we can use them below
+        Box gbx   = mfi.tilebox() & valid_bx;  gbx.grow(1);
+        Box gtbx  = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0); gtbx.grow(1); gtbx.setSmall(2,0);
+        Box gtby  = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1); gtby.grow(1); gtby.setSmall(2,0);
 
         {
         BL_PROFILE("fast_rhs_copies_0");
@@ -283,13 +284,22 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         // This must be done before we set cur_xmom and cur_ymom, since those
         //      in fact point to the same array as prev_xmom and prev_ymom
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2);gbxo.grow(IntVect(1,1,0));
+        Box gbxo = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
         {
-        BL_PROFILE("fast_T_making_omega");
-        amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            omega_arr(i,j,k) = (k == 0) ? 0. :
-               (OmegaFromW(i,j,k, prev_zmom(i,j,k), prev_xmom, prev_ymom,z_nd_old,dxInv)
-               -OmegaFromW(i,j,k,stg_zmom(i,j,k),stg_xmom,stg_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
+        BL_PROFILE("fast_MT_making_omega");
+        Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
+        amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = 0.;
+        });
+        Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
+        amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) = prev_zmom(i,j,k) - stg_zmom(i,j,k) - zp_t_arr(i,j,k);
+        });
+        Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+        amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            omega_arr(i,j,k) =
+               (OmegaFromW(i,j,k,prev_zmom(i,j,k),prev_xmom,prev_ymom,z_nd_old,dxInv)
+               -OmegaFromW(i,j,k, stg_zmom(i,j,k), stg_xmom, stg_ymom,z_nd_old,dxInv)) - zp_t_arr(i,j,k);
         });
         } // end profile
         // *********************************************************************
@@ -469,16 +479,15 @@ void erf_fast_rhs_MT (int step, int /*level*/,
              Real rho_on_face = 0.5 * (cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp));
 
              if (k == 0) {
-                 cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
-                                              cur_xmom,cur_ymom,z_nd_new,dxInv);
+                 cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),z_nd_new,dxInv);
 
                  // We need to set this here because it is used to define zflux_lo below
                  soln_a(i,j,k) = 0.;
 
              } else {
 
-                 Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),cur_xmom,cur_ymom,z_nd_new,dxInv)
-                           -WFromOmega(i,j,k,           0.,stg_xmom,stg_ymom,z_nd_stg,dxInv);
+                 Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),z_nd_new,dxInv)
+                           -WFromOmega(i,j,k,           0.,z_nd_stg,dxInv);
                  Real dJ_old_kface = 0.5 * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
                  Real dJ_new_kface = 0.5 * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
 
