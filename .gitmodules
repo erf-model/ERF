@@ -1,3 +1,9 @@
 [submodule "Submodules/AMReX"]
 	path = Submodules/AMReX
 	url = https://github.com/amrex-codes/amrex.git
+[submodule "Submodules/YAKL"]
+	path = Submodules/YAKL
+	url = https://github.com/mrnorman/YAKL
+[submodule "Submodules/RRTMGP"]
+	path = Submodules/RRTMGP
+	url = https://github.com/E3SM-Project/rte-rrtmgp

@@ -123,9 +123,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         // Construct intersection of current tilebox and valid region for updating
         Box bx = mfi.tilebox() & valid_bx;
 
-        Box tbx = surroundingNodes(bx,0);
-        Box tby = surroundingNodes(bx,1);
-        Box tbz = surroundingNodes(bx,2);
+        Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
+        Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
+        Box tbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
 
         // We don't compute a source term for z-momentum on the bottom or top boundary
         tbz.growLo(2,-1);
