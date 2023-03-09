@@ -661,6 +661,15 @@ MOSTAverage::compute_region_averages(int lev)
         for (amrex::MFIter mfi(*fields[imf], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
+            // Avoid double counting nodal data
+            amrex::Box domain = geom.Domain();
+            amrex::IntVect dom_hi(domain.hiVect());
+            amrex::IndexType ixt = averages[imf]->boxArray().ixType();
+            for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
+                if ( ixt.nodeCentered(idim) && (pbx.bigEnd(idim) < dom_hi[idim]) )
+                    pbx.growHi(idim,-1);
+            }
+
             auto mf_arr = fields[imf]->const_array(mfi);
             auto ma_arr = averages[imf]->array(mfi);
 
@@ -730,6 +739,8 @@ MOSTAverage::compute_region_averages(int lev)
 #endif
         for (amrex::MFIter mfi(*averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
+
+            // Last element is Umag and always cell centered
 
             auto u_mf_arr = fields[imf]->const_array(mfi);
             auto v_mf_arr = fields[imf+1]->const_array(mfi);
