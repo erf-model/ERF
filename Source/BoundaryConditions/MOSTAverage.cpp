@@ -505,6 +505,8 @@ MOSTAverage::compute_plane_averages(int lev)
 
     // Averages over all the fields
     //----------------------------------------------------------
+    amrex::Box domain = geom.Domain();
+    amrex::IntVect dom_hi(domain.hiVect());
     for (int imf(0); imf < m_nvar; ++imf) {
         const amrex::Real denom = 1.0 / (amrex::Real)ncell_plane[imf];
 
@@ -513,6 +515,12 @@ MOSTAverage::compute_plane_averages(int lev)
 #endif
         for (amrex::MFIter mfi(*fields[imf], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
+
+            amrex::IndexType ixt = averages[imf]->boxArray().ixType();
+            for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
+                if ( ixt.nodeCentered(idim) && (pbx.bigEnd(idim) < dom_hi[idim]) )
+                    pbx.growHi(idim,-1);
+            }
 
             auto mf_arr = fields[imf]->const_array(mfi);
 
