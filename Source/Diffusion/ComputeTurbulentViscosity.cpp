@@ -119,10 +119,13 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     Real inv_Sc_t    = solverChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
 #if defined(ERF_USE_MOISTURE)
+    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Qt_h      Qp_h
     Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
 #elif defined(ERF_USE_WARM_NO_PRECIP)
+    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Qv_h      Qc_h
     Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
 #else
+    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h
     Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k}; // alpha = mu/Pr
 #endif
     Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());

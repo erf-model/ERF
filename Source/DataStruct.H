@@ -394,7 +394,7 @@ struct SolverChoice {
     // Deardorff Ck coefficient
     amrex::Real Ck = 0.1;
     // Deardorff sigma_k coefficient
-    amrex::Real sigma_k = 1.0;
+    amrex::Real sigma_k = 0.5;
 
     amrex::Real theta_ref = 300.0;
 
