@@ -360,15 +360,15 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
 
             // From eddy viscosity mu_turb = rho * C_k * l * KE^(1/2), the
             // eddy diffusivity for heat, KH = (1 + 2*l/delta) * mu_turb
-            Real KH = cell_data(i,j,k,Rho_comp) * l_C_k * (1.+2.*length/l_Delta) * std::sqrt(E);
+            Real KH = cell_data(i,j,k,Rho_comp) * l_C_k * length * (1.+2.*length/l_Delta) * std::sqrt(E);
 
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
             // such that for dtheta/dz < 0, there is a positive (upward) heat flux;
-            // the buoyant production is then g/theta_0 * tau_{theta,w}
+            // the TKE buoyancy production is then g/theta_0 * tau_{theta,w}
             cell_rhs(i,j,k,qty_index) += grav_gpu[2] * l_inv_theta0 * -(KH * dtheta_dz);
 
-            // TKE production
+            // TKE shear production
             cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
