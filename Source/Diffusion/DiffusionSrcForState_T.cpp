@@ -23,6 +23,10 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                         const Array4<const Real>& mf_m,
                         const Array4<const Real>& mf_u,
                         const Array4<const Real>& mf_v,
+                              Array4<      Real>& hfx_x,
+                              Array4<      Real>& hfx_y,
+                              Array4<      Real>& hfx_z,
+                              Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
                         const Array4<const Real>& tm_arr,
@@ -541,15 +545,20 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
             // such that for dtheta/dz < 0, there is a positive (upward) heat flux;
             // the TKE buoyancy production is then g/theta_0 * tau_{theta,w}
-            cell_rhs(i,j,k,qty_index) += grav_gpu[2] * l_inv_theta0 * -(KH * dtheta_dz);
+            hfx_x(i,j,k) = 0.0;
+            hfx_y(i,j,k) = 0.0;
+            hfx_z(i,j,k) = -KH * dtheta_dz;
+            cell_rhs(i,j,k,qty_index) += grav_gpu[2] * l_inv_theta0 * hfx_z(i,j,k);
 
             // TKE shear production
             cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
+            diss(i,j,k) = 0.0;
             if (std::abs(E) > 0.) {
-                cell_rhs(i,j,k,qty_index) -= cell_data(i,j,k,Rho_comp) * l_C_e *
+                diss(i,j,k) = cell_data(i,j,k,Rho_comp) * l_C_e *
                     std::pow(E,1.5) / length;
+                cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
             }
         });
     }
