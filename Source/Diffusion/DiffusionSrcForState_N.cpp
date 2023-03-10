@@ -343,6 +343,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     // Using Deardorff
     if (l_use_deardorff && n_end >= RhoKE_comp) {
         int qty_index = RhoKE_comp;
+        amrex::Real l_C_k = solverChoice.Ck;
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Add Buoyancy Source
@@ -350,14 +351,14 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real theta     = cell_prim(i,j,k,PrimTheta_comp);
             Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
             Real E         = cell_prim(i,j,k,PrimKE_comp);
-            Real denom     = std::abs(grav_gpu[2]) * dtheta_dz / theta;
+            Real strat     = std::abs(grav_gpu[2]) * dtheta_dz / theta; // stratification
             Real length;
-            if (denom <= eps) {
+            if (strat <= eps) {
                 length = l_Delta;
             } else {
-              length = 0.76*std::sqrt(E) / std::sqrt(denom);
+              length = 0.76 * std::sqrt(E / strat);
             }
-            Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
+            Real KH = l_C_k * (1.+2.*length/l_Delta) * std::sqrt(E);
             cell_rhs(i,j,k,qty_index) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
             // TKE production
