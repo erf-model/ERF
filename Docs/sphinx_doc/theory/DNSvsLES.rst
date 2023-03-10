@@ -149,5 +149,5 @@ and the SFS heat flux is
 .. math::
 
    \tau_{\theta i} = -K_H \frac{\partial\theta}{\partial x_i}.
-           
+
 The RHS terms of the TKE transport equation correspond to advection, shear production, buoyant production, diffusion, and dissipation.
