@@ -69,8 +69,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     //***********************************************************************************
     else if (solverChoice.les_type == LESType::Deardorff)
     {
-      const amrex::Real l_C_k  = solverChoice.Ck;
-      const amrex::Real abs_g  = solverChoice.gravity;
+      const amrex::Real l_C_k        = solverChoice.Ck;
+      const amrex::Real l_abs_g      = solverChoice.gravity;
+      const amrex::Real l_inv_theta0 = 1.0 / solverChoice.theta_ref;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -92,11 +93,10 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
           // calculate stratification-dependent mixing length (Deardorff 1980)
           Real eps       = std::numeric_limits<Real>::epsilon();
-          Real theta     = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
           Real dtheta_dz = 0.5*(  cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                 - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dxInv[2];
           Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
-          Real strat     = abs_g * dtheta_dz / theta; // stratification
+          Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
           Real length;
           if (strat <= eps) {
               length = DeltaMsf;

@@ -38,6 +38,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
     Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
     Real l_C_e           = solverChoice.Ce;
+    Real l_inv_theta0    = 1.0 / solverChoice.theta_ref;
 
     bool l_consA  = (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = ( (solverChoice.les_type == LESType::Smagorinsky) ||
@@ -348,10 +349,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
         {
             // Add Buoyancy Source
             Real eps       = std::numeric_limits<Real>::epsilon();
-            Real theta     = cell_prim(i,j,k,PrimTheta_comp);
             Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
             Real E         = cell_prim(i,j,k,PrimKE_comp);
-            Real strat     = std::abs(grav_gpu[2]) * dtheta_dz / theta; // stratification
+            Real strat     = std::abs(grav_gpu[2]) * dtheta_dz * l_inv_theta0; // stratification
             Real length;
             if (strat <= eps) {
                 length = l_Delta;

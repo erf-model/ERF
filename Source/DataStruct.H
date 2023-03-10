@@ -171,6 +171,8 @@ struct SolverChoice {
             pp.query("Ck" , Ck);
         }
 
+        pp.query("theta_ref", theta_ref);
+
         // Compute relevant forms of diffusion parameters
         Pr_t_inv = 1.0 / Pr_t;
         Sc_t_inv = 1.0 / Sc_t;
@@ -253,6 +255,7 @@ struct SolverChoice {
         amrex::Print() << "CI                    : " << CI << std::endl;
         amrex::Print() << "Ce                    : " << Ce << std::endl;
         amrex::Print() << "Ck                    : " << Ck << std::endl;
+        amrex::Print() << "reference theta       : " << theta_ref << std::endl;
         amrex::Print() << "sigma_k               : " << sigma_k << std::endl;
         amrex::Print() << "Pr_t                  : " << Pr_t << std::endl;
         amrex::Print() << "Sc_t                  : " << Sc_t << std::endl;
@@ -392,6 +395,8 @@ struct SolverChoice {
     amrex::Real Ck = 0.1;
     // Deardorff sigma_k coefficient
     amrex::Real sigma_k = 1.0;
+
+    amrex::Real theta_ref = 300.0;
 
     // PBL model
     PBLType pbl_type;
