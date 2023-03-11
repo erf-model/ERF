@@ -226,17 +226,6 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
         tau12(i,j,k) *= mu_tot*met_h_zeta;
         tau21(i,j,k) *= mu_tot*met_h_zeta;
     });
-    amrex::Print() << "Tii: "
-                   << tau11(40,0,0) << ' '
-                   << tau22(40,0,0) << ' '
-                   << tau33(40,0,0) << "\n";
-    amrex::Print() << "Tij: "
-                   << tau12(40,0,0) << ' '
-                   << tau21(40,0,0) << ' '
-                   << tau13(40,0,0) << ' '
-                   << tau31(40,0,0) << ' '
-                   << tau23(40,0,0) << ' '
-                   << tau32(40,0,0) << "\n";
 }
 
 
