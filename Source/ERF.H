@@ -127,11 +127,18 @@ public:
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_ww,
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uth , amrex::Gpu::HostVector<amrex::Real>& h_avg_vth,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_wth, amrex::Gpu::HostVector<amrex::Real>& h_avg_thth);
+                              amrex::Gpu::HostVector<amrex::Real>& h_avg_wth, amrex::Gpu::HostVector<amrex::Real>& h_avg_thth,
+                              amrex::Gpu::HostVector<amrex::Real>& h_avg_k,
+                              amrex::Gpu::HostVector<amrex::Real>& h_avg_ku, amrex::Gpu::HostVector<amrex::Real>& h_avg_kv,
+                              amrex::Gpu::HostVector<amrex::Real>& h_avg_kw,
+                              amrex::Gpu::HostVector<amrex::Real>& h_avg_p,
+                              amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
+                              amrex::Gpu::HostVector<amrex::Real>& h_avg_pw);
 
     void derive_stress_profiles(amrex::Gpu::HostVector<amrex::Real>& h_avg_tau11, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau12,
                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_tau13, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau22,
-                                amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33);
+                                amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
+                                amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
 
     // Perform the volume-weighted sum
     amrex::Real
@@ -482,6 +489,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
+    // Other SGS terms
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SGS_hfx1_lev, SGS_hfx2_lev, SGS_hfx3_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SGS_diss_lev;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
@@ -559,6 +570,9 @@ private:
     std::string plot_file_2 {"plt_2_"};
     int plot_int_1 = -1;
     int plot_int_2 = -1;
+
+    // other sampling output control
+    int profile_int = -1;
 
     // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};

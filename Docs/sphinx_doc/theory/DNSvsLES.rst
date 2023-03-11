@@ -110,22 +110,44 @@ for TKE is solved.  The turbulent viscosity is computed as:
 
 .. math::
 
-   \mu_t = C_k \overline{\rho} \Delta (e^{sfs})^{1/2}.
+   \mu_t = \overline{\rho} C_k \ell (e^{sfs})^{1/2},
+
+where the mixing length :math:`\ell = \Delta` for unstable (or neutral) stratification, otherwise the mixing length is reduced as per Deardorff 1980:
+
+.. math::
+
+   \ell = \frac{0.76 (e^{sfs})^{1/2}}{\left(\frac{g}{\theta_0}\frac{\partial\theta}{\partial z}\right)^{1/2}}.
+
+The potential temperature gradient in the denominator dictates the stratification, which is scaled by a reference virtual potential temperature :math:`\theta_0`.
 
 Then the equation solved to determine :math:`e^{sfs}`, the subfilter contribution to TKE, is:
 
 .. math::
 
    \frac{\partial \overline{\rho} e^{sfs}}{\partial t} = - \nabla \cdot (\overline{\rho} \mathbf{\tilde{u}} \tilde{e}^{sfs})
-                                                         + K_H \rho (\frac{g}{\theta} \frac{\partial\theta}{\partial z})
-                                                         + \nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla e^{sfs}  \right)
                                                          - \tau_{ij} \frac{\partial \tilde{u}_i}{\partial x_j}
+                                                         + \frac{g}{\theta_0} \tau_{\theta w}
+                                                         + \nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla e^{sfs}  \right)
                                                          - \overline{\rho} C_\epsilon \frac{(e^{sfs})^{3/2}}{\overline{\Delta}}.
 
 where :math:`\sigma_k` is a constant model coefficient representing the ratio of turbulent viscosity to turbulent diffusivity
-of TKE that should be order unity, and we have used
+of TKE that should be order unity (e.g., Moeng 1984 uses TKE diffusivity of :math:`2 \mu_t`), we have used the downgradient diffusion assumption
 
 .. math::
 
    \frac{\partial\left\langle \left( u_{n}^{'}\rho e + u_{n}^{'}p^{'} \right) \right\rangle}{\partial x_{n}} =
-           -\nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla e^{sfs}  \right)
+           -\nabla \cdot \left( \frac{\mu_t}{\sigma_k} \nabla e^{sfs}  \right),
+
+the eddy diffusivity of heat is
+
+.. math::
+
+   K_H = \left(1 + \frac{2\ell}{\Delta}\right) \mu_t,
+
+and the SFS heat flux is
+
+.. math::
+
+   \tau_{\theta i} = -K_H \frac{\partial\theta}{\partial x_i}.
+
+The RHS terms of the TKE transport equation correspond to advection, shear production, buoyant production, diffusion, and dissipation.

@@ -505,6 +505,8 @@ MOSTAverage::compute_plane_averages(int lev)
 
     // Averages over all the fields
     //----------------------------------------------------------
+    amrex::Box domain = geom.Domain();
+    amrex::IntVect dom_hi(domain.hiVect());
     for (int imf(0); imf < m_nvar; ++imf) {
         const amrex::Real denom = 1.0 / (amrex::Real)ncell_plane[imf];
         amrex::Real d_val_old   = plane_average[imf]*d_fact_old;
@@ -516,8 +518,6 @@ MOSTAverage::compute_plane_averages(int lev)
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
             // Avoid double counting nodal data
-            amrex::Box domain = geom.Domain();
-            amrex::IntVect dom_hi(domain.hiVect());
             amrex::IndexType ixt = averages[imf]->boxArray().ixType();
             for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
                 if ( ixt.nodeCentered(idim) && (pbx.bigEnd(idim) < dom_hi[idim]) )
