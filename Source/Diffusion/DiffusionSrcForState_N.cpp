@@ -43,6 +43,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
     Real l_C_e           = solverChoice.Ce;
     Real l_inv_theta0    = 1.0 / solverChoice.theta_ref;
+    Real l_abs_g         = std::abs(grav_gpu[2]);
 
     bool l_consA  = (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = ( (solverChoice.les_type == LESType::Smagorinsky) ||
@@ -354,7 +355,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real eps       = std::numeric_limits<Real>::epsilon();
             Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
             Real E         = cell_prim(i,j,k,PrimKE_comp);
-            Real strat     = std::abs(grav_gpu[2]) * dtheta_dz * l_inv_theta0; // stratification
+            Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
             Real length;
             if (strat <= eps) {
                 length = l_Delta;
@@ -373,7 +374,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             hfx_x(i,j,k) = 0.0;
             hfx_y(i,j,k) = 0.0;
             hfx_z(i,j,k) = -KH * dtheta_dz;
-            cell_rhs(i,j,k,qty_index) += grav_gpu[2] * l_inv_theta0 * hfx_z(i,j,k);
+            cell_rhs(i,j,k,qty_index) += l_abs_g * l_inv_theta0 * hfx_z(i,j,k);
 
             // TKE shear production
             cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
