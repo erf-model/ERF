@@ -234,6 +234,12 @@ void ERF::erf_advance(int level,
     Gpu::streamSynchronize();
 #endif
 
+    // Additional SGS quantities for output
+    MultiFab* Hfx1 = SGS_hfx1_lev[level].get();
+    MultiFab* Hfx2 = SGS_hfx2_lev[level].get();
+    MultiFab* Hfx3 = SGS_hfx3_lev[level].get();
+    MultiFab* Diss = SGS_diss_lev[level].get();
+
 #include "TI_no_substep_fun.H"
 #include "TI_slow_rhs_fun.H"
 #include "TI_fast_rhs_fun.H"

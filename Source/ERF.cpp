@@ -293,6 +293,9 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 
     if (is_it_time_for_action(nstep, time, dt_lev0, sum_interval, sum_per)) {
         sum_integrated_quantities(time);
+    }
+
+    if (profile_int > 0 && (nstep+1) % profile_int == 0) {
         write_1D_profiles(time);
     }
 
@@ -920,6 +923,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     Tau13_lev.resize(lev+1); Tau31_lev.resize(lev+1);
     Tau23_lev.resize(lev+1); Tau32_lev.resize(lev+1);
 
+    SGS_hfx1_lev.resize(lev+1); SGS_hfx2_lev.resize(lev+1); SGS_hfx3_lev.resize(lev+1);
+    SGS_diss_lev.resize(lev+1);
+
     eddyDiffs_lev.resize(lev+1);
     SmnSmn_lev.resize(lev+1);
 
@@ -939,11 +945,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
             Tau31_lev[lev] = nullptr;
             Tau32_lev[lev] = nullptr;
         }
+        SGS_hfx1_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SGS_hfx2_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SGS_hfx3_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SGS_diss_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
     } else {
       Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
       Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
       Tau13_lev[lev] = nullptr; Tau31_lev[lev] = nullptr;
       Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
+      SGS_hfx1_lev[lev] = nullptr; SGS_hfx2_lev[lev] = nullptr; SGS_hfx3_lev[lev] = nullptr;
+      SGS_diss_lev[lev] = nullptr;
     }
 
     if (l_use_kturb) {
@@ -1293,6 +1305,8 @@ ERF::ReadParameters ()
         pp.query("plot_file_2", plot_file_2);
         pp.query("plot_int_1", plot_int_1);
         pp.query("plot_int_2", plot_int_2);
+
+        pp.query("profile_int", profile_int);
 
         pp.query("output_1d_column", output_1d_column);
         pp.query("column_per", column_per);

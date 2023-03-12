@@ -36,6 +36,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
+                       MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3, MultiFab* Diss,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
@@ -565,7 +566,12 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
             Array4<Real> diffflux_y = dflux_y->array(mfi);
-            Array4<Real> diffflux_z = dflux_z->array(mfi);;
+            Array4<Real> diffflux_z = dflux_z->array(mfi);
+
+            Array4<Real> hfx_x = Hfx1->array(mfi);
+            Array4<Real> hfx_y = Hfx2->array(mfi);
+            Array4<Real> hfx_z = Hfx3->array(mfi);
+            Array4<Real> diss  = Diss->array(mfi);
 
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
@@ -579,12 +585,14 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                       hfx_x, hfx_y, hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                       hfx_x, hfx_y, hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             }
         }

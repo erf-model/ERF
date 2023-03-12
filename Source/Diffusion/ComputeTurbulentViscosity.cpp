@@ -69,7 +69,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     //***********************************************************************************
     else if (solverChoice.les_type == LESType::Deardorff)
     {
-      amrex::Real l_C_k = solverChoice.Ck;
+      const amrex::Real l_C_k        = solverChoice.Ck;
+      const amrex::Real l_abs_g      = solverChoice.gravity;
+      const amrex::Real l_inv_theta0 = 1.0 / solverChoice.theta_ref;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -89,8 +91,21 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
           Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
 
-          // K = rho * C_k * Delta * KE^(1/2) = C_k * Delta * (rho * RhoKE)^1/2
-          mu_turb(i,j,k,EddyDiff::Mom_h) = l_C_k * DeltaMsf *
+          // calculate stratification-dependent mixing length (Deardorff 1980)
+          Real eps       = std::numeric_limits<Real>::epsilon();
+          Real dtheta_dz = 0.5*(  cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dxInv[2];
+          Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+          Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
+          Real length;
+          if (strat <= eps) {
+              length = DeltaMsf;
+          } else {
+            length = 0.76 * std::sqrt(E / strat);
+          }
+
+          // K = rho * C_k * l * KE^(1/2) = C_k * l * (rho * RhoKE)^1/2
+          mu_turb(i,j,k,EddyDiff::Mom_h) = l_C_k * length *
             std::sqrt(cell_data(i,j,k,RhoKE_comp) * cell_data(i,j,k,Rho_comp));
           mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
         });
@@ -104,10 +119,13 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     Real inv_Sc_t    = solverChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / solverChoice.sigma_k;
 #if defined(ERF_USE_MOISTURE)
+    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Qt_h      Qp_h
     Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
 #elif defined(ERF_USE_WARM_NO_PRECIP)
+    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Qv_h      Qc_h
     Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
 #else
+    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h
     Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k}; // alpha = mu/Pr
 #endif
     Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
