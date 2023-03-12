@@ -349,7 +349,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     // Using Deardorff
     if (l_use_deardorff && n_end >= RhoKE_comp) {
         int qty_index = RhoKE_comp;
-        amrex::Real l_C_k = solverChoice.Ck;
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real eps       = std::numeric_limits<Real>::epsilon();
@@ -364,8 +363,12 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             }
 
             // From eddy viscosity mu_turb = rho * C_k * l * KE^(1/2), the
-            // eddy diffusivity for heat, KH = (1 + 2*l/delta) * mu_turb
-            Real KH = cell_data(i,j,k,Rho_comp) * l_C_k * length * (1.+2.*length/l_Delta) * std::sqrt(E);
+            // eddy diffusivity for heat is
+            //   KH = (1 + 2*l/delta) * mu_turb
+            // Note: mu_turb is fixed for all 3 RK stages, so computing the
+            // eddy viscosity part of KH here would be inconsistent (since
+            // l and KE evolve with each stage)
+            Real KH = (1.+2.*length/l_Delta) * mu_turb(i,j,k,EddyDiff::Mom_h);
 
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
