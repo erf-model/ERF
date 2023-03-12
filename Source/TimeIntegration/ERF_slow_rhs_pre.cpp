@@ -142,21 +142,19 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             //-----------------------------------------
             // Expansion rate
             //-----------------------------------------
-            Array4<Real> er_arr;
-            if (expr)
-                er_arr = expr->array(mfi);
-            else
-                er_arr = Array4<Real>{};
+            Array4<Real> er_arr = expr->array(mfi);
+
             {
              BL_PROFILE("slow_rhs_making_er");
-             Box gbx2 = mfi.growntilebox(IntVect(1,1,0));
+             Box gvbx = valid_bx; gvbx.grow(IntVect(1,1,0));
+             Box gbx2 = mfi.growntilebox(IntVect(1,1,0)) & gvbx;
 
              if (l_use_terrain) {
                  // First create Omega using velocity (not momentum)
-                 Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,0));
+                 Box gbxo = surroundingNodes(bx & valid_bx,2); gbxo.grow(IntVect(1,1,0));
                  amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,z_nd,dxInv);
-                });
+                 });
 
                  amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
@@ -319,7 +317,10 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             //-----------------------------------------
             {
             BL_PROFILE("slow_rhs_making_stress");
-            Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
+
+            Box gvbx = valid_bx; gvbx.grow(IntVect(1,1,0));
+            Box bxcc  = mfi.growntilebox(IntVect(1,1,0)) & gvbx;
+
             Box tbxxy = mfi.tilebox(IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1));
             Box tbxyz = mfi.tilebox(IntVect(0,1,1));
