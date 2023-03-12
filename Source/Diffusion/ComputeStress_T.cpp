@@ -20,6 +20,9 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
     //***********************************************************************************
     Box bxcc2  = bxcc;
 
+    // We don't need x/y ghost cells for tau33 (avoids linear comb issues)
+    bxcc2.grow(IntVect(-1,-1,0));
+
     // First block: compute S-D
     //***********************************************************************************
     Real OneThird   = (1./3.);
@@ -31,7 +34,28 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
 
     // Second block: compute 2mu*JT*(S-D)
     //***********************************************************************************
-    // Must fill tau13, tau23, tau33 first (linear combinations)
+    // Fill tau33 first (no linear combination extrapolation)
+    //-----------------------------------------------------------------------------------
+    amrex::ParallelFor(bxcc2,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_xi,met_h_eta;
+        met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
+        met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
+
+        Real tau31bar = 0.25 * ( tau31(i  , j  , k  ) + tau31(i+1, j  , k  )
+                               + tau31(i  , j  , k+1) + tau31(i+1, j  , k+1) );
+        Real tau32bar = 0.25 * ( tau32(i  , j  , k  ) + tau32(i  , j+1, k  )
+                               + tau32(i  , j  , k+1) + tau32(i  , j+1, k+1) );
+        Real mu_tot   = mu_eff;
+
+        tau33(i,j,k) -= met_h_xi*tau31bar + met_h_eta*tau32bar;
+        tau33(i,j,k) *= mu_tot;
+    });
+
+    // Second block: compute 2mu*JT*(S-D)
+    //***********************************************************************************
+    // Fill tau13, tau23 next (linear combination extrapolation)
     //-----------------------------------------------------------------------------------
     // Extrapolate tau13 & tau23 to bottom
     {
@@ -138,27 +162,11 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
         });
     }
 
-    // We don't need x/y ghost cells for tau33 (avoids linear comb issues)
-    bxcc2.growLo(0,-1); bxcc2.growLo(1,-1);
-    bxcc2.growHi(0,-1); bxcc2.growHi(1,-1);
-
-    // Standard operations
-    amrex::ParallelFor(bxcc2,tbxxz,tbxyz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        Real met_h_xi,met_h_eta;
-        met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
-        met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
-
-        Real tau31bar = 0.25 * ( tau31(i  , j  , k  ) + tau31(i+1, j  , k  )
-                               + tau31(i  , j  , k+1) + tau31(i+1, j  , k+1) );
-        Real tau32bar = 0.25 * ( tau32(i  , j  , k  ) + tau32(i  , j+1, k  )
-                               + tau32(i  , j  , k+1) + tau32(i  , j+1, k+1) );
-        Real mu_tot   = mu_eff;
-
-        tau33(i,j,k) -= met_h_xi*tau31bar + met_h_eta*tau32bar;
-        tau33(i,j,k) *= mu_tot;
-    },
+    // Second block: compute 2mu*JT*(S-D)
+    //***********************************************************************************
+    // Fill tau13, tau23 next (valid averaging region)
+    //-----------------------------------------------------------------------------------
+    amrex::ParallelFor(tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real met_h_xi,met_h_eta,met_h_zeta;
@@ -239,6 +247,9 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
     //***********************************************************************************
     Box bxcc2  = bxcc;
 
+    // We don't need x/y ghost cells for tau33 (avoids linear comb issues)
+    bxcc2.grow(IntVect(-1,-1,0));
+
     // First block: compute S-D
     //***********************************************************************************
     Real OneThird   = (1./3.);
@@ -250,7 +261,29 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
 
     // Second block: compute 2mu*JT*(S-D)
     //***********************************************************************************
-    // Must fill tau13, tau23, tau33 first (linear combinations)
+    // Fill tau33 first (no linear combination extrapolation)
+    //-----------------------------------------------------------------------------------
+    amrex::ParallelFor(bxcc2,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        Real met_h_xi,met_h_eta;
+        met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
+        met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
+
+        Real tau31bar = 0.25 * ( tau31(i  , j  , k  ) + tau31(i+1, j  , k  )
+                               + tau31(i  , j  , k+1) + tau31(i+1, j  , k+1) );
+        Real tau32bar = 0.25 * ( tau32(i  , j  , k  ) + tau32(i  , j+1, k  )
+                               + tau32(i  , j  , k+1) + tau32(i  , j+1, k+1) );
+
+        Real mu_tot   = mu_eff + 2.0*mu_turb(i, j, k, EddyDiff::Mom_v);
+
+        tau33(i,j,k) -= met_h_xi*tau31bar + met_h_eta*tau32bar;
+        tau33(i,j,k) *= mu_tot;
+    });
+
+    // Second block: compute 2mu*JT*(S-D)
+    //***********************************************************************************
+    // Fill tau13, tau23 next (linear combination extrapolation)
     //-----------------------------------------------------------------------------------
     // Extrapolate tau13 & tau23 to bottom
     {
@@ -365,28 +398,11 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
         });
     }
 
-    // We don't need x/y ghost cells for tau33 (avoids linear comb issues)
-    bxcc2.growLo(0,-1); bxcc2.growLo(1,-1);
-    bxcc2.growHi(0,-1); bxcc2.growHi(1,-1);
-
-    // Standard operations
-    amrex::ParallelFor(bxcc2,tbxxz,tbxyz,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        Real met_h_xi,met_h_eta;
-        met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
-        met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
-
-        Real tau31bar = 0.25 * ( tau31(i  , j  , k  ) + tau31(i+1, j  , k  )
-                               + tau31(i  , j  , k+1) + tau31(i+1, j  , k+1) );
-        Real tau32bar = 0.25 * ( tau32(i  , j  , k  ) + tau32(i  , j+1, k  )
-                               + tau32(i  , j  , k+1) + tau32(i  , j+1, k+1) );
-
-        Real mu_tot   = mu_eff + 2.0*mu_turb(i, j, k, EddyDiff::Mom_v);
-
-        tau33(i,j,k) -= met_h_xi*tau31bar + met_h_eta*tau32bar;
-        tau33(i,j,k) *= mu_tot;
-    },
+    // Second block: compute 2mu*JT*(S-D)
+    //***********************************************************************************
+    // Fill tau13, tau23 next (valid averaging region)
+    //-----------------------------------------------------------------------------------
+    amrex::ParallelFor(tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real met_h_xi,met_h_eta,met_h_zeta;
