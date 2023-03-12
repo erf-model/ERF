@@ -247,9 +247,6 @@ ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_ef
     //***********************************************************************************
     Box bxcc2  = bxcc;
 
-    // We don't need x/y ghost cells for tau33 (avoids linear comb issues)
-    bxcc2.grow(IntVect(-1,-1,0));
-
     // First block: compute S-D
     //***********************************************************************************
     Real OneThird   = (1./3.);
