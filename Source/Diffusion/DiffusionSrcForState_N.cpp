@@ -20,6 +20,10 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                         const Array4<const Real>& mf_m,
                         const Array4<const Real>& mf_u,
                         const Array4<const Real>& mf_v,
+                              Array4<      Real>& hfx_x,
+                              Array4<      Real>& hfx_y,
+                              Array4<      Real>& hfx_z,
+                              Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
                         const SolverChoice &solverChoice,
                         const Array4<const Real>& tm_arr,
@@ -38,6 +42,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
     Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
     Real l_C_e           = solverChoice.Ce;
+    Real l_inv_theta0    = 1.0 / solverChoice.theta_ref;
 
     bool l_consA  = (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = ( (solverChoice.les_type == LESType::Smagorinsky) ||
@@ -343,30 +348,42 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
     // Using Deardorff
     if (l_use_deardorff && n_end >= RhoKE_comp) {
         int qty_index = RhoKE_comp;
+        amrex::Real l_C_k = solverChoice.Ck;
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Add Buoyancy Source
             Real eps       = std::numeric_limits<Real>::epsilon();
-            Real theta     = cell_prim(i,j,k,PrimTheta_comp);
             Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
             Real E         = cell_prim(i,j,k,PrimKE_comp);
-            Real denom     = std::abs(grav_gpu[2]) * dtheta_dz / theta;
+            Real strat     = std::abs(grav_gpu[2]) * dtheta_dz * l_inv_theta0; // stratification
             Real length;
-            if (denom <= eps) {
+            if (strat <= eps) {
                 length = l_Delta;
             } else {
-              length = 0.76*std::sqrt(E) / std::sqrt(denom);
+              length = 0.76 * std::sqrt(E / strat);
             }
-            Real KH   = 0.1 * (1.+2.*length/l_Delta) * std::sqrt(E);
-            cell_rhs(i,j,k,qty_index) += cell_data(i,j,k,Rho_comp) * grav_gpu[2] * KH * dtheta_dz;
 
-            // TKE production
+            // From eddy viscosity mu_turb = rho * C_k * l * KE^(1/2), the
+            // eddy diffusivity for heat, KH = (1 + 2*l/delta) * mu_turb
+            Real KH = cell_data(i,j,k,Rho_comp) * l_C_k * length * (1.+2.*length/l_Delta) * std::sqrt(E);
+
+            // Add Buoyancy Source
+            // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
+            // such that for dtheta/dz < 0, there is a positive (upward) heat flux;
+            // the TKE buoyancy production is then g/theta_0 * tau_{theta,w}
+            hfx_x(i,j,k) = 0.0;
+            hfx_y(i,j,k) = 0.0;
+            hfx_z(i,j,k) = -KH * dtheta_dz;
+            cell_rhs(i,j,k,qty_index) += grav_gpu[2] * l_inv_theta0 * hfx_z(i,j,k);
+
+            // TKE shear production
             cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
+            diss(i,j,k) = 0.0;
             if (std::abs(E) > 0.) {
-                cell_rhs(i,j,k,qty_index) -= cell_data(i,j,k,Rho_comp) * l_C_e *
+                diss(i,j,k) = cell_data(i,j,k,Rho_comp) * l_C_e *
                     std::pow(E,1.5) / length;
+                cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
             }
         });
     }
