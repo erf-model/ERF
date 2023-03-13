@@ -360,6 +360,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         } // MFIter
     } // l_use_diff
 
+    FArrayBox pprime;
 
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
@@ -434,7 +435,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         // Perturbational pressure field
         //-----------------------------------------
         Box gbx = mfi.growntilebox(IntVect(1,1,0));
-        FArrayBox pprime(gbx,1);
+        pprime.resize(gbx,1);
         Elixir pp_eli = pprime.elixir();
         const Array4<Real> & pp_arr  = pprime.array();
 
