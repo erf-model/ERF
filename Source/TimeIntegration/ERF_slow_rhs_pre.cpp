@@ -97,8 +97,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
 
-    MultiFab pprime(ba, dm, 1, 1);
-
     MultiFab* expr    = nullptr;
     MultiFab* dflux_x = nullptr;
     MultiFab* dflux_y = nullptr;
@@ -436,7 +434,10 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         // Perturbational pressure field
         //-----------------------------------------
         Box gbx = mfi.growntilebox(IntVect(1,1,0));
-        const Array4<Real> & pp_arr  = pprime.array(mfi);
+        FArrayBox pprime(gbx,1);
+        Elixir pp_eli = pprime.elixir();
+        const Array4<Real> & pp_arr  = pprime.array();
+
 #ifdef ERF_USE_MOISTURE
         const Array4<Real const> & qv_arr  =     qv.const_array(mfi);
 #endif
