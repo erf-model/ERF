@@ -5,6 +5,7 @@
 #include <ERF_Constants.H>
 #include <Advection.H>
 #include <Diffusion.H>
+#include <NumericalDiffusion.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 #include <ERF.H>
@@ -16,6 +17,7 @@
 using namespace amrex;
 
 void erf_slow_rhs_pre (int /*level*/, int nrk,
+                       amrex::Real dt,
                        BoxArray& grids_to_evolve,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_data,
@@ -65,12 +67,13 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
-    bool       l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+    const bool l_use_ndiff      = solverChoice.use_NumDiff;
+    const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
                                     (solverChoice.les_type        !=       LESType::None) ||
                                     (solverChoice.pbl_type        !=       PBLType::None) );
-    bool       cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
+    const bool cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
                                     (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
-    bool       l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
+    const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
                                     solverChoice.les_type == LESType::Deardorff   ||
                                     solverChoice.pbl_type == PBLType::MYNN25 );
     const bool l_all_WENO       = solverChoice.all_use_WENO;
@@ -579,7 +582,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
             // NOTE: No diffusion for continuity, so n starts at 1.
-            //       KE calls moved inside DiffSrcForState.
             int n_start = amrex::max(start_comp,RhoTheta_comp);
             int n_end   = start_comp + num_comp - 1;
 
@@ -598,6 +600,13 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                        hfx_x, hfx_y, hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             }
+        }
+
+        if (l_use_ndiff) {
+            // NOTE: numerical diffusion for all slow vars
+            int n_start = Rho_comp;
+            int n_end   = start_comp + num_comp - 1;
+            NumericalDiffusion(bx, n_start, n_end, dt, cell_data, cell_rhs, solverChoice);
         }
 
         // Add source terms for (rho theta)
@@ -640,7 +649,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
-
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
@@ -665,6 +673,12 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                      cell_data, solverChoice, dxInv,
                                      mf_m, mf_u, mf_v);
             }
+        }
+
+        if (l_use_ndiff) {
+            NumericalDiffusion(tbx, 0, 0, dt, u, rho_u_rhs, solverChoice);
+            NumericalDiffusion(tby, 0, 0, dt, rho_v, rho_v_rhs, solverChoice);
+            NumericalDiffusion(tbz, 0, 0, dt, rho_w, rho_w_rhs, solverChoice);
         }
 
         {
