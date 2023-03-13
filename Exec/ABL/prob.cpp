@@ -94,6 +94,14 @@ init_custom_prob(
   Array4<Real const> const& /*mf_v*/,
   const SolverChoice&)
 {
+  ParmParse pp("prob");
+  int fix_random_seed = 0;
+  pp.query("fix_random_seed", fix_random_seed);
+  // Note that the value of 1024UL is not significant -- the point here is just to set the
+  //      same seed for all MPI processes for the purpose of regression testing
+  if (fix_random_seed)
+      amrex::InitRandom(1024UL);
+
   ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
