@@ -137,6 +137,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/Diffusion.H
        ${SRC_DIR}/Diffusion/ComputeQKESourceTerm.H
        ${SRC_DIR}/Diffusion/ComputeTurbulentViscosity.cpp
+       ${SRC_DIR}/Diffusion/NumericalDiffusion.H
+       ${SRC_DIR}/Diffusion/NumericalDiffusion.cpp
        ${SRC_DIR}/Utils/MomentumToVelocity.cpp
        ${SRC_DIR}/Diffusion/PBLModels.cpp
        ${SRC_DIR}/Utils/Utils.H
