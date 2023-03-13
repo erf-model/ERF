@@ -505,6 +505,8 @@ MOSTAverage::compute_plane_averages(int lev)
 
     // Averages over all the fields
     //----------------------------------------------------------
+    amrex::Box domain = geom.Domain();
+    amrex::IntVect dom_hi(domain.hiVect());
     for (int imf(0); imf < m_nvar; ++imf) {
         const amrex::Real denom = 1.0 / (amrex::Real)ncell_plane[imf];
         amrex::Real d_val_old   = plane_average[imf]*d_fact_old;
@@ -516,8 +518,6 @@ MOSTAverage::compute_plane_averages(int lev)
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
             // Avoid double counting nodal data
-            amrex::Box domain = geom.Domain();
-            amrex::IntVect dom_hi(domain.hiVect());
             amrex::IndexType ixt = averages[imf]->boxArray().ixType();
             for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
                 if ( ixt.nodeCentered(idim) && (pbx.bigEnd(idim) < dom_hi[idim]) )
@@ -539,7 +539,7 @@ MOSTAverage::compute_plane_averages(int lev)
                     amrex::Real interp{0};
                     trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
                                        &interp, mf_arr, z_phys_arr, plo, dxInv, 1);
-                    amrex::Real val = interp;
+                    amrex::Real val = interp * denom * d_fact_new + d_val_old;
                     amrex::Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
                 });
             } else {
@@ -552,15 +552,15 @@ MOSTAverage::compute_plane_averages(int lev)
                     int mk = k_arr(i,j,k);
                     int mj = j_arr ? j_arr(i,j,k) : j;
                     int mi = i_arr ? i_arr(i,j,k) : i;
-                    amrex::Real val = mf_arr(mi,mj,mk);
+                    amrex::Real val = mf_arr(mi,mj,mk) * denom * d_fact_new + d_val_old;
                     amrex::Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
                 });
             }
         }
 
         // Normalize and time average
-        plane_avg[imf] *= denom*d_fact_new;
-        plane_avg[imf] += d_val_old;
+        // plane_avg[imf] *= denom*d_fact_new;
+        // plane_avg[imf] += d_val_old;
     }
 
     // Averages for the tangential velocity magnitude
@@ -598,7 +598,7 @@ MOSTAverage::compute_plane_averages(int lev)
                                             &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                     trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
                                             &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
-                    const amrex::Real val   = std::sqrt(u_interp*u_interp + v_interp*v_interp);
+                    const amrex::Real val   = std::sqrt(u_interp*u_interp + v_interp*v_interp)*denom*d_fact_new + d_val_old;
                     amrex::Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
             } else {
@@ -613,15 +613,15 @@ MOSTAverage::compute_plane_averages(int lev)
                     int mi = i_arr ? i_arr(i,j,k) : i;
                     const amrex::Real u_val = 0.5 * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
                     const amrex::Real v_val = 0.5 * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
-                    const amrex::Real val   = std::sqrt(u_val*u_val + v_val*v_val);
+                    const amrex::Real val   = std::sqrt(u_val*u_val + v_val*v_val)*denom*d_fact_new + d_val_old;
                     amrex::Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
             }
         }
 
         // Normalize and time average
-        plane_avg[iavg] *= denom*d_fact_new;
-        plane_avg[iavg] += d_val_old;
+        // plane_avg[iavg] *= denom*d_fact_new;
+        // plane_avg[iavg] += d_val_old;
     }
 
     // Copy to host and sum across procs
