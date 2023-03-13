@@ -351,35 +351,42 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
         int qty_index = RhoKE_comp;
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            Real cellVolMsf = 1.0 / (dx_inv * mf_u(i,j,0) * dy_inv * mf_v(i,j,0) * dz_inv);
+            Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+
+            // calculate stratification-dependent mixing length (Deardorff 1980)
             Real eps       = std::numeric_limits<Real>::epsilon();
-            Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
-            Real E         = cell_prim(i,j,k,PrimKE_comp);
+            Real dtheta_dz = 0.5*(  cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                  - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
+            Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
             Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
             Real length;
             if (strat <= eps) {
-                length = l_Delta;
+                length = DeltaMsf;
             } else {
               length = 0.76 * std::sqrt(E / strat);
             }
 
-            // From eddy viscosity mu_turb = rho * C_k * l * KE^(1/2), the
-            // eddy diffusivity for heat is
+            // From eddy viscosity (or eddy diffusivity for momentum)
+            //   mu_turb = rho * C_k * l * KE^(1/2)
+            // and the eddy diffusivity for heat is
             //   KH = (1 + 2*l/delta) * mu_turb
-            // Note: mu_turb is fixed for all 3 RK stages, so computing the
+            // Note: mu_turb is fixed for all 3 RK stages, so recomputing the
             // eddy viscosity part of KH here would be inconsistent (since
             // l and KE evolve with each stage)
-            Real KH = (1.+2.*length/l_Delta) * mu_turb(i,j,k,EddyDiff::Mom_h);
+            Real KH = (1.+2.*length/l_Delta) * mu_turb(i,j,k,EddyDiff::Mom_v);
 
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
             // such that for dtheta/dz < 0, there is a positive (upward) heat flux;
-            // the TKE buoyancy production is then g/theta_0 * tau_{theta,w}
+            // the TKE buoyancy production is then B = g/theta_0 * tau_{theta,w}
             hfx_x(i,j,k) = 0.0;
             hfx_y(i,j,k) = 0.0;
-            hfx_z(i,j,k) = -KH * dtheta_dz;
+            hfx_z(i,j,k) = -KH * dtheta_dz; // w'theta'  
             cell_rhs(i,j,k,qty_index) += l_abs_g * l_inv_theta0 * hfx_z(i,j,k);
 
             // TKE shear production
+            // P = -tau_ij * S_ij = 2 * mu_turb * S_ij * S_ij
             cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
