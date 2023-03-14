@@ -40,28 +40,31 @@ erf_init_rayleigh(Vector<Real>& /*tau*/,
 
 void
 init_custom_prob(
-  const Box& bx,
-  Array4<Real> const& state,
-  Array4<Real> const& x_vel,
-  Array4<Real> const& y_vel,
-  Array4<Real> const& z_vel,
-  Array4<Real> const&,
-  Array4<Real> const&,
-  Array4<Real const> const&,
-  Array4<Real const> const&,
+    const Box& bx,
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real> const& state,
+    Array4<Real> const& x_vel,
+    Array4<Real> const& y_vel,
+    Array4<Real> const& z_vel,
+    Array4<Real> const&,
+    Array4<Real> const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #endif
-  GeometryData const& geomdata,
-  Array4<Real const> const& /*mf_m*/,
-  Array4<Real const> const& /*mf_u*/,
-  Array4<Real const> const& /*mf_v*/,
-  const SolverChoice&)
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice&)
 {
   ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
@@ -111,8 +114,6 @@ init_custom_prob(
   //amrex::Print() << "Ekman depth = " << DE << " m" << std::endl;
   const Real a = 1.0 / DE;
 
-  // Construct a box that is on x-faces
-  const Box& xbx = surroundingNodes(bx,0);
   // Set the x-velocity
   ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
@@ -123,8 +124,6 @@ init_custom_prob(
     x_vel(i, j, k) = u_0 * (1.0 - std::exp(-a * z) * std::cos(-a * z));
   });
 
-  // Construct a box that is on y-faces
-  const Box& ybx = surroundingNodes(bx,1);
   // Set the y-velocity
   ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
@@ -135,8 +134,6 @@ init_custom_prob(
     y_vel(i, j, k) = -u_0 * std::exp(-a * z) * std::sin(-a * z);
   });
 
-  // Construct a box that is on z-faces
-  const Box& zbx = amrex::surroundingNodes(bx,2);
   // Set the z-velocity
   ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     z_vel(i, j, k) = 0.0;

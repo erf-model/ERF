@@ -503,13 +503,17 @@ MOSTAverage::compute_plane_averages(int lev)
     amrex::Gpu::DeviceVector<amrex::Real> pavg(plane_average.size(), 0.0);
     amrex::Real* plane_avg = pavg.data();
 
+    // Vectors for normalization and buffer storage
+    amrex::Vector<amrex::Real> denom(plane_average.size(),0.0);
+    amrex::Vector<amrex::Real> val_old(plane_average.size(),0.0);
+
     // Averages over all the fields
     //----------------------------------------------------------
     amrex::Box domain = geom.Domain();
     amrex::IntVect dom_hi(domain.hiVect());
     for (int imf(0); imf < m_nvar; ++imf) {
-        const amrex::Real denom = 1.0 / (amrex::Real)ncell_plane[imf];
-        amrex::Real d_val_old   = plane_average[imf]*d_fact_old;
+        denom[imf]   = 1.0 / (amrex::Real)ncell_plane[imf];
+        val_old[imf] = plane_average[imf]*d_fact_old;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -539,7 +543,7 @@ MOSTAverage::compute_plane_averages(int lev)
                     amrex::Real interp{0};
                     trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
                                        &interp, mf_arr, z_phys_arr, plo, dxInv, 1);
-                    amrex::Real val = interp * denom * d_fact_new + d_val_old;
+                    amrex::Real val = interp;
                     amrex::Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
                 });
             } else {
@@ -552,15 +556,11 @@ MOSTAverage::compute_plane_averages(int lev)
                     int mk = k_arr(i,j,k);
                     int mj = j_arr ? j_arr(i,j,k) : j;
                     int mi = i_arr ? i_arr(i,j,k) : i;
-                    amrex::Real val = mf_arr(mi,mj,mk) * denom * d_fact_new + d_val_old;
+                    amrex::Real val = mf_arr(mi,mj,mk);
                     amrex::Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
                 });
             }
         }
-
-        // Normalize and time average
-        // plane_avg[imf] *= denom*d_fact_new;
-        // plane_avg[imf] += d_val_old;
     }
 
     // Averages for the tangential velocity magnitude
@@ -568,8 +568,8 @@ MOSTAverage::compute_plane_averages(int lev)
     {
         int imf  = 0;
         int iavg = m_navg - 1;
-        const amrex::Real denom = 1.0 / (amrex::Real)ncell_plane[iavg];
-        amrex::Real d_val_old   = plane_average[iavg]*d_fact_old;
+        denom[iavg]   = 1.0 / (amrex::Real)ncell_plane[iavg];
+        val_old[iavg] = plane_average[iavg]*d_fact_old;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -598,7 +598,7 @@ MOSTAverage::compute_plane_averages(int lev)
                                             &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                     trilinear_interp_T(x_pos_arr(i,j,k), y_pos_arr(i,j,k), z_pos_arr(i,j,k),
                                             &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
-                    const amrex::Real val   = std::sqrt(u_interp*u_interp + v_interp*v_interp)*denom*d_fact_new + d_val_old;
+                    const amrex::Real val   = std::sqrt(u_interp*u_interp + v_interp*v_interp);
                     amrex::Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
             } else {
@@ -613,15 +613,11 @@ MOSTAverage::compute_plane_averages(int lev)
                     int mi = i_arr ? i_arr(i,j,k) : i;
                     const amrex::Real u_val = 0.5 * (u_mf_arr(mi,mj,mk) + u_mf_arr(mi+1,mj  ,mk));
                     const amrex::Real v_val = 0.5 * (v_mf_arr(mi,mj,mk) + v_mf_arr(mi  ,mj+1,mk));
-                    const amrex::Real val   = std::sqrt(u_val*u_val + v_val*v_val)*denom*d_fact_new + d_val_old;
+                    const amrex::Real val   = std::sqrt(u_val*u_val + v_val*v_val);
                     amrex::Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
                 });
             }
         }
-
-        // Normalize and time average
-        // plane_avg[iavg] *= denom*d_fact_new;
-        // plane_avg[iavg] += d_val_old;
     }
 
     // Copy to host and sum across procs
@@ -629,7 +625,11 @@ MOSTAverage::compute_plane_averages(int lev)
     amrex::ParallelDescriptor::ReduceRealSum(plane_average.data(), plane_average.size());
 
     // No spatial variation with plane averages
-    for (int iavg(0); iavg < m_navg; ++iavg) averages[iavg]->setVal(plane_average[iavg]);
+    for (int iavg(0); iavg < m_navg; ++iavg){
+        plane_average[iavg] *= denom[iavg]*d_fact_new;
+        plane_average[iavg] += val_old[iavg];
+        averages[iavg]->setVal(plane_average[iavg]);
+    }
 }
 
 

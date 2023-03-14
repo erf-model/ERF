@@ -17,7 +17,10 @@ erf_init_dens_hse (amrex::MultiFab& dens_hse,
 
 void
 init_custom_prob (
-  const amrex::Box& bx,
+  const amrex::Box&  bx,
+  const amrex::Box& xbx,
+  const amrex::Box& ybx,
+  const amrex::Box& zbx,
   amrex::Array4<amrex::Real      > const& state,
   amrex::Array4<amrex::Real      > const& x_vel,
   amrex::Array4<amrex::Real      > const& y_vel,
