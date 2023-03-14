@@ -48,12 +48,24 @@ ERF::init_custom(int lev)
     qc_pert.setVal(0.);
 #endif
 
+    int fix_random_seed = 0;
+    ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
+    // Note that the value of 1024UL is not significant -- the point here is just to set the
+    //     same seed for all MPI processes for the purpose of regression testing
+    if (fix_random_seed) {
+        amrex::Print() << "Fixing the random seed" << std::endl;
+        amrex::InitRandom(1024UL);
+    }
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box &bx = mfi.tilebox();
+        const Box &bx  = mfi.tilebox();
+        const Box &xbx = mfi.tilebox(IntVect(1,0,0));
+        const Box &ybx = mfi.tilebox(IntVect(0,1,0));
+        const Box &zbx = mfi.tilebox(IntVect(0,0,1));
 
         const auto &cons_pert_arr = cons_pert.array(mfi);
         const auto &xvel_pert_arr = xvel_pert.array(mfi);
@@ -78,7 +90,7 @@ ERF::init_custom(int lev)
         const auto &qv_pert_arr = qv_pert.array(mfi);
         const auto &qc_pert_arr = qc_pert.array(mfi);
 #endif
-        init_custom_prob(bx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
+        init_custom_prob(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                          r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
 #if defined(ERF_USE_MOISTURE)
                          qv_pert_arr, qc_pert_arr, qi_pert_arr,
