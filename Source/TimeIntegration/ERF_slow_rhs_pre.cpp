@@ -440,9 +440,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         FArrayBox pprime; pprime.resize(gbx,1);
         Elixir pp_eli = pprime.elixir();
         const Array4<Real> & pp_arr  = pprime.array();
-
-
-
 #ifdef ERF_USE_MOISTURE
         const Array4<Real const> & qv_arr  =     qv.const_array(mfi);
 #endif
@@ -607,7 +604,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             // NOTE: numerical diffusion for all slow vars
             int n_start = Rho_comp;
             int n_end   = start_comp + num_comp - 1;
-            NumericalDiffusion(bx, n_start, n_end, dt, cell_data, cell_rhs, solverChoice);
+            NumericalDiffusion(bx, n_start, n_end, dt, solverChoice,
+                               cell_data, cell_rhs, mf_u, mf_v, false, false);
         }
 
         // Add source terms for (rho theta)
@@ -677,9 +675,12 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(tbx, 0, 0, dt, u, rho_u_rhs, solverChoice);
-            NumericalDiffusion(tby, 0, 0, dt, rho_v, rho_v_rhs, solverChoice);
-            NumericalDiffusion(tbz, 0, 0, dt, rho_w, rho_w_rhs, solverChoice);
+            NumericalDiffusion(tbx, 0, 0, dt, solverChoice,
+                               rho_u, rho_u_rhs, mf_m, mf_v, false, true);
+            NumericalDiffusion(tby, 0, 0, dt, solverChoice,
+                               rho_v, rho_v_rhs, mf_u, mf_m, true, false);
+            NumericalDiffusion(tbz, 0, 0, dt, solverChoice,
+                               rho_w, rho_w_rhs, mf_u, mf_v, false, false);
         }
 
         {

@@ -231,7 +231,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             // NOTE: numerical diffusion for all slow vars
             int n_start = amrex::max(start_comp,RhoKE_comp);
             int n_end   = start_comp + num_comp - 1;
-            NumericalDiffusion(valid_bx, n_start, n_end, dt, new_cons, cell_rhs, solverChoice);
+            NumericalDiffusion(valid_bx, n_start, n_end, dt, solverChoice,
+                               new_cons, cell_rhs, mf_u, mf_v, false, false);
         }
 
         // This updates just the "slow" conserved variables
