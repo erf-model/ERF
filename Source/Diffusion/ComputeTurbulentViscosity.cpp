@@ -101,7 +101,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           if (strat <= eps) {
               length = DeltaMsf;
           } else {
-            length = 0.76 * std::sqrt(E / strat);
+              // mixing length should be _reduced_ for stable stratification
+              length = amrex::min(DeltaMsf,
+                                  0.76 * std::sqrt(E / strat));
           }
 
           // K = rho * C_k * l * KE^(1/2) = C_k * l * (rho * RhoKE)^1/2
