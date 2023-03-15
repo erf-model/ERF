@@ -119,6 +119,7 @@ where the mixing length :math:`\ell = \Delta` for unstable (or neutral) stratifi
    \ell = \frac{0.76 (e^{sfs})^{1/2}}{\left(\frac{g}{\theta_0}\frac{\partial\theta}{\partial z}\right)^{1/2}}.
 
 The potential temperature gradient in the denominator dictates the stratification, which is scaled by a reference virtual potential temperature :math:`\theta_0`.
+The mixing length is set to a maximum of :math:`\Delta` to prevent unbounded behavior under weakly stable conditions.
 
 Then the equation solved to determine :math:`e^{sfs}`, the subfilter contribution to TKE, is:
 
