@@ -358,7 +358,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real eps       = std::numeric_limits<Real>::epsilon();
             Real dtheta_dz = 0.5*(  cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                   - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
-            Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+            Real E         = amrex::max(cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp), eps);
             Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
             Real length;
             if (strat <= eps) {

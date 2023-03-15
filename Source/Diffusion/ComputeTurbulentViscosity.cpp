@@ -95,7 +95,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Real eps       = std::numeric_limits<Real>::epsilon();
           Real dtheta_dz = 0.5*(  cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                 - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dxInv[2];
-          Real E         = max(cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp), eps); // lower bound on tke
+          Real E         = amrex::max(cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp), eps); // lower bound on tke
           Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
           Real length;
           if (strat <= eps) {

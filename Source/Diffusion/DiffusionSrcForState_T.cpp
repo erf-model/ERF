@@ -526,7 +526,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
         {
             Real eps       = std::numeric_limits<Real>::epsilon();
             Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
-            Real E         = cell_prim(i,j,k,PrimKE_comp);
+            Real E         = amrex::max(cell_prim(i,j,k,PrimKE_comp), eps);
             Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
             dtheta_dz /= met_h_zeta;
             Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
@@ -537,21 +537,22 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
               length = 0.76 * std::sqrt(E / strat);
             }
 
-            // From eddy viscosity mu_turb = rho * C_k * l * KE^(1/2), the
-            // eddy diffusivity for heat is
+            // From eddy viscosity (or eddy diffusivity for momentum)
+            //   mu_turb = rho * C_k * l * KE^(1/2)
+            // and the eddy diffusivity for heat [kg m^-1 s^-1] is
             //   KH = (1 + 2*l/delta) * mu_turb
-            // Note: mu_turb is fixed for all 3 RK stages, so computing the
+            // Note: mu_turb is fixed for all 3 RK stages, so recomputing the
             // eddy viscosity part of KH here would be inconsistent (since
             // l and KE evolve with each stage)
-            Real KH = (1.+2.*length/l_Delta) * mu_turb(i,j,k,EddyDiff::Mom_h);
+            Real KH = (1.+2.*length/l_Delta) * mu_turb(i,j,k,EddyDiff::Mom_v);
 
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
             // such that for dtheta/dz < 0, there is a positive (upward) heat flux;
-            // the TKE buoyancy production is then g/theta_0 * tau_{theta,w}
+            // the TKE buoyancy production is then B = g/theta_0 * tau_{theta,w}
             hfx_x(i,j,k) = 0.0;
             hfx_y(i,j,k) = 0.0;
-            hfx_z(i,j,k) = -KH * dtheta_dz;
+            hfx_z(i,j,k) = -KH * dtheta_dz; // (rho*w)'theta' [kg m^-2 s^-1 K]
             cell_rhs(i,j,k,qty_index) += l_abs_g * l_inv_theta0 * hfx_z(i,j,k);
 
             // TKE shear production
