@@ -388,9 +388,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
 
         // We must initialize these to zero each RK step
-        S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.);
-        S_scratch[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.);
-        S_scratch[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.);
+        S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,tbx);
+        S_scratch[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,tby);
+        S_scratch[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,tbz);
 
         Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
@@ -437,8 +437,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         FArrayBox pprime; pprime.resize(gbx,1);
         Elixir pp_eli = pprime.elixir();
         const Array4<Real> & pp_arr  = pprime.array();
-
-
 
 #ifdef ERF_USE_MOISTURE
         const Array4<Real const> & qv_arr  =     qv.const_array(mfi);
