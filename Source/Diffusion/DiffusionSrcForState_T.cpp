@@ -524,15 +524,19 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
         int qty_index = RhoKE_comp;
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            Real cellVolMsf = 1.0 / (dx_inv * mf_u(i,j,0) * dy_inv * mf_v(i,j,0) * dz_inv);
+            Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+            Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+
+            // calculate stratification-dependent mixing length (Deardorff 1980)
             Real eps       = std::numeric_limits<Real>::epsilon();
             Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
+            dtheta_dz      /= met_h_zeta;
             Real E         = amrex::max(cell_prim(i,j,k,PrimKE_comp), eps);
-            Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
-            dtheta_dz /= met_h_zeta;
             Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
             Real length;
             if (strat <= eps) {
-                length = l_Delta;
+                length = DeltaMsf;
             } else {
               length = 0.76 * std::sqrt(E / strat);
             }
@@ -556,6 +560,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             cell_rhs(i,j,k,qty_index) += l_abs_g * l_inv_theta0 * hfx_z(i,j,k);
 
             // TKE shear production
+            // P = -tau_ij * S_ij = 2 * mu_turb * S_ij * S_ij
             cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
