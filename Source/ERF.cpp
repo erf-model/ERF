@@ -402,10 +402,10 @@ ERF::InitData ()
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
 
-        // We initialize rho_KE to be a small positive number by default;
-        // epsilon is also the lower bound used when calculating the Deardorff
-        // mixing length
-        Real RhoKE_0 = std::numeric_limits<Real>::epsilon();
+        // We initialize rho_KE to be nonzero (and positive) so that we end up
+        // with reasonable values for the eddy diffusivity and the MOST fluxes
+        // (~ 1/diffusivity) do not blow up
+        Real RhoKE_0 = 0.1;
         ParmParse pp(pp_prefix);
         pp.query("RhoKE_0", RhoKE_0);
         int lb = std::max(finest_level-1,0);
