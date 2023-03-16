@@ -106,10 +106,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                   0.76 * std::sqrt(E / strat));
           }
 
-          // K = rho * C_k * l * KE^(1/2) = C_k * l * (rho * RhoKE)^1/2
-          mu_turb(i,j,k,EddyDiff::Mom_h) = l_C_k * length *
-            std::sqrt(cell_data(i,j,k,RhoKE_comp) * cell_data(i,j,k,Rho_comp));
-          mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+          // K = rho * C_k * l * KE^(1/2)
+          mu_turb(i,j,k,EddyDiff::Mom_h) = cell_data(i,j,k,Rho_comp) * l_C_k * length * std::sqrt(E);
+          mu_turb(i,j,k,EddyDiff::Mom_v) = mu_turb(i,j,k,EddyDiff::Mom_h);
         });
       }
     }
