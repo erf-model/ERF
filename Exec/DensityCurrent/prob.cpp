@@ -96,7 +96,6 @@ init_isentropic_hse_no_terrain(const Real& r_sfc, const Real& theta,
       // if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k << std::endl;
       // if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
   }
-  r[khi+1] = r[khi];
 }
 
 AMREX_GPU_DEVICE
