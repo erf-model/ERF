@@ -115,8 +115,8 @@ erf_init_dens_hse(MultiFab& rho_hse,
   Vector<Real> h_r(khi+2);
   Vector<Real> h_p(khi+2);
 
-  amrex::Gpu::DeviceVector<Real> d_r(khi+1);
-  amrex::Gpu::DeviceVector<Real> d_p(khi+1);
+  amrex::Gpu::DeviceVector<Real> d_r(khi+2);
+  amrex::Gpu::DeviceVector<Real> d_p(khi+2);
 
   init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
@@ -185,11 +185,11 @@ init_custom_prob(
   const Real& prob_lo_z = geomdata.ProbLo()[2];
 
   // These are at cell centers (unstaggered)
-  Vector<Real> h_r(khi+1);
-  Vector<Real> h_p(khi+1);
+  Vector<Real> h_r(khi+2);
+  Vector<Real> h_p(khi+2);
 
-  amrex::Gpu::DeviceVector<Real> d_r(khi+1);
-  amrex::Gpu::DeviceVector<Real> d_p(khi+1);
+  amrex::Gpu::DeviceVector<Real> d_r(khi+2);
+  amrex::Gpu::DeviceVector<Real> d_p(khi+2);
 
   init_isentropic_hse(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 

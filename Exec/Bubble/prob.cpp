@@ -246,8 +246,8 @@ erf_init_dens_hse(MultiFab& rho_hse,
         Vector<Real> h_r(khi+2);
         Vector<Real> h_p(khi+2);
 
-        amrex::Gpu::DeviceVector<Real> d_r(khi+1);
-        amrex::Gpu::DeviceVector<Real> d_p(khi+1);
+        amrex::Gpu::DeviceVector<Real> d_r(khi+2);
+        amrex::Gpu::DeviceVector<Real> d_p(khi+2);
 
         init_isentropic_hse_no_terrain(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
