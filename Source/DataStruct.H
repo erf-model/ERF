@@ -165,6 +165,7 @@ struct SolverChoice {
         }
 
         pp.query("Ce" , Ce);
+        pp.query("Ce_wall" , Ce_wall);
         pp.query("sigma_k" , sigma_k);
 
         if (les_type == LESType::Deardorff) {
@@ -254,6 +255,7 @@ struct SolverChoice {
         amrex::Print() << "Cs                    : " << Cs << std::endl;
         amrex::Print() << "CI                    : " << CI << std::endl;
         amrex::Print() << "Ce                    : " << Ce << std::endl;
+        amrex::Print() << "Ce at wall            : " << Ce_wall << std::endl;
         amrex::Print() << "Ck                    : " << Ck << std::endl;
         amrex::Print() << "reference theta       : " << theta_ref << std::endl;
         amrex::Print() << "sigma_k               : " << sigma_k << std::endl;
@@ -391,6 +393,7 @@ struct SolverChoice {
 
     // Deardorff Ce coefficient
     amrex::Real Ce = 0.93;
+    amrex::Real Ce_wall = 0.0; // if > 0, then set Ce to this at k=0
     // Deardorff Ck coefficient
     amrex::Real Ck = 0.1;
     // Deardorff sigma_k coefficient

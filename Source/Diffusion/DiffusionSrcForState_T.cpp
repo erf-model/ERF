@@ -44,7 +44,10 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
     bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
     Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
+    Real l_C_k           = solverChoice.Ck;
     Real l_C_e           = solverChoice.Ce;
+    Real l_C_e_wall      = solverChoice.Ce_wall;
+    Real Ce_lcoeff       = amrex::max(0.0, l_C_e - 1.9*l_C_k);
     Real l_inv_theta0    = 1.0 / solverChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
 
@@ -533,12 +536,13 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
             dtheta_dz      /= met_h_zeta;
             Real E         = amrex::max(cell_prim(i,j,k,PrimKE_comp), eps);
-            Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
+            Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // ==N^2 under stable conditions
             Real length;
             if (strat <= eps) {
                 length = DeltaMsf;
             } else {
-              length = 0.76 * std::sqrt(E / strat);
+                length = amrex::min(DeltaMsf,
+                                    0.76 * std::sqrt(E / strat));
             }
 
             // From eddy viscosity (or eddy diffusivity for momentum)
@@ -548,25 +552,39 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             // Note: mu_turb is fixed for all 3 RK stages, so recomputing the
             // eddy viscosity part of KH here would be inconsistent (since
             // l and KE evolve with each stage)
-            Real KH = (1.+2.*length/l_Delta) * mu_turb(i,j,k,EddyDiff::Mom_v);
+            Real KH = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_v);
 
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
-            // such that for dtheta/dz < 0, there is a positive (upward) heat flux;
-            // the TKE buoyancy production is then B = g/theta_0 * tau_{theta,w}
+            // such that for dtheta/dz < 0, there is a positive (upward) heat
+            // flux; the TKE buoyancy production is then
+            //   B = g/theta_0 * tau_{theta,w}
+            // for a dry atmosphere (see, e.g., Sullivan et al 1994). To
+            // account for moisture, the Brunt-Vaisala frequency,
+            //   N^2 = g[1/theta * dtheta/dz + ...]
+            // should be a function of the water vapor and total water mixing
+            // ratios, depending on whether conditions are saturated or
+            // not (see the WRF model description, Skamarock et al 2019).
             hfx_x(i,j,k) = 0.0;
             hfx_y(i,j,k) = 0.0;
             hfx_z(i,j,k) = -KH * dtheta_dz; // (rho*w)'theta' [kg m^-2 s^-1 K]
             cell_rhs(i,j,k,qty_index) += l_abs_g * l_inv_theta0 * hfx_z(i,j,k);
 
             // TKE shear production
-            // P = -tau_ij * S_ij = 2 * mu_turb * S_ij * S_ij
+            //   P = -tau_ij * S_ij = 2 * mu_turb * S_ij * S_ij
+            // Note: This assumes that the horizontal and vertical diffusivities
+            // of momentum are equal
             cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
             diss(i,j,k) = 0.0;
+            amrex::Real Ce;
+            if ((l_C_e_wall > 0) && (k==0))
+                Ce = l_C_e_wall;
+            else
+                Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
             if (std::abs(E) > 0.) {
-                diss(i,j,k) = cell_data(i,j,k,Rho_comp) * l_C_e *
+                diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce *
                     std::pow(E,1.5) / length;
                 cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
             }
