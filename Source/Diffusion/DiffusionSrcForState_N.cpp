@@ -361,7 +361,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real eps       = std::numeric_limits<Real>::epsilon();
             Real dtheta_dz = 0.5*(  cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                   - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
-            Real E         = amrex::max(cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp), eps);
+            Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
             Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // ==N^2 under stable conditions
             Real length;
             if (strat <= eps) {
@@ -382,7 +382,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
 
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
-            // such that for dtheta/dz < 0, there is a positive (upward) heat flux;
+            // such that for dtheta/dz < 0, there is a positive (upward) heat
             // flux; the TKE buoyancy production is then
             //   B = g/theta_0 * tau_{theta,w}
             // for a dry atmosphere (see, e.g., Sullivan et al 1994). To
@@ -409,11 +409,8 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
                 Ce = l_C_e_wall;
             else
                 Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
-            if (std::abs(E) > 0.) {
-                diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce *
-                    std::pow(E,1.5) / length;
-                cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
-            }
+            diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
+            cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
         });
     }
 
