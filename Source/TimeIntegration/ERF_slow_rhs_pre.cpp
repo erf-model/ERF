@@ -338,19 +338,32 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 tau22(i,j,k) = s22(i,j,k);
                 tau33(i,j,k) = s33(i,j,k);
             });
-            amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                tau12(i,j,k) = s12(i,j,k);
-                tau21(i,j,k) = s21(i,j,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                tau13(i,j,k) = s13(i,j,k);
-                tau31(i,j,k) = s31(i,j,k);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                tau23(i,j,k) = s23(i,j,k);
-                tau32(i,j,k) = s32(i,j,k);
-            });
+            if(l_use_terrain) {
+                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau12(i,j,k) = s12(i,j,k);
+                    tau21(i,j,k) = s21(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau13(i,j,k) = s13(i,j,k);
+                    tau31(i,j,k) = s31(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau23(i,j,k) = s23(i,j,k);
+                    tau32(i,j,k) = s32(i,j,k);
+                });
+            } else {
+                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau12(i,j,k) = s12(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau13(i,j,k) = s13(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau23(i,j,k) = s23(i,j,k);
+                });
+            }
             } // profile
         } // MFIter
     } // l_use_diff
