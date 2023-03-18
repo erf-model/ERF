@@ -45,28 +45,31 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
 void
 init_custom_prob(
-        const Box& bx,
-        Array4<Real      > const& state,
-        Array4<Real      > const& x_vel,
-        Array4<Real      > const& y_vel,
-        Array4<Real      > const& z_vel,
-        Array4<Real      > const&,
-        Array4<Real      > const&,
-        Array4<Real const> const&,
-        Array4<Real const> const&,
+    const Box& bx,
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& state,
+    Array4<Real      > const& x_vel,
+    Array4<Real      > const& y_vel,
+    Array4<Real      > const& z_vel,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
-        Array4<Real      > const&,
-        Array4<Real      > const&,
-        Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-        Array4<Real      > const&,
-        Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #endif
-        GeometryData const& geomdata,
-        Array4<Real const> const& /*mf_m*/,
-        Array4<Real const> const& /*mf_u*/,
-        Array4<Real const> const& /*mf_v*/,
-        const SolverChoice&)
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice&)
 {
   ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
@@ -99,8 +102,6 @@ init_custom_prob(
 #endif
   });
 
-  // Construct a box that is on x-faces
-  const Box& xbx = surroundingNodes(bx,0);
   // Set the x-velocity
   ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -114,8 +115,6 @@ init_custom_prob(
       x_vel(i, j, k) = parms.V_0 * sin(x) * cos(y) * cos(z);
   });
 
-  // Construct a box that is on y-faces
-  const Box& ybx = surroundingNodes(bx,1);
   // Set the y-velocity
   ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -128,9 +127,6 @@ init_custom_prob(
       // Set the y-velocity
       y_vel(i, j, k) = - parms.V_0 * cos(x) * sin(y) * cos(z);
   });
-
-  // Construct a box that is on z-faces
-  const Box& zbx = surroundingNodes(bx,2);
 
   // Set the z-velocity
   ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

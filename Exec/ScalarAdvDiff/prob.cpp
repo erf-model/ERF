@@ -54,7 +54,10 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
 void
 init_custom_prob(
-    const amrex::Box& bx,
+    const Box& bx,
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
     Array4<Real      > const& state,
     Array4<Real      > const& x_vel,
     Array4<Real      > const& y_vel,
@@ -140,8 +143,6 @@ init_custom_prob(
 
   });
 
-  // Construct a box that is on x-faces
-  const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -157,16 +158,11 @@ init_custom_prob(
                        std::log((parms.zRef +parms.z0)/parms.z0);
   });
 
-  // Construct a box that is on y-faces
-  const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       y_vel(i, j, k) = parms.v_0;
   });
-
-  // Construct a box that is on z-faces
-  const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
 
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

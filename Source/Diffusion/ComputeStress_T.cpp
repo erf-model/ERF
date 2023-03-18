@@ -4,7 +4,7 @@
 using namespace amrex;
 
 void
-ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_eff,
+ComputeStressConsVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                         Array4<Real>& tau12, Array4<Real>& tau13,
                         Array4<Real>& tau21, Array4<Real>& tau23,
@@ -19,8 +19,6 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
     //       Boxes are copied here for extrapolations in the second block operations
     //***********************************************************************************
     Box bxcc2  = bxcc;
-
-    // We don't need x/y ghost cells for tau33 (avoids linear comb issues)
     bxcc2.grow(IntVect(-1,-1,0));
 
     // First block: compute S-D
@@ -230,7 +228,7 @@ ComputeStressConsVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_e
 
 
 void
-ComputeStressVarVisc_T(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz, Real mu_eff,
+ComputeStressVarVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                        const Array4<const Real>& mu_turb,
                        Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                        Array4<Real>& tau12, Array4<Real>& tau13,

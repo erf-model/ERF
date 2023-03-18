@@ -140,19 +140,45 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
             const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
 
+            //-------------------------------------------------------------------------------
+            // NOTE: Tile boxes with terrain are not intuitive. The linear combination of
+            //       stress terms requires care. Create a tile box that intersects the
+            //       valid box, then grow the box in x/y. Compute the strain on the local
+            //       FAB over this grown tile box. Compute the stress over the tile box,
+            //       except tau_ii which still needs the halo cells. Finally, write from
+            //       the local FAB to the Tau MF but only on the tile box.
+            //-------------------------------------------------------------------------------
+
+            //-------------------------------------------------------------------------------
+            // TODO: Avoid recomputing strain on the first RK stage. One could populate
+            //       the FABs with tau_ij, compute stress, and then write to tau_ij. The
+            //       problem with this approach is you will over-write the needed halo layer
+            //       needed by subsequent tile boxes (particularly S_ii becomes Tau_ii).
+            //-------------------------------------------------------------------------------
+
+            // Strain/Stress tile boxes
+            Box vbx   = valid_bx;
+            Box bxcc  = mfi.tilebox() & valid_bx;
+            Box tbxxy = mfi.tilebox(IntVect(1,1,0)) & vbx.convert(IntVect(1,1,0));
+            Box tbxxz = mfi.tilebox(IntVect(1,0,1)) & vbx.convert(IntVect(1,0,1));
+            Box tbxyz = mfi.tilebox(IntVect(0,1,1)) & vbx.convert(IntVect(0,1,1));
+            // We need a halo cells for terrain
+             bxcc.grow(IntVect(1,1,0));
+            tbxxy.grow(IntVect(1,1,0));
+            tbxxz.grow(IntVect(1,1,0));
+            tbxyz.grow(IntVect(1,1,0));
+
             //-----------------------------------------
             // Expansion rate
             //-----------------------------------------
             Array4<Real> er_arr = expr->array(mfi);
-
             {
              BL_PROFILE("slow_rhs_making_er");
-             Box gvbx = valid_bx; gvbx.grow(IntVect(1,1,0));
-             Box gbx2 = mfi.growntilebox(IntVect(1,1,0)) & gvbx;
+             Box gbx2 = bxcc;
 
              if (l_use_terrain) {
                  // First create Omega using velocity (not momentum)
-                 Box gbxo = surroundingNodes(bx & valid_bx,2); gbxo.grow(IntVect(1,1,0));
+                 Box gbxo = surroundingNodes(gbx2,2);
                  amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,z_nd,dxInv);
                  });
@@ -190,112 +216,55 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             //-----------------------------------------
             // Strain tensor
             //-----------------------------------------
+            // Temporary storage for tiling/OMP
+            FArrayBox S11,S22,S33;
+            FArrayBox S12,S13,S23;
+            S11.resize(bxcc,1);  S22.resize(bxcc,1);  S33.resize(bxcc,1);
+            S12.resize(tbxxy,1); S13.resize(tbxxz,1); S23.resize(tbxyz,1);
+            Elixir S11_eli   = S11.elixir(); Elixir S22_eli  = S22.elixir(); Elixir S33_eli  = S33.elixir();
+            Elixir S12_eli   = S12.elixir(); Elixir S13_eli  = S13.elixir(); Elixir S23_eli  = S23.elixir();
+            Array4<Real> s11 = S11.array(); Array4<Real> s22 = S22.array(); Array4<Real> s33 = S33.array();
+            Array4<Real> s12 = S12.array(); Array4<Real> s13 = S13.array(); Array4<Real> s23 = S23.array();
+
             // No terrain diffusion
             Array4<Real> tau11,tau22,tau33;
             Array4<Real> tau12,tau13,tau23;
-            if (Tau11) {
-                tau11 = Tau11->array(mfi);
-                tau22 = Tau22->array(mfi);
-                tau33 = Tau33->array(mfi);
-                tau12 = Tau12->array(mfi);
-                tau13 = Tau13->array(mfi);
-                tau23 = Tau23->array(mfi);
-            } else {
-                tau11 = Array4<Real>{};
-                tau22 = Array4<Real>{};
-                tau33 = Array4<Real>{};
-                tau12 = Array4<Real>{};
-                tau13 = Array4<Real>{};
-                tau23 = Array4<Real>{};
-            }
+            tau11 = Tau11->array(mfi); tau22 = Tau22->array(mfi); tau33 = Tau33->array(mfi);
+            tau12 = Tau12->array(mfi); tau13 = Tau13->array(mfi); tau23 = Tau23->array(mfi);
+
             // Terrain diffusion
+            FArrayBox S21,S31,S32;
+            Array4<Real> s21,s31,s32;
             Array4<Real> tau21,tau31,tau32;
-            if (Tau21) {
-                tau21 = Tau21->array(mfi);
-                tau31 = Tau31->array(mfi);
-                tau32 = Tau32->array(mfi);
+            if (l_use_terrain) {
+                S21.resize(tbxxy,1); S31.resize(tbxxz,1); S32.resize(tbxyz,1);
+                Elixir S21_eli   = S21.elixir(); Elixir S31_eli  = S31.elixir(); Elixir S32_eli  = S32.elixir();
+                s21   = S21.array();       s31   = S31.array();       s32   = S32.array();
+                tau21 = Tau21->array(mfi); tau31 = Tau31->array(mfi); tau32 = Tau32->array(mfi);
             } else {
-                tau21 = Array4<Real>{};
-                tau31 = Array4<Real>{};
-                tau32 = Array4<Real>{};
+                s21   = Array4<Real>{}; s31   = Array4<Real>{}; s32   = Array4<Real>{};
+                tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
             }
+
             {
             BL_PROFILE("slow_rhs_making_strain");
-            if (nrk>0) {
-                Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
-                Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
-                Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
-                Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
-
-                if (l_use_terrain) {
-                    ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
-                                    u, v, w,
-                                    tau11, tau22, tau33,
-                                    tau12, tau13,
-                                    tau21, tau23,
-                                    tau31, tau32,
-                                    z_nd, bc_ptr_h, dxInv,
-                                    mf_m, mf_u, mf_v);
-                } else {
-                    ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
-                                    u, v, w,
-                                    tau11, tau22, tau33,
-                                    tau12, tau13, tau23,
-                                    bc_ptr_h, dxInv,
-                                    mf_m, mf_u, mf_v);
-                }
-            } // nrk>0
-            } // profile
-
-            {
-                BL_PROFILE("slow_rhs_making_strain_most");
-                // Need to recompute strain at bottom with MOST
-                if (nrk==0 && most) {
-                    Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
-                    Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
-
-                    // Only operate on bottom layer
-                    tbxxz.setBig(2,0);
-                    tbxyz.setBig(2,0);
-
-                    if (l_use_terrain) {
-                        amrex::ParallelFor(tbxxz,tbxyz,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            Real GradWz = 0.5 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
-                                                           - w(i  ,j  ,k  ) - w(i-1,j  ,k  ) );
-
-                            Real met_h_xi,met_h_zeta;
-                            met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
-                            met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
-
-                            tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta
-                                                 + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
-                                                 - (met_h_xi/met_h_zeta)*GradWz );
-                            tau31(i,j,k) = tau13(i,j,k);
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            Real GradWz = 0.5 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
-                                                           - w(i  ,j  ,k  ) - w(i  ,j-1,k  ) );
-
-                            Real met_h_eta,met_h_zeta;
-                            met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
-                            met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
-
-                            tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta
-                                                 + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
-                                                 - (met_h_eta/met_h_zeta)*GradWz );
-                            tau32(i,j,k) = tau23(i,j,k);
-                        });
-                    } else {
-                        amrex::ParallelFor(tbxxz,tbxyz,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2] + (w(i, j, k) - w(i-1, j, k))*dxInv[0] );
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2] + (w(i, j, k) - w(i, j-1, k))*dxInv[1] );
-                        });
-                    }
-                } // nrk==0 && m_most
+            if (l_use_terrain) {
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
+                                u, v, w,
+                                s11, s22, s33,
+                                s12, s13,
+                                s21, s23,
+                                s31, s32,
+                                z_nd, bc_ptr_h, dxInv,
+                                mf_m, mf_u, mf_v);
+            } else {
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
+                                u, v, w,
+                                s11, s22, s33,
+                                s12, s13, s23,
+                                bc_ptr_h, dxInv,
+                                mf_m, mf_u, mf_v);
+            }
             } // profile
 
             //-----------------------------------------
@@ -307,10 +276,10 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 SmnSmn_a = SmnSmn->array(mfi);
                 amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                   SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
+                   SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
                 });
             } else {
-            SmnSmn_a = Array4<Real>{};
+                SmnSmn_a = Array4<Real>{};
             }
 
             //-----------------------------------------
@@ -319,12 +288,10 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             {
             BL_PROFILE("slow_rhs_making_stress");
 
-            Box gvbx = valid_bx; gvbx.grow(IntVect(1,1,0));
-            Box bxcc  = mfi.growntilebox(IntVect(1,1,0)) & gvbx;
-
-            Box tbxxy = mfi.tilebox(IntVect(1,1,0));
-            Box tbxxz = mfi.tilebox(IntVect(1,0,1));
-            Box tbxyz = mfi.tilebox(IntVect(0,1,1));
+            // Remove Halo cells just for tau_ij comps
+            tbxxy.grow(IntVect(-1,-1,0));
+            tbxxz.grow(IntVect(-1,-1,0));
+            tbxyz.grow(IntVect(-1,-1,0));
 
             Real mu_eff = 0.;
             if (cons_visc)
@@ -333,31 +300,72 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             if (l_use_terrain) {
                 if (cons_visc) {
                     ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                            tau11, tau22, tau33,
-                                            tau12, tau13,
-                                            tau21, tau23,
-                                            tau31, tau32,
+                                            s11, s22, s33,
+                                            s12, s13,
+                                            s21, s23,
+                                            s31, s32,
                                             er_arr, z_nd, dxInv);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
-                                           tau11, tau22, tau33,
-                                           tau12, tau13,
-                                           tau21, tau23,
-                                           tau31, tau32,
+                                           s11, s22, s33,
+                                           s12, s13,
+                                           s21, s23,
+                                           s31, s32,
                                            er_arr, z_nd, dxInv);
                 }
             } else {
                 if (cons_visc) {
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                            tau11, tau22, tau33,
-                                            tau12, tau13, tau23,
+                                            s11, s22, s33,
+                                            s12, s13, s23,
                                             er_arr);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
-                                           tau11, tau22, tau33,
-                                           tau12, tau13, tau23,
+                                           s11, s22, s33,
+                                           s12, s13, s23,
                                            er_arr);
                 }
+            }
+
+            // Remove halo cells from tau_ii but extend across valid_box bdry
+            bxcc.grow(IntVect(-1,-1,0));
+            if (bxcc.smallEnd(0) == valid_bx.smallEnd(0)) bxcc.growLo(0, 1);
+            if (bxcc.bigEnd(0)   == valid_bx.bigEnd(0))   bxcc.growHi(0, 1);
+            if (bxcc.smallEnd(1) == valid_bx.smallEnd(1)) bxcc.growLo(1, 1);
+            if (bxcc.bigEnd(1)   == valid_bx.bigEnd(1))   bxcc.growHi(1, 1);
+
+            // Copy from temp FABs back to tau
+            amrex::ParallelFor(bxcc,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                tau11(i,j,k) = s11(i,j,k);
+                tau22(i,j,k) = s22(i,j,k);
+                tau33(i,j,k) = s33(i,j,k);
+            });
+            if(l_use_terrain) {
+                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau12(i,j,k) = s12(i,j,k);
+                    tau21(i,j,k) = s21(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau13(i,j,k) = s13(i,j,k);
+                    tau31(i,j,k) = s31(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau23(i,j,k) = s23(i,j,k);
+                    tau32(i,j,k) = s32(i,j,k);
+                });
+            } else {
+                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau12(i,j,k) = s12(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau13(i,j,k) = s13(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau23(i,j,k) = s23(i,j,k);
+                });
             }
             } // profile
         } // MFIter
@@ -391,9 +399,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
 
         // We must initialize these to zero each RK step
-        S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.);
-        S_scratch[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.);
-        S_scratch[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.);
+        S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,tbx);
+        S_scratch[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,tby);
+        S_scratch[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,tbz);
 
         Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
@@ -521,30 +529,18 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         Array4<Real> tau11,tau22,tau33;
         Array4<Real> tau12,tau13,tau23;
         if (Tau11) {
-            tau11 = Tau11->array(mfi);
-            tau22 = Tau22->array(mfi);
-            tau33 = Tau33->array(mfi);
-            tau12 = Tau12->array(mfi);
-            tau13 = Tau13->array(mfi);
-            tau23 = Tau23->array(mfi);
+            tau11 = Tau11->array(mfi); tau22 = Tau22->array(mfi); tau33 = Tau33->array(mfi);
+            tau12 = Tau12->array(mfi); tau13 = Tau13->array(mfi); tau23 = Tau23->array(mfi);
         } else {
-            tau11 = Array4<Real>{};
-            tau22 = Array4<Real>{};
-            tau33 = Array4<Real>{};
-            tau12 = Array4<Real>{};
-            tau13 = Array4<Real>{};
-            tau23 = Array4<Real>{};
+            tau11 = Array4<Real>{}; tau22 = Array4<Real>{}; tau33 = Array4<Real>{};
+            tau12 = Array4<Real>{}; tau13 = Array4<Real>{}; tau23 = Array4<Real>{};
         }
         // Terrain diffusion
         Array4<Real> tau21,tau31,tau32;
         if (Tau21) {
-            tau21 = Tau21->array(mfi);
-            tau31 = Tau31->array(mfi);
-            tau32 = Tau32->array(mfi);
+            tau21 = Tau21->array(mfi); tau31 = Tau31->array(mfi); tau32 = Tau32->array(mfi);
         } else {
-            tau21 = Array4<Real>{};
-            tau31 = Array4<Real>{};
-            tau32 = Array4<Real>{};
+            tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
         }
 
         // Strain magnitude

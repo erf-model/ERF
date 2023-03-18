@@ -72,6 +72,9 @@ erf_init_rayleigh(Vector<Real>& tau,
 void
 init_custom_prob(
   const Box& bx,
+  const Box& xbx,
+  const Box& ybx,
+  const Box& zbx,
   Array4<Real> const& state,
   Array4<Real> const& x_vel,
   Array4<Real> const& y_vel,
@@ -94,14 +97,6 @@ init_custom_prob(
   Array4<Real const> const& /*mf_v*/,
   const SolverChoice&)
 {
-  ParmParse pp("prob");
-  int fix_random_seed = 0;
-  pp.query("fix_random_seed", fix_random_seed);
-  // Note that the value of 1024UL is not significant -- the point here is just to set the
-  //      same seed for all MPI processes for the purpose of regression testing
-  if (fix_random_seed)
-      amrex::InitRandom(1024UL);
-
   ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -144,11 +139,8 @@ init_custom_prob(
 #endif
   });
 
-  // Construct a box that is on x-faces
-  const Box& xbx = surroundingNodes(bx,0);
   // Set the x-velocity
   ParallelForRNG(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-    // Note that this is called on a box of x-faces
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
@@ -171,11 +163,8 @@ init_custom_prob(
     }
   });
 
-  // Construct a box that is on y-faces
-  const Box& ybx = surroundingNodes(bx,1);
   // Set the y-velocity
   ParallelForRNG(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-    // Note that this is called on a box of y-faces
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
@@ -198,13 +187,8 @@ init_custom_prob(
     }
   });
 
-  // Construct a box that is on z-faces
-  const Box& zbx = surroundingNodes(bx,2);
   // Set the z-velocity
   ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-  // Note that this is called on a box of z-faces
-//    const Real* dx = geomdata.CellSize();
-//    const Real* prob_lo = geomdata.ProbLo();
     const int dom_lo_z = geomdata.Domain().smallEnd()[2];
     const int dom_hi_z = geomdata.Domain().bigEnd()[2];
 

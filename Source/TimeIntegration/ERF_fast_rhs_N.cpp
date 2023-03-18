@@ -84,7 +84,6 @@ void erf_fast_rhs_N (int step, int /*level*/,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    {
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Array4<Real>       & cur_cons  = S_data[IntVar::cons].array(mfi);
@@ -133,6 +132,9 @@ void erf_fast_rhs_N (int step, int /*level*/,
     // Define updates in the current RK stage
     // *************************************************************************
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
@@ -450,6 +452,9 @@ void erf_fast_rhs_N (int step, int /*level*/,
         } // end profile
     } // mfi
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx =  mfi.tilebox() & grids_to_evolve[mfi.index()];
@@ -485,5 +490,4 @@ void erf_fast_rhs_N (int step, int /*level*/,
         });
 
     } // mfi
-    } // openmp loop
 }
