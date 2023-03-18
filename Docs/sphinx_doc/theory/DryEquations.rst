@@ -18,7 +18,7 @@ are solved in ERF for mass, momentum, potential temperature, and scalars:
   \frac{\partial \rho}{\partial t} &= - \nabla \cdot (\rho \mathbf{u}),
 
   \frac{\partial (\rho \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \mathbf{u}) - \nabla p^\prime
-        + \delta_{i,3}\mathbf{B} + \nabla \cdot \tau + \mathbf{F},
+        + \delta_{i,3}\mathbf{B} - \nabla \cdot \tau + \mathbf{F},
 
   \frac{\partial (\rho \theta)}{\partial t} &= - \nabla \cdot (\rho \mathbf{u} \theta) + \nabla \cdot ( \rho \alpha_{T}\ \nabla \theta) + F_{\rho \theta},
 
@@ -29,7 +29,7 @@ where
 - :math:`\tau` is the viscous stress tensor,
 
   .. math::
-     \tau_{ij} = 2\mu \sigma_{ij},
+     \tau_{ij} = -2\mu \sigma_{ij},
 
 with :math:`\sigma_{ij} = S_{ij} -D_{ij}` being the deviatoric part of the strain rate, and
 
