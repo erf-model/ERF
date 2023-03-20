@@ -237,7 +237,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         if (l_moving_terrain)
         {
             auto const& src_arr = source.const_array(mfi);
-            int num_comp = S_data[IntVar::cons].nComp() - start_comp;
+            num_comp = S_data[IntVar::cons].nComp() - start_comp;
             ParallelFor(bx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -248,7 +248,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
             if (l_use_deardorff) {
               start_comp = RhoKE_comp;
-              num_comp = 1;
+              num_comp   = 1;
               ParallelFor(bx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -259,7 +259,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             }
             if (l_use_QKE) {
               start_comp = RhoQKE_comp;
-              num_comp = 1;
+              num_comp   = 1;
               ParallelFor(bx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -270,7 +270,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             }
         } else {
             auto const& src_arr = source.const_array(mfi);
-            int num_comp = S_data[IntVar::cons].nComp() - start_comp;
+            num_comp = S_data[IntVar::cons].nComp() - start_comp;
             ParallelFor(bx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -281,7 +281,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
             if (l_use_deardorff) {
               start_comp = RhoKE_comp;
-              num_comp = 1;
+              num_comp   = 1;
               ParallelFor(bx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -291,7 +291,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             }
             if (l_use_QKE) {
               start_comp = RhoQKE_comp;
-              num_comp = 1;
+              num_comp   = 1;
               ParallelFor(bx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
