@@ -146,5 +146,6 @@
                            S_data[IntVar::cons],
                            S_data[IntVar::xmom],
                            S_data[IntVar::ymom],
-                           S_data[IntVar::zmom]);
+                           S_data[IntVar::zmom],
+                           solverChoice.use_NumDiff);
     };

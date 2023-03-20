@@ -239,6 +239,15 @@ struct SolverChoice {
                                       "WENO advection only supports orders 3 & 5.");
         }
 
+        // Use numerical diffusion?
+        pp.query("use_NumDiff",use_NumDiff);
+        if(use_NumDiff) {
+            pp.query("NumDiffCoeff",NumDiffCoeff);
+            AMREX_ASSERT_WITH_MESSAGE(( (NumDiffCoeff >= 0.) && (NumDiffCoeff <= 1.) ),
+                                      "Numerical diffusion coefficient must be between 0 & 1.");
+            NumDiffCoeff *= std::pow(2.0,-6);
+        }
+
     }
 
     void display()
@@ -428,6 +437,10 @@ struct SolverChoice {
     bool all_use_WENO{false};
     bool moist_use_WENO{false};
     int  spatial_order_WENO{3};
+
+    // Numerical diffusion
+    bool use_NumDiff{false};
+    amrex::Real NumDiffCoeff{0.};
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
