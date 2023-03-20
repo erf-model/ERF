@@ -99,9 +99,9 @@ CMake
 
 CMake is often preferred by developers of ERF; CMake allows for building as well as easy testing and verification of ERF through the use of CTest which is included in CMake.
 
-Using CMake involves an additional configure step before using the ``make`` command. It is also expected that the user has cloned the ERF repo with the ``--recursive`` option or performed ``git submodule init; git submodule update`` in the ERF repo to populate its submodules.
+Using CMake involves an additional configure step before using the ``make`` command and it is expected that the user has cloned the ERF repo with the ``--recursive`` option or performed ``git submodule init; git submodule update`` in the ERF repo to populate its submodules.
 
-To build with CMake, a user typically creates a ``build`` directory in the project directory and in that directory the ``cmake <options> ..`` command is used to configure the project before building it. ERF provides an example build directory called ``Build`` with example scripts for performing the CMake configure. Once the CMake configure step is done, then the ``make`` command will build the executable.
+ERF provides example scripts for performing the CMake configure in the ``/path/to/ERF/Build`` directory.  Once the CMake configure step is done, the ``make`` command will build the executable.
 
 An example CMake configure command to build ERF with MPI is listed below:
 
@@ -114,7 +114,7 @@ An example CMake configure command to build ERF with MPI is listed below:
           -DCMAKE_Fortran_COMPILER:STRING=mpifort \
           .. && make
 
-Note that CMake is able to generate makefiles for the Ninja build system as well which will allow for faster building of the executable(s).
+Typically, a user creates a ``build`` directory in the project directory and configures from said directory (``cmake <options> ..``) before building.  Note that CMake is able to generate makefiles for the Ninja build system as well which will allow for faster building of the executable(s).
 
 
 Perlmutter (NERSC)
