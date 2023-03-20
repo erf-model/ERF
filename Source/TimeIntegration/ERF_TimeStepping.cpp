@@ -134,7 +134,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                            U_crse, U_crse.nGrowVect(),
                            V_crse, V_crse.nGrowVect(),
                            W_crse, W_crse.nGrowVect(),
-                          *S_crse,rU_crse,rV_crse,rW_crse);
+                          *S_crse,rU_crse,rV_crse,rW_crse,
+                           solverChoice.use_NumDiff);
     }
 
     // Do an error check

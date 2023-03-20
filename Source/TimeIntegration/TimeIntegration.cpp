@@ -191,7 +191,8 @@ void ERF::erf_advance(int level,
                        state_old[IntVar::cons],
                        state_old[IntVar::xmom],
                        state_old[IntVar::ymom],
-                       state_old[IntVar::zmom]);
+                       state_old[IntVar::zmom],
+                       solverChoice.use_NumDiff);
 
     MultiFab::Copy(xvel_new,xvel_old,0,0,1,xvel_old.nGrowVect());
     MultiFab::Copy(yvel_new,yvel_old,0,0,1,yvel_old.nGrowVect());

@@ -6,6 +6,7 @@
 //#include <ABLMost.H>
 #include <Advection.H>
 #include <Diffusion.H>
+#include <NumericalDiffusion.H>
 #include <TimeIntegration.H>
 #include <EOS.H>
 #include <ERF.H>
@@ -52,6 +53,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
+    const bool l_use_ndiff      = solverChoice.use_NumDiff;
     const bool l_use_QKE        = solverChoice.use_QKE && solverChoice.advect_QKE;
     const bool l_use_deardorff  = (solverChoice.les_type == LESType::Deardorff);
     const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
@@ -208,8 +210,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
-            // NOTE: No diffusion for continuity, so n starts at 1.
-            //       KE calls moved inside DiffSrcForState.
             int n_start = amrex::max(start_comp,RhoKE_comp);
             int n_end   = start_comp + num_comp - 1;
 
@@ -228,6 +228,14 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                                        hfx_x, hfx_y, hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             }
+        }
+
+        if (l_use_ndiff) {
+            // NOTE: numerical diffusion for all slow vars
+            int n_start = amrex::max(start_comp,RhoKE_comp);
+            int n_end   = start_comp + num_comp - 1;
+            NumericalDiffusion(valid_bx, n_start, n_end, dt, solverChoice,
+                               new_cons, cell_rhs, mf_u, mf_v, false, false);
         }
 
         // This updates just the "slow" conserved variables
