@@ -407,10 +407,30 @@ ERF::InitData ()
         // (~ 1/diffusivity) do not blow up
         Real RhoKE_0 = 0.1;
         ParmParse pp(pp_prefix);
-        pp.query("RhoKE_0", RhoKE_0);
-        int lb = std::max(finest_level-1,0);
-        for (int lev(lb); lev >= 0; --lev)
-            vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
+        if (pp.query("RhoKE_0", RhoKE_0)) {
+            // uniform initial rho*e field
+            int lb = std::max(finest_level-1,0);
+            for (int lev(lb); lev >= 0; --lev)
+                vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
+        } else {
+            // default: uniform initial e field
+            Real KE_0 = 0.1;
+            pp.query("KE_0", KE_0);
+            for (int lev = 0; lev <= finest_level; lev++)
+            {
+                auto& lev_new = vars_new[lev];
+                for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box &bx = mfi.tilebox();
+                    const auto &cons_arr = lev_new[Vars::cons].array(mfi);
+                    // We want to set the lateral BC values, too
+                    Box gbx = bx; // Copy constructor
+                    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+                    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        cons_arr(i,j,k,RhoKE_comp) = cons_arr(i,j,k,Rho_comp) * KE_0;
+                    });
+                }
+            }
+        }
 
         AverageDown();
 
