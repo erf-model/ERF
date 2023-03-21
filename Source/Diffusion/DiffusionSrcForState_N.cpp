@@ -353,20 +353,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real cellVolMsf = 1.0 / (dx_inv * mf_u(i,j,0) * dy_inv * mf_v(i,j,0) * dz_inv);
             Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
 
-            // Calculate stratification-dependent mixing length (Deardorff 1980)
-            Real eps       = std::numeric_limits<Real>::epsilon();
-            Real dtheta_dz = 0.5*(  cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                  - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
-            Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
-            Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // ==N^2 under stable conditions
-            Real length;
-            if (strat <= eps) {
-                length = DeltaMsf;
-            } else {
-                length = amrex::min(DeltaMsf, 0.76 * std::sqrt(E / strat));
-                length = amrex::max(length, 0.001 * DeltaMsf);
-            }
-
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
             // such that for dtheta/dz < 0, there is a positive (upward) heat
