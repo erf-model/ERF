@@ -48,7 +48,7 @@ ComputeStressConsVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mu_tot   = mu_eff;
 
         tau33(i,j,k) -= met_h_xi*tau31bar + met_h_eta*tau32bar;
-        tau33(i,j,k) *= mu_tot;
+        tau33(i,j,k) *= -mu_tot;
     });
 
     // Second block: compute 2mu*JT*(S-D)
@@ -273,7 +273,7 @@ ComputeStressVarVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mu_tot   = mu_eff + 2.0*mu_turb(i, j, k, EddyDiff::Mom_v);
 
         tau33(i,j,k) -= met_h_xi*tau31bar + met_h_eta*tau32bar;
-        tau33(i,j,k) *= mu_tot;
+        tau33(i,j,k) *= -mu_tot;
     });
 
     // Second block: compute 2mu*JT*(S-D)
