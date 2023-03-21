@@ -257,7 +257,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 } // profile
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
-                if (solverChoice.les_type == LESType::Deardorff) {
+                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
+                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -354,7 +355,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 } // end profile
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
-                if (solverChoice.les_type == LESType::Deardorff) {
+                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
+                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -591,14 +593,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         // Strain magnitude
         Array4<Real> SmnSmn_a;
         if (solverChoice.les_type == LESType::Deardorff) {
-            // keep the TKE tendencies constant for nrk>0
-            if (nrk==0) {
-                SmnSmn_a = SmnSmn->array(mfi);
-                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
-                });
-            }
+            SmnSmn_a = SmnSmn->array(mfi);
         } else {
             SmnSmn_a = Array4<Real>{};
         }
