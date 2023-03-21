@@ -945,8 +945,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     Tau13_lev.resize(lev+1); Tau31_lev.resize(lev+1);
     Tau23_lev.resize(lev+1); Tau32_lev.resize(lev+1);
 
-    SGS_hfx1_lev.resize(lev+1); SGS_hfx2_lev.resize(lev+1); SGS_hfx3_lev.resize(lev+1);
-    SGS_diss_lev.resize(lev+1);
+    SFS_hfx1_lev.resize(lev+1); SFS_hfx2_lev.resize(lev+1); SFS_hfx3_lev.resize(lev+1);
+    SFS_diss_lev.resize(lev+1);
 
     eddyDiffs_lev.resize(lev+1);
     SmnSmn_lev.resize(lev+1);
@@ -967,17 +967,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
             Tau31_lev[lev] = nullptr;
             Tau32_lev[lev] = nullptr;
         }
-        SGS_hfx1_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        SGS_hfx2_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        SGS_hfx3_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        SGS_diss_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SFS_hfx1_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SFS_hfx2_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SFS_hfx3_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SFS_diss_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
     } else {
       Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
       Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
       Tau13_lev[lev] = nullptr; Tau31_lev[lev] = nullptr;
       Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
-      SGS_hfx1_lev[lev] = nullptr; SGS_hfx2_lev[lev] = nullptr; SGS_hfx3_lev[lev] = nullptr;
-      SGS_diss_lev[lev] = nullptr;
+      SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
+      SFS_diss_lev[lev] = nullptr;
     }
 
     if (l_use_kturb) {

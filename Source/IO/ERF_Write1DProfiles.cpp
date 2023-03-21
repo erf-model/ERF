@@ -274,11 +274,11 @@ ERF::derive_stress_profiles(Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<
         const Array4<const Real>& tau33_arr = Tau33_lev[lev]->const_array(mfi);
 
         // These should be re-calculated during ERF_slow_rhs_post
-        // -- just vertical SGS kinematic heat flux for now
-        //const Array4<const Real>& hfx1_arr = SGS_hfx1_lev[lev]->const_array(mfi);
-        //const Array4<const Real>& hfx2_arr = SGS_hfx2_lev[lev]->const_array(mfi);
-        const Array4<const Real>& hfx3_arr = SGS_hfx3_lev[lev]->const_array(mfi);
-        const Array4<const Real>& diss_arr = SGS_diss_lev[lev]->const_array(mfi);
+        // -- just vertical SFS kinematic heat flux for now
+        //const Array4<const Real>& hfx1_arr = SFS_hfx1_lev[lev]->const_array(mfi);
+        //const Array4<const Real>& hfx2_arr = SFS_hfx2_lev[lev]->const_array(mfi);
+        const Array4<const Real>& hfx3_arr = SFS_hfx3_lev[lev]->const_array(mfi);
+        const Array4<const Real>& diss_arr = SFS_diss_lev[lev]->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {

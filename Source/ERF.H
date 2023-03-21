@@ -490,9 +490,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
-    // Other SGS terms
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SGS_hfx1_lev, SGS_hfx2_lev, SGS_hfx3_lev;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SGS_diss_lev;
+    // Other SFS terms
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
