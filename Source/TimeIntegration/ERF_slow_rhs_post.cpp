@@ -282,7 +282,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                 cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-                // make sure rho*e is positive 
+                // make sure rho*e is positive
                 if (cur_cons(i,j,k,n) < eps) cur_cons(i,j,k,n) = eps;
               });
             }
