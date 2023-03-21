@@ -19,8 +19,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 /** Compute Eddy Viscosity */
 void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
                                    const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
-                                   const amrex::MultiFab& cons_in,
-                                   amrex::MultiFab& eddyViscosity,
+                                   const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
                                    amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
                                    const amrex::Geometry& geom,
                                    const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
@@ -111,8 +110,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           if (strat <= eps) {
               length = DeltaMsf;
           } else {
+              length = 0.76 * std::sqrt(E / strat);
               // mixing length should be _reduced_ for stable stratification
-              length = amrex::min(DeltaMsf, 0.76 * std::sqrt(E / strat));
+              length = amrex::min(length, DeltaMsf);
               // following WRF, make sure the mixing length isn't too small
               length = amrex::max(length, 0.001 * DeltaMsf);
           }
