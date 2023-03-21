@@ -10,6 +10,7 @@
 
 // This is the slow RHS when doing multi-rate, and the only RHS when doing RK3
 void erf_slow_rhs_pre(int level, int nrk,
+                      amrex::Real dt,
                       amrex::BoxArray& grids_to_evolve,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
                       amrex::Vector<amrex::MultiFab>& S_data,
@@ -57,7 +58,7 @@ void erf_slow_rhs_pre(int level, int nrk,
                       const amrex::Real* dptr_rayleigh_wbar,
                       const amrex::Real* dptr_rayleigh_thetabar);
 
-void erf_slow_rhs_post(int level, amrex::Real time,
+void erf_slow_rhs_post(int level, amrex::Real dt,
                        amrex::BoxArray& grids_to_evolve,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
                        amrex::Vector<amrex::MultiFab>& S_old,

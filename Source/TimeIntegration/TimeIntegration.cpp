@@ -81,21 +81,15 @@ void ERF::erf_advance(int level,
         const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
         for ( MFIter mfi(cons_new,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Box bx    = mfi.tilebox();
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
-            Box tbxxy = bx; tbxxy.convert(IntVect(1,1,0));
-            Box tbxxz = bx; tbxxz.convert(IntVect(1,0,1));
-            Box tbxyz = bx; tbxyz.convert(IntVect(0,1,1));
-
-            // Fill strain ghost cells for building K_turb
-            tbxxy.growLo(0,1);tbxxy.growLo(1,1);
-            tbxxz.growLo(0,1);tbxxz.growLo(1,1);
-            tbxyz.growLo(0,1);tbxyz.growLo(1,1);
-            tbxxy.growHi(0,1);tbxxy.growHi(1,1);
-            tbxxz.growHi(0,1);tbxxz.growHi(1,1);
-            tbxyz.growHi(0,1);tbxyz.growHi(1,1);
+            Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
+            Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
+            Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
 
             const Array4<const Real> & u = xvel_old.array(mfi);
             const Array4<const Real> & v = yvel_old.array(mfi);
@@ -204,7 +198,8 @@ void ERF::erf_advance(int level,
                        state_old[IntVar::cons],
                        state_old[IntVar::xmom],
                        state_old[IntVar::ymom],
-                       state_old[IntVar::zmom]);
+                       state_old[IntVar::zmom],
+                       solverChoice.use_NumDiff);
 
     MultiFab::Copy(xvel_new,xvel_old,0,0,1,xvel_old.nGrowVect());
     MultiFab::Copy(yvel_new,yvel_old,0,0,1,yvel_old.nGrowVect());

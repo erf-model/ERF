@@ -36,5 +36,6 @@ void VelocityToMomentum (amrex::BoxArray& grids_to_evolve,
                          const amrex::MultiFab& cons_in,
                          amrex::MultiFab& xmom_out,
                          amrex::MultiFab& ymom_out,
-                         amrex::MultiFab& zmom_out);
+                         amrex::MultiFab& zmom_out,
+                         bool l_use_ndiff);
 #endif

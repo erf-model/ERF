@@ -74,8 +74,8 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                     if (bx_hi.x == dom_hi.x)
                     {
                         Box bx_xhi(gbx & domain);
-                        bx_xhi.setSmall(0,dom_hi.x-width+ng_vect[0]);
-                        bx_xhi.setBig(0,dom_hi.x+1);
+                        bx_xhi.setSmall(0,dom_hi.x-width+1);
+                        bx_xhi.setBig(0,dom_hi.x+ng_vect[0]);
 
                         ParallelFor(bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
                         {

@@ -40,7 +40,6 @@ void make_fast_coeffs (int /*level*/,
     MultiFab coeff_P_mf(fast_coeffs, amrex::make_alias, 3, 1);
     MultiFab coeff_Q_mf(fast_coeffs, amrex::make_alias, 4, 1);
 
-    FArrayBox gam_fab;
 
     // *************************************************************************
     // Set gravity as a vector
@@ -72,7 +71,7 @@ void make_fast_coeffs (int /*level*/,
         const Array4<const Real>& r0_ca       = r0->const_array(mfi);
         const Array4<const Real>& pi0_ca      = pi0->const_array(mfi); const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
-        gam_fab.resize(coeff_A_mf[mfi].box());
+        FArrayBox gam_fab; gam_fab.resize(surroundingNodes(bx,2),1);
         Elixir gEli = gam_fab.elixir();
 
         auto const& coeffA_a  = coeff_A_mf.array(mfi);

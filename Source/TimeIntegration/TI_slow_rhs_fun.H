@@ -40,7 +40,8 @@
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
 
-            Real inv_dt  = 1./ (new_stage_time - old_step_time);
+            Real slow_dt = new_stage_time - old_step_time;
+            Real inv_dt  = 1./slow_dt;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -78,7 +79,7 @@
 #endif
                           fine_geom, solverChoice, r0_new);
 
-            erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
                              qvapor,
@@ -167,13 +168,15 @@
 
         } else { // if moving_terrain
 
+            Real slow_dt      = new_stage_time - old_step_time;
+
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qvapor, qcloud, qice, qv_d, qc_d, qi_d,
 #endif
                           fine_geom, solverChoice, r0);
 
-            erf_slow_rhs_pre(level, nrk, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
                              qvapor,
