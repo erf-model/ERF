@@ -43,7 +43,6 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
 
     bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
-    Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
     Real l_inv_theta0    = 1.0 / solverChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
 
