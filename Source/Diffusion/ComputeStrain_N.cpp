@@ -127,13 +127,6 @@ ComputeStrain_N(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
         amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             tau13(i,j,k) = 0.5 * ( (-(8./3.) * u(i,j,k-1) + 3. * u(i,j,k) - (1./3.) * u(i,j,k+1))*dxInv[2] +
                                    (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mf_u(i,j,0) );
-            if((i==0)&&(j==0)&&(k==0))
-                amrex::AllPrint() << "ComputeStrain13(0,0,0):"
-                    << " " << u(i,j,k-1)
-                    << " " << u(i,j,k)
-                    << " " << u(i,j,k+1)
-                    << " " << tau13(i,j,k)
-                    << std::endl;
         });
     }
     if (zh_u_dir) {
