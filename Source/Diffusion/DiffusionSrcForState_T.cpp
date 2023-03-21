@@ -541,8 +541,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             if (strat <= eps) {
                 length = DeltaMsf;
             } else {
-                length = amrex::min(DeltaMsf,
-                                    0.76 * std::sqrt(E / strat));
+                length = amrex::min(DeltaMsf, 0.76 * std::sqrt(E / strat));
+                length = amrex::max(length, 0.001 * DeltaMsf);
             }
 
             // From eddy viscosity (or eddy diffusivity for momentum)
