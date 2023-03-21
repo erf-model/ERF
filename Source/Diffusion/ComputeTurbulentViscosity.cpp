@@ -19,7 +19,9 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 /** Compute Eddy Viscosity */
 void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
                                    const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
-                                   const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
+                                   const amrex::MultiFab& cons_in,
+                                   amrex::MultiFab& eddyViscosity,
+                                   amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
                                    const amrex::Geometry& geom,
                                    const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                    const SolverChoice& solverChoice)
@@ -70,6 +72,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     else if (solverChoice.les_type == LESType::Deardorff)
     {
       const amrex::Real l_C_k        = solverChoice.Ck;
+      const amrex::Real l_C_e        = solverChoice.Ce;
+      const amrex::Real l_C_e_wall   = solverChoice.Ce_wall;
+      const amrex::Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
       const amrex::Real l_abs_g      = solverChoice.gravity;
       const amrex::Real l_inv_theta0 = 1.0 / solverChoice.theta_ref;
 
@@ -81,6 +86,11 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Box bxcc  = mfi.tilebox();
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+        const Array4<Real>& hfx_x   = Hfx1.array(mfi);
+        const Array4<Real>& hfx_y   = Hfx2.array(mfi);
+        const Array4<Real>& hfx_z   = Hfx3.array(mfi);
+        const Array4<Real>& diss    = Diss.array(mfi);
+
         const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
 
         Array4<Real const> mf_u = mapfac_u.array(mfi);
@@ -107,9 +117,25 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
               length = amrex::max(length, 0.001 * DeltaMsf);
           }
 
+          // Calculate eddy diffusivities
           // K = rho * C_k * l * KE^(1/2)
           mu_turb(i,j,k,EddyDiff::Mom_h) = cell_data(i,j,k,Rho_comp) * l_C_k * length * std::sqrt(E);
           mu_turb(i,j,k,EddyDiff::Mom_v) = mu_turb(i,j,k,EddyDiff::Mom_h);
+          // KH = (1 + 2*l/delta) * mu_turb
+          mu_turb(i,j,k,EddyDiff::Theta_v) = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_v);
+
+          // Calculate SFS quantities
+          // - dissipation
+          amrex::Real Ce;
+          if ((l_C_e_wall > 0) && (k==0))
+              Ce = l_C_e_wall;
+          else
+              Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
+          diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
+          // - heat flux
+          hfx_x(i,j,k) = 0.0;
+          hfx_y(i,j,k) = 0.0;
+          hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
         });
       }
     }
@@ -296,6 +322,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                 const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
                                 const amrex::MultiFab& cons_in,
                                 amrex::MultiFab& eddyViscosity,
+                                amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
                                 const amrex::Geometry& geom,
                                 const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                 const SolverChoice& solverChoice,
@@ -331,6 +358,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
         ComputeTurbulentViscosityLES(Tau11, Tau22, Tau33,
                                      Tau12, Tau13, Tau23,
                                      cons_in, eddyViscosity,
+                                     Hfx1, Hfx2, Hfx3, Diss,
                                      geom, mapfac_u, mapfac_v,
                                      solverChoice);
     }

@@ -44,10 +44,6 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
     bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
     bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
     Real l_Delta         = std::pow(dx_inv * dy_inv * dz_inv,-1./3.);
-    Real l_C_k           = solverChoice.Ck;
-    Real l_C_e           = solverChoice.Ce;
-    Real l_C_e_wall      = solverChoice.Ce_wall;
-    Real Ce_lcoeff       = amrex::max(0.0, l_C_e - 1.9*l_C_k);
     Real l_inv_theta0    = 1.0 / solverChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
 
@@ -545,15 +541,6 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
                 length = amrex::max(length, 0.001 * DeltaMsf);
             }
 
-            // From eddy viscosity (or eddy diffusivity for momentum)
-            //   mu_turb = rho * C_k * l * KE^(1/2)
-            // and the eddy diffusivity for heat [kg m^-1 s^-1] is
-            //   KH = (1 + 2*l/delta) * mu_turb
-            // Note: mu_turb is fixed for all 3 RK stages, so recomputing the
-            // eddy viscosity part of KH here would be inconsistent (since
-            // l and KE evolve with each stage)
-            Real KH = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_v);
-
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
             // such that for dtheta/dz < 0, there is a positive (upward) heat
@@ -562,28 +549,18 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             // for a dry atmosphere (see, e.g., Sullivan et al 1994). To
             // account for moisture, the Brunt-Vaisala frequency,
             //   N^2 = g[1/theta * dtheta/dz + ...]
-            // should be a function of the water vapor and total water mixing
-            // ratios, depending on whether conditions are saturated or
+            // **should** be a function of the water vapor and total water
+            // mixing ratios, depending on whether conditions are saturated or
             // not (see the WRF model description, Skamarock et al 2019).
-            hfx_x(i,j,k) = 0.0;
-            hfx_y(i,j,k) = 0.0;
-            hfx_z(i,j,k) = -KH * dtheta_dz; // (rho*w)'theta' [kg m^-2 s^-1 K]
             cell_rhs(i,j,k,qty_index) += l_abs_g * l_inv_theta0 * hfx_z(i,j,k);
 
             // TKE shear production
             //   P = -tau_ij * S_ij = 2 * mu_turb * S_ij * S_ij
             // Note: This assumes that the horizontal and vertical diffusivities
             // of momentum are equal
-            cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_h) * SmnSmn_a(i,j,k);
+            cell_rhs(i,j,k,qty_index) += 2.0*mu_turb(i,j,k,EddyDiff::Mom_v) * SmnSmn_a(i,j,k);
 
             // TKE dissipation
-            diss(i,j,k) = 0.0;
-            amrex::Real Ce;
-            if ((l_C_e_wall > 0) && (k==0))
-                Ce = l_C_e_wall;
-            else
-                Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
-            diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
             cell_rhs(i,j,k,qty_index) -= diss(i,j,k);
         });
     }
