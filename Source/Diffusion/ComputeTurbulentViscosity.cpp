@@ -91,7 +91,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
           Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
 
-          // calculate stratification-dependent mixing length (Deardorff 1980)
+          // Calculate stratification-dependent mixing length (Deardorff 1980)
           Real eps       = std::numeric_limits<Real>::epsilon();
           Real dtheta_dz = 0.5*(  cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                 - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dxInv[2];

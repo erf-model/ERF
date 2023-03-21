@@ -531,7 +531,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
             Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
             Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
 
-            // calculate stratification-dependent mixing length (Deardorff 1980)
+            // Calculate stratification-dependent mixing length (Deardorff 1980)
             Real eps       = std::numeric_limits<Real>::epsilon();
             Real dtheta_dz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp)-cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;
             dtheta_dz      /= met_h_zeta;
