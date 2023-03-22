@@ -87,6 +87,17 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
+    // update mu_turb at the start of each RK stage
+    //if (l_use_turb)
+    //{
+    //    ComputeTurbulentViscosity(xvel, yvel,
+    //                              *Tau11, *Tau22, *Tau33,
+    //                              *Tau12, *Tau13, *Tau23,
+    //                              S_data[IntVar::cons],
+    //                              *eddyDiffs, geom, *mapfac_u, *mapfac_v,
+    //                              solverChoice, most);
+    //}
+
     // *************************************************************************
     // Combine external forcing terms
     // *************************************************************************
@@ -246,7 +257,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 } // profile
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
-                if (solverChoice.les_type == LESType::Deardorff) {
+                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
+                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -343,7 +355,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 } // end profile
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
-                if (solverChoice.les_type == LESType::Deardorff) {
+                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
+                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {

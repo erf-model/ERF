@@ -20,7 +20,8 @@ ERF::write_1D_profiles(Real time)
     if (verbose > 0 && NumDataLogs() > 1)
     {
         // Define the 1d arrays we will need
-        Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w, h_avg_th;
+        Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w;
+        Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs;
         Gpu::HostVector<Real> h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth;
         Gpu::HostVector<Real> h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww;
         Gpu::HostVector<Real> h_avg_k, h_avg_ku, h_avg_kv, h_avg_kw;
@@ -29,7 +30,8 @@ ERF::write_1D_profiles(Real time)
         Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
 
         if (NumDataLogs() > 1) {
-            derive_diag_profiles(h_avg_u, h_avg_v, h_avg_w, h_avg_th,
+            derive_diag_profiles(h_avg_u, h_avg_v, h_avg_w,
+                                 h_avg_rho, h_avg_th, h_avg_ksgs,
                                  h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
                                  h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth,
                                  h_avg_k, h_avg_ku, h_avg_kv, h_avg_kw,
@@ -55,7 +57,8 @@ ERF::write_1D_profiles(Real time)
                       Real z = (k + 0.5)* dx[2];
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                                << h_avg_u[k]  << " " << h_avg_v[k] << " " << h_avg_w[k] << " " << h_avg_th[k]
+                                << h_avg_u[k]  << " " << h_avg_v[k] << " " << h_avg_w[k] << " "
+                                << h_avg_rho[k] << " " << h_avg_th[k] << " " << h_avg_ksgs[k]
                                 << std::endl;
                   } // loop over z
                 } // if good
@@ -110,8 +113,8 @@ ERF::write_1D_profiles(Real time)
 }
 
 void
-ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  ,
-                          Gpu::HostVector<Real>& h_avg_w   , Gpu::HostVector<Real>& h_avg_th ,
+ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
+                          Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
                           Gpu::HostVector<Real>& h_avg_uu  , Gpu::HostVector<Real>& h_avg_uv , Gpu::HostVector<Real>& h_avg_uw,
                           Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
                           Gpu::HostVector<Real>& h_avg_uth , Gpu::HostVector<Real>& h_avg_vth, Gpu::HostVector<Real>& h_avg_wth,
@@ -124,8 +127,11 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
     // We assume that this is always called at level 0
     int lev = 0;
 
-    // This will hold theta, uu, uv, uw, vv, vw, ww, uth, vth, wth, thth, k, ku, kv, kw, p, pu, pv, pw
-    MultiFab mf_out(grids[lev], dmap[lev], 19, 0);
+    bool l_use_KE  = (solverChoice.les_type == LESType::Deardorff);
+    bool l_use_QKE = solverChoice.use_QKE && solverChoice.advect_QKE;
+
+    // This will hold rho, theta, ksgs, uu, uv, uw, vv, vw, ww, uth, vth, wth, thth, k, ku, kv, kw, p, pu, pv, pw
+    MultiFab mf_out(grids[lev], dmap[lev], 21, 0);
 
     MultiFab mf_vels(grids[lev], dmap[lev], AMREX_SPACEDIM, 0);
 
@@ -152,7 +158,8 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
         h_avg_u[k] /= area_z; h_avg_v[k] /= area_z; h_avg_w[k] /= area_z;
     }
 
-    MultiFab mf_cons(vars_new[lev][Vars::cons], make_alias, 0, 2);
+    int nvars = vars_new[lev][Vars::cons].nComp();
+    MultiFab mf_cons(vars_new[lev][Vars::cons], make_alias, 0, nvars);
 
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
 
@@ -172,57 +179,67 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real theta = cons_arr(i,j,k,RhoTheta_comp) / cons_arr(i,j,k,Rho_comp);
-            fab_arr(i, j, k, 0) = theta;
-            fab_arr(i, j, k, 1) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // uu
-            fab_arr(i, j, k, 2) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // uv
-            fab_arr(i, j, k, 3) = u_cc_arr(i,j,k) * w_cc_arr(i,j,k);   // uw
-            fab_arr(i, j, k, 4) = v_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // vv
-            fab_arr(i, j, k, 5) = v_cc_arr(i,j,k) * w_cc_arr(i,j,k);   // vw
-            fab_arr(i, j, k, 6) = w_cc_arr(i,j,k) * w_cc_arr(i,j,k);   // ww
-            fab_arr(i, j, k, 7) = u_cc_arr(i,j,k) * theta; // uth
-            fab_arr(i, j, k, 8) = v_cc_arr(i,j,k) * theta; // vth
-            fab_arr(i, j, k, 9) = w_cc_arr(i,j,k) * theta; // wth
-            fab_arr(i, j, k,10) = theta * theta;           // thth
-            Real tke = 0.5*(fab_arr(i,j,k,1) + fab_arr(i,j,k,4) + fab_arr(i,j,k,6));
-            fab_arr(i, j, k,11) = tke;                     // k
-            fab_arr(i, j, k,12) = tke * u_cc_arr(i,j,k);   // ku
-            fab_arr(i, j, k,13) = tke * v_cc_arr(i,j,k);   // kv
-            fab_arr(i, j, k,14) = tke * w_cc_arr(i,j,k);   // kw
+            fab_arr(i, j, k, 0) = cons_arr(i,j,k,Rho_comp);
+            fab_arr(i, j, k, 1) = theta;
+            Real ksgs = 0.0;
+            if (l_use_KE)
+                ksgs = cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp);
+            else if (l_use_QKE)
+                ksgs = cons_arr(i,j,k,RhoQKE_comp) / cons_arr(i,j,k,Rho_comp);
+            fab_arr(i, j, k, 2) = ksgs;
+            fab_arr(i, j, k, 3) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // uu
+            fab_arr(i, j, k, 4) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // uv
+            fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * w_cc_arr(i,j,k);   // uw
+            fab_arr(i, j, k, 6) = v_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // vv
+            fab_arr(i, j, k, 7) = v_cc_arr(i,j,k) * w_cc_arr(i,j,k);   // vw
+            fab_arr(i, j, k, 8) = w_cc_arr(i,j,k) * w_cc_arr(i,j,k);   // ww
+            fab_arr(i, j, k, 9) = u_cc_arr(i,j,k) * theta; // uth
+            fab_arr(i, j, k,10) = v_cc_arr(i,j,k) * theta; // vth
+            fab_arr(i, j, k,11) = w_cc_arr(i,j,k) * theta; // wth
+            fab_arr(i, j, k,12) = theta * theta;           // thth
+            Real tke = 0.5*(fab_arr(i,j,k,1) + fab_arr(i,j,k,4) + fab_arr(i,j,k,6)); // resolved
+            fab_arr(i, j, k,13) = tke;                     // k
+            fab_arr(i, j, k,14) = tke * u_cc_arr(i,j,k);   // ku
+            fab_arr(i, j, k,15) = tke * v_cc_arr(i,j,k);   // kv
+            fab_arr(i, j, k,16) = tke * w_cc_arr(i,j,k);   // kw
 #if defined(ERF_USE_MOISTURE)
             Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
 #else
             Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
 #endif
             p -= p0_arr(i,j,k);
-            fab_arr(i, j, k,15) = p;                       // p'
-            fab_arr(i, j, k,16) = p * u_cc_arr(i,j,k);     // p'u
-            fab_arr(i, j, k,17) = p * v_cc_arr(i,j,k);     // p'v
-            fab_arr(i, j, k,18) = p * w_cc_arr(i,j,k);     // p'w
+            fab_arr(i, j, k,17) = p;                       // p'
+            fab_arr(i, j, k,18) = p * u_cc_arr(i,j,k);     // p'u
+            fab_arr(i, j, k,19) = p * v_cc_arr(i,j,k);     // p'v
+            fab_arr(i, j, k,20) = p * w_cc_arr(i,j,k);     // p'w
         });
     }
 
-    h_avg_th   = sumToLine(mf_out, 0,1,domain,zdir);
-    h_avg_uu   = sumToLine(mf_out, 1,1,domain,zdir);
-    h_avg_uv   = sumToLine(mf_out, 2,1,domain,zdir);
-    h_avg_uw   = sumToLine(mf_out, 3,1,domain,zdir);
-    h_avg_vv   = sumToLine(mf_out, 4,1,domain,zdir);
-    h_avg_vw   = sumToLine(mf_out, 5,1,domain,zdir);
-    h_avg_ww   = sumToLine(mf_out, 6,1,domain,zdir);
-    h_avg_uth  = sumToLine(mf_out, 7,1,domain,zdir);
-    h_avg_vth  = sumToLine(mf_out, 8,1,domain,zdir);
-    h_avg_wth  = sumToLine(mf_out, 9,1,domain,zdir);
-    h_avg_thth = sumToLine(mf_out,10,1,domain,zdir);
-    h_avg_k    = sumToLine(mf_out,11,1,domain,zdir);
-    h_avg_ku   = sumToLine(mf_out,12,1,domain,zdir);
-    h_avg_kv   = sumToLine(mf_out,13,1,domain,zdir);
-    h_avg_kw   = sumToLine(mf_out,14,1,domain,zdir);
-    h_avg_p    = sumToLine(mf_out,15,1,domain,zdir);
-    h_avg_pu   = sumToLine(mf_out,16,1,domain,zdir);
-    h_avg_pv   = sumToLine(mf_out,17,1,domain,zdir);
-    h_avg_pw   = sumToLine(mf_out,18,1,domain,zdir);
+    h_avg_rho  = sumToLine(mf_out, 0,1,domain,zdir);
+    h_avg_th   = sumToLine(mf_out, 1,1,domain,zdir);
+    h_avg_ksgs = sumToLine(mf_out, 2,1,domain,zdir);
+    h_avg_uu   = sumToLine(mf_out, 3,1,domain,zdir);
+    h_avg_uv   = sumToLine(mf_out, 4,1,domain,zdir);
+    h_avg_uw   = sumToLine(mf_out, 5,1,domain,zdir);
+    h_avg_vv   = sumToLine(mf_out, 6,1,domain,zdir);
+    h_avg_vw   = sumToLine(mf_out, 7,1,domain,zdir);
+    h_avg_ww   = sumToLine(mf_out, 8,1,domain,zdir);
+    h_avg_uth  = sumToLine(mf_out, 9,1,domain,zdir);
+    h_avg_vth  = sumToLine(mf_out,10,1,domain,zdir);
+    h_avg_wth  = sumToLine(mf_out,11,1,domain,zdir);
+    h_avg_thth = sumToLine(mf_out,12,1,domain,zdir);
+    h_avg_k    = sumToLine(mf_out,13,1,domain,zdir);
+    h_avg_ku   = sumToLine(mf_out,14,1,domain,zdir);
+    h_avg_kv   = sumToLine(mf_out,15,1,domain,zdir);
+    h_avg_kw   = sumToLine(mf_out,16,1,domain,zdir);
+    h_avg_p    = sumToLine(mf_out,17,1,domain,zdir);
+    h_avg_pu   = sumToLine(mf_out,18,1,domain,zdir);
+    h_avg_pv   = sumToLine(mf_out,19,1,domain,zdir);
+    h_avg_pw   = sumToLine(mf_out,20,1,domain,zdir);
 
     // Divide by the total number of cells we are averaging over
     for (int k = 0; k < h_avg_u.size(); ++k) {
+        h_avg_rho[k] /= area_z;  h_avg_ksgs[k] /= area_z;
         h_avg_th[k]  /= area_z;  h_avg_thth[k] /= area_z;
         h_avg_uu[k]  /= area_z;  h_avg_uv[k]   /= area_z;  h_avg_uw[k]  /= area_z;
         h_avg_vv[k]  /= area_z;  h_avg_vw[k]   /= area_z;  h_avg_ww[k]  /= area_z;
@@ -258,11 +275,11 @@ ERF::derive_stress_profiles(Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<
         const Array4<const Real>& tau33_arr = Tau33_lev[lev]->const_array(mfi);
 
         // These should be re-calculated during ERF_slow_rhs_post
-        // -- just vertical SGS kinematic heat flux for now
-        //const Array4<const Real>& hfx1_arr = SGS_hfx1_lev[lev]->const_array(mfi);
-        //const Array4<const Real>& hfx2_arr = SGS_hfx2_lev[lev]->const_array(mfi);
-        const Array4<const Real>& hfx3_arr = SGS_hfx3_lev[lev]->const_array(mfi);
-        const Array4<const Real>& diss_arr = SGS_diss_lev[lev]->const_array(mfi);
+        // -- just vertical SFS kinematic heat flux for now
+        //const Array4<const Real>& hfx1_arr = SFS_hfx1_lev[lev]->const_array(mfi);
+        //const Array4<const Real>& hfx2_arr = SFS_hfx2_lev[lev]->const_array(mfi);
+        const Array4<const Real>& hfx3_arr = SFS_hfx3_lev[lev]->const_array(mfi);
+        const Array4<const Real>& diss_arr = SFS_diss_lev[lev]->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {

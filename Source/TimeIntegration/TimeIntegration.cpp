@@ -158,6 +158,12 @@ void ERF::erf_advance(int level,
     state_new.push_back(MultiFab(zmom_new, amrex::make_alias, 0,     1)); // zmom
     } // profile
 
+    // Additional SFS quantities, calculated once per timestep
+    MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
+    MultiFab* Hfx2 = SFS_hfx2_lev[level].get();
+    MultiFab* Hfx3 = SFS_hfx3_lev[level].get();
+    MultiFab* Diss = SFS_diss_lev[level].get();
+
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
     //
@@ -175,7 +181,8 @@ void ERF::erf_advance(int level,
                                   *Tau11, *Tau22, *Tau33,
                                   *Tau12, *Tau13, *Tau23,
                                   state_old[IntVar::cons],
-                                  *eddyDiffs, fine_geom, *mapfac_u[level], *mapfac_v[level],
+                                  *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
+                                  fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   solverChoice, m_most);
     }
 
@@ -234,12 +241,6 @@ void ERF::erf_advance(int level,
     Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
     Gpu::streamSynchronize();
 #endif
-
-    // Additional SGS quantities for output
-    MultiFab* Hfx1 = SGS_hfx1_lev[level].get();
-    MultiFab* Hfx2 = SGS_hfx2_lev[level].get();
-    MultiFab* Hfx3 = SGS_hfx3_lev[level].get();
-    MultiFab* Diss = SGS_diss_lev[level].get();
 
 #include "TI_no_substep_fun.H"
 #include "TI_slow_rhs_fun.H"

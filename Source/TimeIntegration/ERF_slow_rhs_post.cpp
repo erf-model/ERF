@@ -289,12 +289,15 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
             if (l_use_deardorff) {
               start_comp = RhoKE_comp;
-              num_comp   = 1;
+              num_comp = 1;
+              amrex::Real eps = std::numeric_limits<Real>::epsilon();
               ParallelFor(bx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                 cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
+                // make sure rho*e is positive
+                if (cur_cons(i,j,k,n) < eps) cur_cons(i,j,k,n) = eps;
               });
             }
             if (l_use_QKE) {
