@@ -3,7 +3,7 @@
 Building
 --------
 
-ERF can be built using either GNU Make or CMake.
+The ERF code is dependent on AMReX, and use the radiation model (RTE-RRTMGP) which is based on YAKL C++ implementation for heterogeneous computing infrastructure. ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
 
 GNU Make
 ~~~~~~~~
