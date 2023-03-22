@@ -522,10 +522,6 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_st
         int qty_index = RhoKE_comp;
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real cellVolMsf = 1.0 / (dx_inv * mf_u(i,j,0) * dy_inv * mf_v(i,j,0) * dz_inv);
-            Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
-            Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
-
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
             // such that for dtheta/dz < 0, there is a positive (upward) heat
