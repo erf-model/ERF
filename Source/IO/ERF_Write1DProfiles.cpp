@@ -158,7 +158,8 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
         h_avg_u[k] /= area_z; h_avg_v[k] /= area_z; h_avg_w[k] /= area_z;
     }
 
-    MultiFab mf_cons(vars_new[lev][Vars::cons], make_alias, 0, 2);
+    int nvars = vars_new[lev][Vars::cons].nComp();
+    MultiFab mf_cons(vars_new[lev][Vars::cons], make_alias, 0, nvars);
 
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
 
