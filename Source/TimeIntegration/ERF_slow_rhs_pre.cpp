@@ -342,6 +342,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                 mf_m, mf_u, mf_v);
                 } // end profile
 
+                // Populate SmnSmn if using Deardorff (used as diff src in post)
+                if (solverChoice.les_type == LESType::Deardorff) {
+                    SmnSmn_a = SmnSmn->array(mfi);
+                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
+                    });
+                }
+
                 //-----------------------------------------
                 // Stress tensor compute no terrain
                 //-----------------------------------------
