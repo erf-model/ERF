@@ -6,8 +6,8 @@
 #include <AMReX_MultiFab.H>
 
 void NumericalDiffusion (const amrex::Box& bx,
-                         const int n_start,
-                         const int n_end,
+                         const int start_comp,
+                         const int num_comp,
                          const amrex::Real dt,
                          const SolverChoice& solverChoice,
                          const amrex::Array4<const amrex::Real>& data,
