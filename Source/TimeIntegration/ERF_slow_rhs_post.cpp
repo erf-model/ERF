@@ -175,24 +175,26 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
+        int start_comp;
+        int   num_comp;
         if (l_use_deardorff) {
-            int start_comp = RhoKE_comp;
-            int   num_comp = 1;
+            start_comp = RhoKE_comp;
+              num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ,
                                    dxInv, mf_m, l_all_WENO, l_moist_WENO, l_spatial_order_WENO,
                                    l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
         }
         if (l_use_QKE) {
-            int start_comp = RhoQKE_comp;
-            int   num_comp = 1;
+            start_comp = RhoQKE_comp;
+              num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ,
                                    dxInv, mf_m, l_all_WENO, l_moist_WENO, l_spatial_order_WENO,
                                    l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
         }
-        int start_comp = RhoScalar_comp;
-        int   num_comp = S_data[IntVar::cons].nComp() - start_comp;
+        start_comp = RhoScalar_comp;
+          num_comp = S_data[IntVar::cons].nComp() - start_comp;
         AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ,
                                dxInv, mf_m, l_all_WENO, l_moist_WENO, l_spatial_order_WENO,
@@ -210,33 +212,75 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
-            int n_start = amrex::max(start_comp,RhoKE_comp);
-            int n_end   = start_comp + num_comp - 1;
-
+            if (l_use_deardorff) {
+                start_comp = RhoKE_comp;
+                  num_comp = 1;
+                if (l_use_terrain) {
+                    DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v, w,
+                                           cur_cons, cur_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
+                                           dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                           hfx_x, hfx_y, hfx_z, diss,
+                                           mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                } else {
+                    DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v, w,
+                                           cur_cons, cur_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z,
+                                           dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                           hfx_x, hfx_y, hfx_z, diss,
+                                           mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                }
+                if (l_use_ndiff) {
+                    NumericalDiffusion(valid_bx, start_comp, num_comp, dt, solverChoice,
+                                       new_cons, cell_rhs, mf_u, mf_v, false, false);
+                }
+            }
+            if (l_use_QKE) {
+                start_comp = RhoQKE_comp;
+                  num_comp = 1;
+                if (l_use_terrain) {
+                    DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v, w,
+                                           cur_cons, cur_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
+                                           dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                           hfx_x, hfx_y, hfx_z, diss,
+                                           mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                } else {
+                    DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v, w,
+                                           cur_cons, cur_prim, cell_rhs,
+                                           diffflux_x, diffflux_y, diffflux_z,
+                                           dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
+                                           hfx_x, hfx_y, hfx_z, diss,
+                                           mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                }
+                if (l_use_ndiff) {
+                    NumericalDiffusion(valid_bx, start_comp, num_comp, dt, solverChoice,
+                                       new_cons, cell_rhs, mf_u, mf_v, false, false);
+                }
+            }
+            start_comp = RhoScalar_comp;
+              num_comp = S_data[IntVar::cons].nComp() - start_comp;
             if (l_use_terrain) {
-                DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
+                DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v, w,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_x, hfx_y, hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
-                DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
+                DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v, w,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_x, hfx_y, hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             }
+            if (l_use_ndiff) {
+                NumericalDiffusion(valid_bx, start_comp, num_comp, dt, solverChoice,
+                                   new_cons, cell_rhs, mf_u, mf_v, false, false);
+            }
         }
 
-        if (l_use_ndiff) {
-            // NOTE: numerical diffusion for all slow vars
-            int n_start = amrex::max(start_comp,RhoKE_comp);
-            int n_end   = start_comp + num_comp - 1;
-            NumericalDiffusion(valid_bx, n_start, n_end, dt, solverChoice,
-                               new_cons, cell_rhs, mf_u, mf_v, false, false);
-        }
 
         // This updates just the "slow" conserved variables
         {

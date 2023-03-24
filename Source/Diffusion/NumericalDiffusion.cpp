@@ -4,8 +4,8 @@ using namespace amrex;
 
 void
 NumericalDiffusion (const Box& bx,
-                    const int  n_start,
-                    const int  n_end,
+                    const int  start_comp,
+                    const int  num_comp,
                     const Real dt,
                     const SolverChoice& solverChoice,
                     const Array4<const Real>& data,
@@ -39,16 +39,13 @@ NumericalDiffusion (const Box& bx,
         }
     });
 
-    // Set indices for components
-    const int ncomp = n_end - n_start + 1;
-
     // Capture diffusion coeff
     Real coeff6 = solverChoice.NumDiffCoeff / (2.0 * dt);
 
     // Compute 5th order derivative and augment RHS
-    amrex::ParallelFor(bx,ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int m) noexcept
+    amrex::ParallelFor(bx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int m) noexcept
     {
-        int n = n_start + m;
+        int n = start_comp + m;
         Real xflux_lo = 10. * (data(i  ,j,k,n) - data(i-1,j,k,n))
                        - 5. * (data(i+1,j,k,n) - data(i-2,j,k,n))
                             + (data(i+2,j,k,n) - data(i-3,j,k,n));
