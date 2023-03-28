@@ -1,16 +1,17 @@
 #include <ERF_FillPatcher.H>
+#include <utility>
 
 using namespace amrex;
 
-ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& fdm,
+ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
                                 Geometry const& fgeom,
-                                BoxArray const& cba, DistributionMapping const& cdm,
+                                BoxArray  cba, DistributionMapping  cdm,
                                 Geometry const& cgeom,
                                 int nghost, int ncomp, InterpBase* interp)
     : m_fba(fba),
-      m_cba(cba),
-      m_fdm(fdm),
-      m_cdm(cdm),
+      m_cba(std::move(cba)),
+      m_fdm(std::move(fdm)),
+      m_cdm(std::move(cdm)),
       m_fgeom(fgeom),
       m_cgeom(cgeom),
       m_nghost(nghost),

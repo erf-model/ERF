@@ -49,7 +49,7 @@ ERF::refinement_criteria_setup()
                     amrex::Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
 
-                    auto dx = geom[lev_for_box].CellSize();
+                    const auto *dx = geom[lev_for_box].CellSize();
                     int ilo = static_cast<int>(box_lo[0]/dx[0]);
                     int jlo = static_cast<int>(box_lo[1]/dx[1]);
                     int klo = static_cast<int>(box_lo[2]/dx[2]);
