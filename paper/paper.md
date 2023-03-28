@@ -83,6 +83,10 @@ ERF is built on AMReX [@AMReX:JOSS; @AMReX:IJHPCA],
 a block-structured adaptive mesh refinement software framework that
 provides the underlying performance-portable software infrastructure for block-structured mesh operations. 
 
+# ERF Features
+
+### Hydrodynamics Models
+
 ERF solves the fully-compressible Navier-Stokes equations for
 dry or moist air and includes a planetary boundary layer
 parameterization (PBL) as well as subfilter flux parameterizations for
@@ -91,11 +95,15 @@ the work of Mellor and Yamada [@PBL:Mellor] and Nakanishi and Niino [@PBL:Nakani
 the so called MYNN model for mesoscale simulations. LES parameterizations
 are Smagorinsky-type [@LES:Smagorinsky; @LES:Lilly] and Deardorff [@LES:Deardorff].
 
+### Microphysics Options
+
 Microphysics options in ERF include a warm non-precipitating model
 that evolves cloud water and cloud vapor, as well as a single-moment model [@SAMXX:marat] that evolves precipitating and 
 nonprecipitating tracers, such as water vapor, rain, ice, snow, and graupel. 
 These prognostic variables are able to track particle evolution through all the important mechanisms of ice and water growth, 
 including vapor deposition, aggregation, and autoconversion, and condensation.
+
+### Time and Space Discretization and Terrain
 
 The time discretization in ERF utilizes a third-order Runge-Kutta scheme with
 substepping of perturbational quantities at the acoustic time scale [@FAST:Klemp].
@@ -111,6 +119,8 @@ schemes.  Third- and fifth-order WENO advection schemes are also
 available for the cell-centered scalars.
 ERF supports both static and dynamic (adaptive) mesh refinement,
 with subcycling in time at finer levels of refinement.
+
+### Physical Forcings and Boundary Conditions
 
 Physical forcings include Coriolis and geostrophic forcing, as well as 
 Rayleigh damping in the upper regions of the domain.  Lateral boundary
