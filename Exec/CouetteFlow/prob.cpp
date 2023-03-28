@@ -92,15 +92,15 @@ init_custom_prob(
   });
 
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const auto prob_hi  = geomdata.ProbHi();
-    const auto dx       = geomdata.CellSize();
+    const auto *const prob_hi  = geomdata.ProbHi();
+    const auto *const dx       = geomdata.CellSize();
     const Real z = (k + 0.5) * dx[2];
     x_vel(i, j, k) = parms.u_0 * z / prob_hi[2];
   });
 
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const auto prob_hi  = geomdata.ProbHi();
-    const auto dx       = geomdata.CellSize();
+    const auto *const prob_hi  = geomdata.ProbHi();
+    const auto *const dx       = geomdata.CellSize();
     const Real z = (k + 0.5) * dx[2];
     y_vel(i, j, k) = parms.v_0 * z / prob_hi[2];
   });

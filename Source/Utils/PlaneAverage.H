@@ -10,7 +10,7 @@ class PlaneAverage {
 public:
     AMREX_FORCE_INLINE
     explicit PlaneAverage(const amrex::MultiFab* field_in,
-                          const amrex::Geometry geom_in,
+                          amrex::Geometry geom_in,
                           int axis_in);
     PlaneAverage() = default;
     ~PlaneAverage() = default;
@@ -19,22 +19,22 @@ public:
     void operator()();
 
     /** evaluate line average at specific location for any average component */
-    AMREX_FORCE_INLINE
+    [[nodiscard]] AMREX_FORCE_INLINE
     amrex::Real line_average_interpolated(amrex::Real x, int comp) const;
 
     /** change precision of text file output */
     void set_precision(int p) { m_precision = p; }
 
-    amrex::Real dx() const { return m_dx; }
-    amrex::Real xlo() const { return m_xlo; }
+    [[nodiscard]] amrex::Real dx() const { return m_dx; }
+    [[nodiscard]] amrex::Real xlo() const { return m_xlo; }
 
-    int axis() const { return m_axis; }
-    int level() const { return m_level; }
-    int ncomp() const { return m_ncomp; }
-    int ncell_plane() const { return m_ncell_plane; }
-    int ncell_line() const { return m_ncell_line; }
+    [[nodiscard]] int axis() const { return m_axis; }
+    [[nodiscard]] int level() const { return m_level; }
+    [[nodiscard]] int ncomp() const { return m_ncomp; }
+    [[nodiscard]] int ncell_plane() const { return m_ncell_plane; }
+    [[nodiscard]] int ncell_line() const { return m_ncell_line; }
 
-    const amrex::Vector<amrex::Real>& line_average() const
+    [[nodiscard]] const amrex::Vector<amrex::Real>& line_average() const
     {
         return m_line_average;
     }
@@ -42,12 +42,12 @@ public:
     AMREX_FORCE_INLINE
     void line_average(int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec);
 
-    const amrex::Vector<amrex::Real>& line_centroids() const
+    [[nodiscard]] const amrex::Vector<amrex::Real>& line_centroids() const
     {
         return m_line_xcentroid;
     }
 
-    const amrex::MultiFab& field() const { return *m_field; }
+    [[nodiscard]] const amrex::MultiFab& field() const { return *m_field; }
 
 protected:
     int m_ncomp; /** number of average components */

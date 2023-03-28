@@ -19,7 +19,7 @@ class ReadBndryPlanes
 
 public:
     explicit ReadBndryPlanes(const amrex::Geometry& geom,
-                             const amrex::Real& rd0cp);
+                             const amrex::Real& rdOcp_in);
 
     void define_level_data(int lev);
 
@@ -28,18 +28,18 @@ public:
     void read_input_files(amrex::Real time, amrex::Real dt,
         amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals);
 
-    void read_file(const int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
+    void read_file(int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
         amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals);
 
     // Return the pointer to PlaneVectors at time "time"
     amrex::Vector<std::unique_ptr<PlaneVector>>& interp_in_time(const amrex::Real& time);
 
-    amrex::Real tinterp() const { return m_tinterp; }
+    [[nodiscard]] amrex::Real tinterp() const { return m_tinterp; }
 
-    int ingested_velocity() const {return is_velocity_read;}
-    int ingested_theta()    const {return (is_temperature_read || is_theta_read);}
-    int ingested_density()  const {return is_density_read;}
-    int ingested_scalar()   const {return is_scalar_read;}
+    [[nodiscard]] int ingested_velocity() const {return is_velocity_read;}
+    [[nodiscard]] int ingested_theta()    const {return (is_temperature_read || is_theta_read);}
+    [[nodiscard]] int ingested_density()  const {return is_density_read;}
+    [[nodiscard]] int ingested_scalar()   const {return is_scalar_read;}
 #if defined(ERF_USE_MOISTURE)
     int ingested_qt()       const {return is_qt_read;}
     int ingested_qp()       const {return is_qp_read;}
@@ -47,8 +47,8 @@ public:
     int ingested_qv()       const {return is_qv_read;}
     int ingested_qc()       const {return is_qc_read;}
 #endif
-    int ingested_KE()       const {return is_KE_read;}
-    int ingested_QKE()      const {return is_QKE_read;}
+    [[nodiscard]] int ingested_KE()       const {return is_KE_read;}
+    [[nodiscard]] int ingested_QKE()      const {return is_QKE_read;}
 
 private:
 

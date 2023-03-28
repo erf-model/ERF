@@ -23,10 +23,10 @@
 #endif
 
 // Cell-centered primitive variables
-#define PrimTheta_comp   RhoTheta_comp -1
-#define PrimKE_comp      RhoKE_comp    -1
-#define PrimQKE_comp     RhoQKE_comp   -1
-#define PrimScalar_comp  RhoScalar_comp-1
+#define PrimTheta_comp   (RhoTheta_comp -1)
+#define PrimKE_comp      (RhoKE_comp    -1)
+#define PrimQKE_comp     (RhoQKE_comp   -1)
+#define PrimScalar_comp  (RhoScalar_comp-1)
 #if defined(ERF_USE_MOISTURE)
   #define PrimQt_comp    RhoQt_comp-1
   #define PrimQp_comp    RhoQp_comp-1
@@ -34,7 +34,7 @@
   #define PrimQv_comp    RhoQv_comp-1
   #define PrimQc_comp    RhoQc_comp-1
 #endif
-#define NUM_PRIM         NVAR-1
+#define NUM_PRIM         (NVAR-1)
 
 namespace BCVars {
     enum {

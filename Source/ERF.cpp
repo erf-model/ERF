@@ -10,6 +10,7 @@
 
 #include <Utils.H>
 #include <TerrainMetrics.H>
+#include <memory>
 
 #ifdef ERF_USE_MULTIBLOCK
 #include <MultiBlockContainer.H>
@@ -53,13 +54,13 @@ amrex::Real ERF::sum_per       = -1.0;
 std::string ERF::plotfile_type    = "amrex";
 
 // init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
-std::string ERF::init_type        = "";
+std::string ERF::init_type;
 
 // NetCDF wrfinput (initialization) file(s)
 amrex::Vector<amrex::Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
 
 // NetCDF wrfbdy (lateral boundary) file
-std::string ERF::nc_bdy_file = ""; // Must provide via input
+std::string ERF::nc_bdy_file; // Must provide via input
 
 // Text input_sounding file
 std::string ERF::input_sounding_file = "input_sounding";
@@ -185,8 +186,7 @@ ERF::ERF ()
 }
 
 ERF::~ERF ()
-{
-}
+= default;
 
 // advance solution to final time
 void
@@ -364,7 +364,7 @@ ERF::InitData ()
     last_plot_file_step_2 = -1;
     last_check_file_step = -1;
 
-    if (restart_chkfile == "") {
+    if (restart_chkfile.empty()) {
         // start simulation from the beginning
 
         const Real time = 0.0;
@@ -532,7 +532,7 @@ ERF::InitData ()
         m_most->update_fluxes(lev);
     }
 
-    if (restart_chkfile == "" && check_int > 0)
+    if (restart_chkfile.empty() && check_int > 0)
     {
 #ifdef ERF_USE_NETCDF
         if (check_type == "netcdf") {
@@ -545,8 +545,8 @@ ERF::InitData ()
         last_check_file_step = 0;
     }
 
-    if ( (restart_chkfile == "") ||
-         (restart_chkfile != "" && plot_file_on_restart) )
+    if ( (restart_chkfile.empty()) ||
+         (!restart_chkfile.empty() && plot_file_on_restart) )
     {
         if (plot_int_1 > 0)
         {
@@ -566,7 +566,7 @@ ERF::InitData ()
         if (init_type == "input_sounding")
         {
             // overwrite Ubar, Tbar, and thetabar with input profiles
-            bool restarting = (restart_chkfile != "");
+            bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
         }
 
@@ -956,25 +956,25 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     SmnSmn_lev.resize(lev+1);
 
     if (l_use_diff) {
-        Tau11_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        Tau22_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        Tau33_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        Tau12_lev[lev].reset( new MultiFab(ba12, dm, 1, IntVect(1,1,0)) );
-        Tau13_lev[lev].reset( new MultiFab(ba13, dm, 1, IntVect(1,1,0)) );
-        Tau23_lev[lev].reset( new MultiFab(ba23, dm, 1, IntVect(1,1,0)) );
+        Tau11_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        Tau22_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        Tau33_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        Tau12_lev[lev] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,0) );
+        Tau13_lev[lev] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,0) );
+        Tau23_lev[lev] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,0) );
         if (l_use_terrain) {
-            Tau21_lev[lev].reset( new MultiFab(ba12, dm, 1, IntVect(1,1,0)) );
-            Tau31_lev[lev].reset( new MultiFab(ba13, dm, 1, IntVect(1,1,0)) );
-            Tau32_lev[lev].reset( new MultiFab(ba23, dm, 1, IntVect(1,1,0)) );
+            Tau21_lev[lev] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,0) );
+            Tau31_lev[lev] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,0) );
+            Tau32_lev[lev] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,0) );
         } else {
             Tau21_lev[lev] = nullptr;
             Tau31_lev[lev] = nullptr;
             Tau32_lev[lev] = nullptr;
         }
-        SFS_hfx1_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        SFS_hfx2_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        SFS_hfx3_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        SFS_diss_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
     } else {
       Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
       Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
@@ -985,9 +985,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     }
 
     if (l_use_kturb) {
-      eddyDiffs_lev[lev].reset( new MultiFab(ba, dm, EddyDiff::NumDiffs, 1) );
+      eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
       if(l_use_ddorf) {
-          SmnSmn_lev[lev].reset( new MultiFab(ba, dm, 1, 0) );
+          SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
       } else {
           SmnSmn_lev[lev] = nullptr;
       }
@@ -1023,9 +1023,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     mapfac_m.resize(lev+1);
     mapfac_u.resize(lev+1);
     mapfac_v.resize(lev+1);
-    mapfac_m[lev].reset(new MultiFab(ba2d,dm,1,3));
-    mapfac_u[lev].reset(new MultiFab(convert(ba2d,IntVect(1,0,0)),dm,1,3));
-    mapfac_v[lev].reset(new MultiFab(convert(ba2d,IntVect(0,1,0)),dm,1,3));
+    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
+    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
+    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
     if(solverChoice.test_mapfactor) {
         mapfac_m[lev]->setVal(0.5);
         mapfac_u[lev]->setVal(0.5);
@@ -1051,13 +1051,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     }
 
     if (solverChoice.use_terrain) {
-        z_phys_cc[lev].reset(new MultiFab(ba,dm,1,1));
-          detJ_cc[lev].reset(new MultiFab(ba,dm,1,1));
+        z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+          detJ_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
         if (solverChoice.terrain_type > 0) {
-            detJ_cc_new[lev].reset(new MultiFab(ba,dm,1,1));
-            detJ_cc_src[lev].reset(new MultiFab(ba,dm,1,1));
-            z_t_rk[lev].reset(new MultiFab( convert(ba, IntVect(0,0,1)), dm, 1, 1 ));
+            detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+            detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+            z_t_rk[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,0,1)), dm, 1, 1 );
         }
 
         BoxArray ba_nd(ba);
@@ -1067,10 +1067,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         int ngrow = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
                                       solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
                                       solverChoice.use_NumDiff)+2;
-        z_phys_nd[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
+        z_phys_nd[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
         if (solverChoice.terrain_type > 0) {
-            z_phys_nd_new[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
-            z_phys_nd_src[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
+            z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
+            z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
         }
     } else {
             z_phys_nd[lev] = nullptr;
@@ -1091,7 +1091,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     // ********************************************************************************************
     Theta_prim.resize(lev+1);
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
-      Theta_prim[lev].reset(new MultiFab(ba,dm,1,{ngrow_state,ngrow_state,0}));
+      Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
     } else {
       Theta_prim[lev] = nullptr;
     }
@@ -1271,7 +1271,7 @@ ERF::ReadParameters ()
 
         // How to initialize
         pp.query("init_type",init_type);
-        if (init_type != "" &&
+        if (!init_type.empty() &&
             init_type != "ideal" &&
             init_type != "real" &&
             init_type != "metgrid" &&

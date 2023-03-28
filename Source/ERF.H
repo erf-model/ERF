@@ -84,13 +84,13 @@ public:
     // constructor - reads in parameters from inputs file
     //             - sizes multilevel arrays and data structures
     ERF ();
-    virtual ~ERF();
+    ~ERF() override;
 
     // Advance solution to final time
     void Evolve ();
 
     // Tag cells for refinement
-    virtual void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
+    void ErrorEst (int lev, amrex::TagBoxArray& tags, amrex::Real time, int ngrow) override;
 
     // Initialize multilevel data
     void InitData ();
@@ -147,29 +147,29 @@ public:
       const amrex::MultiFab& mf, int comp, bool local, bool finemask);
 
     // Decide if it is time to take an action
-    bool is_it_time_for_action(int nstep, amrex::Real time, amrex::Real dt,
+    static bool is_it_time_for_action(int nstep, amrex::Real time, amrex::Real dt,
                                int action_interval, amrex::Real action_per);
 
     // Make a new level using provided BoxArray and DistributionMapping and
     // fill with interpolated coarse level data.
     // overrides the pure virtual function in AmrCore
-    virtual void MakeNewLevelFromCoarse (int lev, amrex::Real time, const amrex::BoxArray& ba,
-                     const amrex::DistributionMapping& dm) override;
+    void MakeNewLevelFromCoarse (int lev, amrex::Real time, const amrex::BoxArray& ba,
+                                 const amrex::DistributionMapping& dm) override;
 
     // Remake an existing level using provided BoxArray and DistributionMapping and
     // fill with existing fine and coarse data.
     // overrides the pure virtual function in AmrCore
-    virtual void RemakeLevel (int lev, amrex::Real time, const amrex::BoxArray& ba,
-                  const amrex::DistributionMapping& dm) override;
+    void RemakeLevel (int lev, amrex::Real time, const amrex::BoxArray& ba,
+                      const amrex::DistributionMapping& dm) override;
 
     // Delete level data
     // overrides the pure virtual function in AmrCore
-    virtual void ClearLevel (int lev) override;
+    void ClearLevel (int lev) override;
 
     // Make a new level from scratch using provided BoxArray and DistributionMapping.
     // Only used during initialization.
     // overrides the pure virtual function in AmrCore
-    virtual void MakeNewLevelFromScratch (int lev, amrex::Real time, const amrex::BoxArray& ba,
+    void MakeNewLevelFromScratch (int lev, amrex::Real time, const amrex::BoxArray& ba,
                       const amrex::DistributionMapping& dm) override;
 
     // compute dt from CFL considerations
@@ -188,8 +188,8 @@ public:
                       const amrex::MultiFab& qvapor, const amrex::MultiFab& qcloud, const amrex::MultiFab& qice,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
-                      const amrex::Geometry fine_geom,
-                      const amrex::Real dt, const amrex::Real time,
+                      amrex::Geometry fine_geom,
+                      amrex::Real dt, amrex::Real time,
                       amrex::InterpFaceRegister* ifr);
 
     amrex::MultiFab& build_fine_mask(int lev);
@@ -265,7 +265,7 @@ public:
     std::string pp_prefix {"erf"};
 
     void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
-                              const amrex::Real time);
+                              amrex::Real time);
 
 #ifdef ERF_USE_NETCDF
     void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
@@ -316,7 +316,7 @@ private:
     // if which_var is supplied, then only fill the specified variable in the vector of mfs
     void FillIntermediatePatch (int lev, amrex::Real time,
                                 const amrex::Vector<amrex::MultiFab*>& mfs,
-                                int ng_cons, int ng_vel, bool cons_only, int scomp_cons, int ncomp_cons,
+                                int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons,
                                 amrex::MultiFab* eddyDiffs, bool allow_most_bcs = true);
 
     // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
@@ -351,7 +351,7 @@ private:
     std::string PlotFileName (int lev) const;
 
     // set plotfile variables names
-    amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names) const;
+    static amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names) ;
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
@@ -429,8 +429,8 @@ private:
     static void GotoNextLine (std::istream& is);
 
     // Single level functions called by advance()
-    void post_update (amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
-    void fill_rhs (amrex::MultiFab& rhs_mf, const amrex::MultiFab& state_mf, const amrex::Real time, const amrex::Geometry& geom);
+    void post_update (amrex::MultiFab& state_mf, amrex::Real time, const amrex::Geometry& geom);
+    void fill_rhs (amrex::MultiFab& rhs_mf, const amrex::MultiFab& state_mf, amrex::Real time, const amrex::Geometry& geom);
 
     ////////////////
     // private data members
@@ -707,7 +707,7 @@ private:
     //
     amrex::MultiFab fine_mask;
 
-    AMREX_FORCE_INLINE
+    static AMREX_FORCE_INLINE
     int
     ComputeGhostCells(const int& horiz_spatial_order, const int& vert_spatial_order,
                       const int& spatial_order_WENO,  const bool& use_WENO,
@@ -728,22 +728,14 @@ private:
               break;
           default:
               amrex::Error("Must specify WENO spatial order to be 3 or 5");
+              break;
           }
       } else {
           switch (spatial_order) {
-          case 2:
+          case 2: case 3: case 4:
               nGhostCells = 2; // We need this many to compute the eddy viscosity in the ghost cells
               break;
-          case 3:
-              nGhostCells = 2;
-              break;
-          case 4:
-              nGhostCells = 2;
-              break;
-          case 5:
-              nGhostCells = 3;
-              break;
-          case 6:
+          case 5: case 6:
               nGhostCells = 3;
               break;
           default:
@@ -832,8 +824,8 @@ private:
     static amrex::Real startCPUTime;
     static amrex::Real previousCPUTimeUsed;
 
-    amrex::Real
-    getCPUTime() const
+    static amrex::Real
+    getCPUTime()
     {
       int numCores = amrex::ParallelDescriptor::NProcs();
 #ifdef _OPENMP
@@ -906,13 +898,13 @@ private:
     amrex::Vector<amrex::IntVect> sampleline;
 
     //! The filename of the ith datalog file.
-    const std::string DataLogName (int i) const noexcept { return datalogname[i]; }
+    std::string DataLogName (int i) const noexcept { return datalogname[i]; }
 
     //! The filename of the ith sampleptlog file.
-    const std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
+    std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
 
     //! The filename of the ith samplelinelog file.
-    const std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
+    std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
 public:
     void writeJobInfo(const std::string& dir) const;

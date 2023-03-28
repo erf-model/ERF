@@ -89,10 +89,10 @@ public:
                                    amrex::Real time, int bccomp_u, int bccomp_v, int bccomp_w,
                                    int terrain_type);
 
-    void impose_lateral_cons_bcs (const amrex::Array4<amrex::Real>& mf,
+    void impose_lateral_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   int icomp, int ncomp, amrex::Real time, int bccomp);
-    void impose_vertical_cons_bcs (const amrex::Array4<amrex::Real>& mf,
+    void impose_vertical_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
