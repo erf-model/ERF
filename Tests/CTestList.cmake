@@ -51,6 +51,26 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     )
 endfunction(add_test_r)
 
+# Stationary test -- compare with time 0
+function(add_test_0 TEST_NAME TEST_EXE PLTFILE)
+    setup_test()
+
+    set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
+    set(FCOMPARE_TOLERANCE "-r 1e-14 --abs_tol 1.0e-14")
+    set(FCOMPARE_FLAGS "-a ${FCOMPARE_TOLERANCE}")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i erf.input_sounding_file=${CURRENT_TEST_BINARY_DIR}/input_sounding ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${CURRENT_TEST_BINARY_DIR}/plt00000 ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
+    )
+endfunction(add_test_0)
+
 # Standard unit test
 function(add_test_u TEST_NAME)
     setup_test()
@@ -98,6 +118,8 @@ add_test_r(MovingTerrain_sub                 "MovingTerrain/moving_terrain"   "p
 add_test_r(Bubble_DensityCurrent             "Bubble/bubble" "plt00010")
 add_test_r(MSF_NoSub_IsentropicVortexAdv     "IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(MSF_Sub_IsentropicVortexAdv       "IsentropicVortex/erf_isentropic_vortex" "plt00010")
+
+add_test_0(Deardorff_stationary              "ABL/erf_abl" "plt00010")
 
 #=============================================================================
 # Performance tests

@@ -60,6 +60,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
     int start_comp = 0;
     int   num_comp = 2;
+    int   end_comp = start_comp + num_comp - 1;
 
     const int  l_horiz_spatial_order = solverChoice.horiz_spatial_order;
     const int  l_vert_spatial_order  = solverChoice.vert_spatial_order;
@@ -86,6 +87,17 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const int domhi_z = domain.bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+
+    // update mu_turb at the start of each RK stage
+    //if (l_use_turb)
+    //{
+    //    ComputeTurbulentViscosity(xvel, yvel,
+    //                              *Tau11, *Tau22, *Tau33,
+    //                              *Tau12, *Tau13, *Tau23,
+    //                              S_data[IntVar::cons],
+    //                              *eddyDiffs, geom, *mapfac_u, *mapfac_v,
+    //                              solverChoice, most);
+    //}
 
     // *************************************************************************
     // Combine external forcing terms
@@ -246,7 +258,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 } // profile
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
-                if (solverChoice.les_type == LESType::Deardorff) {
+                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
+                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -341,6 +354,16 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                 bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
                 } // end profile
+
+                // Populate SmnSmn if using Deardorff (used as diff src in post)
+                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
+                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
+                    SmnSmn_a = SmnSmn->array(mfi);
+                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
+                    });
+                }
 
                 //-----------------------------------------
                 // Stress tensor compute no terrain
@@ -602,17 +625,17 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
             // NOTE: No diffusion for continuity, so n starts at 1.
             int n_start = amrex::max(start_comp,RhoTheta_comp);
-            int n_end   = start_comp + num_comp - 1;
+            int n_comp  = end_comp - n_start + 1;
 
             if (l_use_terrain) {
-                DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
+                DiffusionSrcForState_T(bx, domain, n_start, n_comp, u, v, w,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_x, hfx_y, hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
-                DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
+                DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v, w,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
@@ -622,10 +645,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         }
 
         if (l_use_ndiff) {
-            // NOTE: numerical diffusion for all slow vars
-            int n_start = Rho_comp;
-            int n_end   = start_comp + num_comp - 1;
-            NumericalDiffusion(bx, n_start, n_end, dt, solverChoice,
+            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
                                cell_data, cell_rhs, mf_u, mf_v, false, false);
         }
 
@@ -696,11 +716,11 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(tbx, 0, 0, dt, solverChoice,
+            NumericalDiffusion(tbx, 0, 1, dt, solverChoice,
                                rho_u, rho_u_rhs, mf_m, mf_v, false, true);
-            NumericalDiffusion(tby, 0, 0, dt, solverChoice,
+            NumericalDiffusion(tby, 0, 1, dt, solverChoice,
                                rho_v, rho_v_rhs, mf_u, mf_m, true, false);
-            NumericalDiffusion(tbz, 0, 0, dt, solverChoice,
+            NumericalDiffusion(tbz, 0, 1, dt, solverChoice,
                                rho_w, rho_w_rhs, mf_u, mf_v, false, false);
         }
 

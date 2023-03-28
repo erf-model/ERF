@@ -44,7 +44,8 @@ void DiffusionSrcForMom_T (const amrex::Box& bxx, const amrex::Box& bxy, const a
 
 
 
-void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
+void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
+                             int start_comp, int num_comp,
                              const amrex::Array4<const amrex::Real>& u,
                              const amrex::Array4<const amrex::Real>& v,
                              const amrex::Array4<const amrex::Real>& w,
@@ -69,7 +70,8 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain, int
                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> grav_gpu,
                              const amrex::BCRec* bc_ptr);
 
-void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain, int n_start, int n_end,
+void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
+                             int start_comp, int num_comp,
                              const amrex::Array4<const amrex::Real>& u,
                              const amrex::Array4<const amrex::Real>& v,
                              const amrex::Array4<const amrex::Real>& w,
